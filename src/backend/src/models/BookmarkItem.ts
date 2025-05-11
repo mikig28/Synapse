@@ -1,0 +1,52 @@
+import mongoose, { Schema, Document } from 'mongoose';
+
+// Keep the interface for type safety with the document structure
+export interface IBookmarkItem extends Document { // Renaming to IBookmarkItem for consistency with ITelegramItem
+  userId: mongoose.Types.ObjectId;
+  telegramMessageId?: mongoose.Types.ObjectId;
+  originalUrl: string;
+  sourcePlatform: 'X' | 'LinkedIn' | 'Other';
+  title?: string;
+  summary?: string;
+  tags?: string[];
+  rawPageContent?: string;
+  status?: 'pending_summary' | 'summarized' | 'error';
+  // createdAt and updatedAt are automatically added by timestamps: true
+}
+
+const BookmarkItemSchema: Schema<IBookmarkItem> = new Schema(
+  {
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    telegramMessageId: { type: Schema.Types.ObjectId, ref: 'TelegramItem', required: false },
+    originalUrl: { type: String, required: true },
+    sourcePlatform: {
+      type: String,
+      enum: ['X', 'LinkedIn', 'Other'],
+      required: true,
+    },
+    title: { type: String },
+    summary: { type: String },
+    tags: { type: [String], default: [] },
+    rawPageContent: { type: String }, // For storing fetched page content for AI processing
+    status: {
+      type: String,
+      enum: ['pending_summary', 'summarized', 'error'],
+      default: 'pending_summary',
+    },
+  },
+  { timestamps: true } // Automatically adds createdAt and updatedAt fields
+);
+
+// Index for efficient querying
+BookmarkItemSchema.index({ userId: 1, createdAt: -1 });
+BookmarkItemSchema.index({ userId: 1, sourcePlatform: 1 });
+BookmarkItemSchema.index({ originalUrl: 1, userId: 1 }, { unique: true }); // Prevent duplicate bookmarks per user
+
+const BookmarkItem = mongoose.model<IBookmarkItem>('BookmarkItem', BookmarkItemSchema);
+
+export default BookmarkItem;
+
+// You might want to add a getBookmarksCollection function here if you follow the pattern
+// from other models, e.g.:
+// import { getDb } from '../config/database';
+// export const getBookmarksCollection = () => getDb().collection<BookmarkItem>('bookmarks'); 

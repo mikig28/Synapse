@@ -1,0 +1,101 @@
+import express, { Express, Request, Response, NextFunction } from 'express';
+import dotenv from 'dotenv';
+import cors from 'cors';
+import mongoose from 'mongoose'; // Import mongoose to check connection state
+import http from 'http'; // Import http module
+import { Server as SocketIOServer } from 'socket.io'; // Import Server from socket.io
+import whatsappRoutes from './api/routes/whatsappRoutes'; // Import WhatsApp routes
+import { connectToDatabase } from './config/database'; // Import database connection
+import authRoutes from './api/routes/authRoutes'; // Import auth routes
+import { initializeTelegramBot } from './services/telegramService'; // Import Telegram Bot initializer
+import captureRoutes from './api/routes/captureRoutes'; // Import capture routes
+import path from 'path'; // <-- Import path module
+import fs from 'fs'; // <-- Import fs module
+import bookmarkRoutes from './api/routes/bookmarksRoutes'; // Import bookmark routes
+
+dotenv.config();
+
+const app: Express = express();
+const PORT = process.env.PORT || 3001;
+
+// Create HTTP server and pass it to Socket.IO
+const httpServer = http.createServer(app);
+const io = new SocketIOServer(httpServer, {
+  cors: {
+    origin: "http://localhost:5173", // Frontend URL, adjust if different
+    methods: ["GET", "POST"]
+  }
+});
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Create public directories if they don't exist
+const publicDir = path.join(__dirname, '..', 'public'); // Assuming public is one level up from src, adjust if necessary
+const uploadsDir = path.join(publicDir, 'uploads');
+const telegramMediaDir = path.join(uploadsDir, 'telegram_media');
+
+if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir);
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
+if (!fs.existsSync(telegramMediaDir)) fs.mkdirSync(telegramMediaDir);
+
+// Serve static files from the 'public' directory
+app.use('/public', express.static(publicDir)); // Serve files under /public URL path
+
+// API Routes
+app.use('/api/v1/whatsapp', whatsappRoutes);
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/capture', captureRoutes); // Use capture routes
+app.use('/api/v1/bookmarks', bookmarkRoutes); // Use bookmark routes
+
+// Basic route for testing
+app.get('/', (req: Request, res: Response) => {
+  const readyState = mongoose.connection.readyState;
+  let dbStatus = 'Unknown';
+  // https://mongoosejs.com/docs/api/connection.html#connection_Connection-readyState
+  switch (readyState) {
+    case 0: dbStatus = 'Disconnected'; break;
+    case 1: dbStatus = 'Connected'; break;
+    case 2: dbStatus = 'Connecting'; break;
+    case 3: dbStatus = 'Disconnecting'; break;
+    default: dbStatus = `Unknown state: ${readyState}`;
+  }
+  res.send(`Synapse Backend is running! MongoDB (Mongoose) status: ${dbStatus}`);
+});
+
+// Socket.IO connection handler
+io.on('connection', (socket) => {
+  console.log(`[Socket.IO]: Client connected: ${socket.id}`);
+
+  // Handle client disconnection
+  socket.on('disconnect', () => {
+    console.log(`[Socket.IO]: Client disconnected: ${socket.id}`);
+  });
+
+  // You can add more event listeners for this socket here
+  // e.g., socket.on('join_room', (room) => { socket.join(room); });
+});
+
+const startServer = async () => {
+  try {
+    await connectToDatabase(); // Calls the Mongoose connection logic
+    initializeTelegramBot(); // Initialize and start the Telegram bot polling
+
+    httpServer.listen(PORT, () => {
+      console.log(`[server]: Backend server is running (HTTP & WebSocket) at http://localhost:${PORT}`);
+      // The "[mongoose]: Mongoose connected to DB" log from database.ts confirms success
+    });
+  } catch (error) {
+    console.error('[server]: Failed to start server or connect to database', error);
+    process.exit(1);
+  }
+};
+
+startServer();
+
+// Export io instance so it can be used in other modules (e.g., telegramService)
+export { io };
+
+export default app; // Optional: export app for testing purposes 
