@@ -1,0 +1,189 @@
+Product Requirements Document: "Synapse" - Your Automated Second Brain & Life OS
+1. Introduction
+Synapse is a revolutionary, fully web-based application designed to function as a personal, automated "Second Brain" and comprehensive life project management platform. It aims to dramatically enhance user productivity by intelligently capturing, organizing, processing, and surfacing information from various sources, with a core focus on integrating and actioning content from WhatsApp. Synapse will proactively assist users in managing tasks, ideas, projects, learning, and personal goals, transforming digital chaos into actionable clarity.
+2. Goals & Objectives
+Primary Goal: To significantly improve the user's personal productivity and reduce mental overhead by creating a centralized, intelligent, and automated system for managing all aspects of their life.
+Objectives:
+Seamlessly capture information from key communication channels (starting with WhatsApp) and other inputs.
+Intelligently categorize and tag captured information based on user cues and AI analysis.
+Provide robust tools for project management, task tracking, idea incubation, and knowledge consolidation.
+Offer personalized insights and proactive suggestions to help users stay on top of their commitments and goals.
+Create an intuitive and enjoyable user experience that encourages consistent use.
+Ensure data privacy and security are paramount.
+3. Target User
+Primary Persona: "Alex," a busy professional, lifelong learner, and/or creative individual who:
+Is overwhelmed by the volume of information, tasks, and ideas coming from multiple digital channels (especially WhatsApp).
+Struggles to keep track of personal and professional projects, deadlines, and commitments.
+Values productivity and is looking for a system to offload mental clutter and focus on high-value work.
+Is tech-savvy and comfortable using web applications.
+Wants a single source of truth for their life's "operations."
+4. User Stories (Key Examples)
+WhatsApp Integration & Capture:
+"As Alex, I want to forward a WhatsApp message (text, link, image, video, voice note) to Synapse so that it's automatically captured and I don't lose track of it."
+"As Alex, I want to add a specific tag (e.g., #task, #idea, #projectX, #readlater) to my WhatsApp message when forwarding it, so Synapse can pre-categorize it."
+"As Alex, I want Synapse to intelligently suggest tags for my WhatsApp messages based on their content, even if I don't specify one."
+"As Alex, I want Synapse to transcribe voice notes from WhatsApp so I can quickly read and process them."
+"As Alex, I want Synapse to extract links from WhatsApp messages and automatically fetch metadata (title, preview) for them."
+Information Organization & Processing:
+"As Alex, I want a unified 'Inbox' in Synapse where all new captured items land, so I can process them efficiently."
+"As Alex, I want to be able to quickly convert a captured idea from WhatsApp into a task with a due date and project association."
+"As Alex, I want to link related notes, tasks, and resources together to build a knowledge graph."
+"As Alex, I want Synapse to automatically summarize long articles or video transcripts I've saved, so I can grasp the key points quickly."
+Project & Task Management:
+"As Alex, I want to create projects with clear goals, associated tasks, deadlines, and track their progress."
+"As Alex, I want a 'Today' view that shows me all tasks due or scheduled for the current day."
+"As Alex, I want to set recurring tasks for habits or regular commitments."
+"As Alex, I want to break down complex tasks into smaller, manageable sub-tasks."
+Proactive Assistance & Insights:
+"As Alex, I want Synapse to remind me of upcoming deadlines and important tasks."
+"As Alex, I want Synapse to suggest relevant saved notes or resources when I'm working on a specific project or task."
+"As Alex, I want a 'Weekly Review' feature that guides me through my accomplishments, pending items, and helps me plan the week ahead."
+"As Alex, I want Synapse to identify potential scheduling conflicts or over-commitments based on my tasks and calendar."
+Personalization & Value:
+"As Alex, I want to define 'Areas of Life' (e.g., Work, Personal, Health, Learning) to categorize my projects and notes."
+"As Alex, I want a powerful search function to quickly find any piece of information I've saved."
+"As Alex, I want a 'Focus Mode' that minimizes distractions when I'm working on a specific task."
+5. Proposed Features (The "Wow" Factor - Going Deep!)
+5.1. Universal Capture Engine:
+WhatsApp Integration (Core):
+Dedicated Synapse WhatsApp number/bot for forwarding messages.
+Support for text, images, videos, documents, links, voice notes.
+Inline Tagging: User can add #tag or /command in the forwarded message (e.g., /task, /idea, /project [Project Name]).
+AI-Powered Auto-Tagging: NLP analysis of message content to suggest relevant tags, entities, and potential actions (e.g., "Schedule meeting with John" could auto-suggest creating a calendar event or task).
+Contact Association: Automatically links captured items to the WhatsApp sender if known.
+Voice Note Transcription: Automatic transcription of forwarded voice notes.
+Web Clipper (Browser Extension):
+Clip articles, snippets, bookmarks, screenshots.
+Option to add tags, notes, and assign to projects directly from the clipper.
+"Reader Mode" to save a decluttered version of articles.
+Email Forwarding:
+Unique Synapse email address to forward emails for capture.
+Attachment handling.
+AI to parse email content for tasks, links, and key information.
+Manual Entry:
+Rich-text editor for notes, ideas, and journaling.
+File uploads (PDFs, documents, images).
+Quick-add bar for tasks and ideas.
+Mobile Quick Capture (Companion PWA/Share Target):
+Simple interface for quickly jotting down ideas or sharing content from other mobile apps to Synapse.
+5.2. Intelligent Organization & Processing Hub ("The Cortex"):
+Unified Inbox: All captured items land here for triage.
+Smart Tagging System:
+User-defined tags, nested tags.
+AI-suggested tags based on content and context.
+Tag-based smart folders/views.
+PARA-Inspired Structure (Optional, Customizable):
+Projects: Actionable endeavors with defined outcomes and deadlines.
+Areas: Spheres of responsibility with ongoing standards (e.g., Health, Finances, Work Department).
+Resources: Topics of interest, reference materials, knowledge.
+Archive: Completed or inactive items.
+Bi-Directional Linking: Connect notes, tasks, projects, and resources to create a personal knowledge graph.
+AI-Powered Summarization & Abstraction:
+One-click summarization for long articles, transcripts.
+Key phrase extraction.
+OCR for Images & PDFs: Make text within images and scanned PDFs searchable and extractable.
+Automated Workflows:
+"If WhatsApp message contains 'invoice' and a PDF, tag #finance and create reminder to pay in 7 days."
+"If article tagged #learning is saved, create a task to 'Summarize Article' due in 3 days."
+5.3. Dynamic Project & Life Management ("The Helm"):
+Robust Task Management:
+Due dates, reminders, priorities, status.
+Sub-tasks, dependencies (optional).
+Recurring tasks.
+Assign to Projects & Areas.
+Context tags (e.g., @home, @computer, @calls).
+Project Hubs:
+Dedicated space for each project showing related tasks, notes, files, goals.
+Progress tracking (simple visual indicators).
+Kanban board view for tasks within a project.
+Goal Setting & Tracking:
+Define overarching personal/professional goals.
+Link projects and tasks to goals to see how daily actions contribute to bigger objectives.
+Visualize goal progress.
+Calendar Integration (2-way sync with Google/Outlook Calendar):
+View Synapse tasks with due dates on your external calendar.
+Pull calendar events into Synapse for context.
+Time-blocking assistance: Suggest scheduling tasks into free calendar slots.
+Habit Tracker:
+Define and track daily/weekly habits.
+Visualize streaks and progress.
+5.4. Proactive Intelligence & Insights ("The Oracle"):
+Personalized Dashboard ("Today" / "Focus View"):
+Prioritized tasks for the day.
+Upcoming deadlines and appointments.
+Relevant new items in Inbox.
+"On this day" memories/notes.
+Smart Reminders & Nudges:
+Contextual reminders (e.g., "You're near the grocery store, don't forget X item on your shopping list" - future geo-fencing).
+"You haven't worked on Project Y this week, want to schedule some time?"
+Weekly Review & Planning Assistant:
+Guided workflow to review completed tasks, open loops, captured ideas.
+Prompts for setting weekly priorities and scheduling key tasks.
+Knowledge Discovery:
+"Related Items" suggestions when viewing a note or task.
+Surface "forgotten" but relevant notes based on current activity.
+Productivity Analytics (Private to User):
+Task completion rates, focus time analysis (if integrated with a timer).
+Identify patterns (e.g., "Most of your ideas are captured on Tuesday evenings").
+5.5. User Experience & Customization:
+Clean, Intuitive Interface: Minimalist design that's easy to navigate.
+Powerful Universal Search: Instantly find anything across notes, tasks, files, tags.
+Customizable Views & Dashboards: Allow users to tailor their workspace.
+Dark Mode/Themes.
+Keyboard Shortcuts for power users.
+Offline Access (PWA): Read-only access and ability to create new items offline, syncing when back online.
+6. Non-Functional Requirements
+Security & Privacy:
+End-to-end encryption for sensitive data where feasible.
+Robust authentication (MFA option).
+Clear privacy policy regarding WhatsApp and other data. Data will NOT be sold or used for advertising.
+Regular security audits.
+Performance & Scalability:
+Fast load times and responsive UI.
+Ability to handle a large volume of notes, tasks, and files per user.
+Reliability & Availability:
+High uptime (e.g., 99.9%).
+Regular backups.
+Usability:
+Intuitive and easy to learn, even for less technical users.
+Comprehensive help documentation and tutorials.
+Accessibility: Adherence to WCAG 2.1 AA guidelines.
+7. Success Metrics
+User Acquisition & Retention:
+Number of active users (DAU/MAU).
+Churn rate.
+User lifetime value.
+Engagement:
+Average number of items captured per user per day/week.
+Task completion rate.
+Frequency of use of key features (e.g., WhatsApp capture, project creation, weekly review).
+Percentage of users utilizing AI features.
+User Satisfaction:
+Net Promoter Score (NPS).
+In-app feedback ratings.
+Qualitative feedback from user interviews and surveys.
+Productivity Impact (Survey-based):
+Self-reported improvement in organization and productivity.
+Reduction in missed deadlines or forgotten tasks.
+8. Future Considerations / Potential Roadmap (Post-MVP)
+Native Mobile Apps (iOS & Android): For richer mobile experience beyond PWA.
+Expanded Integrations:
+Other messaging apps (Telegram, Slack).
+Cloud storage (Google Drive, Dropbox, OneDrive) for direct file linking.
+Task management tools (Todoist, Asana import/export).
+Note-taking apps (Evernote, Notion import).
+Fitness trackers, mood trackers for holistic life data.
+Advanced AI Capabilities:
+Sentiment analysis on captured communication.
+Predictive task scheduling.
+Automated meeting summaries (if calendar events have call links).
+"AI Coach" providing personalized productivity tips.
+Collaboration Features (Optional - "Synapse for Teams"):
+Shared projects, delegated tasks (if user base expresses strong interest).
+Template Library: Pre-built templates for common projects, goals, or workflows (e.g., "New Apartment Hunt," "Learn a Language").
+Gamification: Points, badges, streaks for achieving productivity goals (optional, user-toggleable).
+9. Open Questions / Assumptions
+Assumption: Users are willing to grant necessary permissions for WhatsApp integration (likely via a business API or a less direct forwarding method). The exact mechanism needs careful technical investigation and clear communication to users about privacy.
+Assumption: The primary value proposition of WhatsApp integration is strong enough to drive initial adoption.
+Question: What is the most intuitive way for users to process and triage items from the Unified Inbox?
+Question: How much AI automation is "just right" versus overwhelming or inaccurate? 
