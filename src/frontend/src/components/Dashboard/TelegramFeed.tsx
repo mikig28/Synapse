@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTelegram } from '../../contexts/TelegramContext'; // Adjust path as needed
 import { TelegramItemType } from '../../types/telegram'; // Adjust path as needed
-import { X } from 'lucide-react'; // <-- Import X icon
+import { X, MessageSquareText } from 'lucide-react'; // Import X and an icon for transcription
 
 const SOCKET_SERVER_URL = 'http://localhost:3001'; // Defined in TelegramContext, we can reuse it or define it here too
 
@@ -22,39 +22,62 @@ const TelegramFeed: React.FC = () => {
     }
   };
 
+  // Helper function to determine what to display as main content
+  const getMainContent = (item: TelegramItemType) => {
+    if (item.source === 'telegram_voice_memo') {
+      // For voice memos, the 'title' (for tasks) or 'content' (for notes/ideas) is the AI-extracted summary
+      return item.title || item.content || item.text || <span className="italic">(Processed Voice Memo)</span>;
+    }
+    // For other types, item.text is usually the main content
+    return item.text || <span className="italic">({item.messageType || 'No text'})</span>;
+  };
+
   return (
-    <div className="p-4 border rounded-lg shadow-md">
-      <h2 className="text-xl font-semibold mb-3">Telegram Feed</h2>
-      <p className="mb-2 text-sm">
+    <div className="p-4 border rounded-lg shadow-md bg-card">
+      <h2 className="text-xl font-semibold mb-3 text-card-foreground">Telegram Feed</h2>
+      <p className="mb-2 text-sm text-muted-foreground">
         Socket Status: {
           isConnected ? <span className="text-green-500">Connected</span> : <span className="text-red-500">Disconnected</span>
         }
       </p>
       {telegramItems.length === 0 && (
-        <p className="text-gray-500">No Telegram messages yet. Send a message to your bot!</p>
+        <p className="text-muted-foreground">No Telegram messages yet. Send a message to your bot!</p>
       )}
-      <ul className="space-y-3 max-h-96 overflow-y-auto">
+      <ul className="space-y-3 max-h-96 overflow-y-auto pr-2"> {/* Added pr-2 for scrollbar spacing */}
         {telegramItems.map((item: TelegramItemType) => (
-          <li key={item._id} className="p-3 border rounded-md bg-gray-50 dark:bg-gray-800 relative group">
+          <li key={item._id} className="p-3 border rounded-md bg-background shadow-sm relative group">
             <button 
-              onClick={() => handleDelete(item._id, item.text || item.messageType)} 
-              className="absolute top-1 right-1 p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100"
+              onClick={() => handleDelete(item._id, item.title || item.content || item.text || item.messageType)} 
+              className="absolute top-1.5 right-1.5 p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100"
               title="Delete item"
             >
               <X size={16} />
             </button>
             <div className="flex justify-between items-center mb-1">
-              <span className="font-medium text-sm text-blue-600 dark:text-blue-400">
+              <span className="font-medium text-sm text-primary">
                 {item.fromUsername || 'Unknown User'} ({item.chatTitle || 'DM'})
               </span>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-muted-foreground">
                 {new Date(item.receivedAt).toLocaleString()}
               </span>
             </div>
-            <p className="text-sm text-gray-700 dark:text-gray-300">
-              {item.text || <span className="italic">({item.messageType})</span>}
+            <p className="text-sm text-foreground mb-1">
+              {getMainContent(item)}
             </p>
-            {/* Display image if it's a photo and has a local URL */}
+            
+            {/* Display raw transcription if source is voice memo and transcription exists */}
+            {item.source === 'telegram_voice_memo' && item.rawTranscription && (
+              <div className="mt-2 pt-2 border-t border-border">
+                <div className="flex items-center text-xs text-muted-foreground mb-1">
+                  <MessageSquareText size={14} className="mr-1.5" />
+                  <span>Original Transcription:</span>
+                </div>
+                <p className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 p-2 rounded-md">
+                  {item.rawTranscription}
+                </p>
+              </div>
+            )}
+
             {item.messageType === 'photo' && item.mediaLocalUrl && (
               <div className="mt-2">
                 <img 
@@ -79,6 +102,10 @@ const TelegramFeed: React.FC = () => {
                 ))}
               </div>
             )}
+             {/* Debug: Display source and messageType for clarity */}
+            {/* <div className="text-xs text-gray-400 mt-2">
+              Source: {item.source || 'N/A'} | Type: {item.messageType || 'N/A'} | ID: {item._id}
+            </div> */}
           </li>
         ))}
       </ul>

@@ -16,6 +16,8 @@ import {
   Plane,
   Settings as SettingsIcon,
   Image as ImageIcon,
+  FileText,
+  Lightbulb,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -32,6 +34,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
     { href: "/capture", label: "Capture", icon: Aperture },
     { href: "/projects", label: "Projects", icon: Briefcase },
     { href: "/tasks", label: "Tasks", icon: ListChecks },
+    { href: "/notes", label: "Notes", icon: FileText },
+    { href: "/ideas", label: "Ideas", icon: Lightbulb },
     { href: "/calendar", label: "Calendar", icon: CalendarDays },
     { href: "/planning", label: "Planning", icon: Plane },
     { href: "/goals", label: "Goals", icon: Target },
@@ -39,7 +43,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
     { href: "/automations", label: "Automations", icon: Bot },
     { href: "/whatsapp", label: "WhatsApp", icon: MessageSquare },
     { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
-    { href: "/video", label: "Video", icon: Youtube },
+    { href: "/videos", label: "Videos", icon: Youtube },
     { href: "/news", label: "News", icon: Newspaper },
     { href: "/settings", label: "Settings", icon: SettingsIcon },
   ];

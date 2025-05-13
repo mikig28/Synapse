@@ -9,5 +9,8 @@ export interface BookmarkItemType {
   tags?: string[];
   createdAt: string; // Dates will be strings from JSON
   updatedAt: string;
-  status?: 'pending_summary' | 'summarized' | 'error';
+  status?: 'pending_summary' | 'summarized' | 'error' | 'metadata_fetched';
+  fetchedTitle?: string;
+  fetchedDescription?: string;
+  fetchedImageUrl?: string;
 } 

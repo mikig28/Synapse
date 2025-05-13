@@ -8,12 +8,16 @@ import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
 import ImagesPage from '@/pages/ImagesPage';
 import BookmarksPage from './pages/BookmarksPage';
+import VideosPage from './pages/VideosPage';
 import useAuthStore from '@/store/authStore';
 import { Settings, LogIn, UserPlus, LayoutDashboard, Inbox } from 'lucide-react';
 import HomePage from '@/pages/HomePage';
 import { ThemeProvider } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
 import { ModeToggle } from "@/components/ui/mode-toggle";
+import TasksPage from '@/pages/TasksPage';
+import NotesPage from '@/pages/NotesPage';
+import IdeasPage from '@/pages/IdeasPage';
 
 const App: React.FC = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -39,6 +43,10 @@ const App: React.FC = () => {
                     <Route path="inbox" element={<InboxPage />} />
                     <Route path="images" element={<ImagesPage />} />
                     <Route path="bookmarks" element={<BookmarksPage />} />
+                    <Route path="videos" element={<VideosPage />} />
+                    <Route path="tasks" element={<TasksPage />} />
+                    <Route path="notes" element={<NotesPage />} />
+                    <Route path="ideas" element={<IdeasPage />} />
                     <Route path="settings" element={<SettingsPage />} />
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />
                   </Routes>

@@ -12,6 +12,10 @@ import captureRoutes from './api/routes/captureRoutes'; // Import capture routes
 import path from 'path'; // <-- Import path module
 import fs from 'fs'; // <-- Import fs module
 import bookmarkRoutes from './api/routes/bookmarksRoutes'; // Import bookmark routes
+import videoRoutes from './api/routes/videosRoutes'; // Added video routes
+import tasksRoutes from './api/routes/tasksRoutes'; // Add this
+import notesRoutes from './api/routes/notesRoutes'; // Add this
+import ideasRoutes from './api/routes/ideasRoutes'; // Add this
 
 dotenv.config();
 
@@ -49,6 +53,10 @@ app.use('/api/v1/whatsapp', whatsappRoutes);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/capture', captureRoutes); // Use capture routes
 app.use('/api/v1/bookmarks', bookmarkRoutes); // Use bookmark routes
+app.use('/api/v1/videos', videoRoutes); // Use video routes
+app.use('/api/v1/tasks', tasksRoutes); // Add this
+app.use('/api/v1/notes', notesRoutes); // Add this
+app.use('/api/v1/ideas', ideasRoutes); // Add this
 
 // Basic route for testing
 app.get('/', (req: Request, res: Response) => {
