@@ -56,10 +56,14 @@ export const registerUser = async (req: Request, res: Response) => {
 };
 
 export const loginUser = async (req: Request, res: Response) => {
-  console.log('Received login request body:', req.body);
+  console.log('LOGIN ATTEMPT - Raw Request Body:', JSON.stringify(req.body, null, 2)); // Log raw body
   const { email, password } = req.body;
 
+  console.log(`LOGIN ATTEMPT - Email: ${email}, Type: ${typeof email}`);
+  console.log(`LOGIN ATTEMPT - Password Present: ${password ? 'Yes' : 'No'}, Type: ${typeof password}`);
+
   if (!email || !password) {
+    console.log('LOGIN REJECTED - Missing email or password');
     return res.status(400).json({ message: 'Email and password are required' });
   }
 
