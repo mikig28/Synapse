@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken'; // We'll install this next
 // Function to generate JWT
 // Store your JWT_SECRET in .env file
 const generateToken = (id: string) => {
+  console.log(`[generateToken] Generating token for user ID: ${id}`);
   return jwt.sign({ id }, process.env.JWT_SECRET || 'yourfallbacksecret', {
     expiresIn: '30d', // Token expiration
   });
@@ -73,11 +74,13 @@ export const loginUser = async (req: Request, res: Response) => {
     const user = await User.findOne({ email }).select('+password');
 
     if (user && (await user.comparePassword(password))) {
+      const token = generateToken(user.id);
+      console.log(`[loginUser] User ${user.email} (ID: ${user.id}) logged in. Token generated.`);
       res.json({
         _id: user.id,
         fullName: user.fullName,
         email: user.email,
-        token: generateToken(user.id),
+        token: token,
       });
     } else {
       // Generic message for security; don't reveal if email exists but password was wrong

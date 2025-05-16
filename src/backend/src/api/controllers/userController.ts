@@ -8,6 +8,7 @@ import { AuthenticatedRequest } from '../middleware/authMiddleware'; // Assuming
 export const addMonitoredTelegramChat = async (req: AuthenticatedRequest, res: Response) => {
   const { chatId } = req.body;
   const userId = req.user?.id; // From authMiddleware
+  console.log(`[addMonitoredTelegramChat] Attempting to find user with ID: ${userId}`); // <-- ADD THIS LOG
 
   if (!userId) {
     // This should technically be caught by authMiddleware, but as a safeguard:
