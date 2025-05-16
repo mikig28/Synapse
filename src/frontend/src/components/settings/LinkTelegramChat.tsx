@@ -22,6 +22,13 @@ const LinkTelegramChat: React.FC = () => {
       return;
     }
 
+    // Log the token right before the API call
+    const currentToken = useAuthStore.getState().token;
+    console.log('[LinkTelegramChat] Token from store just before API call:', currentToken ? 'Present' : 'Absent');
+    if (currentToken) {
+        console.log('[LinkTelegramChat] Token value (first 20 chars):', currentToken.substring(0,20) + '...');
+    }
+
     const chatIdNum = parseInt(chatIdInput, 10);
     if (!chatIdInput || isNaN(chatIdNum)) {
       setMessage('Please enter a valid numeric Chat ID.');
