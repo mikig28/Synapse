@@ -25,6 +25,11 @@ export const addMonitoredTelegramChat = async (req: AuthenticatedRequest, res: R
       return res.status(404).json({ message: 'User not found' });
     }
 
+    // Ensure monitoredTelegramChats is initialized as an array if it's not already
+    if (!user.monitoredTelegramChats) {
+      user.monitoredTelegramChats = [];
+    }
+
     if (user.monitoredTelegramChats.includes(chatId)) {
       return res.status(200).json({
         message: 'Chat ID already being monitored',
