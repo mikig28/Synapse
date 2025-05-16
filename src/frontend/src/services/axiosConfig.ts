@@ -1,4 +1,4 @@
-import axios, { AxiosRequestConfig, AxiosError, AxiosResponse } from 'axios';
+import axios, { InternalAxiosRequestConfig, AxiosError, AxiosResponse } from 'axios';
 import useAuthStore from '../store/authStore'; // Adjust path if your store is elsewhere
 
 // Use import.meta.env for Vite environment variables
@@ -10,13 +10,11 @@ const axiosInstance = axios.create({
 
 // Request interceptor to add token to headers
 axiosInstance.interceptors.request.use(
-  (config: AxiosRequestConfig): AxiosRequestConfig => {
+  (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
     const token = useAuthStore.getState().token;
     if (token) {
-      if (!config.headers) {
-        config.headers = {};
-      }
-      config.headers['Authorization'] = `Bearer ${token}`;
+      // Axios headers are already initialized as AxiosHeaders object by default in InternalAxiosRequestConfig
+      config.headers.set('Authorization', `Bearer ${token}`);
     }
     return config;
   },
