@@ -12,13 +12,18 @@ const axiosInstance = axios.create({
 axiosInstance.interceptors.request.use(
   (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
     const token = useAuthStore.getState().token;
+    console.log('[AxiosInterceptor] Token from store:', token ? 'Present' : 'Absent'); // Log token presence
     if (token) {
-      // Axios headers are already initialized as AxiosHeaders object by default in InternalAxiosRequestConfig
       config.headers.set('Authorization', `Bearer ${token}`);
+      console.log('[AxiosInterceptor] Authorization header SET'); // Confirm header set
+    } else {
+      console.log('[AxiosInterceptor] No token found in store, Authorization header NOT SET');
     }
+    console.log('[AxiosInterceptor] Making request to:', config.url); // Log target URL
     return config;
   },
   (error: AxiosError) => {
+    console.error('[AxiosInterceptor] Request error:', error);
     return Promise.reject(error);
   }
 );
@@ -26,9 +31,11 @@ axiosInstance.interceptors.request.use(
 // Optional: Response interceptor for global error handling (e.g., 401 for logout)
 axiosInstance.interceptors.response.use(
   (response: AxiosResponse) => {
+    console.log('[AxiosInterceptor] Response from:', response.config.url, 'Status:', response.status);
     return response;
   },
   (error: AxiosError) => {
+    console.error('[AxiosInterceptor] Response error from:', error.config?.url, 'Status:', error.response?.status, 'Data:', error.response?.data);
     if (error.response && error.response.status === 401) {
       // If unauthorized, logout the user
       // Check if it's not a login/register attempt to avoid logout loop
