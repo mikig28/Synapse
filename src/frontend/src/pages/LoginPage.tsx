@@ -22,10 +22,13 @@ const LoginPage: React.FC = () => {
     setLoading(true);
     try {
       const data = await loginService({ email, password });
-      storeLogin({
+      const loginPayload = {
         user: { id: data._id, email: data.email, fullName: data.fullName },
         token: data.token,
-      });
+      };
+      storeLogin(loginPayload);
+      console.log('[LoginPage] Email/Pass Login Success - Zustand store updated. Token present:', !!useAuthStore.getState().token);
+      console.log('[LoginPage] Email/Pass Login Success - User:', useAuthStore.getState().user);
       navigate('/dashboard');
     } catch (err: any) {
       console.error('Login failed:', err);
@@ -46,14 +49,17 @@ const LoginPage: React.FC = () => {
         
         // Simulate login with Google data for now
         // In a real app, your backend would do this and return your own app token
-        storeLogin({
+        const googleLoginPayload = {
           user: { 
             id: decodedToken.sub, // Use Google's subject ID
             email: decodedToken.email,
             fullName: decodedToken.name 
           },
           token: idToken, // Using Google's ID token as our app token for now (NOT SECURE FOR PROD)
-        });
+        };
+        storeLogin(googleLoginPayload);
+        console.log('[LoginPage] Google Login Success - Zustand store updated. Token present:', !!useAuthStore.getState().token);
+        console.log('[LoginPage] Google Login Success - User:', useAuthStore.getState().user);
         navigate('/dashboard');
 
       } catch (error) {

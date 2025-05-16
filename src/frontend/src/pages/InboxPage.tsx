@@ -3,6 +3,7 @@ import { getCapturedTelegramItems } from '@/services/captureService';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // For error display
 import { Terminal } from 'lucide-react'; // For alert icon
 import TelegramFeed from '@/components/Dashboard/TelegramFeed'; // <-- Import TelegramFeed
+import useAuthStore from '@/store/authStore'; // Corrected import path
 
 // Define the shape of a Telegram item for the frontend
 interface TelegramItemFE {
@@ -24,9 +25,16 @@ const InboxPage: React.FC = () => {
   const [items, setItems] = useState<TelegramItemFE[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const storeToken = useAuthStore((state) => state.token); // Get token for logging
+  const storeIsAuthenticated = useAuthStore((state) => state.isAuthenticated); // Get auth state for logging
 
   useEffect(() => {
     const fetchItems = async () => {
+      console.log('[InboxPage] Attempting to fetch items. IsAuthenticated:', storeIsAuthenticated, 'Token Present:', !!storeToken);
+      if (storeToken) {
+        console.log('[InboxPage] Token value (first 20 chars):', storeToken.substring(0,20) + '...');
+      }
+
       try {
         setLoading(true);
         const fetchedItems = await getCapturedTelegramItems();
