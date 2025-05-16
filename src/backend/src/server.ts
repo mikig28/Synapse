@@ -20,7 +20,8 @@ import ideasRoutes from './api/routes/ideasRoutes'; // Add this
 dotenv.config();
 
 const app: Express = express();
-const PORT = process.env.PORT || 3001;
+const rawPort = process.env.PORT || '3001'; // Read as string
+const PORT = parseInt(rawPort, 10); // Convert to number
 
 // Create HTTP server and pass it to Socket.IO
 const httpServer = http.createServer(app);
