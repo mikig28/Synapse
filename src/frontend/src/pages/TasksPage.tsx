@@ -4,31 +4,17 @@ import useAuthStore from '@/store/authStore'; // To get the auth token
 import EditTaskModal from '@/components/tasks/EditTaskModal'; // Import the modal
 // import { Button } from '@/components/ui/button'; // Consider using shadcn Button later
 // import { Trash2, Edit3 } from 'lucide-react'; // Icons for buttons
-import { Task } from '../../types/task'; // Assuming you have this type
+import { Task } from '../../types/task'; // Using the centralized Task type
+import axiosInstance from '@/services/axiosConfig'; // Import axiosInstance
 
 // Define the AddTaskModal component path
 import AddTaskModal from '@/components/tasks/AddTaskModal'; // Corrected path
-
-// Define an interface for the task data based on the backend model
-interface Task {
-  _id: string;
-  title: string;
-  description?: string;
-  status: 'pending' | 'in-progress' | 'completed' | 'deferred';
-  priority?: 'low' | 'medium' | 'high';
-  source?: string;
-  telegramMessageId?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1';
 
 const TasksPage: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const token = useAuthStore((state) => state.token);
+  const token = useAuthStore((state) => state.token); // Token is now automatically handled by axiosInstance
 
   // State for editing a task
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -36,6 +22,8 @@ const TasksPage: React.FC = () => {
   const [showAddTaskModal, setShowAddTaskModal] = useState<boolean>(false); // New state for AddTaskModal
 
   const fetchTasks = async () => {
+    // Token check can be removed if axiosInstance handles auth errors globally (e.g., by logging out)
+    // For now, let's keep it as a guard, though axiosInstance will send the token.
     if (!token) {
       setError('Authentication token not found.');
       setLoading(false);
@@ -43,21 +31,13 @@ const TasksPage: React.FC = () => {
     }
     setLoading(true);
     try {
-      const response = await fetch('/api/v1/tasks', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      setTasks(data);
+      // Use axiosInstance for the request
+      const response = await axiosInstance.get('/tasks');
+      setTasks(response.data);
       setError(null);
     } catch (err: any) {
       console.error("Failed to fetch tasks:", err);
-      setError(err.message || 'Failed to fetch tasks.');
+      setError(err.response?.data?.message || err.message || 'Failed to fetch tasks.');
     } finally {
       setLoading(false);
     }
@@ -65,7 +45,7 @@ const TasksPage: React.FC = () => {
 
   useEffect(() => {
     fetchTasks();
-  }, [token]);
+  }, [token]); // Dependency on token can remain if you want to refetch on login/logout
 
   const handleDelete = async (taskId: string) => {
     if (!token) {
@@ -76,22 +56,13 @@ const TasksPage: React.FC = () => {
       return;
     }
     try {
-      const response = await fetch(`/api/v1/tasks/${taskId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to delete task: ${response.status}`);
-      }
-      // Update tasks list in UI
+      // Use axiosInstance for the request
+      await axiosInstance.delete(`/tasks/${taskId}`);
       setTasks(prevTasks => prevTasks.filter(task => task._id !== taskId));
       alert('Task deleted successfully!');
     } catch (err: any) {
       console.error("Failed to delete task:", err);
-      alert(`Error deleting task: ${err.message}`);
+      alert(`Error deleting task: ${err.response?.data?.message || err.message}`);
     }
   };
 
@@ -106,87 +77,54 @@ const TasksPage: React.FC = () => {
   };
 
   const handleSaveEdit = async (updatedTask: Task) => {
-    if (!token || !updatedTask) {
+    if (!token || !updatedTask) { // Token check can be debated if axiosInstance handles it
       alert('Missing data for update.');
       return;
     }
     try {
-      const response = await fetch(`/api/v1/tasks/${updatedTask._id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          title: updatedTask.title,
-          description: updatedTask.description,
-          status: updatedTask.status,
-          priority: updatedTask.priority,
-          // Do not send _id, createdAt, updatedAt, source, telegramMessageId in the body for update
-          // unless your backend specifically handles/allows them for update operations.
-          // Typically, these are managed by the backend or are not directly updatable.
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to update task: ${response.status}`);
-      }
-
-      const savedTask = await response.json();
-      // Update the task in the local state
+      // Prepare only the fields that should be updated
+      const payload = {
+        title: updatedTask.title,
+        description: updatedTask.description,
+        status: updatedTask.status,
+        priority: updatedTask.priority,
+      };
+      // Use axiosInstance for the request
+      const response = await axiosInstance.put(`/tasks/${updatedTask._id}`, payload);
+      const savedTask = response.data;
       setTasks(prevTasks => prevTasks.map(task => task._id === savedTask._id ? savedTask : task));
       alert('Task updated successfully!');
-      handleCloseEditModal(); // Close the modal on successful save
+      handleCloseEditModal();
     } catch (err: any) {
       console.error("Failed to update task:", err);
-      alert(`Error updating task: ${err.message}`);
+      alert(`Error updating task: ${err.response?.data?.message || err.message}`);
     }
   };
 
-  const handleOpenEditModal = (task: Task) => {
-    setEditingTask(task);
-    setShowEditModal(true);
-  };
-
-  const handleOpenAddTaskModal = () => { // New function
+  const handleOpenAddTaskModal = () => {
     setShowAddTaskModal(true);
   };
 
-  const handleCloseAddTaskModal = () => { // New function
+  const handleCloseAddTaskModal = () => {
     setShowAddTaskModal(false);
   };
 
-  const handleSaveNewTask = async (newTaskData: Omit<Task, '_id' | 'createdAt' | 'updatedAt'>) => { // New function
-    if (!token) {
+  const handleSaveNewTask = async (newTaskData: Omit<Task, '_id' | 'createdAt' | 'updatedAt'>) => {
+    if (!token) { // Token check similar to above
       setError("Authentication token not found. Please log in.");
       setLoading(false);
       return;
     }
-
     try {
-      const response = await fetch(`${API_BASE_URL}/tasks`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(newTaskData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to create task. Status: ${response.status}`);
-      }
-
-      const createdTask = await response.json();
-      setTasks(prevTasks => [createdTask, ...prevTasks]); // Add to the beginning of the list
+      // Use axiosInstance for the request
+      const response = await axiosInstance.post('/tasks', newTaskData);
+      const createdTask = response.data;
+      setTasks(prevTasks => [createdTask, ...prevTasks]);
       handleCloseAddTaskModal();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || (err instanceof Error ? err.message : 'An unknown error occurred');
       console.error("Error creating task:", errorMessage);
       setError(errorMessage);
-      // Optionally, keep the modal open or provide feedback within the modal
     }
   };
 
@@ -241,7 +179,6 @@ const TasksPage: React.FC = () => {
                     className="p-1.5 text-blue-600 hover:text-blue-800 rounded hover:bg-blue-100 transition-colors text-xs"
                     title="Edit Task"
                   >
-                    {/* <Edit3 size={16} /> Using text for now */}
                     Edit
                   </button>
                   <button 
@@ -249,7 +186,6 @@ const TasksPage: React.FC = () => {
                     className="p-1.5 text-red-600 hover:text-red-800 rounded hover:bg-red-100 transition-colors text-xs"
                     title="Delete Task"
                   >
-                    {/* <Trash2 size={16} /> Using text for now */}
                     Delete
                   </button>
                 </div>
@@ -268,7 +204,7 @@ const TasksPage: React.FC = () => {
         />
       )}
 
-      {showAddTaskModal && ( // New Modal instance
+      {showAddTaskModal && (
         <AddTaskModal
           isOpen={showAddTaskModal}
           onClose={handleCloseAddTaskModal}

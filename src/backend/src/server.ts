@@ -88,11 +88,19 @@ io.on('connection', (socket) => {
 
 const startServer = async () => {
   try {
+    const mongoUri = process.env.MONGODB_URI;
+
+    if (!mongoUri) {
+      console.error('FATAL ERROR: MONGODB_URI is not defined.');
+      process.exit(1);
+    }
+
+    await mongoose.connect(mongoUri);
     await connectToDatabase(); // Calls the Mongoose connection logic
     initializeTelegramBot(); // Initialize and start the Telegram bot polling
 
-    httpServer.listen(PORT, () => {
-      console.log(`[server]: Backend server is running (HTTP & WebSocket) at http://localhost:${PORT}`);
+    httpServer.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server is running on port ${PORT}`);
       // The "[mongoose]: Mongoose connected to DB" log from database.ts confirms success
     });
   } catch (error) {
