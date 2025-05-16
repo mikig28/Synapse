@@ -1,6 +1,8 @@
 import useAuthStore from "@/store/authStore";
 
-const API_URL = 'http://localhost:3001/api/v1/auth'; // Your backend API URL
+// Use Vite environment variable for the API base URL, fallback for local dev
+const API_BASE_URL_FROM_ENV = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+const API_AUTH_URL = `${API_BASE_URL_FROM_ENV}/api/v1/auth`;
 
 // Helper to get the token from the store if needed for authenticated requests later
 // const getToken = () => useAuthStore.getState().token;
@@ -27,7 +29,7 @@ interface AuthResponse {
 }
 
 export const registerService = async (userData: any): Promise<AuthResponse> => {
-  const response = await fetch(`${API_URL}/register`, {
+  const response = await fetch(`${API_AUTH_URL}/register`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -45,7 +47,7 @@ export const registerService = async (userData: any): Promise<AuthResponse> => {
 };
 
 export const loginService = async (credentials: any): Promise<AuthResponse> => {
-  const response = await fetch(`${API_URL}/login`, {
+  const response = await fetch(`${API_AUTH_URL}/login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
