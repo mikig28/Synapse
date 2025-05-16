@@ -7,7 +7,7 @@ interface JwtPayload {
 }
 
 // Extend Express Request type to include user
-interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     // Include other user properties if you fetch them here
