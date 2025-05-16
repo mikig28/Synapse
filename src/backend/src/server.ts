@@ -40,6 +40,17 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ADD THIS LOGGING MIDDLEWARE
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (req.path === '/api/v1/auth/login' && req.method === 'POST') {
+    console.log(`GLOBAL LOGGER - Attempt to ${req.method} ${req.path}`);
+    // To see the body, we need to be careful as it's a stream.
+    // express.json() should have already parsed it if Content-Type was application/json.
+    console.log('GLOBAL LOGGER - Request Body (after express.json):', JSON.stringify(req.body, null, 2));
+  }
+  next();
+});
+
 // Create public directories if they don't exist
 const publicDir = path.join(__dirname, '..', 'public'); // Assuming public is one level up from src, adjust if necessary
 const uploadsDir = path.join(publicDir, 'uploads');
