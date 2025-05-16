@@ -23,11 +23,14 @@ const app: Express = express();
 const rawPort = process.env.PORT || '3001'; // Read as string
 const PORT = parseInt(rawPort, 10); // Convert to number
 
+// Define Frontend URL from environment variable or default to localhost
+const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+
 // Create HTTP server and pass it to Socket.IO
 const httpServer = http.createServer(app);
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: "http://localhost:5173", // Frontend URL, adjust if different
+    origin: frontendUrl, // Use the environment variable for frontend URL
     methods: ["GET", "POST"]
   }
 });
