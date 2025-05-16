@@ -1,8 +1,8 @@
 import useAuthStore from "@/store/authStore";
 
 // Use Vite environment variable for the API base URL, fallback for local dev
-const API_BASE_URL_FROM_ENV = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
-const API_AUTH_URL = `${API_BASE_URL_FROM_ENV}/api/v1/auth`;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1';
+const API_AUTH_URL = `${API_BASE_URL}/auth`;
 
 // Helper to get the token from the store if needed for authenticated requests later
 // const getToken = () => useAuthStore.getState().token;
