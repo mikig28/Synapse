@@ -1,14 +1,14 @@
 /// <reference types="vite/client" />
 import React, { useEffect, useState } from 'react';
 import useAuthStore from '@/store/authStore'; // To get the auth token
-import EditTaskModal from '@/components/tasks/EditTaskModal.tsx'; // Import the modal
+import EditTaskModal from '../components/tasks/EditTaskModal.tsx'; // Import the modal using relative path
 // import { Button } from '@/components/ui/button'; // Consider using shadcn Button later
 // import { Trash2, Edit3 } from 'lucide-react'; // Icons for buttons
 import { Task } from '../../types/task'; // Using the centralized Task type
 import axiosInstance from '@/services/axiosConfig'; // Import axiosInstance
 
 // Define the AddTaskModal component path
-import AddTaskModal from '@/components/tasks/AddTaskModal.tsx'; // Corrected path
+import AddTaskModal from '../components/tasks/AddTaskModal.tsx'; // Corrected path using relative path
 
 const TasksPage: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
