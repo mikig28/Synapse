@@ -110,9 +110,7 @@ bot.on('message', async (msg) => {
         const fileLink = await bot.getFileLink(mediaFileId);
         const fileResponse = await axios({ url: fileLink, responseType: 'stream' });
         
-        // Determine file extension (Telegram usually uses .jpg for photos)
-        // For more robustness, you might inspect mime types from response headers or use a library
-        const fileName = `${mediaFileId}.jpg`; 
+        const fileName = `${mediaFileId}.jpg`; // CORRECT: Uses mediaFileId
         const localFilePath = path.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_media', fileName);
         
         const writer = fs.createWriteStream(localFilePath);
@@ -140,15 +138,15 @@ bot.on('message', async (msg) => {
   }
   if (msg.voice && synapseUser) { // Process voice only if a synapseUser is found
     messageType = 'voice';
-    mediaFileId = msg.voice.file_id;
+    mediaFileId = msg.voice.file_id; // CORRECT: mediaFileId is assigned here
     // --- BEGIN: Download and save voice memo ---
-    if (mediaFileId) {
-      let localFilePath: string | undefined = undefined; // Define here to be accessible in finally
+    if (mediaFileId) { // CORRECT: uses mediaFileId
+      let localFilePath: string | undefined = undefined;
       try {
-        const fileLink = await bot.getFileLink(mediaFileId);
+        const fileLink = await bot.getFileLink(mediaFileId); // CORRECT: uses mediaFileId
         const fileResponse = await axios({ url: fileLink, responseType: 'stream' });
         
-        const fileName = `${mediaFileId}.oga`; // CORRECTED: Was mediaId, should be mediaFileId
+        const fileName = `${mediaFileId}.oga`; // CORRECT: uses mediaFileId
         localFilePath = path.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_voice', fileName);
         
         const writer = fs.createWriteStream(localFilePath);
@@ -259,7 +257,7 @@ bot.on('message', async (msg) => {
         // --- END: Transcribe Audio --- 
 
       } catch (downloadError) {
-        console.error(`[TelegramBot]: Error downloading voice memo ${mediaFileId}:`, downloadError);
+        console.error(`[TelegramBot]: Error downloading voice memo ${mediaFileId}:`, downloadError); // CORRECT: uses mediaFileId
         // Continue without mediaLocalUrl if download fails
       } finally {
         // --- BEGIN: Cleanup local voice file ---
@@ -333,11 +331,10 @@ bot.on('message', async (msg) => {
       processTelegramItemForBookmarks(savedItem);
     }
 
-    // Emit event to connected clients (specifically to the user if we implement rooms/namespaces later)
-    // For now, emitting to all connected clients for simplicity
-    if (io) { // Check if io is available (it should be if server started correctly)
+    // Emit event to connected clients
+    if (io) { // Check if io is available
       io.emit('new_telegram_item', savedItem.toObject()); // Send the saved item data
-      console.log(`[Socket.IO]: Emitted 'new_telegram_item' for chat ${chatId}`);
+      console.log(`[Socket.IO]: Emitted \'new_telegram_item\' for chat ${chatId}`);
     } else {
       console.warn('[Socket.IO]: io instance not available in telegramService. Cannot emit event.');
     }
