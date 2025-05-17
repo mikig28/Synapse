@@ -34,7 +34,7 @@ const NotesPage: React.FC = () => {
     }
     setLoading(true);
     try {
-      const response = await fetch('/api/v1/notes', {
+      const response = await fetch(`${API_BASE_URL}/notes`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -89,7 +89,7 @@ const NotesPage: React.FC = () => {
       return;
     }
     try {
-      const response = await fetch('/api/v1/notes', {
+      const response = await fetch(`${API_BASE_URL}/notes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -142,7 +142,7 @@ const NotesPage: React.FC = () => {
       return;
     }
     try {
-      const response = await fetch(`/api/v1/notes/${noteId}`, {
+      const response = await fetch(`${API_BASE_URL}/notes/${noteId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -187,7 +187,7 @@ const NotesPage: React.FC = () => {
       return;
     }
     try {
-      const response = await fetch(`/api/v1/notes/${noteId}`, {
+      const response = await fetch(`${API_BASE_URL}/notes/${noteId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,

@@ -33,12 +33,16 @@ const httpServer = http.createServer(app);
 const io = new SocketIOServer(httpServer, {
   cors: {
     origin: frontendUrl, // Use the environment variable for frontend URL
-    methods: ["GET", "POST"]
+    methods: ["GET", "POST", "PUT", "DELETE"] // MODIFIED for Socket.IO
   }
 });
 
 // Middleware
-app.use(cors({ origin: frontendUrl })); // Explicitly set origin for Express CORS
+app.use(cors({
+  origin: [frontendUrl, "https://synapse-frontend.onrender.com"], // MODIFIED - Added your specific production frontend URL
+  methods: ["GET", "POST", "PUT", "DELETE"], // MODIFIED - Added PUT and DELETE for Express
+  allowedHeaders: ["Content-Type", "Authorization"] // Added common headers
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
