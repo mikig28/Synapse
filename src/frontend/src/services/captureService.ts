@@ -1,6 +1,7 @@
 import useAuthStore from "@/store/authStore";
 
-const API_BASE_URL = 'http://localhost:3001/api/v1';
+// Use Vite environment variable for the API base URL, fallback for local dev
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1';
 
 interface TelegramItem {
   _id: string;

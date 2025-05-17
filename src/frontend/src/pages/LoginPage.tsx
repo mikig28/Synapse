@@ -24,7 +24,7 @@ const LoginPage: React.FC = () => {
       const data = await loginService({ email, password });
       const loginPayload = {
         user: { id: data._id, email: data.email, fullName: data.fullName },
-        token: data.token,
+        token: data.token, 
       };
       storeLogin(loginPayload);
       console.log('[LoginPage] Email/Pass Login Success - Zustand store updated. Token present:', !!useAuthStore.getState().token);
