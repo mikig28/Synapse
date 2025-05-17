@@ -39,10 +39,24 @@ const NotesPage: React.FC = () => {
           'Authorization': `Bearer ${token}`,
         },
       });
+
+      const contentType = response.headers.get("content-type");
       if (!response.ok) {
-        const errorData = await response.json();
+        let errorData;
+        if (contentType && contentType.includes("application/json")) {
+          errorData = await response.json();
+        } else {
+          const textError = await response.text();
+          throw new Error(`Server returned non-JSON error: ${response.status}. Response: ${textError.substring(0, 100)}...`);
+        }
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
+
+      if (!contentType || !contentType.includes("application/json")) {
+        const textResponse = await response.text();
+        throw new Error(`Expected JSON response, but got ${contentType}. Response: ${textResponse.substring(0,100)}...`);
+      }
+      
       const data = await response.json();
       setNotes(data);
       setError(null);
@@ -84,9 +98,21 @@ const NotesPage: React.FC = () => {
         body: JSON.stringify(newNoteData),
       });
 
+      const contentType = response.headers.get("content-type");
       if (!response.ok) {
-        const errorData = await response.json();
+        let errorData;
+        if (contentType && contentType.includes("application/json")) {
+          errorData = await response.json();
+        } else {
+          const textError = await response.text();
+          throw new Error(`Server returned non-JSON error: ${response.status}. Response: ${textError.substring(0, 100)}...`);
+        }
         throw new Error(errorData.message || `Failed to create note. Status: ${response.status}`);
+      }
+
+      if (!contentType || !contentType.includes("application/json")) {
+        const textResponse = await response.text();
+        throw new Error(`Expected JSON response, but got ${contentType}. Response: ${textResponse.substring(0,100)}...`);
       }
       const createdNote = await response.json();
       setNotes(prevNotes => [createdNote, ...prevNotes]);
@@ -125,9 +151,21 @@ const NotesPage: React.FC = () => {
         body: JSON.stringify(updatedNoteData),
       });
 
+      const contentType = response.headers.get("content-type");
       if (!response.ok) {
-        const errorData = await response.json();
+        let errorData;
+        if (contentType && contentType.includes("application/json")) {
+          errorData = await response.json();
+        } else {
+          const textError = await response.text();
+          throw new Error(`Server returned non-JSON error: ${response.status}. Response: ${textError.substring(0, 100)}...`);
+        }
         throw new Error(errorData.message || `Failed to update note. Status: ${response.status}`);
+      }
+      
+      if (!contentType || !contentType.includes("application/json")) {
+        const textResponse = await response.text();
+        throw new Error(`Expected JSON response, but got ${contentType}. Response: ${textResponse.substring(0,100)}...`);
       }
       const savedNote = await response.json();
       setNotes(prevNotes => prevNotes.map(n => (n._id === savedNote._id ? savedNote : n)));
@@ -156,10 +194,42 @@ const NotesPage: React.FC = () => {
         },
       });
 
+      const contentType = response.headers.get("content-type");
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to delete note. Status: ${response.status}`);
+        let errorData;
+        // For DELETE, backend might send JSON or just a status with no content type or text/plain.
+        // If it's JSON, parse it. Otherwise, use status or text.
+        if (contentType && contentType.includes("application/json")) {
+          errorData = await response.json();
+          throw new Error(errorData.message || `Failed to delete note. Status: ${response.status}`);
+        } else {
+          const textError = await response.text();
+          // If textError is empty, it might be a 204 No Content successfully, but response.ok was false (which is unusual)
+          // or a proper error with text.
+          if (textError) {
+            throw new Error(`Failed to delete note. Status: ${response.status}. Response: ${textError.substring(0,100)}...`);
+          } else {
+            throw new Error(`Failed to delete note. Status: ${response.status}. Server returned no error message.`);
+          }
+        }
       }
+      
+      // For a successful DELETE, the response might be empty (204 No Content)
+      // or it might be a JSON confirmation.
+      // If it's not specifically application/json, but it was 'ok', we assume success.
+      // If it IS application/json, we should parse it.
+      // However, the original code didn't parse response.json() on successful DELETE.
+      // It only checked response.ok. The backend sends { message: 'Note deleted successfully' } with 200.
+
+      if (contentType && contentType.includes("application/json")) {
+        // const result = await response.json(); // Potentially use result if needed
+        // console.log('Delete successful with JSON response:', result);
+      } else if (response.status === 204) { // No Content
+        // console.log('Delete successful with 204 No Content');
+      } else if (response.ok && !(contentType && contentType.includes("application/json"))) {
+        // console.log('Delete successful, non-JSON response (e.g. text/plain or empty). Status:', response.status);
+      }
+
       // Update notes list in UI by filtering out the deleted note
       setNotes(prevNotes => prevNotes.filter(note => note._id !== noteId));
       // Optionally, show a success message/toast
