@@ -31,6 +31,7 @@ const InboxPage: React.FC = () => {
   useEffect(() => {
     const fetchItems = async () => {
       console.log('[InboxPage] Attempting to fetch items. IsAuthenticated:', storeIsAuthenticated, 'Token Present:', !!storeToken);
+      console.log('[InboxPage] Full authStore state before API call:', useAuthStore.getState());
       if (storeToken) {
         console.log('[InboxPage] Token value (first 20 chars):', storeToken.substring(0,20) + '...');
       }
