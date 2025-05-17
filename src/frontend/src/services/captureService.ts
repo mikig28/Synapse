@@ -1,7 +1,8 @@
 import useAuthStore from "@/store/authStore";
+import { BACKEND_ROOT_URL } from "./axiosConfig";
 
-// Use Vite environment variable for the API base URL, fallback for local dev
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1';
+// Centralised API base
+const API_BASE_URL = `${BACKEND_ROOT_URL}/api/v1`;
 
 interface TelegramItem {
   _id: string;

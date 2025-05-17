@@ -1,8 +1,7 @@
-import apiClient from './axiosConfig';
 import { VideoItemType } from '../types/video';
-import axiosInstance from './axiosConfig'; // Assuming you'll use axiosInstance for authenticated requests
+import axiosInstance, { BACKEND_ROOT_URL } from './axiosConfig';
 
-const API_BASE_URL = 'http://localhost:3001/api/v1'; // Corrected base URL
+const API_BASE_URL = `${BACKEND_ROOT_URL}/api/v1`;
 
 export const getVideosService = async (): Promise<VideoItemType[]> => {
   try {

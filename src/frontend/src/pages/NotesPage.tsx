@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import useAuthStore from '@/store/authStore';
 import AddNoteModal from '@/components/notes/AddNoteModal';
 import EditNoteModal from '@/components/notes/EditNoteModal'; // Import EditNoteModal
+import { BACKEND_ROOT_URL } from "@/services/axiosConfig";
 
 // Define a local interface for Note data
 interface Note {
@@ -14,7 +15,7 @@ interface Note {
   source?: string; // Similar to Tasks, might be useful
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1';
+const API_BASE_URL = `${BACKEND_ROOT_URL}/api/v1`;
 
 const NotesPage: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);

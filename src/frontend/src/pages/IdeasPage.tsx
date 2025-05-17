@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import useAuthStore from '@/store/authStore';
+import { BACKEND_ROOT_URL } from '@/services/axiosConfig';
 
 // Define an interface for the idea data
 interface Idea {
@@ -27,7 +28,7 @@ const IdeasPage: React.FC = () => {
 
       try {
         setIsLoading(true);
-        const response = await fetch('/api/v1/ideas', {
+        const response = await fetch(`${BACKEND_ROOT_URL}/api/v1/ideas`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },

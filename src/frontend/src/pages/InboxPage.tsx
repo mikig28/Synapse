@@ -50,7 +50,7 @@ const InboxPage: React.FC = () => {
     };
 
     fetchItems();
-  }, []);
+  }, [storeToken, storeIsAuthenticated]);
 
   // Note: Loading and error states below only apply to the initially fetched items.
   // TelegramFeed has its own internal connection status display.
