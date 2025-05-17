@@ -26,6 +26,7 @@ const PORT = parseInt(rawPort, 10); // Convert to number
 
 // Define Frontend URL from environment variable or default to localhost
 const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+console.log(`[CORS Setup] Allowed origin for Express CORS: ${frontendUrl}`); // Log the origin being used
 
 // Create HTTP server and pass it to Socket.IO
 const httpServer = http.createServer(app);
@@ -37,7 +38,7 @@ const io = new SocketIOServer(httpServer, {
 });
 
 // Middleware
-app.use(cors());
+app.use(cors({ origin: frontendUrl })); // Explicitly set origin for Express CORS
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

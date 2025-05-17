@@ -37,6 +37,13 @@ const LoginPage: React.FC = () => {
     setLoading(false);
   };
 
+  // TEMPORARY DEBUG BUTTON
+  const checkStoreAfterLogin = () => {
+    console.log('[LoginPage DEBUG] Checking store manually. Token present:', !!useAuthStore.getState().token);
+    console.log('[LoginPage DEBUG] User:', useAuthStore.getState().user);
+    alert(`Token Present: ${!!useAuthStore.getState().token}`);
+  };
+
   const handleGoogleSuccess = (credentialResponse: CredentialResponse) => {
     console.log('Google Sign-In Success:', credentialResponse);
     if (credentialResponse.credential) {
@@ -116,6 +123,15 @@ const LoginPage: React.FC = () => {
             </Button>
           </div>
         </form>
+        
+        {/* TEMPORARY DEBUG BUTTON */}
+        {useAuthStore.getState().isAuthenticated && (
+          <div className="mt-4">
+            <Button onClick={checkStoreAfterLogin} variant="outline" className="w-full">
+              DEBUG: Check Auth Store
+            </Button>
+          </div>
+        )}
         
         <div className="relative my-4">
           <div className="absolute inset-0 flex items-center">
