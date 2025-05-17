@@ -111,7 +111,7 @@ bot.on('message', async (msg) => {
         const fileResponse = await axios({ url: fileLink, responseType: 'stream' });
         
         const fileName = `${mediaFileId}.jpg`; // CORRECT: Uses mediaFileId
-        const localFilePath = path.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_media', fileName);
+        const localFilePath = path.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_media', fileName); // REVERTED to original
         
         const writer = fs.createWriteStream(localFilePath);
         fileResponse.data.pipe(writer);
@@ -147,7 +147,7 @@ bot.on('message', async (msg) => {
         const fileResponse = await axios({ url: fileLink, responseType: 'stream' });
         
         const fileName = `${mediaFileId}.oga`; // CORRECT: uses mediaFileId
-        localFilePath = path.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_voice', fileName);
+        localFilePath = path.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_voice', fileName); // REVERTED to original
         
         const writer = fs.createWriteStream(localFilePath);
         fileResponse.data.pipe(writer);
@@ -365,8 +365,8 @@ bot.on('webhook_error', (error) => {
 
 export const initializeTelegramBot = () => {
   // Ensure download directories exist
-  const mediaDir = path.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_media');
-  const voiceDir = path.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_voice');
+  const mediaDir = path.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_media'); // REVERTED to original
+  const voiceDir = path.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_voice'); // REVERTED to original
 
   if (!fs.existsSync(mediaDir)) {
     fs.mkdirSync(mediaDir, { recursive: true });
