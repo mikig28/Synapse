@@ -30,10 +30,36 @@ console.log(`[CORS Setup] Allowed origin for Express CORS: ${frontendUrl}`); // 
 
 // Create HTTP server and pass it to Socket.IO
 const httpServer = http.createServer(app);
+
+// Define allowed origins for Socket.IO
+const allowedSocketOrigins = [
+  frontendUrl, // From environment variable
+  "https://synapse-frontend.onrender.com" // Explicitly add production URL
+];
+// For development, you might also want to add your local dev URL if it's different
+// e.g., if frontendUrl is for production, add "http://localhost:5173" here for local testing
+
+console.log(`[Socket.IO CORS Setup] Allowed origins for Socket.IO: ${allowedSocketOrigins.join(', ')}`);
+
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: frontendUrl, // Use the environment variable for frontend URL
-    methods: ["GET", "POST", "PUT", "DELETE"] // MODIFIED for Socket.IO
+    origin: function (requestOrigin, callback) {
+      // Log the origin for every connection attempt
+      console.log(`[Socket.IO CORS] Request origin: ${requestOrigin}`);
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!requestOrigin) {
+        console.log('[Socket.IO CORS] Allowing request with no origin.');
+        return callback(null, true);
+      }
+      if (allowedSocketOrigins.includes(requestOrigin)) {
+        console.log(`[Socket.IO CORS] Origin ${requestOrigin} is allowed.`);
+        return callback(null, true);
+      } else {
+        console.error(`[Socket.IO CORS] Origin ${requestOrigin} is NOT allowed.`);
+        return callback(new Error('Not allowed by CORS'));
+      }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE"]
   }
 });
 
@@ -72,6 +98,8 @@ const telegramMediaDir = path.join(uploadsDir, 'telegram_media');
 if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir);
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
 if (!fs.existsSync(telegramMediaDir)) fs.mkdirSync(telegramMediaDir);
+
+console.log(`[Static Files] Serving static files from /public mapped to physical directory: ${publicDir}`); // ADDED THIS LINE
 
 // Serve static files from the 'public' directory
 app.use('/public', express.static(publicDir)); // Serve files under /public URL path
