@@ -2,6 +2,7 @@ import React from 'react';
 import { useTelegram } from '@/contexts/TelegramContext'; // Adjust path if necessary
 import { TelegramItemType } from '@/types/telegram'; // Adjust path if necessary
 import { X } from 'lucide-react'; // <-- Import X icon
+import { STATIC_ASSETS_BASE_URL } from '../services/axiosConfig'; // Import the new base URL
 
 // Use Vite environment variable for the API base URL, fallback for local dev
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
@@ -47,9 +48,9 @@ const ImagesPage: React.FC = () => {
               >
                 <X size={16} />
               </button>
-              <a href={`${API_BASE_URL}${item.mediaLocalUrl}`} target="_blank" rel="noopener noreferrer">
+              <a href={`${STATIC_ASSETS_BASE_URL}${item.mediaLocalUrl}`} target="_blank" rel="noopener noreferrer">
                 <img 
-                  src={`${API_BASE_URL}${item.mediaLocalUrl}`}
+                  src={`${STATIC_ASSETS_BASE_URL}${item.mediaLocalUrl}`}
                   alt={`Telegram Photo from ${item.fromUsername || 'Unknown'} in ${item.chatTitle || 'DM'}`}
                   className="w-full h-48 object-cover hover:opacity-90 transition-opacity"
                 />

@@ -1,12 +1,21 @@
 import axios, { InternalAxiosRequestConfig, AxiosError, AxiosResponse } from 'axios';
 import useAuthStore from '../store/authStore'; // Adjust path if your store is elsewhere
 
-// Use import.meta.env for Vite environment variables
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1';
+// Define the root URL for your backend.
+// For local development, it's typically 'http://localhost:3001'.
+// For production, set VITE_BACKEND_ROOT_URL to your backend's base URL (e.g., https://your-backend.onrender.com)
+const BACKEND_ROOT_URL = import.meta.env.VITE_BACKEND_ROOT_URL || 'http://localhost:3001';
+
+// Define the common path for your API endpoints.
+const API_PATH = '/api/v1'; // This can be made configurable via another env var if needed
 
 const axiosInstance = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: `${BACKEND_ROOT_URL}${API_PATH}`, // e.g., http://localhost:3001/api/v1 or https://your-backend.onrender.com/api/v1
 });
+
+// Export the root URL for constructing paths to static assets (like images)
+// This ensures static assets are fetched from the correct base, without the /api/v1 path.
+export const STATIC_ASSETS_BASE_URL = BACKEND_ROOT_URL;
 
 // Request interceptor to add token to headers
 axiosInstance.interceptors.request.use(

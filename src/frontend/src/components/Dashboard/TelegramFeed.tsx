@@ -2,6 +2,7 @@ import React from 'react';
 import { useTelegram } from '../../contexts/TelegramContext'; // Adjust path as needed
 import { TelegramItemType } from '../../types/telegram'; // Adjust path as needed
 import { X, MessageSquareText } from 'lucide-react'; // Import X and an icon for transcription
+import { STATIC_ASSETS_BASE_URL } from '../../services/axiosConfig'; // Import the new base URL
 
 // Use Vite environment variable for the API base URL, fallback for local dev
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
@@ -82,7 +83,7 @@ const TelegramFeed: React.FC = () => {
             {item.messageType === 'photo' && item.mediaLocalUrl && (
               <div className="mt-2">
                 <img 
-                  src={`${API_BASE_URL}${item.mediaLocalUrl}`} 
+                  src={`${STATIC_ASSETS_BASE_URL}${item.mediaLocalUrl}`} 
                   alt="Telegram Photo" 
                   className="max-w-xs max-h-64 rounded-md border object-cover"
                 />
