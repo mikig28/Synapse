@@ -5,7 +5,9 @@ import { getCapturedTelegramItems, deleteCapturedTelegramItem } from '../service
 import useAuthStore from '@/store/authStore';
 
 // Use Vite environment variable for deployed URL, fallback to localhost for local dev
-const SOCKET_SERVER_URL = import.meta.env.VITE_SOCKET_IO_URL || 'http://localhost:3001';
+const SOCKET_SERVER_URL =
+  import.meta.env.VITE_SOCKET_IO_URL ||
+  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001');
 
 interface TelegramContextType {
   telegramItems: TelegramItemType[];

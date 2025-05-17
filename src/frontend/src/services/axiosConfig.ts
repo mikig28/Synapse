@@ -4,7 +4,9 @@ import useAuthStore from '../store/authStore'; // Adjust path if your store is e
 // Define the root URL for your backend.
 // For local development, it's typically 'http://localhost:3001'.
 // For production, set VITE_BACKEND_ROOT_URL to your backend's base URL (e.g., https://your-backend.onrender.com)
-const BACKEND_ROOT_URL = import.meta.env.VITE_BACKEND_ROOT_URL || 'http://localhost:3001';
+const BACKEND_ROOT_URL =
+  import.meta.env.VITE_BACKEND_ROOT_URL ||
+  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001');
 
 // Define the common path for your API endpoints.
 const API_PATH = '/api/v1'; // This can be made configurable via another env var if needed
