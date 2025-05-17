@@ -3,7 +3,8 @@ import { useTelegram } from '@/contexts/TelegramContext'; // Adjust path if nece
 import { TelegramItemType } from '@/types/telegram'; // Adjust path if necessary
 import { X } from 'lucide-react'; // <-- Import X icon
 
-const SOCKET_SERVER_URL = 'http://localhost:3001'; // Consider moving to a config or env variable
+// Use Vite environment variable for the API base URL, fallback for local dev
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
 const ImagesPage: React.FC = () => {
   const { telegramItems, isConnected, deleteTelegramItem } = useTelegram();
@@ -46,9 +47,9 @@ const ImagesPage: React.FC = () => {
               >
                 <X size={16} />
               </button>
-              <a href={`${SOCKET_SERVER_URL}${item.mediaLocalUrl}`} target="_blank" rel="noopener noreferrer">
+              <a href={`${API_BASE_URL}${item.mediaLocalUrl}`} target="_blank" rel="noopener noreferrer">
                 <img 
-                  src={`${SOCKET_SERVER_URL}${item.mediaLocalUrl}`}
+                  src={`${API_BASE_URL}${item.mediaLocalUrl}`}
                   alt={`Telegram Photo from ${item.fromUsername || 'Unknown'} in ${item.chatTitle || 'DM'}`}
                   className="w-full h-48 object-cover hover:opacity-90 transition-opacity"
                 />

@@ -3,7 +3,8 @@ import { useTelegram } from '../../contexts/TelegramContext'; // Adjust path as 
 import { TelegramItemType } from '../../types/telegram'; // Adjust path as needed
 import { X, MessageSquareText } from 'lucide-react'; // Import X and an icon for transcription
 
-const SOCKET_SERVER_URL = 'http://localhost:3001'; // Defined in TelegramContext, we can reuse it or define it here too
+// Use Vite environment variable for the API base URL, fallback for local dev
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
 const TelegramFeed: React.FC = () => {
   const { telegramItems, isConnected, deleteTelegramItem } = useTelegram();
@@ -81,7 +82,7 @@ const TelegramFeed: React.FC = () => {
             {item.messageType === 'photo' && item.mediaLocalUrl && (
               <div className="mt-2">
                 <img 
-                  src={`${SOCKET_SERVER_URL}${item.mediaLocalUrl}`} 
+                  src={`${API_BASE_URL}${item.mediaLocalUrl}`} 
                   alt="Telegram Photo" 
                   className="max-w-xs max-h-64 rounded-md border object-cover"
                 />
