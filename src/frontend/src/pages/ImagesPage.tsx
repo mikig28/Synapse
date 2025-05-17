@@ -4,6 +4,8 @@ import { TelegramItemType } from '@/types/telegram'; // Adjust path if necessary
 import { X } from 'lucide-react'; // <-- Import X icon
 import { STATIC_ASSETS_BASE_URL } from '../services/axiosConfig'; // Import the new base URL
 
+console.log('[ImagesPage] STATIC_ASSETS_BASE_URL:', STATIC_ASSETS_BASE_URL); // <-- Add this line for debugging
+
 // Use Vite environment variable for the API base URL, fallback for local dev
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
