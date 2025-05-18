@@ -9,6 +9,7 @@ import LinkedInCard from '@/components/ui/LinkedInCard';
 import { Button } from '@/components/ui/button';
 import { useToast } from "@/hooks/use-toast"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import useAuthStore from '@/store/authStore';
 
 const BookmarksPage: React.FC = () => {
   const [bookmarks, setBookmarks] = useState<BookmarkItemType[]>([]);
@@ -16,6 +17,7 @@ const BookmarksPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all'); // 'all', 'week', 'month'
   const { toast } = useToast();
+  const token = useAuthStore((state) => state.token);
 
   const fetchBookmarks = async () => {
     try {
@@ -37,8 +39,9 @@ const BookmarksPage: React.FC = () => {
   };
 
   useEffect(() => {
+    if (!token) return;
     fetchBookmarks();
-  }, []);
+  }, [token]);
 
   const filteredBookmarks = useMemo(() => {
     const now = new Date();

@@ -288,7 +288,7 @@ export const ClientTweetCard = ({
             onDelete();
           }}
           title="Delete Tweet Bookmark"
-          className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+          className="absolute bottom-2 right-2 z-10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
         >
           <Trash2 className="w-4 h-4" />
         </Button>

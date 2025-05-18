@@ -58,14 +58,17 @@ const LinkedInCard: React.FC<LinkedInCardProps> = ({ bookmark, onDelete }) => {
           >
             <ExternalLink className="w-4 h-4 mr-1" /> View Post
           </Button>
-          <Button 
-            variant="destructive" 
-            size="icon" 
-            onClick={() => onDelete(bookmark._id)} 
-            title="Delete Bookmark"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
+          <div className="relative">
+            <Button 
+              variant="destructive" 
+              size="icon" 
+              onClick={() => onDelete(bookmark._id)} 
+              title="Delete Bookmark"
+              className="absolute -bottom-8 right-0"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
         <p className="text-xs text-muted-foreground mt-2 w-full text-right">
             Saved: {formattedDate}
