@@ -11,10 +11,7 @@ router.post('/register', registerUser);
 // @route   POST api/v1/auth/login
 // @desc    Authenticate user & get token
 // @access  Public
-router.post('/login', (req, res) => {
-  console.log('AUTH_ROUTES /login HIT - Body:', JSON.stringify(req.body, null, 2));
-  res.status(200).json({ message: "Auth route /login was hit successfully" });
-});
+router.post('/login', loginUser);
 
 // We can add more auth-related routes here later (e.g., /me, /google, /google/callback)
 
