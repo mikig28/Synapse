@@ -55,7 +55,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
         bg-card border-r p-4 
 
         /* DESKTOP (≥ md)  ----------------------------------- */
-        hidden md:block        md:sticky md:top-0
+        md:block        md:sticky md:top-0
         ${isSidebarOpen ? "md:w-64" : "md:w-16"}
 
         /* MOBILE (< md)  ------------------------------------ */
