@@ -226,7 +226,7 @@ const fetchAndParseURL = async (url: string): Promise<string | null> => {
 
     const $ = cheerio.load(html);
     let textContent = '';
-    $('article, main, [role=\"main\"], .content, .post-body, .entry-content').each((i, elem) => {
+    $('article, main, [role=\"main\"], .content, .post-body, .entry-content').each((i: number, elem: cheerio.Element) => {
       textContent += $(elem).text() + '\n\n';
     });
 
