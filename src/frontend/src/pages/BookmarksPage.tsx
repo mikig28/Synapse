@@ -20,6 +20,8 @@ const BookmarksPage: React.FC = () => {
   const { toast } = useToast();
   const token = useAuthStore((state) => state.token);
 
+  console.log("[BookmarksPage] Component rendered or re-rendered"); // General render log
+
   const fetchBookmarks = async () => {
     try {
       setLoading(true);
@@ -93,6 +95,7 @@ const BookmarksPage: React.FC = () => {
   };
 
   const handleSummarizeBookmark = async (bookmarkId: string) => {
+    console.log(`[BookmarksPage] handleSummarizeBookmark called for ID: ${bookmarkId}`); // Log handler call
     setSummarizingBookmarkId(bookmarkId);
     try {
       const updatedBookmark = await summarizeBookmarkById(bookmarkId);
@@ -124,6 +127,7 @@ const BookmarksPage: React.FC = () => {
   };
 
   if (loading) {
+    console.log("[BookmarksPage] Rendering Loading State");
     return (
       <div className="flex justify-center items-center h-full">
         <p>Loading bookmarks...</p>
@@ -132,6 +136,7 @@ const BookmarksPage: React.FC = () => {
   }
 
   if (error) {
+    console.log("[BookmarksPage] Rendering Error State:", error);
     return (
       <Alert variant="destructive" className="max-w-2xl mx-auto mt-8">
         <Info className="h-4 w-4" />
@@ -140,6 +145,8 @@ const BookmarksPage: React.FC = () => {
       </Alert>
     );
   }
+
+  console.log("[BookmarksPage] Filtered bookmarks before map:", filteredBookmarks); // Log filtered bookmarks array
 
   return (
     <div className="container mx-auto p-4">
@@ -171,7 +178,10 @@ const BookmarksPage: React.FC = () => {
         </Alert>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredBookmarks.map((bookmark) => {
+          {filteredBookmarks.map((bookmark, index) => {
+            console.log(`[BookmarksPage] Mapping bookmark at index ${index}:`, bookmark);
+            console.log(`[BookmarksPage] Bookmark ID ${bookmark._id} - Status: ${bookmark.status}, Summary: ${bookmark.summary}`);
+            
             // Render X/Twitter Card
             if (bookmark.sourcePlatform === 'X' && bookmark.originalUrl) {
               const tweetId = extractTweetId(bookmark.originalUrl);
@@ -201,12 +211,10 @@ const BookmarksPage: React.FC = () => {
             }
 
             // Fallback to generic card
-            // DEBUG: Log formatted date for generic card
             const formattedDate = new Date(bookmark.createdAt).toLocaleString(undefined, { 
                 year: 'numeric', month: 'numeric', day: 'numeric', 
                 hour: '2-digit', minute: '2-digit' 
             });
-            console.log(`Generic Card - Bookmark ${bookmark._id} createdAt: ${bookmark.createdAt}, Formatted: ${formattedDate}`);
 
             return (
               <Card key={bookmark._id} className="shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
