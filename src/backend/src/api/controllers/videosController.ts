@@ -7,6 +7,23 @@ interface AuthenticatedRequest extends Request {
   user?: { id: string };
 }
 
+// Define the oEmbed response interface
+interface YouTubeOEmbedResponse {
+  title?: string;
+  author_name?: string;
+  author_url?: string;
+  type?: string;
+  height?: number;
+  width?: number;
+  version?: string;
+  provider_name?: string;
+  provider_url?: string;
+  thumbnail_height?: number;
+  thumbnail_width?: number;
+  thumbnail_url?: string;
+  html?: string;
+}
+
 const extractYouTubeVideoId = (url: string): string | null => {
   let videoId: string | null = null;
   try {
@@ -71,11 +88,13 @@ export const processAndCreateVideoItem = async (
 
     try {
       const oEmbedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(originalUrl)}&format=json`;
-      const oEmbedResponse = await axios.get(oEmbedUrl);
+      // Type the axios call
+      const oEmbedResponse = await axios.get<YouTubeOEmbedResponse>(oEmbedUrl);
+      
       if (oEmbedResponse.data) {
         title = oEmbedResponse.data.title || title;
-        thumbnailUrl = oEmbedResponse.data.thumbnail_url;
-        channelTitle = oEmbedResponse.data.author_name;
+        thumbnailUrl = oEmbedResponse.data.thumbnail_url; // This can be undefined
+        channelTitle = oEmbedResponse.data.author_name;   // This can be undefined
       }
     } catch (oembedError) {
       console.error(`[VideoController] Failed to fetch oEmbed data for ${originalUrl}:`, oembedError);

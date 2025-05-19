@@ -19,6 +19,29 @@ function envCheck() {
   // }
 }
 
+// Define interfaces for OpenAI response
+interface OpenAIChatChoice {
+  index?: number;
+  message: {
+    role: string;
+    content: string;
+  };
+  finish_reason?: string;
+}
+
+interface OpenAIChatCompletionResponse {
+  id?: string;
+  object?: string;
+  created?: number;
+  model?: string;
+  choices: OpenAIChatChoice[];
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
+
 export async function analyzeTranscription(transcription: string) {
   const prompt = `
 הטקסט הבא הוא תמלול של הודעה קולית.
@@ -38,7 +61,7 @@ export async function analyzeTranscription(transcription: string) {
 """${transcription}"""
   `.trim();
 
-  const response = await axios.post(
+  const response = await axios.post<OpenAIChatCompletionResponse>(
     OPENAI_URL,
     {
       model: 'gpt-4.1-mini',
@@ -52,15 +75,31 @@ export async function analyzeTranscription(transcription: string) {
       },
     }
   );
-  const content = response.data.choices[0].message.content as string;
-  // Try to parse JSON
-  let result = { tasks: [], notes: [], ideas: [], raw: content };
-  try {
-    // Remove markdown code block if present
-    const jsonStr = content.replace(/```json|```/g, '').trim();
-    result = { ...result, ...JSON.parse(jsonStr) };
-  } catch (e) {
-    // fallback: leave as empty arrays, keep raw
+  
+  // Safely access content
+  const choice = response.data?.choices?.[0];
+  const content = choice?.message?.content;
+
+  let result = { tasks: [], notes: [], ideas: [], raw: content || "Error: No content from AI" };
+  
+  if (typeof content === 'string') {
+    try {
+      const jsonStr = content.replace(/```json|```/g, '').trim();
+      const parsedJson = JSON.parse(jsonStr);
+      // Ensure parsedJson has the expected structure before spreading
+      result = {
+        tasks: Array.isArray(parsedJson.tasks) ? parsedJson.tasks : [],
+        notes: Array.isArray(parsedJson.notes) ? parsedJson.notes : [],
+        ideas: Array.isArray(parsedJson.ideas) ? parsedJson.ideas : [],
+        raw: content, // Keep the original raw content
+      };
+    } catch (e) {
+      console.error("[AnalysisService] Failed to parse JSON from AI content:", e);
+      // result already contains raw content and empty arrays as fallback
+    }
+  } else {
+    console.error("[AnalysisService] Failed to get content string from OpenAI response:", response.data);
+    // result already initialized with error message in raw field
   }
   return result;
 } 
