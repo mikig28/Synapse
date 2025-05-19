@@ -1,5 +1,5 @@
 import express from 'express';
-import { getBookmarks, processAndCreateBookmark, deleteBookmark } from '../controllers/bookmarksController';
+import { getBookmarks, processAndCreateBookmark, deleteBookmark, summarizeBookmarkController } from '../controllers/bookmarksController';
 import { protect } from '../middleware/authMiddleware'; // Assuming you have auth middleware
 
 const router = express.Router();
@@ -12,5 +12,8 @@ router.get('/', protect, getBookmarks);
 
 // Route to delete a specific bookmark
 router.delete('/:id', protect, deleteBookmark);
+
+// Route to summarize a specific bookmark
+router.post('/:id/summarize', protect, summarizeBookmarkController);
 
 export default router; 

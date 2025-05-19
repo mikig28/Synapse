@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { ExternalLink, Info, MessageSquareText, Trash2, CalendarDays } from 'lucide-react';
-import { getBookmarks, deleteBookmarkService } from '../services/bookmarkService';
+import { ExternalLink, Info, MessageSquareText, Trash2, CalendarDays, FileText, Zap } from 'lucide-react';
+import { getBookmarks, deleteBookmarkService, summarizeBookmarkById } from '../services/bookmarkService';
 import { BookmarkItemType } from '../types/bookmark';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ClientTweetCard } from '@/components/ui/TweetCard';
@@ -16,6 +16,7 @@ const BookmarksPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all'); // 'all', 'week', 'month'
+  const [summarizingBookmarkId, setSummarizingBookmarkId] = useState<string | null>(null);
   const { toast } = useToast();
   const token = useAuthStore((state) => state.token);
 
@@ -88,6 +89,37 @@ const BookmarksPage: React.FC = () => {
         description: "Failed to delete bookmark.",
         variant: "destructive",
       })
+    }
+  };
+
+  const handleSummarizeBookmark = async (bookmarkId: string) => {
+    setSummarizingBookmarkId(bookmarkId);
+    try {
+      const updatedBookmark = await summarizeBookmarkById(bookmarkId);
+      setBookmarks(prevBookmarks => 
+        prevBookmarks.map(b => b._id === bookmarkId ? updatedBookmark : b)
+      );
+      toast({
+        title: "Success",
+        description: "Bookmark summarized successfully.",
+      });
+    } catch (err: any) {
+      console.error(`Error summarizing bookmark ${bookmarkId}:`, err);
+      // Update the specific bookmark's status to 'error' in the UI if possible
+      // This assumes the error object from the service has a message property
+      const errorMessage = err?.message || "Failed to summarize bookmark.";
+      setBookmarks(prevBookmarks => 
+        prevBookmarks.map(b => 
+          b._id === bookmarkId ? { ...b, status: 'error', summary: `Error: ${errorMessage}` } : b
+        )
+      );
+      toast({
+        title: "Error Summarizing",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setSummarizingBookmarkId(null);
     }
   };
 
@@ -188,22 +220,54 @@ const BookmarksPage: React.FC = () => {
                   <CardDescription>
                     {bookmark.fetchedDescription || 'No description available.'}
                   </CardDescription>
+                  {/* Display Summary if available */}
+                  {bookmark.summary && (
+                    <div className="mt-2 p-2 border-t">
+                      <h4 className="text-sm font-semibold mb-1 flex items-center">
+                        <FileText className="w-4 h-4 mr-1 flex-shrink-0" /> Summary
+                      </h4>
+                      <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                        {bookmark.summary}
+                      </p>
+                    </div>
+                  )}
+                  {bookmark.status === 'pending_summary' && !bookmark.summary && (
+                     <p className="text-xs text-yellow-600 mt-2">Summarizing...</p>
+                  )}
                 </CardHeader>
                 <CardFooter className="p-4 pt-2 border-t mt-auto">
                   <div className="flex justify-between items-center w-full">
-                      <Button 
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          if (bookmark.originalUrl) {
-                            window.open(bookmark.originalUrl, '_blank');
-                          }
-                        }}
-                        title="View Original"
-                        className="text-xs"
-                      >
-                        <ExternalLink className="w-4 h-4 mr-1" /> View Original
-                      </Button>
+                      <div className="flex space-x-2">
+                        <Button 
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (bookmark.originalUrl) {
+                              window.open(bookmark.originalUrl, '_blank');
+                            }
+                          }}
+                          title="View Original"
+                          className="text-xs"
+                        >
+                          <ExternalLink className="w-4 h-4 mr-1" /> View Original
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSummarizeBookmark(bookmark._id)}
+                          disabled={summarizingBookmarkId === bookmark._id || bookmark.status === 'summarized' || bookmark.status === 'pending_summary'}
+                          title={bookmark.status === 'summarized' ? "Already Summarized" : "Summarize Content"}
+                          className="text-xs"
+                        >
+                          {summarizingBookmarkId === bookmark._id ? (
+                            <><Zap className="w-4 h-4 mr-1 animate-pulse" /> Summarizing...</>
+                          ) : bookmark.status === 'summarized' ? (
+                            <><FileText className="w-4 h-4 mr-1" /> Summarized</>
+                          ) : (
+                            <><FileText className="w-4 h-4 mr-1" /> Summarize</>
+                          )}
+                        </Button>
+                      </div>
                       <Button 
                         variant="destructive"
                         size="icon"
