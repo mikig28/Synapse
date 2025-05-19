@@ -51,10 +51,20 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
   return (
     <aside
       className={`
-        bg-muted/40 border-r p-4 h-screen sticky top-0 
-        transition-all duration-300 ease-in-out 
-        ${isSidebarOpen ? 'w-64' : 'w-16'}
+        z-50                 /* sits above page */
+        bg-card border-r p-4 
+
+        /* DESKTOP (≥ md)  ----------------------------------- */
+        hidden md:block        md:sticky md:top-0
+        ${isSidebarOpen ? "md:w-64" : "md:w-16"}
+
+        /* MOBILE (< md)  ------------------------------------ */
+        fixed md:relative      h-screen md:h-auto
+        transition-transform duration-300 ease-in-out
+        ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
+        w-64                   /* full drawer width on mobile */
       `}
+      aria-label="Primary"
     >
       {/* In a real app, h-screen sticky top-0 might be handled by the parent Layout for better scroll behavior */}
       <div className="mb-4 flex items-center">
