@@ -13,6 +13,7 @@ const VideosPage: React.FC = () => {
   const [videos, setVideos] = useState<VideoItemType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const fetchVideos = async () => {
@@ -111,6 +112,32 @@ const VideosPage: React.FC = () => {
     <div className="container mx-auto p-4 md:p-8">
       <h1 className="text-3xl md:text-4xl font-bold mb-8 text-center">My Video Library</h1>
       
+      {/* YouTube Player Section */}
+      {playingVideoId && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-background p-4 rounded-lg shadow-xl relative w-full max-w-3xl aspect-video">
+            <Button 
+              variant="outline" 
+              size="icon"
+              onClick={() => setPlayingVideoId(null)} 
+              className="absolute -top-3 -right-3 bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-full h-8 w-8"
+              title="Close player"
+            >
+              X
+            </Button>
+            <iframe
+              width="100%"
+              height="100%"
+              src={`https://www.youtube.com/embed/${playingVideoId}?autoplay=1`}
+              title="YouTube video player"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            ></iframe>
+          </div>
+        </div>
+      )}
+      
       {videos.length === 0 ? (
          <Alert className="max-w-lg mx-auto text-center">
             <HelpCircle className="h-5 w-5 mx-auto mb-2" />
@@ -135,19 +162,22 @@ const VideosPage: React.FC = () => {
                   .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) // Sort by newest first
                   .map(video => (
                   <Card key={video._id} className="flex flex-col overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
-                    <a href={video.originalUrl} target="_blank" rel="noopener noreferrer" className="block">
+                    <div onClick={() => setPlayingVideoId(video.videoId)} className="block cursor-pointer relative group">
                       {video.thumbnailUrl ? (
                         <img 
                             src={video.thumbnailUrl}
                             alt={`Thumbnail for ${video.title}`}
-                            className="w-full h-48 object-cover cursor-pointer" 
+                            className="w-full h-48 object-cover" 
                         />
                       ) : (
                         <div className="w-full h-48 bg-muted flex items-center justify-center text-muted-foreground">
                           No Thumbnail
                         </div>
                       )}
-                    </a>
+                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 flex items-center justify-center transition-opacity duration-300">
+                        <PlayCircle className="h-16 w-16 text-white opacity-0 group-hover:opacity-100 transform scale-75 group-hover:scale-100 transition-all duration-300" />
+                      </div>
+                    </div>
                     <CardHeader className="flex-grow p-4">
                       <CardTitle className="text-base font-semibold leading-tight mb-1 line-clamp-2" title={video.title}>
                         {video.title}
