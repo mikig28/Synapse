@@ -4,8 +4,9 @@ import { ObjectId } from 'mongodb'; // Still needed for casting string IDs to Ob
 import mongoose from 'mongoose'; // Import mongoose for delete operation
 // Consider adding a metadata fetching library here later
 // import * as metaFetcher from 'html-metadata-parser'; // Example
-// import axios from 'axios'; // For fetching URL content - TODO: uncomment and install if not present
-// import cheerio from 'cheerio'; // For parsing HTML - TODO: uncomment and install if not present
+import axios from 'axios'; // For fetching URL content - TODO: uncomment and install if not present
+import cheerio from 'cheerio'; // For parsing HTML - TODO: uncomment and install if not present
+import OpenAI from 'openai';
 
 // Define AuthenticatedRequest if it's not globally available or imported from a shared types file
 interface AuthenticatedRequest extends Request {
@@ -145,25 +146,98 @@ export const deleteBookmark = async (req: AuthenticatedRequest, res: Response) =
 
 // --- Summarization Logic (Placeholder) ---
 // TODO: Replace with actual GPT API call
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY, // Ensure OPENAI_API_KEY is set in your .env file
+});
+
 const generateSummaryWithGPT = async (content: string): Promise<string> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(`This is a simulated summary of the content: "${content.substring(0, 100)}..." Highlights: Key point 1, Key point 2.`);
-    }, 1000);
-  });
+  if (!process.env.OPENAI_API_KEY) {
+    console.error("Log: OPENAI_API_KEY not set.");
+    return "OPENAI_API_KEY not configured. Summarization disabled."; 
+  }
+
+  if (!content || content.trim().length === 0) {
+    console.warn("Log: Content is empty for summarization.");
+    return "Content was empty, no summary generated.";
+  }
+
+  const MAX_CONTENT_LENGTH = 12000;
+  let truncatedContent = content;
+  if (content.length > MAX_CONTENT_LENGTH) {
+    console.warn("Log: Content truncated for summarization.");
+    truncatedContent = content.substring(0, MAX_CONTENT_LENGTH) + "... [content truncated]";
+  }
+
+  try {
+    console.log("Log: Requesting summary from OpenAI.");
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a helpful assistant that summarizes web content. Provide the summary as a few concise bullet points or a short paragraph highlighting the key takeaways.'
+        },
+        {
+          role: 'user',
+          content: `Please summarize the following content into concise points and highlights:\\n\\n---\\n${truncatedContent}\\n---\\nSummary:\` // Corrected backtick, ensure it's the last char of this line.`
+        }
+      ],
+      temperature: 0.5, 
+      max_tokens: 250, 
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0,
+    });
+
+    const summary = completion.choices[0]?.message?.content?.trim();
+    if (summary) {
+      console.log("Log: Summary generated successfully.");
+      return summary;
+    } else {
+      console.error("Log: Failed to extract summary from OpenAI response.");
+      return 'Failed to extract summary from OpenAI response.'; 
+    }
+
+  } catch (error: any) {
+    console.error("Log: Error calling OpenAI API.");
+    return `OpenAI API error occurred.`;
+  }
 };
 
 // TODO: Implement robust HTML fetching and text extraction
 const fetchAndParseURL = async (url: string): Promise<string | null> => {
   try {
-    // const response = await axios.get(url); // TODO: Uncomment and use actual fetching
-    // const html = response.data;
-    // const $ = cheerio.load(html);
-    // return $(\'body\').text(); // Basic text extraction, might need refinement
-    console.log(`[fetchAndParseURL] Simulating fetch for: ${url}`);
-    return `Simulated page content for ${url}. This should be replaced with actual fetched and parsed HTML content.`;
-  } catch (error) {
-    console.error(`[fetchAndParseURL] Error fetching URL ${url}:`, error);
+    const { data: htmlResponseData } = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+      },
+      timeout: 10000, 
+      responseType: 'text',
+    });
+
+    if (typeof htmlResponseData !== 'string') {
+        console.error("Log: Fetched URL content is not a string.");
+        return null;
+    }
+    const html: string = htmlResponseData;
+
+    const $ = cheerio.load(html);
+    let textContent = '';
+    $('article, main, [role=\"main\"], .content, .post-body, .entry-content').each((i, elem) => {
+      textContent += $(elem).text() + '\n\n';
+    });
+
+    if (!textContent.trim()) {
+      textContent = $('body').text();
+    }
+    
+    return textContent.replace(/^\s{3,}/g, '\n\n').replace(/^\s{2,}/g, ' ').trim();
+
+  } catch (error: any) {
+    console.error("Log: Error fetching or parsing URL.");
     return null;
   }
 };
@@ -194,14 +268,13 @@ export const summarizeBookmarkController = async (req: AuthenticatedRequest, res
     let contentToSummarize: string | undefined | null = bookmark.rawPageContent;
 
     if (!contentToSummarize && bookmark.originalUrl) {
-      console.log(`[summarizeBookmarkController] rawPageContent not found for ${bookmarkId}. Fetching from originalUrl: ${bookmark.originalUrl}`);
-      bookmark.status = 'pending_summary'; // Update status while fetching
-      // await bookmark.save(); // Save status update immediately
+      console.log("Log: Fetching content from originalUrl for summarization.");
+      bookmark.status = 'pending_summary';
       
       const fetchedContent = await fetchAndParseURL(bookmark.originalUrl);
       if (fetchedContent) {
-        bookmark.rawPageContent = fetchedContent; // Save fetched content (string to string | undefined)
-        contentToSummarize = fetchedContent; // contentToSummarize is now string
+        bookmark.rawPageContent = fetchedContent;
+        contentToSummarize = fetchedContent;
       } else {
         bookmark.status = 'error';
         bookmark.summary = 'Failed to fetch content from URL for summarization.';
@@ -210,26 +283,24 @@ export const summarizeBookmarkController = async (req: AuthenticatedRequest, res
       }
     }
 
-    if (!contentToSummarize) { // Checks if string, undefined or null
+    if (!contentToSummarize) {
       bookmark.status = 'error';
       bookmark.summary = 'No content available to summarize.';
       await bookmark.save();
       return res.status(400).json({ message: 'No content available to summarize for this bookmark', bookmark });
     }
-    // At this point, contentToSummarize must be a string due to the check above.
-    // So we can cast it to string for generateSummaryWithGPT if TS still complains, though it shouldn't.
     const actualContent = contentToSummarize as string;
 
-    bookmark.status = 'pending_summary'; // Indicate summarization is in progress
-    await bookmark.save(); // Save before potentially long GPT call
+    bookmark.status = 'pending_summary';
+    await bookmark.save();
 
     try {
       const summary = await generateSummaryWithGPT(actualContent);
       bookmark.summary = summary;
       bookmark.status = 'summarized';
     } catch (error) {
-      console.error('Error generating summary with GPT:', error);
-      bookmark.summary = 'Failed to generate summary.';
+      console.error("Log: Inner error during summary generation call.");
+      bookmark.summary = 'Failed to generate summary due to an internal call error.';
       bookmark.status = 'error';
     }
 
@@ -237,19 +308,18 @@ export const summarizeBookmarkController = async (req: AuthenticatedRequest, res
     res.status(200).json({ message: 'Bookmark summarized successfully', bookmark });
 
   } catch (error) {
-    console.error('Error in summarizeBookmarkController:', error);
-    const bookmarkId = req.params.id;
-    // Attempt to update status to error if bookmark exists
-    if (mongoose.Types.ObjectId.isValid(bookmarkId) && req.user?.id) {
+    console.error("Log: Error in summarizeBookmarkController.");
+    const bookmarkIdFromError = req.params.id;
+    if (mongoose.Types.ObjectId.isValid(bookmarkIdFromError) && req.user?.id) {
         try {
-            const bookmarkToUpdate = await BookmarkItem.findOne({ _id: bookmarkId, userId: new mongoose.Types.ObjectId(req.user.id) });
+            const bookmarkToUpdate = await BookmarkItem.findOne({ _id: bookmarkIdFromError, userId: new mongoose.Types.ObjectId(req.user.id) });
             if (bookmarkToUpdate) {
                 bookmarkToUpdate.status = 'error';
                 bookmarkToUpdate.summary = 'An unexpected error occurred during summarization.';
                 await bookmarkToUpdate.save();
             }
-        } catch (updateError) {
-            console.error('Failed to update bookmark status to error:', updateError);
+        } catch (updateError: any) {
+            console.error("Log: Failed to update bookmark status to error. Inner error: " + ((updateError instanceof Error) ? updateError.message : String(updateError)));
         }
     }
     res.status(500).json({ message: 'Server error while summarizing bookmark', error: (error instanceof Error) ? error.message : 'Unknown error' });
