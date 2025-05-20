@@ -51,7 +51,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
   return (
     <aside
       className={`
-        z-50                 /* sits above page */
+  flex flex-col z-50    /* sits above page */
         bg-card border-r p-4 
 
         /* DESKTOP (≥ md)  ----------------------------------- */
