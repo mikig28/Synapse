@@ -465,11 +465,41 @@ export const summarizeLatestBookmarksController = async (req: AuthenticatedReque
       }
     }
 
+    // After processing all bookmarks, generate a comprehensive summary
+    let comprehensiveSummaryText = "";
+    if (summarizedBookmarks.length > 0) {
+      const allIndividualSummaries = summarizedBookmarks
+        .map(b => b.summary) // Get the summary text
+        .filter(s => s && s.trim() !== '' && !s.startsWith("OPENAI_API_KEY not configured") && !s.startsWith("Failed to extract summary") && !s.startsWith("OpenAI API error") && !s.startsWith("Content was empty"))
+        .join("\n\n---\n\n"); // Join summaries with a separator
+
+      if (allIndividualSummaries.trim()) {
+        console.log("Log: Generating comprehensive summary from individual summaries.");
+        // Use a slightly different prompt for the digest
+        const digestPrompt = `Based on the following individual summaries of recently saved items, please create a concise overall digest or a list of key highlights. Aim for a brief, easy-to-scan overview of the main topics covered:\n\n---\n${allIndividualSummaries}\n---\nOverall Digest:`;
+        comprehensiveSummaryText = await generateSummaryWithGPT(digestPrompt); // Re-using generateSummaryWithGPT, but it takes the concatenated text
+         // Check if the comprehensive summary itself is an error message from generateSummaryWithGPT
+        if (comprehensiveSummaryText.startsWith("OPENAI_API_KEY not configured") || comprehensiveSummaryText.startsWith("Failed to extract summary") || comprehensiveSummaryText.startsWith("OpenAI API error") || comprehensiveSummaryText.startsWith("Content was empty")) {
+            console.warn("Log: Comprehensive summary generation resulted in an error state: ", comprehensiveSummaryText);
+            // Decide if you want to send this error as the comprehensiveSummary or an empty string / specific error message
+            // For now, let's send the error message through so UI can know if it failed.
+        }
+      } else {
+        console.log("Log: No valid individual summaries to create a comprehensive digest.");
+        comprehensiveSummaryText = "No valid content from recent bookmarks to create a digest.";
+      }
+    } else if (errors.length > 0 && bookmarksToProcess.length > 0) {
+        comprehensiveSummaryText = "Could not generate a digest as recent items failed to summarize.";
+    } else {
+        comprehensiveSummaryText = "No new bookmarks were processed for a digest.";
+    }
+
     console.log(`Log: Batch summarization complete. Success: ${summarizedBookmarks.length}, Failures: ${errors.length}`);
     res.status(200).json({
       message: `Batch summarization attempted. ${summarizedBookmarks.length} succeeded, ${errors.length} failed.`,
       summarizedBookmarks,
-      errors
+      errors,
+      comprehensiveSummary: comprehensiveSummaryText // Add new field to response
     });
 
   } catch (error: any) {

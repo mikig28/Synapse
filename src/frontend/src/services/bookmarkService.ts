@@ -42,6 +42,7 @@ export interface SummarizeLatestResponse {
   message: string;
   summarizedBookmarks: BookmarkItemType[];
   errors: Array<{ bookmarkId: string; error: string }>;
+  comprehensiveSummary?: string;
 }
 
 export const summarizeLatestBookmarksService = async (): Promise<SummarizeLatestResponse> => {

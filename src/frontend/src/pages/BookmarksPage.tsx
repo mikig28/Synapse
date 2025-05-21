@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { ExternalLink, Info, MessageSquareText, Trash2, CalendarDays, FileText, Zap } from 'lucide-react';
+import { ExternalLink, Info, MessageSquareText, Trash2, CalendarDays, FileText, Zap, AlertCircle } from 'lucide-react';
 import { getBookmarks, deleteBookmarkService, summarizeBookmarkById, summarizeLatestBookmarksService } from '../services/bookmarkService';
 import { BookmarkItemType } from '../types/bookmark';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from "@/hooks/use-toast"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import useAuthStore from '@/store/authStore';
+import { useDigest } from '../context/DigestContext';
 
 const BookmarksPage: React.FC = () => {
   const [bookmarks, setBookmarks] = useState<BookmarkItemType[]>([]);
@@ -18,6 +19,7 @@ const BookmarksPage: React.FC = () => {
   const [filter, setFilter] = useState<string>('all'); // 'all', 'week', 'month'
   const [summarizingBookmarkId, setSummarizingBookmarkId] = useState<string | null>(null);
   const [isBatchSummarizing, setIsBatchSummarizing] = useState<boolean>(false);
+  const { latestDigest, setLatestDigest } = useDigest();
   const { toast } = useToast();
   const token = useAuthStore((state) => state.token);
 
@@ -132,12 +134,18 @@ const BookmarksPage: React.FC = () => {
   const handleSummarizeLatest = async () => {
     console.log("[BookmarksPage] handleSummarizeLatest called");
     setIsBatchSummarizing(true);
+    setLatestDigest(null); // Clear previous digest via context
     try {
       const response = await summarizeLatestBookmarksService();
       toast({
-        title: "Batch Summarization Initiated",
+        title: "Batch Summarization Complete", // Changed title slightly
         description: response.message,
       });
+      
+      if (response.comprehensiveSummary) {
+        setLatestDigest(response.comprehensiveSummary);
+      }
+
       // Update local state for successfully summarized bookmarks
       // And potentially show errors for failed ones
       if (response.summarizedBookmarks && response.summarizedBookmarks.length > 0) {
@@ -214,13 +222,13 @@ const BookmarksPage: React.FC = () => {
         <div className="flex items-center space-x-2">
             <Button 
               onClick={handleSummarizeLatest}
-              disabled={isBatchSummarizing}
-              size="sm"
+              disabled={isBatchSummarizing || loading} // Also disable if main loading
+              size="sm" 
             >
               {isBatchSummarizing ? (
                 <><Zap className="w-4 h-4 mr-1 animate-spin" /> Summarizing Latest...</>
               ) : (
-                <><FileText className="w-4 h-4 mr-1" /> Summarize 5 Latest</>
+                <><FileText className="w-4 h-4 mr-1" /> Summarize Latest</> // Simplified button text
               )}
             </Button>
             <div className="flex items-center">
@@ -238,6 +246,42 @@ const BookmarksPage: React.FC = () => {
             </div>
         </div>
       </div>
+
+      {/* Display Latest Digest */}
+      {latestDigest && (
+        <Card className="mb-6 bg-secondary/30">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span className="flex items-center">
+                <Zap className="w-5 h-5 mr-2 text-purple-500" /> Latest Bookmarks Digest
+              </span>
+              <Button variant="ghost" size="sm" onClick={() => setLatestDigest(null)} title="Clear Digest">
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {latestDigest.startsWith("OPENAI_API_KEY not configured") || 
+             latestDigest.startsWith("Failed to extract summary") || 
+             latestDigest.startsWith("OpenAI API error") || 
+             latestDigest.startsWith("Content was empty") ||
+             latestDigest.startsWith("Could not generate a digest") ||
+             latestDigest.startsWith("No valid content") ||
+             latestDigest.startsWith("No new bookmarks") ? (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Digest Generation Issue</AlertTitle>
+                <AlertDescription>{latestDigest}</AlertDescription>
+              </Alert>
+            ) : (
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                {latestDigest}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {filteredBookmarks.length === 0 ? (
         <Alert className="max-w-2xl mx-auto">
           <Info className="h-4 w-4" />
