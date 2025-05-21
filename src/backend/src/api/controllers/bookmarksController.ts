@@ -208,6 +208,39 @@ const generateSummaryWithGPT = async (content: string): Promise<string> => {
 // TODO: Implement robust HTML fetching and text extraction
 const fetchAndParseURL = async (url: string): Promise<string | null> => {
   try {
+    const isTwitterUrl = /^https?:\/\/(twitter\.com|x\.com)/.test(url);
+
+    if (isTwitterUrl) {
+      try {
+        const oEmbedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(url)}`;
+        console.log("Log: Attempting to fetch Twitter content via oEmbed:", oEmbedUrl);
+        const oEmbedResponse = await axios.get(oEmbedUrl, {
+          timeout: 7000, // Shorter timeout for oEmbed
+        });
+
+        // Assert oEmbedResponse.data as any to access potential .html property
+        const oEmbedData: any = oEmbedResponse.data;
+
+        if (oEmbedData && oEmbedData.html) {
+          const $ = cheerio.load(oEmbedData.html);
+          const tweetText = $('blockquote p').text();
+          if (tweetText && tweetText.trim()) {
+            console.log("Log: Successfully extracted tweet text via oEmbed.");
+            return tweetText.trim();
+          } else {
+            console.warn("Log: oEmbed response HTML did not contain expected tweet text structure.");
+          }
+        } else {
+          console.warn("Log: oEmbed response did not contain .html data.");
+        }
+      } catch (oEmbedError: any) {
+        console.warn("Log: Failed to fetch or parse Twitter oEmbed, falling back to generic fetch. Error:", oEmbedError.message || oEmbedError);
+        // Fall through to generic fetching if oEmbed fails
+      }
+    }
+
+    // Generic fetching logic (original code)
+    console.log("Log: Attempting generic fetch for URL:", url);
     const { data: htmlResponseData } = await axios.get(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -219,25 +252,36 @@ const fetchAndParseURL = async (url: string): Promise<string | null> => {
     });
 
     if (typeof htmlResponseData !== 'string') {
-        console.error("Log: Fetched URL content is not a string.");
+        console.error("Log: Fetched URL content is not a string (generic fetch).");
         return null;
     }
     const html: string = htmlResponseData;
 
     const $ = cheerio.load(html);
     let textContent = '';
-    $('article, main, [role=\"main\"], .content, .post-body, .entry-content').each((i: number, elem: cheerio.Element) => {
+    // Try more specific selectors first
+    $('article, main, [role="main"], .post-content, .article-body, .story-content, .entry-content, .td-post-content, .post_content, .postBody, .blog-content').each((i: number, elem: cheerio.Element) => {
       textContent += $(elem).text() + '\n\n';
     });
 
+    // If no content from specific selectors, try to get from common content containers
     if (!textContent.trim()) {
+        $('.content, .container, #content, #main-content, #main, .main-content, .page-content').each((i: number, elem: cheerio.Element) => {
+            textContent += $(elem).text() + '\n\n';
+        });
+    }
+    
+    // Fallback to body if still no significant content
+    if (!textContent.trim() || textContent.trim().length < 100) { // Added length check for meaningful fallback
+      console.log("Log: No specific content found or content too short, falling back to body text (generic fetch).");
       textContent = $('body').text();
     }
     
-    return textContent.replace(/^\s{3,}/g, '\n\n').replace(/^\s{2,}/g, ' ').trim();
+    // Basic cleaning: remove excessive newlines and leading/trailing whitespace
+    return textContent.replace(/\s*\n\s*/g, '\n').trim();
 
   } catch (error: any) {
-    console.error("Log: Error fetching or parsing URL.");
+    console.error(`Log: Error fetching or parsing URL (${url}). Error:`, error.message || error);
     return null;
   }
 };
@@ -323,5 +367,112 @@ export const summarizeBookmarkController = async (req: AuthenticatedRequest, res
         }
     }
     res.status(500).json({ message: 'Server error while summarizing bookmark', error: (error instanceof Error) ? error.message : 'Unknown error' });
+  }
+}; 
+
+export const summarizeLatestBookmarksController = async (req: AuthenticatedRequest, res: Response) => {
+  const NUM_LATEST_TO_SUMMARIZE = 5;
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    console.log(`Log: User ${userId} requested summarization of latest ${NUM_LATEST_TO_SUMMARIZE} bookmarks.`);
+
+    // Fetch latest N bookmarks that are not summarized or pending, and have a URL
+    const bookmarksToProcess = await BookmarkItem.find({
+      userId: new mongoose.Types.ObjectId(userId),
+      originalUrl: { $exists: true, $ne: '' }, // Ensure originalUrl exists and is not empty
+      status: { $nin: ['summarized', 'pending_summary'] }, // Not already summarized or pending
+    })
+    .sort({ createdAt: -1 })
+    .limit(NUM_LATEST_TO_SUMMARIZE);
+
+    if (!bookmarksToProcess || bookmarksToProcess.length === 0) {
+      console.log("Log: No eligible bookmarks found for batch summarization.");
+      return res.status(200).json({ message: 'No eligible bookmarks found to summarize.', summarizedBookmarks: [], errors: [] });
+    }
+
+    console.log(`Log: Found ${bookmarksToProcess.length} bookmarks to attempt summarization.`);
+
+    const summarizedBookmarks: IBookmarkItem[] = [];
+    const errors: Array<{ bookmarkId: string, error: string }> = [];
+
+    for (const bookmark of bookmarksToProcess) {
+      try {
+        console.log(`Log: Processing bookmark ID: ${bookmark._id} for batch summarization. URL: ${bookmark.originalUrl}`);
+        let contentToSummarize: string | undefined | null = bookmark.rawPageContent;
+
+        if (!contentToSummarize && bookmark.originalUrl) {
+          bookmark.status = 'pending_summary'; // Set to pending before fetching
+          // No need to await save here, will be saved after summary or error
+          
+          const fetchedContent = await fetchAndParseURL(bookmark.originalUrl);
+          if (fetchedContent) {
+            bookmark.rawPageContent = fetchedContent;
+            contentToSummarize = fetchedContent;
+          } else {
+            console.warn(`Log: Failed to fetch content for ${bookmark._id} (URL: ${bookmark.originalUrl}) in batch.`);
+            bookmark.status = 'error';
+            bookmark.summary = 'Failed to fetch content from URL for summarization.';
+            await bookmark.save();
+            errors.push({ bookmarkId: String(bookmark._id), error: 'Failed to fetch content' });
+            continue; // Move to the next bookmark
+          }
+        }
+
+        if (!contentToSummarize) {
+          console.warn(`Log: No content available for ${bookmark._id} in batch after fetch attempt.`);
+          bookmark.status = 'error';
+          bookmark.summary = 'No content available to summarize.';
+          await bookmark.save();
+          errors.push({ bookmarkId: String(bookmark._id), error: 'No content available' });
+          continue; // Move to the next bookmark
+        }
+
+        const actualContent = contentToSummarize as string;
+        bookmark.status = 'pending_summary'; // Ensure status is pending before GPT call
+        // No need to await save here
+
+        const summary = await generateSummaryWithGPT(actualContent);
+        bookmark.summary = summary;
+        if (summary.startsWith("OPENAI_API_KEY not configured") || summary.startsWith("Failed to extract summary") || summary.startsWith("OpenAI API error")) {
+            bookmark.status = 'error';
+            console.error(`Log: Summary generation failed for ${bookmark._id} due to GPT error: ${summary}`);
+            errors.push({ bookmarkId: String(bookmark._id), error: `Summary generation failed: ${summary.substring(0,100)}` });
+        } else {
+            bookmark.status = 'summarized';
+            console.log(`Log: Successfully summarized ${bookmark._id} in batch.`);
+            summarizedBookmarks.push(bookmark.toObject() as IBookmarkItem); // Use toObject() for plain JS object
+        }
+        await bookmark.save();
+
+      } catch (error: any) {
+        console.error(`Log: Unexpected error processing bookmark ${bookmark._id} in batch: ${error.message || error}`);
+        errors.push({ bookmarkId: String(bookmark._id), error: `Unexpected error: ${error.message || 'Unknown error'}` });
+        try {
+          const freshBookmark = await BookmarkItem.findById(bookmark._id);
+          if (freshBookmark) {
+            freshBookmark.status = 'error';
+            freshBookmark.summary = 'An unexpected error occurred during batch summarization.';
+            await freshBookmark.save();
+          }
+        } catch (saveError: any) {
+            console.error(`Log: Failed to update bookmark ${bookmark._id} to error status after batch failure: ${saveError.message || saveError}`);
+        }
+      }
+    }
+
+    console.log(`Log: Batch summarization complete. Success: ${summarizedBookmarks.length}, Failures: ${errors.length}`);
+    res.status(200).json({
+      message: `Batch summarization attempted. ${summarizedBookmarks.length} succeeded, ${errors.length} failed.`,
+      summarizedBookmarks,
+      errors
+    });
+
+  } catch (error: any) {
+    console.error("Log: Critical error in summarizeLatestBookmarksController:", error.message || error);
+    res.status(500).json({ message: 'Server error during batch summarization', error: error.message || 'Unknown error' });
   }
 }; 

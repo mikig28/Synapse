@@ -1,5 +1,5 @@
 import express from 'express';
-import { getBookmarks, processAndCreateBookmark, deleteBookmark, summarizeBookmarkController } from '../controllers/bookmarksController';
+import { getBookmarks, processAndCreateBookmark, deleteBookmark, summarizeBookmarkController, summarizeLatestBookmarksController } from '../controllers/bookmarksController';
 import { protect } from '../middleware/authMiddleware'; // Assuming you have auth middleware
 
 const router = express.Router();
@@ -15,5 +15,8 @@ router.delete('/:id', protect, deleteBookmark);
 
 // Route to summarize a specific bookmark
 router.post('/:id/summarize', protect, summarizeBookmarkController);
+
+// Route to summarize the latest N bookmarks
+router.post('/summarize-latest', protect, summarizeLatestBookmarksController);
 
 export default router; 

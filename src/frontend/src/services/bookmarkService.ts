@@ -28,13 +28,32 @@ export const summarizeBookmarkById = async (bookmarkId: string): Promise<Bookmar
     // The backend returns { message: string, bookmark: BookmarkItemType }
     // We only need to return the bookmark data from the service for state update
     return response.data.bookmark;
-  } catch (error) {
+  } catch (error: any) {
     console.error(`Error summarizing bookmark ${bookmarkId}:`, error);
-    if (axios.isAxiosError(error) && error.response) {
-        // Now error is narrowed to AxiosError, and error.response is available
-        throw error.response.data; // Throw the actual error data from backend
+    // Check for AxiosError properties directly
+    if (error && error.isAxiosError && error.response) {
+        throw error.response.data; 
     }
-    // If it's not an Axios error or doesn't have a response, rethrow the original error
     throw error;
+  }
+};
+
+export interface SummarizeLatestResponse {
+  message: string;
+  summarizedBookmarks: BookmarkItemType[];
+  errors: Array<{ bookmarkId: string; error: string }>;
+}
+
+export const summarizeLatestBookmarksService = async (): Promise<SummarizeLatestResponse> => {
+  try {
+    const response = await axiosInstance.post<SummarizeLatestResponse>('/bookmarks/summarize-latest');
+    return response.data;
+  } catch (error: any) {
+    console.error("Error calling summarize latest bookmarks service:", error);
+    // Check for AxiosError properties directly
+    if (error && error.isAxiosError && error.response) {
+      throw error.response.data; 
+    }
+    throw error; // Fallback error
   }
 }; 

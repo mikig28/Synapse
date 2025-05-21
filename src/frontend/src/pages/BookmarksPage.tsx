@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { ExternalLink, Info, MessageSquareText, Trash2, CalendarDays, FileText, Zap } from 'lucide-react';
-import { getBookmarks, deleteBookmarkService, summarizeBookmarkById } from '../services/bookmarkService';
+import { getBookmarks, deleteBookmarkService, summarizeBookmarkById, summarizeLatestBookmarksService } from '../services/bookmarkService';
 import { BookmarkItemType } from '../types/bookmark';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ClientTweetCard } from '@/components/ui/TweetCard';
@@ -17,6 +17,7 @@ const BookmarksPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all'); // 'all', 'week', 'month'
   const [summarizingBookmarkId, setSummarizingBookmarkId] = useState<string | null>(null);
+  const [isBatchSummarizing, setIsBatchSummarizing] = useState<boolean>(false);
   const { toast } = useToast();
   const token = useAuthStore((state) => state.token);
 
@@ -126,6 +127,54 @@ const BookmarksPage: React.FC = () => {
     }
   };
 
+  const handleSummarizeLatest = async () => {
+    console.log("[BookmarksPage] handleSummarizeLatest called");
+    setIsBatchSummarizing(true);
+    try {
+      const response = await summarizeLatestBookmarksService();
+      toast({
+        title: "Batch Summarization Initiated",
+        description: response.message,
+      });
+      // Update local state for successfully summarized bookmarks
+      // And potentially show errors for failed ones
+      if (response.summarizedBookmarks && response.summarizedBookmarks.length > 0) {
+        setBookmarks(prevBookmarks => 
+          prevBookmarks.map(b => {
+            const updated = response.summarizedBookmarks.find(sb => sb._id === b._id);
+            return updated ? updated : b;
+          })
+        );
+      }
+      if (response.errors && response.errors.length > 0) {
+        response.errors.forEach(err => {
+          toast({
+            title: `Error Summarizing Bookmark ID: ${err.bookmarkId}`,
+            description: err.error,
+            variant: "destructive",
+          });
+           // Optionally update the specific bookmark's status to 'error' in UI
+           setBookmarks(prevBookmarks => 
+            prevBookmarks.map(b => 
+              b._id === err.bookmarkId ? { ...b, status: 'error', summary: `Error: ${err.error}` } : b
+            )
+          );
+        });
+      }
+      // Optionally, refetch all bookmarks to ensure UI consistency if partial updates are complex
+      // fetchBookmarks(); 
+    } catch (err: any) {
+      console.error("Error in handleSummarizeLatest:", err);
+      toast({
+        title: "Error Batch Summarizing",
+        description: err?.message || "Failed to start batch summarization.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBatchSummarizing(false);
+    }
+  };
+
   if (loading) {
     console.log("[BookmarksPage] Rendering Loading State");
     return (
@@ -152,18 +201,31 @@ const BookmarksPage: React.FC = () => {
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">My Bookmarks</h1>
-        <div className="flex items-center">
-            <CalendarDays className="h-5 w-5 mr-2 text-muted-foreground" />
-            <Select value={filter} onValueChange={setFilter}>
-                <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Filter by date" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All Time</SelectItem>
-                    <SelectItem value="week">Past Week</SelectItem>
-                    <SelectItem value="month">Past Month</SelectItem>
-                </SelectContent>
-            </Select>
+        <div className="flex items-center space-x-2">
+            <Button 
+              onClick={handleSummarizeLatest}
+              disabled={isBatchSummarizing}
+              size="sm"
+            >
+              {isBatchSummarizing ? (
+                <><Zap className="w-4 h-4 mr-1 animate-spin" /> Summarizing Latest...</>
+              ) : (
+                <><FileText className="w-4 h-4 mr-1" /> Summarize 5 Latest</>
+              )}
+            </Button>
+            <div className="flex items-center">
+                <CalendarDays className="h-5 w-5 mr-2 text-muted-foreground" />
+                <Select value={filter} onValueChange={setFilter}>
+                    <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Filter by date" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Time</SelectItem>
+                        <SelectItem value="week">Past Week</SelectItem>
+                        <SelectItem value="month">Past Month</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
         </div>
       </div>
       {filteredBookmarks.length === 0 ? (
