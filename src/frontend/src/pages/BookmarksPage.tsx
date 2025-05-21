@@ -158,7 +158,7 @@ const BookmarksPage: React.FC = () => {
 
     // IMPORTANT: Securely manage your API key. This is a placeholder.
     // Consider using a backend proxy for production environments.
-    const ELEVENLABS_API_KEY = "YOUR_ELEVENLABS_API_KEY"; // FIXME: Replace with your actual key or a secure way to access it
+    const ELEVENLABS_API_KEY = "sk_6adb9352ff0d460934cac7ee75e6af3090164ceb55fc15c5"; // FIXME: Replace with your actual key or a secure way to access it
     const VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; // Example: Rachel's voice ID - Replace if needed
 
     setPlayingBookmarkId(bookmarkId);
