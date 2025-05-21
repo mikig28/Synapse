@@ -19,6 +19,7 @@ import TasksPage from '@/pages/TasksPage';
 import NotesPage from '@/pages/NotesPage';
 import IdeasPage from '@/pages/IdeasPage';
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import { DigestProvider } from './context/DigestContext';
 
 const App: React.FC = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -35,37 +36,39 @@ const App: React.FC = () => {
   return (
     <GoogleOAuthProvider clientId={googleClientId || ""}>
       <Router>
-        <main className="flex-1">
-          <Routes>
-            <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />} />
-            <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <RegisterPage />} />
-            <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" /> : <HomePage />} />
+        <DigestProvider>
+          <main className="flex-1">
+            <Routes>
+              <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />} />
+              <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <RegisterPage />} />
+              <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" /> : <HomePage />} />
 
-            <Route 
-              path="/*" 
-              element={
-                isAuthenticated ? (
-                  <Layout>
-                    <Routes>
-                      <Route path="dashboard" element={<DashboardPage />} />
-                      <Route path="inbox" element={<InboxPage />} />
-                      <Route path="images" element={<ImagesPage />} />
-                      <Route path="bookmarks" element={<BookmarksPage />} />
-                      <Route path="videos" element={<VideosPage />} />
-                      <Route path="tasks" element={<TasksPage />} />
-                      <Route path="notes" element={<NotesPage />} />
-                      <Route path="ideas" element={<IdeasPage />} />
-                      <Route path="settings" element={<SettingsPage />} />
-                      <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                    </Routes>
-                  </Layout>
-                ) : (
-                  <Navigate to="/login" replace />
-                )
-              }
-            />
-          </Routes>
-        </main>
+              <Route 
+                path="/*" 
+                element={
+                  isAuthenticated ? (
+                    <Layout>
+                      <Routes>
+                        <Route path="dashboard" element={<DashboardPage />} />
+                        <Route path="inbox" element={<InboxPage />} />
+                        <Route path="images" element={<ImagesPage />} />
+                        <Route path="bookmarks" element={<BookmarksPage />} />
+                        <Route path="videos" element={<VideosPage />} />
+                        <Route path="tasks" element={<TasksPage />} />
+                        <Route path="notes" element={<NotesPage />} />
+                        <Route path="ideas" element={<IdeasPage />} />
+                        <Route path="settings" element={<SettingsPage />} />
+                        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                      </Routes>
+                    </Layout>
+                  ) : (
+                    <Navigate to="/login" replace />
+                  )
+                }
+              />
+            </Routes>
+          </main>
+        </DigestProvider>
       </Router>
     </GoogleOAuthProvider>
   );
