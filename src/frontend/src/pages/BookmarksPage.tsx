@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { ExternalLink, Info, MessageSquareText, Trash2, CalendarDays, FileText, Zap, AlertCircle } from 'lucide-react';
-import { getBookmarks, deleteBookmarkService, summarizeBookmarkById, summarizeLatestBookmarksService } from '../services/bookmarkService';
+import { ExternalLink, Info, MessageSquareText, Trash2, CalendarDays, FileText, Zap, AlertCircle, Volume2 } from 'lucide-react';
+import { getBookmarks, deleteBookmarkService, summarizeBookmarkById, summarizeLatestBookmarksService, speakTextWithElevenLabs } from '../services/bookmarkService';
 import { BookmarkItemType } from '../types/bookmark';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ClientTweetCard } from '@/components/ui/TweetCard';
@@ -19,6 +19,8 @@ const BookmarksPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all'); // 'all', 'week', 'month'
   const [summarizingBookmarkId, setSummarizingBookmarkId] = useState<string | null>(null);
+  const [playingBookmarkId, setPlayingBookmarkId] = useState<string | null>(null); // TTS state
+  const [audioErrorId, setAudioErrorId] = useState<string | null>(null); // TTS error state
   const { 
     latestDigest, 
     setLatestDigest,
@@ -29,6 +31,9 @@ const BookmarksPage: React.FC = () => {
   console.log('[BookmarksPage] Consuming latestDigest from context:', latestDigest, 'isBatchSummarizing:', isBatchSummarizing, 'sources:', latestDigestSources);
   const { toast } = useToast();
   const token = useAuthStore((state) => state.token);
+
+  // Current audio instance
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
 
   console.log("[BookmarksPage] Component rendered or re-rendered"); // General render log
 
@@ -141,6 +146,59 @@ const BookmarksPage: React.FC = () => {
   const handleSummarizeLatestClick = () => {
     console.log("[BookmarksPage] handleSummarizeLatestClick called, invoking context action.");
     summarizeLatestBookmarks(bookmarks, setBookmarks);
+  };
+
+  const handleSpeakSummary = async (bookmarkId: string, summaryText: string) => {
+    if (!summaryText) return;
+    if (currentAudio) {
+      currentAudio.pause();
+      URL.revokeObjectURL(currentAudio.src); // Clean up previous audio
+      setCurrentAudio(null);
+    }
+
+    // IMPORTANT: Securely manage your API key. This is a placeholder.
+    // Consider using a backend proxy for production environments.
+    const ELEVENLABS_API_KEY = "YOUR_ELEVENLABS_API_KEY"; // FIXME: Replace with your actual key or a secure way to access it
+    const VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; // Example: Rachel's voice ID - Replace if needed
+
+    setPlayingBookmarkId(bookmarkId);
+    setAudioErrorId(null);
+
+    try {
+      const audioBlob = await speakTextWithElevenLabs(summaryText, VOICE_ID, ELEVENLABS_API_KEY);
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      setCurrentAudio(audio); // Store current audio instance
+      
+      audio.play();
+
+      audio.onended = () => {
+        setPlayingBookmarkId(null);
+        URL.revokeObjectURL(audioUrl); // Clean up the object URL
+        setCurrentAudio(null);
+      };
+      audio.onerror = () => {
+        console.error("Error playing audio for bookmark:", bookmarkId);
+        setPlayingBookmarkId(null);
+        setAudioErrorId(bookmarkId); // Mark this specific bookmark as having an audio error
+        URL.revokeObjectURL(audioUrl);
+        setCurrentAudio(null);
+        toast({
+          title: "Audio Playback Error",
+          description: "Could not play the summary audio.",
+          variant: "destructive",
+        });
+      };
+    } catch (error: any) {
+      console.error(`Error generating audio for bookmark ${bookmarkId}:`, error);
+      setPlayingBookmarkId(null);
+      setAudioErrorId(bookmarkId); // Mark this specific bookmark as having an audio error
+      toast({
+        title: "Text-to-Speech Error",
+        description: error.message || "Failed to generate audio for the summary.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (loading) {
@@ -336,6 +394,25 @@ const BookmarksPage: React.FC = () => {
                       <p className="text-xs text-muted-foreground whitespace-pre-wrap">
                         {bookmark.summary}
                       </p>
+                      {/* TTS Button */}
+                      <Button 
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleSpeakSummary(bookmark._id, bookmark.summary || '')}
+                        disabled={playingBookmarkId === bookmark._id && !audioErrorId}
+                        className="mt-2 text-xs"
+                        title={playingBookmarkId === bookmark._id && !audioErrorId ? "Playing..." : audioErrorId === bookmark._id ? "Retry Reading Summary" : "Read Summary Aloud"}
+                      >
+                        <Volume2 className={`w-4 h-4 mr-1 ${playingBookmarkId === bookmark._id && !audioErrorId ? 'animate-pulse' : ''}`} />
+                        {playingBookmarkId === bookmark._id && !audioErrorId ? 
+                          "Playing..." : 
+                          audioErrorId === bookmark._id ? 
+                          "Retry Read" : 
+                          "Read Aloud"}
+                      </Button>
+                      {audioErrorId === bookmark._id && (
+                        <p className="text-xs text-red-500 mt-1">Failed to play audio. Please try again.</p>
+                      )}
                     </div>
                   )}
                   {bookmark.status === 'pending_summary' && !bookmark.summary && (

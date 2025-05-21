@@ -59,4 +59,77 @@ export const summarizeLatestBookmarksService = async (): Promise<SummarizeLatest
     }
     throw error; // Fallback error
   }
+};
+
+export const speakTextWithElevenLabs = async (text: string, voiceId: string, apiKey: string): Promise<Blob> => {
+  const ELEVENLABS_API_URL = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+  // A common default voice ID, you might want to make this configurable or fetch available voices
+  // const DEFAULT_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"; // Example Voice ID from docs
+
+  try {
+    const response = await axios.post<Blob>(
+      ELEVENLABS_API_URL,
+      {
+        text: text,
+        model_id: "eleven_multilingual_v2", // Or "eleven_flash_v2.5" for lower latency
+        // voice_settings: { // Optional: customize voice settings
+        //   stability: 0.5,
+        //   similarity_boost: 0.75,
+        // },
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "xi-api-key": apiKey, // IMPORTANT: Handle your API key securely
+        },
+        responseType: 'blob', // To handle the audio file
+      }
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error("Error calling ElevenLabs Text-to-Speech API:", error);
+
+    if (error.response) {
+      // Handle Blob error response first
+      if (error.response.data instanceof Blob) {
+        try {
+          const errorText = await error.response.data.text();
+          console.error("Error data as text (Blob):", errorText);
+          throw new Error(`ElevenLabs API Error: Status ${error.response.status} - ${errorText}`);
+        } catch (e) {
+          console.error("Could not parse Blob error response:", e);
+          throw new Error(`ElevenLabs API Error: Status ${error.response.status} - Could not parse Blob error response.`);
+        }
+      }
+
+      // Handle other types of error.response.data (likely JSON or string)
+      let errorMessage = `Status ${error.response.status}`;
+      if (error.response.data && typeof error.response.data === 'object') {
+        // Attempt to parse known error structures
+        const detail = (error.response.data as any).detail;
+        if (detail && typeof detail.message === 'string') {
+          errorMessage = `${errorMessage} - ${detail.message}`;
+        } else if (typeof (error.response.data as any).message === 'string') {
+          errorMessage = `${errorMessage} - ${(error.response.data as any).message}`;
+        } else {
+          // Fallback to stringifying the data
+          try {
+            errorMessage = `${errorMessage} - ${JSON.stringify(error.response.data)}`;
+          } catch (e) {
+            errorMessage = `${errorMessage} - (Unparseable error data object)`;
+          }
+        }
+      } else if (typeof error.response.data === 'string') {
+        errorMessage = `${errorMessage} - ${error.response.data}`;
+      }
+      throw new Error(`ElevenLabs API Error: ${errorMessage}`);
+
+    } else if (error.request) {
+      console.error("Error request (no response received):", error.request);
+      throw new Error("ElevenLabs API Error: No response received from server.");
+    } else {
+      console.error("Error message (request setup issue):", error.message);
+      throw new Error(`ElevenLabs API Error: ${error.message}`);
+    }
+  }
 }; 
