@@ -234,11 +234,13 @@ export const MagicTweet = ({
   tweet,
   components,
   className,
+  summaryText,
   ...props
 }: {
   tweet: any;
   components?: TwitterComponents;
   className?: string;
+  summaryText?: string;
 }) => {
   const enrichedTweet = enrichTweet(tweet);
   return (
@@ -251,6 +253,16 @@ export const MagicTweet = ({
     >
       <TweetHeader tweet={enrichedTweet} />
       <TweetBody tweet={enrichedTweet} />
+      {summaryText && (
+        <div className="mt-2 pt-2 border-t">
+          <h4 className="text-sm font-semibold mb-1 flex items-center">
+            <FileText className="w-4 h-4 mr-1 flex-shrink-0" /> Summary
+          </h4>
+          <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+            {summaryText}
+          </p>
+        </div>
+      )}
       <TweetMedia tweet={enrichedTweet} />
     </div>
   );
@@ -269,6 +281,7 @@ export const ClientTweetCard = ({
   onSummarize,
   isSummarizing,
   summaryStatus,
+  summaryText,
   ...props
 }: TweetProps & {
   className?: string;
@@ -276,6 +289,7 @@ export const ClientTweetCard = ({
   onSummarize?: (id: string) => void;
   isSummarizing?: boolean;
   summaryStatus?: BookmarkItemType['status'];
+  summaryText?: string;
 }) => {
   const { data: tweet, error } = useTweet(id, apiUrl, fetchOptions);
 
@@ -286,7 +300,7 @@ export const ClientTweetCard = ({
 
   return (
     <div className={cn('relative group', className)} {...props}>
-      {tweet && <MagicTweet tweet={tweet} components={components} />}
+      {tweet && <MagicTweet tweet={tweet} components={components} summaryText={summaryText} />}
       {!tweet && !error && fallback}
       {error && <TweetNotFound />}
       {tweet && (onDelete || onSummarize) && (
