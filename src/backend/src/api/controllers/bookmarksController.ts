@@ -379,136 +379,121 @@ export const summarizeLatestBookmarksController = async (req: AuthenticatedReque
       return res.status(401).json({ message: 'User not authenticated' });
     }
 
-    console.log(`Log: User ${userId} requested summarization of latest ${NUM_LATEST_TO_SUMMARIZE} bookmarks.`);
+    console.log(`Log: User ${userId} requested digest of latest ${NUM_LATEST_TO_SUMMARIZE} bookmarks.`);
 
-    // Fetch latest N bookmarks that are not summarized or pending, and have a URL
-    const bookmarksToProcess = await BookmarkItem.find({
+    // Fetch latest N bookmarks that have a URL, regardless of current summary status
+    const latestBookmarks = await BookmarkItem.find({
       userId: new mongoose.Types.ObjectId(userId),
-      originalUrl: { $exists: true, $ne: '' }, // Ensure originalUrl exists and is not empty
-      status: { $nin: ['summarized', 'pending_summary'] }, // Not already summarized or pending
+      originalUrl: { $exists: true, $ne: '' }, 
     })
     .sort({ createdAt: -1 })
     .limit(NUM_LATEST_TO_SUMMARIZE);
 
-    if (!bookmarksToProcess || bookmarksToProcess.length === 0) {
-      console.log("Log: No eligible bookmarks found for batch summarization.");
+    if (!latestBookmarks || latestBookmarks.length === 0) {
+      console.log("Log: No bookmarks found to create a digest.");
       return res.status(200).json({ 
-        message: 'No eligible bookmarks found to summarize.', 
+        message: 'No bookmarks found to create a digest.', 
         summarizedBookmarks: [], 
         errors: [], 
-        comprehensiveSummary: "No eligible bookmarks were available to generate a digest." // Ensure field is present
+        comprehensiveSummary: "No bookmarks were available to generate a digest." 
       });
     }
 
-    console.log(`Log: Found ${bookmarksToProcess.length} bookmarks to attempt summarization.`);
+    console.log(`Log: Found ${latestBookmarks.length} bookmarks for digest generation.`);
 
-    const summarizedBookmarks: IBookmarkItem[] = [];
+    const processedBookmarksForResponse: IBookmarkItem[] = [];
     const errors: Array<{ bookmarkId: string, error: string }> = [];
+    const individualSummariesForDigest: string[] = [];
 
-    for (const bookmark of bookmarksToProcess) {
-      try {
-        console.log(`Log: Processing bookmark ID: ${bookmark._id} for batch summarization. URL: ${bookmark.originalUrl}`);
-        let contentToSummarize: string | undefined | null = bookmark.rawPageContent;
+    for (const bookmark of latestBookmarks) {
+      let currentSummary = bookmark.summary;
+      let needsSummarizing = !currentSummary || currentSummary.trim() === '' || bookmark.status !== 'summarized';
 
-        if (!contentToSummarize && bookmark.originalUrl) {
-          bookmark.status = 'pending_summary'; // Set to pending before fetching
-          // No need to await save here, will be saved after summary or error
-          
-          const fetchedContent = await fetchAndParseURL(bookmark.originalUrl);
-          if (fetchedContent) {
-            bookmark.rawPageContent = fetchedContent;
-            contentToSummarize = fetchedContent;
-          } else {
-            console.warn(`Log: Failed to fetch content for ${bookmark._id} (URL: ${bookmark.originalUrl}) in batch.`);
-            bookmark.status = 'error';
-            bookmark.summary = 'Failed to fetch content from URL for summarization.';
-            await bookmark.save();
-            errors.push({ bookmarkId: String(bookmark._id), error: 'Failed to fetch content' });
-            continue; // Move to the next bookmark
-          }
-        }
+      // Optional: Add more sophisticated logic here to decide if re-summarization is needed 
+      // e.g., if summary is old, or if status is 'error'. For now, if it has a good status='summarized' summary, use it.
+      if (bookmark.status === 'error') { // Always try to re-summarize if previous attempt errored
+          needsSummarizing = true;
+      }
 
-        if (!contentToSummarize) {
-          console.warn(`Log: No content available for ${bookmark._id} in batch after fetch attempt.`);
-          bookmark.status = 'error';
-          bookmark.summary = 'No content available to summarize.';
-          await bookmark.save();
-          errors.push({ bookmarkId: String(bookmark._id), error: 'No content available' });
-          continue; // Move to the next bookmark
-        }
-
-        const actualContent = contentToSummarize as string;
-        bookmark.status = 'pending_summary'; // Ensure status is pending before GPT call
-        // No need to await save here
-
-        const summary = await generateSummaryWithGPT(actualContent);
-        bookmark.summary = summary;
-        if (summary.startsWith("OPENAI_API_KEY not configured") || summary.startsWith("Failed to extract summary") || summary.startsWith("OpenAI API error")) {
-            bookmark.status = 'error';
-            console.error(`Log: Summary generation failed for ${bookmark._id} due to GPT error: ${summary}`);
-            errors.push({ bookmarkId: String(bookmark._id), error: `Summary generation failed: ${summary.substring(0,100)}` });
-        } else {
-            bookmark.status = 'summarized';
-            console.log(`Log: Successfully summarized ${bookmark._id} in batch.`);
-            summarizedBookmarks.push(bookmark.toObject() as IBookmarkItem); // Use toObject() for plain JS object
-        }
-        await bookmark.save();
-
-      } catch (error: any) {
-        console.error(`Log: Unexpected error processing bookmark ${bookmark._id} in batch: ${error.message || error}`);
-        errors.push({ bookmarkId: String(bookmark._id), error: `Unexpected error: ${error.message || 'Unknown error'}` });
+      if (needsSummarizing) {
+        console.log(`Log: Summarizing bookmark ID: ${bookmark._id} for digest. URL: ${bookmark.originalUrl}`);
         try {
-          const freshBookmark = await BookmarkItem.findById(bookmark._id);
-          if (freshBookmark) {
-            freshBookmark.status = 'error';
-            freshBookmark.summary = 'An unexpected error occurred during batch summarization.';
-            await freshBookmark.save();
+          let contentToSummarize: string | undefined | null = bookmark.rawPageContent;
+          if (!contentToSummarize && bookmark.originalUrl) {
+            const fetchedContent = await fetchAndParseURL(bookmark.originalUrl);
+            if (fetchedContent) {
+              bookmark.rawPageContent = fetchedContent;
+              contentToSummarize = fetchedContent;
+            } else {
+              throw new Error('Failed to fetch content for summarization.');
+            }
           }
-        } catch (saveError: any) {
-            console.error(`Log: Failed to update bookmark ${bookmark._id} to error status after batch failure: ${saveError.message || saveError}`);
+
+          if (!contentToSummarize) {
+            throw new Error('No content available to summarize.');
+          }
+          
+          const newSummary = await generateSummaryWithGPT(contentToSummarize as string);
+          
+          if (newSummary.startsWith("OPENAI_API_KEY not configured") || newSummary.startsWith("Failed to extract summary") || newSummary.startsWith("OpenAI API error") || newSummary.startsWith("Content was empty")) {
+            throw new Error(`Summary generation failed: ${newSummary.substring(0,100)}`);
+          }
+          
+          bookmark.summary = newSummary;
+          bookmark.status = 'summarized';
+          currentSummary = newSummary;
+          await bookmark.save();
+          console.log(`Log: Successfully generated new summary for ${bookmark._id} for digest.`);
+        } catch (error: any) {
+          console.error(`Log: Error processing bookmark ${bookmark._id} for digest: ${error.message || error}`);
+          errors.push({ bookmarkId: String(bookmark._id), error: `Failed to get/generate summary: ${error.message || 'Unknown error'}` });
+          // Don't save status as 'error' here if we want to use any old summary it might have had
+          // If it had no summary before, currentSummary remains undefined/empty
         }
       }
+
+      if (currentSummary && currentSummary.trim() !== '' && !currentSummary.startsWith("OPENAI_API_KEY not configured") && !currentSummary.startsWith("Failed to extract summary") && !currentSummary.startsWith("OpenAI API error") && !currentSummary.startsWith("Content was empty")) {
+        individualSummariesForDigest.push(currentSummary);
+      }
+      processedBookmarksForResponse.push(bookmark.toObject() as IBookmarkItem); // Add to response, even if summarization failed but it was processed
     }
 
-    // After processing all bookmarks, generate a comprehensive summary
     let comprehensiveSummaryText = "";
-    if (summarizedBookmarks.length > 0) {
-      const allIndividualSummaries = summarizedBookmarks
-        .map(b => b.summary) // Get the summary text
-        .filter(s => s && s.trim() !== '' && !s.startsWith("OPENAI_API_KEY not configured") && !s.startsWith("Failed to extract summary") && !s.startsWith("OpenAI API error") && !s.startsWith("Content was empty"))
-        .join("\n\n---\n\n"); // Join summaries with a separator
-
-      if (allIndividualSummaries.trim()) {
-        console.log("Log: Generating comprehensive summary from individual summaries.");
-        // Use a slightly different prompt for the digest
-        const digestPrompt = `Based on the following individual summaries of recently saved items, please create a concise overall digest or a list of key highlights. Aim for a brief, easy-to-scan overview of the main topics covered:\n\n---\n${allIndividualSummaries}\n---\nOverall Digest:`;
-        comprehensiveSummaryText = await generateSummaryWithGPT(digestPrompt); // Re-using generateSummaryWithGPT, but it takes the concatenated text
-         // Check if the comprehensive summary itself is an error message from generateSummaryWithGPT
-        if (comprehensiveSummaryText.startsWith("OPENAI_API_KEY not configured") || comprehensiveSummaryText.startsWith("Failed to extract summary") || comprehensiveSummaryText.startsWith("OpenAI API error") || comprehensiveSummaryText.startsWith("Content was empty")) {
-            console.warn("Log: Comprehensive summary generation resulted in an error state: ", comprehensiveSummaryText);
-            // Decide if you want to send this error as the comprehensiveSummary or an empty string / specific error message
-            // For now, let's send the error message through so UI can know if it failed.
-        }
-      } else {
-        console.log("Log: No valid individual summaries to create a comprehensive digest.");
-        comprehensiveSummaryText = "No valid content from recent bookmarks to create a digest.";
+    if (individualSummariesForDigest.length > 0) {
+      const allIndividualSummariesText = individualSummariesForDigest.join("\n\n---\n\n");
+      console.log("Log: Generating comprehensive summary from collected individual summaries.");
+      const digestPrompt = `Based on the following individual summaries of recently saved items, please create a concise overall digest or a list of key highlights. Aim for a brief, easy-to-scan overview of the main topics covered:\n\n---\n${allIndividualSummariesText}\n---\nOverall Digest:`;
+      comprehensiveSummaryText = await generateSummaryWithGPT(digestPrompt);
+      if (comprehensiveSummaryText.startsWith("OPENAI_API_KEY not configured") || comprehensiveSummaryText.startsWith("Failed to extract summary") || comprehensiveSummaryText.startsWith("OpenAI API error") || comprehensiveSummaryText.startsWith("Content was empty")) {
+          console.warn("Log: Comprehensive summary generation resulted in an error/empty state: ", comprehensiveSummaryText);
       }
-    } else if (errors.length > 0 && bookmarksToProcess.length > 0) {
-        comprehensiveSummaryText = "Could not generate a digest as recent items failed to summarize.";
     } else {
-        comprehensiveSummaryText = "No new bookmarks were processed for a digest.";
+      console.log("Log: No valid individual summaries available to create a comprehensive digest.");
+      if (latestBookmarks.length > 0 && errors.length === latestBookmarks.length) {
+        comprehensiveSummaryText = "Could not generate a digest as all recent items failed to provide summaries.";
+      } else if (latestBookmarks.length > 0) {
+        comprehensiveSummaryText = "Not enough content from recent bookmarks to create a digest.";
+      } else {
+        comprehensiveSummaryText = "No bookmarks found to process for a digest."; // Should be caught earlier
+      }
     }
 
-    console.log(`Log: Batch summarization complete. Success: ${summarizedBookmarks.length}, Failures: ${errors.length}`);
+    console.log(`Log: Digest generation complete. Items processed: ${latestBookmarks.length}, Errors in processing: ${errors.length}`);
     res.status(200).json({
-      message: `Batch summarization attempted. ${summarizedBookmarks.length} succeeded, ${errors.length} failed.`,
-      summarizedBookmarks,
+      message: `Digest generation attempted for ${latestBookmarks.length} items. ${errors.length > 0 ? errors.length + ' had issues.' : 'All processed.'}`,
+      summarizedBookmarks: processedBookmarksForResponse, // These are the latest 5, possibly with updated summaries
       errors,
-      comprehensiveSummary: comprehensiveSummaryText // Add new field to response
+      comprehensiveSummary: comprehensiveSummaryText
     });
 
   } catch (error: any) {
-    console.error("Log: Critical error in summarizeLatestBookmarksController:", error.message || error);
-    res.status(500).json({ message: 'Server error during batch summarization', error: error.message || 'Unknown error' });
+    console.error("Log: Critical error in summarizeLatestBookmarksController (digest generation):", error.message || error);
+    res.status(500).json({ 
+        message: 'Server error during digest generation', 
+        error: error.message || 'Unknown error', 
+        summarizedBookmarks: [], 
+        errors: [], 
+        comprehensiveSummary: "Failed to generate digest due to a server error."
+    });
   }
 }; 

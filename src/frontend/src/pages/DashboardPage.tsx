@@ -1,16 +1,39 @@
 import React from 'react';
 import { useDigest } from '../context/DigestContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Zap, AlertCircle } from 'lucide-react';
+import { Zap, AlertCircle, FileText } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from '@/components/ui/button';
 
 const DashboardPage: React.FC = () => {
-  const { latestDigest } = useDigest();
-  console.log('[DashboardPage] Consuming latestDigest from context:', latestDigest);
+  const { 
+    latestDigest, 
+    isBatchSummarizing, 
+    summarizeLatestBookmarks 
+  } = useDigest();
+  console.log('[DashboardPage] Consuming from context - latestDigest:', latestDigest, 'isBatchSummarizing:', isBatchSummarizing);
+
+  const handleSummarizeLatestClick = () => {
+    console.log("[DashboardPage] handleSummarizeLatestClick called, invoking context action.");
+    summarizeLatestBookmarks([], () => {});
+  };
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <Button 
+          onClick={handleSummarizeLatestClick}
+          disabled={isBatchSummarizing}
+          size="sm" 
+        >
+          {isBatchSummarizing ? (
+            <><Zap className="w-4 h-4 mr-1 animate-spin" /> Digest Loading...</>
+          ) : (
+            <><FileText className="w-4 h-4 mr-1" /> Create Latest Digest</>
+          )}
+        </Button>
+      </div>
       
       {latestDigest && (
         <Card className="mb-6 bg-secondary/20 shadow-lg">

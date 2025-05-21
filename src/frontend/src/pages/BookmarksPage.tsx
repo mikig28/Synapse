@@ -18,9 +18,13 @@ const BookmarksPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all'); // 'all', 'week', 'month'
   const [summarizingBookmarkId, setSummarizingBookmarkId] = useState<string | null>(null);
-  const [isBatchSummarizing, setIsBatchSummarizing] = useState<boolean>(false);
-  const { latestDigest, setLatestDigest } = useDigest();
-  console.log('[BookmarksPage] Consuming latestDigest from context:', latestDigest); // Log for BookmarksPage
+  const { 
+    latestDigest, 
+    setLatestDigest,
+    isBatchSummarizing,
+    summarizeLatestBookmarks
+  } = useDigest();
+  console.log('[BookmarksPage] Consuming latestDigest from context:', latestDigest, 'isBatchSummarizing:', isBatchSummarizing);
   const { toast } = useToast();
   const token = useAuthStore((state) => state.token);
 
@@ -132,73 +136,9 @@ const BookmarksPage: React.FC = () => {
     }
   };
 
-  const handleSummarizeLatest = async () => {
-    console.log("[BookmarksPage] handleSummarizeLatest called");
-    setIsBatchSummarizing(true);
-    setLatestDigest(null); 
-    try {
-      const response = await summarizeLatestBookmarksService();
-      toast({
-        title: "Batch Summarization Complete", 
-        description: response.message,
-      });
-      
-      console.log("[BookmarksPage] Response from summarizeLatestBookmarksService:", response); // Log the whole response
-
-      if (response.comprehensiveSummary) {
-        console.log("[BookmarksPage] Attempting to set latestDigest with:", response.comprehensiveSummary); // Log before setting
-        setLatestDigest(response.comprehensiveSummary);
-      } else {
-        console.log("[BookmarksPage] No comprehensiveSummary received in response or it was empty.");
-        // Set to a specific message if it's missing, so we know this path was taken
-        setLatestDigest("No comprehensive summary was returned by the backend."); 
-      }
-
-      // Update local state for successfully summarized bookmarks
-      // And potentially show errors for failed ones
-      if (response.summarizedBookmarks && response.summarizedBookmarks.length > 0) {
-        setBookmarks(prevBookmarks => {
-          const newBookmarks = prevBookmarks.map(b => {
-            const updated = response.summarizedBookmarks.find(sb => sb._id === b._id);
-            return updated ? updated : b;
-          });
-          console.log("[BookmarksPage] Bookmarks state after BATCH summarize (updated portion):", 
-            newBookmarks.filter(b => response.summarizedBookmarks.some(sb => sb._id === b._id))
-          ); // Log all updated bookmarks from batch
-          return newBookmarks;
-        });
-      }
-      if (response.errors && response.errors.length > 0) {
-        response.errors.forEach(err => {
-          toast({
-            title: `Error Summarizing Bookmark ID: ${err.bookmarkId}`,
-            description: err.error,
-            variant: "destructive",
-          });
-           setBookmarks(prevBookmarks => {
-            const newBookmarks = prevBookmarks.map(b => {
-              if (b._id === err.bookmarkId) {
-                return { ...b, status: 'error' as 'error', summary: `Error: ${err.error}` };
-              }
-              return b;
-            });
-            console.log("[BookmarksPage] Bookmarks state after BATCH error update:", newBookmarks.find(b => b._id === err.bookmarkId));
-            return newBookmarks;
-          });
-        });
-      }
-      // Optionally, refetch all bookmarks to ensure UI consistency if partial updates are complex
-      // fetchBookmarks(); 
-    } catch (err: any) {
-      console.error("Error in handleSummarizeLatest:", err);
-      toast({
-        title: "Error Batch Summarizing",
-        description: err?.message || "Failed to start batch summarization.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsBatchSummarizing(false);
-    }
+  const handleSummarizeLatestClick = () => {
+    console.log("[BookmarksPage] handleSummarizeLatestClick called, invoking context action.");
+    summarizeLatestBookmarks(bookmarks, setBookmarks);
   };
 
   if (loading) {
@@ -229,14 +169,14 @@ const BookmarksPage: React.FC = () => {
         <h1 className="text-3xl font-bold">My Bookmarks</h1>
         <div className="flex items-center space-x-2">
             <Button 
-              onClick={handleSummarizeLatest}
-              disabled={isBatchSummarizing || loading} // Also disable if main loading
+              onClick={handleSummarizeLatestClick}
+              disabled={isBatchSummarizing || loading}
               size="sm" 
             >
               {isBatchSummarizing ? (
-                <><Zap className="w-4 h-4 mr-1 animate-spin" /> Summarizing Latest...</>
+                <><Zap className="w-4 h-4 mr-1 animate-spin" /> Digest Loading...</>
               ) : (
-                <><FileText className="w-4 h-4 mr-1" /> Summarize Latest</> // Simplified button text
+                <><FileText className="w-4 h-4 mr-1" /> Create Latest Digest</>
               )}
             </Button>
             <div className="flex items-center">
