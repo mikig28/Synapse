@@ -286,6 +286,37 @@ const BookmarksPage: React.FC = () => {
                 {latestDigest}
               </p>
             )}
+            {/* TTS Button for Digest */}
+            {latestDigest && 
+             !latestDigest.startsWith("OPENAI_API_KEY not configured") && 
+             !latestDigest.startsWith("Failed to extract summary") && 
+             !latestDigest.startsWith("OpenAI API error") && 
+             !latestDigest.startsWith("Content was empty") &&
+             !latestDigest.startsWith("Could not generate a digest") &&
+             !latestDigest.startsWith("No valid content") &&
+             !latestDigest.startsWith("No new bookmarks") &&
+            (
+              <div className="mt-3">
+                <Button 
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleSpeakSummary("latest-digest", latestDigest || '')}
+                  disabled={playingBookmarkId === "latest-digest" && !audioErrorId}
+                  className="text-xs"
+                  title={playingBookmarkId === "latest-digest" && !audioErrorId ? "Playing Digest..." : audioErrorId === "latest-digest" ? "Retry Reading Digest" : "Read Digest Aloud"}
+                >
+                  <Volume2 className={`w-4 h-4 mr-1 ${playingBookmarkId === "latest-digest" && !audioErrorId ? 'animate-pulse' : ''}`} />
+                  {playingBookmarkId === "latest-digest" && !audioErrorId ? 
+                    "Playing Digest..." : 
+                    audioErrorId === "latest-digest" ? 
+                    "Retry Read Digest" : 
+                    "Read Digest Aloud"}
+                </Button>
+                {audioErrorId === "latest-digest" && (
+                  <p className="text-xs text-red-500 mt-1">Failed to play digest audio. Please try again.</p>
+                )}
+              </div>
+            )}
             
             {/* Display Digest Sources */}
             {latestDigestSources && latestDigestSources.length > 0 && 
@@ -350,6 +381,10 @@ const BookmarksPage: React.FC = () => {
                     isSummarizing={summarizingBookmarkId === bookmark._id}
                     summaryStatus={bookmark.status}
                     summaryText={bookmark.summary}
+                    // TTS Props
+                    onSpeakSummary={handleSpeakSummary}
+                    playingTweetId={playingBookmarkId}
+                    audioErrorTweetId={audioErrorId}
                   />
                 );
               }

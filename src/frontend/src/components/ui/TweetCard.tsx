@@ -11,7 +11,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Trash2, FileText, Zap } from "lucide-react";
+import { Trash2, FileText, Zap, Volume2 } from "lucide-react";
 import { BookmarkItemType } from "@/types/bookmark";
 
 interface TwitterIconProps {
@@ -235,12 +235,20 @@ export const MagicTweet = ({
   components,
   className,
   summaryText,
+  onSpeakSummary,
+  playingTweetId,
+  audioErrorTweetId,
+  tweetId,
   ...props
 }: {
   tweet: any;
   components?: TwitterComponents;
   className?: string;
   summaryText?: string;
+  onSpeakSummary?: (tweetId: string, summaryText: string) => void;
+  playingTweetId?: string | null;
+  audioErrorTweetId?: string | null;
+  tweetId?: string;
 }) => {
   const enrichedTweet = enrichTweet(tweet);
   return (
@@ -261,6 +269,32 @@ export const MagicTweet = ({
           <p className="text-xs text-muted-foreground whitespace-pre-wrap">
             {summaryText}
           </p>
+          {/* TTS Button for Tweet Summary */}
+          {onSpeakSummary && tweetId && (
+            <>
+              <Button 
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent card click or other parent events
+                  onSpeakSummary(tweetId, summaryText || '');
+                }}
+                disabled={playingTweetId === tweetId && !audioErrorTweetId}
+                className="mt-2 text-xs"
+                title={playingTweetId === tweetId && !audioErrorTweetId ? "Playing Summary..." : audioErrorTweetId === tweetId ? "Retry Reading Summary" : "Read Summary Aloud"}
+              >
+                <Volume2 className={`w-4 h-4 mr-1 ${playingTweetId === tweetId && !audioErrorTweetId ? 'animate-pulse' : ''}`} />
+                {playingTweetId === tweetId && !audioErrorTweetId ? 
+                  "Playing..." : 
+                  audioErrorTweetId === tweetId ? 
+                  "Retry Read" : 
+                  "Read Aloud"}
+              </Button>
+              {audioErrorTweetId === tweetId && (
+                <p className="text-xs text-red-500 mt-1">Failed to play audio. Please try again.</p>
+              )}
+            </>
+          )}
         </div>
       )}
       <TweetMedia tweet={enrichedTweet} />
@@ -282,6 +316,9 @@ export const ClientTweetCard = ({
   isSummarizing,
   summaryStatus,
   summaryText,
+  onSpeakSummary,
+  playingTweetId,
+  audioErrorTweetId,
   ...props
 }: TweetProps & {
   className?: string;
@@ -290,6 +327,9 @@ export const ClientTweetCard = ({
   isSummarizing?: boolean;
   summaryStatus?: BookmarkItemType['status'];
   summaryText?: string;
+  onSpeakSummary?: (tweetId: string, summaryText: string) => void;
+  playingTweetId?: string | null;
+  audioErrorTweetId?: string | null;
 }) => {
   const { data: tweet, error } = useTweet(id, apiUrl, fetchOptions);
 
@@ -300,7 +340,7 @@ export const ClientTweetCard = ({
 
   return (
     <div className={cn('relative group', className)} {...props}>
-      {tweet && <MagicTweet tweet={tweet} components={components} summaryText={summaryText} />}
+      {tweet && <MagicTweet tweet={tweet} components={components} summaryText={summaryText} onSpeakSummary={onSpeakSummary} playingTweetId={playingTweetId} audioErrorTweetId={audioErrorTweetId} tweetId={id} />}
       {!tweet && !error && fallback}
       {error && <TweetNotFound />}
       {tweet && (onDelete || onSummarize) && (
