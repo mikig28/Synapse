@@ -192,7 +192,10 @@ const BookmarksPage: React.FC = () => {
                     key={bookmark._id}
                     id={tweetId}
                     className="shadow-lg hover:shadow-xl transition-shadow duration-300"
-                    onDelete={() => handleDeleteBookmark(bookmark._id)} 
+                    onDelete={() => handleDeleteBookmark(bookmark._id)}
+                    onSummarize={() => handleSummarizeBookmark(bookmark._id)}
+                    isSummarizing={summarizingBookmarkId === bookmark._id}
+                    summaryStatus={bookmark.status}
                   />
                 );
               }

@@ -11,7 +11,8 @@ import {
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
+import { Trash2, FileText, Zap } from "lucide-react";
+import { BookmarkItemType } from "@/types/bookmark";
 
 interface TwitterIconProps {
   className?: string;
@@ -265,8 +266,17 @@ export const ClientTweetCard = ({
   onError,
   className,
   onDelete,
+  onSummarize,
+  isSummarizing,
+  summaryStatus,
   ...props
-}: TweetProps & { className?: string; onDelete?: () => void }) => {
+}: TweetProps & {
+  className?: string;
+  onDelete?: () => void;
+  onSummarize?: (id: string) => void;
+  isSummarizing?: boolean;
+  summaryStatus?: BookmarkItemType['status'];
+}) => {
   const { data: tweet, error } = useTweet(id, apiUrl, fetchOptions);
 
   if (error) {
@@ -279,19 +289,45 @@ export const ClientTweetCard = ({
       {tweet && <MagicTweet tweet={tweet} components={components} />}
       {!tweet && !error && fallback}
       {error && <TweetNotFound />}
-      {tweet && onDelete && (
-        <Button
-          variant="destructive"
-          size="icon"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          title="Delete Tweet Bookmark"
-          className="absolute bottom-2 right-2 z-10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
+      {tweet && (onDelete || onSummarize) && (
+        <div className="absolute bottom-2 right-2 z-10 flex space-x-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+          {onSummarize && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (id) {
+                  onSummarize(id);
+                }
+              }}
+              disabled={isSummarizing || summaryStatus === 'summarized' || summaryStatus === 'pending_summary'}
+              title={summaryStatus === 'summarized' ? "Already Summarized" : "Summarize Content"}
+              className="text-xs"
+            >
+              {isSummarizing ? (
+                <><Zap className="w-4 h-4 mr-1 animate-pulse" /> Summarizing...</>
+              ) : summaryStatus === 'summarized' ? (
+                <><FileText className="w-4 h-4 mr-1" /> Summarized</>
+              ) : (
+                <><FileText className="w-4 h-4 mr-1" /> Summarize</>
+              )}
+            </Button>
+          )}
+          {onDelete && (
+            <Button
+              variant="destructive"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              title="Delete Tweet Bookmark"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );
