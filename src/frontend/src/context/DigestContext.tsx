@@ -8,7 +8,14 @@ interface DigestContextType {
 const DigestContext = createContext<DigestContextType | undefined>(undefined);
 
 export const DigestProvider: React.FC<{children: ReactNode}> = ({ children }) => {
-  const [latestDigest, setLatestDigest] = useState<string | null>(null);
+  const [latestDigest, _setLatestDigest] = useState<string | null>(null);
+
+  const setLatestDigest = (digest: string | null) => {
+    console.log('[DigestProvider] setLatestDigest CALLED with:', digest);
+    _setLatestDigest(digest);
+  };
+
+  console.log('[DigestProvider] PROVIDER RENDERING, current latestDigest state is:', latestDigest);
 
   return (
     <DigestContext.Provider value={{ latestDigest, setLatestDigest }}>

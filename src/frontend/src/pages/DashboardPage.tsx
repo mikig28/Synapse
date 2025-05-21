@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const DashboardPage: React.FC = () => {
   const { latestDigest } = useDigest();
+  console.log('[DashboardPage] Consuming latestDigest from context:', latestDigest);
 
   return (
     <div className="container mx-auto p-4">

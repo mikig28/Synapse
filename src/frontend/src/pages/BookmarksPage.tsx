@@ -20,6 +20,7 @@ const BookmarksPage: React.FC = () => {
   const [summarizingBookmarkId, setSummarizingBookmarkId] = useState<string | null>(null);
   const [isBatchSummarizing, setIsBatchSummarizing] = useState<boolean>(false);
   const { latestDigest, setLatestDigest } = useDigest();
+  console.log('[BookmarksPage] Consuming latestDigest from context:', latestDigest); // Log for BookmarksPage
   const { toast } = useToast();
   const token = useAuthStore((state) => state.token);
 
