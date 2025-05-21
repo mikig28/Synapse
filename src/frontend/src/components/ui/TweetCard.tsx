@@ -301,14 +301,16 @@ export const ClientTweetCard = ({
                   onSummarize(id);
                 }
               }}
-              disabled={isSummarizing || summaryStatus === 'summarized' || summaryStatus === 'pending_summary'}
-              title={summaryStatus === 'summarized' ? "Already Summarized" : "Summarize Content"}
+              disabled={isSummarizing || summaryStatus === 'summarized'}
+              title={summaryStatus === 'summarized' ? "Already Summarized" : summaryStatus === 'pending_summary' ? "Retry Summarize?" : "Summarize Content"}
               className="text-xs"
             >
               {isSummarizing ? (
                 <><Zap className="w-4 h-4 mr-1 animate-pulse" /> Summarizing...</>
               ) : summaryStatus === 'summarized' ? (
                 <><FileText className="w-4 h-4 mr-1" /> Summarized</>
+              ) : summaryStatus === 'pending_summary' ? (
+                <><FileText className="w-4 h-4 mr-1" /> Summarize (Pending)</>
               ) : (
                 <><FileText className="w-4 h-4 mr-1" /> Summarize</>
               )}
