@@ -5,8 +5,8 @@ import mongoose from 'mongoose'; // Import mongoose for delete operation
 // Consider adding a metadata fetching library here later
 // import * as metaFetcher from 'html-metadata-parser'; // Example
 import axios from 'axios'; // For fetching URL content - TODO: uncomment and install if not present
-import cheerio from 'cheerio'; // For parsing HTML - TODO: uncomment and install if not present
-console.log('[BookmarkController] Cheerio type:', typeof cheerio, 'Cheerio value:', cheerio); // DIAGNOSTIC LOG
+import * as cheerio from 'cheerio';
+console.log('[BookmarkController] Cheerio type (star import):', typeof cheerio, 'Cheerio value (star import):', cheerio); // DIAGNOSTIC LOG
 import OpenAI from 'openai';
 
 // Define AuthenticatedRequest if it's not globally available or imported from a shared types file
