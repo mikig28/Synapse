@@ -392,7 +392,12 @@ export const summarizeLatestBookmarksController = async (req: AuthenticatedReque
 
     if (!bookmarksToProcess || bookmarksToProcess.length === 0) {
       console.log("Log: No eligible bookmarks found for batch summarization.");
-      return res.status(200).json({ message: 'No eligible bookmarks found to summarize.', summarizedBookmarks: [], errors: [] });
+      return res.status(200).json({ 
+        message: 'No eligible bookmarks found to summarize.', 
+        summarizedBookmarks: [], 
+        errors: [], 
+        comprehensiveSummary: "No eligible bookmarks were available to generate a digest." // Ensure field is present
+      });
     }
 
     console.log(`Log: Found ${bookmarksToProcess.length} bookmarks to attempt summarization.`);
