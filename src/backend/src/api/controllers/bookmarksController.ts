@@ -312,6 +312,21 @@ export const summarizeBookmarkController = async (req: AuthenticatedRequest, res
 
     let contentToSummarize: string | undefined | null = bookmark.rawPageContent;
 
+    // Enrich title for X/Twitter if not already fetched
+    if ((bookmark.sourcePlatform === 'X') && (!bookmark.fetchedTitle || bookmark.fetchedTitle.trim() === '')) {
+      try {
+        const oEmbedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(bookmark.originalUrl)}`;
+        const oEmbedResponse = await axios.get(oEmbedUrl, { timeout: 5000 });
+        const oEmbedData: any = oEmbedResponse.data; // Assert data as any
+        if (oEmbedData && oEmbedData.author_name) {
+          bookmark.fetchedTitle = `Tweet by ${oEmbedData.author_name}`;
+          console.log(`Log: Enriched fetchedTitle for ${bookmark._id} to: ${bookmark.fetchedTitle}`);
+        }
+      } catch (titleError: any) {
+        console.warn(`Log: Failed to enrich title for X/Twitter ${bookmark._id} via oEmbed: ${titleError.message}`);
+      }
+    }
+
     if (!contentToSummarize && bookmark.originalUrl) {
       console.log("Log: Fetching content from originalUrl for summarization.");
       bookmark.status = 'pending_summary';
@@ -410,10 +425,24 @@ export const summarizeLatestBookmarksController = async (req: AuthenticatedReque
       let currentSummary = bookmark.summary;
       let needsSummarizing = !currentSummary || currentSummary.trim() === '' || bookmark.status !== 'summarized';
 
-      // Optional: Add more sophisticated logic here to decide if re-summarization is needed 
-      // e.g., if summary is old, or if status is 'error'. For now, if it has a good status='summarized' summary, use it.
-      if (bookmark.status === 'error') { // Always try to re-summarize if previous attempt errored
+      if (bookmark.status === 'error') { 
           needsSummarizing = true;
+      }
+
+      // Enrich title for X/Twitter if not already fetched, before deciding on summarization
+      if ((bookmark.sourcePlatform === 'X') && (!bookmark.fetchedTitle || bookmark.fetchedTitle.trim() === '')) {
+        try {
+          const oEmbedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(bookmark.originalUrl)}`;
+          const oEmbedResponse = await axios.get(oEmbedUrl, { timeout: 5000 });
+          const oEmbedData: any = oEmbedResponse.data;
+          if (oEmbedData && oEmbedData.author_name) {
+            bookmark.fetchedTitle = `Tweet by ${oEmbedData.author_name}`;
+            // This change will be saved if the bookmark is saved later in this loop
+            console.log(`Log: Enriched fetchedTitle for ${bookmark._id} (in batch) to: ${bookmark.fetchedTitle}`);
+          }
+        } catch (titleError: any) {
+          console.warn(`Log: Failed to enrich title for X/Twitter ${bookmark._id} (in batch) via oEmbed: ${titleError.message}`);
+        }
       }
 
       if (needsSummarizing) {
