@@ -100,9 +100,11 @@ const BookmarksPage: React.FC = () => {
     setSummarizingBookmarkId(bookmarkId);
     try {
       const updatedBookmark = await summarizeBookmarkById(bookmarkId);
-      setBookmarks(prevBookmarks => 
-        prevBookmarks.map(b => b._id === bookmarkId ? updatedBookmark : b)
-      );
+      setBookmarks(prevBookmarks => {
+        const newBookmarks = prevBookmarks.map(b => b._id === bookmarkId ? updatedBookmark : b);
+        console.log("[BookmarksPage] Bookmarks state after individual summarize:", newBookmarks.find(b => b._id === bookmarkId)); // Log the updated bookmark
+        return newBookmarks;
+      });
       toast({
         title: "Success",
         description: "Bookmark summarized successfully.",
@@ -139,12 +141,16 @@ const BookmarksPage: React.FC = () => {
       // Update local state for successfully summarized bookmarks
       // And potentially show errors for failed ones
       if (response.summarizedBookmarks && response.summarizedBookmarks.length > 0) {
-        setBookmarks(prevBookmarks => 
-          prevBookmarks.map(b => {
+        setBookmarks(prevBookmarks => {
+          const newBookmarks = prevBookmarks.map(b => {
             const updated = response.summarizedBookmarks.find(sb => sb._id === b._id);
             return updated ? updated : b;
-          })
-        );
+          });
+          console.log("[BookmarksPage] Bookmarks state after BATCH summarize (updated portion):", 
+            newBookmarks.filter(b => response.summarizedBookmarks.some(sb => sb._id === b._id))
+          ); // Log all updated bookmarks from batch
+          return newBookmarks;
+        });
       }
       if (response.errors && response.errors.length > 0) {
         response.errors.forEach(err => {
@@ -153,12 +159,16 @@ const BookmarksPage: React.FC = () => {
             description: err.error,
             variant: "destructive",
           });
-           // Optionally update the specific bookmark's status to 'error' in UI
-           setBookmarks(prevBookmarks => 
-            prevBookmarks.map(b => 
-              b._id === err.bookmarkId ? { ...b, status: 'error', summary: `Error: ${err.error}` } : b
-            )
-          );
+           setBookmarks(prevBookmarks => {
+            const newBookmarks = prevBookmarks.map(b => {
+              if (b._id === err.bookmarkId) {
+                return { ...b, status: 'error' as 'error', summary: `Error: ${err.error}` };
+              }
+              return b;
+            });
+            console.log("[BookmarksPage] Bookmarks state after BATCH error update:", newBookmarks.find(b => b._id === err.bookmarkId));
+            return newBookmarks;
+          });
         });
       }
       // Optionally, refetch all bookmarks to ensure UI consistency if partial updates are complex
@@ -258,6 +268,7 @@ const BookmarksPage: React.FC = () => {
                     onSummarize={() => handleSummarizeBookmark(bookmark._id)}
                     isSummarizing={summarizingBookmarkId === bookmark._id}
                     summaryStatus={bookmark.status}
+                    summaryText={bookmark.summary}
                   />
                 );
               }
