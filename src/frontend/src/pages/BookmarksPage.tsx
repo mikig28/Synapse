@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import useAuthStore from '@/store/authStore';
 import { useDigest } from '../context/DigestContext';
+import { ExternalLink as LinkIcon } from 'lucide-react';
 
 const BookmarksPage: React.FC = () => {
   const [bookmarks, setBookmarks] = useState<BookmarkItemType[]>([]);
@@ -21,10 +22,11 @@ const BookmarksPage: React.FC = () => {
   const { 
     latestDigest, 
     setLatestDigest,
+    latestDigestSources,
     isBatchSummarizing,
     summarizeLatestBookmarks
   } = useDigest();
-  console.log('[BookmarksPage] Consuming latestDigest from context:', latestDigest, 'isBatchSummarizing:', isBatchSummarizing);
+  console.log('[BookmarksPage] Consuming latestDigest from context:', latestDigest, 'isBatchSummarizing:', isBatchSummarizing, 'sources:', latestDigestSources);
   const { toast } = useToast();
   const token = useAuthStore((state) => state.token);
 
@@ -225,6 +227,35 @@ const BookmarksPage: React.FC = () => {
               <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                 {latestDigest}
               </p>
+            )}
+            
+            {/* Display Digest Sources */}
+            {latestDigestSources && latestDigestSources.length > 0 && 
+             !latestDigest.startsWith("Could not generate a digest") && // Don't show sources if digest itself is an error about sources
+             !latestDigest.startsWith("No valid content") &&
+             !latestDigest.startsWith("No new bookmarks") &&
+             !latestDigest.startsWith("No eligible bookmarks") &&
+             !latestDigest.startsWith("Failed to generate digest") && // Don't show sources if overall digest failed
+            (
+              <div className="mt-4 pt-3 border-t border-muted-foreground/20">
+                <h5 className="text-xs font-semibold mb-1 text-muted-foreground">Digest based on summaries from:</h5>
+                <ul className="list-disc list-inside pl-1 space-y-1">
+                  {latestDigestSources.map(source => (
+                    <li key={source._id} className="text-xs text-muted-foreground">
+                      <a 
+                        href={source.originalUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="hover:underline text-blue-500 hover:text-blue-400 flex items-center"
+                        title={source.originalUrl}
+                      >
+                        {source.title || source.originalUrl.substring(0, 50) + '...'}
+                        <LinkIcon className="w-3 h-3 ml-1 flex-shrink-0" />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </CardContent>
         </Card>

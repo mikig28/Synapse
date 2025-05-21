@@ -1,17 +1,18 @@
 import React from 'react';
 import { useDigest } from '../context/DigestContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Zap, AlertCircle, FileText } from 'lucide-react';
+import { Zap, AlertCircle, FileText, ExternalLink as LinkIcon } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
 
 const DashboardPage: React.FC = () => {
   const { 
     latestDigest, 
+    latestDigestSources,
     isBatchSummarizing, 
     summarizeLatestBookmarks 
   } = useDigest();
-  console.log('[DashboardPage] Consuming from context - latestDigest:', latestDigest, 'isBatchSummarizing:', isBatchSummarizing);
+  console.log('[DashboardPage] Consuming from context - latestDigest:', latestDigest, 'isBatchSummarizing:', isBatchSummarizing, 'sources:', latestDigestSources);
 
   const handleSummarizeLatestClick = () => {
     console.log("[DashboardPage] handleSummarizeLatestClick called, invoking context action.");
@@ -59,6 +60,34 @@ const DashboardPage: React.FC = () => {
               <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                 {latestDigest}
               </p>
+            )}
+
+            {latestDigestSources && latestDigestSources.length > 0 &&
+             !latestDigest.startsWith("Could not generate a digest") && 
+             !latestDigest.startsWith("No valid content") &&
+             !latestDigest.startsWith("No new bookmarks") &&
+             !latestDigest.startsWith("No eligible bookmarks") &&
+             !latestDigest.startsWith("Failed to generate digest") &&
+            (
+              <div className="mt-4 pt-3 border-t border-muted-foreground/20">
+                <h5 className="text-xs font-semibold mb-1 text-muted-foreground">Digest based on summaries from:</h5>
+                <ul className="list-disc list-inside pl-1 space-y-1">
+                  {latestDigestSources.map(source => (
+                    <li key={source._id} className="text-xs text-muted-foreground">
+                      <a 
+                        href={source.originalUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="hover:underline text-blue-500 hover:text-blue-400 flex items-center"
+                        title={source.originalUrl}
+                      >
+                        {source.title || source.originalUrl.substring(0, 50) + '...'}
+                        <LinkIcon className="w-3 h-3 ml-1 flex-shrink-0" />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </CardContent>
         </Card>

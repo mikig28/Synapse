@@ -3,9 +3,18 @@ import { summarizeLatestBookmarksService, SummarizeLatestResponse } from '../ser
 import { useToast } from '@/hooks/use-toast';
 import { BookmarkItemType } from '../types/bookmark';
 
+// Define a type for the source info
+export interface DigestSourceInfo {
+  _id: string;
+  title?: string;
+  originalUrl: string;
+}
+
 interface DigestContextType {
   latestDigest: string | null;
   setLatestDigest: (digest: string | null) => void;
+  latestDigestSources: DigestSourceInfo[] | null;
+  setLatestDigestSources: (sources: DigestSourceInfo[] | null) => void;
   isBatchSummarizing: boolean;
   summarizeLatestBookmarks: (
     currentBookmarks: BookmarkItemType[], 
@@ -17,12 +26,18 @@ const DigestContext = createContext<DigestContextType | undefined>(undefined);
 
 export const DigestProvider: React.FC<{children: ReactNode}> = ({ children }) => {
   const [latestDigest, _setLatestDigestInternal] = useState<string | null>(null);
+  const [latestDigestSources, _setLatestDigestSourcesInternal] = useState<DigestSourceInfo[] | null>(null);
   const [isBatchSummarizing, setIsBatchSummarizing] = useState<boolean>(false);
   const { toast } = useToast();
 
   const setLatestDigest = (digest: string | null) => {
     console.log('[DigestProvider] setLatestDigest CALLED with:', digest);
     _setLatestDigestInternal(digest);
+  };
+
+  const setLatestDigestSources = (sources: DigestSourceInfo[] | null) => {
+    console.log('[DigestProvider] setLatestDigestSources CALLED with:', sources);
+    _setLatestDigestSourcesInternal(sources);
   };
 
   const summarizeLatestBookmarks = async (
@@ -32,6 +47,7 @@ export const DigestProvider: React.FC<{children: ReactNode}> = ({ children }) =>
     console.log('[DigestProvider] summarizeLatestBookmarks action called');
     setIsBatchSummarizing(true);
     setLatestDigest(null);
+    setLatestDigestSources(null);
     try {
       const response = await summarizeLatestBookmarksService();
       toast({
@@ -68,6 +84,10 @@ export const DigestProvider: React.FC<{children: ReactNode}> = ({ children }) =>
           );
         });
       }
+
+      if (response.digestSourceInfo) {
+        setLatestDigestSources(response.digestSourceInfo);
+      }
     } catch (err: any) {
       console.error("Error in summarizeLatestBookmarks action (DigestContext):", err);
       toast({
@@ -76,15 +96,16 @@ export const DigestProvider: React.FC<{children: ReactNode}> = ({ children }) =>
         variant: "destructive",
       });
       setLatestDigest("Failed to generate digest due to an error.");
+      setLatestDigestSources([]);
     } finally {
       setIsBatchSummarizing(false);
     }
   };
 
-  console.log('[DigestProvider] PROVIDER RENDERING, latestDigest:', latestDigest, 'isBatchSummarizing:', isBatchSummarizing);
+  console.log('[DigestProvider] PROVIDER RENDERING, latestDigest:', latestDigest, 'isBatchSummarizing:', isBatchSummarizing, 'sources:', latestDigestSources);
 
   return (
-    <DigestContext.Provider value={{ latestDigest, setLatestDigest, isBatchSummarizing, summarizeLatestBookmarks }}>
+    <DigestContext.Provider value={{ latestDigest, setLatestDigest, latestDigestSources, setLatestDigestSources, isBatchSummarizing, summarizeLatestBookmarks }}>
       {children}
     </DigestContext.Provider>
   );

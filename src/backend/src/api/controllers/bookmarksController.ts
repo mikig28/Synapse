@@ -404,6 +404,7 @@ export const summarizeLatestBookmarksController = async (req: AuthenticatedReque
     const processedBookmarksForResponse: IBookmarkItem[] = [];
     const errors: Array<{ bookmarkId: string, error: string }> = [];
     const individualSummariesForDigest: string[] = [];
+    const digestSourceInfo: Array<{ _id: string, title?: string, originalUrl: string }> = []; // New array for source info
 
     for (const bookmark of latestBookmarks) {
       let currentSummary = bookmark.summary;
@@ -454,8 +455,14 @@ export const summarizeLatestBookmarksController = async (req: AuthenticatedReque
 
       if (currentSummary && currentSummary.trim() !== '' && !currentSummary.startsWith("OPENAI_API_KEY not configured") && !currentSummary.startsWith("Failed to extract summary") && !currentSummary.startsWith("OpenAI API error") && !currentSummary.startsWith("Content was empty")) {
         individualSummariesForDigest.push(currentSummary);
+        // Add to source info only if its summary was good enough for the digest
+        digestSourceInfo.push({ 
+          _id: String(bookmark._id), 
+          title: bookmark.fetchedTitle || bookmark.title || 'Untitled Bookmark', 
+          originalUrl: bookmark.originalUrl 
+        });
       }
-      processedBookmarksForResponse.push(bookmark.toObject() as IBookmarkItem); // Add to response, even if summarization failed but it was processed
+      processedBookmarksForResponse.push(bookmark.toObject() as IBookmarkItem); 
     }
 
     let comprehensiveSummaryText = "";
@@ -481,9 +488,10 @@ export const summarizeLatestBookmarksController = async (req: AuthenticatedReque
     console.log(`Log: Digest generation complete. Items processed: ${latestBookmarks.length}, Errors in processing: ${errors.length}`);
     res.status(200).json({
       message: `Digest generation attempted for ${latestBookmarks.length} items. ${errors.length > 0 ? errors.length + ' had issues.' : 'All processed.'}`,
-      summarizedBookmarks: processedBookmarksForResponse, // These are the latest 5, possibly with updated summaries
+      summarizedBookmarks: processedBookmarksForResponse, 
       errors,
-      comprehensiveSummary: comprehensiveSummaryText
+      comprehensiveSummary: comprehensiveSummaryText,
+      digestSourceInfo // Add new field to response
     });
 
   } catch (error: any) {
@@ -493,7 +501,8 @@ export const summarizeLatestBookmarksController = async (req: AuthenticatedReque
         error: error.message || 'Unknown error', 
         summarizedBookmarks: [], 
         errors: [], 
-        comprehensiveSummary: "Failed to generate digest due to a server error."
+        comprehensiveSummary: "Failed to generate digest due to a server error.",
+        digestSourceInfo: [] // Also add here for consistent response shape on error
     });
   }
 }; 

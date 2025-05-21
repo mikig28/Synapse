@@ -1,6 +1,7 @@
 import axiosInstance from "./axiosConfig";
 import axios from 'axios';
 import { BookmarkItemType } from "../types/bookmark";
+import { DigestSourceInfo } from "../context/DigestContext";
 
 export const getBookmarks = async (): Promise<BookmarkItemType[]> => {
   try {
@@ -43,6 +44,7 @@ export interface SummarizeLatestResponse {
   summarizedBookmarks: BookmarkItemType[];
   errors: Array<{ bookmarkId: string; error: string }>;
   comprehensiveSummary?: string;
+  digestSourceInfo?: DigestSourceInfo[];
 }
 
 export const summarizeLatestBookmarksService = async (): Promise<SummarizeLatestResponse> => {
