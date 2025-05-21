@@ -135,16 +135,23 @@ const BookmarksPage: React.FC = () => {
   const handleSummarizeLatest = async () => {
     console.log("[BookmarksPage] handleSummarizeLatest called");
     setIsBatchSummarizing(true);
-    setLatestDigest(null); // Clear previous digest via context
+    setLatestDigest(null); 
     try {
       const response = await summarizeLatestBookmarksService();
       toast({
-        title: "Batch Summarization Complete", // Changed title slightly
+        title: "Batch Summarization Complete", 
         description: response.message,
       });
       
+      console.log("[BookmarksPage] Response from summarizeLatestBookmarksService:", response); // Log the whole response
+
       if (response.comprehensiveSummary) {
+        console.log("[BookmarksPage] Attempting to set latestDigest with:", response.comprehensiveSummary); // Log before setting
         setLatestDigest(response.comprehensiveSummary);
+      } else {
+        console.log("[BookmarksPage] No comprehensiveSummary received in response or it was empty.");
+        // Set to a specific message if it's missing, so we know this path was taken
+        setLatestDigest("No comprehensive summary was returned by the backend."); 
       }
 
       // Update local state for successfully summarized bookmarks
