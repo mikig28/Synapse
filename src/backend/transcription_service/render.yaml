@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: synapse-transcription
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: WHISPER_MODEL
+        value: ivrit-ai/whisper-large-v3-ct2
+      - key: WHISPER_LANGUAGE
+        value: he
+      - key: WHISPER_DEVICE
+        value: cpu
+      - key: WHISPER_COMPUTE_TYPE
+        value: int8
+      - key: PORT
+        value: 8000
+      - key: PYTHON_VERSION
+        value: 3.11
+    disk:
+      name: whisper-models
+      mountPath: /app/models
+      sizeGB: 10
+    healthCheckPath: /health
+    plan: starter # You might need to upgrade for better performance 
