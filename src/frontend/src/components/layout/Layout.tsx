@@ -14,10 +14,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     typeof window !== "undefined" && window.innerWidth < 768
   );
   useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth < 768);
+    const onResize = () => {
+      const newMobileState = window.innerWidth < 768;
+      if (newMobileState !== isMobile) {
+        setIsMobile(newMobileState);
+      }
+    };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, []);
+  }, [isMobile]);
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
