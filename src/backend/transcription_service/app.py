@@ -8,10 +8,11 @@ import sys
 import io
 import tempfile
 import logging
+from contextlib import asynccontextmanager
 from typing import Optional
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 import faster_whisper
 from dotenv import load_dotenv
 
@@ -33,18 +34,6 @@ DEVICE = os.getenv('WHISPER_DEVICE', 'cpu')
 COMPUTE_TYPE = os.getenv('WHISPER_COMPUTE_TYPE', 'int8')
 API_KEY = os.getenv('TRANSCRIPTION_API_KEY', '')  # Optional API key for authentication
 
-# Initialize FastAPI app
-app = FastAPI(title="Transcription Service", version="1.0.0")
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Configure this based on your needs
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # Global model variable
 model = None
 
@@ -57,6 +46,8 @@ class TranscriptionResponse(BaseModel):
     language_probability: Optional[float] = None
     
 class HealthResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+    
     status: str
     model_loaded: bool
 
@@ -77,15 +68,44 @@ def load_model():
             logger.error(f"Error loading model: {e}")
             raise
 
-@app.on_event("startup")
-async def startup_event():
-    """Load model on startup"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler for startup and shutdown"""
+    # Startup
+    logger.info("Starting transcription service...")
     try:
         load_model()
+        logger.info("Service started successfully")
     except Exception as e:
         logger.error(f"Failed to load model on startup: {e}")
+    
+    yield
+    
+    # Shutdown
+    logger.info("Shutting down transcription service...")
 
-@app.get("/health", response_model=HealthResponse)
+# Initialize FastAPI app with lifespan
+app = FastAPI(
+    title="Transcription Service", 
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configure this based on your needs
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/", tags=["Root"])
+async def root():
+    """Root endpoint"""
+    return {"message": "Transcription Service is running", "status": "healthy"}
+
+@app.get("/health", response_model=HealthResponse, tags=["Health"])
 async def health_check():
     """Health check endpoint"""
     return HealthResponse(
@@ -93,7 +113,7 @@ async def health_check():
         model_loaded=model is not None
     )
 
-@app.post("/transcribe", response_model=TranscriptionResponse)
+@app.post("/transcribe", response_model=TranscriptionResponse, tags=["Transcription"])
 async def transcribe_audio(file: UploadFile = File(...)):
     """
     Transcribe an uploaded audio file
@@ -134,7 +154,7 @@ async def transcribe_audio(file: UploadFile = File(...)):
         if os.path.exists(tmp_file_path):
             os.unlink(tmp_file_path)
 
-@app.post("/transcribe-url", response_model=TranscriptionResponse)
+@app.post("/transcribe-url", response_model=TranscriptionResponse, tags=["Transcription"])
 async def transcribe_from_url(request: TranscriptionRequest):
     """
     Transcribe audio from a URL
@@ -186,4 +206,10 @@ async def transcribe_from_url(request: TranscriptionRequest):
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port) 
+    logger.info(f"Starting server on port {port}")
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=port,
+        log_level="info"
+    ) 
