@@ -8,20 +8,20 @@ interface ScrollAnimationOptions {
   animationDelay?: number;
 }
 
-interface ScrollAnimationReturn {
-  ref: RefObject<HTMLElement>;
+interface ScrollAnimationReturn<T extends HTMLElement> {
+  ref: RefObject<T>;
   isInView: boolean;
   progress: number;
   hasAnimated: boolean;
 }
 
-export const useScrollAnimation = ({
+export const useScrollAnimation = <T extends HTMLElement = HTMLDivElement>({
   threshold = 0.1,
   rootMargin = '-100px',
   triggerOnce = true,
   animationDelay = 0,
-}: ScrollAnimationOptions = {}): ScrollAnimationReturn => {
-  const ref = useRef<HTMLElement>(null);
+}: ScrollAnimationOptions = {}): ScrollAnimationReturn<T> => {
+  const ref = useRef<T>(null);
   const isInView = useInView(ref, {
     margin: rootMargin,
     amount: threshold,
@@ -80,7 +80,7 @@ export const useScrollAnimation = ({
   }, [delayedInView, triggerOnce]);
 
   return {
-    ref: ref as RefObject<HTMLElement>,
+    ref,
     isInView: delayedInView,
     progress,
     hasAnimated,
@@ -88,9 +88,9 @@ export const useScrollAnimation = ({
 };
 
 // Parallax scroll hook
-export const useParallaxScroll = (speed: number = 0.5) => {
+export const useParallaxScroll = <T extends HTMLElement = HTMLDivElement>(speed: number = 0.5) => {
   const [offsetY, setOffsetY] = useState(0);
-  const ref = useRef<HTMLElement>(null);
+  const ref = useRef<T>(null);
 
   useEffect(() => {
     const handleScroll = () => {
