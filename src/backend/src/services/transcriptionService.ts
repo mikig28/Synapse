@@ -1,6 +1,6 @@
 import fs from 'fs';
 import dotenv from 'dotenv';
-import axios, { AxiosResponse } from 'axios';
+import axios from 'axios';
 import FormData from 'form-data';
 import path from 'path';
 
@@ -39,7 +39,7 @@ export const transcribeAudio = async (filePath: string): Promise<string> => {
       formData.append('file', fs.createReadStream(absoluteFilePath));
       
       // Make API request with proper typing
-      const response: AxiosResponse<TranscriptionApiResponse> = await axios.post(
+      const response = await axios.post<TranscriptionApiResponse>(
         `${TRANSCRIPTION_SERVICE_URL}/transcribe`,
         formData,
         {
