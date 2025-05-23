@@ -1,10 +1,17 @@
 import fs from 'fs';
 import dotenv from 'dotenv';
-import axios from 'axios';
+import axios, { AxiosResponse } from 'axios';
 import FormData from 'form-data';
 import path from 'path';
 
 dotenv.config();
+
+// Define the response type from the transcription API
+interface TranscriptionApiResponse {
+  text: string;
+  language?: string;
+  language_probability?: number;
+}
 
 const TRANSCRIPTION_SERVICE_URL = process.env.TRANSCRIPTION_SERVICE_URL || 'http://localhost:8000';
 const TRANSCRIPTION_API_KEY = process.env.TRANSCRIPTION_API_KEY || '';
@@ -31,8 +38,8 @@ export const transcribeAudio = async (filePath: string): Promise<string> => {
       const formData = new FormData();
       formData.append('file', fs.createReadStream(absoluteFilePath));
       
-      // Make API request
-      const response = await axios.post(
+      // Make API request with proper typing
+      const response: AxiosResponse<TranscriptionApiResponse> = await axios.post(
         `${TRANSCRIPTION_SERVICE_URL}/transcribe`,
         formData,
         {
@@ -40,8 +47,6 @@ export const transcribeAudio = async (filePath: string): Promise<string> => {
             ...formData.getHeaders(),
             ...(TRANSCRIPTION_API_KEY && { 'Authorization': `Bearer ${TRANSCRIPTION_API_KEY}` })
           },
-          maxContentLength: Infinity,
-          maxBodyLength: Infinity,
           timeout: 120000 // 2 minutes timeout
         }
       );
