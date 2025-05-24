@@ -59,7 +59,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
         ${isSidebarOpen ? "md:w-64" : "md:w-16"}
 
         /* MOBILE (< md)  ------------------------------------ */
-        fixed md:relative      h-screen md:h-auto
+  fixed top-0 left-0 md:relative h-dvh md:h-auto
         transition-transform duration-300 ease-in-out
         ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
         w-64                   /* full drawer width on mobile */
