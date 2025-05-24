@@ -36,7 +36,7 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
 
   return (
     <header className="bg-transparent border-b border-white/10 shadow-lg backdrop-blur-md py-3 sticky top-0 z-50 min-h-[64px] overflow-visible">
-      <div className="w-full px-4 flex items-center justify-between h-full">
+      <div className="w-full px-6 flex items-center justify-between h-full max-w-none">
         <div className="flex items-center gap-2">
           {isAuthenticated && (
             <AnimatedButton variant="ghost" size="md" onClick={toggleSidebar} className="border-white/20 hover:bg-white/10">
@@ -49,7 +49,7 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
           </Link>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 mr-4 header-buttons">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <AnimatedButton variant="ghost" size="md" className="border-white/20 hover:bg-white/10">

@@ -338,6 +338,17 @@ code {
 }
 
 @layer utilities {
+  /* Header button fixes */
+  header {
+    padding-right: 20px !important;
+  }
+  
+  /* Prevent button clipping */
+  .header-buttons {
+    margin-right: 16px !important;
+    min-width: fit-content !important;
+  }
+  
   /* Dropdown menu fixes */
   [data-radix-popper-content-wrapper] {
     z-index: 60 !important;
