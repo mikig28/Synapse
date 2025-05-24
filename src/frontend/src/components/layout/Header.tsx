@@ -36,10 +36,10 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
 
   return (
     <header className="bg-transparent border-b border-white/10 shadow-lg backdrop-blur-md p-3 sticky top-0 z-40">
-      <div className="container mx-auto flex items-center justify-between">
+      <div className="container mx-auto flex items-center justify-between pr-4">
         <div className="flex items-center gap-2">
           {isAuthenticated && (
-            <AnimatedButton variant="outline" size="icon" onClick={toggleSidebar} className="border-white/20 hover:bg-white/10">
+            <AnimatedButton variant="ghost" size="md" onClick={toggleSidebar} className="border-white/20 hover:bg-white/10">
               <PanelLeft className="h-5 w-5" />
               <span className="sr-only">Toggle sidebar</span>
             </AnimatedButton>
@@ -52,14 +52,14 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
         <div className="flex items-center gap-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <AnimatedButton variant="outline" size="icon" className="border-white/20 hover:bg-white/10">
+              <AnimatedButton variant="ghost" size="md" className="border-white/20 hover:bg-white/10">
                 <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
                 <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
                 <span className="sr-only">Toggle theme</span>
               </AnimatedButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" asChild>
-              <GlassCard className="p-2 mt-2 border-white/10" blurIntensity={10} glowStrength={0.1}>
+              <GlassCard className="p-2 mt-2 border-white/10" blur="md">
                 <DropdownMenuItem onClick={() => handleSetTheme("light")} className="hover:bg-white/5 cursor-pointer">
                   Light
                 </DropdownMenuItem>
@@ -81,7 +81,7 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
                 </AnimatedButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56" align="end" forceMount asChild>
-                <GlassCard className="p-2 mt-2 border-white/10" blurIntensity={10} glowStrength={0.1}>
+                <GlassCard className="p-2 mt-2 border-white/10" blur="md">
                   <DropdownMenuItem className="font-normal focus:bg-white/5">
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium leading-none text-white">
@@ -109,12 +109,12 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
             </DropdownMenu>
           ) : (
             <div className="flex items-center gap-2">
-              <AnimatedButton variant="outline" asChild className="border-purple-500/50 text-purple-300 hover:bg-purple-500/20 hover:border-purple-500 glow-effect-purple-sm">
+              <AnimatedButton variant="ghost" className="border-purple-500/50 text-purple-300 hover:bg-purple-500/20 hover:border-purple-500 glow-effect-purple-sm">
                 <Link to="/login">
                   <LogIn className="mr-2 h-4 w-4" /> Login
                 </Link>
               </AnimatedButton>
-              <AnimatedButton variant="gradient" asChild className="from-pink-500 to-purple-600 glow-effect-md">
+              <AnimatedButton variant="gradient" className="from-pink-500 to-purple-600 glow-effect-md">
                 <Link to="/register">
                   <UserPlus className="mr-2 h-4 w-4" /> Register
                 </Link>
