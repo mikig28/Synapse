@@ -35,8 +35,8 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
   };
 
   return (
-    <header className="bg-transparent border-b border-white/10 shadow-lg backdrop-blur-md p-3 sticky top-0 z-40">
-      <div className="container mx-auto flex items-center justify-between pr-4">
+    <header className="bg-transparent border-b border-white/10 shadow-lg backdrop-blur-md pt-4 pb-3 px-3 sticky top-0 z-40 min-h-[64px]">
+      <div className="container mx-auto flex items-center justify-between pr-4 h-full">
         <div className="flex items-center gap-2">
           {isAuthenticated && (
             <AnimatedButton variant="ghost" size="md" onClick={toggleSidebar} className="border-white/20 hover:bg-white/10">
