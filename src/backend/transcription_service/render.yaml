@@ -17,9 +17,19 @@ services:
         value: 8000
       - key: PYTHON_VERSION
         value: 3.11
+      - key: MODEL_CACHE_DIR
+        value: /app/models
+      - key: HF_HOME
+        value: /app/models
+      - key: TRANSFORMERS_CACHE
+        value: /app/models
+      - key: HUGGINGFACE_HUB_CACHE
+        value: /app/models
     disk:
       name: whisper-models
       mountPath: /app/models
       sizeGB: 10
     healthCheckPath: /health
-    plan: starter # You might need to upgrade for better performance 
+    plan: starter # You might need to upgrade for better performance
+    buildCommand: echo "Building transcription service..."
+    startCommand: python app.py

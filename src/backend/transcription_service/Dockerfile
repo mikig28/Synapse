@@ -4,6 +4,7 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y \
     build-essential \
     ffmpeg \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -18,15 +19,22 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY app.py .
 
-# Create directory for model cache
-RUN mkdir -p /app/models
+# Create directory for model cache with proper permissions
+RUN mkdir -p /app/models && chmod 777 /app/models
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV MODEL_CACHE_DIR=/app/models
+ENV HF_HOME=/app/models
+ENV TRANSFORMERS_CACHE=/app/models
+ENV HUGGINGFACE_HUB_CACHE=/app/models
+ENV PYTHONPATH=/app
+
+# Pre-download the fallback model during build (optional, for faster startup)
+RUN python -c "import huggingface_hub; huggingface_hub.snapshot_download('openai/whisper-small', cache_dir='/app/models')" || echo "Fallback model download failed, will retry at runtime"
 
 # Expose port
 EXPOSE 8000
 
 # Run the application
-CMD ["python", "app.py"] 
+CMD ["python", "app.py"]
