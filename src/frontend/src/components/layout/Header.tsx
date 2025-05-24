@@ -1,8 +1,9 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Moon, Sun, PanelLeft, LogOut, UserCircle, LogIn, UserPlus } from "lucide-react";
+import { Moon, Sun, PanelLeft, LogOut, UserCircle, LogIn, UserPlus, Settings as SettingsIcon } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
-import { Button } from "@/components/ui/button";
+import { AnimatedButton } from "@/components/ui/AnimatedButton";
+import { GlassCard } from "@/components/ui/GlassCard";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,16 +35,16 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
   };
 
   return (
-    <header className="bg-card border-b shadow-sm p-3">
+    <header className="bg-transparent border-b border-white/10 shadow-lg backdrop-blur-md p-3 sticky top-0 z-40">
       <div className="container mx-auto flex items-center justify-between">
         <div className="flex items-center gap-2">
           {isAuthenticated && (
-            <Button variant="outline" size="icon" onClick={toggleSidebar}>
+            <AnimatedButton variant="outline" size="icon" onClick={toggleSidebar} className="border-white/20 hover:bg-white/10">
               <PanelLeft className="h-5 w-5" />
               <span className="sr-only">Toggle sidebar</span>
-            </Button>
+            </AnimatedButton>
           )}
-          <Link to={isAuthenticated ? "/dashboard" : "/login"} className="text-xl font-semibold">
+          <Link to={isAuthenticated ? "/dashboard" : "/"} className="text-xl font-semibold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent hover:opacity-80 transition-opacity">
             Synapse
           </Link>
         </div>
@@ -51,68 +52,73 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
         <div className="flex items-center gap-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon">
+              <AnimatedButton variant="outline" size="icon" className="border-white/20 hover:bg-white/10">
                 <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
                 <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
                 <span className="sr-only">Toggle theme</span>
-              </Button>
+              </AnimatedButton>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleSetTheme("light")}>
-                Light
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSetTheme("dark")}>
-                Dark
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSetTheme("system")}>
-                System
-              </DropdownMenuItem>
+            <DropdownMenuContent align="end" asChild>
+              <GlassCard className="p-2 mt-2 border-white/10" blurIntensity={10} glowStrength={0.1}>
+                <DropdownMenuItem onClick={() => handleSetTheme("light")} className="hover:bg-white/5 cursor-pointer">
+                  Light
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSetTheme("dark")} className="hover:bg-white/5 cursor-pointer">
+                  Dark
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSetTheme("system")} className="hover:bg-white/5 cursor-pointer">
+                  System
+                </DropdownMenuItem>
+              </GlassCard>
             </DropdownMenuContent>
           </DropdownMenu>
 
           {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                  <UserCircle className="h-7 w-7" />
-                </Button>
+                <AnimatedButton variant="ghost" className="relative h-8 w-8 rounded-full hover:bg-white/10">
+                  <UserCircle className="h-7 w-7 text-purple-300" />
+                </AnimatedButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
-                <DropdownMenuItem className="font-normal">
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      {user?.fullName || user?.email || 'User'}
-                    </p>
-                    {user?.email && (
-                      <p className="text-xs leading-none text-muted-foreground">
-                        {user.email}
+              <DropdownMenuContent className="w-56" align="end" forceMount asChild>
+                <GlassCard className="p-2 mt-2 border-white/10" blurIntensity={10} glowStrength={0.1}>
+                  <DropdownMenuItem className="font-normal focus:bg-white/5">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none text-white">
+                        {user?.fullName || user?.email || 'User'}
                       </p>
-                    )}
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate('/settings')}>
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Log out</span>
-                </DropdownMenuItem>
+                      {user?.email && (
+                        <p className="text-xs leading-none text-gray-400">
+                          {user.email}
+                        </p>
+                      )}
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-white/10" />
+                  <DropdownMenuItem onClick={() => navigate('/settings')} className="hover:bg-white/5 cursor-pointer">
+                    <SettingsIcon className="mr-2 h-4 w-4 text-gray-300" />
+                    <span className="text-gray-200">Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-white/10" />
+                  <DropdownMenuItem onClick={handleLogout} className="hover:bg-red-500/10 focus:bg-red-500/20 cursor-pointer">
+                    <LogOut className="mr-2 h-4 w-4 text-red-400" />
+                    <span className="text-red-300">Log out</span>
+                  </DropdownMenuItem>
+                </GlassCard>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
             <div className="flex items-center gap-2">
-              <Button variant="outline" asChild>
+              <AnimatedButton variant="outline" asChild className="border-purple-500/50 text-purple-300 hover:bg-purple-500/20 hover:border-purple-500 glow-effect-purple-sm">
                 <Link to="/login">
                   <LogIn className="mr-2 h-4 w-4" /> Login
                 </Link>
-              </Button>
-              <Button asChild>
+              </AnimatedButton>
+              <AnimatedButton variant="gradient" asChild className="from-pink-500 to-purple-600 glow-effect-md">
                 <Link to="/register">
                   <UserPlus className="mr-2 h-4 w-4" /> Register
                 </Link>
-              </Button>
+              </AnimatedButton>
             </div>
           )}
         </div>
