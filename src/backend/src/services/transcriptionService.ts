@@ -24,8 +24,14 @@ interface PythonScriptResponse {
   language_probability?: number;
 }
 
+// OpenAI Whisper API response
+interface OpenAITranscriptionResponse {
+  text: string;
+}
+
 const TRANSCRIPTION_SERVICE_URL = process.env.TRANSCRIPTION_SERVICE_URL || 'http://localhost:8000';
 const TRANSCRIPTION_API_KEY = process.env.TRANSCRIPTION_API_KEY || '';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 
 // Fallback to local Python script if service URL is not configured
 const USE_LOCAL_PYTHON = !process.env.TRANSCRIPTION_SERVICE_URL;
@@ -35,55 +41,101 @@ const TRANSCRIPTION_SCRIPT_PATH = path.join(__dirname, '..', '..', 'python_scrip
 export const transcribeAudio = async (filePath: string): Promise<string> => {
   const absoluteFilePath = path.resolve(filePath);
   
-  // If transcription service URL is configured, use the API
-  if (!USE_LOCAL_PYTHON) {
-    console.log(`[TranscriptionService]: Using API service at ${TRANSCRIPTION_SERVICE_URL}`);
-    
+  // Try multiple transcription methods in order of preference
+  const transcriptionMethods = [
+    { name: 'Dedicated Service', method: () => transcribeWithDedicatedService(absoluteFilePath) },
+    { name: 'OpenAI API', method: () => transcribeWithOpenAI(absoluteFilePath) },
+    { name: 'Local Python', method: () => transcribeAudioLocal(absoluteFilePath) }
+  ];
+
+  let lastError: Error | null = null;
+
+  for (const { name, method } of transcriptionMethods) {
     try {
-      // Check if file exists
-      if (!fs.existsSync(absoluteFilePath)) {
-        throw new Error(`Audio file not found: ${absoluteFilePath}`);
-      }
-      
-      // Create form data
-      const formData = new FormData();
-      formData.append('file', fs.createReadStream(absoluteFilePath));
-      
-      // Make API request with proper typing
-      const response = await axios.post<TranscriptionApiResponse>(
-        `${TRANSCRIPTION_SERVICE_URL}/transcribe`,
-        formData,
-        {
-          headers: {
-            ...formData.getHeaders(),
-            ...(TRANSCRIPTION_API_KEY && { 'Authorization': `Bearer ${TRANSCRIPTION_API_KEY}` })
-          },
-          timeout: 120000 // 2 minutes timeout
-        }
-      );
-      
-      if (response.data && response.data.text) {
-        console.log(`[TranscriptionService]: Transcription successful via API`);
-        return response.data.text;
-      } else {
-        throw new Error('No transcription text received from API');
-      }
-      
+      console.log(`[TranscriptionService]: Attempting transcription with ${name}`);
+      const result = await method();
+      console.log(`[TranscriptionService]: Transcription successful with ${name}`);
+      return result;
     } catch (error: any) {
-      console.error('[TranscriptionService]: API transcription failed:', error.message);
-      
-      // If API fails and local Python is available, fall back to it
-      if (fs.existsSync(TRANSCRIPTION_SCRIPT_PATH)) {
-        console.log('[TranscriptionService]: Falling back to local Python script');
-        return transcribeAudioLocal(absoluteFilePath);
-      }
-      
-      throw error;
+      console.error(`[TranscriptionService]: ${name} failed:`, error.message);
+      lastError = error;
+      continue;
     }
+  }
+
+  // If all methods fail, throw the last error
+  throw lastError || new Error('All transcription methods failed');
+};
+
+// Dedicated transcription service
+const transcribeWithDedicatedService = async (filePath: string): Promise<string> => {
+  if (USE_LOCAL_PYTHON) {
+    throw new Error('Dedicated service not configured');
+  }
+
+  // Check if file exists
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Audio file not found: ${filePath}`);
+  }
+  
+  // Create form data
+  const formData = new FormData();
+  formData.append('file', fs.createReadStream(filePath));
+  
+  // Make API request with proper typing
+  const response = await axios.post<TranscriptionApiResponse>(
+    `${TRANSCRIPTION_SERVICE_URL}/transcribe`,
+    formData,
+    {
+      headers: {
+        ...formData.getHeaders(),
+        ...(TRANSCRIPTION_API_KEY && { 'Authorization': `Bearer ${TRANSCRIPTION_API_KEY}` })
+      },
+      timeout: 120000 // 2 minutes timeout
+    }
+  );
+  
+  if (response.data && response.data.text) {
+    return response.data.text;
   } else {
-    // Use local Python script
-    console.log('[TranscriptionService]: Using local Python script');
-    return transcribeAudioLocal(absoluteFilePath);
+    throw new Error('No transcription text received from dedicated service');
+  }
+};
+
+// OpenAI Whisper API transcription
+const transcribeWithOpenAI = async (filePath: string): Promise<string> => {
+  if (!OPENAI_API_KEY) {
+    throw new Error('OpenAI API key not configured');
+  }
+
+  // Check if file exists
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Audio file not found: ${filePath}`);
+  }
+
+  // Create form data for OpenAI API
+  const formData = new FormData();
+  formData.append('file', fs.createReadStream(filePath));
+  formData.append('model', 'whisper-1');
+  formData.append('language', 'he'); // Hebrew language hint
+
+  // Make request to OpenAI API
+  const response = await axios.post<OpenAITranscriptionResponse>(
+    'https://api.openai.com/v1/audio/transcriptions',
+    formData,
+    {
+      headers: {
+        ...formData.getHeaders(),
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
+      },
+      timeout: 120000 // 2 minutes timeout
+    }
+  );
+
+  if (response.data && response.data.text) {
+    return response.data.text;
+  } else {
+    throw new Error('No transcription text received from OpenAI API');
   }
 };
 

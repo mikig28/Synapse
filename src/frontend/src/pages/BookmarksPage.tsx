@@ -163,27 +163,43 @@ const BookmarksPage: React.FC = () => {
   };
 
   const handleSpeakSummary = async (bookmarkId: string, summaryText: string | undefined) => {
+    console.log(`[handleSpeakSummary] Called for bookmarkId: ${bookmarkId}`);
+    console.log(`[handleSpeakSummary] Initial summaryText: '${summaryText}'`);
+
     if (!summaryText) {
+        console.log("[handleSpeakSummary] Condition: !summaryText is TRUE. Exiting.");
         toast({ title: "No Summary", description: "No summary available to play.", variant: "destructive" });
         return;
     }
+    console.log("[handleSpeakSummary] Condition: !summaryText is FALSE. Proceeding.");
+
     if (currentAudio) {
+      console.log("[handleSpeakSummary] Condition: currentAudio exists.");
       currentAudio.pause();
-      URL.revokeObjectURL(currentAudio.src); 
+      URL.revokeObjectURL(currentAudio.src);
       setCurrentAudio(null);
       if (playingBookmarkId === bookmarkId) { // If clicking play on the same item that was playing
+        console.log("[handleSpeakSummary] Condition: playingBookmarkId === bookmarkId is TRUE. Toggling off. Exiting.");
         setPlayingBookmarkId(null); // Stop playback
         return;
       }
+      console.log("[handleSpeakSummary] Condition: playingBookmarkId === bookmarkId is FALSE. Proceeding.");
+    } else {
+      console.log("[handleSpeakSummary] Condition: currentAudio does NOT exist. Proceeding.");
     }
 
     const ELEVENLABS_API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY;
+    console.log(`[handleSpeakSummary] Retrieved VITE_ELEVENLABS_API_KEY: '${ELEVENLABS_API_KEY ? '********' : 'MISSING!'}'`); // Mask key for safety
+
     if (!ELEVENLABS_API_KEY) {
+        console.log("[handleSpeakSummary] Condition: !ELEVENLABS_API_KEY is TRUE. Exiting.");
         toast({ title: "API Key Missing", description: "ElevenLabs API key is not configured.", variant: "destructive" });
         setAudioErrorId(bookmarkId);
         return;
     }
-    const VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; 
+    console.log("[handleSpeakSummary] Condition: !ELEVENLABS_API_KEY is FALSE. API Key found. Proceeding to API call.");
+
+    const VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; // TODO: Make this configurable or fetch from user settings
 
     setPlayingBookmarkId(bookmarkId);
     setAudioErrorId(null);
