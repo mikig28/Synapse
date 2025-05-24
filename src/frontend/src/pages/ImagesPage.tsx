@@ -5,6 +5,7 @@ import { TelegramItemType } from '@/types/telegram';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { STATIC_ASSETS_BASE_URL } from '../services/axiosConfig';
+import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { 
   Image, 
   Sparkles, 
@@ -24,6 +25,24 @@ const ImagesPage: React.FC = () => {
     (item) => item.messageType === 'photo' && item.mediaLocalUrl
   );
 
+  // Standard container and item variants for consistent page animations
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: { staggerChildren: 0.1, delayChildren: 0.2 }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { type: 'spring', stiffness: 100 }
+    }
+  };
+
   const handleDelete = async (itemId: string, itemInfo: string) => {
     if (window.confirm(`Are you sure you want to delete this image (${itemInfo})?`)) {
       try {
@@ -36,9 +55,10 @@ const ImagesPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-rose-900 via-pink-900 to-purple-900 relative">
+    <div className="min-h-screen bg-gradient-to-br from-rose-900 via-pink-900 to-purple-900 relative overflow-hidden">
+      <FloatingParticles items={30} />
       {/* Animated Background Orbs */}
-      <div className="absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
           className="absolute w-96 h-96 bg-gradient-to-r from-pink-400/20 to-rose-400/20 rounded-full blur-3xl"
           style={{ top: '10%', right: '10%' }}
@@ -69,14 +89,17 @@ const ImagesPage: React.FC = () => {
         />
       </div>
 
-      <div className="relative z-10 container mx-auto p-6">
+      <motion.div 
+        className="relative z-10 container mx-auto p-6"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
         {/* Header */}
         <motion.div
           ref={headerRef}
           className="text-center mb-12"
-          initial={{ opacity: 0, y: 50 }}
-          animate={headerVisible ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.8 }}
+          variants={itemVariants}
         >
           <div className="flex items-center justify-center mb-4">
             <motion.div
@@ -104,9 +127,7 @@ const ImagesPage: React.FC = () => {
         {/* Connection Status */}
         <motion.div
           className="mb-8 flex justify-center"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
+          variants={itemVariants}
         >
           <GlassCard className="px-6 py-3">
             <div className="flex items-center gap-2">
@@ -122,9 +143,7 @@ const ImagesPage: React.FC = () => {
         {imageItems.length === 0 ? (
           <motion.div
             className="text-center py-16"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6 }}
+            variants={itemVariants}
           >
             <GlassCard className="p-12 max-w-md mx-auto">
               <Camera className="w-16 h-16 text-pink-400/50 mx-auto mb-4" />
@@ -135,16 +154,18 @@ const ImagesPage: React.FC = () => {
             </GlassCard>
           </motion.div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <motion.div
+            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
+            variants={containerVariants}
+          >
             {imageItems.map((item: TelegramItemType, index) => (
               <motion.div
                 key={item._id}
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
-                whileHover={{ y: -5 }}
+                variants={itemVariants}
+                whileHover={{ y: -5, scale: 1.03 }}
+                transition={{type: "spring", stiffness: 300, damping: 15}}
               >
-                <GlassCard className="overflow-hidden group relative hover:scale-105 transition-transform duration-300">
+                <GlassCard className="overflow-hidden group relative h-full flex flex-col">
                   {/* Delete Button */}
                   <motion.button
                     onClick={() => handleDelete(item._id, item.mediaLocalUrl || item._id)}
@@ -176,7 +197,7 @@ const ImagesPage: React.FC = () => {
                   </div>
 
                   {/* Image Info */}
-                  <div className="p-4 space-y-2">
+                  <div className="p-4 space-y-2 mt-auto">
                     <div className="flex items-center gap-2 text-sm text-pink-100/80">
                       <User className="w-3 h-3" />
                       <span>{item.fromUsername || 'Unknown User'}</span>
@@ -195,9 +216,9 @@ const ImagesPage: React.FC = () => {
                 </GlassCard>
               </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 };

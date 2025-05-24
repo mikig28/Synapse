@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import useAuthStore from '@/store/authStore';
 import { GlassCard } from '@/components/ui/GlassCard';
-import { Skeleton } from '@/components/ui/Skeleton';
+import { Skeleton, SkeletonCard } from '@/components/ui/Skeleton';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { BACKEND_ROOT_URL } from '@/services/axiosConfig';
+import { FloatingParticles } from '@/components/common/FloatingParticles';
+import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { 
   Lightbulb, 
   Sparkles, 
@@ -31,8 +33,23 @@ const IdeasPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const token = useAuthStore((state) => state.token);
 
-  const { ref: headerRef, isInView: headerVisible } = useScrollAnimation();
-  const { ref: statsRef, isInView: statsVisible } = useScrollAnimation();
+  // Standard container and item variants for consistent page animations
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: { staggerChildren: 0.1, delayChildren: 0.2 }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { type: 'spring', stiffness: 100 }
+    }
+  };
 
   useEffect(() => {
     const fetchIdeas = async () => {
@@ -79,16 +96,20 @@ const IdeasPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-900 via-orange-900 to-yellow-900 p-6">
-        <div className="container mx-auto">
+      <div className="min-h-screen bg-gradient-to-br from-amber-900 via-orange-900 to-yellow-900 p-6 flex flex-col justify-center items-center text-white">
+        <FloatingParticles items={20} />
+        <motion.div className="text-center z-10" initial={{opacity:0}} animate={{opacity:1}} transition={{delay:0.2}}>
+          <Lightbulb className="w-16 h-16 text-yellow-400/70 mx-auto mb-4 animate-pulse" />
+          <p className="text-lg text-yellow-200/80">Loading your brilliant ideas...</p>
+        </motion.div>
+        <div className="container mx-auto mt-8 w-full max-w-3xl z-10">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            {[...Array(2)].map((_, i) => (
-              <Skeleton key={i} className="h-32" />
-            ))}
+            <SkeletonCard className="h-28 bg-yellow-500/10" />
+            <SkeletonCard className="h-28 bg-yellow-500/10" />
           </div>
           <div className="space-y-4">
-            {[...Array(5)].map((_, i) => (
-              <Skeleton key={i} className="h-24" />
+            {[...Array(3)].map((_, i) => (
+              <Skeleton key={i} className="h-20 w-full bg-yellow-500/10 rounded-lg" />
             ))}
           </div>
         </div>
@@ -98,8 +119,9 @@ const IdeasPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-900 via-orange-900 to-yellow-900 flex items-center justify-center p-6">
-        <GlassCard className="p-8 text-center max-w-md">
+      <div className="min-h-screen bg-gradient-to-br from-red-900 via-orange-900 to-yellow-900 flex items-center justify-center p-6 text-white">
+        <FloatingParticles items={15} type="error" />
+        <GlassCard className="p-8 text-center max-w-md z-10">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-white mb-2">Error Loading Ideas</h2>
           <p className="text-red-300 mb-4">{error}</p>
@@ -109,9 +131,9 @@ const IdeasPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-900 via-orange-900 to-yellow-900 relative">
-      {/* Animated Background Orbs */}
-      <div className="absolute inset-0 overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-amber-900 via-orange-900 to-yellow-900 relative overflow-hidden">
+      <FloatingParticles items={35} />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
           className="absolute w-96 h-96 bg-gradient-to-r from-yellow-400/20 to-amber-400/20 rounded-full blur-3xl"
           style={{ top: '10%', right: '10%' }}
@@ -142,14 +164,15 @@ const IdeasPage: React.FC = () => {
         />
       </div>
 
-      <div className="relative z-10 container mx-auto p-6">
-        {/* Header */}
+      <motion.div 
+        className="relative z-10 container mx-auto p-6"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
         <motion.div
-          ref={headerRef}
           className="text-center mb-12"
-          initial={{ opacity: 0, y: 50 }}
-          animate={headerVisible ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.8 }}
+          variants={itemVariants}
         >
           <div className="flex items-center justify-center mb-4">
             <motion.div
@@ -174,13 +197,9 @@ const IdeasPage: React.FC = () => {
           </p>
         </motion.div>
 
-        {/* Statistics Cards */}
         <motion.div
-          ref={statsRef}
           className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 max-w-2xl mx-auto"
-          initial={{ opacity: 0, y: 30 }}
-          animate={statsVisible ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.6, delay: 0.2 }}
+          variants={itemVariants}
         >
           <GlassCard className="p-6 text-center hover:scale-105 transition-transform duration-300">
             <Brain className="w-8 h-8 text-yellow-400 mx-auto mb-3" />
@@ -194,13 +213,10 @@ const IdeasPage: React.FC = () => {
           </GlassCard>
         </motion.div>
 
-        {/* Ideas Grid */}
         {ideas.length === 0 ? (
           <motion.div
             className="text-center py-16"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6 }}
+            variants={itemVariants}
           >
             <GlassCard className="p-12 max-w-md mx-auto">
               <Lightbulb className="w-16 h-16 text-yellow-400/50 mx-auto mb-4" />
@@ -211,14 +227,18 @@ const IdeasPage: React.FC = () => {
             </GlassCard>
           </motion.div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <motion.div 
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+          >
             {ideas.map((idea, index) => (
               <motion.div
                 key={idea._id}
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
-                whileHover={{ y: -5 }}
+                variants={itemVariants}
+                whileHover={{ y: -5, scale: 1.03 }}
+                transition={{ type: "spring", stiffness: 300, damping: 15}}
               >
                 <GlassCard className="p-6 h-full flex flex-col hover:scale-105 transition-transform duration-300">
                   <div className="flex-1">
@@ -252,9 +272,9 @@ const IdeasPage: React.FC = () => {
                 </GlassCard>
               </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 };

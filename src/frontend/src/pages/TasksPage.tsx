@@ -6,10 +6,13 @@ import EditTaskModal from '../components/tasks/EditTaskModal'; // Import the mod
 import AddTaskModal from '../components/tasks/AddTaskModal'; // Corrected path using relative path
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
-import { Skeleton } from '@/components/ui/Skeleton';
+import { SkeletonCard, SkeletonText, Skeleton } from '@/components/ui/Skeleton';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { Task } from '../../types/task'; // Using the centralized Task type
 import axiosInstance from '@/services/axiosConfig'; // Import axiosInstance
+import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { 
   CheckSquare, 
   Plus, 
@@ -38,8 +41,22 @@ const TasksPage: React.FC = () => {
   const [showEditModal, setShowEditModal] = useState<boolean>(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState<boolean>(false);
 
-  const { ref: headerRef, isInView: headerVisible } = useScrollAnimation();
-  const { ref: statsRef, isInView: statsVisible } = useScrollAnimation();
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: { staggerChildren: 0.1, delayChildren: 0.2 }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { type: 'spring', stiffness: 100 }
+    }
+  };
 
   const fetchTasks = async () => {
     // Token check can be removed if axiosInstance handles auth errors globally (e.g., by logging out)
@@ -180,16 +197,37 @@ const TasksPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 p-6">
-        <div className="container mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 p-6 flex flex-col items-center text-white">
+        <FloatingParticles items={20} />
+        <motion.div className="text-center z-10 mb-8" initial={{opacity:0}} animate={{opacity:1}} transition={{delay:0.2}}>
+          <Target className="w-16 h-16 text-pink-400/70 mx-auto mb-4 animate-spin-slow" />
+          <p className="text-lg text-pink-200/80">Loading your tasks...</p>
+        </motion.div>
+        <div className="container mx-auto w-full max-w-4xl z-10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-32" />
+              <SkeletonCard key={i} className="h-24 bg-purple-500/10">
+                <Skeleton className="h-6 w-3/4 mb-2" />
+                <Skeleton className="h-4 w-1/2" />
+              </SkeletonCard>
             ))}
           </div>
+          <div className="mb-6">
+            <Skeleton className="h-10 w-full bg-purple-500/10 rounded-md" /> 
+          </div>
           <div className="space-y-4">
-            {[...Array(5)].map((_, i) => (
-              <Skeleton key={i} className="h-24" />
+            {[...Array(3)].map((_, i) => (
+              <SkeletonCard key={i} className="h-28 bg-purple-500/10">
+                <div className="flex justify-between items-center mb-2">
+                  <Skeleton className="h-5 w-2/3" />
+                  <Skeleton className="h-5 w-1/4" />
+                </div>
+                <SkeletonText lines={2} />
+                <div className="flex justify-end mt-3">
+                  <Skeleton className="h-8 w-16 mr-2" />
+                  <Skeleton className="h-8 w-16" />
+                </div>
+              </SkeletonCard>
             ))}
           </div>
         </div>
@@ -199,8 +237,9 @@ const TasksPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center p-6">
-        <GlassCard className="p-8 text-center max-w-md">
+      <div className="min-h-screen bg-gradient-to-br from-red-900 via-pink-900 to-rose-900 flex items-center justify-center p-6 text-white">
+        <FloatingParticles items={15} type="error" />
+        <GlassCard className="p-8 text-center max-w-md z-10">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-white mb-2">Error Loading Tasks</h2>
           <p className="text-red-300 mb-4">{error}</p>
@@ -213,9 +252,10 @@ const TasksPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 relative">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 relative overflow-hidden">
+      <FloatingParticles items={30} particleClassName="bg-pink-200/10" />
       {/* Animated Background Orbs */}
-      <div className="absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
           className="absolute w-96 h-96 bg-gradient-to-r from-purple-400/20 to-pink-400/20 rounded-full blur-3xl"
           style={{ top: '10%', right: '10%' }}
@@ -246,14 +286,16 @@ const TasksPage: React.FC = () => {
         />
       </div>
 
-      <div className="relative z-10 container mx-auto p-6">
+      <motion.div 
+        className="relative z-10 container mx-auto p-4 md:p-6"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
         {/* Header */}
         <motion.div
-          ref={headerRef}
-          className="text-center mb-12"
-          initial={{ opacity: 0, y: 50 }}
-          animate={headerVisible ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.8 }}
+          className="text-center mb-8 md:mb-12"
+          variants={itemVariants}
         >
           <div className="flex items-center justify-center mb-4">
             <motion.div
@@ -278,211 +320,172 @@ const TasksPage: React.FC = () => {
           </p>
         </motion.div>
 
-        {/* Statistics Cards */}
-        <motion.div
-          ref={statsRef}
-          className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8"
-          initial={{ opacity: 0, y: 30 }}
-          animate={statsVisible ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.6, delay: 0.2 }}
+        {/* Stats Cards */}
+        <motion.div 
+          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6 md:mb-8"
+          variants={itemVariants}
         >
-          <GlassCard className="p-6 text-center hover:scale-105 transition-transform duration-300">
-            <Target className="w-8 h-8 text-purple-400 mx-auto mb-3" />
-            <h3 className="text-2xl font-bold text-white mb-1">{totalTasks}</h3>
-            <p className="text-purple-100/70">Total Tasks</p>
+          <GlassCard className="p-4 text-center hover:scale-105 transition-transform">
+            <Target className="w-7 h-7 text-pink-400 mx-auto mb-2" />
+            <h3 className="text-xl font-bold text-white">{totalTasks}</h3>
+            <p className="text-xs text-pink-100/70">Total Tasks</p>
           </GlassCard>
-          <GlassCard className="p-6 text-center hover:scale-105 transition-transform duration-300">
-            <CheckSquare className="w-8 h-8 text-green-400 mx-auto mb-3" />
-            <h3 className="text-2xl font-bold text-white mb-1">{completedTasks}</h3>
-            <p className="text-purple-100/70">Completed</p>
+          <GlassCard className="p-4 text-center hover:scale-105 transition-transform">
+            <CheckSquare className="w-7 h-7 text-green-400 mx-auto mb-2" />
+            <h3 className="text-xl font-bold text-white">{completedTasks}</h3>
+            <p className="text-xs text-green-100/70">Completed</p>
           </GlassCard>
-          <GlassCard className="p-6 text-center hover:scale-105 transition-transform duration-300">
-            <Clock className="w-8 h-8 text-blue-400 mx-auto mb-3" />
-            <h3 className="text-2xl font-bold text-white mb-1">{inProgressTasks}</h3>
-            <p className="text-purple-100/70">In Progress</p>
+          <GlassCard className="p-4 text-center hover:scale-105 transition-transform">
+            <Clock className="w-7 h-7 text-yellow-400 mx-auto mb-2" />
+            <h3 className="text-xl font-bold text-white">{pendingTasks}</h3>
+            <p className="text-xs text-yellow-100/70">Pending</p>
           </GlassCard>
-          <GlassCard className="p-6 text-center hover:scale-105 transition-transform duration-300">
-            <TrendingUp className="w-8 h-8 text-yellow-400 mx-auto mb-3" />
-            <h3 className="text-2xl font-bold text-white mb-1">{pendingTasks}</h3>
-            <p className="text-purple-100/70">Pending</p>
+          <GlassCard className="p-4 text-center hover:scale-105 transition-transform">
+            <TrendingUp className="w-7 h-7 text-blue-400 mx-auto mb-2" />
+            <h3 className="text-xl font-bold text-white">{inProgressTasks}</h3>
+            <p className="text-xs text-blue-100/70">In Progress</p>
           </GlassCard>
         </motion.div>
 
-        {/* Controls */}
-        <motion.div
-          className="flex flex-col lg:flex-row justify-between items-center gap-4 mb-8"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
+        {/* Controls: Search, Filter, Add Task Button */}
+        <motion.div 
+          className="mb-6 md:mb-8 p-4 bg-black/10 rounded-xl shadow-lg backdrop-blur-sm"
+          variants={itemVariants}
         >
-          <div className="flex flex-col sm:flex-row gap-4 flex-1 max-w-2xl">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-purple-300" />
-              <input
+          <div className="flex flex-col md:flex-row gap-4 items-center">
+            <div className="relative flex-grow w-full md:w-auto">
+              <Input 
                 type="text"
                 placeholder="Search tasks..."
+                className="pl-10 bg-white/5 border-white/10 placeholder-gray-400 text-white focus:border-pink-500 focus:ring-pink-500"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-lg text-white placeholder:text-purple-200/60 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-400/50"
               />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             </div>
             
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-purple-300" />
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="pl-10 pr-8 py-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-400/50 appearance-none cursor-pointer"
-              >
-                <option value="all" className="bg-gray-800">All Status</option>
-                <option value="pending" className="bg-gray-800">Pending</option>
-                <option value="in-progress" className="bg-gray-800">In Progress</option>
-                <option value="completed" className="bg-gray-800">Completed</option>
-              </select>
+            <div className="relative w-full md:w-auto md:min-w-[180px]">
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-full bg-white/5 border-white/10 text-white focus:border-pink-500 focus:ring-pink-500">
+                  <Filter className="inline w-4 h-4 mr-2 text-gray-400" />
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800/90 border-gray-700 text-white backdrop-blur-md">
+                  <SelectItem value="all" className="hover:bg-pink-500/20">All Statuses</SelectItem>
+                  <SelectItem value="pending" className="hover:bg-pink-500/20">Pending</SelectItem>
+                  <SelectItem value="in-progress" className="hover:bg-pink-500/20">In Progress</SelectItem>
+                  <SelectItem value="completed" className="hover:bg-pink-500/20">Completed</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+
+            <AnimatedButton 
+              onClick={handleOpenAddTaskModal} 
+              className="w-full md:w-auto glow-purple-md"
+              variant="gradient"
+            >
+              <Plus className="mr-2 h-5 w-5" /> Add New Task
+            </AnimatedButton>
           </div>
-          
-          <AnimatedButton
-            onClick={handleOpenAddTaskModal}
-            className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white shadow-lg shadow-purple-500/25 px-6 py-3"
-          >
-            <span className="flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              Add New Task
-            </span>
-          </AnimatedButton>
         </motion.div>
 
-        {/* Tasks Grid */}
-        {filteredTasks.length === 0 && !loading && (
-          <motion.div
-            className="text-center py-16"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6 }}
+        {/* Tasks List */}
+        {filteredTasks.length === 0 ? (
+          <motion.div 
+            className="text-center py-10"
+            variants={itemVariants}
           >
-            <GlassCard className="p-12 max-w-md mx-auto">
-              <CheckSquare className="w-16 h-16 text-purple-400/50 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-white mb-2">
-                {searchTerm || filterStatus !== 'all' ? 'No matching tasks' : 'No tasks yet'}
-              </h3>
-              <p className="text-purple-100/70 mb-6">
-                {searchTerm || filterStatus !== 'all' 
-                  ? 'Try adjusting your search or filter criteria' 
-                  : 'Create your first task to get started'
-                }
+            <GlassCard className="p-10 max-w-md mx-auto">
+              <CheckSquare className="w-16 h-16 text-pink-400/50 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-white mb-2">No tasks found</h3>
+              <p className="text-pink-100/70">
+                Try adjusting your search or filter, or add a new task!
               </p>
-              {!searchTerm && filterStatus === 'all' && (
-                <AnimatedButton 
-                  onClick={handleOpenAddTaskModal}
-                  className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700"
-                >
-                  <span className="flex items-center gap-2">
-                    <Plus className="w-4 h-4" />
-                    Create First Task
-                  </span>
-                </AnimatedButton>
-              )}
             </GlassCard>
           </motion.div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTasks.map((task, index) => (
-            <motion.div
-              key={task._id}
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
-              whileHover={{ y: -5 }}
-            >
-              <GlassCard className="p-6 h-full flex flex-col hover:scale-105 transition-transform duration-300">
-                <div className="flex-1">
-                  <h3 className="text-xl font-semibold text-white mb-3 line-clamp-2">
-                    {task.title}
-                  </h3>
-                  {task.description && (
-                    <p className="text-purple-100/80 leading-relaxed mb-4 line-clamp-3">
-                      {task.description}
-                    </p>
-                  )}
-                  
-                  <div className="space-y-3 mb-4">
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-1 rounded text-xs font-medium border ${getStatusColor(task.status)}`}>
-                        {task.status}
-                      </span>
-                      {task.priority && (
-                        <span className={`px-2 py-1 rounded text-xs font-medium border ${getPriorityColor(task.priority)}`}>
-                          {task.priority} priority
-                        </span>
-                      )}
-                    </div>
-                    
-                    {task.source && (
-                      <span className="inline-block px-2 py-1 bg-violet-500/20 rounded text-violet-300 text-xs">
-                        {task.source}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="border-t border-white/10 pt-4 mt-4">
-                  <div className="flex items-center justify-between text-sm text-purple-200/60 mb-3">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
-                      {new Date(task.createdAt).toLocaleDateString()}
+        ) : (
+          <motion.div 
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            {filteredTasks.map(task => (
+              <motion.div
+                key={task._id}
+                variants={itemVariants}
+                layout
+              >
+                <GlassCard 
+                  className={`p-4 md:p-5 flex flex-col h-full group transition-all duration-300 ease-in-out hover:shadow-pink-500/30 hover:border-pink-500/50 ${task.status === 'completed' ? 'opacity-70 hover:opacity-100' : ''}`}
+                  glowStrength={task.priority === 'high' ? 0.5 : 0.2}
+                  glowColor={task.priority === 'high' ? 'rgba(236, 72, 153, 0.7)' : 'rgba(192, 132, 252, 0.5)'}
+                >
+                  <div className="flex justify-between items-start mb-3">
+                    <h3 className="text-lg font-semibold text-white group-hover:text-pink-300 transition-colors">
+                      {task.title}
+                    </h3>
+                    <span 
+                      className={`px-2 py-1 text-xs rounded-md border ${getStatusColor(task.status)}`}
+                    >
+                      {task.status}
                     </span>
                   </div>
                   
-                  <div className="flex gap-2">
-                    <AnimatedButton
-                      onClick={() => handleEdit(task)}
-                      variant="ghost"
-                      size="sm"
-                      className="flex-1 border-purple-400/30 text-purple-300 hover:bg-purple-500/10"
+                  <p className="text-sm text-gray-300/80 mb-3 flex-grow min-h-[40px]">
+                    {task.description ? 
+                      (task.description.length > 100 ? task.description.substring(0, 97) + '...' : task.description)
+                      : 'No description'}
+                  </p>
+
+                  <div className="flex items-center justify-between text-xs text-gray-400/80 mb-4">
+                    <span className={`px-2 py-0.5 rounded-md border ${getPriorityColor(task.priority)}`}>
+                      Priority: {task.priority}
+                    </span>
+                    <span className="flex items-center">
+                      <Calendar size={14} className="mr-1" />
+                      {new Date(task.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-end gap-2 mt-auto pt-3 border-t border-white/10">
+                    <AnimatedButton 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => handleEdit(task)} 
+                      className="border-blue-500/50 text-blue-300 hover:bg-blue-500/20 hover:border-blue-500 glow-blue-sm"
                     >
-                      <span className="flex items-center gap-1">
-                        <Edit className="w-3 h-3" />
-                        Edit
-                      </span>
+                      <Edit size={14} className="mr-1" /> Edit
                     </AnimatedButton>
-                    <AnimatedButton
-                      onClick={() => handleDelete(task._id)}
-                      variant="ghost"
-                      size="sm"
-                      className="flex-1 border-red-400/30 text-red-300 hover:bg-red-500/10"
+                    <AnimatedButton 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => handleDelete(task._id)} 
+                      className="border-red-500/50 text-red-300 hover:bg-red-500/20 hover:border-red-500 glow-red-sm"
                     >
-                      <span className="flex items-center gap-1">
-                        <Trash2 className="w-3 h-3" />
-                        Delete
-                      </span>
+                      <Trash2 size={14} className="mr-1"/> Delete
                     </AnimatedButton>
                   </div>
-                </div>
-              </GlassCard>
-            </motion.div>
-          ))}
-        </div>
-      </div>
+                </GlassCard>
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
 
-      {/* Modals */}
-      {showEditModal && editingTask && (
-        <EditTaskModal
-          isOpen={showEditModal}
-          task={editingTask}
-          onClose={handleCloseEditModal}
-          onSave={handleSaveEdit}
-        />
-      )}
-
-      {showAddTaskModal && (
-        <AddTaskModal
-          isOpen={showAddTaskModal}
-          onClose={handleCloseAddTaskModal}
-          onSave={handleSaveNewTask}
-        />
-      )}
+        {showEditModal && editingTask && (
+          <EditTaskModal 
+            task={editingTask} 
+            onClose={handleCloseEditModal} 
+            onSave={handleSaveEdit} 
+          />
+        )}
+        {showAddTaskModal && (
+          <AddTaskModal 
+            onClose={handleCloseAddTaskModal} 
+            onSave={handleSaveNewTask} 
+          />
+        )}
+      </motion.div>
     </div>
   );
 };

@@ -3,18 +3,68 @@ import { motion } from 'framer-motion';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import LinkTelegramChat from '@/components/settings/LinkTelegramChat';
+import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { Settings, Sparkles, User, Shield, Bell, Palette } from 'lucide-react';
 
 // Assuming you might have other settings components or sections
 // import OtherSettingsSection from '@/components/settings/OtherSettingsSection';
 
 const SettingsPage: React.FC = () => {
-  const { ref: headerRef, isInView: headerVisible } = useScrollAnimation();
+  // const { ref: headerRef, isInView: headerVisible } = useScrollAnimation(); // Will use variants
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: { staggerChildren: 0.1, delayChildren: 0.2 }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { type: 'spring', stiffness: 100 }
+    }
+  };
+
+  const settingsSections = [
+    {
+      icon: <Bell className="w-6 h-6 text-blue-400" />,
+      iconBg: "bg-blue-500/20",
+      title: "Telegram Integration",
+      description: "Connect your Telegram account to receive notifications and capture content.",
+      content: <LinkTelegramChat />
+    },
+    {
+      icon: <User className="w-6 h-6 text-emerald-400" />,
+      iconBg: "bg-emerald-500/20",
+      title: "Profile Settings",
+      description: "Manage your personal information and preferences",
+      content: <p className="text-gray-300/60">Profile settings will be available in a future update.</p>
+    },
+    {
+      icon: <Shield className="w-6 h-6 text-red-400" />,
+      iconBg: "bg-red-500/20",
+      title: "Security & Privacy",
+      description: "Control your account security and privacy settings",
+      content: <p className="text-gray-300/60">Security settings will be available in a future update.</p>
+    },
+    {
+      icon: <Palette className="w-6 h-6 text-purple-400" />,
+      iconBg: "bg-purple-500/20",
+      title: "Appearance",
+      description: "Customize the look and feel of your interface",
+      content: <p className="text-gray-300/60">Theme and appearance settings will be available in a future update.</p>
+    }
+  ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-zinc-900 relative">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-zinc-900 relative overflow-hidden">
+      <FloatingParticles items={25} particleClassName="bg-gray-200/10" />
       {/* Animated Background Orbs */}
-      <div className="absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
           className="absolute w-96 h-96 bg-gradient-to-r from-gray-400/10 to-slate-400/10 rounded-full blur-3xl"
           style={{ top: '10%', right: '10%' }}
@@ -45,14 +95,20 @@ const SettingsPage: React.FC = () => {
         />
       </div>
 
-      <div className="relative z-10 container mx-auto p-6">
+      <motion.div 
+        className="relative z-10 container mx-auto p-6"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
         {/* Header */}
         <motion.div
-          ref={headerRef}
+          // ref={headerRef} // Using variants
           className="text-center mb-12"
-          initial={{ opacity: 0, y: 50 }}
-          animate={headerVisible ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.8 }}
+          // initial={{ opacity: 0, y: 50 }} // Handled by container
+          // animate={headerVisible ? { opacity: 1, y: 0 } : {}} // Handled by container
+          // transition={{ duration: 0.8 }} // Handled by container
+          variants={itemVariants}
         >
           <div className="flex items-center justify-center mb-4">
             <motion.div
@@ -78,94 +134,39 @@ const SettingsPage: React.FC = () => {
         </motion.div>
 
         {/* Settings Sections */}
-        <div className="space-y-8 max-w-4xl mx-auto">
-          {/* Telegram Integration Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          >
-            <GlassCard className="p-8">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-blue-500/20 rounded-lg">
-                  <Bell className="w-6 h-6 text-blue-400" />
+        <motion.div 
+          className="space-y-8 max-w-4xl mx-auto"
+          // This div is already part of the page container's stagger. 
+          // If we want these cards to stagger relative to each other, 
+          // this should be a container itself.
+          variants={containerVariants} // Making this a sub-container for its children
+          initial="hidden" // It needs initial/animate if it's a new container
+          animate="visible"
+        >
+          {settingsSections.map((section, index) => (
+            <motion.div
+              key={index} // Using index as key since title might not be unique if sections are dynamic
+              // initial={{ opacity: 0, y: 30 }} // Handled by itemVariants
+              // animate={{ opacity: 1, y: 0 }} // Handled by itemVariants
+              // transition={{ duration: 0.6, delay: index * 0.1 }} // Handled by container stagger
+              variants={itemVariants}
+            >
+              <GlassCard className="p-8">
+                <div className="flex items-center gap-4 mb-6"> {/* Increased gap a bit */}
+                  <div className={`p-3 rounded-lg ${section.iconBg}`}> {/* Increased padding a bit */}
+                    {section.icon}
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-semibold text-white">{section.title}</h2>
+                    <p className="text-gray-300/70">{section.description}</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-2xl font-semibold text-white">Telegram Integration</h2>
-                  <p className="text-gray-300/70">Connect your Telegram account to receive notifications</p>
-                </div>
-              </div>
-              <LinkTelegramChat />
-            </GlassCard>
-          </motion.div>
-
-          {/* Profile Settings Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-          >
-            <GlassCard className="p-8">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-emerald-500/20 rounded-lg">
-                  <User className="w-6 h-6 text-emerald-400" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-semibold text-white">Profile Settings</h2>
-                  <p className="text-gray-300/70">Manage your personal information and preferences</p>
-                </div>
-              </div>
-              <div className="text-gray-300/60">
-                <p>Profile settings will be available in a future update.</p>
-              </div>
-            </GlassCard>
-          </motion.div>
-
-          {/* Security Settings Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-          >
-            <GlassCard className="p-8">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-red-500/20 rounded-lg">
-                  <Shield className="w-6 h-6 text-red-400" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-semibold text-white">Security & Privacy</h2>
-                  <p className="text-gray-300/70">Control your account security and privacy settings</p>
-                </div>
-              </div>
-              <div className="text-gray-300/60">
-                <p>Security settings will be available in a future update.</p>
-              </div>
-            </GlassCard>
-          </motion.div>
-
-          {/* Appearance Settings Section */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
-          >
-            <GlassCard className="p-8">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-purple-500/20 rounded-lg">
-                  <Palette className="w-6 h-6 text-purple-400" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-semibold text-white">Appearance</h2>
-                  <p className="text-gray-300/70">Customize the look and feel of your interface</p>
-                </div>
-              </div>
-              <div className="text-gray-300/60">
-                <p>Theme and appearance settings will be available in a future update.</p>
-              </div>
-            </GlassCard>
-          </motion.div>
-        </div>
-      </div>
+                {section.content}
+              </GlassCard>
+            </motion.div>
+          ))}
+        </motion.div>
+      </motion.div>
     </div>
   );
 };
