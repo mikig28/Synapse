@@ -32,11 +32,20 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/inbox", label: "Inbox", icon: Inbox },
     { href: "/images", label: "Images", icon: ImageIcon },
+    { href: "/capture", label: "Capture", icon: Aperture }, 
+    { href: "/projects", label: "Projects", icon: Briefcase }, 
     { href: "/tasks", label: "Tasks", icon: ListChecks },
     { href: "/notes", label: "Notes", icon: FileText },
     { href: "/ideas", label: "Ideas", icon: Lightbulb },
+    { href: "/calendar", label: "Calendar", icon: CalendarDays }, 
+    { href: "/planning", label: "Planning", icon: Plane }, 
+    { href: "/goals", label: "Goals", icon: Target }, 
+    { href: "/habits", label: "Habits", icon: Repeat }, 
+    { href: "/automations", label: "Automations", icon: Bot }, 
+    { href: "/whatsapp", label: "WhatsApp", icon: MessageSquare }, 
     { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
     { href: "/videos", label: "Videos", icon: Youtube },
+    { href: "/news", label: "News", icon: Newspaper }, 
     { href: "/settings", label: "Settings", icon: SettingsIcon },
   ];
 
@@ -53,7 +62,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
     <aside
       className={`
         flex flex-col z-30 /* Lower z-index than header */
-        bg-black/30 backdrop-blur-lg border-r border-white/10 p-4
+        bg-black/75 border-r border-white/10 p-4 /* Removed backdrop-blur-lg, increased opacity of bg */
         
         /* DESKTOP (≥ md) ----------------------------------- */
         md:block md:sticky md:top-0 
