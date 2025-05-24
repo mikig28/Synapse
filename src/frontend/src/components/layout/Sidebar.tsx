@@ -61,23 +61,28 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
   return (
     <aside
       className={`
-        flex flex-col z-30 /* Lower z-index than header */
-        bg-black/75 border-r border-white/10 p-4 /* Removed backdrop-blur-lg, increased opacity of bg */
+        flex flex-col z-40
+        bg-gray-900 backdrop-blur-sm border-r border-white/10 p-4
         
         /* DESKTOP (≥ md) ----------------------------------- */
         md:block md:sticky md:top-0 
-        ${isSidebarOpen ? "md:w-64" : "md:w-20"} /* Adjusted closed width for icon clarity */
-        md:h-screen /* Make sidebar full height on desktop */
+        ${isSidebarOpen ? "md:w-64" : "md:w-20"}
+        md:h-screen
 
         /* MOBILE (< md) ------------------------------------ */
         fixed top-0 left-0 md:relative h-dvh 
         transition-all duration-300 ease-in-out 
         ${isSidebarOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}
-        w-64 /* full drawer width on mobile */
+        w-64
+        
+        /* Mobile optimizations for better clarity */
+        md:bg-gray-900/95 md:backdrop-blur-md
+        supports-[backdrop-filter]:md:bg-gray-900/90
+        supports-[backdrop-filter]:md:backdrop-blur-lg
       `}
       aria-label="Primary"
     >
-      <div className="mb-6 flex items-center justify-center pt-2"> {/* Increased margin and padding */}
+      <div className="mb-6 flex items-center justify-center pt-2">
         {/* Synapse Logo/Icon - visible when open, tiny icon when closed */}
         <Link to="/dashboard" className="flex items-center gap-2">
           <motion.svg 
@@ -92,13 +97,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
             <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </motion.svg>
-          <h2 className={`text-2xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent overflow-hidden whitespace-nowrap transition-all duration-300 ${isSidebarOpen ? 'opacity-100 w-auto ml-2' : 'opacity-0 w-0 ml-0'}`}>
+          <h2 className={`text-xl md:text-2xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent overflow-hidden whitespace-nowrap transition-all duration-300 ${isSidebarOpen ? 'opacity-100 w-auto ml-2' : 'opacity-0 w-0 ml-0'}`}>
             Synapse
           </h2>
         </Link>
       </div>
       <nav className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent pr-1">
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-1 md:gap-2">
           {navItems.map((item, index) => {
             const IconComponent = item.icon;
             const isActive = location.pathname.startsWith(item.href);
@@ -115,7 +120,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
                 <Link 
                   to={item.href} 
                   className={`
-                    flex items-center p-3 rounded-lg group transition-all duration-200 ease-in-out
+                    flex items-center p-2 md:p-3 rounded-lg group transition-all duration-200 ease-in-out
                     ${isSidebarOpen ? 'justify-start' : 'justify-center'}
                     ${isActive 
                       ? 'bg-gradient-to-r from-pink-500/30 to-purple-500/30 text-white shadow-md border border-white/20' 
@@ -124,7 +129,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
                   `}
                 >
                   <IconComponent className={`
-                    h-5 w-5 transition-colors duration-200 
+                    h-5 w-5 md:h-5 md:w-5 transition-colors duration-200 flex-shrink-0
                     ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-purple-300'}
                     ${isSidebarOpen ? 'mr-3' : 'mx-auto'}
                   `} />
@@ -152,4 +157,4 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
   );
 };
 
-export default Sidebar; 
+export default Sidebar;
