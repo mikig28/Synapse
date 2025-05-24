@@ -3,10 +3,14 @@ import { VideoItemType } from '../types/video';
 import { getVideosService, updateVideoStatusService, deleteVideoService } from '../services/videoService';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ExternalLink, Info, Eye, PlayCircle, CheckCircle, HelpCircle, Trash2 } from 'lucide-react';
+import { ExternalLink, Info, Eye, PlayCircle, CheckCircle, HelpCircle, Trash2, Film } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
+import { motion } from 'framer-motion';
+import { FloatingParticles } from '@/components/common/FloatingParticles';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { AnimatedButton } from '@/components/ui/AnimatedButton';
 
 
 const VideosPage: React.FC = () => {
@@ -91,8 +95,15 @@ const VideosPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-screen">
-        <p className="text-lg">Loading your video library...</p>
+      <div className="flex justify-center items-center h-screen bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 text-white">
+        <FloatingParticles items={20} />
+        <motion.p 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-lg z-10"
+        >
+          Loading your video library...
+        </motion.p>
         {/* Consider adding a spinner component here */}
       </div>
     );
@@ -100,127 +111,186 @@ const VideosPage: React.FC = () => {
 
   if (error) {
     return (
-      <Alert variant="destructive" className="max-w-2xl mx-auto mt-8">
-        <Info className="h-4 w-4" />
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
+      <div className="flex flex-col justify-center items-center h-screen bg-gradient-to-br from-red-900 via-red-950 to-slate-900 text-white p-4">
+        <FloatingParticles items={15} type="error" />
+        <GlassCard className="max-w-2xl mx-auto mt-8 text-center z-10">
+          <CardHeader>
+            <CardTitle className="text-2xl text-red-400 flex items-center justify-center"><Info className="h-6 w-6 mr-2" /> Error Loading Videos</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>{error}</p>
+          </CardContent>
+          <CardFooter>
+            <AnimatedButton onClick={fetchVideos} variant="primary" className="mx-auto">
+              Try Again
+            </AnimatedButton>
+          </CardFooter>
+        </GlassCard>
+      </div>
     );
   }
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: { staggerChildren: 0.07 }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20, scale: 0.95 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      transition: { type: 'spring', stiffness: 100, damping: 12 }
+    }
+  };
+
   return (
-    <div className="container mx-auto p-4 md:p-8">
-      <h1 className="text-3xl md:text-4xl font-bold mb-8 text-center">My Video Library</h1>
-      
-      {/* YouTube Player Section */}
-      {playingVideoId && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-background p-4 rounded-lg shadow-xl relative w-full max-w-3xl aspect-video">
-            <Button 
-              variant="outline" 
-              size="icon"
-              onClick={() => setPlayingVideoId(null)} 
-              className="absolute -top-3 -right-3 bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-full h-8 w-8"
-              title="Close player"
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 text-white p-4 md:p-8 relative overflow-hidden">
+      <FloatingParticles items={30} />
+      <motion.div 
+        className="container mx-auto relative z-10"
+        initial="hidden"
+        animate="visible"
+        variants={containerVariants}  
+      >
+        <motion.h1 
+          className="text-4xl md:text-5xl font-bold mb-10 md:mb-12 text-center bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-500 to-red-400 py-2"
+          variants={itemVariants}
+        >
+          <Film className="inline-block h-10 w-10 mr-3 mb-1" /> My Video Library
+        </motion.h1>
+        
+        {/* YouTube Player Section */}
+        {playingVideoId && (
+          <motion.div 
+            className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div 
+              className="bg-slate-900/80 p-3 md:p-4 rounded-lg shadow-2xl relative w-full max-w-3xl aspect-video border border-purple-500/30"
+              initial={{ scale: 0.7, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 25 }}
             >
-              X
-            </Button>
-            <iframe
-              width="100%"
-              height="100%"
-              src={`https://www.youtube.com/embed/${playingVideoId}?autoplay=1`}
-              title="YouTube video player"
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            ></iframe>
-          </div>
-        </div>
-      )}
-      
-      {videos.length === 0 ? (
-         <Alert className="max-w-lg mx-auto text-center">
-            <HelpCircle className="h-5 w-5 mx-auto mb-2" />
-            <AlertTitle className="font-semibold">No Videos Yet!</AlertTitle>
-            <AlertDescription>
-                Your video library is empty. Send YouTube links to your Synapse Telegram bot, 
-                and they'll appear here, ready to be organized and watched.
-            </AlertDescription>
-        </Alert>
-      ) : (
-        sections.map(section => (
-          <section key={section.status} className="mb-12">
-            <div className="flex items-center mb-6">
-              {section.icon}
-              <h2 className="text-2xl font-semibold">{section.title} ({groupedVideos[section.status]?.length || 0})</h2>
-            </div>
-            {(groupedVideos[section.status]?.length || 0) === 0 ? (
-              <p className="text-muted-foreground ml-10">No videos in this section.</p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {groupedVideos[section.status]
-                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) // Sort by newest first
-                  .map(video => (
-                  <Card key={video._id} className="flex flex-col overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
-                    <div onClick={() => setPlayingVideoId(video.videoId)} className="block cursor-pointer relative group">
-                      {video.thumbnailUrl ? (
-                        <img 
-                            src={video.thumbnailUrl}
-                            alt={`Thumbnail for ${video.title}`}
-                            className="w-full h-48 object-cover" 
-                        />
-                      ) : (
-                        <div className="w-full h-48 bg-muted flex items-center justify-center text-muted-foreground">
-                          No Thumbnail
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 flex items-center justify-center transition-opacity duration-300">
-                        <PlayCircle className="h-16 w-16 text-white opacity-0 group-hover:opacity-100 transform scale-75 group-hover:scale-100 transition-all duration-300" />
-                      </div>
-                    </div>
-                    <CardHeader className="flex-grow p-4">
-                      <CardTitle className="text-base font-semibold leading-tight mb-1 line-clamp-2" title={video.title}>
-                        {video.title}
-                      </CardTitle>
-                      {video.channelTitle && (
-                        <CardDescription className="text-xs text-muted-foreground line-clamp-1">
-                          {video.channelTitle}
-                        </CardDescription>
-                      )}
-                    </CardHeader>
-                    <CardFooter className="p-4 pt-2 border-t">
-                        <Select 
-                            value={video.watchedStatus}
-                            onValueChange={(newStatus: VideoItemType['watchedStatus']) => handleStatusChange(video._id, newStatus)}
-                        >
-                            <SelectTrigger className="w-full text-xs h-9">
-                                <SelectValue placeholder="Change status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {statusOptions.map(opt => (
-                                    <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                                        {opt.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <Button 
-                          variant="destructive" 
-                          size="icon" 
-                          onClick={() => handleDeleteVideo(video._id)} 
-                          className="mt-2 ml-2"
-                          title="Delete Video"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                    </CardFooter>
-                  </Card>
-                ))}
+              <AnimatedButton 
+                variant="ghost"
+                size="icon"
+                onClick={() => setPlayingVideoId(null)} 
+                className="absolute -top-4 -right-4 bg-red-600 hover:bg-red-700 text-white rounded-full h-9 w-9 z-10 shadow-lg"
+                title="Close player"
+              >
+                X
+              </AnimatedButton>
+              <iframe
+                width="100%"
+                height="100%"
+                src={`https://www.youtube.com/embed/${playingVideoId}?autoplay=1`}
+                title="YouTube video player"
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              ></iframe>
+            </motion.div>
+          </motion.div>
+        )}
+        
+        {videos.length === 0 ? (
+           <motion.div variants={itemVariants}>
+              <GlassCard className="max-w-lg mx-auto text-center p-8 mt-10">
+                  <HelpCircle className="h-12 w-12 mx-auto mb-4 text-purple-400/70" />
+                  <AlertTitle className="text-xl font-semibold text-white mb-2">No Videos Yet!</AlertTitle>
+                  <AlertDescription className="text-purple-200/80">
+                      Your video library is empty. Send YouTube links to your Synapse Telegram bot, 
+                      and they'll appear here, ready to be organized and watched.
+                  </AlertDescription>
+              </GlassCard>
+           </motion.div>
+        ) : (
+          sections.map(section => (
+            <motion.section key={section.status} className="mb-12" variants={itemVariants}>
+              <div className="flex items-center mb-6">
+                {section.icon}
+                <motion.h2 className="text-2xl font-semibold" variants={itemVariants}>{section.title} ({groupedVideos[section.status]?.length || 0})</motion.h2>
               </div>
-            )}
-          </section>
-        ))
-      )}
+              {(groupedVideos[section.status]?.length || 0) === 0 ? (
+                <motion.p className="text-muted-foreground ml-10" variants={itemVariants}>No videos in this section.</motion.p>
+              ) : (
+                <motion.div 
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                  variants={containerVariants}
+                >
+                  {groupedVideos[section.status]
+                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                    .map(video => (
+                    <motion.div variants={itemVariants} key={video._id} whileHover={{ y: -5, scale: 1.03 }} transition={{ type: 'spring', stiffness: 200, damping: 15 }}>
+                      <GlassCard className="flex flex-col overflow-hidden h-full hover:shadow-purple-500/40">
+                        <div onClick={() => setPlayingVideoId(video.videoId)} className="block cursor-pointer relative group aspect-[16/9]">
+                          {video.thumbnailUrl ? (
+                            <img 
+                                src={video.thumbnailUrl}
+                                alt={`Thumbnail for ${video.title}`}
+                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-slate-800 flex items-center justify-center text-slate-500">
+                              No Thumbnail
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-60 flex items-center justify-center transition-all duration-300">
+                            <PlayCircle className="h-12 w-12 md:h-16 md:w-16 text-white opacity-0 group-hover:opacity-90 transform scale-75 group-hover:scale-100 transition-all duration-300" />
+                          </div>
+                        </div>
+                        <CardHeader className="flex-grow p-3 md:p-4">
+                          <CardTitle className="text-sm md:text-base font-semibold leading-tight mb-1 line-clamp-2 text-gray-100 hover:text-pink-300 transition-colors" title={video.title}>
+                            {video.title}
+                          </CardTitle>
+                          {video.channelTitle && (
+                            <CardDescription className="text-xs text-purple-400 line-clamp-1">
+                              {video.channelTitle}
+                            </CardDescription>
+                          )}
+                        </CardHeader>
+                        <CardFooter className="p-3 md:p-4 pt-2 border-t border-purple-800/50 flex items-center justify-between">
+                            <Select 
+                                value={video.watchedStatus}
+                                onValueChange={(newStatus: VideoItemType['watchedStatus']) => handleStatusChange(video._id, newStatus)}
+                            >
+                                <SelectTrigger className="w-full text-xs h-9 bg-slate-700/50 border-purple-600/70 hover:border-purple-500">
+                                    <SelectValue placeholder="Change status" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-slate-800 border-purple-600 text-white">
+                                    {statusOptions.map(opt => (
+                                        <SelectItem key={opt.value} value={opt.value} className="text-xs hover:bg-purple-700/50 focus:bg-purple-700/60">
+                                            {opt.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <AnimatedButton 
+                              variant="ghost"
+                              size="icon" 
+                              onClick={() => handleDeleteVideo(video._id)} 
+                              className="ml-2 text-red-500 hover:bg-red-500/10 hover:text-red-400"
+                              title="Delete Video"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </AnimatedButton>
+                        </CardFooter>
+                      </GlassCard>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              )}
+            </motion.section>
+          ))
+        )}
+      </motion.div>
     </div>
   );
 };

@@ -11,6 +11,8 @@ import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
 import { loginService } from '@/services/authService'; // Import loginService
 import { Brain, Mail, Lock, Sparkles, ArrowRight, AlertCircle } from 'lucide-react';
+import { useToast } from "@/hooks/use-toast";
+import { FloatingParticles } from '@/components/common/FloatingParticles';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -122,27 +124,7 @@ const LoginPage: React.FC = () => {
       </div>
 
       {/* Floating Particles */}
-      <div className="absolute inset-0">
-        {[...Array(15)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-1 h-1 bg-white/30 rounded-full"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-            }}
-            animate={{
-              y: [-10, -50, -10],
-              opacity: [0, 1, 0],
-            }}
-            transition={{
-              duration: 2 + Math.random() * 2,
-              repeat: Infinity,
-              delay: Math.random() * 2,
-            }}
-          />
-        ))}
-      </div>
+      <FloatingParticles items={18} />
 
       {/* Main Login Card */}
       <motion.div

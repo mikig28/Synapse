@@ -9,6 +9,7 @@ import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import useAuthStore from '@/store/authStore';
 import { registerService } from '@/services/authService';
 import { Brain, User, Mail, Lock, Sparkles, ArrowRight, AlertCircle } from 'lucide-react';
+import { FloatingParticles } from '@/components/common/FloatingParticles';
 
 const RegisterPage: React.FC = () => {
   const [fullName, setFullName] = useState('');
@@ -72,27 +73,7 @@ const RegisterPage: React.FC = () => {
       </div>
 
       {/* Floating Particles */}
-      <div className="absolute inset-0">
-        {[...Array(12)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-1 h-1 bg-white/30 rounded-full"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-            }}
-            animate={{
-              y: [-15, -60, -15],
-              opacity: [0, 1, 0],
-            }}
-            transition={{
-              duration: 3 + Math.random() * 2,
-              repeat: Infinity,
-              delay: Math.random() * 2,
-            }}
-          />
-        ))}
-      </div>
+      <FloatingParticles items={15} />
 
       {/* Main Register Card */}
       <motion.div

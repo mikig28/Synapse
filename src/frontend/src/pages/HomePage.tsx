@@ -5,6 +5,7 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Brain, Zap, Globe, Sparkles, ArrowRight, Star } from 'lucide-react';
 import TelegramFeed from "@/components/Dashboard/TelegramFeed";
+import { FloatingParticles } from '@/components/common/FloatingParticles';
 
 const HomePage: React.FC = () => {
   return (
@@ -56,27 +57,7 @@ const HomePage: React.FC = () => {
       </div>
 
       {/* Floating Particles */}
-      <div className="absolute inset-0">
-        {[...Array(20)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-2 h-2 bg-white/20 rounded-full"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-            }}
-            animate={{
-              y: [-20, -100, -20],
-              opacity: [0, 1, 0],
-            }}
-            transition={{
-              duration: 3 + Math.random() * 2,
-              repeat: Infinity,
-              delay: Math.random() * 2,
-            }}
-          />
-        ))}
-      </div>
+      <FloatingParticles items={25} />
 
       {/* Main Content */}
       <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4">

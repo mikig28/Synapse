@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { ExternalLink, Info, MessageSquareText, Trash2, CalendarDays, FileText, Zap, AlertCircle, Volume2 } from 'lucide-react';
-import { getBookmarks, deleteBookmarkService, summarizeBookmarkById, summarizeLatestBookmarksService, speakTextWithElevenLabs } from '../services/bookmarkService';
+import { ExternalLink, Info, MessageSquareText, Trash2, CalendarDays, FileText, Zap, AlertCircle, Volume2, Search, BookmarkPlus, CheckCircle, XCircle, Loader2, PlayCircle, StopCircle, Brain, ListFilter, ArrowUpDown, Link as LinkIcon } from 'lucide-react';
+import { getBookmarks, deleteBookmarkService, summarizeBookmarkById, speakTextWithElevenLabs } from '../services/bookmarkService';
 import { BookmarkItemType } from '../types/bookmark';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ClientTweetCard } from '@/components/ui/TweetCard';
@@ -11,24 +12,31 @@ import { useToast } from "@/hooks/use-toast"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import useAuthStore from '@/store/authStore';
 import { useDigest } from '../context/DigestContext';
-import { ExternalLink as LinkIcon } from 'lucide-react';
+
+// New UI Component Imports
+import { GlassCard } from '@/components/ui/GlassCard';
+import { AnimatedButton } from '@/components/ui/AnimatedButton';
+import { SkeletonList } from '@/components/ui/Skeleton';
+import { FloatingParticles } from '@/components/common/FloatingParticles';
+import { Input } from '@/components/ui/input';
 
 const BookmarksPage: React.FC = () => {
   const [bookmarks, setBookmarks] = useState<BookmarkItemType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all'); // 'all', 'week', 'month'
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [sortOrder, setSortOrder] = useState<string>('desc'); // 'asc', 'desc' for date sorting
+
   const [summarizingBookmarkId, setSummarizingBookmarkId] = useState<string | null>(null);
-  const [playingBookmarkId, setPlayingBookmarkId] = useState<string | null>(null); // TTS state
-  const [audioErrorId, setAudioErrorId] = useState<string | null>(null); // TTS error state
-  const { 
-    latestDigest, 
-    setLatestDigest,
+  const [playingBookmarkId, setPlayingBookmarkId] = useState<string | null>(null);
+  const [audioErrorId, setAudioErrorId] = useState<string | null>(null);
+  const {
+    latestDigest,
     latestDigestSources,
     isBatchSummarizing,
     summarizeLatestBookmarks
   } = useDigest();
-  console.log('[BookmarksPage] Consuming latestDigest from context:', latestDigest, 'isBatchSummarizing:', isBatchSummarizing, 'sources:', latestDigestSources);
   const { toast } = useToast();
   const token = useAuthStore((state) => state.token);
 
@@ -37,9 +45,11 @@ const BookmarksPage: React.FC = () => {
 
   console.log("[BookmarksPage] Component rendered or re-rendered"); // General render log
 
-  const fetchBookmarks = async () => {
+  const fetchBookmarksCallback = useCallback(async () => {
+    if (!token) return;
+    console.log("[BookmarksPage] Fetching bookmarks...");
+    setLoading(true);
     try {
-      setLoading(true);
       const data = await getBookmarks();
       setBookmarks(data);
       setError(null);
@@ -47,36 +57,46 @@ const BookmarksPage: React.FC = () => {
       setError('Failed to load bookmarks. Please ensure the backend is running and refresh.');
       console.error('Error fetching bookmarks:', err);
       toast({
-        title: "Error",
-        description: "Could not fetch bookmarks.",
+        title: "Error Fetching Bookmarks",
+        description: "Could not fetch bookmarks. The server might be down.",
         variant: "destructive",
-      })
+      });
     } finally {
       setLoading(false);
     }
-  };
+  }, [token, toast]);
 
   useEffect(() => {
-    if (!token) return;
-    fetchBookmarks();
-  }, [token]);
+    fetchBookmarksCallback();
+  }, [fetchBookmarksCallback]);
 
-  const filteredBookmarks = useMemo(() => {
+  const filteredAndSortedBookmarks = useMemo(() => {
     const now = new Date();
-    return bookmarks.filter(bookmark => {
-      if (filter === 'all') return true;
+    let processedBookmarks = bookmarks.filter(bookmark => {
       const bookmarkDate = new Date(bookmark.createdAt);
-      if (filter === 'week') {
-        const oneWeekAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
-        return bookmarkDate >= oneWeekAgo;
-      }
-      if (filter === 'month') {
-        const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-        return bookmarkDate >= oneMonthAgo;
-      }
-      return true;
+      const matchesFilter = 
+        filter === 'all' ? true :
+        filter === 'week' ? bookmarkDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7) :
+        filter === 'month' ? bookmarkDate >= new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()) :
+        true;
+
+      const matchesSearch = 
+        searchTerm === '' ? true :
+        bookmark.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        bookmark.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        bookmark.originalUrl.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (bookmark.sourcePlatform === 'X' && bookmark.fetchedTitle?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (bookmark.sourcePlatform === 'LinkedIn' && bookmark.fetchedTitle?.toLowerCase().includes(searchTerm.toLowerCase()));
+
+      return matchesFilter && matchesSearch;
     });
-  }, [bookmarks, filter]);
+
+    return processedBookmarks.sort((a, b) => {
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+    });
+  }, [bookmarks, filter, searchTerm, sortOrder]);
 
   const extractTweetId = (url: string): string | undefined => {
     if (url.includes('twitter.com') || url.includes('x.com')) {
@@ -87,54 +107,47 @@ const BookmarksPage: React.FC = () => {
   };
 
   const handleDeleteBookmark = async (bookmarkId: string) => {
-    // Optional: Add a confirmation dialog here
-    // if (!window.confirm("Are you sure you want to delete this bookmark?")) {
-    //   return;
-    // }
+    // TODO: Consider adding a confirmation modal here for better UX
     try {
       await deleteBookmarkService(bookmarkId);
-      setBookmarks(bookmarks.filter(bookmark => bookmark._id !== bookmarkId));
+      setBookmarks(prev => prev.filter(b => b._id !== bookmarkId));
       toast({
-        title: "Success",
-        description: "Bookmark deleted successfully.",
-      })
+        title: "Bookmark Deleted",
+        description: "The bookmark has been successfully removed.",
+        variant: "default",
+      });
     } catch (err) {
       console.error(`Error deleting bookmark ${bookmarkId}:`, err);
-      setError('Failed to delete bookmark.'); // Or use a toast for this error
       toast({
-        title: "Error",
-        description: "Failed to delete bookmark.",
+        title: "Deletion Failed",
+        description: "Could not delete the bookmark. Please try again.",
         variant: "destructive",
-      })
+      });
     }
   };
 
   const handleSummarizeBookmark = async (bookmarkId: string) => {
-    console.log(`[BookmarksPage] handleSummarizeBookmark called for ID: ${bookmarkId}`); // Log handler call
     setSummarizingBookmarkId(bookmarkId);
     try {
       const updatedBookmark = await summarizeBookmarkById(bookmarkId);
-      setBookmarks(prevBookmarks => {
-        const newBookmarks = prevBookmarks.map(b => b._id === bookmarkId ? updatedBookmark : b);
-        console.log("[BookmarksPage] Bookmarks state after individual summarize:", newBookmarks.find(b => b._id === bookmarkId)); // Log the updated bookmark
-        return newBookmarks;
-      });
+      setBookmarks(prevBookmarks =>
+        prevBookmarks.map(b => b._id === bookmarkId ? { ...updatedBookmark, status: 'summarized' } : b)
+      );
       toast({
-        title: "Success",
-        description: "Bookmark summarized successfully.",
+        title: "Summary Generated",
+        description: "Bookmark has been successfully summarized.",
+        variant: "default",
       });
     } catch (err: any) {
       console.error(`Error summarizing bookmark ${bookmarkId}:`, err);
-      // Update the specific bookmark's status to 'error' in the UI if possible
-      // This assumes the error object from the service has a message property
       const errorMessage = err?.message || "Failed to summarize bookmark.";
-      setBookmarks(prevBookmarks => 
-        prevBookmarks.map(b => 
+      setBookmarks(prevBookmarks =>
+        prevBookmarks.map(b =>
           b._id === bookmarkId ? { ...b, status: 'error', summary: `Error: ${errorMessage}` } : b
         )
       );
       toast({
-        title: "Error Summarizing",
+        title: "Summarization Error",
         description: errorMessage,
         variant: "destructive",
       });
@@ -142,24 +155,35 @@ const BookmarksPage: React.FC = () => {
       setSummarizingBookmarkId(null);
     }
   };
-
+  
   const handleSummarizeLatestClick = () => {
     console.log("[BookmarksPage] handleSummarizeLatestClick called, invoking context action.");
+    // Pass setBookmarks directly as the context handles the update logic
     summarizeLatestBookmarks(bookmarks, setBookmarks);
   };
 
-  const handleSpeakSummary = async (bookmarkId: string, summaryText: string) => {
-    if (!summaryText) return;
+  const handleSpeakSummary = async (bookmarkId: string, summaryText: string | undefined) => {
+    if (!summaryText) {
+        toast({ title: "No Summary", description: "No summary available to play.", variant: "destructive" });
+        return;
+    }
     if (currentAudio) {
       currentAudio.pause();
-      URL.revokeObjectURL(currentAudio.src); // Clean up previous audio
+      URL.revokeObjectURL(currentAudio.src); 
       setCurrentAudio(null);
+      if (playingBookmarkId === bookmarkId) { // If clicking play on the same item that was playing
+        setPlayingBookmarkId(null); // Stop playback
+        return;
+      }
     }
 
-    // IMPORTANT: Securely manage your API key. This is a placeholder.
-    // Consider using a backend proxy for production environments.
-    const ELEVENLABS_API_KEY = "sk_6adb9352ff0d460934cac7ee75e6af3090164ceb55fc15c5"; // FIXME: Replace with your actual key or a secure way to access it
-    const VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; // Example: Rachel's voice ID - Replace if needed
+    const ELEVENLABS_API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY;
+    if (!ELEVENLABS_API_KEY) {
+        toast({ title: "API Key Missing", description: "ElevenLabs API key is not configured.", variant: "destructive" });
+        setAudioErrorId(bookmarkId);
+        return;
+    }
+    const VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; 
 
     setPlayingBookmarkId(bookmarkId);
     setAudioErrorId(null);
@@ -168,19 +192,19 @@ const BookmarksPage: React.FC = () => {
       const audioBlob = await speakTextWithElevenLabs(summaryText, VOICE_ID, ELEVENLABS_API_KEY);
       const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
-      setCurrentAudio(audio); // Store current audio instance
+      setCurrentAudio(audio); 
       
       audio.play();
 
       audio.onended = () => {
         setPlayingBookmarkId(null);
-        URL.revokeObjectURL(audioUrl); // Clean up the object URL
+        URL.revokeObjectURL(audioUrl); 
         setCurrentAudio(null);
       };
       audio.onerror = () => {
         console.error("Error playing audio for bookmark:", bookmarkId);
         setPlayingBookmarkId(null);
-        setAudioErrorId(bookmarkId); // Mark this specific bookmark as having an audio error
+        setAudioErrorId(bookmarkId);
         URL.revokeObjectURL(audioUrl);
         setCurrentAudio(null);
         toast({
@@ -192,7 +216,7 @@ const BookmarksPage: React.FC = () => {
     } catch (error: any) {
       console.error(`Error generating audio for bookmark ${bookmarkId}:`, error);
       setPlayingBookmarkId(null);
-      setAudioErrorId(bookmarkId); // Mark this specific bookmark as having an audio error
+      setAudioErrorId(bookmarkId);
       toast({
         title: "Text-to-Speech Error",
         description: error.message || "Failed to generate audio for the summary.",
@@ -201,331 +225,297 @@ const BookmarksPage: React.FC = () => {
     }
   };
 
-  if (loading) {
-    console.log("[BookmarksPage] Rendering Loading State");
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: {
+        type: 'spring',
+        stiffness: 100,
+      },
+    },
+  };
+
+  if (loading && bookmarks.length === 0) {
     return (
-      <div className="flex justify-center items-center h-full">
-        <p>Loading bookmarks...</p>
+      <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 text-white">
+        <FloatingParticles items={30} />
+        <div className="container mx-auto relative z-10">
+          <motion.h1 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="text-5xl font-bold mb-12 text-center bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-500 to-red-500"
+          >
+            My Bookmarks
+          </motion.h1>
+          <SkeletonList items={3} />
+        </div>
       </div>
     );
   }
 
   if (error) {
-    console.log("[BookmarksPage] Rendering Error State:", error);
     return (
-      <Alert variant="destructive" className="max-w-2xl mx-auto mt-8">
-        <Info className="h-4 w-4" />
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    );
-  }
-
-  console.log("[BookmarksPage] Filtered bookmarks before map:", filteredBookmarks); // Log filtered bookmarks array
-
-  return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">My Bookmarks</h1>
-        <div className="flex items-center space-x-2">
-            <Button 
-              onClick={handleSummarizeLatestClick}
-              disabled={isBatchSummarizing || loading}
-              size="sm" 
-            >
-              {isBatchSummarizing ? (
-                <><Zap className="w-4 h-4 mr-1 animate-spin" /> Digest Loading...</>
-              ) : (
-                <><FileText className="w-4 h-4 mr-1" /> Create Latest Digest</>
-              )}
-            </Button>
-            <div className="flex items-center">
-                <CalendarDays className="h-5 w-5 mr-2 text-muted-foreground" />
-                <Select value={filter} onValueChange={setFilter}>
-                    <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Filter by date" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Time</SelectItem>
-                        <SelectItem value="week">Past Week</SelectItem>
-                        <SelectItem value="month">Past Month</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-        </div>
-      </div>
-
-      {/* Display Latest Digest */}
-      {latestDigest && (
-        <Card className="mb-6 bg-secondary/30">
+      <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-gray-900 via-red-900 to-gray-900 text-white flex flex-col items-center justify-center">
+        <FloatingParticles items={20} type="error" />
+        <GlassCard className="w-full max-w-lg text-center">
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span className="flex items-center">
-                <Zap className="w-5 h-5 mr-2 text-purple-500" /> Latest Bookmarks Digest
-              </span>
-              <Button variant="ghost" size="sm" onClick={() => setLatestDigest(null)} title="Clear Digest">
-                <Trash2 className="w-4 h-4" />
-              </Button>
+            <CardTitle className="text-3xl text-red-400 flex items-center justify-center">
+              <AlertCircle className="w-10 h-10 mr-3" /> Error Loading Bookmarks
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {latestDigest.startsWith("OPENAI_API_KEY not configured") || 
-             latestDigest.startsWith("Failed to extract summary") || 
-             latestDigest.startsWith("OpenAI API error") || 
-             latestDigest.startsWith("Content was empty") ||
-             latestDigest.startsWith("Could not generate a digest") ||
-             latestDigest.startsWith("No valid content") ||
-             latestDigest.startsWith("No new bookmarks") ? (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Digest Generation Issue</AlertTitle>
-                <AlertDescription>{latestDigest}</AlertDescription>
-              </Alert>
-            ) : (
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                {latestDigest}
-              </p>
-            )}
-            {/* TTS Button for Digest */}
-            {latestDigest && 
-             !latestDigest.startsWith("OPENAI_API_KEY not configured") && 
-             !latestDigest.startsWith("Failed to extract summary") && 
-             !latestDigest.startsWith("OpenAI API error") && 
-             !latestDigest.startsWith("Content was empty") &&
-             !latestDigest.startsWith("Could not generate a digest") &&
-             !latestDigest.startsWith("No valid content") &&
-             !latestDigest.startsWith("No new bookmarks") &&
-            (
-              <div className="mt-3">
-                <Button 
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleSpeakSummary("latest-digest", latestDigest || '')}
-                  disabled={playingBookmarkId === "latest-digest" && !audioErrorId}
-                  className="text-xs"
-                  title={playingBookmarkId === "latest-digest" && !audioErrorId ? "Playing Digest..." : audioErrorId === "latest-digest" ? "Retry Reading Digest" : "Read Digest Aloud"}
-                >
-                  <Volume2 className={`w-4 h-4 mr-1 ${playingBookmarkId === "latest-digest" && !audioErrorId ? 'animate-pulse' : ''}`} />
-                  {playingBookmarkId === "latest-digest" && !audioErrorId ? 
-                    "Playing Digest..." : 
-                    audioErrorId === "latest-digest" ? 
-                    "Retry Read Digest" : 
-                    "Read Digest Aloud"}
-                </Button>
-                {audioErrorId === "latest-digest" && (
-                  <p className="text-xs text-red-500 mt-1">Failed to play digest audio. Please try again.</p>
-                )}
-              </div>
-            )}
-            
-            {/* Display Digest Sources */}
-            {latestDigestSources && latestDigestSources.length > 0 && 
-             !latestDigest.startsWith("Could not generate a digest") && // Don't show sources if digest itself is an error about sources
-             !latestDigest.startsWith("No valid content") &&
-             !latestDigest.startsWith("No new bookmarks") &&
-             !latestDigest.startsWith("No eligible bookmarks") &&
-             !latestDigest.startsWith("Failed to generate digest") && // Don't show sources if overall digest failed
-            (
-              <div className="mt-4 pt-3 border-t border-muted-foreground/20">
-                <h5 className="text-xs font-semibold mb-1 text-muted-foreground">Digest based on summaries from:</h5>
-                <ul className="list-disc list-inside pl-1 space-y-1">
-                  {latestDigestSources.map(source => (
-                    <li key={source._id} className="text-xs text-muted-foreground">
-                      <a 
-                        href={source.originalUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="hover:underline text-blue-500 hover:text-blue-400 flex items-center"
-                        title={source.originalUrl}
-                      >
-                        {source.title || source.originalUrl.substring(0, 50) + '...'}
-                        <LinkIcon className="w-3 h-3 ml-1 flex-shrink-0" />
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            <p className="text-lg mb-4">{error}</p>
+            <AnimatedButton onClick={fetchBookmarksCallback}>
+              <Zap className="mr-2 h-4 w-4" /> Try Again
+            </AnimatedButton>
           </CardContent>
-        </Card>
-      )}
+        </GlassCard>
+      </div>
+    );
+  }
+  
+  const renderPlatformIcon = (platform: BookmarkItemType['sourcePlatform'] | 'Other' | undefined) => {
+    switch (platform) {
+      case 'X':
+        return <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16" className="mr-2 shrink-0"><path d="M12.6.75h2.454l-5.36 6.142L16 15.25h-4.937l-3.867-5.07-4.425 5.07H.316l5.733-6.57L0 .75h5.063l3.495 4.633L12.602.75Zm-.86 13.028h1.36L4.323 2.145H2.865l8.875 11.633Z"/></svg>;
+      case 'LinkedIn':
+        return <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16" className="mr-2 shrink-0"><path d="M0 1.146C0 .513.526 0 1.175 0h13.65C15.474 0 16 .513 16 1.146v13.708c0 .633-.526 1.146-1.175 1.146H1.175C.526 16 0 15.487 0 14.854V1.146zm4.943 12.248V6.169H2.542v7.225h2.401zm-1.2-8.212c.837 0 1.358-.554 1.358-1.248-.015-.709-.52-1.248-1.342-1.248-.822 0-1.359.54-1.359 1.248 0 .694.521 1.248 1.327 1.248h.016zm4.908 8.212V9.359c0-.216.016-.432.08-.586.173-.431.568-.878 1.232-.878.869 0 1.216.662 1.216 1.634v3.865h2.401V9.25c0-2.22-1.184-3.252-2.764-3.252-1.274 0-1.845.7-2.165 1.193v.025h-.016a5.54 5.54 0 0 1 .016-.025V6.169h-2.4c.03.678 0 7.225 0 7.225h2.4z"/></svg>;
+      default:
+        return <LinkIcon className="w-4 h-4 mr-2 shrink-0" />;
+    }
+  };
 
-      {filteredBookmarks.length === 0 ? (
-        <Alert className="max-w-2xl mx-auto">
-          <Info className="h-4 w-4" />
-          <AlertTitle>{filter === 'all' ? 'No Bookmarks Yet' : 'No Bookmarks Found'}</AlertTitle>
-          <AlertDescription>
-            {filter === 'all'
-              ? "Looks like you haven't saved any bookmarks. Links you save from Telegram (X, LinkedIn) will appear here."
-              : `No bookmarks found for the selected period (${filter}). Try a different filter or add more bookmarks!`}
-          </AlertDescription>
-        </Alert>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredBookmarks.map((bookmark, index) => {
-            console.log(`[BookmarksPage] Mapping bookmark at index ${index}:`, bookmark);
-            console.log(`[BookmarksPage] Bookmark ID ${bookmark._id} - Status: ${bookmark.status}, Summary: ${bookmark.summary}`);
-            
-            // Render X/Twitter Card
-            if (bookmark.sourcePlatform === 'X' && bookmark.originalUrl) {
-              const tweetId = extractTweetId(bookmark.originalUrl);
-              if (tweetId) {
-                // DEBUG for Tweet Card (can add later if needed)
-                return (
-                  <ClientTweetCard
-                    key={bookmark._id}
-                    id={tweetId}
-                    className="shadow-lg hover:shadow-xl transition-shadow duration-300"
-                    onDelete={() => handleDeleteBookmark(bookmark._id)}
-                    onSummarize={() => handleSummarizeBookmark(bookmark._id)}
-                    isSummarizing={summarizingBookmarkId === bookmark._id}
-                    summaryStatus={bookmark.status}
-                    summaryText={bookmark.summary}
-                    // TTS Props
-                    onSpeakSummary={handleSpeakSummary}
-                    playingTweetId={playingBookmarkId}
-                    audioErrorTweetId={audioErrorId}
-                  />
-                );
-              }
-            }
+  return (
+    <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 text-white overflow-hidden">
+      <FloatingParticles items={40} />
+      <div className="container mx-auto relative z-10">
+        <motion.h1
+          initial={{ opacity: 0, y: -30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "circOut" }}
+          className="text-4xl md:text-6xl font-bold mb-10 md:mb-16 text-center bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-500 to-red-400 py-2"
+        >
+          My Curated Bookmarks
+        </motion.h1>
 
-            // Render LinkedIn Card
-            if (bookmark.sourcePlatform === 'LinkedIn') {
-               // DEBUG for LinkedIn Card (can add later if needed)
-              return (
-                <LinkedInCard 
-                  key={bookmark._id}
-                  bookmark={bookmark}
-                  onDelete={handleDeleteBookmark}
-                />
-              );
-            }
+        <GlassCard className="mb-8 md:mb-12 p-4 md:p-6 shadow-2xl">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+            <div className="relative col-span-1 md:col-span-1">
+              <Input
+                type="text"
+                placeholder="Search bookmarks..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-slate-800/70 border-purple-500/50 placeholder-gray-400 text-white focus:ring-pink-500 focus:border-pink-500 pr-10"
+              />
+              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+            </div>
+            <div className="col-span-1 md:col-span-1">
+              <Select value={filter} onValueChange={setFilter}>
+                <SelectTrigger className="w-full bg-slate-800/70 border-purple-500/50 text-white data-[placeholder]:text-gray-400">
+                  <ListFilter className="h-4 w-4 mr-2 opacity-70" />
+                  <SelectValue placeholder="Filter by date" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-800 border-purple-600 text-white">
+                  <SelectItem value="all" className="hover:bg-purple-700/50 focus:bg-purple-700/60">All Time</SelectItem>
+                  <SelectItem value="week" className="hover:bg-purple-700/50 focus:bg-purple-700/60">Past Week</SelectItem>
+                  <SelectItem value="month" className="hover:bg-purple-700/50 focus:bg-purple-700/60">Past Month</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-1 md:col-span-1">
+               <Select value={sortOrder} onValueChange={setSortOrder}>
+                <SelectTrigger className="w-full bg-slate-800/70 border-purple-500/50 text-white data-[placeholder]:text-gray-400">
+                  <ArrowUpDown className="h-4 w-4 mr-2 opacity-70" />
+                  <SelectValue placeholder="Sort by date" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-800 border-purple-600 text-white">
+                  <SelectItem value="desc" className="hover:bg-purple-700/50 focus:bg-purple-700/60">Newest First</SelectItem>
+                  <SelectItem value="asc" className="hover:bg-purple-700/50 focus:bg-purple-700/60">Oldest First</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+           <div className="mt-6 text-center md:text-right">
+            <AnimatedButton
+                onClick={handleSummarizeLatestClick}
+                loading={isBatchSummarizing || (loading && bookmarks.length > 0)}
+                variant="primary"
+                className="w-full md:w-auto"
+              >
+                {isBatchSummarizing ? <Loader2 className="animate-spin mr-2"/> : <Brain className="mr-2 h-4 w-4" />}
+                {isBatchSummarizing ? "Creating Digest..." : "Create Latest Digest"}
+              </AnimatedButton>
+          </div>
+        </GlassCard>
 
-            // Fallback to generic card
-            const formattedDate = new Date(bookmark.createdAt).toLocaleString(undefined, { 
-                year: 'numeric', month: 'numeric', day: 'numeric', 
-                hour: '2-digit', minute: '2-digit' 
-            });
+        {latestDigest && (
+          <motion.div initial="hidden" animate="visible" variants={itemVariants}>
+            <GlassCard className="mb-8 md:mb-12 p-6 shadow-xl bg-gradient-to-br from-purple-600/20 via-pink-600/20 to-red-600/20">
+              <CardHeader className="border-b border-purple-500/30 mb-4">
+                <CardTitle className="text-3xl font-semibold text-pink-400 flex items-center">
+                  <Zap className="w-8 h-8 mr-3 animate-pulse text-yellow-400" /> Latest Digest
+                </CardTitle>
+                {latestDigestSources && latestDigestSources.length > 0 && (
+                    <CardDescription className="text-sm text-purple-300 mt-1">
+                        Summary based on {latestDigestSources.length} recent item(s).
+                    </CardDescription>
+                )}
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-200 whitespace-pre-line leading-relaxed">{latestDigest}</p>
+              </CardContent>
+            </GlassCard>
+          </motion.div>
+        )}
 
+        {filteredAndSortedBookmarks.length === 0 && !loading && (
+          <motion.div initial="hidden" animate="visible" variants={itemVariants}>
+            <GlassCard className="py-12 text-center">
+              <CardContent className="p-6">
+                <BookmarkPlus className="h-16 w-16 mx-auto mb-6 text-purple-400 opacity-50" />
+                <p className="text-xl text-gray-400">No bookmarks match your criteria.</p>
+                <p className="text-gray-500">Try adjusting your search or filters, or add some new bookmarks!</p>
+              </CardContent>
+            </GlassCard>
+          </motion.div>
+        )}
+
+        <motion.div
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          {filteredAndSortedBookmarks.map((bookmark) => {
+            const tweetId = bookmark.sourcePlatform === 'X' ? extractTweetId(bookmark.originalUrl) : undefined;
             return (
-              <Card key={bookmark._id} className="shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
-                <CardHeader className="flex-grow">
-                  <CardTitle className="flex items-center justify-between">
-                    <span className="truncate max-w-[80%]" title={bookmark.originalUrl}>
-                      {bookmark.fetchedTitle || bookmark.sourcePlatform}
-                    </span>
+            <motion.div key={bookmark._id} variants={itemVariants}>
+              <GlassCard className="h-full flex flex-col justify-between overflow-hidden transition-all duration-300 hover:shadow-purple-500/50 hover:-translate-y-1">
+                <CardHeader className="p-4 pb-3 border-b border-purple-800/50">
+                  <div className="flex justify-between items-start mb-1">
+                    <a href={bookmark.originalUrl} target="_blank" rel="noopener noreferrer" className="hover:text-pink-400 transition-colors flex-grow min-w-0">
+                      <CardTitle className="text-lg font-semibold text-gray-100 hover:text-pink-300 line-clamp-2 break-all">
+                        {bookmark.title || bookmark.fetchedTitle || new URL(bookmark.originalUrl).hostname}
+                      </CardTitle>
+                    </a>
                     {renderPlatformIcon(bookmark.sourcePlatform)}
-                  </CardTitle>
-                  <CardDescription>
-                    {bookmark.fetchedDescription || 'No description available.'}
-                  </CardDescription>
-                  {/* Display Summary if available */}
-                  {bookmark.summary && (
-                    <div className="mt-2 p-2 border-t">
-                      <h4 className="text-sm font-semibold mb-1 flex items-center">
-                        <FileText className="w-4 h-4 mr-1 flex-shrink-0" /> Summary
-                      </h4>
-                      <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-                        {bookmark.summary}
-                      </p>
-                      {/* TTS Button */}
-                      <Button 
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleSpeakSummary(bookmark._id, bookmark.summary || '')}
-                        disabled={playingBookmarkId === bookmark._id && !audioErrorId}
-                        className="mt-2 text-xs"
-                        title={playingBookmarkId === bookmark._id && !audioErrorId ? "Playing..." : audioErrorId === bookmark._id ? "Retry Reading Summary" : "Read Summary Aloud"}
-                      >
-                        <Volume2 className={`w-4 h-4 mr-1 ${playingBookmarkId === bookmark._id && !audioErrorId ? 'animate-pulse' : ''}`} />
-                        {playingBookmarkId === bookmark._id && !audioErrorId ? 
-                          "Playing..." : 
-                          audioErrorId === bookmark._id ? 
-                          "Retry Read" : 
-                          "Read Aloud"}
-                      </Button>
-                      {audioErrorId === bookmark._id && (
-                        <p className="text-xs text-red-500 mt-1">Failed to play audio. Please try again.</p>
-                      )}
-                    </div>
-                  )}
-                  {bookmark.status === 'pending_summary' && !bookmark.summary && (
-                     <p className="text-xs text-yellow-600 mt-2">Summarizing...</p>
-                  )}
-                </CardHeader>
-                <CardFooter className="p-4 pt-2 border-t mt-auto">
-                  <div className="flex justify-between items-center w-full">
-                      <div className="flex space-x-2">
-                        <Button 
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            if (bookmark.originalUrl) {
-                              window.open(bookmark.originalUrl, '_blank');
-                            }
-                          }}
-                          title="View Original"
-                          className="text-xs"
-                        >
-                          <ExternalLink className="w-4 h-4 mr-1" /> View Original
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleSummarizeBookmark(bookmark._id)}
-                          disabled={summarizingBookmarkId === bookmark._id || bookmark.status === 'summarized' || bookmark.status === 'pending_summary'}
-                          title={bookmark.status === 'summarized' ? "Already Summarized" : "Summarize Content"}
-                          className="text-xs"
-                        >
-                          {summarizingBookmarkId === bookmark._id ? (
-                            <><Zap className="w-4 h-4 mr-1 animate-pulse" /> Summarizing...</>
-                          ) : bookmark.status === 'summarized' ? (
-                            <><FileText className="w-4 h-4 mr-1" /> Summarized</>
-                          ) : (
-                            <><FileText className="w-4 h-4 mr-1" /> Summarize</>
-                          )}
-                        </Button>
-                      </div>
-                      <Button 
-                        variant="destructive"
-                        size="icon"
-                        onClick={() => handleDeleteBookmark(bookmark._id)}
-                        title="Delete Bookmark"
-                        className="ml-2"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2 w-full text-right">
-                    Saved: {formattedDate}
-                  </p>
+                  <CardDescription className="text-xs text-purple-400">
+                    Saved: {new Date(bookmark.createdAt).toLocaleDateString()}
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="p-4 flex-grow pt-3 pb-3">
+                  {bookmark.sourcePlatform === 'X' && tweetId ? (
+                    <ClientTweetCard 
+                        id={tweetId} 
+                        summaryText={bookmark.summary}
+                        summaryStatus={bookmark.status}
+                        onSummarize={() => handleSummarizeBookmark(bookmark._id)}
+                        isSummarizing={summarizingBookmarkId === bookmark._id}
+                        onSpeakSummary={handleSpeakSummary}
+                        playingTweetId={playingBookmarkId}
+                        audioErrorTweetId={audioErrorId}
+                        onDelete={() => handleDeleteBookmark(bookmark._id)}
+                    />
+                  ) : bookmark.sourcePlatform === 'LinkedIn' ? (
+                     <LinkedInCard bookmark={bookmark} onDelete={handleDeleteBookmark} />
+                  ) : bookmark.summary ? (
+                    <p className="text-sm text-gray-300 line-clamp-4 whitespace-pre-line leading-relaxed">{bookmark.summary}</p>
+                  ) : bookmark.status === 'pending_summary' || summarizingBookmarkId === bookmark._id ? (
+                    <div className="flex items-center text-sm text-purple-400">
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Summarizing...
+                    </div>
+                  ) : bookmark.status === 'error' && !bookmark.summary ? (
+                     <div className="flex items-center text-sm text-red-400">
+                        <XCircle className="w-4 h-4 mr-2" /> Error summarizing.
+                    </div>
+                  ): (
+                    <p className="text-sm text-gray-500 italic">No summary. Click Summarize.</p>
+                  )}
+                  
+                  {bookmark.summary && bookmark.status === 'error' && (
+                     <p className="mt-2 text-xs text-red-400 bg-red-900/30 p-2 rounded-md">
+                       <span className="font-bold">Summarization Error:</span> {bookmark.summary.replace("Error: ", "")}
+                     </p>
+                   )}
+                </CardContent>
+
+                <CardFooter className="p-4 grid grid-cols-2 gap-2 pt-2 border-t border-purple-800/50">
+                  <a 
+                    href={bookmark.originalUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="w-full"
+                  >
+                    <AnimatedButton
+                      variant="ghost"
+                      size="sm"
+                      className="w-full"
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" /> View Original
+                    </AnimatedButton>
+                  </a>
+                  <AnimatedButton
+                    onClick={() => handleSummarizeBookmark(bookmark._id)}
+                    loading={summarizingBookmarkId === bookmark._id}
+                    disabled={!!bookmark.summary && bookmark.status !== 'error'}
+                    variant="secondary"
+                    size="sm"
+                    className="w-full"
+                  >
+                    <Brain className="mr-2 h-4 w-4" /> {bookmark.summary && bookmark.status !== 'error' ? 'Summarized' : 'Summarize'}
+                  </AnimatedButton>
+                   <AnimatedButton
+                    onClick={() => handleSpeakSummary(bookmark._id, bookmark.summary)}
+                    loading={playingBookmarkId === bookmark._id}
+                    disabled={!bookmark.summary || bookmark.status === 'error' || summarizingBookmarkId === bookmark._id}
+                    variant="ghost"
+                    size="sm"
+                    className="w-full"
+                  >
+                    {playingBookmarkId === bookmark._id ? <StopCircle className="mr-2 h-4 w-4"/> : <PlayCircle className="mr-2 h-4 w-4" />}
+                    {playingBookmarkId === bookmark._id ? 'Playing...' : (audioErrorId === bookmark._id ? 'Audio Error' : 'Play Summary')}
+                  </AnimatedButton>
+                  <AnimatedButton
+                    onClick={() => handleDeleteBookmark(bookmark._id)}
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-red-500 hover:bg-red-500/10 hover:text-red-400"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                  </AnimatedButton>
                 </CardFooter>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+              </GlassCard>
+            </motion.div>
+            )}
+          )}
+        </motion.div>
+      </div>
     </div>
   );
 };
 
 export default BookmarksPage;
 
-// Helper to render platform-specific icons for the generic card
-const renderPlatformIcon = (platform: 'X' | 'LinkedIn' | 'Other') => {
-  switch (platform) {
-    case 'X':
-      return <MessageSquareText className="h-5 w-5 text-blue-500 flex-shrink-0" />;
-    case 'LinkedIn':
-      return (
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-700 flex-shrink-0">
-          <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/>
-          <rect width="4" height="12" x="2" y="9"/>
-          <circle cx="4" cy="4" r="2"/>
-        </svg>
-      );
-    default:
-      return null; // Or a generic link icon
-  }
-}; 
+// Helper to get source type, can be expanded
+// const getSourceType = (url: string): BookmarkSourceType | 'Other' => {
+//   if (url.includes('twitter.com') || url.includes('x.com')) return 'X';
+//   if (url.includes('linkedin.com')) return 'LinkedIn';
+//   // Add more sources like YouTube, Reddit, etc.
+//   return 'Other';
+// }; 
