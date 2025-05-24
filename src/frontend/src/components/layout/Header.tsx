@@ -35,8 +35,8 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
   };
 
   return (
-    <header className="bg-transparent border-b border-white/10 shadow-lg backdrop-blur-md pt-4 pb-3 px-3 sticky top-0 z-40 min-h-[64px]">
-      <div className="container mx-auto flex items-center justify-between pr-4 h-full">
+    <header className="bg-transparent border-b border-white/10 shadow-lg backdrop-blur-md py-3 sticky top-0 z-50 min-h-[64px] overflow-visible">
+      <div className="w-full px-4 flex items-center justify-between h-full">
         <div className="flex items-center gap-2">
           {isAuthenticated && (
             <AnimatedButton variant="ghost" size="md" onClick={toggleSidebar} className="border-white/20 hover:bg-white/10">
@@ -58,18 +58,16 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
                 <span className="sr-only">Toggle theme</span>
               </AnimatedButton>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" asChild>
-              <GlassCard className="p-2 mt-2 border-white/10" blur="md">
-                <DropdownMenuItem onClick={() => handleSetTheme("light")} className="hover:bg-white/5 cursor-pointer">
-                  Light
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleSetTheme("dark")} className="hover:bg-white/5 cursor-pointer">
-                  Dark
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleSetTheme("system")} className="hover:bg-white/5 cursor-pointer">
-                  System
-                </DropdownMenuItem>
-              </GlassCard>
+            <DropdownMenuContent align="end" className="z-[60] bg-black/80 backdrop-blur-md border border-white/10 p-2 mt-2">
+              <DropdownMenuItem onClick={() => handleSetTheme("light")} className="hover:bg-white/5 cursor-pointer text-white">
+                Light
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleSetTheme("dark")} className="hover:bg-white/5 cursor-pointer text-white">
+                Dark
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleSetTheme("system")} className="hover:bg-white/5 cursor-pointer text-white">
+                System
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -80,31 +78,29 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
                   <UserCircle className="h-7 w-7 text-purple-300" />
                 </AnimatedButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount asChild>
-                <GlassCard className="p-2 mt-2 border-white/10" blur="md">
-                  <DropdownMenuItem className="font-normal focus:bg-white/5">
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none text-white">
-                        {user?.fullName || user?.email || 'User'}
+              <DropdownMenuContent className="w-56 z-[60] bg-black/80 backdrop-blur-md border border-white/10 p-2 mt-2" align="end" forceMount>
+                <DropdownMenuItem className="font-normal focus:bg-white/5">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none text-white">
+                      {user?.fullName || user?.email || 'User'}
+                    </p>
+                    {user?.email && (
+                      <p className="text-xs leading-none text-gray-400">
+                        {user.email}
                       </p>
-                      {user?.email && (
-                        <p className="text-xs leading-none text-gray-400">
-                          {user.email}
-                        </p>
-                      )}
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator className="bg-white/10" />
-                  <DropdownMenuItem onClick={() => navigate('/settings')} className="hover:bg-white/5 cursor-pointer">
-                    <SettingsIcon className="mr-2 h-4 w-4 text-gray-300" />
-                    <span className="text-gray-200">Settings</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator className="bg-white/10" />
-                  <DropdownMenuItem onClick={handleLogout} className="hover:bg-red-500/10 focus:bg-red-500/20 cursor-pointer">
-                    <LogOut className="mr-2 h-4 w-4 text-red-400" />
-                    <span className="text-red-300">Log out</span>
-                  </DropdownMenuItem>
-                </GlassCard>
+                    )}
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuItem onClick={() => navigate('/settings')} className="hover:bg-white/5 cursor-pointer">
+                  <SettingsIcon className="mr-2 h-4 w-4 text-gray-300" />
+                  <span className="text-gray-200">Settings</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuItem onClick={handleLogout} className="hover:bg-red-500/10 focus:bg-red-500/20 cursor-pointer">
+                  <LogOut className="mr-2 h-4 w-4 text-red-400" />
+                  <span className="text-red-300">Log out</span>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
@@ -127,4 +123,4 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
   );
 };
 
-export default Header; 
+export default Header;

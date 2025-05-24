@@ -105,7 +105,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <Sidebar isSidebarOpen={isSidebarOpen} />
         
         {/* Main content area with page transitions */}
-        <main className="flex flex-grow flex-col relative overflow-hidden">
+        <main className="flex flex-grow flex-col relative">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={location.pathname}
@@ -130,4 +130,4 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   );
 };
 
-export default Layout; 
+export default Layout;
