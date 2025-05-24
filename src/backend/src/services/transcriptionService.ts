@@ -13,6 +13,17 @@ interface TranscriptionApiResponse {
   language_probability?: number;
 }
 
+// Define the response type from the local Python script
+interface PythonScriptResponse {
+  success: boolean;
+  text?: string;
+  error?: string;
+  suggestion?: string;
+  fallback?: string;
+  language?: string;
+  language_probability?: number;
+}
+
 const TRANSCRIPTION_SERVICE_URL = process.env.TRANSCRIPTION_SERVICE_URL || 'http://localhost:8000';
 const TRANSCRIPTION_API_KEY = process.env.TRANSCRIPTION_API_KEY || '';
 
@@ -76,7 +87,7 @@ export const transcribeAudio = async (filePath: string): Promise<string> => {
   }
 };
 
-// Local Python transcription (original implementation)
+// Local Python transcription with improved error handling and JSON support
 const transcribeAudioLocal = (filePath: string): Promise<string> => {
   return new Promise((resolve, reject) => {
     console.log(`[TranscriptionService]: Spawning Python script: ${PYTHON_EXECUTABLE} ${TRANSCRIPTION_SCRIPT_PATH} ${filePath}`);
@@ -99,10 +110,48 @@ const transcribeAudioLocal = (filePath: string): Promise<string> => {
 
     pythonProcess.on('close', (code: number) => {
       console.log(`[TranscriptionService]: Python script exited with code ${code}`);
+      
       if (code === 0 && transcribedText.trim()) {
-        resolve(transcribedText.trim());
+        // Try to parse JSON response from the improved Python script
+        try {
+          const jsonResponse: PythonScriptResponse = JSON.parse(transcribedText.trim());
+          if (jsonResponse.success && jsonResponse.text) {
+            console.log(`[TranscriptionService]: Transcription successful via local Python script`);
+            resolve(jsonResponse.text);
+          } else {
+            const errorMessage = jsonResponse.error || 'Unknown error from Python script';
+            console.error(`[TranscriptionService]: Python script returned error: ${errorMessage}`);
+            if (jsonResponse.suggestion) {
+              console.log(`[TranscriptionService]: Suggestion: ${jsonResponse.suggestion}`);
+            }
+            reject(new Error(errorMessage));
+          }
+        } catch (parseError) {
+          // Fallback to treating output as plain text (for backward compatibility)
+          console.log(`[TranscriptionService]: Could not parse JSON, treating as plain text`);
+          resolve(transcribedText.trim());
+        }
       } else {
-        const errorMessage = `Python script failed with code ${code}. Error: ${errorOutput.trim() || 'No stderr output'}`;
+        // Handle error cases
+        let errorMessage = `Python script failed with code ${code}`;
+        
+        // Try to parse error output as JSON
+        try {
+          const errorJson: PythonScriptResponse = JSON.parse(errorOutput);
+          if (errorJson.error) {
+            errorMessage = errorJson.error;
+            if (errorJson.suggestion) {
+              console.log(`[TranscriptionService]: Suggestion: ${errorJson.suggestion}`);
+            }
+            if (errorJson.fallback) {
+              console.log(`[TranscriptionService]: Fallback option: ${errorJson.fallback}`);
+            }
+          }
+        } catch (parseError) {
+          // Use raw error output if JSON parsing fails
+          errorMessage += `. Error: ${errorOutput.trim() || 'No stderr output'}`;
+        }
+        
         console.error(`[TranscriptionService]: ${errorMessage}`);
         reject(new Error(errorMessage));
       }
@@ -113,4 +162,4 @@ const transcribeAudioLocal = (filePath: string): Promise<string> => {
       reject(err);
     });
   });
-}; 
+};

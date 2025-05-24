@@ -1,84 +1,124 @@
 # File: src/backend/python_scripts/transcribe_audio.py
-import faster_whisper
 import sys
 import os
-import io # Import io
+import io
+import json
 
 # Ensure stdout is configured for UTF-8
-# This helps when Python's output is piped/captured, especially on Windows.
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8') # Also for stderr for consistency
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
-# --- Configuration ---
-# Model name from Hugging Face
-MODEL_NAME = 'ivrit-ai/whisper-large-v3-ct2'
-# Language code for transcription (Hebrew)
-LANGUAGE_CODE = 'he'
-# Device: "cuda" for GPU (requires CUDA and compatible PyTorch), "cpu" otherwise
-# Compute type: "float16" for GPU (faster, good precision),
-#               "int8" for CPU (faster, slightly lower precision),
-#               "float32" for CPU (slower, higher precision)
-# Choose based on your hardware setup
-DEVICE = "cpu" # Default to CPU, change to "cuda" if GPU is available
-COMPUTE_TYPE = "int8" # Good balance for CPU, change to "float16" for GPU
-# --- End Configuration ---
-
-# Initialize the global model variable
-model = None
+def check_dependencies():
+    """Check if required dependencies are available"""
+    try:
+        import faster_whisper
+        return True, None
+    except ImportError as e:
+        return False, str(e)
 
 def transcribe_audio_file(audio_path):
     """Transcribes the given audio file and returns the text."""
-    global model # Access the global model instance
-    if model is None:
-        print(f"Loading model {MODEL_NAME} on device {DEVICE} with compute type {COMPUTE_TYPE}...")
-        try:
-            # Ensure it attempts to download if not cached
-            model = faster_whisper.WhisperModel(
-                MODEL_NAME, 
-                device=DEVICE, 
-                compute_type=COMPUTE_TYPE,
-                local_files_only=False # <-- Explicitly allow download
-            )
-        except Exception as e:
-            print(f"Error loading model: {e}", file=sys.stderr)
-            raise # Re-raise the exception to be caught by the main block
+    
+    # Check dependencies first
+    deps_available, error_msg = check_dependencies()
+    if not deps_available:
+        error_response = {
+            "success": False,
+            "error": f"Missing dependency: {error_msg}",
+            "suggestion": "Please install faster-whisper: pip install faster-whisper",
+            "fallback": "Consider using the dedicated transcription service instead"
+        }
+        print(json.dumps(error_response), file=sys.stderr)
+        return None
+    
+    # Import after dependency check
+    import faster_whisper
+    
+    # Configuration
+    MODEL_NAME = 'ivrit-ai/whisper-large-v3-ct2'
+    FALLBACK_MODEL = 'openai/whisper-small'
+    LANGUAGE_CODE = 'he'
+    DEVICE = "cpu"
+    COMPUTE_TYPE = "int8"
+    
+    global model
+    if 'model' not in globals() or model is None:
+        print(f"Loading model {MODEL_NAME} on device {DEVICE} with compute type {COMPUTE_TYPE}...", file=sys.stderr)
+        
+        # Try primary model first, then fallback
+        models_to_try = [MODEL_NAME, FALLBACK_MODEL]
+        
+        for model_name in models_to_try:
+            try:
+                model = faster_whisper.WhisperModel(
+                    model_name, 
+                    device=DEVICE, 
+                    compute_type=COMPUTE_TYPE,
+                    local_files_only=False
+                )
+                print(f"Successfully loaded model: {model_name}", file=sys.stderr)
+                break
+            except Exception as e:
+                print(f"Failed to load {model_name}: {e}", file=sys.stderr)
+                if model_name == models_to_try[-1]:  # Last model failed
+                    error_response = {
+                        "success": False,
+                        "error": f"Failed to load any Whisper model: {str(e)}",
+                        "suggestion": "Check internet connection and model availability"
+                    }
+                    print(json.dumps(error_response), file=sys.stderr)
+                    return None
 
     if not os.path.exists(audio_path):
-        print(f"Error: Audio file not found at {audio_path}", file=sys.stderr)
-        return None # Or raise an error
+        error_response = {
+            "success": False,
+            "error": f"Audio file not found: {audio_path}"
+        }
+        print(json.dumps(error_response), file=sys.stderr)
+        return None
 
     try:
-        # Transcribe the audio file
         print(f"Transcribing {audio_path}...", file=sys.stderr)
-        # beam_size=5 is a common default, adjust if needed
         segments, info = model.transcribe(audio_path, language=LANGUAGE_CODE, beam_size=5)
         print(f"Detected language '{info.language}' with probability {info.language_probability}", file=sys.stderr)
 
         # Concatenate segments to get the full transcription
         transcribed_text = "".join([segment.text for segment in segments])
-
-        # Print the final transcription to standard output
-        print(transcribed_text.strip())
+        
+        # Return success response as JSON
+        success_response = {
+            "success": True,
+            "text": transcribed_text.strip(),
+            "language": info.language,
+            "language_probability": info.language_probability
+        }
+        
+        print(json.dumps(success_response))
         print("Transcription complete.", file=sys.stderr)
-
         return transcribed_text.strip()
 
     except Exception as e:
         print(f"Error during transcription process: {e}", file=sys.stderr)
-        # Print traceback for more details during debugging
         import traceback
         traceback.print_exc(file=sys.stderr)
+        
+        error_response = {
+            "success": False,
+            "error": f"Transcription failed: {str(e)}"
+        }
+        print(json.dumps(error_response), file=sys.stderr)
         return None
 
 if __name__ == "__main__":
-    # Ensure an audio file path is provided as a command-line argument
     if len(sys.argv) > 1:
         audio_file_path = sys.argv[1]
-        # Call the transcription function with the provided path
         transcribed_text = transcribe_audio_file(audio_file_path)
         if transcribed_text is None:
             sys.exit(1)
     else:
-        # Print usage instructions if no argument is provided
-        print("Usage: python transcribe_audio.py <path_to_audio_file>", file=sys.stderr)
-        sys.exit(1) 
+        error_response = {
+            "success": False,
+            "error": "Usage: python transcribe_audio.py <path_to_audio_file>"
+        }
+        print(json.dumps(error_response), file=sys.stderr)
+        sys.exit(1)
