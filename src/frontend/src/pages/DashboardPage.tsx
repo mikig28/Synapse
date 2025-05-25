@@ -1,23 +1,27 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useDigest } from '../context/DigestContext';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { SkeletonCard, SkeletonText } from '@/components/ui/Skeleton';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
-import { Zap, AlertCircle, FileText, ExternalLink as LinkIcon, TrendingUp, Users, Calendar, BarChart3 } from 'lucide-react';
+import { Zap, AlertCircle, FileText, ExternalLink as LinkIcon, TrendingUp, Users, Calendar, BarChart3, Volume2, XCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from '@/components/ui/button';
 
 const DashboardPage: React.FC = () => {
   const { 
     latestDigest, 
     latestDigestSources,
     isBatchSummarizing, 
-    summarizeLatestBookmarks 
+    summarizeLatestBookmarks,
+    setLatestDigest,
+    setLatestDigestSources
   } = useDigest();
   
   const { ref: headerRef, isInView: headerInView } = useScrollAnimation();
   const { ref: digestRef, isInView: digestInView } = useScrollAnimation();
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   console.log('[DashboardPage] Consuming from context - latestDigest:', latestDigest, 'isBatchSummarizing:', isBatchSummarizing, 'sources:', latestDigestSources);
 
@@ -25,6 +29,42 @@ const DashboardPage: React.FC = () => {
     console.log("[DashboardPage] handleSummarizeLatestClick called, invoking context action.");
     summarizeLatestBookmarks([], () => {});
   };
+
+  const handleReadAloud = () => {
+    if (!latestDigest) return;
+
+    if (isSpeaking) {
+      speechSynthesis.cancel();
+      setIsSpeaking(false);
+    } else {
+      const utterance = new SpeechSynthesisUtterance(latestDigest);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => {
+        console.error("Speech synthesis error");
+        setIsSpeaking(false);
+      };
+      speechSynthesis.speak(utterance);
+      setIsSpeaking(true);
+    }
+  };
+
+  const handleClearDigest = () => {
+    setLatestDigest(null);
+    setLatestDigestSources(null);
+    if (isSpeaking) {
+      speechSynthesis.cancel();
+      setIsSpeaking(false);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (speechSynthesis.speaking) {
+        speechSynthesis.cancel();
+        setIsSpeaking(false);
+      }
+    };
+  }, [latestDigest]);
 
   // Mock stats for demonstration
   const stats = [
@@ -188,14 +228,24 @@ const DashboardPage: React.FC = () => {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.5 }}
-                  className="flex items-center mb-4"
+                  className="flex items-center justify-between mb-4"
                 >
-                  <div className="p-2 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full mr-3">
-                    <Zap className="w-5 h-5 text-primary" />
+                  <div className="flex items-center">
+                    <div className="p-2 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full mr-3">
+                      <Zap className="w-5 h-5 text-primary" />
+                    </div>
+                    <h3 className="text-xl font-semibold gradient-text">
+                      Recent Bookmarks Digest
+                    </h3>
                   </div>
-                  <h3 className="text-xl font-semibold gradient-text">
-                    Recent Bookmarks Digest
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="icon" onClick={handleReadAloud} title={isSpeaking ? "Stop Reading" : "Read Aloud"}>
+                      <Volume2 className={`w-5 h-5 ${isSpeaking ? "text-destructive" : "text-primary"}`} />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={handleClearDigest} title="Clear Digest">
+                      <XCircle className="w-5 h-5 text-muted-foreground hover:text-destructive" />
+                    </Button>
+                  </div>
                 </motion.div>
                 
                 <motion.div

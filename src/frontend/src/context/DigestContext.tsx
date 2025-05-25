@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { summarizeLatestBookmarksService, SummarizeLatestResponse } from '../services/bookmarkService';
 import { useToast } from '@/hooks/use-toast';
 import { BookmarkItemType } from '../types/bookmark';
@@ -25,19 +25,46 @@ interface DigestContextType {
 const DigestContext = createContext<DigestContextType | undefined>(undefined);
 
 export const DigestProvider: React.FC<{children: ReactNode}> = ({ children }) => {
-  const [latestDigest, _setLatestDigestInternal] = useState<string | null>(null);
-  const [latestDigestSources, _setLatestDigestSourcesInternal] = useState<DigestSourceInfo[] | null>(null);
+  const [latestDigest, _setLatestDigestInternal] = useState<string | null>(() => {
+    const storedDigest = localStorage.getItem('latestDigest');
+    return storedDigest ? JSON.parse(storedDigest) : null;
+  });
+  const [latestDigestSources, _setLatestDigestSourcesInternal] = useState<DigestSourceInfo[] | null>(() => {
+    const storedSources = localStorage.getItem('latestDigestSources');
+    return storedSources ? JSON.parse(storedSources) : null;
+  });
   const [isBatchSummarizing, setIsBatchSummarizing] = useState<boolean>(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const storedDigest = localStorage.getItem('latestDigest');
+    if (storedDigest) {
+      _setLatestDigestInternal(JSON.parse(storedDigest));
+    }
+    const storedSources = localStorage.getItem('latestDigestSources');
+    if (storedSources) {
+      _setLatestDigestSourcesInternal(JSON.parse(storedSources));
+    }
+  }, []);
 
   const setLatestDigest = (digest: string | null) => {
     console.log('[DigestProvider] setLatestDigest CALLED with:', digest);
     _setLatestDigestInternal(digest);
+    if (digest) {
+      localStorage.setItem('latestDigest', JSON.stringify(digest));
+    } else {
+      localStorage.removeItem('latestDigest');
+    }
   };
 
   const setLatestDigestSources = (sources: DigestSourceInfo[] | null) => {
     console.log('[DigestProvider] setLatestDigestSources CALLED with:', sources);
     _setLatestDigestSourcesInternal(sources);
+    if (sources) {
+      localStorage.setItem('latestDigestSources', JSON.stringify(sources));
+    } else {
+      localStorage.removeItem('latestDigestSources');
+    }
   };
 
   const summarizeLatestBookmarks = async (
@@ -48,6 +75,8 @@ export const DigestProvider: React.FC<{children: ReactNode}> = ({ children }) =>
     setIsBatchSummarizing(true);
     setLatestDigest(null);
     setLatestDigestSources(null);
+    localStorage.removeItem('latestDigest');
+    localStorage.removeItem('latestDigestSources');
     try {
       const response = await summarizeLatestBookmarksService();
       toast({
