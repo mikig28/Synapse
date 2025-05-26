@@ -15,6 +15,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import TasksPage from '@/pages/TasksPage';
 import NotesPage from '@/pages/NotesPage';
 import IdeasPage from '@/pages/IdeasPage';
+import MeetingsPage from '@/pages/MeetingsPage';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { DigestProvider } from './context/DigestContext';
 
@@ -49,12 +50,13 @@ const App: React.FC = () => {
                         <Routes>
                           <Route path="dashboard" element={<DashboardPage />} />
                           <Route path="inbox" element={<InboxPage />} />
-                          <Route path="images" element={<ImagesPage />} />
+                           <Route path="images" element={<ImagesPage />} />
                           <Route path="bookmarks" element={<BookmarksPage />} />
                           <Route path="videos" element={<VideosPage />} />
                           <Route path="tasks" element={<TasksPage />} />
                           <Route path="notes" element={<NotesPage />} />
                           <Route path="ideas" element={<IdeasPage />} />
+                          <Route path="meetings" element={<MeetingsPage />} />
                           <Route path="settings" element={<SettingsPage />} />
                           <Route path="*" element={<Navigate to="/dashboard" replace />} />
                         </Routes>
@@ -73,4 +75,4 @@ const App: React.FC = () => {
   );
 };
 
-export default App; 
+export default App;

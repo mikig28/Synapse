@@ -59,7 +59,7 @@ export class MeetingAnalysisService {
         });
 
         const savedTask = await task.save();
-        createdTasks.push(savedTask._id);
+        createdTasks.push(savedTask._id as mongoose.Types.ObjectId);
 
         // Update meeting with task reference
         meeting.extractedTasks = meeting.extractedTasks || [];
@@ -67,7 +67,7 @@ export class MeetingAnalysisService {
           title: taskData.title,
           description: taskData.description,
           priority: taskData.priority,
-          taskId: savedTask._id,
+          taskId: savedTask._id as mongoose.Types.ObjectId,
         });
       }
 
@@ -81,13 +81,13 @@ export class MeetingAnalysisService {
         });
 
         const savedNote = await note.save();
-        createdNotes.push(savedNote._id);
+        createdNotes.push(savedNote._id as mongoose.Types.ObjectId);
 
         // Update meeting with note reference
         meeting.extractedNotes = meeting.extractedNotes || [];
         meeting.extractedNotes.push({
           content: noteData.content,
-          noteId: savedNote._id,
+          noteId: savedNote._id as mongoose.Types.ObjectId,
         });
       }
 

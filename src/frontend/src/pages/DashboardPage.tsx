@@ -406,7 +406,7 @@ const DashboardPage: React.FC = () => {
               </p>
               <div className="flex flex-wrap justify-center gap-3">
                 <AnimatedButton variant="primary" onClick={handleAddNoteClick}>
-                  <FileText className="w-4 h-4 mr-2" />
+                  <FileText className="w-4 h-4 mr-2 pointer-events-none" />
                   Add Note
                 </AnimatedButton>
                 <AnimatedButton variant="secondary">

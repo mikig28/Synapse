@@ -16,6 +16,7 @@ import videoRoutes from './api/routes/videosRoutes'; // Added video routes
 import tasksRoutes from './api/routes/tasksRoutes'; // Add this
 import notesRoutes from './api/routes/notesRoutes'; // Add this
 import ideasRoutes from './api/routes/ideasRoutes'; // Add this
+import meetingsRoutes from './api/routes/meetingsRoutes'; // Add meetings routes
 import userRoutes from './api/routes/userRoutes'; // <-- IMPORT USER ROUTES
 
 dotenv.config();
@@ -113,6 +114,7 @@ app.use('/api/v1/videos', videoRoutes); // Use video routes
 app.use('/api/v1/tasks', tasksRoutes); // Add this
 app.use('/api/v1/notes', notesRoutes); // Add this
 app.use('/api/v1/ideas', ideasRoutes); // Add this
+app.use('/api/v1/meetings', meetingsRoutes); // Add meetings routes
 app.use('/api/v1/users', userRoutes); // <-- USE USER ROUTES
 
 // Basic route for testing
@@ -171,4 +173,4 @@ startServer();
 // Export io instance so it can be used in other modules (e.g., telegramService)
 export { io };
 
-export default app; // Optional: export app for testing purposes 
+export default app; // Optional: export app for testing purposes
