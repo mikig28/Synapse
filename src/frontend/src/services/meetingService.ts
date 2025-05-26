@@ -67,7 +67,7 @@ export interface MeetingsResponse {
 }
 
 class MeetingService {
-  private baseURL = '/api/v1/meetings';
+  private baseURL = '/meetings';
 
   /**
    * Get all meetings for the authenticated user
