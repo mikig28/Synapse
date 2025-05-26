@@ -120,6 +120,16 @@ const BookmarksPage: React.FC = () => {
     });
   }, [bookmarks, filter, searchTerm, sortOrder]);
 
+  const isValidUrlWithHostname = (url: string | null | undefined): boolean => {
+    if (!url || typeof url !== 'string' || url.trim() === '') return false;
+    try {
+      const parsed = new URL(url);
+      return !!parsed.hostname;
+    } catch (e) {
+      return false;
+    }
+  };
+
   const extractTweetId = (url: string): string | undefined => {
     if (!url || typeof url !== 'string') return undefined; // Add guard for invalid URL input
     if (url.includes('twitter.com') || url.includes('x.com')) {
@@ -475,22 +485,39 @@ const BookmarksPage: React.FC = () => {
 
           {!loading && !error && filteredAndSortedBookmarks.length > 0 && (
             <div className="space-y-4 md:space-y-6">
-              {filteredAndSortedBookmarks.map((bookmark) => (
-                <GlassCard key={bookmark._id} className="p-4 md:p-6 animate-fade-in group">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-grow min-w-0">
-                        <a 
-                            href={bookmark.originalUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="hover:underline group-hover:text-primary transition-colors duration-200"
-                        >
-                            <h3 className="text-lg md:text-xl font-semibold text-foreground truncate" title={bookmark.title || bookmark.fetchedTitle || "Untitled Bookmark"}>
-                                {bookmark.title || bookmark.fetchedTitle || "Untitled Bookmark"}
-                            </h3>
-                        </a>
-                        <p className="text-xs text-muted-foreground truncate" title={bookmark.originalUrl}>{bookmark.originalUrl}</p>
-                         {bookmark.sourcePlatform === 'X' && (() => {
+              {filteredAndSortedBookmarks.map((bookmark) => {
+                const isValidOriginalUrl = isValidUrlWithHostname(bookmark.originalUrl);
+                let displayableUrl = bookmark.originalUrl;
+                if (!isValidOriginalUrl) {
+                  if (bookmark.originalUrl && bookmark.originalUrl.trim() !== '') {
+                    displayableUrl = `Invalid URL: ${bookmark.originalUrl}`;
+                  } else {
+                    displayableUrl = "Missing or empty URL";
+                  }
+                }
+
+                return (
+                  <GlassCard key={bookmark._id} className="p-4 md:p-6 animate-fade-in group">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-grow min-w-0">
+                        {isValidOriginalUrl ? (
+                          <a 
+                              href={bookmark.originalUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="hover:underline group-hover:text-primary transition-colors duration-200"
+                          >
+                              <h3 className="text-lg md:text-xl font-semibold text-foreground truncate" title={bookmark.title || bookmark.fetchedTitle || bookmark.originalUrl}>
+                                  {bookmark.title || bookmark.fetchedTitle || bookmark.originalUrl}
+                              </h3>
+                          </a>
+                        ) : (
+                          <h3 className="text-lg md:text-xl font-semibold text-foreground truncate" title={bookmark.title || bookmark.fetchedTitle || displayableUrl}>
+                              {bookmark.title || bookmark.fetchedTitle || displayableUrl}
+                          </h3>
+                        )}
+                        <p className="text-xs text-muted-foreground truncate" title={displayableUrl}>{displayableUrl}</p>
+                         {bookmark.sourcePlatform === 'X' && isValidOriginalUrl && (() => {
                            const tweetId = extractTweetId(bookmark.originalUrl);
                            if (tweetId) { // Only render if tweetId is valid
                              return (
@@ -505,7 +532,7 @@ const BookmarksPage: React.FC = () => {
                          })()}
                         {bookmark.sourcePlatform === 'LinkedIn' && (
                             <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
-                                <LinkedInCard bookmark={bookmark} onDelete={handleDeleteBookmark} />
+                                <LinkedInCard bookmark={{...bookmark, originalUrl: isValidOriginalUrl ? bookmark.originalUrl : "#" }} onDelete={handleDeleteBookmark} />
                             </div>
                         )}
                         {bookmark.summary && bookmark.status === 'summarized' && (
@@ -565,7 +592,8 @@ const BookmarksPage: React.FC = () => {
                         }
                     </div>
                 </GlassCard>
-              ))}
+                );
+              })}
             </div>
           )}
 
