@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { ExternalLink, Info, MessageSquareText, Trash2, CalendarDays, FileText, Zap, AlertCircle, Volume2, Search, BookmarkPlus, CheckCircle, XCircle, Loader2, PlayCircle, StopCircle, Brain, ListFilter, ArrowUpDown, Link as LinkIcon } from 'lucide-react';
 import { getBookmarks, deleteBookmarkService, summarizeBookmarkById, speakTextWithElevenLabs } from '../services/bookmarkService';
@@ -13,20 +14,25 @@ import useAuthStore from '@/store/authStore';
 import { useDigest } from '../context/DigestContext';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SkeletonList } from '@/components/ui/Skeleton';
+import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 
 const BookmarksPage: React.FC = () => {
   const [bookmarks, setBookmarks] = useState<BookmarkItemType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<string>('all'); // 'all', 'week', 'month'
+  const [filter, setFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [sortOrder, setSortOrder] = useState<string>('desc'); // 'asc', 'desc' for date sorting
+  const [sortOrder, setSortOrder] = useState<string>('desc');
   
-  // State for pagination
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [totalBookmarks, setTotalBookmarks] = useState<number>(0);
-  const PAGE_LIMIT = 10; // Or make this configurable
+  const PAGE_LIMIT = 10;
+
+  const { ref: headerRef, isInView: headerInView } = useScrollAnimation();
+  const { ref: controlsRef, isInView: controlsInView } = useScrollAnimation();
+  const { ref: listRef, isInView: listInView } = useScrollAnimation();
 
   const [summarizingBookmarkId, setSummarizingBookmarkId] = useState<string | null>(null);
   const [playingBookmarkId, setPlayingBookmarkId] = useState<string | null>(null);
@@ -40,10 +46,9 @@ const BookmarksPage: React.FC = () => {
   const { toast } = useToast();
   const token = useAuthStore((state) => state.token);
 
-  // Current audio instance
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
 
-  console.log("[BookmarksPage] Component rendered or re-rendered"); // General render log
+  console.log("[BookmarksPage] Component rendered or re-rendered");
 
   const fetchBookmarksCallback = useCallback(async (pageToFetch: number = 1) => {
     if (!token) return;
@@ -51,8 +56,8 @@ const BookmarksPage: React.FC = () => {
     setLoading(true);
     try {
       const response = await getBookmarks(pageToFetch, PAGE_LIMIT);
-      console.log("[BookmarksPage] Fetched data:", JSON.stringify(response.data, null, 2)); // Log the raw data
-      setBookmarks(response.data); // Use response.data for the array
+      console.log("[BookmarksPage] Fetched data:", JSON.stringify(response.data, null, 2));
+      setBookmarks(response.data);
       setCurrentPage(response.currentPage);
       setTotalPages(response.totalPages);
       setTotalBookmarks(response.totalBookmarks);
@@ -71,11 +76,11 @@ const BookmarksPage: React.FC = () => {
   }, [token, toast]);
 
   useEffect(() => {
-    fetchBookmarksCallback(currentPage); // Fetch initial or current page
+    fetchBookmarksCallback(currentPage);
   }, [fetchBookmarksCallback, currentPage]);
 
   const filteredAndSortedBookmarks = useMemo(() => {
-    if (!Array.isArray(bookmarks)) { // Add a guard clause
+    if (!Array.isArray(bookmarks)) {
       console.warn('[BookmarksPage] bookmarks is not an array in useMemo. Returning empty array.', bookmarks);
       return [];
     }
@@ -117,17 +122,15 @@ const BookmarksPage: React.FC = () => {
   };
 
   const extractTweetId = (url: string): string | undefined => {
-    if (!url || typeof url !== 'string') return undefined; // Add guard for invalid URL input
+    if (!url || typeof url !== 'string') return undefined;
     if (url.includes('twitter.com') || url.includes('x.com')) {
       const match = url.match(/status\/(\d+)/);
-      // Ensure match is not null and has a second element (the ID)
       return match && match[1] ? match[1] : undefined;
     }
     return undefined;
   };
 
   const handleDeleteBookmark = async (bookmarkId: string) => {
-    // TODO: Consider adding a confirmation modal here for better UX
     try {
       await deleteBookmarkService(bookmarkId);
       setBookmarks(prev => prev.filter(b => b._id !== bookmarkId));
@@ -178,7 +181,6 @@ const BookmarksPage: React.FC = () => {
   
   const handleSummarizeLatestClick = () => {
     console.log("[BookmarksPage] handleSummarizeLatestClick called, invoking context action.");
-    // Pass setBookmarks directly as the context handles the update logic
     summarizeLatestBookmarks(bookmarks, setBookmarks);
   };
 
@@ -198,9 +200,9 @@ const BookmarksPage: React.FC = () => {
       currentAudio.pause();
       URL.revokeObjectURL(currentAudio.src);
       setCurrentAudio(null);
-      if (playingBookmarkId === bookmarkId) { // If clicking play on the same item that was playing
+      if (playingBookmarkId === bookmarkId) {
         console.log("[handleSpeakSummary] Condition: playingBookmarkId === bookmarkId is TRUE. Toggling off. Exiting.");
-        setPlayingBookmarkId(null); // Stop playback
+        setPlayingBookmarkId(null);
         return;
       }
       console.log("[handleSpeakSummary] Condition: playingBookmarkId === bookmarkId is FALSE. Proceeding.");
@@ -209,7 +211,7 @@ const BookmarksPage: React.FC = () => {
     }
 
     const ELEVENLABS_API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY;
-    console.log(`[handleSpeakSummary] Retrieved VITE_ELEVENLABS_API_KEY: '${ELEVENLABS_API_KEY ? '********' : 'MISSING!'}'`); // Mask key for safety
+    console.log(`[handleSpeakSummary] Retrieved VITE_ELEVENLABS_API_KEY: '${ELEVENLABS_API_KEY ? '********' : 'MISSING!'}'`);
 
     if (!ELEVENLABS_API_KEY) {
         console.log("[handleSpeakSummary] Condition: !ELEVENLABS_API_KEY is TRUE. Exiting.");
@@ -219,7 +221,7 @@ const BookmarksPage: React.FC = () => {
     }
     console.log("[handleSpeakSummary] Condition: !ELEVENLABS_API_KEY is FALSE. API Key found. Proceeding to API call.");
 
-    const VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; // TODO: Make this configurable or fetch from user settings
+    const VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
 
     setPlayingBookmarkId(bookmarkId);
     setAudioErrorId(null);
@@ -261,6 +263,28 @@ const BookmarksPage: React.FC = () => {
     }
   };
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: {
+        type: 'spring',
+        stiffness: 100,
+      },
+    },
+  };
+
   const renderPlatformIcon = (platform: BookmarkItemType['sourcePlatform'] | 'Other' | undefined) => {
     switch (platform) {
       case 'X':
@@ -274,21 +298,17 @@ const BookmarksPage: React.FC = () => {
 
   if (loading && bookmarks.length === 0) {
     return (
-      <div className="p-4 md:p-8 min-h-screen">
-        <div className="container mx-auto">
-          <h1 className="text-5xl font-bold mb-12 text-center">
+      <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-background via-background to-muted/20 relative overflow-hidden">
+        <div className="container mx-auto relative z-10">
+          <motion.h1 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="text-5xl font-bold mb-12 text-center bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-primary"
+          >
             My Bookmarks
-          </h1>
-          <div className="space-y-4">
-            {[...Array(3)].map((_, i) => (
-              <Card key={i} className="p-6">
-                <div className="animate-pulse">
-                  <div className="h-4 bg-gray-300 rounded w-3/4 mb-2"></div>
-                  <div className="h-3 bg-gray-300 rounded w-1/2"></div>
-                </div>
-              </Card>
-            ))}
-          </div>
+          </motion.h1>
+          <SkeletonList items={3} />
         </div>
       </div>
     );
@@ -296,16 +316,16 @@ const BookmarksPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="p-4 md:p-8 min-h-screen flex flex-col items-center justify-center">
-        <Card className="w-full max-w-lg text-center">
+      <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-background via-destructive/5 to-background text-foreground flex flex-col items-center justify-center">
+        <Card className="w-full max-w-lg text-center border-destructive/20 bg-background/80 backdrop-blur-sm">
           <CardHeader>
-            <CardTitle className="text-3xl text-red-400 flex items-center justify-center">
+            <CardTitle className="text-3xl text-destructive flex items-center justify-center">
               <AlertCircle className="w-10 h-10 mr-3" /> Error Loading Bookmarks
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-lg mb-4">{error}</p>
-            <Button onClick={() => fetchBookmarksCallback(1)}>
+            <Button onClick={() => fetchBookmarksCallback(1)} className="hover:scale-105 transition-transform">
               <Zap className="mr-2 h-4 w-4" /> Try Again
             </Button>
           </CardContent>
@@ -315,16 +335,34 @@ const BookmarksPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 relative overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <motion.div
+          className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-primary/10 to-accent/10 rounded-full blur-3xl"
+          animate={{ scale: [1, 1.2, 1], rotate: [0, 180, 360] }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+        />
+        <motion.div
+          className="absolute -bottom-40 -left-40 w-96 h-96 bg-gradient-to-tr from-secondary/10 to-primary/10 rounded-full blur-3xl"
+          animate={{ scale: [1.2, 1, 1.2], rotate: [360, 180, 0] }}
+          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+        />
+      </div>
+
       <div className="relative z-10 container mx-auto p-4 md:p-8 space-y-8">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row justify-between items-center mb-4 md:mb-8 gap-4">
+        <motion.div
+          ref={headerRef}
+          initial={{ opacity: 0, y: 30 }}
+          animate={headerInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
+          transition={{ duration: 0.6 }}
+          className="flex flex-col md:flex-row justify-between items-center mb-4 md:mb-8 gap-4"
+        >
           <div className="flex items-center gap-4">
             <div className="p-3 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full">
               <BookmarkPlus className="w-8 h-8 text-primary" />
             </div>
             <div>
-              <h1 className="text-4xl md:text-5xl font-bold">
+              <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-primary">
                 Bookmarks
               </h1>
               <p className="text-muted-foreground text-lg">
@@ -336,7 +374,7 @@ const BookmarksPage: React.FC = () => {
             onClick={handleSummarizeLatestClick} 
             size="lg"
             disabled={isBatchSummarizing}
-            className="self-center md:self-auto"
+            className="self-center md:self-auto hover:scale-105 transition-all duration-200 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90"
           >
             {isBatchSummarizing ? (
               <>
@@ -350,75 +388,71 @@ const BookmarksPage: React.FC = () => {
               </>
             )}
           </Button>
-        </div>
+        </motion.div>
 
-        {/* Controls Section - Search, Filter, Sort */}
-        <Card className="p-4 md:p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-            {/* Search Input */}
-            <div className="md:col-span-1">
-              <Label htmlFor="bookmarks-search" className="text-sm font-medium text-muted-foreground mb-1 block">Search</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
-                <Input
-                  id="bookmarks-search"
-                  type="text"
-                  placeholder="Search title, URL, summary..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10"
-                />
+        <motion.div
+          ref={controlsRef}
+          initial={{ opacity: 0, y: 20 }}
+          animate={controlsInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
+          <Card className="p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+              <div className="md:col-span-1">
+                <Label htmlFor="bookmarks-search" className="text-sm font-medium text-muted-foreground mb-1 block">Search</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
+                  <Input
+                    id="bookmarks-search"
+                    type="text"
+                    placeholder="Search title, URL, summary..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 text-sm bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="bookmarks-filter" className="text-sm font-medium text-muted-foreground mb-1 block">Date Filter</Label>
+                <Select value={filter} onValueChange={setFilter}>
+                  <SelectTrigger id="bookmarks-filter" className="w-full bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200">
+                    <SelectValue placeholder="Filter by date..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border-border shadow-xl">
+                    <SelectItem value="all">All Time</SelectItem>
+                    <SelectItem value="week">Past Week</SelectItem>
+                    <SelectItem value="month">Past Month</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="bookmarks-sort" className="text-sm font-medium text-muted-foreground mb-1 block">Sort By Date</Label>
+                <Select value={sortOrder} onValueChange={setSortOrder}>
+                  <SelectTrigger id="bookmarks-sort" className="w-full bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200">
+                    <SelectValue placeholder="Sort by..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border-border shadow-xl">
+                    <SelectItem value="desc">Newest First</SelectItem>
+                    <SelectItem value="asc">Oldest First</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
+          </Card>
+        </motion.div>
 
-            {/* Filter Select */}
-            <div>
-              <Label htmlFor="bookmarks-filter" className="text-sm font-medium text-muted-foreground mb-1 block">Date Filter</Label>
-              <Select value={filter} onValueChange={setFilter}>
-                <SelectTrigger id="bookmarks-filter" className="w-full">
-                  <SelectValue placeholder="Filter by date..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Time</SelectItem>
-                  <SelectItem value="week">Past Week</SelectItem>
-                  <SelectItem value="month">Past Month</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Sort Select */}
-            <div>
-              <Label htmlFor="bookmarks-sort" className="text-sm font-medium text-muted-foreground mb-1 block">Sort By Date</Label>
-              <Select value={sortOrder} onValueChange={setSortOrder}>
-                <SelectTrigger id="bookmarks-sort" className="w-full">
-                  <SelectValue placeholder="Sort by..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="desc">Newest First</SelectItem>
-                  <SelectItem value="asc">Oldest First</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </Card>
-
-        {/* Bookmarks List Section */}
-        <div>
-          {loading && (
-            <div className="space-y-4">
-              {[...Array(PAGE_LIMIT)].map((_, i) => (
-                <Card key={i} className="p-6">
-                  <div className="animate-pulse">
-                    <div className="h-4 bg-gray-300 rounded w-3/4 mb-2"></div>
-                    <div className="h-3 bg-gray-300 rounded w-1/2"></div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
+        <motion.div
+          ref={listRef}
+          initial={{ opacity: 0, y: 20 }}
+          animate={listInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          {loading && <SkeletonList items={PAGE_LIMIT} />}
           
           {error && (
-            <Alert variant="destructive" className="my-6">
+            <Alert variant="destructive" className="border-destructive/20 bg-destructive/5 my-6">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Error Loading Bookmarks</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
@@ -426,7 +460,7 @@ const BookmarksPage: React.FC = () => {
           )}
           
           {!loading && !error && filteredAndSortedBookmarks.length === 0 && (
-            <Card className="p-8 my-6 text-center">
+            <Card className="p-8 my-6 text-center bg-background/80 backdrop-blur-sm border-border/50">
               <BookmarkPlus className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
               <h3 className="text-xl font-semibold text-foreground mb-2">
                 {searchTerm || filter !== 'all' ? 'No Bookmarks Match Your Criteria' : 'No Bookmarks Yet'}
@@ -438,8 +472,13 @@ const BookmarksPage: React.FC = () => {
           )}
 
           {!loading && !error && filteredAndSortedBookmarks.length > 0 && (
-            <div className="space-y-4 md:space-y-6">
-              {filteredAndSortedBookmarks.map((bookmark) => {
+            <motion.div 
+              className="space-y-4 md:space-y-6"
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+            >
+              {filteredAndSortedBookmarks.map((bookmark, index) => {
                 const isValidOriginalUrl = isValidUrlWithHostname(bookmark.originalUrl);
                 let displayableUrl = bookmark.originalUrl;
                 if (!isValidOriginalUrl) {
@@ -451,130 +490,153 @@ const BookmarksPage: React.FC = () => {
                 }
 
                 return (
-                  <Card key={bookmark._id} className="p-4 md:p-6 group">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-grow min-w-0">
-                        {isValidOriginalUrl ? (
-                          <a 
-                              href={bookmark.originalUrl} 
-                              target="_blank" 
-                              rel="noopener noreferrer" 
-                              className="hover:underline group-hover:text-primary transition-colors duration-200"
-                          >
-                              <h3 className="text-lg md:text-xl font-semibold text-foreground truncate" title={bookmark.title || bookmark.fetchedTitle || bookmark.originalUrl}>
-                                  {bookmark.title || bookmark.fetchedTitle || bookmark.originalUrl}
-                              </h3>
-                          </a>
-                        ) : (
-                          <h3 className="text-lg md:text-xl font-semibold text-foreground truncate" title={bookmark.title || bookmark.fetchedTitle || displayableUrl}>
-                              {bookmark.title || bookmark.fetchedTitle || displayableUrl}
-                          </h3>
-                        )}
-                        <p className="text-xs text-muted-foreground truncate" title={displayableUrl}>{displayableUrl}</p>
-                         {bookmark.sourcePlatform === 'X' && isValidOriginalUrl && (() => {
-                           const tweetId = extractTweetId(bookmark.originalUrl);
-                           if (tweetId) { // Only render if tweetId is valid
-                             return (
-                               <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
-                                   <ClientTweetCard 
-                                     id={tweetId}
-                                   />
-                               </div>
-                             );
-                           }
-                           return null; // Or some placeholder/error for invalid tweet URL
-                         })()}
-                        {bookmark.sourcePlatform === 'LinkedIn' && (
-                            <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
-                                <LinkedInCard bookmark={{...bookmark, originalUrl: isValidOriginalUrl ? bookmark.originalUrl : "#" }} onDelete={handleDeleteBookmark} />
-                            </div>
-                        )}
-                        {bookmark.summary && bookmark.status === 'summarized' && (
-                            <details className="mt-3 text-sm text-muted-foreground/90 leading-relaxed">
-                                <summary className="cursor-pointer font-medium text-primary/80 hover:text-primary select-none">View Summary</summary>
-                                <p className="pt-2 whitespace-pre-wrap">{String(bookmark.summary)}</p>
-                            </details>
-                        )}
-                        {bookmark.status === 'pending' && <p className="text-xs text-amber-500 mt-1">Summary pending...</p>}
-                        {bookmark.status === 'failed' && <p className="text-xs text-destructive mt-1">Summary failed.</p>}
-                         {bookmark.status === 'processing' && (
-                            <div className="flex items-center text-xs text-sky-500 mt-1">
-                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                Processing summary...
-                            </div>
-                        )}
-                    </div>
-                    <div className="flex flex-col items-end space-y-2 flex-shrink-0 ml-2">
-                        <Button 
-                            size="sm"
-                            variant="ghost" 
-                            onClick={() => handleSpeakSummary(bookmark._id, bookmark.summary)}
-                            disabled={!bookmark.summary || !!playingBookmarkId || !!summarizingBookmarkId}
-                            title={playingBookmarkId === bookmark._id ? "Stop" : "Play Summary"}
-                        >
-                            {playingBookmarkId === bookmark._id ? <StopCircle className="w-4 h-4"/> : <PlayCircle className="w-4 h-4"/>}
-                        </Button>
-                        <Button 
-                            size="sm"
-                            variant="ghost" 
+                  <motion.div
+                    key={bookmark._id}
+                    variants={itemVariants}
+                    whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
+                    className="group"
+                  >
+                    <Card className="p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-grow min-w-0">
+                          {isValidOriginalUrl ? (
+                            <a 
+                                href={bookmark.originalUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="hover:underline group-hover:text-primary transition-colors duration-200"
+                            >
+                                <h3 className="text-lg md:text-xl font-semibold text-foreground truncate" title={bookmark.title || bookmark.fetchedTitle || bookmark.originalUrl}>
+                                    {bookmark.title || bookmark.fetchedTitle || bookmark.originalUrl}
+                                </h3>
+                            </a>
+                          ) : (
+                            <h3 className="text-lg md:text-xl font-semibold text-foreground truncate" title={bookmark.title || bookmark.fetchedTitle || displayableUrl}>
+                                {bookmark.title || bookmark.fetchedTitle || displayableUrl}
+                            </h3>
+                          )}
+                          <p className="text-xs text-muted-foreground truncate" title={displayableUrl}>{displayableUrl}</p>
+                           {bookmark.sourcePlatform === 'X' && isValidOriginalUrl && (() => {
+                             const tweetId = extractTweetId(bookmark.originalUrl);
+                             if (tweetId) {
+                               return (
+                                 <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
+                                     <ClientTweetCard 
+                                       id={tweetId}
+                                     />
+                                 </div>
+                               );
+                             }
+                             return null;
+                           })()}
+                          {bookmark.sourcePlatform === 'LinkedIn' && (
+                              <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
+                                  <LinkedInCard bookmark={{...bookmark, originalUrl: isValidOriginalUrl ? bookmark.originalUrl : "#" }} onDelete={handleDeleteBookmark} />
+                              </div>
+                          )}
+                          {bookmark.summary && bookmark.status === 'summarized' && (
+                              <details className="mt-3 text-sm text-muted-foreground/90 leading-relaxed">
+                                  <summary className="cursor-pointer font-medium text-primary/80 hover:text-primary select-none transition-colors duration-200">View Summary</summary>
+                                  <p className="pt-2 whitespace-pre-wrap">{String(bookmark.summary)}</p>
+                              </details>
+                          )}
+                          {bookmark.status === 'pending' && <p className="text-xs text-amber-500 mt-1">Summary pending...</p>}
+                          {bookmark.status === 'failed' && <p className="text-xs text-destructive mt-1">Summary failed.</p>}
+                           {bookmark.status === 'processing' && (
+                              <div className="flex items-center text-xs text-sky-500 mt-1">
+                                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                  <span>Processing summary...</span>
+                              </div>
+                          )}
+                        </div>
+                        <div className="flex flex-col space-y-2 ml-4 shrink-0">
+                          <Button
+                            size="icon"
+                            variant="ghost"
                             onClick={() => handleSummarizeBookmark(bookmark._id)}
-                            disabled={!!playingBookmarkId || !!summarizingBookmarkId || bookmark.status === 'summarized' || bookmark.status === 'processing'}
-                            title="Summarize"
-                        >
-                           {summarizingBookmarkId === bookmark._id ? <Loader2 className="w-4 h-4 animate-spin"/> : <Zap className="w-4 h-4"/>}
-                        </Button>
-                        <Button 
-                            size="sm"
-                            variant="ghost" 
-                            onClick={() => handleDeleteBookmark(bookmark._id)} 
-                            className="text-destructive/70 hover:text-destructive hover:bg-destructive/10"
-                            title="Delete"
-                            disabled={!!playingBookmarkId || !!summarizingBookmarkId}
-                        >
+                            disabled={summarizingBookmarkId === bookmark._id || bookmark.status === 'processing'}
+                            className="hover:bg-primary/10 hover:text-primary transition-colors duration-200"
+                            title="Generate Summary"
+                          >
+                            {summarizingBookmarkId === bookmark._id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : bookmark.status === 'summarized' ? (
+                              <CheckCircle className="w-4 h-4 text-green-500" />
+                            ) : bookmark.status === 'failed' ? (
+                              <XCircle className="w-4 h-4 text-destructive" />
+                            ) : (
+                              <Brain className="w-4 h-4" />
+                            )}
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleSpeakSummary(bookmark._id, bookmark.summary)}
+                            disabled={!bookmark.summary || bookmark.status !== 'summarized'}
+                            className={`hover:bg-accent/10 hover:text-accent transition-colors duration-200 ${audioErrorId === bookmark._id ? 'text-destructive' : ''}`}
+                            title={audioErrorId === bookmark._id ? "Audio Error" : (playingBookmarkId === bookmark._id ? "Stop Speaking" : "Speak Summary")}
+                          >
+                            {playingBookmarkId === bookmark._id ? (
+                              <StopCircle className="w-4 h-4" />
+                            ) : audioErrorId === bookmark._id ? (
+                              <AlertCircle className="w-4 h-4" />
+                            ) : (
+                              <PlayCircle className="w-4 h-4" />
+                            )}
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleDeleteBookmark(bookmark._id)}
+                            className="hover:bg-destructive/10 hover:text-destructive transition-colors duration-200"
+                            title="Delete Bookmark"
+                          >
                             <Trash2 className="w-4 h-4" />
-                        </Button>
-                    </div>
-                  </div>
-                   <div className="text-xs text-muted-foreground mt-3 pt-3 border-t border-border/20 flex justify-between items-center">
-                        <span>Saved: {new Date(bookmark.createdAt).toLocaleDateString()}</span>
-                        {bookmark.sourcePlatform && 
-                            <span className="flex items-center gap-1 px-2 py-0.5 bg-muted/30 rounded">
-                                {renderPlatformIcon(bookmark.sourcePlatform)} 
-                                {bookmark.sourcePlatform}
-                            </span>
-                        }
-                    </div>
-                </Card>
+                          </Button>
+                        </div>
+                      </div>
+                      <CardFooter className="pt-4 mt-4 border-t border-border/20 flex justify-between items-center text-xs text-muted-foreground">
+                        <div className="flex items-center">
+                          {renderPlatformIcon(bookmark.sourcePlatform)}
+                          <span>{bookmark.sourcePlatform || 'Other'}</span>
+                        </div>
+                        <div className="flex items-center">
+                          <CalendarDays className="w-3 h-3 mr-1.5" />
+                          <span>{new Date(bookmark.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </CardFooter>
+                    </Card>
+                  </motion.div>
                 );
               })}
-            </div>
+            </motion.div>
           )}
+        </motion.div>
 
         {/* Pagination Controls */}
         {!loading && !error && totalPages > 1 && (
-            <div className="flex justify-center items-center space-x-2 mt-8">
-                <Button 
-                    onClick={() => fetchBookmarksCallback(currentPage - 1)} 
-                    disabled={currentPage <= 1}
-                    variant="outline"
-                    size="sm"
-                >
-                    Previous
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                    Page {currentPage} of {totalPages} (Total: {totalBookmarks})
-                </span>
-                <Button 
-                    onClick={() => fetchBookmarksCallback(currentPage + 1)} 
-                    disabled={currentPage >= totalPages}
-                    variant="outline"
-                    size="sm"
-                >
-                    Next
-                </Button>
-            </div>
+          <div className="flex justify-center items-center space-x-2 mt-8">
+            <Button
+              onClick={() => fetchBookmarksCallback(currentPage - 1)}
+              disabled={currentPage <= 1}
+              variant="outline"
+              size="sm"
+            >
+              Previous
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              onClick={() => fetchBookmarksCallback(currentPage + 1)}
+              disabled={currentPage >= totalPages}
+              variant="outline"
+              size="sm"
+            >
+              Next
+            </Button>
+          </div>
         )}
-        </div>
       </div>
     </div>
   );
