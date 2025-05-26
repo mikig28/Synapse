@@ -38,7 +38,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog" // Added AlertDialog
+} from "@/components/ui/alert-dialog"; // Added AlertDialog
 
 const TasksPage: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -518,4 +518,4 @@ const TasksPage: React.FC = () => {
   );
 };
 
-export default TasksPage; 
+export default TasksPage;
