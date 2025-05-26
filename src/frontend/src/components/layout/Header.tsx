@@ -54,11 +54,11 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
             <DropdownMenuTrigger asChild>
               <AnimatedButton 
                 variant="ghost" 
-                size="lg"
-                className="border-white/20 hover:bg-white/10 flex items-center justify-center relative"
+                size="md"
+                className="border-white/20 hover:bg-white/10 flex items-center justify-center relative w-10 h-10 p-0"
               >
-                <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 bg-red-500/30" />
-                <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 bg-blue-500/30" />
+                <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
                 <span className="sr-only">Toggle theme</span>
               </AnimatedButton>
             </DropdownMenuTrigger>
@@ -78,8 +78,8 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
           {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <AnimatedButton variant="ghost" className="relative h-8 w-8 rounded-full hover:bg-white/10">
-                  <UserCircle className="h-7 w-7 text-purple-300" />
+                <AnimatedButton variant="ghost" className="relative w-10 h-10 p-0 rounded-full hover:bg-white/10 flex items-center justify-center">
+                  <UserCircle className="h-6 w-6 text-purple-300" />
                 </AnimatedButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56 z-[60] bg-black/80 backdrop-blur-md border border-white/10 p-2 mt-2" align="end" forceMount>
