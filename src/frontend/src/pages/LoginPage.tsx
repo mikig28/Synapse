@@ -7,12 +7,13 @@ import { Label } from '@/components/ui/label';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import useAuthStore from '@/store/authStore';
-import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
+import { useGoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
 import { loginService } from '@/services/authService'; // Import loginService
-import { Brain, Mail, Lock, Sparkles, ArrowRight, AlertCircle } from 'lucide-react';
+import { Brain, Mail, Lock, Sparkles, ArrowRight, AlertCircle, ChromeIcon } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { FloatingParticles } from '@/components/common/FloatingParticles';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -86,8 +87,14 @@ const LoginPage: React.FC = () => {
 
   const handleGoogleError = () => {
     console.error('Google Sign-In Failed');
-    // Handle error (e.g., show a message to the user)
+    setError("Google Sign-In failed. Please try again or use email/password.");
   };
+
+  const googleLogin = useGoogleLogin({
+    onSuccess: handleGoogleSuccess,
+    onError: handleGoogleError,
+    // flow: 'auth-code', // Consider if you need auth code flow for backend verification
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 relative overflow-hidden flex items-center justify-center p-4">
@@ -169,13 +176,18 @@ const LoginPage: React.FC = () => {
           {/* Error Message */}
           {error && (
             <motion.div
-              className="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center gap-2"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.3 }}
+              className="mb-6"
             >
-              <AlertCircle className="w-4 h-4 text-red-400" />
-              <p className="text-red-300 text-sm">{error}</p>
+              <Alert variant="destructive" className="glass border-red-500/30 bg-red-500/10 text-red-200">
+                <AlertCircle className="h-4 w-4 text-red-300" />
+                <AlertTitle className="text-red-200 font-semibold">Login Failed</AlertTitle>
+                <AlertDescription className="text-red-300/90">
+                  {error}
+                </AlertDescription>
+              </Alert>
             </motion.div>
           )}
 
@@ -249,6 +261,27 @@ const LoginPage: React.FC = () => {
             </AnimatedButton>
           </motion.form>
 
+          {/* OR Separator */}
+          <div className="my-6 flex items-center">
+            <div className="flex-grow border-t border-blue-300/20"></div>
+            <span className="mx-4 text-blue-200/70 text-sm">OR</span>
+            <div className="flex-grow border-t border-blue-300/20"></div>
+          </div>
+
+          {/* Google Sign-In Button */}
+          <AnimatedButton 
+            onClick={() => googleLogin()}
+            variant="secondary" 
+            className="w-full bg-white/90 hover:bg-white text-gray-700 hover:text-gray-900 shadow-md hover:shadow-lg border border-gray-300/50"
+            size="lg"
+            disabled={loading}
+          >
+            <span className="flex items-center justify-center gap-2">
+              <ChromeIcon className="w-5 h-5" /> {/* Using ChromeIcon as a stand-in for Google logo */}
+              Sign in with Google
+            </span>
+          </AnimatedButton>
+
           {/* TEMPORARY DEBUG BUTTON */}
           {useAuthStore.getState().isAuthenticated && (
             <motion.div
@@ -262,37 +295,6 @@ const LoginPage: React.FC = () => {
               </Button>
             </motion.div>
           )}
-
-          {/* Divider */}
-          <motion.div
-            className="relative my-6"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-          >
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-white/10" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-transparent px-2 text-blue-200/70">
-                Or continue with
-              </span>
-            </div>
-          </motion.div>
-
-          {/* Google Login */}
-          <motion.div
-            className="mb-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
-          >
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={handleGoogleError}
-              useOneTap
-            />
-          </motion.div>
 
           {/* Register Link */}
           <motion.div

@@ -113,7 +113,7 @@ const InboxPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      <div className="container mx-auto p-4 md:p-8 space-y-8">
+      <div className="container mx-auto p-3 sm:p-4 md:p-8 space-y-6 sm:space-y-8">
         {/* Header Section */}
         <motion.div
           ref={headerRef}
@@ -127,17 +127,17 @@ const InboxPage: React.FC = () => {
               <Inbox className="w-8 h-8 text-primary" />
             </div>
             <div>
-              <h1 className="text-4xl md:text-5xl font-bold gradient-text">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold gradient-text">
                 Inbox
               </h1>
-              <p className="text-muted-foreground text-lg mt-2">
+              <p className="text-muted-foreground text-md sm:text-lg mt-1 sm:mt-2">
                 Your captured content from all sources
               </p>
             </div>
           </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mt-6 sm:mt-8">
             {[
               { label: 'Total Items', value: stats.total, icon: MessageCircle },
               { label: 'Today', value: stats.today, icon: Clock },
@@ -198,20 +198,20 @@ const InboxPage: React.FC = () => {
           <GlassCard>
             <div className="p-6">
               {/* Section Header */}
-              <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-                <h2 className="text-2xl font-semibold gradient-text">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                <h2 className="text-xl sm:text-2xl font-semibold gradient-text">
                   Captured Items History
                 </h2>
-                <div className="flex items-center space-x-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-3 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
                   {/* Search */}
-                  <div className="relative">
+                  <div className="relative w-full sm:w-auto">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <input
                       type="text"
                       placeholder="Search items..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 pr-4 py-2 bg-muted/20 border border-border/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                      className="w-full pl-10 pr-4 py-2 bg-muted/20 border border-border/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                     />
                   </div>
                   <AnimatedButton
@@ -219,9 +219,10 @@ const InboxPage: React.FC = () => {
                     size="sm"
                     onClick={handleRefresh}
                     loading={loading}
-                    className="hover-glow"
+                    className="hover-glow w-full sm:w-auto"
                   >
                     <RefreshCw className="w-4 h-4" />
+                    <span className="sm:hidden ml-2">Refresh</span>
                   </AnimatedButton>
                 </div>
               </div>
