@@ -76,10 +76,8 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
 
           {isAuthenticated ? (
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <AnimatedButton variant="ghost" className="relative w-10 h-10 p-0 rounded-full hover:bg-white/10 flex items-center justify-center">
-                  <UserCircle className="h-6 w-6 text-purple-300" />
-                </AnimatedButton>
+              <DropdownMenuTrigger className="relative w-10 h-10 p-0 rounded-full hover:bg-white/10 flex items-center justify-center bg-transparent border border-white/20 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
+                <UserCircle className="h-6 w-6 text-purple-300" />
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56 z-[60] bg-black/80 backdrop-blur-md border border-white/10 p-2 mt-2" align="end" forceMount>
                 <DropdownMenuItem className="font-normal focus:bg-white/5">
