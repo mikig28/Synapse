@@ -18,6 +18,7 @@ import {
   Image as ImageIcon,
   FileText,
   Lightbulb,
+  Mic,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -37,6 +38,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
     { href: "/tasks", label: "Tasks", icon: ListChecks },
     { href: "/notes", label: "Notes", icon: FileText },
     { href: "/ideas", label: "Ideas", icon: Lightbulb },
+    { href: "/meetings", label: "Meetings", icon: Mic },
     { href: "/calendar", label: "Calendar", icon: CalendarDays }, 
     { href: "/planning", label: "Planning", icon: Plane }, 
     { href: "/goals", label: "Goals", icon: Target }, 
