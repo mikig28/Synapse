@@ -518,7 +518,7 @@ const BookmarksPage: React.FC = () => {
                           </h3>
                         )}
                         <p className="text-xs text-muted-foreground truncate" title={displayableUrl}>{displayableUrl}</p>
-                         {/* {bookmark.sourcePlatform === 'X' && isValidOriginalUrl && (() => {
+                         {bookmark.sourcePlatform === 'X' && isValidOriginalUrl && (() => {
                            const tweetId = extractTweetId(bookmark.originalUrl);
                            if (tweetId) { // Only render if tweetId is valid
                              return (
@@ -530,12 +530,12 @@ const BookmarksPage: React.FC = () => {
                              );
                            }
                            return null; // Or some placeholder/error for invalid tweet URL
-                         })()} */}
-                        {/* {bookmark.sourcePlatform === 'LinkedIn' && (
+                         })()}
+                        {bookmark.sourcePlatform === 'LinkedIn' && (
                             <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
                                 <LinkedInCard bookmark={{...bookmark, originalUrl: isValidOriginalUrl ? bookmark.originalUrl : "#" }} onDelete={handleDeleteBookmark} />
                             </div>
-                        )} */}
+                        )}
                         {bookmark.summary && bookmark.status === 'summarized' && (
                             <details className="mt-3 text-sm text-muted-foreground/90 leading-relaxed">
                                 <summary className="cursor-pointer font-medium text-primary/80 hover:text-primary select-none">View Summary</summary>
