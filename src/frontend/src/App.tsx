@@ -7,7 +7,7 @@ import SettingsPage from '@/pages/SettingsPage';
 import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
 import ImagesPage from '@/pages/ImagesPage';
-import BookmarksPage from './pages/BookmarksPage';
+import BookmarksPage from './pages/BookmarksPageSimple';
 import VideosPage from './pages/VideosPage';
 import useAuthStore from '@/store/authStore';
 import HomePage from '@/pages/HomePage';
