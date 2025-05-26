@@ -3,10 +3,21 @@ import axios from 'axios';
 import { BookmarkItemType } from "../types/bookmark";
 import { DigestSourceInfo } from "../context/DigestContext";
 
-export const getBookmarks = async (): Promise<BookmarkItemType[]> => {
+// Define a type for the paginated response
+export interface PaginatedBookmarksResponse {
+  data: BookmarkItemType[];
+  currentPage: number;
+  totalPages: number;
+  totalBookmarks: number;
+}
+
+export const getBookmarks = async (page: number = 1, limit: number = 10): Promise<PaginatedBookmarksResponse> => {
   try {
-    const response = await axiosInstance.get<BookmarkItemType[]>('/bookmarks');
-    return response.data;
+    // Pass page and limit as query parameters
+    const response = await axiosInstance.get<PaginatedBookmarksResponse>('/bookmarks', {
+      params: { page, limit }
+    });
+    return response.data; // The entire paginated object is returned
   } catch (error) {
     console.error("Error fetching bookmarks:", error);
     throw error;

@@ -27,6 +27,12 @@ const BookmarksPage: React.FC = () => {
   const [filter, setFilter] = useState<string>('all'); // 'all', 'week', 'month'
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [sortOrder, setSortOrder] = useState<string>('desc'); // 'asc', 'desc' for date sorting
+  
+  // State for pagination
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalBookmarks, setTotalBookmarks] = useState<number>(0);
+  const PAGE_LIMIT = 10; // Or make this configurable
 
   const [summarizingBookmarkId, setSummarizingBookmarkId] = useState<string | null>(null);
   const [playingBookmarkId, setPlayingBookmarkId] = useState<string | null>(null);
@@ -45,13 +51,16 @@ const BookmarksPage: React.FC = () => {
 
   console.log("[BookmarksPage] Component rendered or re-rendered"); // General render log
 
-  const fetchBookmarksCallback = useCallback(async () => {
+  const fetchBookmarksCallback = useCallback(async (pageToFetch: number = 1) => {
     if (!token) return;
-    console.log("[BookmarksPage] Fetching bookmarks...");
+    console.log(`[BookmarksPage] Fetching bookmarks for page: ${pageToFetch}...`);
     setLoading(true);
     try {
-      const data = await getBookmarks();
-      setBookmarks(data);
+      const response = await getBookmarks(pageToFetch, PAGE_LIMIT);
+      setBookmarks(response.data); // Use response.data for the array
+      setCurrentPage(response.currentPage);
+      setTotalPages(response.totalPages);
+      setTotalBookmarks(response.totalBookmarks);
       setError(null);
     } catch (err) {
       setError('Failed to load bookmarks. Please ensure the backend is running and refresh.');
@@ -67,10 +76,14 @@ const BookmarksPage: React.FC = () => {
   }, [token, toast]);
 
   useEffect(() => {
-    fetchBookmarksCallback();
-  }, [fetchBookmarksCallback]);
+    fetchBookmarksCallback(currentPage); // Fetch initial or current page
+  }, [fetchBookmarksCallback, currentPage]);
 
   const filteredAndSortedBookmarks = useMemo(() => {
+    if (!Array.isArray(bookmarks)) { // Add a guard clause
+      console.warn('[BookmarksPage] bookmarks is not an array in useMemo. Returning empty array.', bookmarks);
+      return [];
+    }
     const now = new Date();
     let processedBookmarks = bookmarks.filter(bookmark => {
       const bookmarkDate = new Date(bookmark.createdAt);
@@ -294,7 +307,7 @@ const BookmarksPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <p className="text-lg mb-4">{error}</p>
-            <AnimatedButton onClick={fetchBookmarksCallback}>
+            <AnimatedButton onClick={() => fetchBookmarksCallback(1)}>
               <Zap className="mr-2 h-4 w-4" /> Try Again
             </AnimatedButton>
           </CardContent>
