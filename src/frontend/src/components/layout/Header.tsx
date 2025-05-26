@@ -29,6 +29,16 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
     setTheme(newTheme);
   };
 
+  const handleThemeToggle = () => {
+    console.log('Theme toggle clicked! Current theme:', theme);
+    const themeOrder: ("light" | "dark" | "system")[] = ["light", "dark", "system"];
+    const currentIndex = themeOrder.indexOf(theme);
+    const nextIndex = (currentIndex + 1) % themeOrder.length;
+    const nextTheme = themeOrder[nextIndex];
+    console.log('Switching to theme:', nextTheme);
+    setTheme(nextTheme);
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -50,32 +60,19 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
         </div>
 
         <div className="flex items-center gap-3 header-buttons">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <AnimatedButton 
-                variant="ghost" 
-                size="md"
-                className="border-white/20 hover:bg-white/10 flex items-center justify-center w-12 h-12 p-0"
-              >
-                <div className="relative w-6 h-6 flex items-center justify-center">
-                  <Sun className="h-5 w-5 absolute inset-0 rotate-0 scale-100 transition-all duration-300 dark:-rotate-90 dark:scale-0" />
-                  <Moon className="h-5 w-5 absolute inset-0 rotate-90 scale-0 transition-all duration-300 dark:rotate-0 dark:scale-100" />
-                </div>
-                <span className="sr-only">Toggle theme</span>
-              </AnimatedButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="z-[60]">
-              <DropdownMenuItem onClick={() => handleSetTheme("light")} className="cursor-pointer">
-                Light
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSetTheme("dark")} className="cursor-pointer">
-                Dark
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSetTheme("system")} className="cursor-pointer">
-                System
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <AnimatedButton 
+            variant="ghost" 
+            size="md"
+            className="border-white/20 hover:bg-white/10 flex items-center justify-center w-12 h-12 p-0"
+            onClick={handleThemeToggle}
+            title={`Current theme: ${theme}. Click to cycle through themes.`}
+          >
+            <div className="relative w-6 h-6 flex items-center justify-center">
+              <Sun className="h-5 w-5 absolute inset-0 rotate-0 scale-100 transition-all duration-300 dark:-rotate-90 dark:scale-0" />
+              <Moon className="h-5 w-5 absolute inset-0 rotate-90 scale-0 transition-all duration-300 dark:rotate-0 dark:scale-100" />
+            </div>
+            <span className="sr-only">Toggle theme</span>
+          </AnimatedButton>
 
           {isAuthenticated ? (
             <DropdownMenu>
