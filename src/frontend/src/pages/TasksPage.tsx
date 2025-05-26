@@ -481,6 +481,7 @@ const TasksPage: React.FC = () => {
         )}
         {showAddTaskModal && (
           <AddTaskModal 
+    isOpen={showAddTaskModal}
             onClose={handleCloseAddTaskModal} 
             onSave={handleSaveNewTask} 
           />
