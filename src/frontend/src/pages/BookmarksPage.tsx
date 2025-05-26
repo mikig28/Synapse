@@ -66,6 +66,7 @@ const BookmarksPage: React.FC = () => {
     setLoading(true);
     try {
       const response = await getBookmarks(pageToFetch, PAGE_LIMIT);
+      console.log("[BookmarksPage] Fetched data:", JSON.stringify(response.data, null, 2)); // Log the raw data
       setBookmarks(response.data); // Use response.data for the array
       setCurrentPage(response.currentPage);
       setTotalPages(response.totalPages);
