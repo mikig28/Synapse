@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 
 interface AnimatedButtonProps extends HTMLMotionProps<"button"> {
   children: React.ReactNode;
-  variant?: 'primary' | 'secondary' | 'ghost' | 'gradient' | 'glow';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'gradient' | 'glow' | 'outline';
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
   success?: boolean;
@@ -33,6 +33,7 @@ export const AnimatedButton: React.FC<AnimatedButtonProps> = ({
     ghost: 'bg-transparent hover:bg-accent hover:text-accent-foreground',
     gradient: 'bg-gradient-to-r from-primary to-secondary text-white hover:shadow-lg',
     glow: 'bg-primary text-primary-foreground shadow-[0_0_20px_rgba(99,102,241,0.5)] hover:shadow-[0_0_30px_rgba(99,102,241,0.7)]',
+    outline: 'border border-primary bg-transparent text-primary hover:bg-primary/10',
   };
 
   const sizeStyles = {

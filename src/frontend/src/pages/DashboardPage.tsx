@@ -8,6 +8,11 @@ import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { Zap, AlertCircle, FileText, ExternalLink as LinkIcon, TrendingUp, Users, Calendar, BarChart3, Volume2, XCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
+import AddNoteModal from '@/components/notes/AddNoteModal';
+import useAuthStore from '@/store/authStore';
+import { BACKEND_ROOT_URL } from "@/services/axiosConfig";
+
+const API_BASE_URL = `${BACKEND_ROOT_URL}/api/v1`;
 
 const DashboardPage: React.FC = () => {
   const { 
@@ -22,6 +27,11 @@ const DashboardPage: React.FC = () => {
   const { ref: headerRef, isInView: headerInView } = useScrollAnimation();
   const { ref: digestRef, isInView: digestInView } = useScrollAnimation();
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isAddNoteModalOpen, setIsAddNoteModalOpen] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
+  const [isSavingNote, setIsSavingNote] = useState<boolean>(false);
+
+  const token = useAuthStore((state) => state.token);
 
   console.log('[DashboardPage] Consuming from context - latestDigest:', latestDigest, 'isBatchSummarizing:', isBatchSummarizing, 'sources:', latestDigestSources);
 
@@ -54,6 +64,61 @@ const DashboardPage: React.FC = () => {
     if (isSpeaking) {
       speechSynthesis.cancel();
       setIsSpeaking(false);
+    }
+  };
+
+  const handleAddNoteClick = () => {
+    console.log("Add Note button clicked! Opening modal.");
+    setIsAddNoteModalOpen(true);
+  };
+
+  const handleSaveNote = async (noteData: { title?: string; content: string; source?: string }) => {
+    if (!token) {
+      setNoteError("Authentication token not found. Please log in.");
+      return;
+    }
+    setNoteError(null);
+    setIsSavingNote(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/notes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ 
+          title: noteData.title || undefined,
+          content: noteData.content,
+          source: noteData.source || 'dashboard'
+        }),
+      });
+
+      const contentType = response.headers.get("content-type");
+      if (!response.ok) {
+        let errorData;
+        if (contentType && contentType.includes("application/json")) {
+          errorData = await response.json();
+        } else {
+          const textError = await response.text();
+          throw new Error(`Server returned non-JSON error: ${response.status}. Response: ${textError.substring(0, 100)}...`);
+        }
+        throw new Error(errorData.message || `Failed to create note. Status: ${response.status}`);
+      }
+
+      if (!contentType || !contentType.includes("application/json")) {
+        const textResponse = await response.text();
+        throw new Error(`Expected JSON response, but got ${contentType}. Response: ${textResponse.substring(0,100)}...`);
+      }
+      await response.json(); 
+      console.log("Note saved successfully from dashboard");
+      setIsAddNoteModalOpen(false);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred while saving the note.';
+      console.error("Error creating note from dashboard:", errorMessage);
+      setNoteError(errorMessage);
+    } finally {
+      setIsSavingNote(false);
     }
   };
 
@@ -340,7 +405,7 @@ const DashboardPage: React.FC = () => {
                 Start capturing ideas, organizing thoughts, and building your second brain.
               </p>
               <div className="flex flex-wrap justify-center gap-3">
-                <AnimatedButton variant="primary">
+                <AnimatedButton variant="primary" onClick={handleAddNoteClick}>
                   <FileText className="w-4 h-4 mr-2" />
                   Add Note
                 </AnimatedButton>
@@ -353,6 +418,17 @@ const DashboardPage: React.FC = () => {
           </GlassCard>
         </motion.div>
       </div>
+      {/* Add Note Modal */}
+      <AddNoteModal 
+        isOpen={isAddNoteModalOpen}
+        onClose={() => {
+          setIsAddNoteModalOpen(false);
+          setNoteError(null);
+        }}
+        onSave={handleSaveNote}
+        existingError={noteError}
+        clearError={() => setNoteError(null)}
+      />
     </div>
   );
 };

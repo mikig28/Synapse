@@ -10,6 +10,7 @@ import useAuthStore from '@/store/authStore';
 import { registerService } from '@/services/authService';
 import { Brain, User, Mail, Lock, Sparkles, ArrowRight, AlertCircle } from 'lucide-react';
 import { FloatingParticles } from '@/components/common/FloatingParticles';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const RegisterPage: React.FC = () => {
   const [fullName, setFullName] = useState('');
@@ -118,13 +119,18 @@ const RegisterPage: React.FC = () => {
           {/* Error Message */}
           {error && (
             <motion.div
-              className="mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center gap-2"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.3 }}
+              className="mb-6"
             >
-              <AlertCircle className="w-4 h-4 text-red-400" />
-              <p className="text-red-300 text-sm">{error}</p>
+              <Alert variant="destructive" className="glass border-red-500/30 bg-red-500/10 text-red-200">
+                <AlertCircle className="h-4 w-4 text-red-300" />
+                <AlertTitle className="text-red-200 font-semibold">Registration Failed</AlertTitle>
+                <AlertDescription className="text-red-300/90">
+                  {error}
+                </AlertDescription>
+              </Alert>
             </motion.div>
           )}
 

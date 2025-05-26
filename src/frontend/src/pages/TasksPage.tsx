@@ -27,6 +27,18 @@ import {
   Filter,
   TrendingUp
 } from 'lucide-react';
+import { useToast } from "@/hooks/use-toast"; // Added useToast
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog" // Added AlertDialog
 
 const TasksPage: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -35,6 +47,7 @@ const TasksPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const token = useAuthStore((state) => state.token);
+  const { toast } = useToast(); // Initialize toast
 
   // State for editing a task
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -59,22 +72,20 @@ const TasksPage: React.FC = () => {
   };
 
   const fetchTasks = async () => {
-    // Token check can be removed if axiosInstance handles auth errors globally (e.g., by logging out)
-    // For now, let's keep it as a guard, though axiosInstance will send the token.
     if (!token) {
-      setError('Authentication token not found.');
+      setError('Authentication token not found. Please log in.');
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      // Use axiosInstance for the request
       const response = await axiosInstance.get<Task[]>('/tasks');
       setTasks(response.data);
       setError(null);
     } catch (err: any) {
-      console.error("Failed to fetch tasks:", err);
-      setError(err.response?.data?.message || err.message || 'Failed to fetch tasks.');
+      const errMsg = err.response?.data?.message || err.message || 'Failed to fetch tasks.';
+      console.error("Failed to fetch tasks:", errMsg);
+      setError(errMsg);
     } finally {
       setLoading(false);
     }
@@ -82,24 +93,21 @@ const TasksPage: React.FC = () => {
 
   useEffect(() => {
     fetchTasks();
-  }, [token]); // Dependency on token can remain if you want to refetch on login/logout
+  }, [token]);
 
   const handleDelete = async (taskId: string) => {
     if (!token) {
-      alert('Authentication token not found.');
-      return;
-    }
-    if (!confirm('Are you sure you want to delete this task?')) {
+      toast({ title: "Authentication Error", description: "Authentication token not found.", variant: "destructive" });
       return;
     }
     try {
-      // Use axiosInstance for the request
       await axiosInstance.delete(`/tasks/${taskId}`);
       setTasks(prevTasks => prevTasks.filter(task => task._id !== taskId));
-      alert('Task deleted successfully!');
+      toast({ title: "Task Deleted", description: "Task deleted successfully!", variant: "default" });
     } catch (err: any) {
-      console.error("Failed to delete task:", err);
-      alert(`Error deleting task: ${err.response?.data?.message || err.message}`);
+      const errMsg = err.response?.data?.message || err.message || 'Unknown error during deletion.';
+      console.error("Failed to delete task:", errMsg);
+      toast({ title: "Deletion Failed", description: `Error: ${errMsg}`, variant: "destructive" });
     }
   };
 
@@ -114,27 +122,26 @@ const TasksPage: React.FC = () => {
   };
 
   const handleSaveEdit = async (updatedTask: Task) => {
-    if (!token || !updatedTask) { // Token check can be debated if axiosInstance handles it
-      alert('Missing data for update.');
+    if (!token || !updatedTask) {
+      toast({ title: "Update Error", description: "Missing data for update.", variant: "destructive" });
       return;
     }
     try {
-      // Prepare only the fields that should be updated
       const payload = {
         title: updatedTask.title,
         description: updatedTask.description,
         status: updatedTask.status,
         priority: updatedTask.priority,
       };
-      // Use axiosInstance for the request
       const response = await axiosInstance.put<Task>(`/tasks/${updatedTask._id}`, payload);
       const savedTask = response.data;
       setTasks(prevTasks => prevTasks.map(task => task._id === savedTask._id ? savedTask : task));
-      alert('Task updated successfully!');
+      toast({ title: "Task Updated", description: "Task updated successfully!", variant: "default" });
       handleCloseEditModal();
     } catch (err: any) {
-      console.error("Failed to update task:", err);
-      alert(`Error updating task: ${err.response?.data?.message || err.message}`);
+      const errMsg = err.response?.data?.message || err.message || 'Unknown error during update.';
+      console.error("Failed to update task:", errMsg);
+      toast({ title: "Update Failed", description: `Error: ${errMsg}`, variant: "destructive" });
     }
   };
 
@@ -147,27 +154,27 @@ const TasksPage: React.FC = () => {
   };
 
   const handleSaveNewTask = async (newTaskData: Omit<Task, '_id' | 'createdAt' | 'updatedAt'>) => {
-    if (!token) { // Token check similar to above
-      setError("Authentication token not found. Please log in.");
-      setLoading(false);
+    if (!token) {
+      toast({ title: "Creation Error", description: "Authentication token not found. Please log in.", variant: "destructive" });
       return;
     }
     try {
-      // Use axiosInstance for the request
       const response = await axiosInstance.post<Task>('/tasks', newTaskData);
       const createdTask = response.data;
       setTasks(prevTasks => [createdTask, ...prevTasks]);
+      toast({ title: "Task Created", description: "New task added successfully!", variant: "default" });
       handleCloseAddTaskModal();
     } catch (err: any) {
-      const errorMessage = err.response?.data?.message || (err instanceof Error ? err.message : 'An unknown error occurred');
-      console.error("Error creating task:", errorMessage);
-      setError(errorMessage);
+      const errMsg = err.response?.data?.message || (err instanceof Error ? err.message : 'An unknown error occurred');
+      console.error("Error creating task:", errMsg);
+      toast({ title: "Creation Failed", description: `Error: ${errMsg}`, variant: "destructive" });
     }
   };
 
   const filteredTasks = tasks.filter(task => {
-    const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         task.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    const titleMatches = task.title.toLowerCase().includes(searchTerm.toLowerCase());
+    const descriptionMatches = (task.description || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = titleMatches || descriptionMatches;
     const matchesFilter = filterStatus === 'all' || task.status === filterStatus;
     return matchesSearch && matchesFilter;
   });
@@ -177,7 +184,7 @@ const TasksPage: React.FC = () => {
   const pendingTasks = tasks.filter(task => task.status === 'pending').length;
   const inProgressTasks = tasks.filter(task => task.status === 'in-progress').length;
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | undefined) => {
     switch (status) {
       case 'completed': return 'bg-green-500/20 text-green-300 border-green-500/30';
       case 'in-progress': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
@@ -186,7 +193,7 @@ const TasksPage: React.FC = () => {
     }
   };
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = (priority: string | undefined) => {
     switch (priority) {
       case 'high': return 'bg-red-500/20 text-red-300 border-red-500/30';
       case 'medium': return 'bg-orange-500/20 text-orange-300 border-orange-500/30';
@@ -206,10 +213,10 @@ const TasksPage: React.FC = () => {
         <div className="container mx-auto w-full max-w-4xl z-10">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             {[...Array(4)].map((_, i) => (
-              <SkeletonCard key={i} className="h-24 bg-purple-500/10">
+              <div key={`stat-skel-outer-${i}`} className="h-24 bg-purple-500/10 p-4 rounded-lg">
                 <Skeleton className="h-6 w-3/4 mb-2" />
                 <Skeleton className="h-4 w-1/2" />
-              </SkeletonCard>
+              </div>
             ))}
           </div>
           <div className="mb-6">
@@ -217,17 +224,17 @@ const TasksPage: React.FC = () => {
           </div>
           <div className="space-y-4">
             {[...Array(3)].map((_, i) => (
-              <SkeletonCard key={i} className="h-28 bg-purple-500/10">
+              <div key={`task-item-skel-outer-${i}`} className="h-28 bg-purple-500/10 p-4 rounded-lg">
                 <div className="flex justify-between items-center mb-2">
                   <Skeleton className="h-5 w-2/3" />
                   <Skeleton className="h-5 w-1/4" />
                 </div>
-                <SkeletonText lines={2} />
-                <div className="flex justify-end mt-3">
-                  <Skeleton className="h-8 w-16 mr-2" />
-                  <Skeleton className="h-8 w-16" />
+                <SkeletonText lines={2} className="mb-3"/>
+                <div className="flex justify-end mt-2">
+                  <Skeleton className="h-8 w-16 mr-2 rounded" />
+                  <Skeleton className="h-8 w-16 rounded" />
                 </div>
-              </SkeletonCard>
+              </div>
             ))}
           </div>
         </div>
@@ -418,8 +425,6 @@ const TasksPage: React.FC = () => {
               >
                 <GlassCard 
                   className={`p-4 md:p-5 flex flex-col h-full group transition-all duration-300 ease-in-out hover:shadow-pink-500/30 hover:border-pink-500/50 ${task.status === 'completed' ? 'opacity-70 hover:opacity-100' : ''}`}
-                  glowStrength={task.priority === 'high' ? 0.5 : 0.2}
-                  glowColor={task.priority === 'high' ? 'rgba(236, 72, 153, 0.7)' : 'rgba(192, 132, 252, 0.5)'}
                 >
                   <div className="flex justify-between items-start mb-3">
                     <h3 className="text-lg font-semibold text-white group-hover:text-pink-300 transition-colors">
@@ -428,7 +433,7 @@ const TasksPage: React.FC = () => {
                     <span 
                       className={`px-2 py-1 text-xs rounded-md border ${getStatusColor(task.status)}`}
                     >
-                      {task.status}
+                      {task.status || 'unknown'}
                     </span>
                   </div>
                   
@@ -440,7 +445,7 @@ const TasksPage: React.FC = () => {
 
                   <div className="flex items-center justify-between text-xs text-gray-400/80 mb-4">
                     <span className={`px-2 py-0.5 rounded-md border ${getPriorityColor(task.priority)}`}>
-                      Priority: {task.priority}
+                      Priority: {task.priority || 'normal'}
                     </span>
                     <span className="flex items-center">
                       <Calendar size={14} className="mr-1" />
@@ -457,14 +462,35 @@ const TasksPage: React.FC = () => {
                     >
                       <Edit size={14} className="mr-1" /> Edit
                     </AnimatedButton>
-                    <AnimatedButton 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => handleDelete(task._id)} 
-                      className="border-red-500/50 text-red-300 hover:bg-red-500/20 hover:border-red-500 glow-red-sm"
-                    >
-                      <Trash2 size={14} className="mr-1"/> Delete
-                    </AnimatedButton>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <AnimatedButton 
+                          size="sm" 
+                          variant="outline"
+                          className="border-red-500/50 text-red-300 hover:bg-red-500/20 hover:border-red-500 glow-red-sm"
+                        >
+                          <Trash2 size={14} className="mr-1"/> Delete
+                        </AnimatedButton>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="glass bg-background/80 border-border/30">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="text-foreground">Are you absolutely sure?</AlertDialogTitle>
+                          <AlertDialogDescription className="text-muted-foreground">
+                            This action cannot be undone. This will permanently delete the task
+                            "<strong>{task.title}</strong>".
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel className="hover:bg-muted/20">Cancel</AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={() => handleDelete(task._id)} 
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </GlassCard>
               </motion.div>

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import useAuthStore from '@/store/authStore';
-import { useGoogleLogin, CredentialResponse } from '@react-oauth/google';
+import { useGoogleLogin, CredentialResponse, TokenResponse } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
 import { loginService } from '@/services/authService'; // Import loginService
 import { Brain, Mail, Lock, Sparkles, ArrowRight, AlertCircle, ChromeIcon } from 'lucide-react';
@@ -51,38 +51,54 @@ const LoginPage: React.FC = () => {
     alert(`Token Present: ${!!useAuthStore.getState().token}`);
   };
 
-  const handleGoogleSuccess = (credentialResponse: CredentialResponse) => {
-    console.log('Google Sign-In Success:', credentialResponse);
-    if (credentialResponse.credential) {
-      const idToken = credentialResponse.credential;
-      // You would usually send this idToken to your backend for verification and to get your app's JWT
-      // For now, let's decode it to see the user info (for demonstration)
-      try {
-        const decodedToken: { email: string, name: string, sub: string, picture?: string } = jwtDecode(idToken);
-        console.log('Decoded Google ID Token:', decodedToken);
-        
-        // Simulate login with Google data for now
-        // In a real app, your backend would do this and return your own app token
-        const googleLoginPayload = {
-          user: { 
-            id: decodedToken.sub, // Use Google's subject ID
-            email: decodedToken.email,
-            fullName: decodedToken.name 
-          },
-          token: idToken, // Using Google's ID token as our app token for now (NOT SECURE FOR PROD)
-        };
-        storeLogin(googleLoginPayload);
-        console.log('[LoginPage] Google Login Success - Zustand store updated. Token present:', !!useAuthStore.getState().token);
-        console.log('[LoginPage] Google Login Success - User:', useAuthStore.getState().user);
-        navigate('/dashboard');
+  const handleGoogleSuccess = async (tokenResponse: Omit<TokenResponse, "error" | "error_description" | "error_uri">) => {
+    console.log('Google Sign-In (hook) Success, tokenResponse:', tokenResponse);
+    setLoading(true);
+    setError(null);
+    try {
+      // Use access_token to fetch user info from Google's userinfo endpoint
+      const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+      });
 
-      } catch (error) {
-        console.error("Error decoding Google ID token:", error);
-        // Handle error (e.g., show a message to the user)
+      if (!userInfoResponse.ok) {
+        throw new Error('Failed to fetch user info from Google');
       }
-    } else {
-      console.error('Google Sign-In Success but no credential received.');
+
+      const userInfo: { email: string, name: string, sub: string, picture?: string } = await userInfoResponse.json();
+      console.log('Fetched Google UserInfo:', userInfo);
+      
+      // Simulate login with Google data
+      // In a real app, you might send userInfo.sub or userInfo.email to your backend 
+      // to find/create a user and issue your app's JWT.
+      // For now, we construct a payload similar to what idToken decoding provided.
+      const googleLoginPayload = {
+        user: { 
+          id: userInfo.sub, // Use Google's subject ID
+          email: userInfo.email,
+          fullName: userInfo.name,
+          // picture: userInfo.picture // Optionally add picture
+        },
+        // IMPORTANT: For client-side simulation, we don't have our app's JWT here.
+        // The idToken was previously used. If your backend handles Google Sign-In,
+        // it would return your app's JWT.
+        // For now, using a placeholder or even the access_token (NOT for storing as session token).
+        // This part needs to align with your actual auth strategy.
+        // If your backend can take the access_token and give you a session, that's ideal.
+        // If not, and you previously relied on ID token for user info + makeshift session:
+        // this approach gets user info. Session token needs separate consideration.
+        token: tokenResponse.access_token, // Placeholder: using Google access_token, review for security
+      };
+
+      storeLogin(googleLoginPayload);
+      console.log('[LoginPage] Google Login (hook) Success - Zustand store updated.');
+      navigate('/dashboard');
+
+    } catch (error: any) {
+      console.error("Error during Google Sign-In post-processing:", error);
+      setError(error.message || "An error occurred after Google Sign-In.");
     }
+    setLoading(false);
   };
 
   const handleGoogleError = () => {
@@ -93,7 +109,7 @@ const LoginPage: React.FC = () => {
   const googleLogin = useGoogleLogin({
     onSuccess: handleGoogleSuccess,
     onError: handleGoogleError,
-    // flow: 'auth-code', // Consider if you need auth code flow for backend verification
+    flow: 'implicit', // Explicitly use implicit flow for access_token
   });
 
   return (

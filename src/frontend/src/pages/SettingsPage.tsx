@@ -61,12 +61,12 @@ const SettingsPage: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-zinc-900 relative overflow-hidden">
-      <FloatingParticles items={25} particleClassName="bg-gray-200/10" />
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 relative overflow-hidden">
+      <FloatingParticles items={25} particleClassName="bg-primary/10" />
       {/* Animated Background Orbs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <motion.div
-          className="absolute w-96 h-96 bg-gradient-to-r from-gray-400/10 to-slate-400/10 rounded-full blur-3xl"
+          className="absolute w-96 h-96 bg-gradient-to-r from-primary/10 to-accent/10 rounded-full blur-3xl"
           style={{ top: '10%', right: '10%' }}
           animate={{
             x: [0, -40, 0],
@@ -80,7 +80,7 @@ const SettingsPage: React.FC = () => {
           }}
         />
         <motion.div
-          className="absolute w-80 h-80 bg-gradient-to-r from-zinc-400/10 to-gray-400/10 rounded-full blur-3xl"
+          className="absolute w-80 h-80 bg-gradient-to-r from-secondary/10 to-primary/10 rounded-full blur-3xl"
           style={{ bottom: '20%', left: '10%' }}
           animate={{
             x: [0, 40, 0],
@@ -115,7 +115,7 @@ const SettingsPage: React.FC = () => {
               animate={{ rotate: [0, 5, -5, 0] }}
               transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
             >
-              <Settings className="w-12 h-12 text-gray-400" />
+              <Settings className="w-12 h-12 text-muted-foreground" />
             </motion.div>
             <motion.div
               className="ml-2"
@@ -125,10 +125,10 @@ const SettingsPage: React.FC = () => {
               <Sparkles className="w-6 h-6 text-amber-400" />
             </motion.div>
           </div>
-          <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-gray-300 to-slate-300 bg-clip-text text-transparent mb-4">
+          <h1 className="text-4xl md:text-6xl font-bold gradient-text mb-4">
             Settings
           </h1>
-          <p className="text-gray-100/80 text-lg max-w-2xl mx-auto">
+          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
             Customize your SYNAPSE experience and manage your preferences
           </p>
         </motion.div>
@@ -157,11 +157,16 @@ const SettingsPage: React.FC = () => {
                     {section.icon}
                   </div>
                   <div>
-                    <h2 className="text-2xl font-semibold text-white">{section.title}</h2>
-                    <p className="text-gray-300/70">{section.description}</p>
+                    <h2 className="text-2xl font-semibold text-foreground">{section.title}</h2>
+                    <p className="text-muted-foreground/80">{section.description}</p>
                   </div>
                 </div>
-                {section.content}
+                {/* Ensure section.content also uses themed text/components when implemented */}
+                {/* Example for placeholders: */}
+                {React.isValidElement(section.content) && section.content.type === 'p' && section.content.props.children.includes("future update") ? 
+                  React.cloneElement(section.content, { className: "text-muted-foreground/70" }) : 
+                  section.content
+                }
               </GlassCard>
             </motion.div>
           ))}
