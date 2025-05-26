@@ -1,37 +1,78 @@
+import mongoose, { Types, Schema } from 'mongoose';
 import { Request, Response } from 'express';
-import BookmarkItem, { IBookmarkItem } from '../../models/BookmarkItem'; // Import Mongoose model and interface
-import { ObjectId } from 'mongodb'; // Still needed for casting string IDs to ObjectId for synapseUserId
-import mongoose from 'mongoose'; // Import mongoose for delete operation
-// Consider adding a metadata fetching library here later
-// import * as metaFetcher from 'html-metadata-parser'; // Example
-import axios from 'axios'; // For fetching URL content - TODO: uncomment and install if not present
+import axios from 'axios';
 import * as cheerio from 'cheerio';
 console.log('[BookmarkController] Cheerio type (star import):', typeof cheerio, 'Cheerio value (star import):', cheerio); // DIAGNOSTIC LOG
 import OpenAI from 'openai';
+import { AuthenticatedRequest } from '../middleware/authMiddleware'; // Adjust path as needed
+import BookmarkItem, { IBookmarkItem } from '../../models/BookmarkItem'; // Correct path to BookmarkItem model
 
-// Define AuthenticatedRequest if it's not globally available or imported from a shared types file
-interface AuthenticatedRequest extends Request {
-    user?: {
-        id: string;
-        // Include other user properties if available
+// Helper function to fetch LinkedIn Metadata
+const fetchLinkedInMetadata = async (url: string): Promise<{ title?: string; description?: string; image?: string }> => {
+  try {
+    console.log(`[fetchLinkedInMetadata] Attempting to fetch: ${url}`);
+    const { data: htmlResponseData } = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+      },
+      timeout: 10000,
+      responseType: 'text',
+    });
+
+    if (typeof htmlResponseData !== 'string') {
+      console.error("[fetchLinkedInMetadata] Fetched URL content is not a string.");
+      throw new Error("Fetched content is not a string");
+    }
+
+    const $ = cheerio.load(htmlResponseData);
+
+    const title = $('meta[property="og:title"]').attr('content') || $('title').text();
+    const description = $('meta[property="og:description"]').attr('content') || $('meta[name="description"]').attr('content');
+    const image = $('meta[property="og:image"]').attr('content');
+
+    console.log(`[fetchLinkedInMetadata] Extracted: Title='${title}', Desc='${description ? description.substring(0,50) + "..." : "N/A"}', Image='${image}'`);
+
+    return { 
+      title: title?.trim(), 
+      description: description?.trim(), 
+      image: image?.trim() 
     };
-}
+
+  } catch (error: any) {
+    console.error(`[fetchLinkedInMetadata] Error fetching or parsing LinkedIn URL ${url}:`, error.message || error);
+    throw error; 
+  }
+};
 
 export const getBookmarks = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    // @ts-ignore // TODO: Fix this once auth is in place and req.user is properly typed
     const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ message: 'User not authenticated' });
     }
 
-    const bookmarks = await BookmarkItem.find({ userId: new ObjectId(userId) })
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
+    const bookmarks = await BookmarkItem.find({ userId: new Types.ObjectId(userId) })
       .sort({ createdAt: -1 })
-      .lean(); // Use .lean() for faster queries if you don't need Mongoose documents
-    res.status(200).json(bookmarks);
+      .skip(skip)
+      .limit(limit);
+
+    const totalBookmarks = await BookmarkItem.countDocuments({ userId: new Types.ObjectId(userId) });
+
+    res.status(200).json({
+      data: bookmarks,
+      currentPage: page,
+      totalPages: Math.ceil(totalBookmarks / limit),
+      totalBookmarks
+    });
   } catch (error) {
     console.error('Error fetching bookmarks:', error);
-    res.status(500).json({ message: 'Failed to fetch bookmarks', error: (error as Error).message });
+    res.status(500).json({ message: 'Server error while fetching bookmarks' });
   }
 };
 
@@ -42,12 +83,28 @@ export const processAndCreateBookmark = async (
   telegramMessageIdString?: string
 ) => {
   try {
-    const userId = new ObjectId(userIdString);
+    const userId = new Types.ObjectId(userIdString);
 
     // Check for existing bookmark first
     const existingBookmark = await BookmarkItem.findOne({ userId, originalUrl });
     if (existingBookmark) {
       console.warn(`[BookmarkController] Bookmark already exists for URL: ${originalUrl} and user: ${userIdString}. Skipping creation.`);
+      // Check if the existing bookmark needs metadata, e.g. if it was created when fetching failed
+      if (existingBookmark.sourcePlatform === 'LinkedIn' && existingBookmark.status === 'error' && (!existingBookmark.fetchedTitle || existingBookmark.fetchedTitle.startsWith('LinkedIn Post:'))) {
+          console.log(`[BookmarkController] Existing LinkedIn bookmark (ID: ${existingBookmark._id}) has error status or placeholder title. Attempting to re-fetch metadata.`);
+          try {
+            const metadata = await fetchLinkedInMetadata(originalUrl);
+            existingBookmark.fetchedTitle = metadata.title;
+            existingBookmark.fetchedDescription = metadata.description;
+            existingBookmark.fetchedImageUrl = metadata.image;
+            existingBookmark.status = 'metadata_fetched'; // Update status
+            await existingBookmark.save();
+            console.log(`[BookmarkController] Successfully re-fetched and updated metadata for existing LinkedIn bookmark: ${existingBookmark._id}`);
+          } catch (metaError: any) {
+            console.error(`[BookmarkController] Failed to re-fetch metadata for existing LinkedIn bookmark ${existingBookmark._id}:`, metaError.message || metaError);
+            // Status remains 'error', title/desc might still be placeholders
+          }
+      }
       return existingBookmark._id; // Return existing ID
     }
 
@@ -69,25 +126,20 @@ export const processAndCreateBookmark = async (
     // --- Metadata Fetching Logic --- 
     if (sourcePlatform === 'LinkedIn') {
         console.log(`[BookmarkController] Attempting to fetch metadata for LinkedIn URL: ${originalUrl}`);
-        // ** Placeholder for actual metadata fetching **
-        // try {
-        //   const metadata = await fetchMetadata(originalUrl); // Replace with actual fetching call
-        //   newBookmarkData.fetchedTitle = metadata.title;
-        //   newBookmarkData.fetchedDescription = metadata.description;
-        //   newBookmarkData.fetchedImageUrl = metadata.image;
-        //   newBookmarkData.status = 'metadata_fetched';
-        // } catch (metaError) {
-        //   console.error(`[BookmarkController] Failed to fetch metadata for ${originalUrl}:`, metaError);
-        //   newBookmarkData.status = 'error'; // Mark as error if fetch fails
-        // }
-        
-        // ** Temporary Placeholder Implementation **
-        newBookmarkData.fetchedTitle = `LinkedIn Post: ${originalUrl.substring(0, 50)}...`; // Placeholder title
-        newBookmarkData.fetchedDescription = "Placeholder description - Metadata fetching needs implementation."; // Placeholder desc
-        // newBookmarkData.fetchedImageUrl = 'path/to/default/linkedin/image.png'; // Optional: Placeholder image
-        newBookmarkData.status = 'metadata_fetched'; // Set status to indicate attempt (even if placeholder)
-        console.log(`[BookmarkController] Using placeholder metadata for LinkedIn URL: ${originalUrl}`);
-
+        try {
+          const metadata = await fetchLinkedInMetadata(originalUrl);
+          newBookmarkData.fetchedTitle = metadata.title;
+          newBookmarkData.fetchedDescription = metadata.description;
+          newBookmarkData.fetchedImageUrl = metadata.image;
+          newBookmarkData.status = 'metadata_fetched';
+          console.log(`[BookmarkController] Successfully fetched metadata for LinkedIn URL: ${originalUrl}`);
+        } catch (metaError: any) {
+          console.error(`[BookmarkController] Failed to fetch metadata for ${originalUrl}:`, metaError.message || metaError);
+          newBookmarkData.status = 'error'; // Mark as error if fetch fails
+          // Fallback to placeholder if metadata fetch fails but we still want to save the bookmark
+          newBookmarkData.fetchedTitle = `LinkedIn Post: ${originalUrl.substring(0, 50)}...`;
+          newBookmarkData.fetchedDescription = "Could not fetch details. Link saved.";
+        }
     } else if (sourcePlatform === 'Other') {
          // Optional: Add metadata fetching for 'Other' links here too if desired
          console.log(`[BookmarkController] Skipping metadata fetch for 'Other' URL: ${originalUrl}`);
@@ -103,7 +155,7 @@ export const processAndCreateBookmark = async (
     if (error.code === 11000) {
       console.warn(`Bookmark already exists for URL: ${originalUrl} and user: ${userIdString}. Skipping creation.`);
       // Optionally, you could fetch and return the existing bookmark ID
-      const existingBookmark = await BookmarkItem.findOne({ originalUrl, userId: new ObjectId(userIdString) });
+      const existingBookmark = await BookmarkItem.findOne({ originalUrl, userId: new Types.ObjectId(userIdString) });
       return existingBookmark?._id;
     } else {
       console.error('Error processing and creating bookmark:', error);
@@ -126,7 +178,7 @@ export const deleteBookmark = async (req: AuthenticatedRequest, res: Response) =
       return res.status(400).json({ message: 'Invalid bookmark ID' });
     }
 
-    const bookmark = await BookmarkItem.findOne({ _id: bookmarkId, userId: new mongoose.Types.ObjectId(userId) });
+    const bookmark = await BookmarkItem.findOne({ _id: bookmarkId, userId: new Types.ObjectId(userId) });
 
     if (!bookmark) {
       return res.status(404).json({ message: 'Bookmark not found or user not authorized to delete' });
@@ -300,7 +352,7 @@ export const summarizeBookmarkController = async (req: AuthenticatedRequest, res
       return res.status(400).json({ message: 'Invalid bookmark ID' });
     }
 
-    const bookmark = await BookmarkItem.findOne({ _id: bookmarkId, userId: new mongoose.Types.ObjectId(userId) });
+    const bookmark = await BookmarkItem.findOne({ _id: bookmarkId, userId: new Types.ObjectId(userId) });
 
     if (!bookmark) {
       return res.status(404).json({ message: 'Bookmark not found or user not authorized' });
@@ -317,7 +369,7 @@ export const summarizeBookmarkController = async (req: AuthenticatedRequest, res
       try {
         const oEmbedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(bookmark.originalUrl)}`;
         const oEmbedResponse = await axios.get(oEmbedUrl, { timeout: 5000 });
-        const oEmbedData: any = oEmbedResponse.data; // Assert data as any
+        const oEmbedData: any = oEmbedResponse.data;
         if (oEmbedData && oEmbedData.author_name) {
           bookmark.fetchedTitle = `Tweet by ${oEmbedData.author_name}`;
           console.log(`Log: Enriched fetchedTitle for ${bookmark._id} to: ${bookmark.fetchedTitle}`);
@@ -372,7 +424,7 @@ export const summarizeBookmarkController = async (req: AuthenticatedRequest, res
     const bookmarkIdFromError = req.params.id;
     if (mongoose.Types.ObjectId.isValid(bookmarkIdFromError) && req.user?.id) {
         try {
-            const bookmarkToUpdate = await BookmarkItem.findOne({ _id: bookmarkIdFromError, userId: new mongoose.Types.ObjectId(req.user.id) });
+            const bookmarkToUpdate = await BookmarkItem.findOne({ _id: bookmarkIdFromError, userId: new Types.ObjectId(req.user.id) });
             if (bookmarkToUpdate) {
                 bookmarkToUpdate.status = 'error';
                 bookmarkToUpdate.summary = 'An unexpected error occurred during summarization.';
@@ -398,7 +450,7 @@ export const summarizeLatestBookmarksController = async (req: AuthenticatedReque
 
     // Fetch latest N bookmarks that have a URL, regardless of current summary status
     const latestBookmarks = await BookmarkItem.find({
-      userId: new mongoose.Types.ObjectId(userId),
+      userId: new Types.ObjectId(userId),
       originalUrl: { $exists: true, $ne: '' }, 
     })
     .sort({ createdAt: -1 })
