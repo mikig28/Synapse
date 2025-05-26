@@ -121,9 +121,11 @@ const BookmarksPage: React.FC = () => {
   }, [bookmarks, filter, searchTerm, sortOrder]);
 
   const extractTweetId = (url: string): string | undefined => {
+    if (!url || typeof url !== 'string') return undefined; // Add guard for invalid URL input
     if (url.includes('twitter.com') || url.includes('x.com')) {
       const match = url.match(/status\/(\d+)/);
-      return match ? match[1] : undefined;
+      // Ensure match is not null and has a second element (the ID)
+      return match && match[1] ? match[1] : undefined;
     }
     return undefined;
   };
@@ -488,13 +490,19 @@ const BookmarksPage: React.FC = () => {
                             </h3>
                         </a>
                         <p className="text-xs text-muted-foreground truncate" title={bookmark.originalUrl}>{bookmark.originalUrl}</p>
-                         {bookmark.sourcePlatform === 'X' && extractTweetId(bookmark.originalUrl) && (
-                            <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
-                                <ClientTweetCard 
-                                  id={extractTweetId(bookmark.originalUrl)!}
-                                />
-                            </div>
-                        )}
+                         {bookmark.sourcePlatform === 'X' && (() => {
+                           const tweetId = extractTweetId(bookmark.originalUrl);
+                           if (tweetId) { // Only render if tweetId is valid
+                             return (
+                               <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
+                                   <ClientTweetCard 
+                                     id={tweetId}
+                                   />
+                               </div>
+                             );
+                           }
+                           return null; // Or some placeholder/error for invalid tweet URL
+                         })()}
                         {bookmark.sourcePlatform === 'LinkedIn' && (
                             <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
                                 <LinkedInCard bookmark={bookmark} onDelete={handleDeleteBookmark} />
