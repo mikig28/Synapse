@@ -49,22 +49,51 @@ const BookmarksPage: React.FC = () => {
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
 
   console.log("[BookmarksPage] Component rendered or re-rendered");
+  
+  // Debug log for component state
+  useEffect(() => {
+    console.log("[BookmarksPage] Current state:", {
+      bookmarksLength: bookmarks.length,
+      loading,
+      error,
+      token: token ? "Present" : "Not present",
+      headerInView,
+      controlsInView,
+      listInView
+    });
+  }, [bookmarks, loading, error, token, headerInView, controlsInView, listInView]);
 
   const fetchBookmarksCallback = useCallback(async (pageToFetch: number = 1) => {
-    if (!token) return;
+    if (!token) {
+      console.log("[BookmarksPage] No token available, skipping API call");
+      return;
+    }
     console.log(`[BookmarksPage] Fetching bookmarks for page: ${pageToFetch}...`);
     setLoading(true);
     try {
       const response = await getBookmarks(pageToFetch, PAGE_LIMIT);
       console.log("[BookmarksPage] Fetched data:", JSON.stringify(response.data, null, 2));
+      console.log("[BookmarksPage] API response structure:", {
+        currentPage: response.currentPage,
+        totalPages: response.totalPages,
+        totalBookmarks: response.totalBookmarks,
+        dataIsArray: Array.isArray(response.data),
+        dataLength: response.data?.length || 0
+      });
+      
       setBookmarks(response.data);
       setCurrentPage(response.currentPage);
       setTotalPages(response.totalPages);
       setTotalBookmarks(response.totalBookmarks);
       setError(null);
     } catch (err) {
-      setError('Failed to load bookmarks. Please ensure the backend is running and refresh.');
-      console.error('Error fetching bookmarks:', err);
+      console.error('[BookmarksPage] Error fetching bookmarks:', err);
+      let errorMessage = 'Failed to load bookmarks. Please ensure the backend is running and refresh.';
+      if (err instanceof Error) {
+        console.error('[BookmarksPage] Error details:', err.message);
+        errorMessage = `Error: ${err.message}`;
+      }
+      setError(errorMessage);
       toast({
         title: "Error Fetching Bookmarks",
         description: "Could not fetch bookmarks. The server might be down.",
@@ -76,14 +105,20 @@ const BookmarksPage: React.FC = () => {
   }, [token, toast]);
 
   useEffect(() => {
+    console.log("[BookmarksPage] useEffect for fetchBookmarks triggered");
     fetchBookmarksCallback(currentPage);
   }, [fetchBookmarksCallback, currentPage]);
 
   const filteredAndSortedBookmarks = useMemo(() => {
+    console.log("[BookmarksPage] Running filteredAndSortedBookmarks memo");
     if (!Array.isArray(bookmarks)) {
       console.warn('[BookmarksPage] bookmarks is not an array in useMemo. Returning empty array.', bookmarks);
       return [];
     }
+    
+    // Debug original bookmarks
+    console.log(`[BookmarksPage] Original bookmarks count: ${bookmarks.length}`);
+    
     const now = new Date();
     let processedBookmarks = bookmarks.filter(bookmark => {
       const bookmarkDate = new Date(bookmark.createdAt);
@@ -104,11 +139,16 @@ const BookmarksPage: React.FC = () => {
       return matchesFilter && matchesSearch;
     });
 
-    return processedBookmarks.sort((a, b) => {
+    const sortedBookmarks = processedBookmarks.sort((a, b) => {
       const dateA = new Date(a.createdAt).getTime();
       const dateB = new Date(b.createdAt).getTime();
       return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
     });
+    
+    // Debug processed bookmarks
+    console.log(`[BookmarksPage] Filtered and sorted bookmarks count: ${sortedBookmarks.length}`);
+    
+    return sortedBookmarks;
   }, [bookmarks, filter, searchTerm, sortOrder]);
 
   const isValidUrlWithHostname = (url: string | null | undefined): boolean => {
@@ -285,6 +325,16 @@ const BookmarksPage: React.FC = () => {
     },
   };
 
+  // Add safer animation fallback
+  const safeFallbackAnimation = (inView: boolean) => {
+    try {
+      return inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 };
+    } catch (err) {
+      console.error("[BookmarksPage] Animation error:", err);
+      return { opacity: 1, y: 0 }; // Default to visible
+    }
+  };
+
   const renderPlatformIcon = (platform: BookmarkItemType['sourcePlatform'] | 'Other' | undefined) => {
     switch (platform) {
       case 'X':
@@ -297,6 +347,7 @@ const BookmarksPage: React.FC = () => {
   };
 
   if (loading && bookmarks.length === 0) {
+    console.log("[BookmarksPage] Rendering loading state");
     return (
       <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-background via-background to-muted/20 relative overflow-hidden">
         <div className="container mx-auto relative z-10">
@@ -315,6 +366,7 @@ const BookmarksPage: React.FC = () => {
   }
 
   if (error) {
+    console.log("[BookmarksPage] Rendering error state:", error);
     return (
       <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-background via-destructive/5 to-background text-foreground flex flex-col items-center justify-center">
         <Card className="w-full max-w-lg text-center border-destructive/20 bg-background/80 backdrop-blur-sm">
@@ -333,6 +385,12 @@ const BookmarksPage: React.FC = () => {
       </div>
     );
   }
+
+  console.log("[BookmarksPage] Rendering main content", {
+    filteredBookmarksCount: filteredAndSortedBookmarks.length,
+    loading,
+    error: error ? "Error present" : "No error"
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 relative overflow-hidden">
@@ -446,7 +504,7 @@ const BookmarksPage: React.FC = () => {
         <motion.div
           ref={listRef}
           initial={{ opacity: 0, y: 20 }}
-          animate={listInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          animate={safeFallbackAnimation(listInView)}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
           {loading && <SkeletonList items={PAGE_LIMIT} />}
@@ -474,9 +532,9 @@ const BookmarksPage: React.FC = () => {
           {!loading && !error && filteredAndSortedBookmarks.length > 0 && (
             <motion.div 
               className="space-y-4 md:space-y-6"
-              variants={containerVariants}
               initial="hidden"
               animate="visible"
+              variants={containerVariants}
             >
               {filteredAndSortedBookmarks.map((bookmark, index) => {
                 const isValidOriginalUrl = isValidUrlWithHostname(bookmark.originalUrl);
