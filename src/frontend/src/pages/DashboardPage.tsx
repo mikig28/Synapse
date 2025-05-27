@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useDigest } from '../context/DigestContext';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
-import { SkeletonCard, SkeletonText } from '@/components/ui/Skeleton';
+import { SkeletonText } from '@/components/ui/Skeleton';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { Zap, AlertCircle, FileText, ExternalLink as LinkIcon, TrendingUp, Users, Calendar, BarChart3, Volume2, XCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";

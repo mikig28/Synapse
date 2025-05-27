@@ -35,3 +35,16 @@ export const SkeletonList: React.FC<SkeletonListProps> = ({ items }) => {
     </div>
   );
 };
+
+export const SkeletonText: React.FC<{ lines?: number }> = ({ lines = 4 }) => {
+  return (
+    <div className="animate-pulse"> {/* Moved animate-pulse to the parent wrapper */}
+      {[...Array(lines)].map((_, i) => (
+        <div
+          key={i}
+          className={`h-4 bg-muted rounded mb-2 ${i === lines - 1 ? 'w-5/6' : 'w-full'}`} // Added mb-2 to each line
+        ></div>
+      ))}
+    </div>
+  );
+};
