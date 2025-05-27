@@ -63,6 +63,9 @@ const BookmarksPage: React.FC = () => {
     });
   }, [bookmarks, loading, error, token, headerInView, controlsInView, listInView]);
 
+  // Add a ref to track the last page fetched
+  const lastPageFetched = React.useRef<number | null>(null);
+  
   const fetchBookmarksCallback = useCallback(async (pageToFetch: number = 1) => {
     if (!token) {
       console.log("[BookmarksPage] No token available, skipping API call");
@@ -104,6 +107,25 @@ const BookmarksPage: React.FC = () => {
     }
   }, [token, toast]);
 
+  // Add this useEffect to prevent framer-motion from unmounting the components
+  useEffect(() => {
+    // This effect is to ensure the component stays mounted
+    console.log("[BookmarksPage] Ensuring component stability");
+    
+    // Force stable rendering after initial load
+    if (!loading && bookmarks.length > 0) {
+      const timer = setTimeout(() => {
+        console.log("[BookmarksPage] Forcing stable render state");
+        // Force a re-render without changing state values
+        // by setting state to the same value
+        setBookmarks([...bookmarks]);
+      }, 300);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [loading, bookmarks.length]);
+  
+  // Modify the fetchBookmarks useEffect
   useEffect(() => {
     console.log("[BookmarksPage] useEffect for fetchBookmarks triggered");
     
@@ -115,13 +137,18 @@ const BookmarksPage: React.FC = () => {
       return;
     }
     
-    // Fetch bookmarks
-    fetchBookmarksCallback(currentPage).catch(err => {
-      console.error("[BookmarksPage] Unhandled error in fetchBookmarks effect:", err);
-      setError(`Failed to load bookmarks: ${err.message || "Unknown error"}`);
-      setLoading(false);
-    });
-  }, [fetchBookmarksCallback, currentPage, token]);
+    // Fetch bookmarks only if we don't already have them
+    if (bookmarks.length === 0 || currentPage !== lastPageFetched.current) {
+      lastPageFetched.current = currentPage;
+      fetchBookmarksCallback(currentPage).catch(err => {
+        console.error("[BookmarksPage] Unhandled error in fetchBookmarks effect:", err);
+        setError(`Failed to load bookmarks: ${err.message || "Unknown error"}`);
+        setLoading(false);
+      });
+    } else {
+      console.log("[BookmarksPage] Skipping fetch as we already have bookmarks for this page");
+    }
+  }, [fetchBookmarksCallback, currentPage, token, bookmarks.length]);
 
   // Add a new useEffect specifically for authentication status changes
   useEffect(() => {
@@ -529,12 +556,9 @@ const BookmarksPage: React.FC = () => {
       </div>
 
       <div className="relative z-10 container mx-auto p-4 md:p-8 space-y-8">
-        <motion.div
+        <div
           ref={headerRef}
-          initial={{ opacity: 0, y: 30 }}
-          animate={headerInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-          transition={{ duration: 0.6 }}
-          className="flex flex-col md:flex-row justify-between items-center mb-4 md:mb-8 gap-4"
+          className="flex flex-col md:flex-row justify-between items-center mb-4 md:mb-8 gap-4 opacity-100"
         >
           <div className="flex items-center gap-4">
             <div className="p-3 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full">
@@ -567,13 +591,11 @@ const BookmarksPage: React.FC = () => {
               </>
             )}
           </Button>
-        </motion.div>
+        </div>
 
-        <motion.div
+        <div
           ref={controlsRef}
-          initial={{ opacity: 0, y: 20 }}
-          animate={controlsInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
+          className="opacity-100"
         >
           <Card className="p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
@@ -620,13 +642,9 @@ const BookmarksPage: React.FC = () => {
               </div>
             </div>
           </Card>
-        </motion.div>
+        </div>
 
-        <motion.div
-          ref={listRef}
-          initial={{ opacity: 0, y: 20 }}
-          animate={safeAnimation}
-        >
+        <div ref={listRef} className="opacity-100">
           {loading && <SkeletonList items={PAGE_LIMIT} />}
           
           {error && (
@@ -650,10 +668,7 @@ const BookmarksPage: React.FC = () => {
           )}
 
           {!loading && !error && filteredAndSortedBookmarks.length > 0 && (
-            <motion.div 
-              className="space-y-4 md:space-y-6"
-              {...safeAnimation}
-            >
+            <div className="space-y-4 md:space-y-6">
               {filteredAndSortedBookmarks.map((bookmark, index) => {
                 const isValidOriginalUrl = isValidUrlWithHostname(bookmark.originalUrl);
                 let displayableUrl = bookmark.originalUrl;
@@ -666,11 +681,9 @@ const BookmarksPage: React.FC = () => {
                 }
 
                 return (
-                  <motion.div
+                  <div
                     key={bookmark._id}
-                    variants={itemVariants}
                     className="group"
-                    layout
                   >
                     <Card className="p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10">
                       <div className="flex justify-between items-start">
@@ -752,12 +765,12 @@ const BookmarksPage: React.FC = () => {
                         </div>
                       </CardFooter>
                     </Card>
-                  </motion.div>
+                  </div>
                 );
               })}
-            </motion.div>
+            </div>
           )}
-        </motion.div>
+        </div>
 
         {/* Pagination Controls */}
         {!loading && !error && totalPages > 1 && (
