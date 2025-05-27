@@ -687,11 +687,11 @@ const BookmarksPage: React.FC = () => {
                                 </h3>
                             </a>
                           ) : (
-                            <h3 className="text-lg md:text-xl font-semibold text-foreground truncate" title={bookmark.title || bookmark.fetchedTitle || displayableUrl(bookmark.originalUrl)}>
-                                {bookmark.title || bookmark.fetchedTitle || displayableUrl(bookmark.originalUrl)}
+                            <h3 className="text-lg md:text-xl font-semibold text-foreground truncate" title={bookmark.title || bookmark.fetchedTitle || String(bookmark.originalUrl)}>
+                                {bookmark.title || bookmark.fetchedTitle || String(bookmark.originalUrl)}
                             </h3>
                           )}
-                          <p className="text-xs text-muted-foreground truncate" title={displayableUrl(bookmark.originalUrl)}>{displayableUrl(bookmark.originalUrl)}</p>
+                          <p className="text-xs text-muted-foreground truncate" title={String(bookmark.originalUrl)}>{String(bookmark.originalUrl)}</p>
                            {renderSpecializedContent(bookmark)}
                           {renderSummarySection(bookmark)}
                         </div>
