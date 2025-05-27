@@ -15,9 +15,20 @@ interface AuthState {
   login: (userData: { user: User; token: string }) => void; // Simulate successful login
   register: (userData: { user: User; token: string }) => void; // Simulate successful registration
   logout: () => void;
+  checkAuthState: () => boolean; // New method to validate auth state
   // You can add more actions like setLoading, setError, etc.
   _resetAuthIfInconsistent: () => void; // Internal action
 }
+
+// Debug helper for auth state
+const logAuthState = (state: Pick<AuthState, 'isAuthenticated' | 'user' | 'token'>, context: string) => {
+  console.log(`[AuthStore] ${context} - Auth State:`, {
+    isAuthenticated: state.isAuthenticated,
+    hasUser: !!state.user,
+    hasToken: !!state.token,
+    tokenLength: state.token ? state.token.length : 0
+  });
+};
 
 const useAuthStore = create<AuthState>()(
   persist(
@@ -30,77 +41,109 @@ const useAuthStore = create<AuthState>()(
         if (!userData.token) {
           console.warn('[AuthStore] Login attempt: userData.token is falsy. UserData:', userData);
         }
-        set({
+        const newState = {
           isAuthenticated: true, // Assuming API guarantees token if login is "successful"
           user: userData.user,
           token: userData.token,
-        });
+        };
+        set(newState);
+        logAuthState(newState, 'After login');
       },
       register: (userData) => {
         console.log('[AuthStore] Register action called. Payload:', userData);
         if (!userData.token) {
           console.warn('[AuthStore] Register attempt: userData.token is falsy. UserData:', userData);
         }
-        set({
-        isAuthenticated: true, // Assuming API guarantees token
-        user: userData.user,
-        token: userData.token,
-      })},
+        const newState = {
+          isAuthenticated: true, // Assuming API guarantees token
+          user: userData.user,
+          token: userData.token,
+        };
+        set(newState);
+        logAuthState(newState, 'After register');
+      },
       logout: () => {
         console.log('[AuthStore] Logout action called.');
-        set({
-        isAuthenticated: false,
-        user: null,
-        token: null,
-      })},
-      _resetAuthIfInconsistent: () => {
-        console.warn('[AuthStore] State was inconsistent after hydration (authenticated but no token). Resetting auth state.');
-        set({
+        const newState = {
           isAuthenticated: false,
           user: null,
           token: null,
-        });
+        };
+        set(newState);
+        logAuthState(newState, 'After logout');
+      },
+      checkAuthState: () => {
+        const state = get();
+        const isValid = state.isAuthenticated && !!state.token && !!state.user;
+        logAuthState(state, `Auth check (valid: ${isValid})`);
+        
+        // If inconsistent, fix it
+        if (state.isAuthenticated && (!state.token || !state.user)) {
+          console.warn('[AuthStore] Inconsistent auth state detected during check. Resetting.');
+          get()._resetAuthIfInconsistent();
+          return false;
+        }
+        
+        return isValid;
+      },
+      _resetAuthIfInconsistent: () => {
+        const state = get();
+        console.warn('[AuthStore] Checking auth state consistency...');
+        logAuthState(state, 'Before consistency check');
+        
+        if (state.isAuthenticated && (!state.token || !state.user)) {
+          console.warn('[AuthStore] State was inconsistent (authenticated but missing token or user). Resetting auth state.');
+          const newState = {
+            isAuthenticated: false,
+            user: null,
+            token: null,
+          };
+          set(newState);
+          logAuthState(newState, 'After reset');
+        }
       }
     }),
     {
       name: 'auth-storage', // Name of the item in storage (must be unique)
       storage: createJSONStorage(() => localStorage), // Or sessionStorage
       onRehydrateStorage: () => {
+        console.log('[AuthStore] Starting rehydration process...');
         // This function is called AFTER zustand merges persistedState with initialState
         // and updates the store. 'hydratedStoreState' is the state *in the store* at that moment.
         return (hydratedStoreState, error) => {
           if (error) {
             console.error('[AuthStore] An error occurred during hydration:', error);
-            // Consider calling _resetAuthIfInconsistent on error if appropriate for your app
-            // For example, by getting the set function: const { _resetAuthIfInconsistent } = useAuthStore.getState(); _resetAuthIfInconsistent();
-            // However, be cautious with calling getState() here too early.
-            // A safer approach might be to set a flag that the main app can check after hydration.
           } else {
             if (hydratedStoreState) { // Ensure hydratedStoreState is not undefined
-              console.log('[AuthStore] Hydration merging complete. Current store state:', hydratedStoreState);
-              if (hydratedStoreState.isAuthenticated && !hydratedStoreState.token) {
-                // If authenticated but no token, call the internal action to correct.
-                // To call an action, we need the `set` function or the store instance itself.
-                // Directly calling hydratedStoreState._resetAuthIfInconsistent() won't work as it's just state data.
-                // We need to trigger the action on the actual store.
-                // The best way to do this post-hydration is often outside this specific callback,
-                // perhaps in a useEffect in your main App component that runs once after hydration.
-                // For an immediate fix within what `onRehydrateStorage` allows, we might need to call `set` directly if possible,
-                // or rely on the `get()` method provided to the main store creation function.
-
-                // Let's try to use the store's `set` method via `useAuthStore.setState`
-                // This is still potentially problematic if called too early, but let's try a direct set.
+              console.log('[AuthStore] Hydration merging complete.');
+              logAuthState(hydratedStoreState, 'After hydration');
+              
+              if (hydratedStoreState.isAuthenticated && (!hydratedStoreState.token || !hydratedStoreState.user)) {
+                // If authenticated but no token or user, reset the auth state
+                console.warn('[AuthStore] State was inconsistent after hydration (authenticated but missing token or user).');
+                
+                // Reset auth state directly
                 useAuthStore.setState({
                   isAuthenticated: false,
                   user: null,
                   token: null,
                 });
-                console.warn('[AuthStore] State was inconsistent after hydration (authenticated but no token). Auth state has been reset directly.');
+                console.warn('[AuthStore] Auth state has been reset directly after hydration.');
+                
+                // Log the new state
+                const resetState = useAuthStore.getState();
+                logAuthState(resetState, 'After hydration reset');
               }
             } else {
               console.warn('[AuthStore] Hydration complete, but hydratedStoreState was undefined.');
             }
           }
+          
+          // Validate the state after hydration is complete
+          setTimeout(() => {
+            const currentState = useAuthStore.getState();
+            currentState.checkAuthState();
+          }, 0);
         };
       },
       partialize: (state) => ({ // Only persist these parts of the state
@@ -111,5 +154,12 @@ const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+// Immediately check auth state consistency on module load
+setTimeout(() => {
+  console.log('[AuthStore] Initial auth state check on module load');
+  const currentState = useAuthStore.getState();
+  currentState.checkAuthState();
+}, 0);
 
 export default useAuthStore; 

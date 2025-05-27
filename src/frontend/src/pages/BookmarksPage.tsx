@@ -106,13 +106,44 @@ const BookmarksPage: React.FC = () => {
 
   useEffect(() => {
     console.log("[BookmarksPage] useEffect for fetchBookmarks triggered");
-    fetchBookmarksCallback(currentPage);
-  }, [fetchBookmarksCallback, currentPage]);
+    
+    // Check for token presence first
+    if (!token) {
+      console.error("[BookmarksPage] No authentication token available");
+      setError("You must be logged in to view bookmarks. Please log in and try again.");
+      setLoading(false);
+      return;
+    }
+    
+    // Fetch bookmarks
+    fetchBookmarksCallback(currentPage).catch(err => {
+      console.error("[BookmarksPage] Unhandled error in fetchBookmarks effect:", err);
+      setError(`Failed to load bookmarks: ${err.message || "Unknown error"}`);
+      setLoading(false);
+    });
+  }, [fetchBookmarksCallback, currentPage, token]);
+
+  // Add a new useEffect specifically for authentication status changes
+  useEffect(() => {
+    console.log("[BookmarksPage] Auth status check - token:", token ? "Present" : "Not present");
+    if (!token) {
+      setError("You must be logged in to view bookmarks. Please log in and try again.");
+      setLoading(false);
+    }
+  }, [token]);
 
   const filteredAndSortedBookmarks = useMemo(() => {
     console.log("[BookmarksPage] Running filteredAndSortedBookmarks memo");
+    
+    // Early return an empty array if still loading
+    if (loading && bookmarks.length === 0) {
+      console.log("[BookmarksPage] Still loading, returning empty array for filtered bookmarks");
+      return [];
+    }
+    
+    // Protection for invalid bookmarks data
     if (!Array.isArray(bookmarks)) {
-      console.warn('[BookmarksPage] bookmarks is not an array in useMemo. Returning empty array.', bookmarks);
+      console.warn('[BookmarksPage] bookmarks is not an array in useMemo. Value:', bookmarks);
       return [];
     }
     
@@ -121,35 +152,51 @@ const BookmarksPage: React.FC = () => {
     
     const now = new Date();
     let processedBookmarks = bookmarks.filter(bookmark => {
-      const bookmarkDate = new Date(bookmark.createdAt);
-      const matchesFilter = 
-        filter === 'all' ? true :
-        filter === 'week' ? bookmarkDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7) :
-        filter === 'month' ? bookmarkDate >= new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()) :
-        true;
+      // Add null check for bookmark
+      if (!bookmark) {
+        console.warn("[BookmarksPage] Found null or undefined bookmark in bookmarks array");
+        return false;
+      }
+      
+      try {
+        const bookmarkDate = new Date(bookmark.createdAt);
+        const matchesFilter = 
+          filter === 'all' ? true :
+          filter === 'week' ? bookmarkDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7) :
+          filter === 'month' ? bookmarkDate >= new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()) :
+          true;
 
-      const matchesSearch = 
-        searchTerm === '' ? true :
-        bookmark.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        bookmark.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        bookmark.originalUrl.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (bookmark.sourcePlatform === 'X' && bookmark.fetchedTitle?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (bookmark.sourcePlatform === 'LinkedIn' && bookmark.fetchedTitle?.toLowerCase().includes(searchTerm.toLowerCase()));
+        const matchesSearch = 
+          searchTerm === '' ? true :
+          bookmark.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          bookmark.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          bookmark.originalUrl.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (bookmark.sourcePlatform === 'X' && bookmark.fetchedTitle?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (bookmark.sourcePlatform === 'LinkedIn' && bookmark.fetchedTitle?.toLowerCase().includes(searchTerm.toLowerCase()));
 
-      return matchesFilter && matchesSearch;
+        return matchesFilter && matchesSearch;
+      } catch (err) {
+        console.error("[BookmarksPage] Error filtering bookmark:", err, "Bookmark:", bookmark);
+        return false;
+      }
     });
 
     const sortedBookmarks = processedBookmarks.sort((a, b) => {
-      const dateA = new Date(a.createdAt).getTime();
-      const dateB = new Date(b.createdAt).getTime();
-      return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+      try {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+      } catch (err) {
+        console.error("[BookmarksPage] Error sorting bookmarks:", err);
+        return 0;
+      }
     });
     
     // Debug processed bookmarks
     console.log(`[BookmarksPage] Filtered and sorted bookmarks count: ${sortedBookmarks.length}`);
     
     return sortedBookmarks;
-  }, [bookmarks, filter, searchTerm, sortOrder]);
+  }, [bookmarks, filter, searchTerm, sortOrder, loading]);
 
   const isValidUrlWithHostname = (url: string | null | undefined): boolean => {
     if (!url || typeof url !== 'string' || url.trim() === '') return false;
@@ -309,6 +356,7 @@ const BookmarksPage: React.FC = () => {
       opacity: 1,
       transition: {
         staggerChildren: 0.1,
+        when: "beforeChildren"
       },
     },
   };
@@ -321,18 +369,17 @@ const BookmarksPage: React.FC = () => {
       transition: {
         type: 'spring',
         stiffness: 100,
+        damping: 15
       },
     },
   };
 
-  // Add safer animation fallback
-  const safeFallbackAnimation = (inView: boolean) => {
-    try {
-      return inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 };
-    } catch (err) {
-      console.error("[BookmarksPage] Animation error:", err);
-      return { opacity: 1, y: 0 }; // Default to visible
-    }
+  // Ensure animation is handled safely - this is critical for fixing the disappearing UI
+  const safeAnimation = {
+    initial: "hidden",
+    animate: "visible",
+    exit: { opacity: 0 },
+    variants: containerVariants
   };
 
   const renderPlatformIcon = (platform: BookmarkItemType['sourcePlatform'] | 'Other' | undefined) => {
@@ -346,7 +393,81 @@ const BookmarksPage: React.FC = () => {
     }
   };
 
-  if (loading && bookmarks.length === 0) {
+  // Helper function for displaying URLs safely
+  const displayableUrl = (url: string | null | undefined): string => {
+    if (!url) return "Missing URL";
+    if (url.trim() === '') return "Empty URL";
+    
+    try {
+      new URL(url);
+      return url;
+    } catch (e) {
+      return `Invalid URL: ${url}`;
+    }
+  };
+
+  // Helper function to render specialized content for Twitter/X or LinkedIn
+  const renderSpecializedContent = (bookmark: BookmarkItemType) => {
+    if (bookmark.sourcePlatform === 'X' && isValidUrlWithHostname(bookmark.originalUrl)) {
+      const tweetId = extractTweetId(bookmark.originalUrl);
+      if (tweetId) {
+        return (
+          <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
+            <ClientTweetCard id={tweetId} />
+          </div>
+        );
+      }
+    }
+    
+    if (bookmark.sourcePlatform === 'LinkedIn') {
+      return (
+        <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
+          <LinkedInCard 
+            bookmark={{
+              ...bookmark, 
+              originalUrl: isValidUrlWithHostname(bookmark.originalUrl) ? bookmark.originalUrl : "#"
+            }} 
+            onDelete={handleDeleteBookmark} 
+          />
+        </div>
+      );
+    }
+    
+    return null;
+  };
+
+  // Helper function to render the summary section
+  const renderSummarySection = (bookmark: BookmarkItemType) => {
+    if (bookmark.summary && bookmark.status === 'summarized') {
+      return (
+        <details className="mt-3 text-sm text-muted-foreground/90 leading-relaxed">
+          <summary className="cursor-pointer font-medium text-primary/80 hover:text-primary select-none transition-colors duration-200">View Summary</summary>
+          <p className="pt-2 whitespace-pre-wrap">{String(bookmark.summary)}</p>
+        </details>
+      );
+    }
+    
+    if (bookmark.status === 'pending') {
+      return <p className="text-xs text-amber-500 mt-1">Summary pending...</p>;
+    }
+    
+    if (bookmark.status === 'failed') {
+      return <p className="text-xs text-destructive mt-1">Summary failed.</p>;
+    }
+    
+    if (bookmark.status === 'processing') {
+      return (
+        <div className="flex items-center text-xs text-sky-500 mt-1">
+          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+          <span>Processing summary...</span>
+        </div>
+      );
+    }
+    
+    return null;
+  };
+
+  if (loading) {
     console.log("[BookmarksPage] Rendering loading state");
     return (
       <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-background via-background to-muted/20 relative overflow-hidden">
@@ -431,7 +552,7 @@ const BookmarksPage: React.FC = () => {
           <Button 
             onClick={handleSummarizeLatestClick} 
             size="lg"
-            disabled={isBatchSummarizing}
+            disabled={isBatchSummarizing || loading || !!error || !token}
             className="self-center md:self-auto hover:scale-105 transition-all duration-200 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90"
           >
             {isBatchSummarizing ? (
@@ -504,8 +625,7 @@ const BookmarksPage: React.FC = () => {
         <motion.div
           ref={listRef}
           initial={{ opacity: 0, y: 20 }}
-          animate={safeFallbackAnimation(listInView)}
-          transition={{ duration: 0.5, delay: 0.2 }}
+          animate={safeAnimation}
         >
           {loading && <SkeletonList items={PAGE_LIMIT} />}
           
@@ -532,9 +652,7 @@ const BookmarksPage: React.FC = () => {
           {!loading && !error && filteredAndSortedBookmarks.length > 0 && (
             <motion.div 
               className="space-y-4 md:space-y-6"
-              initial="hidden"
-              animate="visible"
-              variants={containerVariants}
+              {...safeAnimation}
             >
               {filteredAndSortedBookmarks.map((bookmark, index) => {
                 const isValidOriginalUrl = isValidUrlWithHostname(bookmark.originalUrl);
@@ -551,8 +669,8 @@ const BookmarksPage: React.FC = () => {
                   <motion.div
                     key={bookmark._id}
                     variants={itemVariants}
-                    whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
                     className="group"
+                    layout
                   >
                     <Card className="p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10">
                       <div className="flex justify-between items-start">
@@ -569,43 +687,13 @@ const BookmarksPage: React.FC = () => {
                                 </h3>
                             </a>
                           ) : (
-                            <h3 className="text-lg md:text-xl font-semibold text-foreground truncate" title={bookmark.title || bookmark.fetchedTitle || displayableUrl}>
-                                {bookmark.title || bookmark.fetchedTitle || displayableUrl}
+                            <h3 className="text-lg md:text-xl font-semibold text-foreground truncate" title={bookmark.title || bookmark.fetchedTitle || displayableUrl(bookmark.originalUrl)}>
+                                {bookmark.title || bookmark.fetchedTitle || displayableUrl(bookmark.originalUrl)}
                             </h3>
                           )}
-                          <p className="text-xs text-muted-foreground truncate" title={displayableUrl}>{displayableUrl}</p>
-                           {bookmark.sourcePlatform === 'X' && isValidOriginalUrl && (() => {
-                             const tweetId = extractTweetId(bookmark.originalUrl);
-                             if (tweetId) {
-                               return (
-                                 <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
-                                     <ClientTweetCard 
-                                       id={tweetId}
-                                     />
-                                 </div>
-                               );
-                             }
-                             return null;
-                           })()}
-                          {bookmark.sourcePlatform === 'LinkedIn' && (
-                              <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
-                                  <LinkedInCard bookmark={{...bookmark, originalUrl: isValidOriginalUrl ? bookmark.originalUrl : "#" }} onDelete={handleDeleteBookmark} />
-                              </div>
-                          )}
-                          {bookmark.summary && bookmark.status === 'summarized' && (
-                              <details className="mt-3 text-sm text-muted-foreground/90 leading-relaxed">
-                                  <summary className="cursor-pointer font-medium text-primary/80 hover:text-primary select-none transition-colors duration-200">View Summary</summary>
-                                  <p className="pt-2 whitespace-pre-wrap">{String(bookmark.summary)}</p>
-                              </details>
-                          )}
-                          {bookmark.status === 'pending' && <p className="text-xs text-amber-500 mt-1">Summary pending...</p>}
-                          {bookmark.status === 'failed' && <p className="text-xs text-destructive mt-1">Summary failed.</p>}
-                           {bookmark.status === 'processing' && (
-                              <div className="flex items-center text-xs text-sky-500 mt-1">
-                                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                  <span>Processing summary...</span>
-                              </div>
-                          )}
+                          <p className="text-xs text-muted-foreground truncate" title={displayableUrl(bookmark.originalUrl)}>{displayableUrl(bookmark.originalUrl)}</p>
+                           {renderSpecializedContent(bookmark)}
+                          {renderSummarySection(bookmark)}
                         </div>
                         <div className="flex flex-col space-y-2 ml-2 sm:ml-4 shrink-0">
                           <Button

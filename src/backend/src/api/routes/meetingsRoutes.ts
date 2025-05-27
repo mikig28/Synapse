@@ -8,7 +8,8 @@ import {
   updateMeeting,
   deleteMeeting,
   reprocessMeeting,
-  getMeetingStats
+  getMeetingStats,
+  uploadAudio
 } from '../controllers/meetingsController';
 
 const router = Router();
@@ -39,5 +40,8 @@ router.post('/:id/transcription', processTranscription);
 
 // POST /api/v1/meetings/:id/reprocess - Reprocess meeting analysis
 router.post('/:id/reprocess', reprocessMeeting);
+
+// POST /api/v1/meetings/:id/upload-audio - Upload audio for meeting
+router.post('/:id/upload-audio', uploadAudio);
 
 export default router;
