@@ -4,7 +4,7 @@ import { Card } from './card';
 import { cn } from '@/lib/utils'; // Assuming cn is in lib/utils
 
 // Generic Skeleton component
-function BaseSkeleton({ // Renamed to BaseSkeleton to avoid conflict if user has a different Skeleton in mind
+function BaseSkeleton({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
@@ -16,7 +16,7 @@ function BaseSkeleton({ // Renamed to BaseSkeleton to avoid conflict if user has
   );
 }
 
-export { BaseSkeleton as Skeleton }; // Exporting as Skeleton as used in NotesPage
+export { BaseSkeleton as Skeleton }; // Exporting as Skeleton
 
 // SkeletonCard component
 export const SkeletonCard: React.FC<React.HTMLAttributes<HTMLDivElement> & { children?: React.ReactNode }> = ({ className, children, ...props }) => {
@@ -71,7 +71,6 @@ export const SkeletonText: React.FC<{ lines?: number; className?: string; lineCl
   );
 };
 
-
 // Existing SkeletonList component
 interface SkeletonListProps {
   items: number;
@@ -81,8 +80,6 @@ export const SkeletonList: React.FC<SkeletonListProps> = ({ items }) => {
   return (
     <div className="space-y-4 md:space-y-6">
       {[...Array(items)].map((_, i) => (
-        // Using the new SkeletonCard component for consistency, or keep original if preferred
-        // For now, keeping original to minimize changes to existing working component
         <Card key={i} className="p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50">
           <div className="animate-pulse">
             <div className="flex justify-between items-start">
