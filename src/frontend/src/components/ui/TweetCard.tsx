@@ -344,7 +344,7 @@ export const ClientTweetCard = ({
       {!tweet && !error && fallback}
       {error && <TweetNotFound />}
       {tweet && (onDelete || onSummarize) && (
-        <div className="absolute bottom-2 right-2 z-10 flex space-x-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+        <div className="absolute bottom-2 right-2 z-10 flex space-x-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity">
           {onSummarize && (
             <Button
               variant="outline"

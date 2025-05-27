@@ -47,7 +47,7 @@ const LinkedInCard: React.FC<LinkedInCardProps> = ({ bookmark, onDelete }) => {
           className="w-full h-40 object-cover" // Adjust height as needed
         />
       )} */}
-      <CardFooter className="p-4 pt-2 border-t mt-auto"> {/* Ensure footer is at the bottom */}
+      <CardFooter className="p-4 pt-2 border-t mt-auto flex flex-col items-stretch gap-2">
         <div className="flex justify-between items-center w-full">
           <Button 
             variant="outline"
@@ -58,19 +58,17 @@ const LinkedInCard: React.FC<LinkedInCardProps> = ({ bookmark, onDelete }) => {
           >
             <ExternalLink className="w-4 h-4 mr-1" /> View Post
           </Button>
-          <div className="relative">
-            <Button 
-              variant="destructive" 
-              size="icon" 
-              onClick={() => onDelete(bookmark._id)} 
-              title="Delete Bookmark"
-              className="absolute -bottom-8 right-0"
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          </div>
+          <Button 
+            variant="destructive" 
+            size="icon" 
+            onClick={() => onDelete(bookmark._id)} 
+            title="Delete Bookmark"
+            // Ensure no absolute positioning classes are here
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
         </div>
-        <p className="text-xs text-muted-foreground mt-2 w-full text-right">
+        <p className="text-xs text-muted-foreground text-right w-full"> 
             Saved: {formattedDate}
         </p>
       </CardFooter>
