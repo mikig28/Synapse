@@ -99,7 +99,7 @@ class MeetingService {
   }> {
     try {
       const formData = new FormData();
-      formData.append('audio', audioFile); // "audio" is a common field name for file uploads
+      formData.append('audioFile', audioFile); // Changed from 'audio' to 'audioFile' to match backend
 
       const response = await axiosInstance.post(
         `${this.baseURL}/${id}/upload-audio`,
