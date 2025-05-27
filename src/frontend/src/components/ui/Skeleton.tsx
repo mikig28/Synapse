@@ -48,3 +48,7 @@ export const SkeletonText: React.FC<{ lines?: number }> = ({ lines = 4 }) => {
     </div>
   );
 };
+
+export const Skeleton: React.FC<{ className?: string }> = ({ className }) => {
+  return <div className={`animate-pulse rounded-md bg-muted ${className || ''}`} />;
+};
