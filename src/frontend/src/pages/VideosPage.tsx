@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { VideoItemType } from '../types/video';
-import { getVideosService, updateVideoStatusService, deleteVideoService } from '../services/videoService';
+import { getVideosService, updateVideoStatusService, deleteVideoService, summarizeVideoService } from '../services/videoService';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ExternalLink, Info, Eye, PlayCircle, CheckCircle, HelpCircle, Trash2, Film } from 'lucide-react';
+import { ExternalLink, Info, Eye, PlayCircle, CheckCircle, HelpCircle, Trash2, Film, FileText, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
@@ -18,6 +18,7 @@ const VideosPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
+  const [summarizingVideoId, setSummarizingVideoId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const fetchVideos = async () => {
@@ -70,6 +71,32 @@ const VideosPage: React.FC = () => {
         description: "Failed to delete video.",
         variant: "destructive",
       })
+    }
+  };
+
+  const handleSummarizeVideo = async (videoId: string) => {
+    try {
+      setSummarizingVideoId(videoId);
+      const result = await summarizeVideoService(videoId);
+      
+      // Update the video in the state with the new summary
+      setVideos(prevVideos => 
+        prevVideos.map(v => v._id === videoId ? result.video : v)
+      );
+      
+      toast({
+        title: "Success",
+        description: "Video summary generated successfully!",
+      });
+    } catch (err) {
+      console.error(`Error summarizing video ${videoId}:`, err);
+      toast({
+        title: "Error",
+        description: "Failed to generate video summary. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSummarizingVideoId(null);
     }
   };
 
@@ -180,7 +207,7 @@ const VideosPage: React.FC = () => {
             >
               <AnimatedButton 
                 variant="ghost"
-                size="icon"
+                size="sm"
                 onClick={() => setPlayingVideoId(null)} 
                 className="absolute -top-4 -right-4 bg-red-600 hover:bg-red-700 text-white rounded-full h-9 w-9 z-10 shadow-lg"
                 title="Close player"
@@ -256,31 +283,76 @@ const VideosPage: React.FC = () => {
                             </CardDescription>
                           )}
                         </CardHeader>
-                        <CardFooter className="p-3 md:p-4 pt-2 border-t border-purple-800/50 flex items-center justify-between">
-                            <Select 
-                                value={video.watchedStatus}
-                                onValueChange={(newStatus: VideoItemType['watchedStatus']) => handleStatusChange(video._id, newStatus)}
-                            >
-                                <SelectTrigger className="w-full text-xs h-9 bg-slate-700/50 border-purple-600/70 hover:border-purple-500">
-                                    <SelectValue placeholder="Change status" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-slate-800 border-purple-600 text-white">
-                                    {statusOptions.map(opt => (
-                                        <SelectItem key={opt.value} value={opt.value} className="text-xs hover:bg-purple-700/50 focus:bg-purple-700/60">
-                                            {opt.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <AnimatedButton 
-                              variant="ghost"
-                              size="icon" 
-                              onClick={() => handleDeleteVideo(video._id)} 
-                              className="ml-2 text-red-500 hover:bg-red-500/10 hover:text-red-400"
-                              title="Delete Video"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </AnimatedButton>
+                        
+                        {/* Summary Section */}
+                        {video.summary && (
+                          <CardContent className="p-3 md:p-4 pt-0">
+                            <div className="bg-slate-800/50 rounded-lg p-3 border border-purple-700/30">
+                              <div className="flex items-center mb-2">
+                                <FileText className="w-4 h-4 text-purple-400 mr-2" />
+                                <span className="text-xs font-medium text-purple-300">AI Summary</span>
+                              </div>
+                              <p className="text-xs text-gray-300 line-clamp-4 leading-relaxed">
+                                {video.summary}
+                              </p>
+                            </div>
+                          </CardContent>
+                        )}
+                        
+                        <CardFooter className="p-3 md:p-4 pt-2 border-t border-purple-800/50">
+                          <div className="flex flex-col w-full gap-2">
+                            {/* Status and Actions Row */}
+                            <div className="flex items-center justify-between">
+                              <Select 
+                                  value={video.watchedStatus}
+                                  onValueChange={(newStatus: VideoItemType['watchedStatus']) => handleStatusChange(video._id, newStatus)}
+                              >
+                                  <SelectTrigger className="flex-1 text-xs h-9 bg-slate-700/50 border-purple-600/70 hover:border-purple-500">
+                                      <SelectValue placeholder="Change status" />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-slate-800 border-purple-600 text-white">
+                                      {statusOptions.map(opt => (
+                                          <SelectItem key={opt.value} value={opt.value} className="text-xs hover:bg-purple-700/50 focus:bg-purple-700/60">
+                                              {opt.label}
+                                          </SelectItem>
+                                      ))}
+                                  </SelectContent>
+                              </Select>
+                              <AnimatedButton 
+                                variant="ghost"
+                                size="sm" 
+                                onClick={() => handleDeleteVideo(video._id)} 
+                                className="ml-2 text-red-500 hover:bg-red-500/10 hover:text-red-400 h-9 w-9 p-0"
+                                title="Delete Video"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </AnimatedButton>
+                            </div>
+                            
+                            {/* Summarize Button Row */}
+                            <div className="flex justify-center">
+                              <AnimatedButton
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleSummarizeVideo(video._id)}
+                                disabled={summarizingVideoId === video._id}
+                                className="w-full text-xs bg-purple-600/20 border-purple-500/50 hover:bg-purple-600/30 hover:border-purple-400 text-purple-200 hover:text-white transition-all duration-200"
+                                title={video.summary ? "Regenerate Summary" : "Generate AI Summary"}
+                              >
+                                {summarizingVideoId === video._id ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                                    Generating...
+                                  </>
+                                ) : (
+                                  <>
+                                    <FileText className="w-3 h-3 mr-2" />
+                                    {video.summary ? "Regenerate Summary" : "Summarize"}
+                                  </>
+                                )}
+                              </AnimatedButton>
+                            </div>
+                          </div>
                         </CardFooter>
                       </GlassCard>
                     </motion.div>

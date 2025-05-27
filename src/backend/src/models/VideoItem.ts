@@ -9,6 +9,7 @@ export interface IVideoItem extends Document {
   channelTitle?: string;
   sourcePlatform: 'YouTube'; // For now, only YouTube
   watchedStatus: 'unwatched' | 'watching' | 'watched';
+  summary?: string; // AI-generated summary of the video
   telegramMessageId?: mongoose.Types.ObjectId; // Optional: if it came from a Telegram capture
   createdAt: Date;
   updatedAt: Date;
@@ -29,6 +30,7 @@ const VideoItemSchema = new Schema<IVideoItem>(
       default: 'unwatched',
       required: true,
     },
+    summary: { type: String }, // AI-generated summary field
     telegramMessageId: { type: Schema.Types.ObjectId, ref: 'TelegramItem' }, // Optional link
   },
   { timestamps: true }
