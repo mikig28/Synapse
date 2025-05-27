@@ -4,7 +4,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 console.log('[BookmarkController] Cheerio type (star import):', typeof cheerio, 'Cheerio value (star import):', cheerio); // DIAGNOSTIC LOG
 import OpenAI from 'openai';
-import { AuthenticatedRequest } from '../middleware/authMiddleware'; // Adjust path as needed
+import { AuthenticatedRequest } from '../../types/express';
 import BookmarkItem, { IBookmarkItem } from '../../models/BookmarkItem'; // Correct path to BookmarkItem model
 
 // Helper function to fetch LinkedIn Metadata

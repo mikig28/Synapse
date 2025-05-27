@@ -1,10 +1,7 @@
 import { Request, Response } from 'express';
-import Note from '../../models/Note'; // Adjust path as necessary
+import Note, { INote } from '../../models/Note';
 import mongoose from 'mongoose';
-
-interface AuthenticatedRequest extends Request {
-    user?: { id: string };
-}
+import { AuthenticatedRequest } from '../../types/express';
 
 export const getNotes = async (req: AuthenticatedRequest, res: Response) => {
   try {

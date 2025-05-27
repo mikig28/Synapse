@@ -4,7 +4,7 @@ import { transcribeAudio } from '../../services/transcriptionService';
 import { MeetingAnalysisService } from '../../services/meetingAnalysisService';
 import path from 'path';
 import fs from 'fs';
-import { AuthenticatedRequest } from '../middleware/authMiddleware';
+import { AuthenticatedRequest } from '../../types/express';
 import multer from 'multer'; // TODO: Configure multer
 
 // TODO: Configure multer storage

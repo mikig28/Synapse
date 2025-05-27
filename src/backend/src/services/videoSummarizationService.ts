@@ -17,6 +17,22 @@ interface YouTubeTranscriptResponse {
   duration: number;
 }
 
+interface YouTubeOEmbedResponse {
+  title?: string;
+  author_name?: string;
+  author_url?: string;
+  type?: string;
+  height?: number;
+  width?: number;
+  version?: string;
+  provider_name?: string;
+  provider_url?: string;
+  thumbnail_height?: number;
+  thumbnail_width?: number;
+  thumbnail_url?: string;
+  html?: string;
+}
+
 /**
  * Fetch YouTube video transcript using youtube-transcript-api
  * This is a simplified approach - in production you might want to use a more robust solution
@@ -107,7 +123,7 @@ async function generatePlaceholderSummary(videoId: string): Promise<string> {
 
     // Get video metadata from YouTube oEmbed
     const oEmbedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
-    const response = await axios.get(oEmbedUrl);
+    const response = await axios.get<YouTubeOEmbedResponse>(oEmbedUrl);
     const { title, author_name } = response.data;
 
     const prompt = `

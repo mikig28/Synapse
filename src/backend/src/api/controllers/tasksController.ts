@@ -1,11 +1,7 @@
 import { Request, Response } from 'express';
-import Task from '../../models/Task'; // Adjust path as necessary
+import Task, { ITask } from '../../models/Task';
 import mongoose from 'mongoose';
-
-// Define AuthenticatedRequest if it's not globally available
-interface AuthenticatedRequest extends Request {
-    user?: { id: string };
-}
+import { AuthenticatedRequest } from '../../types/express';
 
 export const getTasks = async (req: AuthenticatedRequest, res: Response) => {
   try {
