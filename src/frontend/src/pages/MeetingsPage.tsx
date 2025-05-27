@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -33,6 +33,8 @@ const MeetingsPage: React.FC = () => {
   const [showTranscriptionModal, setShowTranscriptionModal] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const [transcriptionMethod, setTranscriptionMethod] = useState<'local' | 'api' | 'dedicated'>('api');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -173,15 +175,82 @@ const MeetingsPage: React.FC = () => {
     }
   };
 
-  const startRecording = () => {
+  const startRecording = async () => {
     setIsRecording(true);
     setRecordingTime(0);
-    // TODO: Implement actual audio recording
+    setAudioChunks([]); // Clear previous audio chunks
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          setAudioChunks((prevChunks) => [...prevChunks, event.data]);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const audioFile = new File([audioBlob], "recording.webm", { type: 'audio/webm' });
+
+        if (!selectedMeeting) {
+          setError("No meeting selected to associate the recording with. Please select a meeting or create a new one before recording.");
+          console.error("No meeting selected for recording. Audio chunks cleared.");
+          setAudioChunks([]);
+          // Note: isRecording is already set to false by stopRecording function
+          return;
+        }
+
+        try {
+          // This function will be created in a subsequent step.
+          // For now, we assume it exists and handles the upload and further processing.
+          await meetingService.uploadAudioForTranscription(selectedMeeting._id, audioFile);
+          
+          // Optionally, trigger a refresh of the meeting or its status
+          loadMeetings(); // Refresh meetings to show updated status potentially
+          if (selectedMeeting?._id) {
+             // Poll for status updates after uploading
+            meetingService.pollMeetingStatus(
+              selectedMeeting._id,
+              (updatedMeeting) => {
+                setMeetings(prev => 
+                  prev.map(m => m._id === updatedMeeting._id ? updatedMeeting : m)
+                );
+                if (selectedMeeting._id === updatedMeeting._id) {
+                  setSelectedMeeting(updatedMeeting);
+                }
+              }
+            ).catch(console.error);
+          }
+
+        } catch (uploadError) {
+          setError("Failed to upload audio for transcription. Please try again.");
+          console.error("Error uploading audio:", uploadError);
+        } finally {
+          setAudioChunks([]); // Clear chunks after processing
+        }
+      };
+
+      mediaRecorder.start();
+    } catch (error) {
+      console.error('Error accessing microphone or starting recording:', error);
+      setError('Failed to start recording. Please check microphone permissions.');
+      setIsRecording(false); // Reset recording state on error
+    }
   };
 
   const stopRecording = () => {
     setIsRecording(false);
-    // TODO: Implement stopping recording and processing audio
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop(); // This will trigger the onstop event handler
+    }
+    // Clean up media stream tracks
+    if (mediaRecorderRef.current?.stream) {
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+    }
+    mediaRecorderRef.current = null; // Clear the ref after stopping
   };
 
   const formatTime = (seconds: number): string => {
