@@ -6,7 +6,7 @@ import AddNoteModal from '@/components/notes/AddNoteModal';
 import EditNoteModal from '@/components/notes/EditNoteModal';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
-import { SkeletonCard, SkeletonText, Skeleton } from '@/components/ui/Skeleton';
+import { SkeletonCard, Skeleton } from '@/components/ui/Skeleton';
 import { Input } from '@/components/ui/input';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { BACKEND_ROOT_URL } from "@/services/axiosConfig";
