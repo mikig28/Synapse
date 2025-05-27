@@ -52,3 +52,23 @@ export const SkeletonText: React.FC<{ lines?: number }> = ({ lines = 4 }) => {
 export const Skeleton: React.FC<{ className?: string }> = ({ className }) => {
   return <div className={`animate-pulse rounded-md bg-muted ${className || ''}`} />;
 };
+
+export const SkeletonCard: React.FC<{ className?: string }> = ({ className }) => {
+  return (
+    <Card className={`p-4 ${className || ''}`}> {/* p-4 for default padding */}
+      <div className="animate-pulse">
+        {/* Placeholder for a title */}
+        <div className="h-5 bg-muted rounded w-3/4 mb-4"></div>
+        {/* Placeholder for content lines */}
+        <div className="h-4 bg-muted rounded w-full mb-2"></div>
+        <div className="h-4 bg-muted rounded w-full mb-2"></div>
+        <div className="h-4 bg-muted rounded w-5/6 mb-4"></div> {/* Added mb-4 for spacing before potential footer */}
+        {/* Optional: Placeholder for footer/actions */}
+        <div className="flex justify-between items-center mt-4 pt-3 border-t border-muted/20">
+          <div className="h-4 bg-muted rounded w-1/4"></div>
+          <div className="h-8 bg-muted rounded w-1/5"></div>
+        </div>
+      </div>
+    </Card>
+  );
+};
