@@ -33,3 +33,29 @@ export const useScrollAnimation = (): UseScrollAnimationReturn => {
 
   return { ref, isInView };
 };
+
+export const useRevealAnimation = (staggerChildrenValue: number = 0.1, itemTransitionDelay: number = 0.2) => {
+  return {
+    container: {
+      hidden: { opacity: 0 },
+      visible: {
+        opacity: 1,
+        transition: {
+          staggerChildren: staggerChildrenValue,
+          // delayChildren: itemTransitionDelay // Optional: if the second param was for this
+        },
+      },
+    },
+    item: {
+      hidden: { y: 20, opacity: 0 },
+      visible: {
+        y: 0,
+        opacity: 1,
+        transition: {
+          delay: itemTransitionDelay, // Apply the second parameter as a delay to each item's transition
+          duration: 0.4 // Add a sensible duration
+        },
+      },
+    },
+  };
+};
