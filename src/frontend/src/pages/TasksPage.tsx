@@ -6,7 +6,7 @@ import EditTaskModal from '../components/tasks/EditTaskModal'; // Import the mod
 import AddTaskModal from '../components/tasks/AddTaskModal'; // Corrected path using relative path
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
-import { SkeletonCard, SkeletonText, Skeleton } from '@/components/ui/Skeleton';
+import { SkeletonText, Skeleton } from '@/components/ui/Skeleton';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
