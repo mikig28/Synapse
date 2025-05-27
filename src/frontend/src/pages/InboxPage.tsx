@@ -123,22 +123,22 @@ const InboxPage: React.FC = () => {
           transition={{ duration: 0.6 }}
           className="text-center"
         >
-          <div className="flex items-center justify-center mb-4">
-            <div className="p-3 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full mr-4">
-              <Inbox className="w-8 h-8 text-primary" />
+          <div className="flex flex-col sm:flex-row items-center justify-center mb-4 gap-3 sm:gap-4">
+            <div className="p-2 sm:p-3 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full">
+              <Inbox className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
             </div>
-            <div>
+            <div className="text-center sm:text-left">
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold gradient-text">
                 Inbox
               </h1>
-              <p className="text-muted-foreground text-md sm:text-lg mt-1 sm:mt-2">
+              <p className="text-muted-foreground text-sm sm:text-md md:text-lg mt-1 sm:mt-2">
                 Your captured content from all sources
               </p>
             </div>
           </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mt-6 sm:mt-8">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-6 sm:mt-8">
             {[
               { label: 'Total Items', value: stats.total, icon: MessageCircle },
               { label: 'Today', value: stats.today, icon: Clock },
@@ -152,9 +152,9 @@ const InboxPage: React.FC = () => {
                 transition={{ duration: 0.5, delay: index * 0.1 + 0.3 }}
               >
                 <GlassCard className="text-center hover-lift">
-                  <div className="p-4">
-                    <stat.icon className="w-6 h-6 text-primary mx-auto mb-2" />
-                    <p className="text-2xl font-bold">{stat.value}</p>
+                  <div className="p-3 sm:p-4">
+                    <stat.icon className="w-5 h-5 sm:w-6 sm:h-6 text-primary mx-auto mb-2" />
+                    <p className="text-xl sm:text-2xl font-bold">{stat.value}</p>
                     <p className="text-xs text-muted-foreground">{stat.label}</p>
                   </div>
                 </GlassCard>
@@ -171,13 +171,15 @@ const InboxPage: React.FC = () => {
           transition={{ duration: 0.6, delay: 0.2 }}
         >
           <GlassCard>
-            <div className="p-6">
-              <div className="flex items-center mb-4">
-                <div className="p-2 bg-gradient-to-br from-success/20 to-primary/20 rounded-full mr-3">
-                  <TrendingUp className="w-5 h-5 text-success" />
+            <div className="p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3 sm:gap-4">
+                <div className="flex items-center">
+                  <div className="p-2 bg-gradient-to-br from-success/20 to-primary/20 rounded-full mr-3">
+                    <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-success" />
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-semibold gradient-text">Live Feed</h2>
                 </div>
-                <h2 className="text-2xl font-semibold gradient-text">Live Feed</h2>
-                <div className="ml-auto flex items-center space-x-2">
+                <div className="flex items-center space-x-2">
                   <div className="flex items-center space-x-1">
                     <div className="w-2 h-2 bg-success rounded-full animate-pulse"></div>
                     <span className="text-xs text-muted-foreground">Live</span>
@@ -197,22 +199,22 @@ const InboxPage: React.FC = () => {
           transition={{ duration: 0.6, delay: 0.4 }}
         >
           <GlassCard>
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {/* Section Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-                <h2 className="text-xl sm:text-2xl font-semibold gradient-text">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4">
+                <h2 className="text-lg sm:text-xl md:text-2xl font-semibold gradient-text">
                   Captured Items History
                 </h2>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-3 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-3 sm:space-y-0 sm:space-x-3 w-full lg:w-auto">
                   {/* Search */}
-                  <div className="relative w-full sm:w-auto">
+                  <div className="relative w-full sm:w-auto sm:min-w-[250px]">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
                     <Input
                       type="text"
                       placeholder="Search items..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 text-sm bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary"
+                      className="w-full pl-10 pr-4 py-3 text-sm bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary min-h-[44px] touch-manipulation"
                     />
                   </div>
                   <AnimatedButton
@@ -220,7 +222,7 @@ const InboxPage: React.FC = () => {
                     size="sm"
                     onClick={handleRefresh}
                     loading={loading}
-                    className="hover-glow w-full sm:w-auto"
+                    className="hover-glow w-full sm:w-auto min-h-[44px] touch-manipulation"
                   >
                     <RefreshCw className="w-4 h-4" />
                     <span className="sm:hidden ml-2">Refresh</span>
@@ -272,7 +274,7 @@ const InboxPage: React.FC = () => {
                   variants={revealAnimation.container}
                   initial="hidden"
                   animate="visible"
-                  className="space-y-4"
+                  className="space-y-3 sm:space-y-4"
                 >
                   {filteredItems.map((item, index) => (
                     <motion.div
@@ -282,12 +284,12 @@ const InboxPage: React.FC = () => {
                       className="group"
                     >
                       <GlassCard className="hover-lift transition-all duration-200">
-                        <div className="p-4">
+                        <div className="p-3 sm:p-4">
                           {/* Header */}
-                          <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center mb-3">
+                          <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center mb-3 gap-2 sm:gap-0">
                             <div className="flex items-center space-x-2">
-                              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                                <User className="w-4 h-4 text-primary" />
+                              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                                <User className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
                               </div>
                               <div>
                                 <p className="text-sm font-medium">
@@ -298,7 +300,7 @@ const InboxPage: React.FC = () => {
                                 </p>
                               </div>
                             </div>
-                            <div className="text-left sm:text-right">
+                            <div className="text-left sm:text-right w-full sm:w-auto">
                               <p className="text-xs text-muted-foreground">
                                 {new Date(item.receivedAt).toLocaleDateString()}
                               </p>
@@ -309,7 +311,7 @@ const InboxPage: React.FC = () => {
                           </div>
 
                           {/* Content */}
-                          <p className="text-foreground/90 mb-3 leading-relaxed">
+                          <p className="text-foreground/90 mb-3 leading-relaxed text-sm sm:text-base">
                             {item.text || '[No text content]'}
                           </p>
 
@@ -327,7 +329,7 @@ const InboxPage: React.FC = () => {
                                     href={url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-xs text-primary hover:text-primary/80 transition-colors block truncate"
+                                    className="text-xs text-primary hover:text-primary/80 transition-colors block truncate min-h-[32px] flex items-center touch-manipulation"
                                   >
                                     {url}
                                   </a>
@@ -337,7 +339,7 @@ const InboxPage: React.FC = () => {
                           )}
 
                           {/* Footer */}
-                          <div className="flex justify-between items-center mt-3 pt-3 border-t border-border/20">
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-3 pt-3 border-t border-border/20 gap-2 sm:gap-0">
                             <span className="text-xs text-muted-foreground px-2 py-1 bg-muted/20 rounded">
                               {item.messageType}
                             </span>

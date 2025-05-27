@@ -555,20 +555,20 @@ const BookmarksPage: React.FC = () => {
         />
       </div>
 
-      <div className="relative z-10 container mx-auto p-4 md:p-8 space-y-8">
+      <div className="relative z-10 container mx-auto p-3 sm:p-4 md:p-8 space-y-6 sm:space-y-8">
         <div
           ref={headerRef}
-          className="flex flex-col md:flex-row justify-between items-center mb-4 md:mb-8 gap-4 opacity-100"
+          className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 md:mb-8 gap-4 opacity-100"
         >
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full">
-              <BookmarkPlus className="w-8 h-8 text-primary" />
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="p-2 sm:p-3 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full">
+              <BookmarkPlus className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
             </div>
             <div>
-              <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-primary">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-primary">
                 Bookmarks
               </h1>
-              <p className="text-muted-foreground text-lg">
+              <p className="text-muted-foreground text-base sm:text-lg">
                 Your saved articles, links, and resources.
               </p>
             </div>
@@ -577,17 +577,17 @@ const BookmarksPage: React.FC = () => {
             onClick={handleSummarizeLatestClick} 
             size="lg"
             disabled={isBatchSummarizing || loading || !!error || !token}
-            className="self-center md:self-auto hover:scale-105 transition-all duration-200 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90"
+            className="w-full sm:w-auto self-stretch sm:self-auto hover:scale-105 transition-all duration-200 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 min-h-[48px] touch-manipulation"
           >
             {isBatchSummarizing ? (
               <>
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                Digesting All New...
+                <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
+                <span className="text-sm sm:text-base">Digesting All New...</span>
               </>
             ) : (
               <>
-                <Brain className="w-5 h-5 mr-2"/>
-                Digest New Bookmarks
+                <Brain className="w-4 h-4 sm:w-5 sm:h-5 mr-2"/>
+                <span className="text-sm sm:text-base">Digest New Bookmarks</span>
               </>
             )}
           </Button>
@@ -597,10 +597,10 @@ const BookmarksPage: React.FC = () => {
           ref={controlsRef}
           className="opacity-100"
         >
-          <Card className="p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-              <div className="md:col-span-1">
-                <Label htmlFor="bookmarks-search" className="text-sm font-medium text-muted-foreground mb-1 block">Search</Label>
+          <Card className="p-3 sm:p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 items-end">
+              <div className="lg:col-span-1">
+                <Label htmlFor="bookmarks-search" className="text-sm font-medium text-muted-foreground mb-2 block">Search</Label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
                   <Input
@@ -609,15 +609,15 @@ const BookmarksPage: React.FC = () => {
                     placeholder="Search title, URL, summary..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 text-sm bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200"
+                    className="w-full pl-10 pr-4 py-3 text-sm bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200 min-h-[48px] touch-manipulation"
                   />
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="bookmarks-filter" className="text-sm font-medium text-muted-foreground mb-1 block">Date Filter</Label>
+                <Label htmlFor="bookmarks-filter" className="text-sm font-medium text-muted-foreground mb-2 block">Date Filter</Label>
                 <Select value={filter} onValueChange={setFilter}>
-                  <SelectTrigger id="bookmarks-filter" className="w-full bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200">
+                  <SelectTrigger id="bookmarks-filter" className="w-full bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200 min-h-[48px] touch-manipulation">
                     <SelectValue placeholder="Filter by date..." />
                   </SelectTrigger>
                   <SelectContent className="bg-background border-border shadow-xl">
@@ -629,9 +629,9 @@ const BookmarksPage: React.FC = () => {
               </div>
 
               <div>
-                <Label htmlFor="bookmarks-sort" className="text-sm font-medium text-muted-foreground mb-1 block">Sort By Date</Label>
+                <Label htmlFor="bookmarks-sort" className="text-sm font-medium text-muted-foreground mb-2 block">Sort By Date</Label>
                 <Select value={sortOrder} onValueChange={setSortOrder}>
-                  <SelectTrigger id="bookmarks-sort" className="w-full bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200">
+                  <SelectTrigger id="bookmarks-sort" className="w-full bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200 min-h-[48px] touch-manipulation">
                     <SelectValue placeholder="Sort by..." />
                   </SelectTrigger>
                   <SelectContent className="bg-background border-border shadow-xl">
@@ -668,7 +668,7 @@ const BookmarksPage: React.FC = () => {
           )}
 
           {!loading && !error && filteredAndSortedBookmarks.length > 0 && (
-            <div className="space-y-4 md:space-y-6">
+            <div className="space-y-3 sm:space-y-4 md:space-y-6">
               {filteredAndSortedBookmarks.map((bookmark, index) => {
                 const isValidOriginalUrl = isValidUrlWithHostname(bookmark.originalUrl);
                 let displayableUrl = bookmark.originalUrl;
@@ -685,9 +685,9 @@ const BookmarksPage: React.FC = () => {
                     key={bookmark._id}
                     className="group"
                   >
-                    <Card className="p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-grow min-w-0">
+                    <Card className="p-3 sm:p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10">
+                      <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-4">
+                        <div className="flex-grow min-w-0 w-full sm:w-auto">
                           {isValidOriginalUrl ? (
                             <a 
                                 href={bookmark.originalUrl} 
@@ -695,26 +695,26 @@ const BookmarksPage: React.FC = () => {
                                 rel="noopener noreferrer" 
                                 className="hover:underline group-hover:text-primary transition-colors duration-200"
                             >
-                                <h3 className="text-lg md:text-xl font-semibold text-foreground truncate" title={bookmark.title || bookmark.fetchedTitle || bookmark.originalUrl}>
+                                <h3 className="text-base sm:text-lg md:text-xl font-semibold text-foreground line-clamp-2 sm:truncate" title={bookmark.title || bookmark.fetchedTitle || bookmark.originalUrl}>
                                     {bookmark.title || bookmark.fetchedTitle || bookmark.originalUrl}
                                 </h3>
                             </a>
                           ) : (
-                            <h3 className="text-lg md:text-xl font-semibold text-foreground truncate" title={bookmark.title || bookmark.fetchedTitle || String(bookmark.originalUrl)}>
+                            <h3 className="text-base sm:text-lg md:text-xl font-semibold text-foreground line-clamp-2 sm:truncate" title={bookmark.title || bookmark.fetchedTitle || String(bookmark.originalUrl)}>
                                 {bookmark.title || bookmark.fetchedTitle || String(bookmark.originalUrl)}
                             </h3>
                           )}
-                          <p className="text-xs text-muted-foreground truncate" title={String(bookmark.originalUrl)}>{String(bookmark.originalUrl)}</p>
+                          <p className="text-xs text-muted-foreground truncate mt-1" title={String(bookmark.originalUrl)}>{String(bookmark.originalUrl)}</p>
                            {renderSpecializedContent(bookmark)}
                           {renderSummarySection(bookmark)}
                         </div>
-                        <div className="flex flex-col space-y-2 ml-2 sm:ml-4 shrink-0">
+                        <div className="flex flex-row sm:flex-col space-x-2 sm:space-x-0 sm:space-y-2 w-full sm:w-auto justify-end sm:justify-start shrink-0">
                           <Button
                             size="icon"
                             variant="ghost"
                             onClick={() => handleSummarizeBookmark(bookmark._id)}
                             disabled={summarizingBookmarkId === bookmark._id || bookmark.status === 'processing'}
-                            className="hover:bg-primary/10 hover:text-primary transition-colors duration-200"
+                            className="hover:bg-primary/10 hover:text-primary transition-colors duration-200 min-h-[44px] min-w-[44px] touch-manipulation"
                             title="Generate Summary"
                           >
                             {summarizingBookmarkId === bookmark._id ? (
@@ -732,7 +732,7 @@ const BookmarksPage: React.FC = () => {
                             variant="ghost"
                             onClick={() => handleSpeakSummary(bookmark._id, bookmark.summary)}
                             disabled={!bookmark.summary || bookmark.status !== 'summarized'}
-                            className={`hover:bg-accent/10 hover:text-accent transition-colors duration-200 ${audioErrorId === bookmark._id ? 'text-destructive' : ''}`}
+                            className={`hover:bg-accent/10 hover:text-accent transition-colors duration-200 min-h-[44px] min-w-[44px] touch-manipulation ${audioErrorId === bookmark._id ? 'text-destructive' : ''}`}
                             title={audioErrorId === bookmark._id ? "Audio Error" : (playingBookmarkId === bookmark._id ? "Stop Speaking" : "Speak Summary")}
                           >
                             {playingBookmarkId === bookmark._id ? (
@@ -747,17 +747,17 @@ const BookmarksPage: React.FC = () => {
                             size="icon"
                             variant="ghost"
                             onClick={() => handleDeleteBookmark(bookmark._id)}
-                            className="hover:bg-destructive/10 hover:text-destructive transition-colors duration-200"
+                            className="hover:bg-destructive/10 hover:text-destructive transition-colors duration-200 min-h-[44px] min-w-[44px] touch-manipulation"
                             title="Delete Bookmark"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
-                      <CardFooter className="pt-4 mt-4 border-t border-border/20 flex justify-between items-center text-xs text-muted-foreground">
+                      <CardFooter className="pt-3 sm:pt-4 mt-3 sm:mt-4 border-t border-border/20 flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs text-muted-foreground gap-2 sm:gap-0">
                         <div className="flex items-center">
                           {renderPlatformIcon(bookmark.sourcePlatform)}
-                          <span>{bookmark.sourcePlatform || 'Other'}</span>
+                          <span className="ml-1">{bookmark.sourcePlatform || 'Other'}</span>
                         </div>
                         <div className="flex items-center">
                           <CalendarDays className="w-3 h-3 mr-1.5" />
@@ -774,16 +774,17 @@ const BookmarksPage: React.FC = () => {
 
         {/* Pagination Controls */}
         {!loading && !error && totalPages > 1 && (
-          <div className="flex justify-center items-center space-x-2 mt-8">
+          <div className="flex flex-col sm:flex-row justify-center items-center space-y-3 sm:space-y-0 sm:space-x-4 mt-6 sm:mt-8">
             <Button
               onClick={() => fetchBookmarksCallback(currentPage - 1)}
               disabled={currentPage <= 1}
               variant="outline"
               size="sm"
+              className="w-full sm:w-auto min-h-[44px] touch-manipulation"
             >
               Previous
             </Button>
-            <span className="text-sm text-muted-foreground">
+            <span className="text-sm text-muted-foreground px-3 py-2 bg-muted/20 rounded-md">
               Page {currentPage} of {totalPages}
             </span>
             <Button
@@ -791,6 +792,7 @@ const BookmarksPage: React.FC = () => {
               disabled={currentPage >= totalPages}
               variant="outline"
               size="sm"
+              className="w-full sm:w-auto min-h-[44px] touch-manipulation"
             >
               Next
             </Button>

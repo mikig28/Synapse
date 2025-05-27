@@ -256,17 +256,8 @@ export const summarizeVideo = async (req: AuthenticatedRequest, res: Response) =
       return res.status(404).json({ message: 'Video not found or user not authorized' });
     }
 
-    // Check if summary already exists
-    if (video.summary) {
-      return res.status(200).json({ 
-        message: 'Summary already exists', 
-        summary: video.summary,
-        video: video 
-      });
-    }
-
-    // Generate summary using Gemini AI
-    console.log(`[VideoController] Generating summary for video ${video.videoId}`);
+    // Generate summary using Gemini AI (always generate, even if exists)
+    console.log(`[VideoController] Generating summary for video ${video.videoId} (${video.title})`);
     const summary = await summarizeYouTubeVideo(video.videoId);
 
     // Update the video with the generated summary

@@ -77,23 +77,31 @@ const VideosPage: React.FC = () => {
   const handleSummarizeVideo = async (videoId: string) => {
     try {
       setSummarizingVideoId(videoId);
-      const result = await summarizeVideoService(videoId);
       
-      // Update the video in the state with the new summary
+      const response = await summarizeVideoService(videoId);
+      
+      // Update the video in the local state
       setVideos(prevVideos => 
-        prevVideos.map(v => v._id === videoId ? result.video : v)
+        prevVideos.map(video => 
+          video._id === videoId 
+            ? { ...video, summary: response.summary }
+            : video
+        )
       );
       
       toast({
-        title: "Success",
-        description: "Video summary generated successfully!",
+        title: "✅ הסיכום נוצר בהצלחה",
+        description: "הסיכום החכם של הסרטון מוכן לצפייה",
+        duration: 3000,
       });
-    } catch (err) {
-      console.error(`Error summarizing video ${videoId}:`, err);
+      
+    } catch (error) {
+      console.error('Error summarizing video:', error);
       toast({
-        title: "Error",
-        description: "Failed to generate video summary. Please try again.",
+        title: "❌ שגיאה ביצירת הסיכום",
+        description: "לא הצלחנו ליצור סיכום לסרטון. אנא נסה שוב מאוחר יותר.",
         variant: "destructive",
+        duration: 5000,
       });
     } finally {
       setSummarizingVideoId(null);
@@ -290,11 +298,16 @@ const VideosPage: React.FC = () => {
                             <div className="bg-slate-800/50 rounded-lg p-3 border border-purple-700/30">
                               <div className="flex items-center mb-2">
                                 <FileText className="w-4 h-4 text-purple-400 mr-2" />
-                                <span className="text-xs font-medium text-purple-300">AI Summary</span>
+                                <span className="text-xs font-medium text-purple-300">סיכום AI חכם</span>
                               </div>
-                              <p className="text-xs text-gray-300 line-clamp-4 leading-relaxed">
+                              <div className="text-xs text-gray-300 leading-relaxed whitespace-pre-line">
                                 {video.summary}
-                              </p>
+                              </div>
+                              <div className="mt-2 pt-2 border-t border-purple-800/30">
+                                <span className="text-xs text-purple-400/70 italic">
+                                  * סיכום זה נוצר על ידי AI על בסיס ניתוח הכותרת והמטאדטה של הסרטון
+                                </span>
+                              </div>
                             </div>
                           </CardContent>
                         )}
@@ -337,17 +350,17 @@ const VideosPage: React.FC = () => {
                                 onClick={() => handleSummarizeVideo(video._id)}
                                 disabled={summarizingVideoId === video._id}
                                 className="w-full text-xs bg-purple-600/20 border-purple-500/50 hover:bg-purple-600/30 hover:border-purple-400 text-purple-200 hover:text-white transition-all duration-200"
-                                title={video.summary ? "Regenerate Summary" : "Generate AI Summary"}
+                                title={video.summary ? "יצירת סיכום מחדש" : "יצירת סיכום AI"}
                               >
                                 {summarizingVideoId === video._id ? (
                                   <>
                                     <Loader2 className="w-3 h-3 mr-2 animate-spin" />
-                                    Generating...
+                                    יוצר סיכום...
                                   </>
                                 ) : (
                                   <>
                                     <FileText className="w-3 h-3 mr-2" />
-                                    {video.summary ? "Regenerate Summary" : "Summarize"}
+                                    {video.summary ? "סיכום מחדש" : "צור סיכום"}
                                   </>
                                 )}
                               </AnimatedButton>
