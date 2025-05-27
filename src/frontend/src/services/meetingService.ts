@@ -87,6 +87,45 @@ class MeetingService {
   }
 
   /**
+   * Upload audio for a meeting to be transcribed
+   */
+  async uploadAudioForTranscription(id: string, audioFile: File): Promise<{
+    message: string;
+    meeting: {
+      _id: string;
+      status: string;
+      processingProgress: number;
+    };
+  }> {
+    try {
+      const formData = new FormData();
+      formData.append('audio', audioFile); // "audio" is a common field name for file uploads
+
+      const response = await axiosInstance.post(
+        `${this.baseURL}/${id}/upload-audio`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+      
+      return response.data as {
+        message: string;
+        meeting: {
+          _id: string;
+          status: string;
+          processingProgress: number;
+        };
+      };
+    } catch (error) {
+      console.error(`[MeetingService]: Error uploading audio for meeting ${id}:`, error);
+      throw error; // Re-throw the error to be caught by the calling component
+    }
+  }
+
+  /**
    * Get a specific meeting by ID
    */
   async getMeeting(id: string): Promise<Meeting> {
