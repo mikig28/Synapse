@@ -138,7 +138,7 @@ const InboxPage: React.FC = () => {
           </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mt-6 sm:mt-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mt-6 sm:mt-8">
             {[
               { label: 'Total Items', value: stats.total, icon: MessageCircle },
               { label: 'Today', value: stats.today, icon: Clock },
@@ -284,7 +284,7 @@ const InboxPage: React.FC = () => {
                       <GlassCard className="hover-lift transition-all duration-200">
                         <div className="p-4">
                           {/* Header */}
-                          <div className="flex justify-between items-start mb-3">
+                          <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center mb-3">
                             <div className="flex items-center space-x-2">
                               <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
                                 <User className="w-4 h-4 text-primary" />
@@ -298,7 +298,7 @@ const InboxPage: React.FC = () => {
                                 </p>
                               </div>
                             </div>
-                            <div className="text-right">
+                            <div className="text-left sm:text-right">
                               <p className="text-xs text-muted-foreground">
                                 {new Date(item.receivedAt).toLocaleDateString()}
                               </p>

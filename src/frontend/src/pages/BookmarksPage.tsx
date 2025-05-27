@@ -549,7 +549,7 @@ const BookmarksPage: React.FC = () => {
                               </div>
                           )}
                         </div>
-                        <div className="flex flex-col space-y-2 ml-4 shrink-0">
+                        <div className="flex flex-col space-y-2 ml-2 sm:ml-4 shrink-0">
                           <Button
                             size="icon"
                             variant="ghost"

@@ -55,11 +55,11 @@ const TelegramFeed: React.FC = () => {
             >
               <X size={16} />
             </button>
-            <div className="flex justify-between items-center mb-1">
+            <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center mb-1">
               <span className="font-medium text-sm text-primary">
                 {item.fromUsername || 'Unknown User'} ({item.chatTitle || 'DM'})
               </span>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground mt-1 sm:mt-0 text-left sm:text-right">
                 {new Date(item.receivedAt).toLocaleString()}
               </span>
             </div>
@@ -85,7 +85,7 @@ const TelegramFeed: React.FC = () => {
                 <img 
                   src={`${STATIC_ASSETS_BASE_URL}${item.mediaLocalUrl}`} 
                   alt="Telegram Photo" 
-                  className="max-w-xs max-h-64 rounded-md border object-cover"
+                  className="w-full sm:max-w-xs max-h-64 rounded-md border object-cover"
                 />
               </div>
             )}
