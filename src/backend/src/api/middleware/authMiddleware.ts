@@ -1,18 +1,10 @@
 import jwt from 'jsonwebtoken';
-import { Request, Response, NextFunction, Express } from 'express'; // Added Express
+import { Request, Response, NextFunction } from 'express';
 import User from '../../models/User'; // Adjust path as necessary
+import { AuthenticatedRequest } from '../../types/express';
 
 interface JwtPayload {
   id: string;
-}
-
-// Extend Express Request type to include user and potentially a file from multer
-export interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    // Include other user properties if you fetch them here
-  };
-  file?: Express.Multer.File; // Added for multer file uploads
 }
 
 export const protect = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {

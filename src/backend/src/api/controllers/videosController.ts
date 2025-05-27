@@ -3,10 +3,7 @@ import VideoItem, { IVideoItem } from '../../models/VideoItem';
 import mongoose from 'mongoose';
 import axios from 'axios'; // For oEmbed
 import { summarizeYouTubeVideo } from '../../services/videoSummarizationService';
-
-interface AuthenticatedRequest extends Request {
-  user?: { id: string };
-}
+import { AuthenticatedRequest } from '../../types/express';
 
 // Define the oEmbed response interface
 interface YouTubeOEmbedResponse {
