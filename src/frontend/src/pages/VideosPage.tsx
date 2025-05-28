@@ -3,7 +3,7 @@ import { VideoItemType } from '../types/video';
 import { getVideosService, updateVideoStatusService, deleteVideoService, summarizeVideoService } from '../services/videoService';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ExternalLink, Info, Eye, PlayCircle, CheckCircle, HelpCircle, Trash2, Film, FileText, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { ExternalLink, Info, Eye, PlayCircle, CheckCircle, HelpCircle, Trash2, Film, FileText, Loader2, ChevronDown, ChevronUp, Volume2, VolumeX, Pause } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
@@ -20,7 +20,33 @@ const VideosPage: React.FC = () => {
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
   const [summarizingVideoId, setSummarizingVideoId] = useState<string | null>(null);
   const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set());
+  const [readingVideoId, setReadingVideoId] = useState<string | null>(null);
+  const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null);
+  const [currentUtterance, setCurrentUtterance] = useState<SpeechSynthesisUtterance | null>(null);
   const { toast } = useToast();
+
+  // Initialize speech synthesis
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      setSpeechSynthesis(window.speechSynthesis);
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      if (currentUtterance && speechSynthesis) {
+        speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  // Cleanup speech when component unmounts
+  useEffect(() => {
+    return () => {
+      if (speechSynthesis) {
+        speechSynthesis.cancel();
+      }
+    };
+  }, [speechSynthesis]);
 
   const fetchVideos = async () => {
     try {
@@ -119,6 +145,86 @@ const VideosPage: React.FC = () => {
       }
       return newSet;
     });
+  };
+
+  const handleReadAloud = (videoId: string, text: string) => {
+    if (!speechSynthesis) {
+      toast({
+        title: "❌ לא נתמך",
+        description: "קריאה בקול רם לא נתמכת בדפדפן זה",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // If currently reading this video, stop
+    if (readingVideoId === videoId) {
+      speechSynthesis.cancel();
+      setReadingVideoId(null);
+      setCurrentUtterance(null);
+      return;
+    }
+
+    // If reading another video, stop it first
+    if (readingVideoId) {
+      speechSynthesis.cancel();
+    }
+
+    try {
+      const utterance = new SpeechSynthesisUtterance(text);
+      
+      // Try to find Hebrew voice, fallback to default
+      const voices = speechSynthesis.getVoices();
+      const hebrewVoice = voices.find(voice => 
+        voice.lang.includes('he') || voice.lang.includes('iw')
+      );
+      
+      if (hebrewVoice) {
+        utterance.voice = hebrewVoice;
+      }
+      
+      utterance.lang = 'he-IL';
+      utterance.rate = 0.9;
+      utterance.pitch = 1;
+      utterance.volume = 0.8;
+
+      utterance.onstart = () => {
+        setReadingVideoId(videoId);
+        setCurrentUtterance(utterance);
+      };
+
+      utterance.onend = () => {
+        setReadingVideoId(null);
+        setCurrentUtterance(null);
+      };
+
+      utterance.onerror = (event) => {
+        console.error('Speech synthesis error:', event);
+        setReadingVideoId(null);
+        setCurrentUtterance(null);
+        toast({
+          title: "❌ שגיאה בקריאה",
+          description: "אירעה שגיאה בעת ניסיון לקרוא את הטקסט",
+          variant: "destructive",
+        });
+      };
+
+      speechSynthesis.speak(utterance);
+      
+      toast({
+        title: "🔊 מתחיל לקרוא",
+        description: "הסיכום מוקרא בקול רם",
+        duration: 2000,
+      });
+
+    } catch (error) {
+      console.error('Error with text-to-speech:', error);
+      toast({
+        title: "❌ שגיאה",
+        description: "לא הצלחנו להפעיל קריאה בקול רם",
+        variant: "destructive",
+      });
+    }
   };
 
   const groupedVideos = videos.reduce((acc, video) => {
@@ -340,10 +446,38 @@ const VideosPage: React.FC = () => {
                                       <div className="text-xs text-gray-300 leading-relaxed whitespace-pre-line border-t border-purple-800/30 pt-3">
                                         {video.summary}
                                       </div>
-                                      <div className="mt-3 pt-2 border-t border-purple-800/30">
+                                      
+                                      {/* Read Aloud Button */}
+                                      <div className="mt-3 pt-2 border-t border-purple-800/30 flex items-center justify-between">
                                         <span className="text-xs text-purple-400/70 italic">
                                           * סיכום זה נוצר על ידי AI על בסיס ניתוח הכותרת והמטאדטה של הסרטון
                                         </span>
+                                        
+                                        {speechSynthesis && (
+                                          <AnimatedButton
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleReadAloud(video._id, video.summary as string)}
+                                            className={`ml-2 h-7 px-2 text-xs transition-all duration-200 ${
+                                              readingVideoId === video._id
+                                                ? 'bg-green-600/20 border-green-500/50 text-green-300 hover:bg-green-600/30'
+                                                : 'bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30'
+                                            }`}
+                                            title={readingVideoId === video._id ? "עצור קריאה" : "קרא בקול רם"}
+                                          >
+                                            {readingVideoId === video._id ? (
+                                              <>
+                                                <VolumeX className="w-3 h-3 mr-1" />
+                                                עצור
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Volume2 className="w-3 h-3 mr-1" />
+                                                קרא
+                                              </>
+                                            )}
+                                          </AnimatedButton>
+                                        )}
                                       </div>
                                     </div>
                                   </motion.div>
