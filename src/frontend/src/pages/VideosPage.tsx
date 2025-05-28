@@ -3,11 +3,11 @@ import { VideoItemType } from '../types/video';
 import { getVideosService, updateVideoStatusService, deleteVideoService, summarizeVideoService } from '../services/videoService';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ExternalLink, Info, Eye, PlayCircle, CheckCircle, HelpCircle, Trash2, Film, FileText, Loader2 } from 'lucide-react';
+import { ExternalLink, Info, Eye, PlayCircle, CheckCircle, HelpCircle, Trash2, Film, FileText, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
@@ -19,6 +19,7 @@ const VideosPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
   const [summarizingVideoId, setSummarizingVideoId] = useState<string | null>(null);
+  const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
   const fetchVideos = async () => {
@@ -106,6 +107,18 @@ const VideosPage: React.FC = () => {
     } finally {
       setSummarizingVideoId(null);
     }
+  };
+
+  const toggleSummaryExpansion = (videoId: string) => {
+    setExpandedSummaries(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(videoId)) {
+        newSet.delete(videoId);
+      } else {
+        newSet.add(videoId);
+      }
+      return newSet;
+    });
   };
 
   const groupedVideos = videos.reduce((acc, video) => {
@@ -295,19 +308,47 @@ const VideosPage: React.FC = () => {
                         {/* Summary Section */}
                         {video.summary && (
                           <CardContent className="p-3 md:p-4 pt-0">
-                            <div className="bg-slate-800/50 rounded-lg p-3 border border-purple-700/30">
-                              <div className="flex items-center mb-2">
-                                <FileText className="w-4 h-4 text-purple-400 mr-2" />
-                                <span className="text-xs font-medium text-purple-300">סיכום AI חכם</span>
-                              </div>
-                              <div className="text-xs text-gray-300 leading-relaxed whitespace-pre-line">
-                                {video.summary}
-                              </div>
-                              <div className="mt-2 pt-2 border-t border-purple-800/30">
-                                <span className="text-xs text-purple-400/70 italic">
-                                  * סיכום זה נוצר על ידי AI על בסיס ניתוח הכותרת והמטאדטה של הסרטון
-                                </span>
-                              </div>
+                            <div className="bg-slate-800/50 rounded-lg border border-purple-700/30 overflow-hidden">
+                              {/* Accordion Header */}
+                              <button
+                                onClick={() => toggleSummaryExpansion(video._id)}
+                                className="w-full flex items-center justify-between p-3 hover:bg-slate-700/30 transition-colors duration-200"
+                              >
+                                <div className="flex items-center">
+                                  <FileText className="w-4 h-4 text-purple-400 mr-2" />
+                                  <span className="text-xs font-medium text-purple-300">סיכום AI חכם</span>
+                                </div>
+                                <motion.div
+                                  animate={{ rotate: expandedSummaries.has(video._id) ? 180 : 0 }}
+                                  transition={{ duration: 0.2 }}
+                                >
+                                  <ChevronDown className="w-4 h-4 text-purple-400" />
+                                </motion.div>
+                              </button>
+                              
+                              {/* Accordion Content */}
+                              <AnimatePresence>
+                                {expandedSummaries.has(video._id) && (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                                    className="overflow-hidden"
+                                  >
+                                    <div className="px-3 pb-3">
+                                      <div className="text-xs text-gray-300 leading-relaxed whitespace-pre-line border-t border-purple-800/30 pt-3">
+                                        {video.summary}
+                                      </div>
+                                      <div className="mt-3 pt-2 border-t border-purple-800/30">
+                                        <span className="text-xs text-purple-400/70 italic">
+                                          * סיכום זה נוצר על ידי AI על בסיס ניתוח הכותרת והמטאדטה של הסרטון
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
                             </div>
                           </CardContent>
                         )}
