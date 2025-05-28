@@ -114,7 +114,7 @@ const InboxPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      <div className="container mx-auto p-3 sm:p-4 md:p-8 space-y-6 sm:space-y-8">
+      <div className="container mx-auto p-2 sm:p-4 md:p-6 lg:p-8 space-y-6 sm:space-y-8">
         {/* Header Section */}
         <motion.div
           ref={headerRef}
@@ -138,7 +138,7 @@ const InboxPage: React.FC = () => {
           </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-6 sm:mt-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 mt-6 sm:mt-8">
             {[
               { label: 'Total Items', value: stats.total, icon: MessageCircle },
               { label: 'Today', value: stats.today, icon: Clock },
@@ -152,7 +152,7 @@ const InboxPage: React.FC = () => {
                 transition={{ duration: 0.5, delay: index * 0.1 + 0.3 }}
               >
                 <GlassCard className="text-center hover-lift">
-                  <div className="p-3 sm:p-4">
+                  <div className="p-2 sm:p-3 md:p-4">
                     <stat.icon className="w-5 h-5 sm:w-6 sm:h-6 text-primary mx-auto mb-2" />
                     <p className="text-xl sm:text-2xl font-bold">{stat.value}</p>
                     <p className="text-xs text-muted-foreground">{stat.label}</p>
@@ -171,7 +171,8 @@ const InboxPage: React.FC = () => {
           transition={{ duration: 0.6, delay: 0.2 }}
         >
           <GlassCard>
-            <div className="p-4 sm:p-6">
+            {/* Adjusted padding for the Live Feed card itself, though not explicitly requested, makes sense for consistency */}
+            <div className="p-3 sm:p-4 md:p-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3 sm:gap-4">
                 <div className="flex items-center">
                   <div className="p-2 bg-gradient-to-br from-success/20 to-primary/20 rounded-full mr-3">
@@ -199,7 +200,7 @@ const InboxPage: React.FC = () => {
           transition={{ duration: 0.6, delay: 0.4 }}
         >
           <GlassCard>
-            <div className="p-4 sm:p-6">
+            <div className="p-3 sm:p-4 md:p-6">
               {/* Section Header */}
               <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4">
                 <h2 className="text-lg sm:text-xl md:text-2xl font-semibold gradient-text">
@@ -284,7 +285,7 @@ const InboxPage: React.FC = () => {
                       className="group"
                     >
                       <GlassCard className="hover-lift transition-all duration-200">
-                        <div className="p-3 sm:p-4">
+                        <div className="p-2 sm:p-3 md:p-4">
                           {/* Header */}
                           <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center mb-3 gap-2 sm:gap-0">
                             <div className="flex items-center space-x-2">
@@ -311,13 +312,13 @@ const InboxPage: React.FC = () => {
                           </div>
 
                           {/* Content */}
-                          <p className="text-foreground/90 mb-3 leading-relaxed text-sm sm:text-base">
+                          <p className="text-foreground/90 mb-3 leading-relaxed text-sm sm:text-base line-clamp-3">
                             {item.text || '[No text content]'}
                           </p>
 
                           {/* Links */}
                           {item.urls && item.urls.length > 0 && (
-                            <div className="mt-3 p-3 bg-muted/20 rounded-lg">
+                            <div className="mt-3 p-2 bg-muted/20 rounded-lg">
                               <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center">
                                 <ExternalLink className="w-3 h-3 mr-1" />
                                 Links ({item.urls.length})
