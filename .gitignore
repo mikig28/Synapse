@@ -9,6 +9,18 @@ dev-debug.log
 # Dependency directories
 node_modules/
 
+# Python virtual environment
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+
 # Environment variables
 .env
 
@@ -26,4 +38,10 @@ node_modules/
 
 # Task files
 tasks.json
-tasks/ 
+tasks/
+# Allow React task modal components directory
+!src/frontend/src/components/tasks/
+!src/frontend/src/components/tasks/*.tsx
+
+# Build output
+/src/frontend/dist/ 
