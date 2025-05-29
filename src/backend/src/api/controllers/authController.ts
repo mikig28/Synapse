@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken'; // We'll install this next
 // Function to generate JWT
 // Store your JWT_SECRET in .env file
 const generateToken = (id: string) => {
+  console.log(`[generateToken] Generating token for user ID: ${id}`);
   return jwt.sign({ id }, process.env.JWT_SECRET || 'yourfallbacksecret', {
     expiresIn: '30d', // Token expiration
   });
@@ -56,10 +57,14 @@ export const registerUser = async (req: Request, res: Response) => {
 };
 
 export const loginUser = async (req: Request, res: Response) => {
-  console.log('Received login request body:', req.body);
+  console.log('LOGIN ATTEMPT - Raw Request Body:', JSON.stringify(req.body, null, 2)); // Log raw body
   const { email, password } = req.body;
 
+  console.log(`LOGIN ATTEMPT - Email: ${email}, Type: ${typeof email}`);
+  console.log(`LOGIN ATTEMPT - Password Present: ${password ? 'Yes' : 'No'}, Type: ${typeof password}`);
+
   if (!email || !password) {
+    console.log('LOGIN REJECTED - Missing email or password');
     return res.status(400).json({ message: 'Email and password are required' });
   }
 
@@ -69,11 +74,13 @@ export const loginUser = async (req: Request, res: Response) => {
     const user = await User.findOne({ email }).select('+password');
 
     if (user && (await user.comparePassword(password))) {
+      const token = generateToken(user.id);
+      console.log(`[loginUser] User ${user.email} (ID: ${user.id}) logged in. Token generated.`);
       res.json({
         _id: user.id,
         fullName: user.fullName,
         email: user.email,
-        token: generateToken(user.id),
+        token: token,
       });
     } else {
       // Generic message for security; don't reveal if email exists but password was wrong

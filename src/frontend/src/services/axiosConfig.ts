@@ -1,41 +1,81 @@
 import axios from 'axios';
+import type { AxiosRequestConfig, AxiosError, AxiosResponse } from 'axios';
 import useAuthStore from '../store/authStore'; // Adjust path if your store is elsewhere
 
-const API_BASE_URL = process.env.NODE_ENV === 'development' 
-  ? 'http://localhost:3001' // Your backend dev server
-  : '/api/v1'; // Your production API prefix, assuming frontend is served by backend or proxied
+// Define the root URL for your backend.
+// For local development, it's typically 'http://localhost:3001'.
+// For production, set VITE_BACKEND_ROOT_URL to your backend's base URL (e.g., https://your-backend.onrender.com)
+export const BACKEND_ROOT_URL =
+  import.meta.env.VITE_BACKEND_ROOT_URL ||
+  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001');
+
+// Define the common path for your API endpoints.
+const API_PATH = '/api/v1'; // This can be made configurable via another env var if needed
+
+// Add more detailed logging for debugging
+console.log('[AxiosConfig] BACKEND_ROOT_URL:', BACKEND_ROOT_URL);
+console.log('[AxiosConfig] Full API Base URL:', `${BACKEND_ROOT_URL}${API_PATH}`);
 
 const axiosInstance = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: `${BACKEND_ROOT_URL}${API_PATH}`, // e.g., http://localhost:3001/api/v1 or https://your-backend.onrender.com/api/v1
 });
+
+// Export the root URL for constructing paths to static assets (like images)
+// This ensures static assets are fetched from the correct base, without the /api/v1 path.
+export const STATIC_ASSETS_BASE_URL = BACKEND_ROOT_URL;
 
 // Request interceptor to add token to headers
 axiosInstance.interceptors.request.use(
-  (config) => {
+  (config: AxiosRequestConfig): AxiosRequestConfig => {
     const token = useAuthStore.getState().token;
-    if (token) {
+    console.log('[AxiosInterceptor] Token from store:', token ? 'Present' : 'Absent'); // Log token presence
+    console.log('[AxiosInterceptor] Full request config:', {
+      url: config.url,
+      method: config.method,
+      baseURL: config.baseURL,
+      params: config.params,
+      data: config.data ? 'Has data' : 'No data'
+    });
+    
+    if (token && config.headers) {
       config.headers['Authorization'] = `Bearer ${token}`;
+      console.log('[AxiosInterceptor] Authorization header SET'); // Confirm header set
+    } else {
+      console.log('[AxiosInterceptor] No token found in store, Authorization header NOT SET');
     }
+    console.log('[AxiosInterceptor] Making request to:', config.url); // Log target URL
     return config;
   },
-  (error) => {
+  (error: AxiosError) => {
+    console.error('[AxiosInterceptor] Request error:', error);
     return Promise.reject(error);
   }
 );
 
 // Optional: Response interceptor for global error handling (e.g., 401 for logout)
 axiosInstance.interceptors.response.use(
-  (response) => {
+  (response: AxiosResponse) => {
+    console.log('[AxiosInterceptor] Response from:', response.config.url, 'Status:', response.status);
+    console.log('[AxiosInterceptor] Response data:', response.data ? JSON.stringify(response.data).slice(0, 200) + '...' : 'No data');
     return response;
   },
-  (error) => {
+  (error: AxiosError) => {
+    console.error('[AxiosInterceptor] Response error from:', error.config?.url, 'Status:', error.response?.status);
+    console.error('[AxiosInterceptor] Error details:', {
+      message: error.message,
+      responseData: error.response?.data ? JSON.stringify(error.response.data).slice(0, 200) + '...' : 'No data',
+      isAxiosError: error.isAxiosError,
+      statusCode: error.response?.status
+    });
+    
     if (error.response && error.response.status === 401) {
       // If unauthorized, logout the user
       // Check if it's not a login/register attempt to avoid logout loop
-      if (!error.config.url.includes('/auth/login') && !error.config.url.includes('/auth/register')) {
+      if (error.config && !error.config.url?.includes('/auth/login') && !error.config.url?.includes('/auth/register')) {
+        console.log('[AxiosInterceptor] 401 response detected. Logging out user.');
         useAuthStore.getState().logout();
         // Optionally redirect to login page
-        // window.location.href = '/login'; 
+        // window.location.href = '/login';
       }
     }
     return Promise.reject(error);

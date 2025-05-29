@@ -4,12 +4,9 @@ import fs from 'fs'; // <-- Import fs for file deletion
 import path from 'path'; // <-- Import path for constructing file paths
 import { processAndCreateBookmark } from './bookmarksController'; // Import the new function
 import { ObjectId } from 'mongodb';
+import { AuthenticatedRequest } from '../../types/express';
 // Assuming you have a way to get authenticated user ID from request, e.g., from a JWT middleware
 // For now, we'll assume req.user.id exists after authentication middleware.
-
-interface AuthenticatedRequest extends Request {
-  user?: { id: string }; // Define how user info is attached to request by auth middleware
-}
 
 // New function to process a saved Telegram item for bookmarks
 export const processTelegramItemForBookmarks = async (telegramItem: ITelegramItem) => {

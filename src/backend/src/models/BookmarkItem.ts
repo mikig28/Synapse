@@ -10,7 +10,11 @@ export interface IBookmarkItem extends Document { // Renaming to IBookmarkItem f
   summary?: string;
   tags?: string[];
   rawPageContent?: string;
-  status?: 'pending_summary' | 'summarized' | 'error';
+  status?: 'pending_summary' | 'summarized' | 'error' | 'metadata_fetched';
+  // Fetched metadata fields (especially for LinkedIn/Other)
+  fetchedTitle?: string;
+  fetchedDescription?: string;
+  fetchedImageUrl?: string;
   // createdAt and updatedAt are automatically added by timestamps: true
 }
 
@@ -24,15 +28,18 @@ const BookmarkItemSchema: Schema<IBookmarkItem> = new Schema(
       enum: ['X', 'LinkedIn', 'Other'],
       required: true,
     },
-    title: { type: String },
-    summary: { type: String },
+    title: { type: String, default: '' },
+    summary: { type: String, default: '' },
     tags: { type: [String], default: [] },
-    rawPageContent: { type: String }, // For storing fetched page content for AI processing
+    rawPageContent: { type: String },
     status: {
       type: String,
-      enum: ['pending_summary', 'summarized', 'error'],
+      enum: ['pending_summary', 'summarized', 'error', 'metadata_fetched'],
       default: 'pending_summary',
     },
+    fetchedTitle: { type: String },
+    fetchedDescription: { type: String },
+    fetchedImageUrl: { type: String },
   },
   { timestamps: true } // Automatically adds createdAt and updatedAt fields
 );

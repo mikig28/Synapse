@@ -1,17 +1,10 @@
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 import User from '../../models/User'; // Adjust path as necessary
+import { AuthenticatedRequest } from '../../types/express';
 
 interface JwtPayload {
   id: string;
-}
-
-// Extend Express Request type to include user
-interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    // Include other user properties if you fetch them here
-  };
 }
 
 export const protect = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
@@ -36,4 +29,4 @@ export const protect = async (req: AuthenticatedRequest, res: Response, next: Ne
   if (!token) {
     res.status(401).json({ message: 'Not authorized, no token' });
   }
-}; 
+};

@@ -12,25 +12,85 @@ import captureRoutes from './api/routes/captureRoutes'; // Import capture routes
 import path from 'path'; // <-- Import path module
 import fs from 'fs'; // <-- Import fs module
 import bookmarkRoutes from './api/routes/bookmarksRoutes'; // Import bookmark routes
+import videoRoutes from './api/routes/videosRoutes'; // Added video routes
+import tasksRoutes from './api/routes/tasksRoutes'; // Add this
+import notesRoutes from './api/routes/notesRoutes'; // Add this
+import ideasRoutes from './api/routes/ideasRoutes'; // Add this
+import meetingsRoutes from './api/routes/meetingsRoutes'; // Add meetings routes
+import userRoutes from './api/routes/userRoutes'; // <-- IMPORT USER ROUTES
+import voiceMemoRoutes from './api/routes/voiceMemoRoutes'; // Import voice memo routes
 
 dotenv.config();
 
 const app: Express = express();
-const PORT = process.env.PORT || 3001;
+const rawPort = process.env.PORT || '3001'; // Read as string
+const PORT = parseInt(rawPort, 10); // Convert to number
+
+// Define Frontend URL from environment variable or default to localhost
+const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+console.log(`[CORS Setup] Allowed origin for Express CORS: ${frontendUrl}`); // Log the origin being used
 
 // Create HTTP server and pass it to Socket.IO
 const httpServer = http.createServer(app);
+
+// Define allowed origins for Socket.IO
+const allowedSocketOrigins = [
+  frontendUrl, // From environment variable
+  "https://synapse-frontend.onrender.com" // Explicitly add production URL
+];
+// For development, you might also want to add your local dev URL if it's different
+// e.g., if frontendUrl is for production, add "http://localhost:5173" here for local testing
+
+console.log(`[Socket.IO CORS Setup] Allowed origins for Socket.IO: ${allowedSocketOrigins.join(', ')}`);
+
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: "http://localhost:5173", // Frontend URL, adjust if different
-    methods: ["GET", "POST"]
+    origin: function (requestOrigin, callback) {
+      // Log the origin for every connection attempt
+      console.log(`[Socket.IO CORS] Request origin: ${requestOrigin}`);
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!requestOrigin) {
+        console.log('[Socket.IO CORS] Allowing request with no origin.');
+        return callback(null, true);
+      }
+      if (allowedSocketOrigins.includes(requestOrigin)) {
+        console.log(`[Socket.IO CORS] Origin ${requestOrigin} is allowed.`);
+        return callback(null, true);
+      } else {
+        console.error(`[Socket.IO CORS] Origin ${requestOrigin} is NOT allowed.`);
+        return callback(new Error('Not allowed by CORS'));
+      }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE"]
   }
 });
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: [frontendUrl, "https://synapse-frontend.onrender.com"], // MODIFIED - Added your specific production frontend URL
+  methods: ["GET", "POST", "PUT", "DELETE"], // MODIFIED - Added PUT and DELETE for Express
+  allowedHeaders: ["Content-Type", "Authorization"] // Added common headers
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Global request logger for API v1 routes
+app.use('/api/v1', (req: Request, res: Response, next: NextFunction) => {
+  console.log(`[API Logger] Path: ${req.path}, Method: ${req.method}`);
+  console.log('[API Logger] Authorization Header:', req.headers.authorization ? 'Present' : 'Absent');
+  if (req.headers.authorization) {
+    // Log only the first few characters of the token for brevity and security
+    const authHeaderParts = req.headers.authorization.split(' ');
+    if (authHeaderParts.length === 2 && authHeaderParts[0].toLowerCase() === 'bearer') {
+      console.log('[API Logger] Auth Header Value (Bearer Token Type):', authHeaderParts[1].substring(0, 20) + '...');
+    } else {
+      console.log('[API Logger] Auth Header Value (Other Type):', req.headers.authorization.substring(0, 20) + '...');
+    }
+  } else {
+    console.log('[API Logger] No Authorization Header found.');
+  }
+  next();
+});
 
 // Create public directories if they don't exist
 const publicDir = path.join(__dirname, '..', 'public'); // Assuming public is one level up from src, adjust if necessary
@@ -41,6 +101,8 @@ if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir);
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
 if (!fs.existsSync(telegramMediaDir)) fs.mkdirSync(telegramMediaDir);
 
+console.log(`[Static Files] Serving static files from /public mapped to physical directory: ${publicDir}`); // ADDED THIS LINE
+
 // Serve static files from the 'public' directory
 app.use('/public', express.static(publicDir)); // Serve files under /public URL path
 
@@ -49,6 +111,13 @@ app.use('/api/v1/whatsapp', whatsappRoutes);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/capture', captureRoutes); // Use capture routes
 app.use('/api/v1/bookmarks', bookmarkRoutes); // Use bookmark routes
+app.use('/api/v1/videos', videoRoutes); // Use video routes
+app.use('/api/v1/tasks', tasksRoutes); // Add this
+app.use('/api/v1/notes', notesRoutes); // Add this
+app.use('/api/v1/ideas', ideasRoutes); // Add this
+app.use('/api/v1/meetings', meetingsRoutes); // Add meetings routes
+app.use('/api/v1/users', userRoutes); // <-- USE USER ROUTES
+app.use('/api/v1/voice-memos', voiceMemoRoutes); // Use voice memo routes
 
 // Basic route for testing
 app.get('/', (req: Request, res: Response) => {
@@ -80,11 +149,19 @@ io.on('connection', (socket) => {
 
 const startServer = async () => {
   try {
+    const mongoUri = process.env.MONGODB_URI;
+
+    if (!mongoUri) {
+      console.error('FATAL ERROR: MONGODB_URI is not defined.');
+      process.exit(1);
+    }
+
+    await mongoose.connect(mongoUri);
     await connectToDatabase(); // Calls the Mongoose connection logic
     initializeTelegramBot(); // Initialize and start the Telegram bot polling
 
-    httpServer.listen(PORT, () => {
-      console.log(`[server]: Backend server is running (HTTP & WebSocket) at http://localhost:${PORT}`);
+    httpServer.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server is running on port ${PORT}`);
       // The "[mongoose]: Mongoose connected to DB" log from database.ts confirms success
     });
   } catch (error) {
@@ -98,4 +175,4 @@ startServer();
 // Export io instance so it can be used in other modules (e.g., telegramService)
 export { io };
 
-export default app; // Optional: export app for testing purposes 
+export default app; // Optional: export app for testing purposes

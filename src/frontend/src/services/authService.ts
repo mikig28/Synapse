@@ -1,6 +1,9 @@
 import useAuthStore from "@/store/authStore";
+import { BACKEND_ROOT_URL } from "./axiosConfig";
 
-const API_URL = 'http://localhost:3001/api/v1/auth'; // Your backend API URL
+// Centralised API base
+const API_BASE_URL = `${BACKEND_ROOT_URL}/api/v1`;
+const API_AUTH_URL = `${API_BASE_URL}/auth`;
 
 // Helper to get the token from the store if needed for authenticated requests later
 // const getToken = () => useAuthStore.getState().token;
@@ -27,7 +30,7 @@ interface AuthResponse {
 }
 
 export const registerService = async (userData: any): Promise<AuthResponse> => {
-  const response = await fetch(`${API_URL}/register`, {
+  const response = await fetch(`${API_AUTH_URL}/register`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -45,7 +48,7 @@ export const registerService = async (userData: any): Promise<AuthResponse> => {
 };
 
 export const loginService = async (credentials: any): Promise<AuthResponse> => {
-  const response = await fetch(`${API_URL}/login`, {
+  const response = await fetch(`${API_AUTH_URL}/login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
