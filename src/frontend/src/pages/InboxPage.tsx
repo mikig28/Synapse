@@ -114,7 +114,7 @@ const InboxPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      <div className="container mx-auto p-2 sm:p-4 md:p-6 lg:p-8 space-y-6 sm:space-y-8">
+      <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6 sm:space-y-8">
         {/* Header Section */}
         <motion.div
           ref={headerRef}
@@ -128,10 +128,10 @@ const InboxPage: React.FC = () => {
               <Inbox className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
             </div>
             <div className="text-center sm:text-left">
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold gradient-text">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold gradient-text">
                 Inbox
               </h1>
-              <p className="text-muted-foreground text-sm sm:text-md md:text-lg mt-1 sm:mt-2">
+              <p className="text-muted-foreground text-sm sm:text-base md:text-lg mt-1 sm:mt-2">
                 Your captured content from all sources
               </p>
             </div>
@@ -151,10 +151,10 @@ const InboxPage: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: index * 0.1 + 0.3 }}
               >
-                <GlassCard className="text-center hover-lift">
+                <GlassCard className="text-center hover-lift mobile-card">
                   <div className="p-2 sm:p-3 md:p-4">
                     <stat.icon className="w-5 h-5 sm:w-6 sm:h-6 text-primary mx-auto mb-2" />
-                    <p className="text-xl sm:text-2xl font-bold">{stat.value}</p>
+                    <p className="text-lg sm:text-xl md:text-2xl font-bold">{stat.value}</p>
                     <p className="text-xs text-muted-foreground">{stat.label}</p>
                   </div>
                 </GlassCard>
@@ -170,15 +170,15 @@ const InboxPage: React.FC = () => {
           animate={feedInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
           transition={{ duration: 0.6, delay: 0.2 }}
         >
-          <GlassCard>
+          <GlassCard className="mobile-card">
             {/* Adjusted padding for the Live Feed card itself, though not explicitly requested, makes sense for consistency */}
-            <div className="p-3 sm:p-4 md:p-6">
+            <div className="p-4 md:p-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3 sm:gap-4">
                 <div className="flex items-center">
                   <div className="p-2 bg-gradient-to-br from-success/20 to-primary/20 rounded-full mr-3">
                     <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-success" />
                   </div>
-                  <h2 className="text-xl sm:text-2xl font-semibold gradient-text">Live Feed</h2>
+                  <h2 className="text-lg sm:text-xl md:text-2xl font-semibold gradient-text">Live Feed</h2>
                 </div>
                 <div className="flex items-center space-x-2">
                   <div className="flex items-center space-x-1">
@@ -199,8 +199,8 @@ const InboxPage: React.FC = () => {
           animate={historyInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
           transition={{ duration: 0.6, delay: 0.4 }}
         >
-          <GlassCard>
-            <div className="p-3 sm:p-4 md:p-6">
+          <GlassCard className="mobile-card">
+            <div className="p-4 md:p-6">
               {/* Section Header */}
               <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4">
                 <h2 className="text-lg sm:text-xl md:text-2xl font-semibold gradient-text">
@@ -284,8 +284,8 @@ const InboxPage: React.FC = () => {
                       whileHover={{ scale: 1.01 }}
                       className="group"
                     >
-                      <GlassCard className="hover-lift transition-all duration-200">
-                        <div className="p-2 sm:p-3 md:p-4">
+                      <GlassCard className="hover-lift transition-all duration-200 mobile-card">
+                        <div className="p-3 sm:p-4 md:p-4">
                           {/* Header */}
                           <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center mb-3 gap-2 sm:gap-0">
                             <div className="flex items-center space-x-2">
@@ -293,10 +293,10 @@ const InboxPage: React.FC = () => {
                                 <User className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
                               </div>
                               <div>
-                                <p className="text-sm font-medium">
+                                <p className="text-sm font-medium truncate">
                                   {item.fromUsername || 'Unknown User'}
                                 </p>
-                                <p className="text-xs text-muted-foreground">
+                                <p className="text-xs text-muted-foreground truncate">
                                   {item.chatTitle || `Chat ${item.chatId}`}
                                 </p>
                               </div>
