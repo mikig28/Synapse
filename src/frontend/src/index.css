@@ -250,11 +250,11 @@ code {
   }
   
   ::-webkit-scrollbar-thumb {
-    @apply bg-muted-foreground/30 rounded-full;
+    @apply bg-primary/60 rounded; /* Updated to use primary color and ensure rounded */
   }
   
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/50;
+    @apply bg-primary/80; /* Darken on hover */
   }
 }
 
@@ -411,6 +411,18 @@ code {
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 5;
   }
+
+  /* Added from downloaded globals.css */
+  .bg-grid-slate-200\/50 { /* Escaped slash for CSS */
+    background-image: linear-gradient(currentColor 1px, transparent 1px),
+      linear-gradient(to right, currentColor 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+}
+
+.react-draggable {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 /* Mobile-specific utilities */
