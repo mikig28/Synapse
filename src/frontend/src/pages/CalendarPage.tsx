@@ -406,7 +406,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
         {/* Calendar View */}
         <div
           className={`flex-1 flex flex-col opacity-0 ${isLoaded ? "animate-fade-in" : ""}`}
-          style={{ animationDelay: "0.6s" }}
+          style={{ animationDelay: "0.6s", opacity: 1, visibility: 'visible' }}
         >
           {/* Calendar Controls */}
           <div className="flex items-center justify-between p-4 border-b border-white/20">
