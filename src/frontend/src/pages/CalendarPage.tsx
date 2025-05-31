@@ -45,7 +45,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
     // Show AI popup after 3 seconds
     const popupTimer = setTimeout(() => {
-      setShowAIPopup(true)
+      // setShowAIPopup(true) // <--- Commented out
     }, 3000)
 
     return () => clearTimeout(popupTimer)

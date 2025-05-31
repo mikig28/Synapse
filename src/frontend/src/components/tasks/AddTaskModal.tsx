@@ -147,12 +147,12 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave }) 
               </div>
               <div>
                 <Label htmlFor="priority" className="text-muted-foreground">Priority</Label>
-                <Select value={priority || ''} onValueChange={(value) => setPriority(value as Task['priority'] || undefined)} disabled={isSubmitting}>
+                <Select value={priority || ''} onValueChange={(value) => setPriority(value === 'none' ? undefined : (value as Task['priority']))} disabled={isSubmitting}>
                   <SelectTrigger id="priority" className="mt-1 w-full bg-background/50 border-border/50 focus:border-primary focus:ring-primary">
                     <SelectValue placeholder="Select priority" />
                   </SelectTrigger>
                   <SelectContent className="bg-background/90 border-border/70 backdrop-blur-md">
-                    <SelectItem value="">None</SelectItem> 
+                    <SelectItem value="none">None</SelectItem>
                     <SelectItem value="low">Low</SelectItem>
                     <SelectItem value="medium">Medium</SelectItem>
                     <SelectItem value="high">High</SelectItem>
