@@ -17,16 +17,34 @@ import {
   Sparkles, // For AI popup (currently disabled)
   X, // For AI popup & selected event modal (currently disabled for AI popup)
 } from "lucide-react"
+import {
+  format,
+  addMonths,
+  subMonths,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  getDay, // 0 (Sun) to 6 (Sat)
+  isToday,
+  isSameMonth,
+  isSameDay,
+  addDays,
+  subDays,
+  addWeeks,
+  subWeeks,
+  // parseISO // Might be needed if event dates are strings
+} from "date-fns"
 
 // Assuming you have a way to define your event types, or we can define a basic one.
 // For now, I'll use \'any\' for selectedEvent to avoid blocking, but this should be typed.
 interface CalendarEvent {
   id: number;
   title: string;
-  startTime: string;
-  endTime: string;
+  startTime: Date;
+  endTime: Date;
   color: string;
-  day: number; // Assuming this is day of the week (1-7) or day of the month
   description: string;
   location: string;
   attendees: string[];
@@ -48,8 +66,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
   // AI Popup typing useEffect remains commented out
 
   const [currentView, setCurrentView] = useState("week")
-  const [currentMonth, setCurrentMonth] = useState("March 2025") // This should be dynamic
-  const [currentDate, setCurrentDate] = useState("March 5") // This should be dynamic
+  const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date()) // Date object for current view
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
 
   const handleEventClick = (event: CalendarEvent) => {
@@ -61,10 +78,9 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 1,
       title: "Team Meeting",
-      startTime: "09:00",
-      endTime: "10:00",
+      startTime: new Date(2025, 2, 3, 9, 0),
+      endTime: new Date(2025, 2, 3, 10, 0),
       color: "bg-blue-500",
-      day: 1, // Monday
       description: "Weekly team sync-up",
       location: "Conference Room A",
       attendees: ["John Doe", "Jane Smith", "Bob Johnson"],
@@ -73,10 +89,9 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 2,
       title: "Lunch with Sarah",
-      startTime: "12:30",
-      endTime: "13:30",
+      startTime: new Date(2025, 2, 3, 12, 30),
+      endTime: new Date(2025, 2, 3, 13, 30),
       color: "bg-green-500",
-      day: 1, // Monday
       description: "Discuss project timeline",
       location: "Cafe Nero",
       attendees: ["Sarah Lee"],
@@ -85,10 +100,9 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 3,
       title: "Project Review",
-      startTime: "14:00",
-      endTime: "15:30",
+      startTime: new Date(2025, 2, 5, 14, 0),
+      endTime: new Date(2025, 2, 5, 15, 30),
       color: "bg-purple-500",
-      day: 3, // Wednesday
       description: "Q2 project progress review",
       location: "Meeting Room 3",
       attendees: ["Team Alpha", "Stakeholders"],
@@ -97,10 +111,9 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 4,
       title: "Client Call",
-      startTime: "10:00",
-      endTime: "11:00",
+      startTime: new Date(2025, 2, 4, 10, 0),
+      endTime: new Date(2025, 2, 4, 11, 0),
       color: "bg-yellow-500",
-      day: 2, // Tuesday
       description: "Quarterly review with major client",
       location: "Zoom Meeting",
       attendees: ["Client Team", "Sales Team"],
@@ -109,10 +122,9 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 5,
       title: "Team Brainstorm",
-      startTime: "13:00",
-      endTime: "14:30",
+      startTime: new Date(2025, 2, 6, 13, 0),
+      endTime: new Date(2025, 2, 6, 14, 30),
       color: "bg-indigo-500",
-      day: 4, // Thursday
       description: "Ideation session for new product features",
       location: "Creative Space",
       attendees: ["Product Team", "Design Team"],
@@ -120,47 +132,21 @@ export default function CalendarPage() { // Renamed from Home for clarity
     },
     {
       id: 6,
-      title: "Product Demo",
-      startTime: "11:00",
-      endTime: "12:00",
+      title: "Future Planning",
+      startTime: new Date(2025, 2, 10, 11, 0),
+      endTime: new Date(2025, 2, 10, 12, 0),
       color: "bg-pink-500",
-      day: 5, // Friday
-      description: "Showcase new features to stakeholders",
-      location: "Demo Room",
-      attendees: ["Stakeholders", "Dev Team"],
-      organizer: "Tech Lead",
-    },
-    {
-      id: 7,
-      title: "Marketing Meeting",
-      startTime: "13:00",
-      endTime: "14:00",
-      color: "bg-teal-500",
-      day: 6, // Saturday
-      description: "Discuss Q3 marketing strategy",
-      location: "Marketing Office",
-      attendees: ["Marketing Team"],
-      organizer: "Marketing Director",
-    },
-    {
-      id: 8,
-      title: "Code Review",
-      startTime: "15:00",
-      endTime: "16:00",
-      color: "bg-cyan-500",
-      day: 7, // Sunday
-      description: "Review pull requests for new feature",
-      location: "Dev Area",
-      attendees: ["Dev Team"],
-      organizer: "Senior Developer",
+      description: "Planning for Q3",
+      location: "Strategy Room",
+      attendees: ["Leadership"],
+      organizer: "CEO",
     },
     {
       id: 9,
       title: "Morning Standup",
-      startTime: "08:30",
-      endTime: "09:30", // Changed from "09:00" to "09:30"
+      startTime: new Date(2025, 2, 4, 8, 30),
+      endTime: new Date(2025, 2, 4, 9, 30),
       color: "bg-blue-400",
-      day: 2, // Tuesday
       description: "Daily team standup",
       location: "Slack Huddle",
       attendees: ["Development Team"],
@@ -169,10 +155,9 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 10,
       title: "Design Review",
-      startTime: "14:30",
-      endTime: "15:45",
+      startTime: new Date(2025, 2, 7, 14, 30),
+      endTime: new Date(2025, 2, 7, 15, 45),
       color: "bg-purple-400",
-      day: 5, // Friday
       description: "Review new UI designs",
       location: "Design Lab",
       attendees: ["UX Team", "Product Manager"],
@@ -181,10 +166,9 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 11,
       title: "Investor Meeting",
-      startTime: "10:30",
-      endTime: "12:00",
+      startTime: new Date(2025, 2, 7, 10, 30),
+      endTime: new Date(2025, 2, 7, 12, 0),
       color: "bg-red-400",
-      day: 7, // Sunday
       description: "Quarterly investor update",
       location: "Board Room",
       attendees: ["Executive Team", "Investors"],
@@ -193,10 +177,9 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 12,
       title: "Team Training",
-      startTime: "09:30",
-      endTime: "11:30",
+      startTime: new Date(2025, 2, 5, 9, 30),
+      endTime: new Date(2025, 2, 5, 11, 30),
       color: "bg-green-400",
-      day: 4, // Thursday
       description: "New tool onboarding session",
       location: "Training Room",
       attendees: ["All Departments"],
@@ -205,10 +188,9 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 13,
       title: "Budget Review",
-      startTime: "13:30",
-      endTime: "15:00",
+      startTime: new Date(2025, 2, 5, 13, 30),
+      endTime: new Date(2025, 2, 5, 15, 0),
       color: "bg-yellow-400",
-      day: 3, // Wednesday
       description: "Quarterly budget analysis",
       location: "Finance Office",
       attendees: ["Finance Team", "Department Heads"],
@@ -217,10 +199,9 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 14,
       title: "Client Presentation",
-      startTime: "11:00",
-      endTime: "12:30",
+      startTime: new Date(2025, 2, 6, 11, 0),
+      endTime: new Date(2025, 2, 6, 12, 30),
       color: "bg-orange-400",
-      day: 6, // Saturday
       description: "Present new project proposal",
       location: "Client Office",
       attendees: ["Sales Team", "Client Representatives"],
@@ -229,10 +210,9 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 15,
       title: "Product Planning",
-      startTime: "14:00",
-      endTime: "15:30",
+      startTime: new Date(2025, 2, 5, 14, 0),
+      endTime: new Date(2025, 2, 5, 15, 30),
       color: "bg-pink-400",
-      day: 1, // Monday
       description: "Roadmap discussion for Q3",
       location: "Strategy Room",
       attendees: ["Product Team", "Engineering Leads"],
@@ -243,13 +223,22 @@ export default function CalendarPage() { // Renamed from Home for clarity
   // Sample calendar days for the week view
   const weekDays = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
   // These dates would need to be dynamically generated based on the current date/month
-  const weekDates = [3, 4, 5, 6, 7, 8, 9] 
+  const weekDates = eachDayOfInterval({
+    start: startOfWeek(currentDisplayDate, { weekStartsOn: 0 }), // Sunday as start of week
+    end: endOfWeek(currentDisplayDate, { weekStartsOn: 0 }),
+  })
   const timeSlots = Array.from({ length: 9 }, (_, i) => i + 8) // 8 AM to 4 PM (exclusive of 5 PM)
 
   // Helper function to calculate event position and height
-  const calculateEventStyle = (startTime: string, endTime: string) => {
-    const start = Number.parseInt(startTime.split(":")[0]) + Number.parseInt(startTime.split(":")[1]) / 60
-    const end = Number.parseInt(endTime.split(":")[0]) + Number.parseInt(endTime.split(":")[1]) / 60
+  const calculateEventStyle = (startTime: Date, endTime: Date) => {
+    const startHour = startTime.getHours();
+    const startMinute = startTime.getMinutes();
+    const endHour = endTime.getHours();
+    const endMinute = endTime.getMinutes();
+
+    const start = startHour + startMinute / 60;
+    const end = endHour + endMinute / 60;
+    
     const top = (start - 8) * 80 // 80px per hour, assuming 8 AM is the start of the grid
     const height = (end - start) * 80
     return { top: `${top}px`, height: `${height}px` }
@@ -275,6 +264,46 @@ export default function CalendarPage() { // Renamed from Home for clarity
     // setIsPlaying(!isPlaying)
     // Here you would typically also control the actual audio playback
     console.log("Playing audio");
+  }
+
+  const handleTodayClick = () => {
+    setCurrentDisplayDate(new Date());
+  }
+
+  const handlePrevClick = () => {
+    if (currentView === "day") {
+      setCurrentDisplayDate(prev => subDays(prev, 1));
+    } else if (currentView === "week") {
+      setCurrentDisplayDate(prev => subWeeks(prev, 1));
+    } else if (currentView === "month") {
+      setCurrentDisplayDate(prev => subMonths(prev, 1));
+    }
+  }
+
+  const handleNextClick = () => {
+    if (currentView === "day") {
+      setCurrentDisplayDate(prev => addDays(prev, 1));
+    } else if (currentView === "week") {
+      setCurrentDisplayDate(prev => addWeeks(prev, 1));
+    } else if (currentView === "month") {
+      setCurrentDisplayDate(prev => addMonths(prev, 1));
+    }
+  }
+
+  const formatHeaderDate = () => {
+    if (currentView === "day") {
+      return format(currentDisplayDate, "MMMM d, yyyy");
+    } else if (currentView === "week") {
+      const start = startOfWeek(currentDisplayDate, { weekStartsOn: 0 });
+      const end = endOfWeek(currentDisplayDate, { weekStartsOn: 0 });
+      if (isSameMonth(start, end)) {
+        return `${format(start, "MMM d")} - ${format(end, "d, yyyy")}`;
+      }
+      return `${format(start, "MMM d")} - ${format(end, "MMM d, yyyy")}`;
+    } else if (currentView === "month") {
+      return format(currentDisplayDate, "MMMM yyyy");
+    }
+    return format(currentDisplayDate, "MMMM d, yyyy"); // Default
   }
 
   return (
@@ -321,27 +350,59 @@ export default function CalendarPage() { // Renamed from Home for clarity
               <Plus className="h-5 w-5" />
               <span>Create</span>
             </button>
-            {/* Mini Calendar & My Calendars sections commented out 
-            <div>
-              <h3 className="text-xl font-semibold mb-4">Mini Calendar</h3>
-              <div className="flex flex-wrap">
-                {miniCalendarDays.map((day, i) => (
-                  <div key={i} className="w-1/7 p-1">
-                    {day}
+            {/* Mini Calendar & My Calendars sections - Restored and made dynamic */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-white">{format(currentDisplayDate, "MMMM yyyy")}</h3>
+                {/* Mini calendar navigation - can be added later if needed */}
+                {/* <div className="flex"> 
+                  <button onClick={() => setCurrentDisplayDate(prev => subMonths(prev, 1))} className="p-1 text-white/70 hover:text-white rounded-l-md"><ChevronLeft className="h-4 w-4" /></button>
+                  <button onClick={() => setCurrentDisplayDate(prev => addMonths(prev, 1))} className="p-1 text-white/70 hover:text-white rounded-r-md"><ChevronRight className="h-4 w-4" /></button>
+                </div> */}
+              </div>
+              <div className="grid grid-cols-7 gap-px text-center text-xs text-white">
+                {weekDays.map((day) => (
+                  <div key={day} className="pb-1 text-white/60">{day.charAt(0)}</div> // Just the first letter
+                ))}
+                {(() => {
+                  const miniMonthStart = startOfMonth(currentDisplayDate);
+                  const miniStartDate = startOfWeek(miniMonthStart, { weekStartsOn: 0 });
+                  const miniMonthEnd = endOfMonth(currentDisplayDate);
+                  const miniEndDate = endOfWeek(miniMonthEnd, { weekStartsOn: 0 });
+                  const daysForMiniCalendar = eachDayOfInterval({ start: miniStartDate, end: miniEndDate });
+
+                  return daysForMiniCalendar.map((day, i) => (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        setCurrentDisplayDate(day);
+                        // Optional: switch to day view when a date is clicked in mini calendar
+                        // setCurrentView('day'); 
+                      }}
+                      className={`py-1 rounded-full transition-colors duration-150 ease-in-out
+                        ${!isSameMonth(day, currentDisplayDate) ? 'text-white/30 hover:bg-white/10' : 'text-white hover:bg-white/20'}
+                        ${isToday(day) ? 'ring-1 ring-blue-400 font-semibold' : ''}
+                        ${isSameDay(day, currentDisplayDate) ? 'bg-blue-500 text-white font-bold' : ''}
+                      `}
+                    >
+                      {format(day, "d")}
+                    </button>
+                  ));
+                })()}
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold text-white mb-2">My Calendars</h3>
+              <div className="space-y-2">
+                {myCalendars.map((calendar, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs text-white/80">
+                    <span className={`h-3 w-3 rounded-sm ${calendar.color}`}></span>
+                    <span>{calendar.name}</span>
                   </div>
                 ))}
               </div>
             </div>
-            <div>
-              <h3 className="text-xl font-semibold mb-4">My Calendars</h3>
-              <div className="flex flex-wrap">
-                {myCalendars.map((calendar, i) => (
-                  <div key={i} className="w-1/4 p-1">
-                    <div className="h-10 w-full bg-gray-200 rounded-md"></div>
-                  </div>
-                ))}
-              </div>
-            </div> */}
           </div>
           <button className="mt-6 flex items-center justify-center gap-2 rounded-full bg-blue-500 p-4 text-white w-14 h-14 self-start">
             <Plus className="h-6 w-6" />
@@ -355,16 +416,16 @@ export default function CalendarPage() { // Renamed from Home for clarity
           {/* Calendar Controls */}
           <div className="flex items-center justify-between p-4 border-b border-white/20">
             <div className="flex items-center gap-4">
-              <button className="px-4 py-2 text-white bg-blue-500 rounded-md">Today</button>
+              <button onClick={handleTodayClick} className="px-4 py-2 text-white bg-blue-500 rounded-md">Today</button>
               <div className="flex">
-                <button className="p-2 text-white hover:bg-white/10 rounded-l-md">
+                <button onClick={handlePrevClick} className="p-2 text-white hover:bg-white/10 rounded-l-md">
                   <ChevronLeft className="h-5 w-5" />
                 </button>
-                <button className="p-2 text-white hover:bg-white/10 rounded-r-md">
+                <button onClick={handleNextClick} className="p-2 text-white hover:bg-white/10 rounded-r-md">
                   <ChevronRight className="h-5 w-5" />
                 </button>
               </div>
-              <h2 className="text-xl font-semibold text-white">{currentDate}</h2>
+              <h2 className="text-xl font-semibold text-white">{formatHeaderDate()}</h2>
             </div>
             <div className="flex items-center gap-2 rounded-md p-1">
               <button
@@ -388,43 +449,101 @@ export default function CalendarPage() { // Renamed from Home for clarity
             </div>
           </div>
 
-          {/* Week View */}
+          {/* Week View / Day View / Month View Container */}
           <div className="flex-1 overflow-auto p-4">
-            <div className="bg-white/20 backdrop-blur-lg rounded-xl border border-white/20 shadow-xl h-full">
-              {/* Week Header */}
-              <div className="grid grid-cols-8 border-b border-white/20">
-                <div className="p-2 text-center text-white/50 text-xs"></div>
-                {weekDays.map((day, i) => (
-                  <div key={i} className="p-2 text-center border-l border-white/20">
-                    <div className="text-xs text-white/70 font-medium">{day}</div>
-                    <div
-                      className={`text-lg font-medium mt-1 text-white ${
-                        weekDates[i] === 5 ? "bg-blue-500 rounded-full w-8 h-8 flex items-center justify-center mx-auto" : ""
-                      }`}
-                    >
-                      {weekDates[i]}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {/* Time Grid */}
-              <div className="grid grid-cols-8">
-                <div className="text-white/70">
-                  {timeSlots.map((time, i) => (
-                    <div key={i} className="h-20 border-b border-white/10 pr-2 text-right text-xs flex items-center justify-end">
-                      {time > 12 ? `${time - 12} PM` : `${time} AM`}
+            {currentView === "week" && (
+              <div className="bg-white/20 backdrop-blur-lg rounded-xl border border-white/20 shadow-xl h-full">
+                {/* Week Header */}
+                <div className="grid grid-cols-8 border-b border-white/20">
+                  <div className="p-2 text-center text-white/50 text-xs"></div>
+                  {weekDays.map((day, i) => (
+                    <div key={i} className="p-2 text-center border-l border-white/20">
+                      <div className="text-xs text-white/70 font-medium">{day}</div>
+                      <div
+                        className={`text-lg font-medium mt-1 text-white ${
+                          isToday(weekDates[i]) ? "bg-blue-500 rounded-full w-8 h-8 flex items-center justify-center mx-auto" : ""
+                        } ${
+                          !isSameMonth(weekDates[i], currentDisplayDate) && currentView !== 'week' ? "text-white/50" : ""
+                        }`}
+                      >
+                        {format(weekDates[i], "d")}
+                      </div>
                     </div>
                   ))}
                 </div>
-                {Array.from({ length: 7 }).map((_, dayIndex) => (
-                  <div key={dayIndex} className="border-l border-white/20 relative">
+                {/* Time Grid */}
+                <div className="grid grid-cols-8">
+                  <div className="text-white/70">
+                    {timeSlots.map((time, i) => (
+                      <div key={i} className="h-20 border-b border-white/10 pr-2 text-right text-xs flex items-center justify-end">
+                        {time > 12 ? `${time - 12} PM` : `${time} AM`}
+                      </div>
+                    ))}
+                  </div>
+                  {Array.from({ length: 7 }).map((_, dayIndex) => (
+                    <div key={dayIndex} className="border-l border-white/20 relative">
+                      {timeSlots.map((_, timeIndex) => (
+                        <div key={timeIndex} className="h-20 border-b border-white/10"></div>
+                      ))}
+                      {events
+                        .filter((event) => isSameDay(event.startTime, weekDates[dayIndex]))
+                        .map((event) => {
+                          const eventStyle = calculateEventStyle(event.startTime, event.endTime)
+                          return (
+                            <div
+                              key={event.id}
+                              className={`absolute ${event.color} rounded-md p-2 text-white text-xs shadow-md cursor-pointer transition-all duration-200 ease-in-out hover:translate-y-[-2px] hover:shadow-lg`}
+                              style={{
+                                ...eventStyle,
+                                left: "4px",
+                                right: "4px",
+                              }}
+                              onClick={() => handleEventClick(event)}
+                            >
+                              <div className="font-medium">{event.title}</div>
+                              <div className="opacity-80 text-[10px] mt-1">{`${format(event.startTime, "h:mm")} - ${format(event.endTime, "h:mm")}`}</div>
+                            </div>
+                          )
+                        })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {currentView === "day" && (
+              <div className="bg-white/20 backdrop-blur-lg rounded-xl border border-white/20 shadow-xl h-full flex flex-col">
+                {/* Day Header */}
+                <div className="grid grid-cols-2 border-b border-white/20"> {/* Adjusted for Day View: Time slot column + Day column */}
+                  <div className="p-2 text-center text-white/50 text-xs"></div> {/* Spacer for time column */}
+                  <div className="p-2 text-center border-l border-white/20">
+                    <div className="text-xs text-white/70 font-medium">{format(currentDisplayDate, "EEE").toUpperCase()}</div>
+                    <div
+                      className={`text-lg font-medium mt-1 text-white ${
+                        isToday(currentDisplayDate) ? "bg-blue-500 rounded-full w-8 h-8 flex items-center justify-center mx-auto" : ""
+                      }`}
+                    >
+                      {format(currentDisplayDate, "d")}
+                    </div>
+                  </div>
+                </div>
+                {/* Time Grid for Day View */}
+                <div className="grid grid-cols-2 flex-1"> {/* Adjusted for Day View */}
+                  <div className="text-white/70"> {/* Time slots column */}
+                    {timeSlots.map((time, i) => (
+                      <div key={i} className="h-20 border-b border-white/10 pr-2 text-right text-xs flex items-center justify-end">
+                        {time > 12 ? `${time - 12} PM` : `${time} AM`}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="border-l border-white/20 relative"> {/* Single day column */}
                     {timeSlots.map((_, timeIndex) => (
                       <div key={timeIndex} className="h-20 border-b border-white/10"></div>
                     ))}
                     {events
-                      .filter((event) => event.day === dayIndex + 1)
+                      .filter((event) => isSameDay(event.startTime, currentDisplayDate))
                       .map((event) => {
-                        const eventStyle = calculateEventStyle(event.startTime, event.endTime)
+                        const eventStyle = calculateEventStyle(event.startTime, event.endTime);
                         return (
                           <div
                             key={event.id}
@@ -434,17 +553,78 @@ export default function CalendarPage() { // Renamed from Home for clarity
                               left: "4px",
                               right: "4px",
                             }}
-                            onClick={() => handleEventClick(event)} // Restored event click
+                            onClick={() => handleEventClick(event)}
                           >
                             <div className="font-medium">{event.title}</div>
-                            <div className="opacity-80 text-[10px] mt-1">{`${event.startTime} - ${event.endTime}`}</div>
+                            <div className="opacity-80 text-[10px] mt-1">{`${format(event.startTime, "h:mm aa")} - ${format(event.endTime, "h:mm aa")}`}</div>
                           </div>
-                        )
+                        );
                       })}
                   </div>
-                ))}
+                </div>
               </div>
-            </div>
+            )}
+            {currentView === "month" && (
+              <div className="bg-white/20 backdrop-blur-lg rounded-xl border border-white/20 shadow-xl h-full flex flex-col">
+                {/* Month Header - Days of the week */}
+                <div className="grid grid-cols-7 border-b border-white/20">
+                  {weekDays.map((day, i) => (
+                    <div key={i} className={`p-2 text-center text-xs text-white/70 font-medium ${i > 0 ? 'border-l border-white/20' : ''}`}>
+                      {day}
+                    </div>
+                  ))}
+                </div>
+                {/* Month Grid */}
+                <div className="grid grid-cols-7 grid-rows-6 flex-1"> {/* Assuming max 6 weeks for a month view */}
+                  {(() => {
+                    const monthStart = startOfMonth(currentDisplayDate);
+                    const monthEnd = endOfMonth(currentDisplayDate);
+                    const startDate = startOfWeek(monthStart, { weekStartsOn: 0 });
+                    const endDate = endOfWeek(monthEnd, { weekStartsOn: 0 });
+                    
+                    const daysInGrid = eachDayOfInterval({ start: startDate, end: endDate });
+
+                    return daysInGrid.map((day, i) => (
+                      <div 
+                        key={i} 
+                        className={`p-2 border-b border-r border-white/10 ${
+                          !isSameMonth(day, currentDisplayDate) ? 'text-white/40' : 'text-white'
+                        } ${
+                          isToday(day) ? 'bg-blue-500/30' : ''
+                        } ${
+                          (i + 1) % 7 === 0 ? 'border-r-0' : '' // No right border for last column
+                        } ${
+                          i >= daysInGrid.length - 7 ? 'border-b-0' : '' // No bottom border for last row (approx)
+                        }`}
+                        onClick={() => {
+                            setCurrentDisplayDate(day);
+                            setCurrentView('day');
+                        }}
+                      >
+                        <div className={`text-sm text-right ${isToday(day) ? 'font-bold' : ''}`}>{format(day, "d")}</div>
+                        <div className="mt-1 space-y-0.5 overflow-hidden text-[10px]">
+                          {events
+                            .filter(event => isSameDay(event.startTime, day))
+                            .slice(0, 2) // Show max 2 events per day in month view for brevity
+                            .map(event => (
+                              <div 
+                                key={event.id} 
+                                className={`${event.color} rounded px-1 py-0.5 text-white truncate cursor-pointer hover:opacity-80`}
+                                onClick={(e) => { e.stopPropagation(); handleEventClick(event); }}
+                              >
+                                {event.title}
+                              </div>
+                            ))}
+                          {events.filter(event => isSameDay(event.startTime, day)).length > 2 && (
+                            <div className="text-white/70 text-center">...</div>
+                          )}
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -503,7 +683,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
               <div className="space-y-3">
                 <p className="flex items-center">
                   <Clock className="mr-2 h-5 w-5" />
-                  {`${selectedEvent.startTime} - ${selectedEvent.endTime}`}
+                  {`${format(selectedEvent.startTime, "h:mm")} - ${format(selectedEvent.endTime, "h:mm")}`}
                 </p>
                 <p className="flex items-center">
                   <MapPin className="mr-2 h-5 w-5" />
@@ -511,7 +691,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                 </p>
                 <p className="flex items-center">
                   <CalendarIcon className="mr-2 h-5 w-5" />
-                  {`${weekDays[selectedEvent.day -1]}, ${weekDates[selectedEvent.day -1]} ${currentMonth.split(' ')[0]}`}
+                  {selectedEvent.startTime ? `${format(selectedEvent.startTime, "EEE, MMM d")} (${format(currentDisplayDate, "MMMM")})` : ""}
                 </p>
                 <p className="flex items-start">
                   <Users className="mr-2 h-5 w-5 mt-1" />
