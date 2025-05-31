@@ -13,9 +13,9 @@ import {
   MapPin,
   Users,
   Calendar as CalendarIcon, // Aliased to avoid conflict with potential Calendar component
-  Pause,
-  Sparkles,
-  X,
+  // Pause, // No longer needed if AI popup is gone
+  // Sparkles, // No longer needed if AI popup is gone
+  // X, // No longer needed if AI popup or selectedEvent modal is gone
 } from "lucide-react"
 
 // Assuming you have a way to define your event types, or we can define a basic one.
@@ -36,38 +36,16 @@ interface CalendarEvent {
 
 export default function CalendarPage() { // Renamed from Home for clarity
   const [isLoaded, setIsLoaded] = useState(false)
-  const [showAIPopup, setShowAIPopup] = useState(false)
-  const [typedText, setTypedText] = useState("")
-  const [isPlaying, setIsPlaying] = useState(false)
+  // const [showAIPopup, setShowAIPopup] = useState(false) // AI Popup logic remains commented out
+  // const [typedText, setTypedText] = useState("")
+  // const [isPlaying, setIsPlaying] = useState(false)
 
   useEffect(() => {
     setIsLoaded(true)
-
-    // Show AI popup after 3 seconds
-    const popupTimer = setTimeout(() => {
-      // setShowAIPopup(true) // <--- Commented out
-    }, 3000)
-
-    return () => clearTimeout(popupTimer)
+    // AI Popup timer logic remains commented out
   }, [])
 
-  useEffect(() => {
-    if (showAIPopup) {
-      const text =
-        "LLooks like you don\\'t have that many meetings today. Shall I play some Hans Zimmer essentials to help you get into your Flow State?" // Escaped apostrophe
-      let i = 0
-      const typingInterval = setInterval(() => {
-        if (i < text.length) {
-          setTypedText((prev) => prev + text.charAt(i))
-          i++
-        } else {
-          clearInterval(typingInterval)
-        }
-      }, 50)
-
-      return () => clearInterval(typingInterval)
-    }
-  }, [showAIPopup])
+  // AI Popup typing useEffect remains commented out
 
   const [currentView, setCurrentView] = useState("week")
   const [currentMonth, setCurrentMonth] = useState("March 2025") // This should be dynamic
@@ -294,23 +272,21 @@ export default function CalendarPage() { // Renamed from Home for clarity
   ]
 
   const togglePlay = () => {
-    setIsPlaying(!isPlaying)
+    // setIsPlaying(!isPlaying)
     // Here you would typically also control the actual audio playback
-    console.log(isPlaying ? "Pausing audio" : "Playing audio");
+    console.log("Playing audio");
   }
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden">
-      {/* Background Image - Replaced Next/Image with standard img */}
+    <div className="relative min-h-screen w-full overflow-hidden"> {/* Removed temp bg-red-500 */}
+      {/* Background Image - Restored */}
       <img
         src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=2070&auto=format&fit=crop"
         alt="Beautiful mountain landscape"
-        // fill // fill is Next.js specific. Using CSS for similar effect.
-        className="object-cover absolute inset-0 w-full h-full -z-10" // Added classes for background image
-        // priority // priority is Next.js specific
+        className="object-cover absolute inset-0 w-full h-full -z-10"
       />
 
-      {/* Navigation */}
+      {/* Navigation - Restored */}
       <header
         className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-8 py-6 opacity-0 ${isLoaded ? "animate-fade-in" : ""}`}
         style={{ animationDelay: "0.2s" }}
@@ -319,7 +295,6 @@ export default function CalendarPage() { // Renamed from Home for clarity
           <Menu className="h-6 w-6 text-white" />
           <span className="text-2xl font-semibold text-white drop-shadow-lg">Calendar</span>
         </div>
-
         <div className="flex items-center gap-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/70" />
@@ -337,8 +312,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
       </header>
 
       {/* Main Content */}
-      <main className="relative h-screen w-full pt-20 flex">
-        {/* Sidebar */}
+      <main className="relative h-screen w-full pt-20 flex"> {/* pt-20 restored */}
+        {/* Sidebar - Restored */}
         <div
           className={`w-64 h-full bg-white/10 backdrop-blur-lg p-4 shadow-xl border-r border-white/20 rounded-tr-3xl opacity-0 ${isLoaded ? "animate-fade-in" : ""} flex flex-col justify-between`}
           style={{ animationDelay: "0.4s" }}
@@ -348,65 +323,37 @@ export default function CalendarPage() { // Renamed from Home for clarity
               <Plus className="h-5 w-5" />
               <span>Create</span>
             </button>
-
-            {/* Mini Calendar */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-white font-medium">{currentMonth}</h3>
-                <div className="flex gap-1">
-                  <button className="p-1 rounded-full hover:bg-white/20">
-                    <ChevronLeft className="h-4 w-4 text-white" />
-                  </button>
-                  <button className="p-1 rounded-full hover:bg-white/20">
-                    <ChevronRight className="h-4 w-4 text-white" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-7 gap-1 text-center">
-                {["S", "M", "T", "W", "T", "F", "S"].map((day, i) => (
-                  <div key={i} className="text-xs text-white/70 font-medium py-1">
-                    {day}
-                  </div>
-                ))}
-
-                {miniCalendarDays.map((day, i) => (
-                  <div
-                    key={i}
-                    className={`text-xs rounded-full w-7 h-7 flex items-center justify-center ${
-                      day === 5 ? "bg-blue-500 text-white" : "text-white hover:bg-white/20" // Example: highlight day 5
-                    } ${!day ? "invisible" : ""}`}
-                  >
-                    {day}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* My Calendars */}
+            {/* Mini Calendar & My Calendars sections commented out 
             <div>
-              <h3 className="text-white font-medium mb-3">My calendars</h3>
-              <div className="space-y-2">
-                {myCalendars.map((cal, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-sm ${cal.color}`}></div>
-                    <span className="text-white text-sm">{cal.name}</span>
+              <h3 className="text-xl font-semibold mb-4">Mini Calendar</h3>
+              <div className="flex flex-wrap">
+                {miniCalendarDays.map((day, i) => (
+                  <div key={i} className="w-1/7 p-1">
+                    {day}
                   </div>
                 ))}
               </div>
             </div>
+            <div>
+              <h3 className="text-xl font-semibold mb-4">My Calendars</h3>
+              <div className="flex flex-wrap">
+                {myCalendars.map((calendar, i) => (
+                  <div key={i} className="w-1/4 p-1">
+                    <div className="h-10 w-full bg-gray-200 rounded-md"></div>
+                  </div>
+                ))}
+              </div>
+            </div> */}
           </div>
-
-          {/* New position for the big plus button */}
           <button className="mt-6 flex items-center justify-center gap-2 rounded-full bg-blue-500 p-4 text-white w-14 h-14 self-start">
             <Plus className="h-6 w-6" />
           </button>
         </div>
 
-        {/* Calendar View */}
+        {/* Calendar View - Added z-index for testing, restored animation classes */}
         <div
-          className={`flex-1 flex flex-col opacity-0 ${isLoaded ? "animate-fade-in" : ""}`}
-          style={{ animationDelay: "0.6s", opacity: 1, visibility: 'visible' }}
+          className={`flex-1 flex flex-col opacity-0 ${isLoaded ? "animate-fade-in" : ""} z-20`} /* Added z-20 */
+          style={{ animationDelay: "0.6s" }}
         >
           {/* Calendar Controls */}
           <div className="flex items-center justify-between p-4 border-b border-white/20">
@@ -422,7 +369,6 @@ export default function CalendarPage() { // Renamed from Home for clarity
               </div>
               <h2 className="text-xl font-semibold text-white">{currentDate}</h2>
             </div>
-
             <div className="flex items-center gap-2 rounded-md p-1">
               <button
                 onClick={() => setCurrentView("day")}
@@ -446,19 +392,17 @@ export default function CalendarPage() { // Renamed from Home for clarity
           </div>
 
           {/* Week View */}
-          {/* This part needs to be dynamic based on currentView (Day, Week, Month) */}
-          {/* For now, it statically renders the Week View structure */}
           <div className="flex-1 overflow-auto p-4">
             <div className="bg-white/20 backdrop-blur-lg rounded-xl border border-white/20 shadow-xl h-full">
               {/* Week Header */}
               <div className="grid grid-cols-8 border-b border-white/20">
-                <div className="p-2 text-center text-white/50 text-xs"></div> {/* Time gutter */}
+                <div className="p-2 text-center text-white/50 text-xs"></div>
                 {weekDays.map((day, i) => (
                   <div key={i} className="p-2 text-center border-l border-white/20">
                     <div className="text-xs text-white/70 font-medium">{day}</div>
                     <div
                       className={`text-lg font-medium mt-1 text-white ${
-                        weekDates[i] === 5 ? "bg-blue-500 rounded-full w-8 h-8 flex items-center justify-center mx-auto" : "" // Example highlight
+                        weekDates[i] === 5 ? "bg-blue-500 rounded-full w-8 h-8 flex items-center justify-center mx-auto" : ""
                       }`}
                     >
                       {weekDates[i]}
@@ -466,10 +410,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
                   </div>
                 ))}
               </div>
-
               {/* Time Grid */}
               <div className="grid grid-cols-8">
-                {/* Time Labels */}
                 <div className="text-white/70">
                   {timeSlots.map((time, i) => (
                     <div key={i} className="h-20 border-b border-white/10 pr-2 text-right text-xs flex items-center justify-end">
@@ -477,29 +419,25 @@ export default function CalendarPage() { // Renamed from Home for clarity
                     </div>
                   ))}
                 </div>
-
-                {/* Days Columns */}
                 {Array.from({ length: 7 }).map((_, dayIndex) => (
                   <div key={dayIndex} className="border-l border-white/20 relative">
                     {timeSlots.map((_, timeIndex) => (
                       <div key={timeIndex} className="h-20 border-b border-white/10"></div>
                     ))}
-
-                    {/* Events */}
                     {events
-                      .filter((event) => event.day === dayIndex + 1) // Assuming event.day is 1-7 (Sun-Sat)
-                      .map((event, i) => {
+                      .filter((event) => event.day === dayIndex + 1)
+                      .map((event) => {
                         const eventStyle = calculateEventStyle(event.startTime, event.endTime)
                         return (
                           <div
-                            key={event.id} // Use event.id for key
+                            key={event.id}
                             className={`absolute ${event.color} rounded-md p-2 text-white text-xs shadow-md cursor-pointer transition-all duration-200 ease-in-out hover:translate-y-[-2px] hover:shadow-lg`}
                             style={{
                               ...eventStyle,
                               left: "4px",
                               right: "4px",
                             }}
-                            onClick={() => handleEventClick(event)}
+                            onClick={() => handleEventClick(event)} // Restored event click
                           >
                             <div className="font-medium">{event.title}</div>
                             <div className="opacity-80 text-[10px] mt-1">{`${event.startTime} - ${event.endTime}`}</div>
@@ -513,8 +451,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
           </div>
         </div>
 
-        {/* AI Popup */}
-        {showAIPopup && (
+        {/* AI Popup - Remains Commented out */}
+        {/* {showAIPopup && (
           <div className="fixed bottom-8 right-8 z-20">
             <div className="w-[450px] relative bg-gradient-to-br from-blue-400/30 via-blue-500/30 to-blue-600/30 backdrop-blur-lg p-6 rounded-2xl shadow-xl border border-blue-300/30 text-white">
               <button
@@ -558,10 +496,11 @@ export default function CalendarPage() { // Renamed from Home for clarity
               )}
             </div>
           </div>
-        )}
+        )} */}
 
+        {/* Selected Event Modal - Restored (conditionally rendered by selectedEvent state) */}
         {selectedEvent && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm"> {/* High z-index for modal */}
             <div className={`${selectedEvent.color} p-6 rounded-lg shadow-xl max-w-md w-full mx-4 text-white`}>
               <h3 className="text-2xl font-bold mb-4">{selectedEvent.title}</h3>
               <div className="space-y-3">
@@ -574,8 +513,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                   {selectedEvent.location}
                 </p>
                 <p className="flex items-center">
-                  <CalendarIcon className="mr-2 h-5 w-5" /> {/* Used aliased import */}
-                  {/* This date formatting needs to be dynamic */}
+                  <CalendarIcon className="mr-2 h-5 w-5" />
                   {`${weekDays[selectedEvent.day -1]}, ${weekDates[selectedEvent.day -1]} ${currentMonth.split(' ')[0]}`}
                 </p>
                 <p className="flex items-start">
@@ -604,7 +542,6 @@ export default function CalendarPage() { // Renamed from Home for clarity
             </div>
           </div>
         )}
-        {/* Floating Action Button - Removed as per original comment, was already removed in source */}
       </main>
     </div>
   )
