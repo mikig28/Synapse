@@ -18,7 +18,6 @@ import notesRoutes from './api/routes/notesRoutes'; // Add this
 import ideasRoutes from './api/routes/ideasRoutes'; // Add this
 import meetingsRoutes from './api/routes/meetingsRoutes'; // Add meetings routes
 import userRoutes from './api/routes/userRoutes'; // <-- IMPORT USER ROUTES
-import voiceMemoRoutes from './api/routes/voiceMemoRoutes'; // Import voice memo routes
 
 dotenv.config();
 
@@ -117,7 +116,6 @@ app.use('/api/v1/notes', notesRoutes); // Add this
 app.use('/api/v1/ideas', ideasRoutes); // Add this
 app.use('/api/v1/meetings', meetingsRoutes); // Add meetings routes
 app.use('/api/v1/users', userRoutes); // <-- USE USER ROUTES
-app.use('/api/v1/voice-memos', voiceMemoRoutes); // Use voice memo routes
 
 // Basic route for testing
 app.get('/', (req: Request, res: Response) => {

@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Badge } from '../components/ui/badge';
 import meetingService, { Meeting, MeetingStats } from '../services/meetingService';
-import { AudioRecorder } from '../components/Meeting/AudioRecorder';
 import { 
+  Mic, 
+  Upload, 
+  Play, 
+  Pause, 
+  Square, 
   FileText, 
   Calendar, 
   Clock, 
@@ -17,8 +20,7 @@ import {
   Trash2,
   RefreshCw,
   Eye,
-  Plus,
-  Mic
+  Plus
 } from 'lucide-react';
 
 const MeetingsPage: React.FC = () => {
@@ -29,10 +31,13 @@ const MeetingsPage: React.FC = () => {
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showTranscriptionModal, setShowTranscriptionModal] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const [transcriptionMethod, setTranscriptionMethod] = useState<'local' | 'api' | 'dedicated'>('api');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [isProcessing, setIsProcessing] = useState(false);
 
   // Form states
   const [newMeetingTitle, setNewMeetingTitle] = useState('');
@@ -43,6 +48,16 @@ const MeetingsPage: React.FC = () => {
     loadMeetings();
     loadStats();
   }, [currentPage]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isRecording) {
+      interval = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isRecording]);
 
   const loadMeetings = async () => {
     try {
@@ -160,36 +175,82 @@ const MeetingsPage: React.FC = () => {
     }
   };
 
-  const handleAudioCaptured = async (audioFile: File) => {
-    if (!selectedMeeting) {
-      setError("Please select a meeting first");
-      return;
-    }
+  const startRecording = async () => {
+    setIsRecording(true);
+    setRecordingTime(0);
+    setAudioChunks([]); // Clear previous audio chunks
 
-    setIsProcessing(true);
     try {
-      await meetingService.uploadAudioForTranscription(selectedMeeting._id, audioFile);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
 
-      // Start polling for updates
-      meetingService.pollMeetingStatus(
-        selectedMeeting._id,
-        (updatedMeeting) => {
-          setMeetings(prev => 
-            prev.map(m => m._id === updatedMeeting._id ? updatedMeeting : m)
-          );
-          if (selectedMeeting._id === updatedMeeting._id) {
-            setSelectedMeeting(updatedMeeting);
-          }
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          setAudioChunks((prevChunks) => [...prevChunks, event.data]);
         }
-      ).catch(console.error);
+      };
 
-      setShowTranscriptionModal(false);
-    } catch (err) {
-      setError('Failed to process audio');
-      console.error('Error processing audio:', err);
-    } finally {
-      setIsProcessing(false);
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const audioFile = new File([audioBlob], "recording.webm", { type: 'audio/webm' });
+
+        if (!selectedMeeting) {
+          setError("No meeting selected to associate the recording with. Please select a meeting or create a new one before recording.");
+          console.error("No meeting selected for recording. Audio chunks cleared.");
+          setAudioChunks([]);
+          // Note: isRecording is already set to false by stopRecording function
+          return;
+        }
+
+        try {
+          // This function will be created in a subsequent step.
+          // For now, we assume it exists and handles the upload and further processing.
+          await meetingService.uploadAudioForTranscription(selectedMeeting._id, audioFile);
+          
+          // Optionally, trigger a refresh of the meeting or its status
+          loadMeetings(); // Refresh meetings to show updated status potentially
+          if (selectedMeeting?._id) {
+             // Poll for status updates after uploading
+            meetingService.pollMeetingStatus(
+              selectedMeeting._id,
+              (updatedMeeting) => {
+                setMeetings(prev => 
+                  prev.map(m => m._id === updatedMeeting._id ? updatedMeeting : m)
+                );
+                if (selectedMeeting._id === updatedMeeting._id) {
+                  setSelectedMeeting(updatedMeeting);
+                }
+              }
+            ).catch(console.error);
+          }
+
+        } catch (uploadError) {
+          setError("Failed to upload audio for transcription. Please try again.");
+          console.error("Error uploading audio:", uploadError);
+        } finally {
+          setAudioChunks([]); // Clear chunks after processing
+        }
+      };
+
+      mediaRecorder.start();
+    } catch (error) {
+      console.error('Error accessing microphone or starting recording:', error);
+      setError('Failed to start recording. Please check microphone permissions.');
+      setIsRecording(false); // Reset recording state on error
     }
+  };
+
+  const stopRecording = () => {
+    setIsRecording(false);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop(); // This will trigger the onstop event handler
+    }
+    // Clean up media stream tracks
+    if (mediaRecorderRef.current?.stream) {
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+    }
+    mediaRecorderRef.current = null; // Clear the ref after stopping
   };
 
   const formatTime = (seconds: number): string => {
@@ -270,6 +331,43 @@ const MeetingsPage: React.FC = () => {
           </Card>
         </div>
       )}
+
+      {/* Recording Controls */}
+      <Card className="p-6">
+        <h2 className="text-xl font-semibold mb-4">Quick Record</h2>
+        <div className="flex items-center gap-4">
+          {!isRecording ? (
+            <Button onClick={startRecording} className="flex items-center gap-2">
+              <Mic className="w-4 h-4" />
+              Start Recording
+            </Button>
+          ) : (
+            <div className="flex items-center gap-4">
+              <Button onClick={stopRecording} variant="destructive" className="flex items-center gap-2">
+                <Square className="w-4 h-4" />
+                Stop Recording
+              </Button>
+              <div className="flex items-center gap-2 text-red-600">
+                <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse"></div>
+                <span className="font-mono text-lg">{formatTime(recordingTime)}</span>
+              </div>
+            </div>
+          )}
+          
+          <div className="flex items-center gap-2">
+            <Settings className="w-4 h-4" />
+            <select 
+              value={transcriptionMethod} 
+              onChange={(e) => setTranscriptionMethod(e.target.value as any)}
+              className="border rounded px-2 py-1"
+            >
+              <option value="api">API Transcription</option>
+              <option value="local">Local Transcription</option>
+              <option value="dedicated">Dedicated Service</option>
+            </select>
+          </div>
+        </div>
+      </Card>
 
       {/* Meetings List */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
