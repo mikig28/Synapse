@@ -449,12 +449,19 @@ const BookmarksPage: React.FC = () => {
     if (bookmark.sourcePlatform === 'LinkedIn') {
       return (
         <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
-          <LinkedInCard 
+          <LinkedInCard
             bookmark={{
-              ...bookmark, 
+              ...bookmark,
               originalUrl: isValidUrlWithHostname(bookmark.originalUrl) ? bookmark.originalUrl : "#"
-            }} 
-            onDelete={handleDeleteBookmark} 
+            }}
+            onDelete={handleDeleteBookmark}
+            onSummarize={handleSummarizeBookmark}
+            isSummarizing={summarizingBookmarkId === bookmark._id}
+            // summaryStatus={bookmark.status} // Derived from bookmark.status in LinkedInCard
+            // summaryText={bookmark.summary} // Derived from bookmark.summary in LinkedInCard
+            onSpeakSummary={handleSpeakSummary}
+            playingBookmarkId={playingBookmarkId}
+            audioErrorId={audioErrorId}
           />
         </div>
       );
