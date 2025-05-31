@@ -2,10 +2,8 @@ import { Request, Response } from 'express';
 import VideoItem, { IVideoItem } from '../../models/VideoItem';
 import mongoose from 'mongoose';
 import axios from 'axios'; // For oEmbed
-
-interface AuthenticatedRequest extends Request {
-  user?: { id: string };
-}
+import { summarizeYouTubeVideo } from '../../services/videoSummarizationService';
+import { AuthenticatedRequest } from '../../types/express';
 
 // Define the oEmbed response interface
 interface YouTubeOEmbedResponse {
@@ -231,5 +229,61 @@ export const deleteVideo = async (req: AuthenticatedRequest, res: Response) => {
         return res.status(500).json({ message: 'Server error while deleting video', error: error.message });
     }
     res.status(500).json({ message: 'Server error while deleting video' });
+  }
+};
+
+// Function to summarize a video
+export const summarizeVideo = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const videoId = req.params.id;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(videoId)) {
+      return res.status(400).json({ message: 'Invalid video ID' });
+    }
+
+    // Find the video
+    const video = await VideoItem.findOne({ 
+      _id: videoId, 
+      userId: new mongoose.Types.ObjectId(userId) 
+    });
+
+    if (!video) {
+      return res.status(404).json({ message: 'Video not found or user not authorized' });
+    }
+
+    // Generate summary using Gemini AI (always generate, even if exists)
+    console.log(`[VideoController] Generating summary for video ${video.videoId} (${video.title})`);
+    const summary = await summarizeYouTubeVideo(video.videoId);
+
+    // Update the video with the generated summary
+    const updatedVideo = await VideoItem.findByIdAndUpdate(
+      videoId,
+      { summary },
+      { new: true }
+    );
+
+    if (!updatedVideo) {
+      return res.status(500).json({ message: 'Failed to save summary' });
+    }
+
+    console.log(`[VideoController] Summary generated and saved for video ${video.videoId}`);
+    res.status(200).json({ 
+      message: 'Summary generated successfully', 
+      summary,
+      video: updatedVideo 
+    });
+
+  } catch (error) {
+    console.error('[VideoController] Error summarizing video:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error generating summary';
+    res.status(500).json({ 
+      message: 'Failed to generate video summary', 
+      error: message 
+    });
   }
 }; 

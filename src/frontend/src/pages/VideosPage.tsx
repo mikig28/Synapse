@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { VideoItemType } from '../types/video';
-import { getVideosService, updateVideoStatusService, deleteVideoService } from '../services/videoService';
+import { getVideosService, updateVideoStatusService, deleteVideoService, summarizeVideoService } from '../services/videoService';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ExternalLink, Info, Eye, PlayCircle, CheckCircle, HelpCircle, Trash2, Film } from 'lucide-react';
+import { ExternalLink, Info, Eye, PlayCircle, CheckCircle, HelpCircle, Trash2, Film, FileText, Loader2, ChevronDown, ChevronUp, Volume2, VolumeX, Pause } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
@@ -18,7 +18,35 @@ const VideosPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
+  const [summarizingVideoId, setSummarizingVideoId] = useState<string | null>(null);
+  const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set());
+  const [readingVideoId, setReadingVideoId] = useState<string | null>(null);
+  const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null);
+  const [currentUtterance, setCurrentUtterance] = useState<SpeechSynthesisUtterance | null>(null);
   const { toast } = useToast();
+
+  // Initialize speech synthesis
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      setSpeechSynthesis(window.speechSynthesis);
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      if (currentUtterance && speechSynthesis) {
+        speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  // Cleanup speech when component unmounts
+  useEffect(() => {
+    return () => {
+      if (speechSynthesis) {
+        speechSynthesis.cancel();
+      }
+    };
+  }, [speechSynthesis]);
 
   const fetchVideos = async () => {
     try {
@@ -70,6 +98,132 @@ const VideosPage: React.FC = () => {
         description: "Failed to delete video.",
         variant: "destructive",
       })
+    }
+  };
+
+  const handleSummarizeVideo = async (videoId: string) => {
+    try {
+      setSummarizingVideoId(videoId);
+      
+      const response = await summarizeVideoService(videoId);
+      
+      // Update the video in the local state
+      setVideos(prevVideos => 
+        prevVideos.map(video => 
+          video._id === videoId 
+            ? { ...video, summary: response.summary }
+            : video
+        )
+      );
+      
+      toast({
+        title: "✅ הסיכום נוצר בהצלחה",
+        description: "הסיכום החכם של הסרטון מוכן לצפייה",
+        duration: 3000,
+      });
+      
+    } catch (error) {
+      console.error('Error summarizing video:', error);
+      toast({
+        title: "❌ שגיאה ביצירת הסיכום",
+        description: "לא הצלחנו ליצור סיכום לסרטון. אנא נסה שוב מאוחר יותר.",
+        variant: "destructive",
+        duration: 5000,
+      });
+    } finally {
+      setSummarizingVideoId(null);
+    }
+  };
+
+  const toggleSummaryExpansion = (videoId: string) => {
+    setExpandedSummaries(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(videoId)) {
+        newSet.delete(videoId);
+      } else {
+        newSet.add(videoId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleReadAloud = (videoId: string, text: string) => {
+    if (!speechSynthesis) {
+      toast({
+        title: "❌ לא נתמך",
+        description: "קריאה בקול רם לא נתמכת בדפדפן זה",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // If currently reading this video, stop
+    if (readingVideoId === videoId) {
+      speechSynthesis.cancel();
+      setReadingVideoId(null);
+      setCurrentUtterance(null);
+      return;
+    }
+
+    // If reading another video, stop it first
+    if (readingVideoId) {
+      speechSynthesis.cancel();
+    }
+
+    try {
+      const utterance = new SpeechSynthesisUtterance(text);
+      
+      // Try to find Hebrew voice, fallback to default
+      const voices = speechSynthesis.getVoices();
+      const hebrewVoice = voices.find(voice => 
+        voice.lang.includes('he') || voice.lang.includes('iw')
+      );
+      
+      if (hebrewVoice) {
+        utterance.voice = hebrewVoice;
+      }
+      
+      utterance.lang = 'he-IL';
+      utterance.rate = 0.9;
+      utterance.pitch = 1;
+      utterance.volume = 0.8;
+
+      utterance.onstart = () => {
+        setReadingVideoId(videoId);
+        setCurrentUtterance(utterance);
+      };
+
+      utterance.onend = () => {
+        setReadingVideoId(null);
+        setCurrentUtterance(null);
+      };
+
+      utterance.onerror = (event) => {
+        console.error('Speech synthesis error:', event);
+        setReadingVideoId(null);
+        setCurrentUtterance(null);
+        toast({
+          title: "❌ שגיאה בקריאה",
+          description: "אירעה שגיאה בעת ניסיון לקרוא את הטקסט",
+          variant: "destructive",
+        });
+      };
+
+      speechSynthesis.speak(utterance);
+      
+      toast({
+        title: "🔊 מתחיל לקרוא",
+        description: "הסיכום מוקרא בקול רם",
+        duration: 2000,
+      });
+
+    } catch (error) {
+      console.error('Error with text-to-speech:', error);
+      toast({
+        title: "❌ שגיאה",
+        description: "לא הצלחנו להפעיל קריאה בקול רם",
+        variant: "destructive",
+      });
     }
   };
 
@@ -180,7 +334,7 @@ const VideosPage: React.FC = () => {
             >
               <AnimatedButton 
                 variant="ghost"
-                size="icon"
+                size="sm"
                 onClick={() => setPlayingVideoId(null)} 
                 className="absolute -top-4 -right-4 bg-red-600 hover:bg-red-700 text-white rounded-full h-9 w-9 z-10 shadow-lg"
                 title="Close player"
@@ -256,31 +410,137 @@ const VideosPage: React.FC = () => {
                             </CardDescription>
                           )}
                         </CardHeader>
-                        <CardFooter className="p-3 md:p-4 pt-2 border-t border-purple-800/50 flex items-center justify-between">
-                            <Select 
-                                value={video.watchedStatus}
-                                onValueChange={(newStatus: VideoItemType['watchedStatus']) => handleStatusChange(video._id, newStatus)}
-                            >
-                                <SelectTrigger className="w-full text-xs h-9 bg-slate-700/50 border-purple-600/70 hover:border-purple-500">
-                                    <SelectValue placeholder="Change status" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-slate-800 border-purple-600 text-white">
-                                    {statusOptions.map(opt => (
-                                        <SelectItem key={opt.value} value={opt.value} className="text-xs hover:bg-purple-700/50 focus:bg-purple-700/60">
-                                            {opt.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <AnimatedButton 
-                              variant="ghost"
-                              size="icon" 
-                              onClick={() => handleDeleteVideo(video._id)} 
-                              className="ml-2 text-red-500 hover:bg-red-500/10 hover:text-red-400"
-                              title="Delete Video"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </AnimatedButton>
+                        
+                        {/* Summary Section */}
+                        {video.summary && (
+                          <CardContent className="p-3 md:p-4 pt-0">
+                            <div className="bg-slate-800/50 rounded-lg border border-purple-700/30 overflow-hidden">
+                              {/* Accordion Header */}
+                              <button
+                                onClick={() => toggleSummaryExpansion(video._id)}
+                                className="w-full flex items-center justify-between p-3 hover:bg-slate-700/30 transition-colors duration-200"
+                              >
+                                <div className="flex items-center">
+                                  <FileText className="w-4 h-4 text-purple-400 mr-2" />
+                                  <span className="text-xs font-medium text-purple-300">סיכום AI חכם</span>
+                                </div>
+                                <motion.div
+                                  animate={{ rotate: expandedSummaries.has(video._id) ? 180 : 0 }}
+                                  transition={{ duration: 0.2 }}
+                                >
+                                  <ChevronDown className="w-4 h-4 text-purple-400" />
+                                </motion.div>
+                              </button>
+                              
+                              {/* Accordion Content */}
+                              <AnimatePresence>
+                                {expandedSummaries.has(video._id) && (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                                    className="overflow-hidden"
+                                  >
+                                    <div className="px-3 pb-3">
+                                      <div className="text-xs text-gray-300 leading-relaxed whitespace-pre-line border-t border-purple-800/30 pt-3">
+                                        {video.summary}
+                                      </div>
+                                      
+                                      {/* Read Aloud Button */}
+                                      <div className="mt-3 pt-2 border-t border-purple-800/30 flex items-center justify-between">
+                                        <span className="text-xs text-purple-400/70 italic">
+                                          * סיכום זה נוצר על ידי AI על בסיס ניתוח הכותרת והמטאדטה של הסרטון
+                                        </span>
+                                        
+                                        {speechSynthesis && (
+                                          <AnimatedButton
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleReadAloud(video._id, video.summary as string)}
+                                            className={`ml-2 h-7 px-2 text-xs transition-all duration-200 ${
+                                              readingVideoId === video._id
+                                                ? 'bg-green-600/20 border-green-500/50 text-green-300 hover:bg-green-600/30'
+                                                : 'bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30'
+                                            }`}
+                                            title={readingVideoId === video._id ? "עצור קריאה" : "קרא בקול רם"}
+                                          >
+                                            {readingVideoId === video._id ? (
+                                              <>
+                                                <VolumeX className="w-3 h-3 mr-1" />
+                                                עצור
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Volume2 className="w-3 h-3 mr-1" />
+                                                קרא
+                                              </>
+                                            )}
+                                          </AnimatedButton>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                          </CardContent>
+                        )}
+                        
+                        <CardFooter className="p-3 md:p-4 pt-2 border-t border-purple-800/50">
+                          <div className="flex flex-col w-full gap-2">
+                            {/* Status and Actions Row */}
+                            <div className="flex items-center justify-between">
+                              <Select 
+                                  value={video.watchedStatus}
+                                  onValueChange={(newStatus: VideoItemType['watchedStatus']) => handleStatusChange(video._id, newStatus)}
+                              >
+                                  <SelectTrigger className="flex-1 text-xs h-9 bg-slate-700/50 border-purple-600/70 hover:border-purple-500">
+                                      <SelectValue placeholder="Change status" />
+                                  </SelectTrigger>
+                                  <SelectContent className="bg-slate-800 border-purple-600 text-white">
+                                      {statusOptions.map(opt => (
+                                          <SelectItem key={opt.value} value={opt.value} className="text-xs hover:bg-purple-700/50 focus:bg-purple-700/60">
+                                              {opt.label}
+                                          </SelectItem>
+                                      ))}
+                                  </SelectContent>
+                              </Select>
+                              <AnimatedButton 
+                                variant="ghost"
+                                size="sm" 
+                                onClick={() => handleDeleteVideo(video._id)} 
+                                className="ml-2 text-red-500 hover:bg-red-500/10 hover:text-red-400 h-9 w-9 p-0"
+                                title="Delete Video"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </AnimatedButton>
+                            </div>
+                            
+                            {/* Summarize Button Row */}
+                            <div className="flex justify-center">
+                              <AnimatedButton
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleSummarizeVideo(video._id)}
+                                disabled={summarizingVideoId === video._id}
+                                className="w-full text-xs bg-purple-600/20 border-purple-500/50 hover:bg-purple-600/30 hover:border-purple-400 text-purple-200 hover:text-white transition-all duration-200"
+                                title={video.summary ? "יצירת סיכום מחדש" : "יצירת סיכום AI"}
+                              >
+                                {summarizingVideoId === video._id ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                                    יוצר סיכום...
+                                  </>
+                                ) : (
+                                  <>
+                                    <FileText className="w-3 h-3 mr-2" />
+                                    {video.summary ? "סיכום מחדש" : "צור סיכום"}
+                                  </>
+                                )}
+                              </AnimatedButton>
+                            </div>
+                          </div>
                         </CardFooter>
                       </GlassCard>
                     </motion.div>

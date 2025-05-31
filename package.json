@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev.js",
+    "dev:backend": "cd src/backend && npm run dev",
     "list": "node scripts/dev.js list",
     "generate": "node scripts/dev.js generate",
     "parse-prd": "node scripts/dev.js parse-prd",
@@ -27,7 +28,7 @@
     "fuse.js": "^7.0.0",
     "gradient-string": "^3.0.0",
     "helmet": "^8.1.0",
-    "inquirer": "^12.5.0",
+    "inquirer": "^8.2.5",
     "jsonwebtoken": "^9.0.2",
     "lru-cache": "^10.2.0",
     "openai": "^4.100.0",

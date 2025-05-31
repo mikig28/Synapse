@@ -36,4 +36,14 @@ export const deleteVideoService = async (videoId: string): Promise<{ message: st
     console.error(`Error deleting video ${videoId}:`, error);
     throw error;
   }
+};
+
+export const summarizeVideoService = async (videoId: string): Promise<{ message: string; summary: string; video: VideoItemType }> => {
+  try {
+    const response = await axiosInstance.post<{ message: string; summary: string; video: VideoItemType }>(`/videos/${videoId}/summarize`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error summarizing video ${videoId}:`, error);
+    throw error;
+  }
 }; 

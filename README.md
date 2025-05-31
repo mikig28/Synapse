@@ -75,6 +75,7 @@ Create a `.env` file in the project root:
 # AI Service Configuration
 ANTHROPIC_API_KEY=your_anthropic_key
 OPENAI_API_KEY=your_openai_key
+GEMINI_API_KEY=your_gemini_api_key  # For video summarization
 
 # Application Configuration
 NODE_ENV=development

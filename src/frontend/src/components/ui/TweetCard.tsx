@@ -182,47 +182,86 @@ export const TweetBody = ({ tweet }: { tweet: EnrichedTweet }) => (
 );
 
 export const TweetMedia = ({ tweet }: { tweet: EnrichedTweet }) => {
-  if (!tweet.video && !tweet.photos) return null;
+  // Cast to any to access non-standard properties
+  const tweetAny = tweet as any;
+  
+  // Check if there's any media to display
+  const hasPhotos = tweet.photos && tweet.photos.length > 0;
+  const hasVideo = !!tweet.video;
+  const hasCardMedia = tweetAny?.card?.binding_values?.thumbnail_image_large?.image_value?.url ||
+                       tweetAny?.card?.binding_values?.player_image_large?.image_value?.url ||
+                       tweetAny?.card?.binding_values?.player_stream_url?.string_value;
+  
+  if (!hasPhotos && !hasVideo && !hasCardMedia) {
+    return null;
+  }
+  
   return (
-    <div className="flex flex-1 items-center justify-center">
-      {tweet.video && (
+    <div className="flex flex-1 items-center justify-center mt-3 w-full">
+      {/* Video from tweet */}
+      {hasVideo && (
         <video
           poster={tweet.video.poster}
-          autoPlay
-          loop
-          muted
+          controls
           playsInline
-          className="rounded-xl border shadow-sm"
+          className="rounded-xl border shadow-sm w-full max-h-[450px] object-cover"
+          style={{ maxWidth: '100%' }}
         >
-          <source src={tweet.video.variants[0].src} type="video/mp4" />
+          {tweet.video.variants.map((variant, index) => (
+            <source key={index} src={variant.src} type={variant.type || "video/mp4"} />
+          ))}
           Your browser does not support the video tag.
         </video>
       )}
-      {tweet.photos && (
-        <div className="relative flex transform-gpu snap-x snap-mandatory gap-4 overflow-x-auto">
-          <div className="shrink-0 snap-center sm:w-2" />
-          {tweet.photos.map((photo) => (
+      
+      {/* Video from card (if no direct video) */}
+      {!hasVideo && tweetAny?.card?.binding_values?.player_stream_url?.string_value && (
+        <video
+          poster={tweetAny?.card?.binding_values?.player_image_large?.image_value?.url || 
+                 tweetAny?.card?.binding_values?.thumbnail_image_large?.image_value?.url}
+          controls
+          playsInline
+          className="rounded-xl border shadow-sm w-full max-h-[450px] object-cover"
+          style={{ maxWidth: '100%' }}
+        >
+          <source src={tweetAny.card.binding_values.player_stream_url.string_value} type="video/mp4" />
+          Your browser does not support the video tag.
+        </video>
+      )}
+      
+      {/* Photos */}
+      {hasPhotos && (
+        <div className="relative flex w-full gap-1 overflow-hidden rounded-xl">
+          {tweet.photos.length === 1 ? (
             <img
-              key={photo.url}
-              src={photo.url}
+              src={tweet.photos[0].url}
               title={"Photo by " + tweet.user.name}
               alt={tweet.text}
-              className="h-64 w-5/6 shrink-0 snap-center snap-always rounded-xl border object-cover shadow-sm"
+              className="w-full h-auto max-h-[450px] rounded-xl border object-cover shadow-sm"
             />
-          ))}
-          <div className="shrink-0 snap-center sm:w-2" />
+          ) : (
+            <div className="grid w-full gap-1 grid-cols-2">
+              {tweet.photos.map((photo, i) => (
+                <img
+                  key={photo.url}
+                  src={photo.url}
+                  title={"Photo by " + tweet.user.name}
+                  alt={`${tweet.text} - image ${i+1}`}
+                  className="w-full h-auto rounded-xl border object-cover shadow-sm"
+                  style={{ maxHeight: tweet.photos.length > 2 ? '220px' : '450px' }}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
-      {!tweet.video &&
-        !tweet.photos &&
-        // @ts-ignore
-        tweet?.card?.binding_values?.thumbnail_image_large?.image_value.url && (
+      
+      {/* Thumbnail from card (if no videos or photos) */}
+      {!hasVideo && !hasPhotos &&
+        tweetAny?.card?.binding_values?.thumbnail_image_large?.image_value?.url && (
           <img
-            src={
-              // @ts-ignore
-              tweet.card.binding_values.thumbnail_image_large.image_value.url
-            }
-            className="h-64 rounded-xl border object-cover shadow-sm"
+            src={tweetAny.card.binding_values.thumbnail_image_large.image_value.url}
+            className="w-full h-auto max-h-[350px] rounded-xl border object-cover shadow-sm"
             alt={tweet.text}
           />
         )}
@@ -241,7 +280,7 @@ export const MagicTweet = ({
   tweetId,
   ...props
 }: {
-  tweet: any;
+  tweet: EnrichedTweet;
   components?: TwitterComponents;
   className?: string;
   summaryText?: string;
@@ -249,60 +288,23 @@ export const MagicTweet = ({
   playingTweetId?: string | null;
   audioErrorTweetId?: string | null;
   tweetId?: string;
+  [key: string]: unknown;
 }) => {
-  const enrichedTweet = enrichTweet(tweet);
   return (
-    <div
+    <article
       className={cn(
-        "relative flex size-full max-w-lg flex-col gap-2 overflow-hidden rounded-lg border p-4 backdrop-blur-md",
+        "flex size-full max-h-max min-w-72 flex-col gap-3",
         className,
       )}
       {...props}
     >
-      <TweetHeader tweet={enrichedTweet} />
-      <TweetBody tweet={enrichedTweet} />
-      {summaryText && (
-        <div className="mt-2 pt-2 border-t">
-          <h4 className="text-sm font-semibold mb-1 flex items-center">
-            <FileText className="w-4 h-4 mr-1 flex-shrink-0" /> Summary
-          </h4>
-          <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-            {summaryText}
-          </p>
-          {/* TTS Button for Tweet Summary */}
-          {onSpeakSummary && tweetId && (
-            <>
-              <Button 
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation(); // Prevent card click or other parent events
-                  onSpeakSummary(tweetId, summaryText || '');
-                }}
-                disabled={playingTweetId === tweetId && !audioErrorTweetId}
-                className="mt-2 text-xs"
-                title={playingTweetId === tweetId && !audioErrorTweetId ? "Playing Summary..." : audioErrorTweetId === tweetId ? "Retry Reading Summary" : "Read Summary Aloud"}
-              >
-                <Volume2 className={`w-4 h-4 mr-1 ${playingTweetId === tweetId && !audioErrorTweetId ? 'animate-pulse' : ''}`} />
-                {playingTweetId === tweetId && !audioErrorTweetId ? 
-                  "Playing..." : 
-                  audioErrorTweetId === tweetId ? 
-                  "Retry Read" : 
-                  "Read Aloud"}
-              </Button>
-              {audioErrorTweetId === tweetId && (
-                <p className="text-xs text-red-500 mt-1">Failed to play audio. Please try again.</p>
-              )}
-            </>
-          )}
-        </div>
-      )}
-      <TweetMedia tweet={enrichedTweet} />
-    </div>
+      <TweetHeader tweet={tweet} />
+      <TweetBody tweet={tweet} />
+      <TweetMedia tweet={tweet} />
+    </article>
   );
 };
 
-// Client Side Tweet Card
 export const ClientTweetCard = ({
   id,
   apiUrl,
@@ -331,20 +333,48 @@ export const ClientTweetCard = ({
   playingTweetId?: string | null;
   audioErrorTweetId?: string | null;
 }) => {
-  const { data: tweet, error } = useTweet(id, apiUrl, fetchOptions);
+  // Use correct parameter typing for useTweet
+  const { data, error, isLoading } = useTweet(id);
 
   if (error) {
-    console.error(error);
-    onError?.(error);
+    if (onError) {
+      onError(error);
+    }
+    console.error("Tweet loading error:", error);
+    return <TweetNotFound className={className} {...props} />;
   }
 
+  if (isLoading || !data) {
+    return (
+      <div className={cn("not-prose mb-2", className)} {...props}>
+        {fallback}
+      </div>
+    );
+  }
+
+  const enrichedTweet = enrichTweet(data);
+
   return (
-    <div className={cn('relative group', className)} {...props}>
-      {tweet && <MagicTweet tweet={tweet} components={components} summaryText={summaryText} onSpeakSummary={onSpeakSummary} playingTweetId={playingTweetId} audioErrorTweetId={audioErrorTweetId} tweetId={id} />}
-      {!tweet && !error && fallback}
-      {error && <TweetNotFound />}
-      {tweet && (onDelete || onSummarize) && (
-        <div className="absolute bottom-2 right-2 z-10 flex space-x-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity">
+    <div
+      className={cn(
+        "not-prose rounded-lg border border-border bg-card text-card-foreground p-4 mb-2 max-w-full relative group",
+        className
+      )}
+      {...props}
+    >
+      <MagicTweet
+        tweet={enrichedTweet}
+        components={components}
+        summaryText={summaryText}
+        onSpeakSummary={onSpeakSummary}
+        playingTweetId={playingTweetId}
+        audioErrorTweetId={audioErrorTweetId}
+        tweetId={id}
+      />
+      
+      {/* Controls */}
+      {(onDelete || onSummarize) && (
+        <div className="absolute bottom-2 right-2 z-10 flex space-x-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
           {onSummarize && (
             <Button
               variant="outline"
@@ -356,15 +386,15 @@ export const ClientTweetCard = ({
                 }
               }}
               disabled={isSummarizing || summaryStatus === 'summarized'}
-              title={summaryStatus === 'summarized' ? "Already Summarized" : summaryStatus === 'pending_summary' ? "Retry Summarize?" : "Summarize Content"}
+              title={summaryStatus === 'summarized' ? "Already Summarized" : summaryStatus === 'pending' ? "Pending" : "Summarize Content"}
               className="text-xs"
             >
               {isSummarizing ? (
                 <><Zap className="w-4 h-4 mr-1 animate-pulse" /> Summarizing...</>
               ) : summaryStatus === 'summarized' ? (
                 <><FileText className="w-4 h-4 mr-1" /> Summarized</>
-              ) : summaryStatus === 'pending_summary' ? (
-                <><FileText className="w-4 h-4 mr-1" /> Summarize (Pending)</>
+              ) : summaryStatus === 'pending' ? (
+                <><FileText className="w-4 h-4 mr-1" /> Pending</>
               ) : (
                 <><FileText className="w-4 h-4 mr-1" /> Summarize</>
               )}

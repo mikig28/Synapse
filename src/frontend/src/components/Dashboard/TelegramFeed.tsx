@@ -45,12 +45,12 @@ const TelegramFeed: React.FC = () => {
       {telegramItems.length === 0 && (
         <p className="text-muted-foreground">No Telegram messages yet. Send a message to your bot!</p>
       )}
-      <ul className="space-y-3 max-h-96 overflow-y-auto pr-2"> {/* Added pr-2 for scrollbar spacing */}
+      <ul className="space-y-3 max-h-72 sm:max-h-80 md:max-h-96 overflow-y-auto pr-2"> {/* Added pr-2 for scrollbar spacing */}
         {telegramItems.map((item: TelegramItemType) => (
-          <li key={item._id} className="p-3 border rounded-md bg-background shadow-sm relative group">
+          <li key={item._id} className="p-2 sm:p-3 border rounded-md bg-background shadow-sm relative group">
             <button 
               onClick={() => handleDelete(item._id, item.title || item.content || item.text || item.messageType)} 
-              className="absolute top-1.5 right-1.5 p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100"
+              className="absolute top-1 right-1 p-1.5 text-muted-foreground hover:text-destructive opacity-75 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100 transition-opacity rounded-full hover:bg-muted/50"
               title="Delete item"
             >
               <X size={16} />
@@ -63,7 +63,7 @@ const TelegramFeed: React.FC = () => {
                 {new Date(item.receivedAt).toLocaleString()}
               </span>
             </div>
-            <p className="text-sm text-foreground mb-1">
+            <p className="text-sm text-foreground mb-1 line-clamp-3">
               {getMainContent(item)}
             </p>
             

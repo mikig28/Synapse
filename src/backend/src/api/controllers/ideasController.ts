@@ -1,10 +1,7 @@
 import { Request, Response } from 'express';
-import Idea from '../../models/Idea'; // Adjust path as necessary
+import Idea, { IIdea } from '../../models/Idea';
 import mongoose from 'mongoose';
-
-interface AuthenticatedRequest extends Request {
-    user?: { id: string };
-}
+import { AuthenticatedRequest } from '../../types/express';
 
 export const getIdeas = async (req: AuthenticatedRequest, res: Response) => {
   try {

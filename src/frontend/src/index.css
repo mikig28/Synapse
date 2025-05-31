@@ -379,6 +379,126 @@ code {
       border: 2px solid hsl(var(--border));
     }
   }
+
+  /* Line Clamp Utilities */
+  .line-clamp-1 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .line-clamp-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+  .line-clamp-4 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+  }
+  .line-clamp-5 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 5;
+  }
+}
+
+/* Mobile-specific utilities */
+@layer utilities {
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
+  
+  /* Improved mobile scrolling */
+  .mobile-scroll {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+  
+  /* Better mobile tap targets */
+  .tap-target {
+    min-height: 44px;
+    min-width: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Mobile-friendly spacing */
+  .mobile-padding {
+    padding: 0.75rem;
+  }
+  
+  @media (min-width: 640px) {
+    .mobile-padding {
+      padding: 1rem;
+    }
+  }
+  
+  @media (min-width: 768px) {
+    .mobile-padding {
+      padding: 1.5rem;
+    }
+  }
+
+  /* Improved focus states for mobile */
+  .focus-visible:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+  
+  /* Better mobile button states */
+  .mobile-button {
+    min-height: 44px;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* Mobile-optimized cards */
+  .mobile-card {
+    border-radius: var(--radius-lg);
+    transition: all 0.2s ease;
+  }
+  
+  .mobile-card:active {
+    transform: scale(0.98);
+  }
+
+  @media (max-width: 640px) {
+    /* Reduce motion on mobile for better performance */
+    .reduce-motion {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+    
+    /* Better mobile typography */
+    .mobile-text-sm {
+      font-size: 0.875rem;
+      line-height: 1.25rem;
+    }
+    
+    .mobile-text-base {
+      font-size: 1rem;
+      line-height: 1.5rem;
+    }
+    
+    .mobile-text-lg {
+      font-size: 1.125rem;
+      line-height: 1.75rem;
+    }
+  }
 }
 
 /* Keyframe animations */

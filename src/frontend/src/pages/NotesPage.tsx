@@ -501,4 +501,4 @@ const NotesPage: React.FC = () => {
   );
 };
 
-export default NotesPage; 
+export default NotesPage;

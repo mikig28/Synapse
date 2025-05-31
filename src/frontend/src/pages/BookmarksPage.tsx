@@ -49,22 +49,54 @@ const BookmarksPage: React.FC = () => {
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
 
   console.log("[BookmarksPage] Component rendered or re-rendered");
+  
+  // Debug log for component state
+  useEffect(() => {
+    console.log("[BookmarksPage] Current state:", {
+      bookmarksLength: bookmarks.length,
+      loading,
+      error,
+      token: token ? "Present" : "Not present",
+      headerInView,
+      controlsInView,
+      listInView
+    });
+  }, [bookmarks, loading, error, token, headerInView, controlsInView, listInView]);
 
+  // Add a ref to track the last page fetched
+  const lastPageFetched = React.useRef<number | null>(null);
+  
   const fetchBookmarksCallback = useCallback(async (pageToFetch: number = 1) => {
-    if (!token) return;
+    if (!token) {
+      console.log("[BookmarksPage] No token available, skipping API call");
+      return;
+    }
     console.log(`[BookmarksPage] Fetching bookmarks for page: ${pageToFetch}...`);
     setLoading(true);
     try {
       const response = await getBookmarks(pageToFetch, PAGE_LIMIT);
       console.log("[BookmarksPage] Fetched data:", JSON.stringify(response.data, null, 2));
+      console.log("[BookmarksPage] API response structure:", {
+        currentPage: response.currentPage,
+        totalPages: response.totalPages,
+        totalBookmarks: response.totalBookmarks,
+        dataIsArray: Array.isArray(response.data),
+        dataLength: response.data?.length || 0
+      });
+      
       setBookmarks(response.data);
       setCurrentPage(response.currentPage);
       setTotalPages(response.totalPages);
       setTotalBookmarks(response.totalBookmarks);
       setError(null);
     } catch (err) {
-      setError('Failed to load bookmarks. Please ensure the backend is running and refresh.');
-      console.error('Error fetching bookmarks:', err);
+      console.error('[BookmarksPage] Error fetching bookmarks:', err);
+      let errorMessage = 'Failed to load bookmarks. Please ensure the backend is running and refresh.';
+      if (err instanceof Error) {
+        console.error('[BookmarksPage] Error details:', err.message);
+        errorMessage = `Error: ${err.message}`;
+      }
+      setError(errorMessage);
       toast({
         title: "Error Fetching Bookmarks",
         description: "Could not fetch bookmarks. The server might be down.",
@@ -75,41 +107,123 @@ const BookmarksPage: React.FC = () => {
     }
   }, [token, toast]);
 
+  // Add this useEffect to prevent framer-motion from unmounting the components
   useEffect(() => {
-    fetchBookmarksCallback(currentPage);
-  }, [fetchBookmarksCallback, currentPage]);
+    // This effect is to ensure the component stays mounted
+    console.log("[BookmarksPage] Ensuring component stability");
+    
+    // Force stable rendering after initial load
+    if (!loading && bookmarks.length > 0) {
+      const timer = setTimeout(() => {
+        console.log("[BookmarksPage] Forcing stable render state");
+        // Force a re-render without changing state values
+        // by setting state to the same value
+        setBookmarks([...bookmarks]);
+      }, 300);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [loading, bookmarks.length]);
+  
+  // Modify the fetchBookmarks useEffect
+  useEffect(() => {
+    console.log("[BookmarksPage] useEffect for fetchBookmarks triggered");
+    
+    // Check for token presence first
+    if (!token) {
+      console.error("[BookmarksPage] No authentication token available");
+      setError("You must be logged in to view bookmarks. Please log in and try again.");
+      setLoading(false);
+      return;
+    }
+    
+    // Fetch bookmarks only if we don't already have them
+    if (bookmarks.length === 0 || currentPage !== lastPageFetched.current) {
+      lastPageFetched.current = currentPage;
+      fetchBookmarksCallback(currentPage).catch(err => {
+        console.error("[BookmarksPage] Unhandled error in fetchBookmarks effect:", err);
+        setError(`Failed to load bookmarks: ${err.message || "Unknown error"}`);
+        setLoading(false);
+      });
+    } else {
+      console.log("[BookmarksPage] Skipping fetch as we already have bookmarks for this page");
+    }
+  }, [fetchBookmarksCallback, currentPage, token, bookmarks.length]);
+
+  // Add a new useEffect specifically for authentication status changes
+  useEffect(() => {
+    console.log("[BookmarksPage] Auth status check - token:", token ? "Present" : "Not present");
+    if (!token) {
+      setError("You must be logged in to view bookmarks. Please log in and try again.");
+      setLoading(false);
+    }
+  }, [token]);
 
   const filteredAndSortedBookmarks = useMemo(() => {
-    if (!Array.isArray(bookmarks)) {
-      console.warn('[BookmarksPage] bookmarks is not an array in useMemo. Returning empty array.', bookmarks);
+    console.log("[BookmarksPage] Running filteredAndSortedBookmarks memo");
+    
+    // Early return an empty array if still loading
+    if (loading && bookmarks.length === 0) {
+      console.log("[BookmarksPage] Still loading, returning empty array for filtered bookmarks");
       return [];
     }
+    
+    // Protection for invalid bookmarks data
+    if (!Array.isArray(bookmarks)) {
+      console.warn('[BookmarksPage] bookmarks is not an array in useMemo. Value:', bookmarks);
+      return [];
+    }
+    
+    // Debug original bookmarks
+    console.log(`[BookmarksPage] Original bookmarks count: ${bookmarks.length}`);
+    
     const now = new Date();
     let processedBookmarks = bookmarks.filter(bookmark => {
-      const bookmarkDate = new Date(bookmark.createdAt);
-      const matchesFilter = 
-        filter === 'all' ? true :
-        filter === 'week' ? bookmarkDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7) :
-        filter === 'month' ? bookmarkDate >= new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()) :
-        true;
+      // Add null check for bookmark
+      if (!bookmark) {
+        console.warn("[BookmarksPage] Found null or undefined bookmark in bookmarks array");
+        return false;
+      }
+      
+      try {
+        const bookmarkDate = new Date(bookmark.createdAt);
+        const matchesFilter = 
+          filter === 'all' ? true :
+          filter === 'week' ? bookmarkDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7) :
+          filter === 'month' ? bookmarkDate >= new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()) :
+          true;
 
-      const matchesSearch = 
-        searchTerm === '' ? true :
-        bookmark.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        bookmark.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        bookmark.originalUrl.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (bookmark.sourcePlatform === 'X' && bookmark.fetchedTitle?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (bookmark.sourcePlatform === 'LinkedIn' && bookmark.fetchedTitle?.toLowerCase().includes(searchTerm.toLowerCase()));
+        const matchesSearch = 
+          searchTerm === '' ? true :
+          bookmark.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          bookmark.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          bookmark.originalUrl.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (bookmark.sourcePlatform === 'X' && bookmark.fetchedTitle?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (bookmark.sourcePlatform === 'LinkedIn' && bookmark.fetchedTitle?.toLowerCase().includes(searchTerm.toLowerCase()));
 
-      return matchesFilter && matchesSearch;
+        return matchesFilter && matchesSearch;
+      } catch (err) {
+        console.error("[BookmarksPage] Error filtering bookmark:", err, "Bookmark:", bookmark);
+        return false;
+      }
     });
 
-    return processedBookmarks.sort((a, b) => {
-      const dateA = new Date(a.createdAt).getTime();
-      const dateB = new Date(b.createdAt).getTime();
-      return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+    const sortedBookmarks = processedBookmarks.sort((a, b) => {
+      try {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+      } catch (err) {
+        console.error("[BookmarksPage] Error sorting bookmarks:", err);
+        return 0;
+      }
     });
-  }, [bookmarks, filter, searchTerm, sortOrder]);
+    
+    // Debug processed bookmarks
+    console.log(`[BookmarksPage] Filtered and sorted bookmarks count: ${sortedBookmarks.length}`);
+    
+    return sortedBookmarks;
+  }, [bookmarks, filter, searchTerm, sortOrder, loading]);
 
   const isValidUrlWithHostname = (url: string | null | undefined): boolean => {
     if (!url || typeof url !== 'string' || url.trim() === '') return false;
@@ -269,6 +383,7 @@ const BookmarksPage: React.FC = () => {
       opacity: 1,
       transition: {
         staggerChildren: 0.1,
+        when: "beforeChildren"
       },
     },
   };
@@ -281,8 +396,17 @@ const BookmarksPage: React.FC = () => {
       transition: {
         type: 'spring',
         stiffness: 100,
+        damping: 15
       },
     },
+  };
+
+  // Ensure animation is handled safely - this is critical for fixing the disappearing UI
+  const safeAnimation = {
+    initial: "hidden",
+    animate: "visible",
+    exit: { opacity: 0 },
+    variants: containerVariants
   };
 
   const renderPlatformIcon = (platform: BookmarkItemType['sourcePlatform'] | 'Other' | undefined) => {
@@ -296,7 +420,82 @@ const BookmarksPage: React.FC = () => {
     }
   };
 
-  if (loading && bookmarks.length === 0) {
+  // Helper function for displaying URLs safely
+  const displayableUrl = (url: string | null | undefined): string => {
+    if (!url) return "Missing URL";
+    if (url.trim() === '') return "Empty URL";
+    
+    try {
+      new URL(url);
+      return url;
+    } catch (e) {
+      return `Invalid URL: ${url}`;
+    }
+  };
+
+  // Helper function to render specialized content for Twitter/X or LinkedIn
+  const renderSpecializedContent = (bookmark: BookmarkItemType) => {
+    if (bookmark.sourcePlatform === 'X' && isValidUrlWithHostname(bookmark.originalUrl)) {
+      const tweetId = extractTweetId(bookmark.originalUrl);
+      if (tweetId) {
+        return (
+          <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
+            <ClientTweetCard id={tweetId} />
+          </div>
+        );
+      }
+    }
+    
+    if (bookmark.sourcePlatform === 'LinkedIn') {
+      return (
+        <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
+          <LinkedInCard 
+            bookmark={{
+              ...bookmark, 
+              originalUrl: isValidUrlWithHostname(bookmark.originalUrl) ? bookmark.originalUrl : "#"
+            }} 
+            onDelete={handleDeleteBookmark} 
+          />
+        </div>
+      );
+    }
+    
+    return null;
+  };
+
+  // Helper function to render the summary section
+  const renderSummarySection = (bookmark: BookmarkItemType) => {
+    if (bookmark.summary && bookmark.status === 'summarized') {
+      return (
+        <details className="mt-3 text-sm text-muted-foreground/90 leading-relaxed">
+          <summary className="cursor-pointer font-medium text-primary/80 hover:text-primary select-none transition-colors duration-200">View Summary</summary>
+          <p className="pt-2 whitespace-pre-wrap">{String(bookmark.summary)}</p>
+        </details>
+      );
+    }
+    
+    if (bookmark.status === 'pending') {
+      return <p className="text-xs text-amber-500 mt-1">Summary pending...</p>;
+    }
+    
+    if (bookmark.status === 'failed') {
+      return <p className="text-xs text-destructive mt-1">Summary failed.</p>;
+    }
+    
+    if (bookmark.status === 'processing') {
+      return (
+        <div className="flex items-center text-xs text-sky-500 mt-1">
+          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+          <span>Processing summary...</span>
+        </div>
+      );
+    }
+    
+    return null;
+  };
+
+  if (loading) {
+    console.log("[BookmarksPage] Rendering loading state");
     return (
       <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-background via-background to-muted/20 relative overflow-hidden">
         <div className="container mx-auto relative z-10">
@@ -315,6 +514,7 @@ const BookmarksPage: React.FC = () => {
   }
 
   if (error) {
+    console.log("[BookmarksPage] Rendering error state:", error);
     return (
       <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-background via-destructive/5 to-background text-foreground flex flex-col items-center justify-center">
         <Card className="w-full max-w-lg text-center border-destructive/20 bg-background/80 backdrop-blur-sm">
@@ -334,6 +534,12 @@ const BookmarksPage: React.FC = () => {
     );
   }
 
+  console.log("[BookmarksPage] Rendering main content", {
+    filteredBookmarksCount: filteredAndSortedBookmarks.length,
+    loading,
+    error: error ? "Error present" : "No error"
+  });
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 relative overflow-hidden">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -349,23 +555,20 @@ const BookmarksPage: React.FC = () => {
         />
       </div>
 
-      <div className="relative z-10 container mx-auto p-4 md:p-8 space-y-8">
-        <motion.div
+      <div className="relative z-10 container mx-auto p-3 sm:p-4 md:p-8 space-y-6 sm:space-y-8">
+        <div
           ref={headerRef}
-          initial={{ opacity: 0, y: 30 }}
-          animate={headerInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-          transition={{ duration: 0.6 }}
-          className="flex flex-col md:flex-row justify-between items-center mb-4 md:mb-8 gap-4"
+          className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 md:mb-8 gap-4 opacity-100"
         >
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full">
-              <BookmarkPlus className="w-8 h-8 text-primary" />
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="p-2 sm:p-3 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full">
+              <BookmarkPlus className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
             </div>
             <div>
-              <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-primary">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-primary">
                 Bookmarks
               </h1>
-              <p className="text-muted-foreground text-lg">
+              <p className="text-muted-foreground text-base sm:text-lg">
                 Your saved articles, links, and resources.
               </p>
             </div>
@@ -373,33 +576,31 @@ const BookmarksPage: React.FC = () => {
           <Button 
             onClick={handleSummarizeLatestClick} 
             size="lg"
-            disabled={isBatchSummarizing}
-            className="self-center md:self-auto hover:scale-105 transition-all duration-200 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90"
+            disabled={isBatchSummarizing || loading || !!error || !token}
+            className="w-full sm:w-auto self-stretch sm:self-auto hover:scale-105 transition-all duration-200 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 min-h-[48px] touch-manipulation"
           >
             {isBatchSummarizing ? (
               <>
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                Digesting All New...
+                <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
+                <span className="text-sm sm:text-base">Digesting All New...</span>
               </>
             ) : (
               <>
-                <Brain className="w-5 h-5 mr-2"/>
-                Digest New Bookmarks
+                <Brain className="w-4 h-4 sm:w-5 sm:h-5 mr-2"/>
+                <span className="text-sm sm:text-base">Digest New Bookmarks</span>
               </>
             )}
           </Button>
-        </motion.div>
+        </div>
 
-        <motion.div
+        <div
           ref={controlsRef}
-          initial={{ opacity: 0, y: 20 }}
-          animate={controlsInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
+          className="opacity-100"
         >
-          <Card className="p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-              <div className="md:col-span-1">
-                <Label htmlFor="bookmarks-search" className="text-sm font-medium text-muted-foreground mb-1 block">Search</Label>
+          <Card className="p-3 sm:p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 items-end">
+              <div className="lg:col-span-1">
+                <Label htmlFor="bookmarks-search" className="text-sm font-medium text-muted-foreground mb-2 block">Search</Label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
                   <Input
@@ -408,15 +609,15 @@ const BookmarksPage: React.FC = () => {
                     placeholder="Search title, URL, summary..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 text-sm bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200"
+                    className="w-full pl-10 pr-4 py-3 text-sm bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200 min-h-[48px] touch-manipulation"
                   />
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="bookmarks-filter" className="text-sm font-medium text-muted-foreground mb-1 block">Date Filter</Label>
+                <Label htmlFor="bookmarks-filter" className="text-sm font-medium text-muted-foreground mb-2 block">Date Filter</Label>
                 <Select value={filter} onValueChange={setFilter}>
-                  <SelectTrigger id="bookmarks-filter" className="w-full bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200">
+                  <SelectTrigger id="bookmarks-filter" className="w-full bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200 min-h-[48px] touch-manipulation">
                     <SelectValue placeholder="Filter by date..." />
                   </SelectTrigger>
                   <SelectContent className="bg-background border-border shadow-xl">
@@ -428,9 +629,9 @@ const BookmarksPage: React.FC = () => {
               </div>
 
               <div>
-                <Label htmlFor="bookmarks-sort" className="text-sm font-medium text-muted-foreground mb-1 block">Sort By Date</Label>
+                <Label htmlFor="bookmarks-sort" className="text-sm font-medium text-muted-foreground mb-2 block">Sort By Date</Label>
                 <Select value={sortOrder} onValueChange={setSortOrder}>
-                  <SelectTrigger id="bookmarks-sort" className="w-full bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200">
+                  <SelectTrigger id="bookmarks-sort" className="w-full bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200 min-h-[48px] touch-manipulation">
                     <SelectValue placeholder="Sort by..." />
                   </SelectTrigger>
                   <SelectContent className="bg-background border-border shadow-xl">
@@ -441,14 +642,9 @@ const BookmarksPage: React.FC = () => {
               </div>
             </div>
           </Card>
-        </motion.div>
+        </div>
 
-        <motion.div
-          ref={listRef}
-          initial={{ opacity: 0, y: 20 }}
-          animate={listInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
+        <div ref={listRef} className="opacity-100">
           {loading && <SkeletonList items={PAGE_LIMIT} />}
           
           {error && (
@@ -472,12 +668,7 @@ const BookmarksPage: React.FC = () => {
           )}
 
           {!loading && !error && filteredAndSortedBookmarks.length > 0 && (
-            <motion.div 
-              className="space-y-4 md:space-y-6"
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-            >
+            <div className="space-y-3 sm:space-y-4 md:space-y-6">
               {filteredAndSortedBookmarks.map((bookmark, index) => {
                 const isValidOriginalUrl = isValidUrlWithHostname(bookmark.originalUrl);
                 let displayableUrl = bookmark.originalUrl;
@@ -490,15 +681,13 @@ const BookmarksPage: React.FC = () => {
                 }
 
                 return (
-                  <motion.div
+                  <div
                     key={bookmark._id}
-                    variants={itemVariants}
-                    whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
                     className="group"
                   >
-                    <Card className="p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-grow min-w-0">
+                    <Card className="p-3 sm:p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10">
+                      <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-4">
+                        <div className="flex-grow min-w-0 w-full sm:w-auto">
                           {isValidOriginalUrl ? (
                             <a 
                                 href={bookmark.originalUrl} 
@@ -506,56 +695,26 @@ const BookmarksPage: React.FC = () => {
                                 rel="noopener noreferrer" 
                                 className="hover:underline group-hover:text-primary transition-colors duration-200"
                             >
-                                <h3 className="text-lg md:text-xl font-semibold text-foreground truncate" title={bookmark.title || bookmark.fetchedTitle || bookmark.originalUrl}>
+                                <h3 className="text-base sm:text-lg md:text-xl font-semibold text-foreground line-clamp-2 sm:truncate" title={bookmark.title || bookmark.fetchedTitle || bookmark.originalUrl}>
                                     {bookmark.title || bookmark.fetchedTitle || bookmark.originalUrl}
                                 </h3>
                             </a>
                           ) : (
-                            <h3 className="text-lg md:text-xl font-semibold text-foreground truncate" title={bookmark.title || bookmark.fetchedTitle || displayableUrl}>
-                                {bookmark.title || bookmark.fetchedTitle || displayableUrl}
+                            <h3 className="text-base sm:text-lg md:text-xl font-semibold text-foreground line-clamp-2 sm:truncate" title={bookmark.title || bookmark.fetchedTitle || String(bookmark.originalUrl)}>
+                                {bookmark.title || bookmark.fetchedTitle || String(bookmark.originalUrl)}
                             </h3>
                           )}
-                          <p className="text-xs text-muted-foreground truncate" title={displayableUrl}>{displayableUrl}</p>
-                           {bookmark.sourcePlatform === 'X' && isValidOriginalUrl && (() => {
-                             const tweetId = extractTweetId(bookmark.originalUrl);
-                             if (tweetId) {
-                               return (
-                                 <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
-                                     <ClientTweetCard 
-                                       id={tweetId}
-                                     />
-                                 </div>
-                               );
-                             }
-                             return null;
-                           })()}
-                          {bookmark.sourcePlatform === 'LinkedIn' && (
-                              <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
-                                  <LinkedInCard bookmark={{...bookmark, originalUrl: isValidOriginalUrl ? bookmark.originalUrl : "#" }} onDelete={handleDeleteBookmark} />
-                              </div>
-                          )}
-                          {bookmark.summary && bookmark.status === 'summarized' && (
-                              <details className="mt-3 text-sm text-muted-foreground/90 leading-relaxed">
-                                  <summary className="cursor-pointer font-medium text-primary/80 hover:text-primary select-none transition-colors duration-200">View Summary</summary>
-                                  <p className="pt-2 whitespace-pre-wrap">{String(bookmark.summary)}</p>
-                              </details>
-                          )}
-                          {bookmark.status === 'pending' && <p className="text-xs text-amber-500 mt-1">Summary pending...</p>}
-                          {bookmark.status === 'failed' && <p className="text-xs text-destructive mt-1">Summary failed.</p>}
-                           {bookmark.status === 'processing' && (
-                              <div className="flex items-center text-xs text-sky-500 mt-1">
-                                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                  <span>Processing summary...</span>
-                              </div>
-                          )}
+                          <p className="text-xs text-muted-foreground truncate mt-1" title={String(bookmark.originalUrl)}>{String(bookmark.originalUrl)}</p>
+                           {renderSpecializedContent(bookmark)}
+                          {renderSummarySection(bookmark)}
                         </div>
-                        <div className="flex flex-col space-y-2 ml-2 sm:ml-4 shrink-0">
+                        <div className="flex flex-row sm:flex-col space-x-2 sm:space-x-0 sm:space-y-2 w-full sm:w-auto justify-end sm:justify-start shrink-0">
                           <Button
                             size="icon"
                             variant="ghost"
                             onClick={() => handleSummarizeBookmark(bookmark._id)}
                             disabled={summarizingBookmarkId === bookmark._id || bookmark.status === 'processing'}
-                            className="hover:bg-primary/10 hover:text-primary transition-colors duration-200"
+                            className="hover:bg-primary/10 hover:text-primary transition-colors duration-200 min-h-[44px] min-w-[44px] touch-manipulation"
                             title="Generate Summary"
                           >
                             {summarizingBookmarkId === bookmark._id ? (
@@ -573,7 +732,7 @@ const BookmarksPage: React.FC = () => {
                             variant="ghost"
                             onClick={() => handleSpeakSummary(bookmark._id, bookmark.summary)}
                             disabled={!bookmark.summary || bookmark.status !== 'summarized'}
-                            className={`hover:bg-accent/10 hover:text-accent transition-colors duration-200 ${audioErrorId === bookmark._id ? 'text-destructive' : ''}`}
+                            className={`hover:bg-accent/10 hover:text-accent transition-colors duration-200 min-h-[44px] min-w-[44px] touch-manipulation ${audioErrorId === bookmark._id ? 'text-destructive' : ''}`}
                             title={audioErrorId === bookmark._id ? "Audio Error" : (playingBookmarkId === bookmark._id ? "Stop Speaking" : "Speak Summary")}
                           >
                             {playingBookmarkId === bookmark._id ? (
@@ -588,17 +747,17 @@ const BookmarksPage: React.FC = () => {
                             size="icon"
                             variant="ghost"
                             onClick={() => handleDeleteBookmark(bookmark._id)}
-                            className="hover:bg-destructive/10 hover:text-destructive transition-colors duration-200"
+                            className="hover:bg-destructive/10 hover:text-destructive transition-colors duration-200 min-h-[44px] min-w-[44px] touch-manipulation"
                             title="Delete Bookmark"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
-                      <CardFooter className="pt-4 mt-4 border-t border-border/20 flex justify-between items-center text-xs text-muted-foreground">
+                      <CardFooter className="pt-3 sm:pt-4 mt-3 sm:mt-4 border-t border-border/20 flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs text-muted-foreground gap-2 sm:gap-0">
                         <div className="flex items-center">
                           {renderPlatformIcon(bookmark.sourcePlatform)}
-                          <span>{bookmark.sourcePlatform || 'Other'}</span>
+                          <span className="ml-1">{bookmark.sourcePlatform || 'Other'}</span>
                         </div>
                         <div className="flex items-center">
                           <CalendarDays className="w-3 h-3 mr-1.5" />
@@ -606,25 +765,26 @@ const BookmarksPage: React.FC = () => {
                         </div>
                       </CardFooter>
                     </Card>
-                  </motion.div>
+                  </div>
                 );
               })}
-            </motion.div>
+            </div>
           )}
-        </motion.div>
+        </div>
 
         {/* Pagination Controls */}
         {!loading && !error && totalPages > 1 && (
-          <div className="flex justify-center items-center space-x-2 mt-8">
+          <div className="flex flex-col sm:flex-row justify-center items-center space-y-3 sm:space-y-0 sm:space-x-4 mt-6 sm:mt-8">
             <Button
               onClick={() => fetchBookmarksCallback(currentPage - 1)}
               disabled={currentPage <= 1}
               variant="outline"
               size="sm"
+              className="w-full sm:w-auto min-h-[44px] touch-manipulation"
             >
               Previous
             </Button>
-            <span className="text-sm text-muted-foreground">
+            <span className="text-sm text-muted-foreground px-3 py-2 bg-muted/20 rounded-md">
               Page {currentPage} of {totalPages}
             </span>
             <Button
@@ -632,6 +792,7 @@ const BookmarksPage: React.FC = () => {
               disabled={currentPage >= totalPages}
               variant="outline"
               size="sm"
+              className="w-full sm:w-auto min-h-[44px] touch-manipulation"
             >
               Next
             </Button>

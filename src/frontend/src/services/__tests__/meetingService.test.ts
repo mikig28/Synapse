@@ -52,7 +52,7 @@ describe('MeetingService - uploadAudioForTranscription', () => {
     
     // Check if FormData contains the file
     const formData = (axiosInstance.post as jest.Mock).mock.calls[0][1] as FormData;
-    expect(formData.get('audio')).toEqual(mockFile);
+    expect(formData.get('audioFile')).toEqual(mockFile);
     
     expect(result).toEqual(mockResponseData);
   });

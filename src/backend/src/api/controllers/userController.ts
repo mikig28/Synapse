@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import User, { IUser } from '../../models/User';
-import { AuthenticatedRequest } from '../middleware/authMiddleware'; // Assuming AuthenticatedRequest is exported from your authMiddleware
+import { AuthenticatedRequest } from '../../types/express';
 
 // @desc    Add a Telegram chat ID to the user's monitored list
 // @route   POST /api/v1/users/me/telegram-chats
