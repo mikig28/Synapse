@@ -69,12 +69,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
   const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date()) // Date object for current view
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
 
-  const handleEventClick = (event: CalendarEvent) => {
-    setSelectedEvent(event)
-  }
-
-  // Updated sample calendar events with all events before 4 PM
-  const events: CalendarEvent[] = [
+  // Initial events data - this will be moved into state
+  const initialEvents: CalendarEvent[] = [
     {
       id: 1,
       title: "Team Meeting",
@@ -219,6 +215,69 @@ export default function CalendarPage() { // Renamed from Home for clarity
       organizer: "Product Manager",
     },
   ]
+  const [events, setEvents] = useState<CalendarEvent[]>(initialEvents);
+
+  // State for the Create Event Modal
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newEventTitle, setNewEventTitle] = useState("");
+  const [newEventStartDate, setNewEventStartDate] = useState("");
+  const [newEventStartTime, setNewEventStartTime] = useState("");
+  const [newEventEndDate, setNewEventEndDate] = useState("");
+  const [newEventEndTime, setNewEventEndTime] = useState("");
+  const [newEventDescription, setNewEventDescription] = useState("");
+  const [newEventColor, setNewEventColor] = useState("bg-blue-500"); // Default color
+
+  const handleEventClick = (event: CalendarEvent) => {
+    setSelectedEvent(event)
+  }
+
+  const openCreateModal = (date?: Date) => {
+    const targetDate = date || currentDisplayDate; // Use provided date or current display date
+    setNewEventTitle("");
+    setNewEventStartDate(format(targetDate, "yyyy-MM-dd"));
+    setNewEventStartTime("09:00"); // Default start time
+    setNewEventEndDate(format(targetDate, "yyyy-MM-dd"));
+    setNewEventEndTime("10:00");   // Default end time
+    setNewEventDescription("");
+    setNewEventColor(myCalendars[0]?.color || "bg-blue-500"); // Default to first calendar color
+    setIsCreateModalOpen(true);
+  };
+
+  const closeCreateModal = () => {
+    setIsCreateModalOpen(false);
+    // Optionally reset fields here if not reset on open
+  };
+
+  const handleSaveEvent = () => {
+    if (!newEventTitle || !newEventStartDate || !newEventStartTime || !newEventEndDate || !newEventEndTime) {
+      alert("Please fill in all required fields: Title, Start Date/Time, End Date/Time.");
+      return;
+    }
+
+    // Combine date and time strings into Date objects
+    const startDateTime = new Date(`${newEventStartDate}T${newEventStartTime}`);
+    const endDateTime = new Date(`${newEventEndDate}T${newEventEndTime}`);
+
+    if (endDateTime <= startDateTime) {
+      alert("End time must be after start time.");
+      return;
+    }
+
+    const newEventToAdd: CalendarEvent = {
+      id: Date.now(), // Simple unique ID
+      title: newEventTitle,
+      startTime: startDateTime,
+      endTime: endDateTime,
+      description: newEventDescription,
+      color: newEventColor,
+      location: "", // Placeholder, can add to form
+      attendees: [], // Placeholder, can add to form
+      organizer: "You", // Placeholder
+    };
+
+    setEvents(prevEvents => [...prevEvents, newEventToAdd]);
+    closeCreateModal();
+  };
 
   // Sample calendar days for the week view
   const weekDays = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"]
@@ -346,7 +405,10 @@ export default function CalendarPage() { // Renamed from Home for clarity
           className={`w-64 h-full bg-white/10 backdrop-blur-lg p-4 shadow-xl border-r border-white/20 rounded-tr-3xl ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 ease-out delay-200 flex flex-col justify-between`}
         >
           <div>
-            <button className="mb-6 flex items-center justify-center gap-2 rounded-full bg-blue-500 px-4 py-3 text-white w-full">
+            <button 
+              onClick={() => openCreateModal()} 
+              className="mb-6 flex items-center justify-center gap-2 rounded-full bg-blue-500 px-4 py-3 text-white w-full"
+            >
               <Plus className="h-5 w-5" />
               <span>Create</span>
             </button>
@@ -404,7 +466,10 @@ export default function CalendarPage() { // Renamed from Home for clarity
               </div>
             </div>
           </div>
-          <button className="mt-6 flex items-center justify-center gap-2 rounded-full bg-blue-500 p-4 text-white w-14 h-14 self-start">
+          <button 
+            onClick={() => openCreateModal()} 
+            className="mt-6 flex items-center justify-center gap-2 rounded-full bg-blue-500 p-4 text-white w-14 h-14 self-start"
+          >
             <Plus className="h-6 w-6" />
           </button>
         </div>
@@ -714,6 +779,124 @@ export default function CalendarPage() { // Renamed from Home for clarity
                   onClick={() => setSelectedEvent(null)}
                 >
                   Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Create Event Modal */}
+        {isCreateModalOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 backdrop-blur-sm p-4">
+            <div className="bg-slate-800 p-6 rounded-lg shadow-xl max-w-lg w-full text-white border border-slate-700">
+              <h3 className="text-xl font-semibold mb-6">Create New Event</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="eventTitle" className="block text-sm font-medium text-slate-300 mb-1">Title</label>
+                  <input 
+                    type="text" 
+                    id="eventTitle"
+                    value={newEventTitle}
+                    onChange={(e) => setNewEventTitle(e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400"
+                    placeholder="e.g., Team Meeting"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="eventStartDate" className="block text-sm font-medium text-slate-300 mb-1">Start Date</label>
+                    <input 
+                      type="date" 
+                      id="eventStartDate"
+                      value={newEventStartDate}
+                      onChange={(e) => setNewEventStartDate(e.target.value)}
+                      className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500 tabular-nums"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="eventStartTime" className="block text-sm font-medium text-slate-300 mb-1">Start Time</label>
+                    <input 
+                      type="time" 
+                      id="eventStartTime"
+                      value={newEventStartTime}
+                      onChange={(e) => setNewEventStartTime(e.target.value)}
+                      className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="eventEndDate" className="block text-sm font-medium text-slate-300 mb-1">End Date</label>
+                    <input 
+                      type="date" 
+                      id="eventEndDate"
+                      value={newEventEndDate}
+                      onChange={(e) => setNewEventEndDate(e.target.value)}
+                      className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500 tabular-nums"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="eventEndTime" className="block text-sm font-medium text-slate-300 mb-1">End Time</label>
+                    <input 
+                      type="time" 
+                      id="eventEndTime"
+                      value={newEventEndTime}
+                      onChange={(e) => setNewEventEndTime(e.target.value)}
+                      className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="eventDescription" className="block text-sm font-medium text-slate-300 mb-1">Description (Optional)</label>
+                  <textarea 
+                    id="eventDescription"
+                    value={newEventDescription}
+                    onChange={(e) => setNewEventDescription(e.target.value)}
+                    rows={3}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400"
+                    placeholder="Add more details..."
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="eventColor" className="block text-sm font-medium text-slate-300 mb-1">Color</label>
+                  <select 
+                    id="eventColor"
+                    value={newEventColor}
+                    onChange={(e) => setNewEventColor(e.target.value)}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    {myCalendars.map(cal => (
+                      <option key={cal.name} value={cal.color} className="text-white">
+                        {cal.name} ({cal.color.replace('bg-', '').replace('-500', '')})
+                      </option>
+                    ))}
+                    {/* Add a generic option if no calendars exist or for a default */}
+                    {!myCalendars.find(cal => cal.color === newEventColor) && (
+                       <option value={newEventColor} className="text-white">
+                         {newEventColor.replace('bg-', '').replace('-500', '')}
+                       </option>
+                    )}
+                  </select>
+                </div>
+              </div>
+
+              <div className="mt-8 flex justify-end gap-3">
+                <button 
+                  onClick={closeCreateModal}
+                  className="px-4 py-2 rounded-md text-sm font-medium text-slate-300 hover:bg-slate-700 transition-colors border border-slate-600"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleSaveEvent}
+                  className="px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800"
+                >
+                  Save Event
                 </button>
               </div>
             </div>
