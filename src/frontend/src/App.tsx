@@ -16,6 +16,7 @@ import TasksPage from '@/pages/TasksPage';
 import NotesPage from '@/pages/NotesPage';
 import IdeasPage from '@/pages/IdeasPage';
 import MeetingsPage from '@/pages/MeetingsPage';
+import CalendarPage from '@/pages/CalendarPage';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { DigestProvider } from './context/DigestContext';
 
@@ -57,6 +58,7 @@ const App: React.FC = () => {
                           <Route path="notes" element={<NotesPage />} />
                           <Route path="ideas" element={<IdeasPage />} />
                           <Route path="meetings" element={<MeetingsPage />} />
+                          <Route path="calendar" element={<CalendarPage />} />
                           <Route path="settings" element={<SettingsPage />} />
                           <Route path="*" element={<Navigate to="/dashboard" replace />} />
                         </Routes>
