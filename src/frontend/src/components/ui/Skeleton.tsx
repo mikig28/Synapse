@@ -1,7 +1,6 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { Card } from './card';
-import { cn } from '@/lib/utils'; // Assuming cn is in lib/utils
+import { cn } from '@/lib/utils';
 
 // Generic Skeleton component
 export function Skeleton({
@@ -66,4 +65,3 @@ export const SkeletonText: React.FC<{ lines?: number }> = ({ lines = 4 }) => {
     </div>
   );
 };
-
