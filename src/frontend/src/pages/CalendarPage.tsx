@@ -13,9 +13,9 @@ import {
   MapPin,
   Users,
   Calendar as CalendarIcon, // Aliased to avoid conflict with potential Calendar component
-  // Pause, // No longer needed if AI popup is gone
-  // Sparkles, // No longer needed if AI popup is gone
-  // X, // No longer needed if AI popup or selectedEvent modal is gone
+  Pause, // For AI popup (currently disabled)
+  Sparkles, // For AI popup (currently disabled)
+  X, // For AI popup & selected event modal (currently disabled for AI popup)
 } from "lucide-react"
 
 // Assuming you have a way to define your event types, or we can define a basic one.
@@ -288,8 +288,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
       {/* Navigation - Restored */}
       <header
-        className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-8 py-6 opacity-0 ${isLoaded ? "animate-fade-in" : ""}`}
-        style={{ animationDelay: "0.2s" }}
+        className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-8 py-6 ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 ease-out`}
       >
         <div className="flex items-center gap-4">
           <Menu className="h-6 w-6 text-white" />
@@ -312,11 +311,10 @@ export default function CalendarPage() { // Renamed from Home for clarity
       </header>
 
       {/* Main Content */}
-      <main className="relative h-screen w-full pt-20 flex"> {/* pt-20 restored */}
+      <main className="relative h-screen w-full pt-20 flex z-0"> {/* Added z-0 to main */}
         {/* Sidebar - Restored */}
         <div
-          className={`w-64 h-full bg-white/10 backdrop-blur-lg p-4 shadow-xl border-r border-white/20 rounded-tr-3xl opacity-0 ${isLoaded ? "animate-fade-in" : ""} flex flex-col justify-between`}
-          style={{ animationDelay: "0.4s" }}
+          className={`w-64 h-full bg-white/10 backdrop-blur-lg p-4 shadow-xl border-r border-white/20 rounded-tr-3xl ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 ease-out delay-200 flex flex-col justify-between`}
         >
           <div>
             <button className="mb-6 flex items-center justify-center gap-2 rounded-full bg-blue-500 px-4 py-3 text-white w-full">
@@ -352,8 +350,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
         {/* Calendar View - Added z-index for testing, restored animation classes */}
         <div
-          className={`flex-1 flex flex-col opacity-0 ${isLoaded ? "animate-fade-in" : ""} z-20`} /* Added z-20 */
-          style={{ animationDelay: "0.6s" }}
+          className={`flex-1 flex flex-col ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 ease-out delay-300 z-30`} /* Applied z-30 */
         >
           {/* Calendar Controls */}
           <div className="flex items-center justify-between p-4 border-b border-white/20">
