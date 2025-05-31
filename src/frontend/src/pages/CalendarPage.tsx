@@ -576,7 +576,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                 <p className="flex items-center">
                   <CalendarIcon className="mr-2 h-5 w-5" /> {/* Used aliased import */}
                   {/* This date formatting needs to be dynamic */}
-                  {`${weekDays[selectedEvent.day -1]}, ${weekDates[selectedEvent.day -1]} ${currentMonth.split(\' \')[0]}`}
+                  {`${weekDays[selectedEvent.day -1]}, ${weekDates[selectedEvent.day -1]} ${currentMonth.split(' ')[0]}`}
                 </p>
                 <p className="flex items-start">
                   <Users className="mr-2 h-5 w-5 mt-1" />
