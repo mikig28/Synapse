@@ -103,7 +103,17 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
   const [currentView, setCurrentView] = useState("week")
   const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date()) // Date object for current view
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
+  const [selectedEventForDisplay, setSelectedEventForDisplay] = useState<CalendarEvent | null>(null); // Renamed from selectedEvent to avoid conflict
+  const [eventToEdit, setEventToEdit] = useState<CalendarEvent | null>(null);
+  const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
+
+  const [draggedEvent, setDraggedEvent] = useState<CalendarEvent | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<Date | null>(null);
+  const [dragOverTimeSlot, setDragOverTimeSlot] = useState<number | null>(null); // To store the hour
+  const [isDragOver, setIsDragOver] = useState(false); // To indicate if a drag is actively over a valid slot
+
+  // State for resizing events
+  const [resizingEvent, setResizingEvent] = useState<{ event: CalendarEvent; handle: 'top' | 'bottom'; initialY: number; originalStartTime: Date; originalEndTime: Date; } | null>(null);
 
   // Initial events data - this will be moved into state
   const initialEvents: CalendarEvent[] = [
@@ -292,8 +302,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
     }
   }, [events]); // Dependency array includes events
 
-  // State for the Create Event Modal
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  // State for the Create/Edit Event Modal
+  const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventStartDate, setNewEventStartDate] = useState("");
   const [newEventStartTime, setNewEventStartTime] = useState("");
@@ -303,11 +313,23 @@ export default function CalendarPage() { // Renamed from Home for clarity
   const [newEventColor, setNewEventColor] = useState("bg-blue-500"); // Default color
 
   const handleEventClick = (event: CalendarEvent) => {
-    setSelectedEvent(event)
-  }
+    // Option 2: Directly open edit modal (chosen for this implementation step)
+    setModalMode("edit");
+    setEventToEdit(event);
+    setNewEventTitle(event.title);
+    setNewEventStartDate(format(event.startTime, "yyyy-MM-dd"));
+    setNewEventStartTime(format(event.startTime, "HH:mm"));
+    setNewEventEndDate(format(event.endTime, "yyyy-MM-dd"));
+    setNewEventEndTime(format(event.endTime, "HH:mm"));
+    setNewEventDescription(event.description);
+    setNewEventColor(event.color);
+    setIsEventModalOpen(true);
+  };
 
   const openCreateModal = (date?: Date) => {
     const targetDate = date || currentDisplayDate; // Use provided date or current display date
+    setModalMode("create");
+    setEventToEdit(null);
     setNewEventTitle("");
     setNewEventStartDate(format(targetDate, "yyyy-MM-dd"));
     setNewEventStartTime("09:00"); // Default start time
@@ -315,21 +337,22 @@ export default function CalendarPage() { // Renamed from Home for clarity
     setNewEventEndTime("10:00");   // Default end time
     setNewEventDescription("");
     setNewEventColor(myCalendars[0]?.color || "bg-blue-500"); // Default to first calendar color
-    setIsCreateModalOpen(true);
+    setIsEventModalOpen(true);
   };
 
-  const closeCreateModal = () => {
-    setIsCreateModalOpen(false);
-    // Optionally reset fields here if not reset on open
+  const closeEventModal = () => {
+    setIsEventModalOpen(false);
+    setModalMode(null);
+    setEventToEdit(null);
+    // Optionally reset fields here if not reset on open for create mode
   };
 
-  const handleSaveEvent = () => {
+  const handleSubmitEvent = () => {
     if (!newEventTitle || !newEventStartDate || !newEventStartTime || !newEventEndDate || !newEventEndTime) {
       alert("Please fill in all required fields: Title, Start Date/Time, End Date/Time.");
       return;
     }
 
-    // Combine date and time strings into Date objects
     const startDateTime = new Date(`${newEventStartDate}T${newEventStartTime}`);
     const endDateTime = new Date(`${newEventEndDate}T${newEventEndTime}`);
 
@@ -338,20 +361,33 @@ export default function CalendarPage() { // Renamed from Home for clarity
       return;
     }
 
-    const newEventToAdd: CalendarEvent = {
-      id: Date.now(), // Simple unique ID
-      title: newEventTitle,
-      startTime: startDateTime,
-      endTime: endDateTime,
-      description: newEventDescription,
-      color: newEventColor,
-      location: "", // Placeholder, can add to form
-      attendees: [], // Placeholder, can add to form
-      organizer: "You", // Placeholder
-    };
-
-    setEvents(prevEvents => [...prevEvents, newEventToAdd]);
-    closeCreateModal();
+    if (modalMode === "create") {
+      const newEventToAdd: CalendarEvent = {
+        id: Date.now(), // Simple unique ID
+        title: newEventTitle,
+        startTime: startDateTime,
+        endTime: endDateTime,
+        description: newEventDescription,
+        color: newEventColor,
+        location: "", 
+        attendees: [], 
+        organizer: "You", 
+      };
+      setEvents(prevEvents => [...prevEvents, newEventToAdd]);
+    } else if (modalMode === "edit" && eventToEdit) {
+      const updatedEvent: CalendarEvent = {
+        ...eventToEdit,
+        title: newEventTitle,
+        startTime: startDateTime,
+        endTime: endDateTime,
+        description: newEventDescription,
+        color: newEventColor,
+      };
+      setEvents(prevEvents => 
+        prevEvents.map(e => (e.id === eventToEdit.id ? updatedEvent : e))
+      );
+    }
+    closeEventModal();
   };
 
   // Sample calendar days for the week view
@@ -364,7 +400,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
   const timeSlots = Array.from({ length: 9 }, (_, i) => i + 8) // 8 AM to 4 PM (exclusive of 5 PM)
 
   // Helper function to calculate event position and height
-  const calculateEventStyle = (startTime: Date, endTime: Date) => {
+  const calculateEventStyle = (startTime: Date, endTime: Date, isDragging: boolean = false) => {
     const startHour = startTime.getHours();
     const startMinute = startTime.getMinutes();
     const endHour = endTime.getHours();
@@ -375,7 +411,12 @@ export default function CalendarPage() { // Renamed from Home for clarity
     
     const top = (start - 8) * 80 // 80px per hour, assuming 8 AM is the start of the grid
     const height = (end - start) * 80
-    return { top: `${top}px`, height: `${height}px` }
+    return {
+      top: `${top}px`,
+      height: `${height}px`,
+      opacity: isDragging ? 0.5 : 1,
+      cursor: isDragging ? 'grabbing' : 'pointer',
+    };
   }
 
   // Sample calendar for mini calendar
@@ -622,17 +663,110 @@ export default function CalendarPage() { // Renamed from Home for clarity
                   </div>
                   {Array.from({ length: 7 }).map((_, dayIndex) => (
                     <div key={dayIndex} className="border-l border-white/20 relative">
-                      {timeSlots.map((_, timeIndex) => (
-                        <div key={timeIndex} className="h-20 border-b border-white/10"></div>
-                      ))}
+                      {timeSlots.map((_, timeIndex) => {
+                        const currentSlotDate = weekDates[dayIndex];
+                        const currentSlotHour = timeSlots[timeIndex];
+                        const isHighlighted = dragOverDate && dragOverTimeSlot !== null && 
+                                            isSameDay(dragOverDate, currentSlotDate) && 
+                                            dragOverTimeSlot === currentSlotHour;
+                        return (
+                          <div 
+                            key={timeIndex} 
+                            className={`h-20 border-b border-white/10 transition-colors duration-150 ease-in-out ${isHighlighted ? 'bg-blue-500/30' : ''}`}
+                            onDragOver={(e) => {
+                              e.preventDefault(); 
+                              if (resizingEvent) {
+                                const pixelToMinuteRatio = 80 / 60; // 80px per hour
+                                const deltaY = e.clientY - resizingEvent.initialY;
+                                const deltaMinutes = Math.round(deltaY / pixelToMinuteRatio);
+
+                                let newStartTime = new Date(resizingEvent.originalStartTime);
+                                let newEndTime = new Date(resizingEvent.originalEndTime);
+
+                                if (resizingEvent.handle === 'top') {
+                                  newStartTime.setMinutes(resizingEvent.originalStartTime.getMinutes() + deltaMinutes);
+                                  // Ensure start time does not go past original end time (minus a minimum duration, e.g., 15 mins)
+                                  const minEndTime = new Date(resizingEvent.originalEndTime);
+                                  minEndTime.setMinutes(minEndTime.getMinutes() - 15);
+                                  if (newStartTime >= minEndTime) {
+                                    newStartTime = new Date(minEndTime);
+                                    newStartTime.setMinutes(minEndTime.getMinutes() -1); // Adjust to be just before
+                                  }
+                                  if (newStartTime >= resizingEvent.originalEndTime) {
+                                    newStartTime = new Date(resizingEvent.originalEndTime.getTime() - (15 * 60000)); // Min 15 min duration
+                                  }
+                                } else { // bottom handle
+                                  newEndTime.setMinutes(resizingEvent.originalEndTime.getMinutes() + deltaMinutes);
+                                  // Ensure end time does not go before original start time (plus a minimum duration)
+                                  const minStartTime = new Date(resizingEvent.originalStartTime);
+                                  minStartTime.setMinutes(minStartTime.getMinutes() + 15);
+                                  if (newEndTime <= minStartTime) {
+                                    newEndTime = new Date(minStartTime);
+                                    newEndTime.setMinutes(minStartTime.getMinutes() + 1 );
+                                  }
+                                   if (newEndTime <= resizingEvent.originalStartTime) {
+                                      newEndTime = new Date(resizingEvent.originalStartTime.getTime() + (15*60000)); 
+                                    }
+                                }
+                                
+                                // Ensure start is before end
+                                if (newStartTime < newEndTime) {
+                                  setEvents(prevEvents => prevEvents.map(ev => 
+                                    ev.id === resizingEvent.event.id ? { ...ev, startTime: newStartTime, endTime: newEndTime } : ev
+                                  ));
+                                }
+                                // No need to setDragOverDate/TimeSlot when resizing, only for event relocation
+                              } else {
+                                // Existing logic for event relocation drag over
+                                setDragOverDate(currentSlotDate);
+                                setDragOverTimeSlot(currentSlotHour);
+                              }
+                              setIsDragOver(true); // Keep highlighting the slot being dragged over
+                            }}
+                            onDragLeave={() => {
+                              setIsDragOver(false);
+                            }}
+                            onDrop={() => {
+                              if (draggedEvent && dragOverDate && dragOverTimeSlot !== null) {
+                                const duration = draggedEvent.endTime.getTime() - draggedEvent.startTime.getTime();
+                                const newStartTime = new Date(dragOverDate);
+                                newStartTime.setHours(dragOverTimeSlot, 0, 0, 0); // Set minutes and seconds to 0 for simplicity
+                                
+                                const newEndTime = new Date(newStartTime.getTime() + duration);
+
+                                setEvents(prevEvents => 
+                                  prevEvents.map(e => 
+                                    e.id === draggedEvent.id ? { ...e, startTime: newStartTime, endTime: newEndTime } : e
+                                  )
+                                );
+                                setDraggedEvent(null);
+                                setDragOverDate(null);
+                                setDragOverTimeSlot(null);
+                                setIsDragOver(false);
+                              }
+                            }}
+                          ></div>
+                        )
+                      })}
                       {events
                         .filter((event) => isSameDay(event.startTime, weekDates[dayIndex]))
                         .map((event) => {
-                          const eventStyle = calculateEventStyle(event.startTime, event.endTime)
+                          const eventStyle = calculateEventStyle(event.startTime, event.endTime, draggedEvent?.id === event.id)
                           return (
                             <div
                               key={event.id}
-                              className={`absolute ${event.color} rounded-md p-2 text-white text-xs shadow-md cursor-pointer transition-all duration-200 ease-in-out hover:translate-y-[-2px] hover:shadow-lg`}
+                              draggable // Make the event draggable
+                              onDragStart={() => setDraggedEvent(event)}
+                              onDragEnd={() => {
+                                setDraggedEvent(null); // Clean up after drag ends
+                                // Only clear dragOverDate and dragOverTimeSlot if not actively resizing
+                                if (!resizingEvent) {
+                                  setDragOverDate(null);
+                                  setDragOverTimeSlot(null);
+                                }
+                                setIsDragOver(false); // Always reset this
+                              }}
+                              className={`absolute ${event.color} rounded-md p-2 text-white text-xs shadow-md group transition-all duration-200 ease-in-out hover:translate-y-[-2px] hover:shadow-lg ${draggedEvent?.id === event.id ? 'cursor-grabbing' : 'cursor-pointer'}`}
                               style={{
                                 ...eventStyle,
                                 left: "4px",
@@ -642,6 +776,53 @@ export default function CalendarPage() { // Renamed from Home for clarity
                             >
                               <div className="font-medium">{event.title}</div>
                               <div className="opacity-80 text-[10px] mt-1">{`${format(event.startTime, "h:mm")} - ${format(event.endTime, "h:mm")}`}</div>
+                              
+                              {/* Resize Handles */}
+                              {!draggedEvent && (
+                                <>
+                                  <div 
+                                    draggable 
+                                    onDragStart={(e) => {
+                                      e.stopPropagation(); // Prevent event drag when resizing
+                                      setResizingEvent({ 
+                                        event,
+                                        handle: 'top',
+                                        initialY: e.clientY,
+                                        originalStartTime: event.startTime,
+                                        originalEndTime: event.endTime
+                                      });
+                                      // Do not set draggedEvent here to avoid conflict
+                                    }}
+                                    onDragEnd={(e) => {
+                                      e.stopPropagation();
+                                      // Finalize resize onDragEnd of the time slot or main grid if needed
+                                      // For now, just clear resizing state
+                                      setResizingEvent(null);
+                                      setIsDragOver(false); // Reset this too
+                                    }}
+                                    className="absolute -top-1 left-0 w-full h-2 cursor-n-resize opacity-0 group-hover:opacity-100 bg-black/20 rounded-t-md z-10"
+                                  />
+                                  <div 
+                                    draggable 
+                                    onDragStart={(e) => {
+                                      e.stopPropagation();
+                                      setResizingEvent({ 
+                                        event,
+                                        handle: 'bottom',
+                                        initialY: e.clientY,
+                                        originalStartTime: event.startTime,
+                                        originalEndTime: event.endTime
+                                      });
+                                    }}
+                                    onDragEnd={(e) => {
+                                      e.stopPropagation();
+                                      setResizingEvent(null);
+                                      setIsDragOver(false);
+                                    }}
+                                    className="absolute -bottom-1 left-0 w-full h-2 cursor-s-resize opacity-0 group-hover:opacity-100 bg-black/20 rounded-b-md z-10"
+                                  />
+                                </> 
+                              )}
                             </div>
                           )
                         })}
@@ -677,17 +858,104 @@ export default function CalendarPage() { // Renamed from Home for clarity
                     ))}
                   </div>
                   <div className="border-l border-white/20 relative"> {/* Single day column */}
-                    {timeSlots.map((_, timeIndex) => (
-                      <div key={timeIndex} className="h-20 border-b border-white/10"></div>
-                    ))}
+                    {timeSlots.map((_, timeIndex) => {
+                      const currentSlotDate = currentDisplayDate; // For day view, it's always currentDisplayDate
+                      const currentSlotHour = timeSlots[timeIndex];
+                      const isHighlighted = dragOverDate && dragOverTimeSlot !== null &&
+                                          isSameDay(dragOverDate, currentSlotDate) &&
+                                          dragOverTimeSlot === currentSlotHour;
+                      return (
+                        <div 
+                          key={timeIndex} 
+                          className={`h-20 border-b border-white/10 transition-colors duration-150 ease-in-out ${isHighlighted ? 'bg-blue-500/30' : ''}`}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            if (resizingEvent) {
+                              const pixelToMinuteRatio = 80 / 60; // 80px per hour
+                              const deltaY = e.clientY - resizingEvent.initialY;
+                              const deltaMinutes = Math.round(deltaY / pixelToMinuteRatio);
+
+                              let newStartTime = new Date(resizingEvent.originalStartTime);
+                              let newEndTime = new Date(resizingEvent.originalEndTime);
+
+                              if (resizingEvent.handle === 'top') {
+                                newStartTime.setMinutes(resizingEvent.originalStartTime.getMinutes() + deltaMinutes);
+                                const minEndTime = new Date(resizingEvent.originalEndTime);
+                                minEndTime.setMinutes(minEndTime.getMinutes() - 15);
+                                if (newStartTime >= minEndTime) {
+                                  newStartTime = new Date(minEndTime);
+                                  newStartTime.setMinutes(minEndTime.getMinutes() -1);
+                                }
+                                if (newStartTime >= resizingEvent.originalEndTime) {
+                                    newStartTime = new Date(resizingEvent.originalEndTime.getTime() - (15 * 60000)); 
+                                  }
+                              } else { // bottom handle
+                                newEndTime.setMinutes(resizingEvent.originalEndTime.getMinutes() + deltaMinutes);
+                                const minStartTime = new Date(resizingEvent.originalStartTime);
+                                minStartTime.setMinutes(minStartTime.getMinutes() + 15);
+                                if (newEndTime <= minStartTime) {
+                                  newEndTime = new Date(minStartTime);
+                                  newEndTime.setMinutes(minStartTime.getMinutes() + 1 );
+                                }
+                                 if (newEndTime <= resizingEvent.originalStartTime) {
+                                    newEndTime = new Date(resizingEvent.originalStartTime.getTime() + (15*60000)); 
+                                  }
+                              }
+
+                              if (newStartTime < newEndTime) {
+                                setEvents(prevEvents => prevEvents.map(ev => 
+                                  ev.id === resizingEvent.event.id ? { ...ev, startTime: newStartTime, endTime: newEndTime } : ev
+                                ));
+                              }
+                            } else {
+                              setDragOverDate(currentSlotDate);
+                              setDragOverTimeSlot(currentSlotHour);
+                            }
+                            setIsDragOver(true);
+                          }}
+                          onDragLeave={() => {
+                            setIsDragOver(false);
+                          }}
+                          onDrop={() => {
+                            if (draggedEvent && dragOverDate && dragOverTimeSlot !== null) {
+                              const duration = draggedEvent.endTime.getTime() - draggedEvent.startTime.getTime();
+                              const newStartTime = new Date(dragOverDate);
+                              newStartTime.setHours(dragOverTimeSlot, 0, 0, 0); // Set minutes and seconds to 0
+                              
+                              const newEndTime = new Date(newStartTime.getTime() + duration);
+
+                              setEvents(prevEvents => 
+                                prevEvents.map(e => 
+                                  e.id === draggedEvent.id ? { ...e, startTime: newStartTime, endTime: newEndTime } : e
+                                )
+                              );
+                              setDraggedEvent(null);
+                              setDragOverDate(null);
+                              setDragOverTimeSlot(null);
+                              setIsDragOver(false);
+                            }
+                          }}
+                        ></div>
+                      );
+                    })}
                     {events
                       .filter((event) => isSameDay(event.startTime, currentDisplayDate))
                       .map((event) => {
-                        const eventStyle = calculateEventStyle(event.startTime, event.endTime);
+                        const eventStyle = calculateEventStyle(event.startTime, event.endTime, draggedEvent?.id === event.id);
                         return (
                           <div
                             key={event.id}
-                            className={`absolute ${event.color} rounded-md p-2 text-white text-xs shadow-md cursor-pointer transition-all duration-200 ease-in-out hover:translate-y-[-2px] hover:shadow-lg`}
+                            draggable
+                            onDragStart={() => setDraggedEvent(event)}
+                            onDragEnd={() => {
+                              setDraggedEvent(null);
+                              if (!resizingEvent) {
+                                setDragOverDate(null);
+                                setDragOverTimeSlot(null);
+                              }
+                              setIsDragOver(false);
+                            }}
+                            className={`absolute ${event.color} rounded-md p-2 text-white text-xs shadow-md group cursor-pointer transition-all duration-200 ease-in-out hover:translate-y-[-2px] hover:shadow-lg ${draggedEvent?.id === event.id ? 'cursor-grabbing' : 'cursor-pointer'}`}
                             style={{
                               ...eventStyle,
                               left: "4px",
@@ -697,6 +965,50 @@ export default function CalendarPage() { // Renamed from Home for clarity
                           >
                             <div className="font-medium">{event.title}</div>
                             <div className="opacity-80 text-[10px] mt-1">{`${format(event.startTime, "h:mm aa")} - ${format(event.endTime, "h:mm aa")}`}</div>
+                            
+                            {/* Resize Handles */}
+                            {!draggedEvent && (
+                              <>
+                                <div 
+                                  draggable 
+                                  onDragStart={(e) => {
+                                    e.stopPropagation();
+                                    setResizingEvent({ 
+                                      event,
+                                      handle: 'top',
+                                      initialY: e.clientY,
+                                      originalStartTime: event.startTime,
+                                      originalEndTime: event.endTime
+                                    });
+                                  }}
+                                  onDragEnd={(e) => {
+                                    e.stopPropagation();
+                                    setResizingEvent(null);
+                                    setIsDragOver(false);
+                                  }}
+                                  className="absolute -top-1 left-0 w-full h-2 cursor-n-resize opacity-0 group-hover:opacity-100 bg-black/20 rounded-t-md z-10"
+                                />
+                                <div 
+                                  draggable 
+                                  onDragStart={(e) => {
+                                    e.stopPropagation();
+                                    setResizingEvent({ 
+                                      event,
+                                      handle: 'bottom',
+                                      initialY: e.clientY,
+                                      originalStartTime: event.startTime,
+                                      originalEndTime: event.endTime
+                                    });
+                                  }}
+                                  onDragEnd={(e) => {
+                                    e.stopPropagation();
+                                    setResizingEvent(null);
+                                    setIsDragOver(false);
+                                  }}
+                                  className="absolute -bottom-1 left-0 w-full h-2 cursor-s-resize opacity-0 group-hover:opacity-100 bg-black/20 rounded-b-md z-10"
+                                />
+                              </>
+                            )}
                           </div>
                         );
                       })}
@@ -727,18 +1039,70 @@ export default function CalendarPage() { // Renamed from Home for clarity
                     return daysInGrid.map((day, i) => (
                       <div 
                         key={i} 
-                        className={`p-2 border-b border-r border-white/10 ${
+                        className={`p-2 border-b border-r border-white/10 ${ 
                           !isSameMonth(day, currentDisplayDate) ? 'text-white/40' : 'text-white'
-                        } ${
+                        } ${ 
                           isToday(day) ? 'bg-blue-500/30' : ''
-                        } ${
+                        } ${ 
                           (i + 1) % 7 === 0 ? 'border-r-0' : '' // No right border for last column
-                        } ${
+                        } ${ 
                           i >= daysInGrid.length - 7 ? 'border-b-0' : '' // No bottom border for last row (approx)
-                        }`}
+                        } ${// Highlight for month view drop target
+                          dragOverDate && isSameDay(dragOverDate, day) && draggedEvent ? 'bg-blue-500/40' : ''
+                        } transition-colors duration-150 ease-in-out`}
                         onClick={() => {
                             setCurrentDisplayDate(day);
                             setCurrentView('day');
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          if (draggedEvent) { // Only set drag over date if an event is being dragged
+                            setDragOverDate(day);
+                            setIsDragOver(true);
+                          }
+                        }}
+                        onDragLeave={() => {
+                          if (draggedEvent) {
+                            setIsDragOver(false);
+                            // Consider if dragOverDate should be cleared here or only onDragEnd/onDrop
+                          }
+                        }}
+                        onDrop={() => {
+                          if (draggedEvent && dragOverDate) {
+                            const newStartDate = new Date(dragOverDate);
+                            newStartDate.setHours(
+                              draggedEvent.startTime.getHours(),
+                              draggedEvent.startTime.getMinutes(),
+                              draggedEvent.startTime.getSeconds(),
+                              draggedEvent.startTime.getMilliseconds()
+                            );
+
+                            const newEndDate = new Date(dragOverDate);
+                            newEndDate.setHours(
+                              draggedEvent.endTime.getHours(),
+                              draggedEvent.endTime.getMinutes(),
+                              draggedEvent.endTime.getSeconds(),
+                              draggedEvent.endTime.getMilliseconds()
+                            );
+                            
+                            // If the event duration makes it span across midnight to the next day after dragging,
+                            // ensure the end date is also updated correctly.
+                            if (newEndDate < newStartDate) { // This can happen if original event spanned midnight
+                                newEndDate.setDate(newEndDate.getDate() + (draggedEvent.endTime.getDate() - draggedEvent.startTime.getDate()));
+                            }
+
+                            setEvents(prevEvents =>
+                              prevEvents.map(e =>
+                                e.id === draggedEvent.id
+                                  ? { ...e, startTime: newStartDate, endTime: newEndDate }
+                                  : e
+                              )
+                            );
+                            setDraggedEvent(null);
+                            setDragOverDate(null);
+                            setDragOverTimeSlot(null); // Clear this as it's not relevant for month drop
+                            setIsDragOver(false);
+                          }
                         }}
                       >
                         <div className={`text-sm text-right ${isToday(day) ? 'font-bold' : ''}`}>{format(day, "d")}</div>
@@ -768,90 +1132,54 @@ export default function CalendarPage() { // Renamed from Home for clarity
           </div>
         </div>
 
-        {/* AI Popup - Remains Commented out */}
-        {/* {showAIPopup && (
-          <div className="fixed bottom-8 right-8 z-20">
-            <div className="w-[450px] relative bg-gradient-to-br from-blue-400/30 via-blue-500/30 to-blue-600/30 backdrop-blur-lg p-6 rounded-2xl shadow-xl border border-blue-300/30 text-white">
-              <button
-                onClick={() => setShowAIPopup(false)}
-                className="absolute top-2 right-2 text-white/70 hover:text-white transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-              <div className="flex gap-3">
-                <div className="flex-shrink-0">
-                  <Sparkles className="h-5 w-5 text-blue-300" />
-                </div>
-                <div className="min-h-[80px]">
-                  <p className="text-base font-light">{typedText}</p>
-                </div>
-              </div>
-              <div className="mt-6 flex gap-3">
-                <button
-                  onClick={togglePlay}
-                  className="flex-1 py-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-sm transition-colors font-medium"
-                >
-                  Yes
-                </button>
-                <button
-                  onClick={() => setShowAIPopup(false)}
-                  className="flex-1 py-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-sm transition-colors font-medium"
-                >
-                  No
-                </button>
-              </div>
-              {isPlaying && (
-                <div className="mt-4 flex items-center justify-between">
-                  <button
-                    className="flex items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-2.5 text-white text-sm hover:bg-white/20 transition-colors"
-                    onClick={togglePlay}
-                  >
-                    <Pause className="h-4 w-4" />
-                    <span>Pause Hans Zimmer</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )} */}
-
         {/* Selected Event Modal - Restored (conditionally rendered by selectedEvent state) */}
-        {selectedEvent && (
+        {selectedEventForDisplay && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm"> {/* High z-index for modal */}
-            <div className={`${selectedEvent.color} p-6 rounded-lg shadow-xl max-w-md w-full mx-4 text-white`}>
-              <h3 className="text-2xl font-bold mb-4">{selectedEvent.title}</h3>
+            <div className={`${selectedEventForDisplay.color} p-6 rounded-lg shadow-xl max-w-md w-full mx-4 text-white`}>
+              <h3 className="text-2xl font-bold mb-4">{selectedEventForDisplay.title}</h3>
               <div className="space-y-3">
                 <p className="flex items-center">
                   <Clock className="mr-2 h-5 w-5" />
-                  {`${format(selectedEvent.startTime, "h:mm")} - ${format(selectedEvent.endTime, "h:mm")}`}
+                  {`${format(selectedEventForDisplay.startTime, "h:mm aa")} - ${format(selectedEventForDisplay.endTime, "h:mm aa")}`}
                 </p>
                 <p className="flex items-center">
                   <MapPin className="mr-2 h-5 w-5" />
-                  {selectedEvent.location}
+                  {selectedEventForDisplay.location}
                 </p>
                 <p className="flex items-center">
                   <CalendarIcon className="mr-2 h-5 w-5" />
-                  {selectedEvent.startTime ? `${format(selectedEvent.startTime, "EEE, MMM d")} (${format(currentDisplayDate, "MMMM")})` : ""}
+                  {selectedEventForDisplay.startTime ? `${format(selectedEventForDisplay.startTime, "EEE, MMM d")}` : ""}
                 </p>
                 <p className="flex items-start">
                   <Users className="mr-2 h-5 w-5 mt-1" />
                   <span>
                     <strong>Attendees:</strong>
                     <br />
-                    {selectedEvent.attendees.join(", ") || "No attendees"}
+                    {selectedEventForDisplay.attendees.join(", ") || "No attendees"}
                   </span>
                 </p>
                 <p>
-                  <strong>Organizer:</strong> {selectedEvent.organizer}
+                  <strong>Organizer:</strong> {selectedEventForDisplay.organizer}
                 </p>
                 <p>
-                  <strong>Description:</strong> {selectedEvent.description}
+                  <strong>Description:</strong> {selectedEventForDisplay.description}
                 </p>
               </div>
               <div className="mt-6 flex justify-end">
                 <button
+                  className="bg-white/90 text-gray-800 px-4 py-2 rounded hover:bg-white transition-colors mr-2"
+                  onClick={() => {
+                    if (selectedEventForDisplay) {
+                      handleEventClick(selectedEventForDisplay); // This will open the edit modal
+                      setSelectedEventForDisplay(null); // Close the display modal
+                    }
+                  }}
+                >
+                  Edit
+                </button>
+                <button
                   className="bg-white/90 text-gray-800 px-4 py-2 rounded hover:bg-white transition-colors"
-                  onClick={() => setSelectedEvent(null)}
+                  onClick={() => setSelectedEventForDisplay(null)}
                 >
                   Close
                 </button>
@@ -860,11 +1188,13 @@ export default function CalendarPage() { // Renamed from Home for clarity
           </div>
         )}
 
-        {/* Create Event Modal */}
-        {isCreateModalOpen && (
+        {/* Create/Edit Event Modal */}
+        {isEventModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 backdrop-blur-sm p-4">
             <div className="bg-slate-800 p-6 rounded-lg shadow-xl max-w-lg w-full text-white border border-slate-700">
-              <h3 className="text-xl font-semibold mb-6">Create New Event</h3>
+              <h3 className="text-xl font-semibold mb-6">
+                {modalMode === "create" ? "Create New Event" : "Edit Event"}
+              </h3>
               
               <div className="space-y-4">
                 <div>
@@ -962,16 +1292,16 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
               <div className="mt-8 flex justify-end gap-3">
                 <button 
-                  onClick={closeCreateModal}
+                  onClick={closeEventModal}
                   className="px-4 py-2 rounded-md text-sm font-medium text-slate-300 hover:bg-slate-700 transition-colors border border-slate-600"
                 >
                   Cancel
                 </button>
                 <button 
-                  onClick={handleSaveEvent}
+                  onClick={handleSubmitEvent}
                   className="px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800"
                 >
-                  Save Event
+                  {modalMode === "create" ? "Save Event" : "Update Event"}
                 </button>
               </div>
             </div>
