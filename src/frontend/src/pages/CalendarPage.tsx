@@ -1,6 +1,6 @@
 "use client" // This directive is Next.js specific, can be removed for Vite/React
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 // import Image from "next/image" // Replaced with standard img or placeholder
 import {
   ChevronLeft,
@@ -64,6 +64,42 @@ export default function CalendarPage() { // Renamed from Home for clarity
   }, [])
 
   // AI Popup typing useEffect remains commented out
+
+  const calendarEventsLocalStorageKey = "calendarEvents";
+
+  useEffect(() => {
+    try {
+      const storedEventsString = localStorage.getItem(calendarEventsLocalStorageKey);
+      if (storedEventsString) {
+        const parsedEvents = JSON.parse(storedEventsString) as Array<Omit<CalendarEvent, 'startTime' | 'endTime'> & { startTime: string; endTime: string }>;
+        const eventsWithDateObjects: CalendarEvent[] = parsedEvents.map(event => ({
+          ...event,
+          startTime: new Date(event.startTime),
+          endTime: new Date(event.endTime),
+        }));
+        setEvents(eventsWithDateObjects);
+      } else {
+        // No events in localStorage, save initialEvents
+        const eventsToStore = initialEvents.map(event => ({
+          ...event,
+          startTime: event.startTime.toISOString(),
+          endTime: event.endTime.toISOString(),
+        }));
+        localStorage.setItem(calendarEventsLocalStorageKey, JSON.stringify(eventsToStore));
+        setEvents(initialEvents); // Set state with the original initialEvents that have Date objects
+      }
+    } catch (error) {
+      console.error("Error handling calendar events from localStorage:", error);
+      // Fallback to initialEvents if any error occurs
+      const eventsToStore = initialEvents.map(event => ({
+        ...event,
+        startTime: event.startTime.toISOString(),
+        endTime: event.endTime.toISOString(),
+      }));
+      localStorage.setItem(calendarEventsLocalStorageKey, JSON.stringify(eventsToStore));
+      setEvents(initialEvents);
+    }
+  }, []); // Empty dependency array ensures this runs only once on mount
 
   const [currentView, setCurrentView] = useState("week")
   const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date()) // Date object for current view
@@ -215,7 +251,46 @@ export default function CalendarPage() { // Renamed from Home for clarity
       organizer: "Product Manager",
     },
   ]
-  const [events, setEvents] = useState<CalendarEvent[]>(initialEvents);
+  const [events, setEvents] = useState<CalendarEvent[]>([]); // Initialize with empty array, will be populated by useEffect
+
+  // useEffect to save events to localStorage whenever the events state changes
+  const isInitialMount = useRef(true); // Ref to track initial mount
+
+  useEffect(() => {
+    // Don't save on initial mount if events are still empty,
+    // allow the first useEffect to load from localStorage or set initialEvents first.
+    if (isInitialMount.current) {
+      if (events.length > 0) {
+        // This means events were populated by the first useEffect
+        isInitialMount.current = false;
+      } else {
+        // Events are still empty, probably before the first useEffect has run or found nothing
+        // and hasn't set initialEvents yet.
+        return;
+      }
+    }
+
+    // If it's not the initial mount, or if events got populated, proceed to save.
+    if (events.length === 0 && !isInitialMount.current) {
+      // If events array is cleared after initial load, also clear localStorage
+      try {
+        localStorage.removeItem(calendarEventsLocalStorageKey);
+      } catch (error) {
+        console.error("Error removing calendar events from localStorage:", error);
+      }
+    } else if (events.length > 0) {
+      try {
+        const eventsToStore = events.map(event => ({
+          ...event,
+          startTime: event.startTime.toISOString(),
+          endTime: event.endTime.toISOString(),
+        }));
+        localStorage.setItem(calendarEventsLocalStorageKey, JSON.stringify(eventsToStore));
+      } catch (error) {
+        console.error("Error saving calendar events to localStorage:", error);
+      }
+    }
+  }, [events]); // Dependency array includes events
 
   // State for the Create Event Modal
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
