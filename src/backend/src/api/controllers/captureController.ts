@@ -21,7 +21,7 @@ export const processTelegramItemForBookmarks = async (telegramItem: ITelegramIte
 
   const socialMediaPatterns = {
     X: /https?:\/\/(twitter\.com|x\.com)/i,
-    LinkedIn: /https?:\/\/linkedin\.com/i,
+    LinkedIn: /https?:\/\/(?:www\.)?linkedin\.com/i,
   };
 
   for (const url of telegramItem.urls) {
