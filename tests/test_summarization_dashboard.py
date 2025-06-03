@@ -11,7 +11,7 @@ PROJECT_ROOT_ABS = "/c%3A/Users/Miki_gabay/Desktop/Workspace/Synapse" # Adjusted
 # Placeholder for your MCP client.
 # You'll need to initialize and use your actual MCP client here.
 # class McpClient:
-#     def mcp_taskmaster-ai_analyze_project_complexity(self, projectRoot, file, output, threshold=None, research=None, model=None):
+#     def mcp_taskmaster_ai_analyze_project_complexity(self, projectRoot, file, output, threshold=None, research=None, model=None):
 #         # Replace with actual MCP call
 #         print(f"Mock MCP Call: analyze_project_complexity on {file} output to {output}")
 #         # Simulate report creation for testing flow
@@ -34,7 +34,7 @@ PROJECT_ROOT_ABS = "/c%3A/Users/Miki_gabay/Desktop/Workspace/Synapse" # Adjusted
 #                 return {"success": False, "message": str(e)}
 #         return {"success": False, "message": "Input tasks file not found."}
 
-#     def mcp_taskmaster-ai_complexity_report(self, projectRoot, file):
+#     def mcp_taskmaster_ai_complexity_report(self, projectRoot, file):
 #         # Replace with actual MCP call
 #         print(f"Mock MCP Call: complexity_report on {file}")
 #         # Simulate report formatting for testing flow
@@ -63,7 +63,7 @@ class TestSummarizationDashboard(unittest.TestCase):
         # Replace with your actual MCP client interactions.
         if self.mock_mcp_client:
             class MockMcpClient:
-                def mcp_taskmaster-ai_analyze_project_complexity(self, projectRoot, file, output, threshold=None, research=None, model=None):
+                def mcp_taskmaster_ai_analyze_project_complexity(self, projectRoot, file, output, threshold=None, research=None, model=None):
                     if not os.path.exists(os.path.dirname(output)):
                         os.makedirs(os.path.dirname(output), exist_ok=True)
                     tasks_in = []
@@ -97,7 +97,7 @@ class TestSummarizationDashboard(unittest.TestCase):
                         json.dump({"tasks": report_tasks, "summary": "Mocked complexity report"}, f_out)
                     return {"success": True, "message": "Analysis complete", "report_path": output}
 
-                def mcp_taskmaster-ai_complexity_report(self, projectRoot, file):
+                def mcp_taskmaster_ai_complexity_report(self, projectRoot, file):
                     if not os.path.exists(file):
                         return {"success": False, "message": "Report file not found for dashboard."}
                     with open(file, 'r') as f_in:
@@ -139,7 +139,7 @@ class TestSummarizationDashboard(unittest.TestCase):
         test_report_output_path = os.path.join(self.test_dir, "report.json")
 
         # 1. Run analyze_project_complexity
-        analysis_result = self.mcp_client.mcp_taskmaster-ai_analyze_project_complexity(
+        analysis_result = self.mcp_client.mcp_taskmaster_ai_analyze_project_complexity(
             projectRoot=PROJECT_ROOT_ABS,
             file=test_tasks_path, # Path to the tasks.json to analyze
             output=test_report_output_path # Path where the report JSON should be saved
@@ -160,7 +160,7 @@ class TestSummarizationDashboard(unittest.TestCase):
             self.assertIn("recommendation", task_report)
 
         # 3. Run complexity_report (dashboard view)
-        dashboard_result = self.mcp_client.mcp_taskmaster-ai_complexity_report(
+        dashboard_result = self.mcp_client.mcp_taskmaster_ai_complexity_report(
             projectRoot=PROJECT_ROOT_ABS,
             file=test_report_output_path # Path to the report.json to display
         )
@@ -178,7 +178,7 @@ class TestSummarizationDashboard(unittest.TestCase):
         test_tasks_path = self._create_test_tasks_json([])
         test_report_output_path = os.path.join(self.test_dir, "empty_report.json")
 
-        analysis_result = self.mcp_client.mcp_taskmaster-ai_analyze_project_complexity(
+        analysis_result = self.mcp_client.mcp_taskmaster_ai_analyze_project_complexity(
             projectRoot=PROJECT_ROOT_ABS,
             file=test_tasks_path,
             output=test_report_output_path
@@ -190,7 +190,7 @@ class TestSummarizationDashboard(unittest.TestCase):
             report_data = json.load(f)
         self.assertEqual(len(report_data.get("tasks", [])), 0)
 
-        dashboard_result = self.mcp_client.mcp_taskmaster-ai_complexity_report(
+        dashboard_result = self.mcp_client.mcp_taskmaster_ai_complexity_report(
             projectRoot=PROJECT_ROOT_ABS,
             file=test_report_output_path
         )
@@ -208,7 +208,7 @@ class TestSummarizationDashboard(unittest.TestCase):
         test_tasks_path = self._create_test_tasks_json(tasks)
         test_report_output_path = os.path.join(self.test_dir, "variance_report.json")
 
-        analysis_result = self.mcp_client.mcp_taskmaster-ai_analyze_project_complexity(
+        analysis_result = self.mcp_client.mcp_taskmaster_ai_analyze_project_complexity(
             projectRoot=PROJECT_ROOT_ABS,
             file=test_tasks_path,
             output=test_report_output_path
@@ -243,7 +243,7 @@ class TestSummarizationDashboard(unittest.TestCase):
         
         # Test with a high threshold
         high_thresh_report_path = os.path.join(self.test_dir, "high_thresh_report.json")
-        analysis_high = self.mcp_client.mcp_taskmaster-ai_analyze_project_complexity(
+        analysis_high = self.mcp_client.mcp_taskmaster_ai_analyze_project_complexity(
             projectRoot=PROJECT_ROOT_ABS,
             file=test_tasks_path,
             output=high_thresh_report_path,
@@ -257,7 +257,7 @@ class TestSummarizationDashboard(unittest.TestCase):
         
         # Test with a low threshold
         low_thresh_report_path = os.path.join(self.test_dir, "low_thresh_report.json")
-        analysis_low = self.mcp_client.mcp_taskmaster-ai_analyze_project_complexity(
+        analysis_low = self.mcp_client.mcp_taskmaster_ai_analyze_project_complexity(
             projectRoot=PROJECT_ROOT_ABS,
             file=test_tasks_path,
             output=low_thresh_report_path,
@@ -271,4 +271,4 @@ class TestSummarizationDashboard(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main(argv=['first-arg-is-ignored'], exit=False) 
+    unittest.main(argv=['first-arg-is-ignored'], exit=False)

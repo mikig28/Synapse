@@ -3,12 +3,18 @@
 Simple test script for the transcription service
 """
 
-import requests
+try:
+    import requests
+except ImportError:  # Fallback when requests isn't installed
+    requests = None
 import sys
 import os
 
-def test_health_check():
+def run_health_check_test():
     """Test the health check endpoint"""
+    if requests is None:
+        print("'requests' library not available. Skipping health check.")
+        return False
     try:
         response = requests.get("http://localhost:8000/health")
         print(f"Health check status: {response.status_code}")
@@ -18,8 +24,11 @@ def test_health_check():
         print(f"Health check failed: {e}")
         return False
 
-def test_transcription(audio_file_path):
+def run_transcription_test(audio_file_path):
     """Test transcription with a file"""
+    if requests is None:
+        print("'requests' library not available. Skipping transcription test.")
+        return False
     if not os.path.exists(audio_file_path):
         print(f"Audio file not found: {audio_file_path}")
         return False
@@ -48,7 +57,7 @@ if __name__ == "__main__":
     
     # Test health check
     print("\n1. Testing health check...")
-    if not test_health_check():
+    if not run_health_check_test():
         print("Health check failed. Make sure the service is running.")
         sys.exit(1)
     
@@ -56,7 +65,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         audio_file = sys.argv[1]
         print(f"\n2. Testing transcription with {audio_file}...")
-        if test_transcription(audio_file):
+        if run_transcription_test(audio_file):
             print("Transcription test passed!")
         else:
             print("Transcription test failed!")
