@@ -70,7 +70,7 @@ class TestSummarizationDashboard(unittest.TestCase):
                     if os.path.exists(file):
                         with open(file, 'r') as f:
                             tasks_in = json.load(f).get("tasks", [])
-                    
+
                     report_tasks = []
                     for idx, task in enumerate(tasks_in):
                         score = 5 # Default
@@ -78,12 +78,12 @@ class TestSummarizationDashboard(unittest.TestCase):
                             score = 8
                         elif "simple" in task.get("title", "").lower():
                             score = 2
-                        
+
                         recommendation = "review"
-                        if threshold is not None: 
+                        if threshold is not None:
                             if score >= threshold:
                                 recommendation = "expand"
-                        elif score > 6: 
+                        elif score > 6:
                              recommendation = "expand"
 
                         report_tasks.append({
@@ -102,7 +102,7 @@ class TestSummarizationDashboard(unittest.TestCase):
                         return {"success": False, "message": "Report file not found for dashboard."}
                     with open(file, 'r') as f_in:
                         data = json.load(f_in)
-                    
+
                     output_str = "Task Master - Complexity Report\\n"
                     output_str += "===================================\\n"
                     for task in data.get("tasks", []):
@@ -150,7 +150,7 @@ class TestSummarizationDashboard(unittest.TestCase):
         # 2. Validate the generated JSON report
         with open(test_report_output_path, 'r') as f:
             report_data = json.load(f)
-        
+
         self.assertIn("tasks", report_data)
         self.assertEqual(len(report_data["tasks"]), len(tasks))
         for task_report in report_data["tasks"]:
@@ -165,7 +165,7 @@ class TestSummarizationDashboard(unittest.TestCase):
             file=test_report_output_path # Path to the report.json to display
         )
         self.assertTrue(dashboard_result.get("success"), f"Dashboard MCP call failed: {dashboard_result.get('message')}")
-        
+
         # 4. Validate the dashboard string (assuming it's returned)
         formatted_report = dashboard_result.get("formatted_report")
         self.assertIsNotNone(formatted_report, "Formatted report string was not returned.")
@@ -214,10 +214,10 @@ class TestSummarizationDashboard(unittest.TestCase):
             output=test_report_output_path
         )
         self.assertTrue(analysis_result.get("success"))
-        
+
         with open(test_report_output_path, 'r') as f:
             report_data = json.load(f)
-        
+
         simple_task_report = next((t for t in report_data["tasks"] if t["id"] == "S1"), None)
         complex_task_report = next((t for t in report_data["tasks"] if t["id"] == "C1"), None)
 
@@ -225,10 +225,10 @@ class TestSummarizationDashboard(unittest.TestCase):
         self.assertIsNotNone(complex_task_report)
 
         self.assertTrue(simple_task_report["complexityScore"] < complex_task_report["complexityScore"])
-        
-        if not self.mock_mcp_client: 
-             self.assertIn(complex_task_report["recommendation"].lower(), ["expand", "review"]) 
-        else: 
+
+        if not self.mock_mcp_client:
+             self.assertIn(complex_task_report["recommendation"].lower(), ["expand", "review"])
+        else:
             self.assertEqual(complex_task_report["recommendation"], "expand")
             self.assertEqual(simple_task_report["recommendation"], "review")
 
@@ -240,7 +240,7 @@ class TestSummarizationDashboard(unittest.TestCase):
             {"id": "T2", "title": "Complex Task for Threshold", "description": "...", "status": "pending"} # Mock score 8
         ]
         test_tasks_path = self._create_test_tasks_json(tasks_for_mock)
-        
+
         # Test with a high threshold
         high_thresh_report_path = os.path.join(self.test_dir, "high_thresh_report.json")
         analysis_high = self.mcp_client.mcp_taskmaster_ai_analyze_project_complexity(
@@ -254,7 +254,7 @@ class TestSummarizationDashboard(unittest.TestCase):
             report_high = json.load(f)
         self.assertEqual(report_high["tasks"][0]["recommendation"], "review") # T1
         self.assertEqual(report_high["tasks"][1]["recommendation"], "review") # T2
-        
+
         # Test with a low threshold
         low_thresh_report_path = os.path.join(self.test_dir, "low_thresh_report.json")
         analysis_low = self.mcp_client.mcp_taskmaster_ai_analyze_project_complexity(

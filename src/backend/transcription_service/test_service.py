@@ -32,12 +32,12 @@ def run_transcription_test(audio_file_path):
     if not os.path.exists(audio_file_path):
         print(f"Audio file not found: {audio_file_path}")
         return False
-    
+
     try:
         with open(audio_file_path, 'rb') as f:
             files = {'file': f}
             response = requests.post("http://localhost:8000/transcribe", files=files)
-        
+
         print(f"Transcription status: {response.status_code}")
         if response.status_code == 200:
             result = response.json()
@@ -54,13 +54,13 @@ def run_transcription_test(audio_file_path):
 
 if __name__ == "__main__":
     print("Testing Transcription Service...")
-    
+
     # Test health check
     print("\n1. Testing health check...")
     if not run_health_check_test():
         print("Health check failed. Make sure the service is running.")
         sys.exit(1)
-    
+
     # Test transcription if audio file provided
     if len(sys.argv) > 1:
         audio_file = sys.argv[1]
@@ -72,5 +72,5 @@ if __name__ == "__main__":
     else:
         print("\n2. Skipping transcription test (no audio file provided)")
         print("Usage: python test_service.py [audio_file.oga]")
-    
-    print("\nTest completed!") 
+
+    print("\nTest completed!")
