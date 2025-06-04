@@ -1,3 +1,4 @@
+console.log('[BookmarkController] Forcing re-evaluation - v2'); // Trivial change to force update
 import mongoose, { Types, Schema } from 'mongoose';
 import { Request, Response } from 'express';
 import axios from 'axios';
@@ -59,17 +60,17 @@ const fetchRedditMetadata = async (url: string): Promise<{ title?: string; descr
 
   try {
     console.log(`[fetchRedditMetadata] Attempting to fetch JSON: ${jsonUrl}`);
-    const { data } = await axios.get(jsonUrl, {
+    const { data: jsonDataFromAxios }: { data: any } = await axios.get(jsonUrl, {
       headers: { 'User-Agent': 'Mozilla/5.0 SynapseBookmarkFetcher/1.0' },
       timeout: 7000,
     });
 
     // Reddit JSON API returns an array, usually with two elements:
     // The first is the post data, the second is comments data.
-    if (Array.isArray(data) && data.length > 0 && data[0]?.kind === 'Listing' && data[0]?.data?.children?.length > 0) {
-      jsonData = data[0].data.children[0]?.data;
-    } else if (data?.kind === 't3') { // Direct object fetch if URL was for a specific thing already
-        jsonData = data.data;
+    if (Array.isArray(jsonDataFromAxios) && jsonDataFromAxios.length > 0 && jsonDataFromAxios[0]?.kind === 'Listing' && jsonDataFromAxios[0]?.data?.children?.length > 0) {
+      jsonData = jsonDataFromAxios[0].data.children[0]?.data;
+    } else if (jsonDataFromAxios?.kind === 't3') { // Direct object fetch if URL was for a specific thing already
+        jsonData = jsonDataFromAxios.data;
     }
   } catch (jsonError: any) {
     console.warn(`[fetchRedditMetadata] Failed to fetch or parse .json for ${originalUrl}: ${jsonError.message}. Will attempt HTML scrape.`);
@@ -192,7 +193,7 @@ export const processAndCreateBookmark = async (
     if (existingBookmark) {
       console.warn(`[BookmarkController] Bookmark already exists for URL: ${originalUrl} and user: ${userIdString}. Attempting to update metadata if needed.`);
       let metadataUpdated = false;
-      if (existingBookmark.sourcePlatform === 'LinkedIn' && (existingBookmark.status === 'error' || existingBookmark.status === 'pending_summary') && (!existingBookmark.fetchedTitle || existingBookmark.fetchedTitle.startsWith('LinkedIn Post:'))) {
+      if (existingBookmark.sourcePlatform === 'LinkedIn' && (existingBookmark.status === 'error' || existingBookmark.status === 'pending') && (!existingBookmark.fetchedTitle || existingBookmark.fetchedTitle.startsWith('LinkedIn Post:'))) {
           console.log(`[BookmarkController] Existing LinkedIn bookmark (ID: ${existingBookmark._id}) needs metadata update. Attempting to re-fetch.`);
           try {
             const metadata = await fetchLinkedInMetadata(originalUrl);
@@ -204,7 +205,7 @@ export const processAndCreateBookmark = async (
           } catch (metaError: any) {
             console.error(`[BookmarkController] Failed to re-fetch metadata for existing LinkedIn bookmark ${existingBookmark._id}:`, metaError.message || metaError);
           }
-      } else if (existingBookmark.sourcePlatform === 'Reddit' && (existingBookmark.status === 'error' || existingBookmark.status === 'pending_summary') && (!existingBookmark.fetchedTitle || existingBookmark.fetchedTitle.startsWith('Reddit Post:'))) {
+      } else if (existingBookmark.sourcePlatform === 'Reddit' && (existingBookmark.status === 'error' || existingBookmark.status === 'pending') && (!existingBookmark.fetchedTitle || existingBookmark.fetchedTitle.startsWith('Reddit Post:'))) {
         console.log(`[BookmarkController] Existing Reddit bookmark (ID: ${existingBookmark._id}) needs metadata update. Attempting to re-fetch.`);
         try {
           const metadata = await fetchRedditMetadata(originalUrl);
@@ -233,7 +234,7 @@ export const processAndCreateBookmark = async (
       title: '',
       summary: '',
       tags: [],
-      status: 'pending_summary', // Will be updated after metadata fetch
+      status: 'pending',
       fetchedTitle: undefined,
       fetchedDescription: undefined,
       fetchedImageUrl: undefined,
@@ -289,7 +290,7 @@ export const processAndCreateBookmark = async (
          console.log(`[BookmarkController] Skipping metadata fetch for 'Other' URL: ${originalUrl}`);
          // For 'Other' types, we may not have specific metadata fetching.
          // We can set to 'metadata_fetched' if no further processing is expected before summarization,
-         // or leave as 'pending_summary' if it needs other steps.
+         // or leave as 'pending' if it needs other steps.
          // Let's assume for now it's 'metadata_fetched' as no specific fetching is done.
          newBookmarkData.status = 'metadata_fetched'; 
          newBookmarkData.fetchedTitle = `Web Link: ${originalUrl.substring(0,60)}...`; // Generic title for 'Other'
@@ -530,7 +531,7 @@ export const summarizeBookmarkController = async (req: AuthenticatedRequest, res
 
     if (!contentToSummarize && bookmark.originalUrl) {
       console.log("Log: Fetching content from originalUrl for summarization.");
-      bookmark.status = 'pending_summary';
+      bookmark.status = 'pending';
       
       const fetchedContent = await fetchAndParseURL(bookmark.originalUrl);
       if (fetchedContent) {
@@ -552,7 +553,7 @@ export const summarizeBookmarkController = async (req: AuthenticatedRequest, res
     }
     const actualContent = contentToSummarize as string;
 
-    bookmark.status = 'pending_summary';
+    bookmark.status = 'pending';
     await bookmark.save();
 
     try {
