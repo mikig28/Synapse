@@ -22,15 +22,18 @@ export const processTelegramItemForBookmarks = async (telegramItem: ITelegramIte
   const socialMediaPatterns = {
     X: /https?:\/\/(twitter\.com|x\.com)/i,
     LinkedIn: /https?:\/\/(?:www\.)?linkedin\.com/i,
+    Reddit: /https?:\/\/(?:www\.)?reddit\.com/i,
   };
 
   for (const url of telegramItem.urls) {
-    let platform: 'X' | 'LinkedIn' | 'Other' | null = null;
+    let platform: 'X' | 'LinkedIn' | 'Reddit' | 'Other' | null = null;
 
     if (socialMediaPatterns.X.test(url)) {
       platform = 'X';
     } else if (socialMediaPatterns.LinkedIn.test(url)) {
       platform = 'LinkedIn';
+    } else if (socialMediaPatterns.Reddit.test(url)) {
+      platform = 'Reddit';
     }
 
     if (platform) {

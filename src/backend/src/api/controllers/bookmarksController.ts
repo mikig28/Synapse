@@ -46,6 +46,40 @@ const fetchLinkedInMetadata = async (url: string): Promise<{ title?: string; des
   }
 };
 
+// Helper function to fetch Reddit Metadata
+const fetchRedditMetadata = async (url: string): Promise<{ title?: string; description?: string; image?: string; video?: string }> => {
+  try {
+    const { data: htmlResponseData } = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+      },
+      timeout: 10000,
+      responseType: 'text',
+    });
+
+    if (typeof htmlResponseData !== 'string') {
+      throw new Error('Fetched content is not a string');
+    }
+
+    const $ = cheerio.load(htmlResponseData);
+    const title = $('meta[property="og:title"]').attr('content') || $('title').text();
+    const description = $('meta[property="og:description"]').attr('content') || $('meta[name="description"]').attr('content');
+    const image = $('meta[property="og:image"]').attr('content');
+    const video = $('meta[property="og:video"]')
+      .attr('content') || $('meta[property="og:video:url"]').attr('content');
+
+    return {
+      title: title?.trim(),
+      description: description?.trim(),
+      image: image?.trim(),
+      video: video?.trim(),
+    };
+  } catch (error: any) {
+    console.error(`[fetchRedditMetadata] Error fetching or parsing Reddit URL ${url}:`, error.message || error);
+    throw error;
+  }
+};
+
 export const getBookmarks = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -79,7 +113,7 @@ export const getBookmarks = async (req: AuthenticatedRequest, res: Response) => 
 export const processAndCreateBookmark = async (
   userIdString: string,
   originalUrl: string,
-  sourcePlatform: 'X' | 'LinkedIn' | 'Other',
+  sourcePlatform: 'X' | 'LinkedIn' | 'Reddit' | 'Other',
   telegramMessageIdString?: string
 ) => {
   try {
@@ -140,6 +174,22 @@ export const processAndCreateBookmark = async (
           newBookmarkData.fetchedTitle = `LinkedIn Post: ${originalUrl.substring(0, 50)}...`;
           newBookmarkData.fetchedDescription = "Could not fetch details. Link saved.";
         }
+    } else if (sourcePlatform === 'Reddit') {
+         console.log(`[BookmarkController] Attempting to fetch metadata for Reddit URL: ${originalUrl}`);
+         try {
+           const metadata = await fetchRedditMetadata(originalUrl);
+           newBookmarkData.fetchedTitle = metadata.title;
+           newBookmarkData.fetchedDescription = metadata.description;
+           newBookmarkData.fetchedImageUrl = metadata.image;
+           newBookmarkData.fetchedVideoUrl = metadata.video;
+           newBookmarkData.status = 'metadata_fetched';
+           console.log(`[BookmarkController] Successfully fetched metadata for Reddit URL: ${originalUrl}`);
+         } catch (metaError: any) {
+           console.error(`[BookmarkController] Failed to fetch metadata for ${originalUrl}:`, metaError.message || metaError);
+           newBookmarkData.status = 'error';
+           newBookmarkData.fetchedTitle = `Reddit Post: ${originalUrl.substring(0, 50)}...`;
+           newBookmarkData.fetchedDescription = 'Could not fetch details. Link saved.';
+         }
     } else if (sourcePlatform === 'Other') {
          // Optional: Add metadata fetching for 'Other' links here too if desired
          console.log(`[BookmarkController] Skipping metadata fetch for 'Other' URL: ${originalUrl}`);

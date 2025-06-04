@@ -7,6 +7,31 @@ exports.deleteBookmark = exports.processAndCreateBookmark = exports.getBookmarks
 const BookmarkItem_1 = __importDefault(require("../../models/BookmarkItem")); // Import Mongoose model and interface
 const mongodb_1 = require("mongodb"); // Still needed for casting string IDs to ObjectId for synapseUserId
 const mongoose_1 = __importDefault(require("mongoose")); // Import mongoose for delete operation
+const axios_1 = __importDefault(require("axios"));
+const cheerio = __importStar(require("cheerio"));
+
+const fetchRedditMetadata = async (url) => {
+    try {
+        const { data: htmlResponseData } = await axios_1.default.get(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            timeout: 10000,
+            responseType: 'text'
+        });
+        if (typeof htmlResponseData !== 'string') {
+            throw new Error('Fetched content is not a string');
+        }
+        const $ = cheerio.load(htmlResponseData);
+        const title = $('meta[property="og:title"]').attr('content') || $('title').text();
+        const description = $('meta[property="og:description"]').attr('content') || $('meta[name="description"]').attr('content');
+        const image = $('meta[property="og:image"]').attr('content');
+        const video = $('meta[property="og:video"]').attr('content') || $('meta[property="og:video:url"]').attr('content');
+        return { title: title && title.trim(), description: description && description.trim(), image: image && image.trim(), video: video && video.trim() };
+    }
+    catch (error) {
+        console.error(`[fetchRedditMetadata] Error fetching or parsing Reddit URL ${url}:`, error.message || error);
+        throw error;
+    }
+};
 const getBookmarks = async (req, res) => {
     try {
         // @ts-ignore // TODO: Fix this once auth is in place and req.user is properly typed
@@ -47,6 +72,7 @@ const processAndCreateBookmark = async (userIdString, originalUrl, sourcePlatfor
             fetchedTitle: undefined,
             fetchedDescription: undefined,
             fetchedImageUrl: undefined,
+            fetchedVideoUrl: undefined,
         };
         // --- Metadata Fetching Logic --- 
         if (sourcePlatform === 'LinkedIn') {
@@ -68,6 +94,24 @@ const processAndCreateBookmark = async (userIdString, originalUrl, sourcePlatfor
             // newBookmarkData.fetchedImageUrl = 'path/to/default/linkedin/image.png'; // Optional: Placeholder image
             newBookmarkData.status = 'metadata_fetched'; // Set status to indicate attempt (even if placeholder)
             console.log(`[BookmarkController] Using placeholder metadata for LinkedIn URL: ${originalUrl}`);
+        }
+        else if (sourcePlatform === 'Reddit') {
+            console.log(`[BookmarkController] Attempting to fetch metadata for Reddit URL: ${originalUrl}`);
+            try {
+                const metadata = await fetchRedditMetadata(originalUrl);
+                newBookmarkData.fetchedTitle = metadata.title;
+                newBookmarkData.fetchedDescription = metadata.description;
+                newBookmarkData.fetchedImageUrl = metadata.image;
+                newBookmarkData.fetchedVideoUrl = metadata.video;
+                newBookmarkData.status = 'metadata_fetched';
+                console.log(`[BookmarkController] Successfully fetched metadata for Reddit URL: ${originalUrl}`);
+            }
+            catch (metaError) {
+                console.error(`[BookmarkController] Failed to fetch metadata for ${originalUrl}:`, metaError.message || metaError);
+                newBookmarkData.status = 'error';
+                newBookmarkData.fetchedTitle = `Reddit Post: ${originalUrl.substring(0, 50)}...`;
+                newBookmarkData.fetchedDescription = 'Could not fetch details. Link saved.';
+            }
         }
         else if (sourcePlatform === 'Other') {
             // Optional: Add metadata fetching for 'Other' links here too if desired

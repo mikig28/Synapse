@@ -5,7 +5,7 @@ export interface IBookmarkItem extends Document { // Renaming to IBookmarkItem f
   userId: mongoose.Types.ObjectId;
   telegramMessageId?: mongoose.Types.ObjectId;
   originalUrl: string;
-  sourcePlatform: 'X' | 'LinkedIn' | 'Other';
+  sourcePlatform: 'X' | 'LinkedIn' | 'Reddit' | 'Other';
   title?: string;
   summary?: string;
   tags?: string[];
@@ -13,8 +13,9 @@ export interface IBookmarkItem extends Document { // Renaming to IBookmarkItem f
   status?: 'pending_summary' | 'summarized' | 'error' | 'metadata_fetched';
   // Fetched metadata fields (especially for LinkedIn/Other)
   fetchedTitle?: string;
-  fetchedDescription?: string;
-  fetchedImageUrl?: string;
+    fetchedDescription?: string;
+    fetchedImageUrl?: string;
+    fetchedVideoUrl?: string;
   // createdAt and updatedAt are automatically added by timestamps: true
 }
 
@@ -25,7 +26,7 @@ const BookmarkItemSchema: Schema<IBookmarkItem> = new Schema(
     originalUrl: { type: String, required: true },
     sourcePlatform: {
       type: String,
-      enum: ['X', 'LinkedIn', 'Other'],
+      enum: ['X', 'LinkedIn', 'Reddit', 'Other'],
       required: true,
     },
     title: { type: String, default: '' },
@@ -40,6 +41,7 @@ const BookmarkItemSchema: Schema<IBookmarkItem> = new Schema(
     fetchedTitle: { type: String },
     fetchedDescription: { type: String },
     fetchedImageUrl: { type: String },
+    fetchedVideoUrl: { type: String },
   },
   { timestamps: true } // Automatically adds createdAt and updatedAt fields
 );

@@ -7,6 +7,7 @@ import { BookmarkItemType } from '../types/bookmark';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ClientTweetCard } from '@/components/ui/TweetCard';
 import LinkedInCard from '@/components/ui/LinkedInCard';
+import RedditCard from '@/components/ui/RedditCard';
 import { Button } from '@/components/ui/button';
 import { useToast } from "@/hooks/use-toast"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -199,7 +200,8 @@ const BookmarksPage: React.FC = () => {
           bookmark.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           bookmark.originalUrl.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (bookmark.sourcePlatform === 'X' && bookmark.fetchedTitle?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (bookmark.sourcePlatform === 'LinkedIn' && bookmark.fetchedTitle?.toLowerCase().includes(searchTerm.toLowerCase()));
+          (bookmark.sourcePlatform === 'LinkedIn' && bookmark.fetchedTitle?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (bookmark.sourcePlatform === 'Reddit' && bookmark.fetchedTitle?.toLowerCase().includes(searchTerm.toLowerCase()));
 
         return matchesFilter && matchesSearch;
       } catch (err) {
@@ -415,6 +417,8 @@ const BookmarksPage: React.FC = () => {
         return <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16" className="mr-2 shrink-0"><path d="M12.6.75h2.454l-5.36 6.142L16 15.25h-4.937l-3.867-5.07-4.425 5.07H.316l5.733-6.57L0 .75h5.063l3.495 4.633L12.602.75Zm-.86 13.028h1.36L4.323 2.145H2.865l8.875 11.633Z"/></svg>;
       case 'LinkedIn':
         return <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16" className="mr-2 shrink-0"><path d="M0 1.146C0 .513.526 0 1.175 0h13.65C15.474 0 16 .513 16 1.146v13.708c0 .633-.526 1.146-1.175 1.146H1.175C.526 16 0 15.487 0 14.854V1.146zm4.943 12.248V6.169H2.542v7.225h2.401zm-1.2-8.212c.837 0 1.358-.554 1.358-1.248-.015-.709-.52-1.248-1.342-1.248-.822 0-1.359.54-1.359 1.248 0 .694.521 1.248 1.327 1.248h.016zm4.908 8.212V9.359c0-.216.016-.432.08-.586.173-.431.568-.878 1.232-.878.869 0 1.216.662 1.216 1.634v3.865h2.401V9.25c0-2.22-1.184-3.252-2.764-3.252-1.274 0-1.845.7-2.165 1.193v.025h-.016a5.54 5.54 0 0 1 .016-.025V6.169h-2.4c.03.678 0 7.225 0 7.225h2.4z"/></svg>;
+      case 'Reddit':
+        return <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 512 512" className="mr-2 shrink-0"><path d="M440 196c-30.9 0-56 25.1-56 56 0 8.8 2 17.1 5.6 24.5-24.6 25.3-59 41.5-97.6 43.8l16-74.1 49.5 10.5c0 0 0 0 0 0 3.3 15.6 17.5 27.3 34.5 27.3 19.3 0 35-15.7 35-35s-15.7-35-35-35zm-144 35.4l10.1-46.5c3.1.2 6.2.4 9.4.4 3.1 0 6.2-.2 9.2-.4l10.2 46.7c-6.2-.7-12.5-1.1-19-1.1-6.5 0-12.9.4-19.1 1zm135.9 73.5c8.9 13.1 14.1 28.7 14.1 45.4C446 417.6 381.6 472 304 472s-142-54.4-142-121.7c0-16.7 5.2-32.3 14.1-45.4 23.8 17.6 55.3 28.7 89.9 28.7s66.1-11.1 89.9-28.7zM181 252c-19.3 0-35 15.7-35 35s15.7 35 35 35c17 0 31.2-11.7 34.5-27.3 0 0 0 0 0 0l49.5-10.5 16 74.1c-38.6-2.3-73-18.5-97.6-43.8 3.6-7.4 5.6-15.7 5.6-24.5 0-30.9-25.1-56-56-56zM256 120c11 0 20-9 20-20s-9-20-20-20-20 9-20 20 9 20 20 20z"/></svg>;
       default:
         return <LinkIcon className="w-4 h-4 mr-2 shrink-0" />;
     }
@@ -433,7 +437,7 @@ const BookmarksPage: React.FC = () => {
     }
   };
 
-  // Helper function to render specialized content for Twitter/X or LinkedIn
+  // Helper function to render specialized content for Twitter/X, LinkedIn or Reddit
   const renderSpecializedContent = (bookmark: BookmarkItemType) => {
     if (bookmark.sourcePlatform === 'X' && isValidUrlWithHostname(bookmark.originalUrl)) {
       const tweetId = extractTweetId(bookmark.originalUrl);
@@ -459,6 +463,25 @@ const BookmarksPage: React.FC = () => {
             isSummarizing={summarizingBookmarkId === bookmark._id}
             // summaryStatus={bookmark.status} // Derived from bookmark.status in LinkedInCard
             // summaryText={bookmark.summary} // Derived from bookmark.summary in LinkedInCard
+            onSpeakSummary={handleSpeakSummary}
+            playingBookmarkId={playingBookmarkId}
+            audioErrorId={audioErrorId}
+          />
+        </div>
+      );
+    }
+
+    if (bookmark.sourcePlatform === 'Reddit') {
+      return (
+        <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
+          <RedditCard
+            bookmark={{
+              ...bookmark,
+              originalUrl: isValidUrlWithHostname(bookmark.originalUrl) ? bookmark.originalUrl : '#',
+            }}
+            onDelete={handleDeleteBookmark}
+            onSummarize={handleSummarizeBookmark}
+            isSummarizing={summarizingBookmarkId === bookmark._id}
             onSpeakSummary={handleSpeakSummary}
             playingBookmarkId={playingBookmarkId}
             audioErrorId={audioErrorId}
