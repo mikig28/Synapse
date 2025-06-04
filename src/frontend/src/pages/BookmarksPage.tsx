@@ -192,6 +192,7 @@ const BookmarksPage: React.FC = () => {
           filter === 'all' ? true :
           filter === 'week' ? bookmarkDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7) :
           filter === 'month' ? bookmarkDate >= new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()) :
+          filter === bookmark.sourcePlatform ? true :
           true;
 
         const matchesSearch = 
@@ -414,13 +415,13 @@ const BookmarksPage: React.FC = () => {
   const renderPlatformIcon = (platform: BookmarkItemType['sourcePlatform'] | 'Other' | undefined) => {
     switch (platform) {
       case 'X':
-        return <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16" className="mr-2 shrink-0"><path d="M12.6.75h2.454l-5.36 6.142L16 15.25h-4.937l-3.867-5.07-4.425 5.07H.316l5.733-6.57L0 .75h5.063l3.495 4.633L12.602.75Zm-.86 13.028h1.36L4.323 2.145H2.865l8.875 11.633Z"/></svg>;
+        return <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg>;
       case 'LinkedIn':
-        return <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16" className="mr-2 shrink-0"><path d="M0 1.146C0 .513.526 0 1.175 0h13.65C15.474 0 16 .513 16 1.146v13.708c0 .633-.526 1.146-1.175 1.146H1.175C.526 16 0 15.487 0 14.854V1.146zm4.943 12.248V6.169H2.542v7.225h2.401zm-1.2-8.212c.837 0 1.358-.554 1.358-1.248-.015-.709-.52-1.248-1.342-1.248-.822 0-1.359.54-1.359 1.248 0 .694.521 1.248 1.327 1.248h.016zm4.908 8.212V9.359c0-.216.016-.432.08-.586.173-.431.568-.878 1.232-.878.869 0 1.216.662 1.216 1.634v3.865h2.401V9.25c0-2.22-1.184-3.252-2.764-3.252-1.274 0-1.845.7-2.165 1.193v.025h-.016a5.54 5.54 0 0 1 .016-.025V6.169h-2.4c.03.678 0 7.225 0 7.225h2.4z"/></svg>;
+        return <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"></path></svg>;
       case 'Reddit':
-        return <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 512 512" className="mr-2 shrink-0"><path d="M440 196c-30.9 0-56 25.1-56 56 0 8.8 2 17.1 5.6 24.5-24.6 25.3-59 41.5-97.6 43.8l16-74.1 49.5 10.5c0 0 0 0 0 0 3.3 15.6 17.5 27.3 34.5 27.3 19.3 0 35-15.7 35-35s-15.7-35-35-35zm-144 35.4l10.1-46.5c3.1.2 6.2.4 9.4.4 3.1 0 6.2-.2 9.2-.4l10.2 46.7c-6.2-.7-12.5-1.1-19-1.1-6.5 0-12.9.4-19.1 1zm135.9 73.5c8.9 13.1 14.1 28.7 14.1 45.4C446 417.6 381.6 472 304 472s-142-54.4-142-121.7c0-16.7 5.2-32.3 14.1-45.4 23.8 17.6 55.3 28.7 89.9 28.7s66.1-11.1 89.9-28.7zM181 252c-19.3 0-35 15.7-35 35s15.7 35 35 35c17 0 31.2-11.7 34.5-27.3 0 0 0 0 0 0l49.5-10.5 16 74.1c-38.6-2.3-73-18.5-97.6-43.8 3.6-7.4 5.6-15.7 5.6-24.5 0-30.9-25.1-56-56-56zM256 120c11 0 20-9 20-20s-9-20-20-20-20 9-20 20 9 20 20 20z"/></svg>;
+        return <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm6.224 13.871c-.208.626-.925.826-1.427.418-.991-.806-2.479-1.305-4.032-1.305s-3.04.499-4.032 1.305c-.502.408-1.219.208-1.427-.418-.208-.626.036-1.33.538-1.738 1.305-1.05 3.147-1.666 5.003-1.666s3.699.616 5.003 1.666c.502.408.746 1.112.538 1.738zm-2.29-4.899c-.783 0-1.416.633-1.416 1.416s.633 1.416 1.416 1.416 1.416-.633 1.416-1.416-.633-1.416-1.416-1.416zm-7.868 0c-.783 0-1.416.633-1.416 1.416s.633 1.416 1.416 1.416 1.416-.633 1.416-1.416-.633-1.416-1.416-1.416zm7.004 7.352c-.647 0-1.173.526-1.173 1.173s.526 1.173 1.173 1.173 1.173-.526 1.173-1.173-.526-1.173-1.173-1.173zm-6.14 0c-.647 0-1.173.526-1.173 1.173s.526 1.173 1.173 1.173 1.173-.526 1.173-1.173-.526-1.173-1.173-1.173z"/></svg>;
       default:
-        return <LinkIcon className="w-4 h-4 mr-2 shrink-0" />;
+        return <LinkIcon className="h-5 w-5" />;
     }
   };
 
@@ -439,57 +440,33 @@ const BookmarksPage: React.FC = () => {
 
   // Helper function to render specialized content for Twitter/X, LinkedIn or Reddit
   const renderSpecializedContent = (bookmark: BookmarkItemType) => {
-    if (bookmark.sourcePlatform === 'X' && isValidUrlWithHostname(bookmark.originalUrl)) {
-      const tweetId = extractTweetId(bookmark.originalUrl);
-      if (tweetId) {
-        return (
-          <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
-            <ClientTweetCard id={tweetId} />
-          </div>
-        );
-      }
+    const tweetId = extractTweetId(bookmark.originalUrl);
+    if (bookmark.sourcePlatform === 'X' && tweetId) {
+      return <ClientTweetCard id={tweetId} />;
+    } else if (bookmark.sourcePlatform === 'LinkedIn') {
+      return <LinkedInCard 
+                bookmark={bookmark} 
+                onDelete={handleDeleteBookmark}
+                onSummarize={handleSummarizeBookmark}
+                isSummarizing={summarizingBookmarkId === bookmark._id}
+                summarizingBookmarkId={summarizingBookmarkId}
+                onSpeakSummary={handleSpeakSummary}
+                playingBookmarkId={playingBookmarkId}
+                audioErrorId={audioErrorId}
+             />;
+    } else if (bookmark.sourcePlatform === 'Reddit') {
+      return <RedditCard 
+                bookmark={bookmark} 
+                onDelete={handleDeleteBookmark}
+                onSummarize={handleSummarizeBookmark}
+                isSummarizing={summarizingBookmarkId === bookmark._id}
+                summarizingBookmarkId={summarizingBookmarkId}
+                onSpeakSummary={handleSpeakSummary}
+                playingBookmarkId={playingBookmarkId}
+                audioErrorId={audioErrorId}
+             />;
     }
-    
-    if (bookmark.sourcePlatform === 'LinkedIn') {
-      return (
-        <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
-          <LinkedInCard
-            bookmark={{
-              ...bookmark,
-              originalUrl: isValidUrlWithHostname(bookmark.originalUrl) ? bookmark.originalUrl : "#"
-            }}
-            onDelete={handleDeleteBookmark}
-            onSummarize={handleSummarizeBookmark}
-            isSummarizing={summarizingBookmarkId === bookmark._id}
-            // summaryStatus={bookmark.status} // Derived from bookmark.status in LinkedInCard
-            // summaryText={bookmark.summary} // Derived from bookmark.summary in LinkedInCard
-            onSpeakSummary={handleSpeakSummary}
-            playingBookmarkId={playingBookmarkId}
-            audioErrorId={audioErrorId}
-          />
-        </div>
-      );
-    }
-
-    if (bookmark.sourcePlatform === 'Reddit') {
-      return (
-        <div className="mt-2 mr-4 md:mr-0 max-w-full overflow-hidden">
-          <RedditCard
-            bookmark={{
-              ...bookmark,
-              originalUrl: isValidUrlWithHostname(bookmark.originalUrl) ? bookmark.originalUrl : '#',
-            }}
-            onDelete={handleDeleteBookmark}
-            onSummarize={handleSummarizeBookmark}
-            isSummarizing={summarizingBookmarkId === bookmark._id}
-            onSpeakSummary={handleSpeakSummary}
-            playingBookmarkId={playingBookmarkId}
-            audioErrorId={audioErrorId}
-          />
-        </div>
-      );
-    }
-    
+    // Fallback for 'Other' or if specialized content isn't available
     return null;
   };
 

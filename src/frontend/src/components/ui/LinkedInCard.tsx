@@ -16,20 +16,18 @@ interface LinkedInCardProps {
   onDelete: (bookmarkId: string) => void;
   onSummarize?: (bookmarkId: string) => void;
   isSummarizing?: boolean;
-  summaryStatus?: BookmarkItemType['status'];
-  summaryText?: string; // This prop might not be directly used here if summary is part of bookmark object
+  summarizingBookmarkId?: string | null;
   onSpeakSummary?: (bookmarkId: string, summaryText: string | undefined) => void;
   playingBookmarkId?: string | null;
   audioErrorId?: string | null;
 }
 
-const LinkedInCard: React.FC<LinkedInCardProps> = ({ 
-  bookmark, 
+const LinkedInCard: React.FC<LinkedInCardProps> = ({
+  bookmark,
   onDelete,
   onSummarize,
   isSummarizing,
-  // summaryStatus, // This is now derived from bookmark.status
-  // summaryText, // This is now derived from bookmark.summary
+  summarizingBookmarkId,
   onSpeakSummary,
   playingBookmarkId,
   audioErrorId,
@@ -81,7 +79,7 @@ const LinkedInCard: React.FC<LinkedInCardProps> = ({
           </details>
         </CardContent>
       )}
-      {currentSummaryStatus === 'pending_summary' && <p className="px-4 pb-2 text-xs text-amber-500">Summary pending...</p>}
+      {currentSummaryStatus === 'pending' && <p className="px-4 pb-2 text-xs text-amber-500">Summary pending...</p>}
       {currentSummaryStatus === 'error' && <p className="px-4 pb-2 text-xs text-destructive">Summary failed.</p>}
       {currentSummaryStatus === 'processing' && (
         <div className="px-4 pb-2 flex items-center text-xs text-sky-500">
@@ -115,12 +113,12 @@ const LinkedInCard: React.FC<LinkedInCardProps> = ({
                 disabled={isSummarizing || currentSummaryStatus === 'summarized' || currentSummaryStatus === 'processing'}
                 title={
                   currentSummaryStatus === 'summarized' ? "Already Summarized" :
-                  currentSummaryStatus === 'pending_summary' ? "Summary Pending" :
+                  currentSummaryStatus === 'pending' ? "Summary Pending" :
                   currentSummaryStatus === 'processing' ? "Processing Summary" :
                   "Summarize Content"
                 }
               >
-                {isSummarizing && bookmark._id === (window as any).summarizingBookmarkIdForSpinner ? ( // A bit hacky, better to pass summarizing ID
+                {isSummarizing && summarizingBookmarkId === bookmark._id ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : currentSummaryStatus === 'summarized' ? (
                   <CheckCircle className="w-4 h-4 text-green-500" />
