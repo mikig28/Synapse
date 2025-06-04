@@ -9,10 +9,11 @@ export interface BookmarkItemType {
   tags?: string[];
   createdAt: string; // Dates will be strings from JSON
   updatedAt: string;
-  status?: 'pending_summary' | 'summarized' | 'error' | 'metadata_fetched' | 'pending' | 'processing' | 'failed';
+  status?: 'pending' | 'summarized' | 'error' | 'metadata_fetched' | 'processing' | 'failed';
   fetchedTitle?: string;
   fetchedDescription?: string;
   fetchedImageUrl?: string;
+  fetchedVideoUrl?: string;
   tweetData?: any; // Added - consider a more specific type e.g. from react-tweet
   linkedInData?: any; // Added - consider a more specific type
-} 
+}

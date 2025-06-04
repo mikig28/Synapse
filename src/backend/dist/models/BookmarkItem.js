@@ -55,6 +55,7 @@ const BookmarkItemSchema = new mongoose_1.Schema({
     fetchedTitle: { type: String },
     fetchedDescription: { type: String },
     fetchedImageUrl: { type: String },
+    fetchedVideoUrl: { type: String },
 }, { timestamps: true } // Automatically adds createdAt and updatedAt fields
 );
 // Index for efficient querying
