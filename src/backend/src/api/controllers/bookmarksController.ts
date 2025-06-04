@@ -48,17 +48,66 @@ const fetchLinkedInMetadata = async (url: string): Promise<{ title?: string; des
 
 // Helper function to fetch Reddit Metadata
 const fetchRedditMetadata = async (url: string): Promise<{ title?: string; description?: string; image?: string }> => {
+  const jsonUrl = url.endsWith('/') ? `${url.slice(0, -1)}.json` : `${url}.json`;
+
   try {
+    console.log(`[fetchRedditMetadata] Attempting to fetch Reddit metadata from JSON API: ${jsonUrl}`);
+    const { data: jsonData } = await axios.get(jsonUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; SynapseBot/1.0; +http://yourdomain.com/bot)', // Be a good bot citizen
+      },
+      timeout: 7000, // Slightly shorter timeout for API
+    });
+
+    let postData;
+    if (Array.isArray(jsonData) && jsonData.length > 0) {
+      if (jsonData[0]?.kind === 'Listing' && jsonData[0]?.data?.children?.length > 0) {
+        postData = jsonData[0].data.children[0]?.data;
+      } else if (jsonData[0]?.data) { 
+        postData = jsonData[0].data;
+      }
+    } else if (typeof jsonData === 'object' && jsonData?.data?.children?.length > 0) { 
+      postData = jsonData.data.children[0]?.data;
+    }
+
+
+    if (postData) {
+      const title = postData.title;
+      const description = postData.selftext || postData.link_flair_text || `A post from r/${postData.subreddit}`;
+      const image = postData.thumbnail !== 'self' && postData.thumbnail !== 'default' && postData.thumbnail ? postData.thumbnail :
+                    postData.preview?.images?.[0]?.source?.url;
+
+      if (title) {
+        console.log(`[fetchRedditMetadata] Successfully fetched metadata from JSON API for ${url}`);
+        return {
+          title: title?.trim(),
+          description: description?.trim(),
+          image: image?.trim(),
+        };
+      }
+    }
+    console.warn(`[fetchRedditMetadata] JSON API did not return expected data for ${url}. Falling back to HTML scrape.`);
+  } catch (jsonApiError: any) {
+    console.warn(`[fetchRedditMetadata] Error fetching or parsing Reddit JSON API (${jsonUrl}): ${jsonApiError.message || jsonApiError}. Falling back to HTML scrape.`);
+  }
+
+  // Fallback to HTML scraping if JSON API fails or doesn't provide data
+  try {
+    console.log(`[fetchRedditMetadata] Attempting to fetch Reddit metadata via HTML scrape for: ${url}`);
     const { data: htmlResponseData } = await axios.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
       },
       timeout: 10000,
       responseType: 'text',
     });
 
     if (typeof htmlResponseData !== 'string') {
-      throw new Error('Fetched content is not a string');
+      // If HTML response is not a string, we can't parse it.
+      console.error(`[fetchRedditMetadata] HTML scrape for ${url} did not return a string.`);
+      throw new Error('Fetched HTML content is not a string');
     }
 
     const $ = cheerio.load(htmlResponseData);
@@ -66,14 +115,23 @@ const fetchRedditMetadata = async (url: string): Promise<{ title?: string; descr
     const description = $('meta[property="og:description"]').attr('content') || $('meta[name="description"]').attr('content');
     const image = $('meta[property="og:image"]').attr('content');
 
+    if (title || description || image) {
+        console.log(`[fetchRedditMetadata] Successfully fetched some metadata via HTML scrape for ${url}`);
+    } else {
+        console.warn(`[fetchRedditMetadata] HTML scrape did not yield any metadata for ${url}`);
+        // Consider throwing an error here if no metadata is found, so the caller knows
+        // or return undefined/empty to let the caller decide how to handle.
+        // For now, it will return potentially empty fields, which processAndCreateBookmark handles.
+    }
+    
     return {
       title: title?.trim(),
       description: description?.trim(),
       image: image?.trim(),
     };
   } catch (error: any) {
-    console.error(`[fetchRedditMetadata] Error fetching or parsing Reddit URL ${url}:`, error.message || error);
-    throw error;
+    console.error(`[fetchRedditMetadata] Error fetching or parsing Reddit URL ${url} (HTML scrape):`, error.message || error);
+    throw error; // This error will be caught by processAndCreateBookmark
   }
 };
 
