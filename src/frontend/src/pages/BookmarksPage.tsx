@@ -444,20 +444,27 @@ const BookmarksPage: React.FC = () => {
     if (bookmark.sourcePlatform === 'X' && tweetId) {
       return <ClientTweetCard id={tweetId} />;
     } else if (bookmark.sourcePlatform === 'LinkedIn') {
-      return <LinkedInCard bookmark={bookmark} summarizingBookmarkId={summarizingBookmarkId} onSummarize={() => handleSummarizeBookmark(bookmark._id)} />;
+      return <LinkedInCard 
+                bookmark={bookmark} 
+                onDelete={handleDeleteBookmark}
+                onSummarize={handleSummarizeBookmark}
+                isSummarizing={summarizingBookmarkId === bookmark._id}
+                summarizingBookmarkId={summarizingBookmarkId}
+                onSpeakSummary={handleSpeakSummary}
+                playingBookmarkId={playingBookmarkId}
+                audioErrorId={audioErrorId}
+             />;
     } else if (bookmark.sourcePlatform === 'Reddit') {
-      return (
-        <CardContent className="pt-2">
-          <p className="text-sm text-muted-foreground">Reddit content for: <a href={bookmark.originalUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">{bookmark.fetchedTitle || bookmark.originalUrl}</a></p>
-          {bookmark.fetchedDescription && <p className="text-xs mt-1">{bookmark.fetchedDescription}</p>}
-          {bookmark.fetchedImageUrl && <img src={bookmark.fetchedImageUrl} alt="Reddit preview" className="mt-2 rounded max-w-full h-auto" />}
-          {bookmark.fetchedVideoUrl && (
-            <video src={bookmark.fetchedVideoUrl} controls className="mt-2 rounded max-w-full h-auto">
-              Your browser does not support the video tag.
-            </video>
-          )}
-        </CardContent>
-      );
+      return <RedditCard 
+                bookmark={bookmark} 
+                onDelete={handleDeleteBookmark}
+                onSummarize={handleSummarizeBookmark}
+                isSummarizing={summarizingBookmarkId === bookmark._id}
+                summarizingBookmarkId={summarizingBookmarkId}
+                onSpeakSummary={handleSpeakSummary}
+                playingBookmarkId={playingBookmarkId}
+                audioErrorId={audioErrorId}
+             />;
     }
     // Fallback for 'Other' or if specialized content isn't available
     return null;

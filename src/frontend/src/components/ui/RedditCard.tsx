@@ -9,7 +9,15 @@ import {
   CardFooter
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, Trash2, Reddit, FileText, Zap, Volume2, PlayCircle, StopCircle, AlertCircle, Loader2, CheckCircle, XCircle, Brain } from 'lucide-react';
+import { ExternalLink, Trash2, Brain, PlayCircle, StopCircle, AlertCircle, Loader2, CheckCircle, XCircle } from 'lucide-react';
+
+// Define a simple RedditIcon here for now if not available globally
+// You might want to move this to a shared CustomIcons.tsx file
+const RedditIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm6.224 13.871c-.208.626-.925.826-1.427.418-.991-.806-2.479-1.305-4.032-1.305s-3.04.499-4.032 1.305c-.502.408-1.219.208-1.427-.418-.208-.626.036-1.33.538-1.738 1.305-1.05 3.147-1.666 5.003-1.666s3.699.616 5.003 1.666c.502.408.746 1.112.538 1.738zm-2.29-4.899c-.783 0-1.416.633-1.416 1.416s.633 1.416 1.416 1.416 1.416-.633 1.416-1.416-.633-1.416-1.416-1.416zm-7.868 0c-.783 0-1.416.633-1.416 1.416s.633 1.416 1.416 1.416 1.416-.633 1.416-1.416-.633-1.416-1.416-1.416zm7.004 7.352c-.647 0-1.173.526-1.173 1.173s.526 1.173 1.173 1.173 1.173-.526 1.173-1.173-.526-1.173-1.173-1.173zm-6.14 0c-.647 0-1.173.526-1.173 1.173s.526 1.173 1.173 1.173 1.173-.526 1.173-1.173-.526-1.173-1.173-1.173z"/>
+  </svg>
+);
 
 interface RedditCardProps {
   bookmark: BookmarkItemType;
@@ -32,81 +40,65 @@ const RedditCard: React.FC<RedditCardProps> = ({
   playingBookmarkId,
   audioErrorId,
 }) => {
-  const formattedDate = new Date(bookmark.createdAt).toLocaleString(undefined, { 
-      year: 'numeric', month: 'numeric', day: 'numeric', 
-      hour: '2-digit', minute: '2-digit' 
+  const formattedDate = new Date(bookmark.createdAt).toLocaleString(undefined, {
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: '2-digit', minute: '2-digit'
   });
 
   const currentSummaryStatus = bookmark.status;
   const currentSummaryText = bookmark.summary;
 
-  const embedUrl = React.useMemo(() => {
-    try {
-      const url = new URL(bookmark.originalUrl);
-      const pathname = url.pathname;
-      return `https://www.redditmedia.com${pathname}?ref_source=embed&ref=share&embed=true`;
-    } catch {
-      return null;
-    }
-  }, [bookmark.originalUrl]);
+  const displayTitle = bookmark.fetchedTitle || `Reddit Post: ${bookmark.originalUrl.substring(0, 70)}...`;
 
   return (
     <Card className="flex flex-col overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 h-full relative group">
       <CardHeader className="flex-grow p-4">
         <div className="flex justify-between items-start">
           <CardTitle className="text-base font-semibold leading-tight mb-1 flex items-center flex-grow mr-2">
-              <Reddit className="w-5 h-5 mr-2 text-orange-600 shrink-0" />
-              <span className="line-clamp-2" title={bookmark.fetchedTitle || bookmark.originalUrl}>
-                  {bookmark.fetchedTitle || 'Reddit Post'}
+            <RedditIcon className="w-5 h-5 mr-2 text-orange-600 shrink-0" />
+            <a
+              href={bookmark.originalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline group-hover:text-primary transition-colors duration-200"
+              title={bookmark.fetchedTitle || bookmark.originalUrl}
+            >
+              <span className="line-clamp-3">
+                {displayTitle}
               </span>
+            </a>
           </CardTitle>
-          {/* Action buttons will be moved to CardFooter or an overlay */}
         </div>
         {bookmark.fetchedDescription && (
-          <CardDescription className="text-sm text-muted-foreground line-clamp-3 mt-1">
+          <CardDescription className="text-sm text-muted-foreground line-clamp-4 mt-1">
             {bookmark.fetchedDescription}
           </CardDescription>
         )}
       </CardHeader>
-      
-      {embedUrl ? (
-        <div className="px-4">
-          <iframe
-            src={embedUrl}
-            loading="lazy"
-            className="w-full rounded-md"
-            height="400"
-            sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-            referrerPolicy="no-referrer-when-downgrade"
-            title={`Reddit embed for ${bookmark.fetchedTitle || 'Reddit Post'}`}
-          />
-        </div>
-      ) : bookmark.fetchedVideoUrl ? (
-        <div className="px-4">
-          <video
-            src={bookmark.fetchedVideoUrl}
-            controls
-            className="w-full rounded-md"
-            onError={(e) => {
-              console.error('Video loading failed:', bookmark.fetchedVideoUrl);
-              e.currentTarget.style.display = 'none';
-            }}
-            onLoadStart={() => console.log('Video loading started')}
-          />
-        </div>
-      ) : (
-        bookmark.fetchedImageUrl && (
-          <div className="px-4">
+
+      {(bookmark.fetchedImageUrl || bookmark.fetchedVideoUrl) && (
+        <CardContent className="p-4 pt-0">
+          {bookmark.fetchedImageUrl && !bookmark.fetchedVideoUrl && (
             <img
               src={bookmark.fetchedImageUrl}
-              alt={`Preview for ${bookmark.fetchedTitle || 'Reddit Post'}`}
-              className="w-full h-40 object-cover rounded-md"
+              alt={`Preview for ${displayTitle}`}
+              className="w-full max-h-80 object-contain rounded-md border"
             />
-          </div>
-        )
+          )}
+          {bookmark.fetchedVideoUrl && (
+            <video
+              src={bookmark.fetchedVideoUrl}
+              controls
+              playsInline
+              className="w-full max-h-80 rounded-md border bg-black"
+              poster={bookmark.fetchedImageUrl}
+            >
+              Your browser does not support the video tag.
+            </video>
+          )}
+        </CardContent>
       )}
 
-      {/* Summary Section */}
       {currentSummaryStatus === 'summarized' && currentSummaryText && (
         <CardContent className="p-4 pt-2 text-sm text-muted-foreground/90">
           <details>
@@ -124,10 +116,9 @@ const RedditCard: React.FC<RedditCardProps> = ({
         </div>
       )}
 
-
       <CardFooter className="p-4 pt-2 border-t mt-auto flex flex-col items-stretch gap-2">
         <div className="flex justify-between items-center w-full">
-          <Button 
+          <Button
             variant="outline"
             size="sm"
             onClick={() => window.open(bookmark.originalUrl, '_blank')}
@@ -136,23 +127,15 @@ const RedditCard: React.FC<RedditCardProps> = ({
           >
             <ExternalLink className="w-4 h-4 mr-1" /> View Post
           </Button>
-          
+
           <div className="flex space-x-1">
             {onSummarize && (
               <Button
                 variant="outline"
                 size="icon"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSummarize(bookmark._id);
-                }}
+                onClick={(e) => { e.stopPropagation(); onSummarize(bookmark._id); }}
                 disabled={isSummarizing || currentSummaryStatus === 'summarized' || currentSummaryStatus === 'processing'}
-                title={
-                  currentSummaryStatus === 'summarized' ? 'Already Summarized' :
-                  currentSummaryStatus === 'pending' ? 'Summary Pending' :
-                  currentSummaryStatus === 'processing' ? 'Processing Summary' :
-                  'Summarize Content'
-                }
+                title={                  currentSummaryStatus === 'summarized' ? "Already Summarized" :                  currentSummaryStatus === 'pending' ? "Summary Pending" :                  currentSummaryStatus === 'processing' ? "Processing Summary" :                  "Summarize Content"                }
               >
                 {isSummarizing && summarizingBookmarkId === bookmark._id ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -169,10 +152,7 @@ const RedditCard: React.FC<RedditCardProps> = ({
               <Button
                 variant="outline"
                 size="icon"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSpeakSummary(bookmark._id, currentSummaryText);
-                }}
+                onClick={(e) => { e.stopPropagation(); onSpeakSummary(bookmark._id, currentSummaryText); }}
                 disabled={!currentSummaryText}
                 title={audioErrorId === bookmark._id ? "Audio Error" : (playingBookmarkId === bookmark._id ? "Stop Speaking" : "Speak Summary")}
                 className={`${audioErrorId === bookmark._id ? 'text-destructive' : ''}`}
@@ -186,20 +166,17 @@ const RedditCard: React.FC<RedditCardProps> = ({
                 )}
               </Button>
             )}
-            <Button 
-              variant="destructive" 
-              size="icon" 
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(bookmark._id);
-              }}
+            <Button
+              variant="destructive"
+              size="icon"
+              onClick={(e) => { e.stopPropagation(); onDelete(bookmark._id); }}
               title="Delete Bookmark"
             >
               <Trash2 className="w-4 h-4" />
             </Button>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground text-right w-full mt-1"> 
+        <p className="text-xs text-muted-foreground text-right w-full mt-1">
             Saved: {formattedDate}
         </p>
       </CardFooter>
