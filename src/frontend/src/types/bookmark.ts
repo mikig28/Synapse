@@ -3,7 +3,7 @@ export interface BookmarkItemType {
   userId: string;
   telegramMessageId?: string;
   originalUrl: string;
-  sourcePlatform: 'X' | 'LinkedIn' | 'Other';
+  sourcePlatform: 'X' | 'LinkedIn' | 'Reddit' | 'Other';
   title?: string;
   summary?: string;
   tags?: string[];
@@ -13,6 +13,7 @@ export interface BookmarkItemType {
   fetchedTitle?: string;
   fetchedDescription?: string;
   fetchedImageUrl?: string;
+  fetchedVideoUrl?: string;
   tweetData?: any; // Added - consider a more specific type e.g. from react-tweet
   linkedInData?: any; // Added - consider a more specific type
-} 
+}

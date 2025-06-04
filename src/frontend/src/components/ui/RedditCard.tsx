@@ -9,9 +9,9 @@ import {
   CardFooter
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, Trash2, Briefcase, FileText, Zap, Volume2, PlayCircle, StopCircle, AlertCircle, Loader2, CheckCircle, XCircle, Brain } from 'lucide-react';
+import { ExternalLink, Trash2, Reddit, FileText, Zap, Volume2, PlayCircle, StopCircle, AlertCircle, Loader2, CheckCircle, XCircle, Brain } from 'lucide-react';
 
-interface LinkedInCardProps {
+interface RedditCardProps {
   bookmark: BookmarkItemType;
   onDelete: (bookmarkId: string) => void;
   onSummarize?: (bookmarkId: string) => void;
@@ -22,7 +22,7 @@ interface LinkedInCardProps {
   audioErrorId?: string | null;
 }
 
-const LinkedInCard: React.FC<LinkedInCardProps> = ({
+const RedditCard: React.FC<RedditCardProps> = ({
   bookmark,
   onDelete,
   onSummarize,
@@ -40,14 +40,24 @@ const LinkedInCard: React.FC<LinkedInCardProps> = ({
   const currentSummaryStatus = bookmark.status;
   const currentSummaryText = bookmark.summary;
 
+  const embedUrl = React.useMemo(() => {
+    try {
+      const url = new URL(bookmark.originalUrl);
+      const pathname = url.pathname;
+      return `https://www.redditmedia.com${pathname}?ref_source=embed&ref=share&embed=true`;
+    } catch {
+      return null;
+    }
+  }, [bookmark.originalUrl]);
+
   return (
     <Card className="flex flex-col overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 h-full relative group">
       <CardHeader className="flex-grow p-4">
         <div className="flex justify-between items-start">
           <CardTitle className="text-base font-semibold leading-tight mb-1 flex items-center flex-grow mr-2">
-              <Briefcase className="w-5 h-5 mr-2 text-blue-700 shrink-0" />
+              <Reddit className="w-5 h-5 mr-2 text-orange-600 shrink-0" />
               <span className="line-clamp-2" title={bookmark.fetchedTitle || bookmark.originalUrl}>
-                  {bookmark.fetchedTitle || 'LinkedIn Post'}
+                  {bookmark.fetchedTitle || 'Reddit Post'}
               </span>
           </CardTitle>
           {/* Action buttons will be moved to CardFooter or an overlay */}
@@ -59,15 +69,41 @@ const LinkedInCard: React.FC<LinkedInCardProps> = ({
         )}
       </CardHeader>
       
-      {/* Optional: Display image if fetchedImageUrl exists */}
-      {bookmark.fetchedImageUrl && (
+      {embedUrl ? (
         <div className="px-4">
-          <img 
-            src={bookmark.fetchedImageUrl}
-            alt={`Preview for ${bookmark.fetchedTitle || 'LinkedIn Post'}`}
-            className="w-full h-40 object-cover rounded-md"
+          <iframe
+            src={embedUrl}
+            loading="lazy"
+            className="w-full rounded-md"
+            height="400"
+            sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+            referrerPolicy="no-referrer-when-downgrade"
+            title={`Reddit embed for ${bookmark.fetchedTitle || 'Reddit Post'}`}
           />
         </div>
+      ) : bookmark.fetchedVideoUrl ? (
+        <div className="px-4">
+          <video
+            src={bookmark.fetchedVideoUrl}
+            controls
+            className="w-full rounded-md"
+            onError={(e) => {
+              console.error('Video loading failed:', bookmark.fetchedVideoUrl);
+              e.currentTarget.style.display = 'none';
+            }}
+            onLoadStart={() => console.log('Video loading started')}
+          />
+        </div>
+      ) : (
+        bookmark.fetchedImageUrl && (
+          <div className="px-4">
+            <img
+              src={bookmark.fetchedImageUrl}
+              alt={`Preview for ${bookmark.fetchedTitle || 'Reddit Post'}`}
+              className="w-full h-40 object-cover rounded-md"
+            />
+          </div>
+        )
       )}
 
       {/* Summary Section */}
@@ -95,7 +131,7 @@ const LinkedInCard: React.FC<LinkedInCardProps> = ({
             variant="outline"
             size="sm"
             onClick={() => window.open(bookmark.originalUrl, '_blank')}
-            title="View on LinkedIn"
+            title="View on Reddit"
             className="text-xs"
           >
             <ExternalLink className="w-4 h-4 mr-1" /> View Post
@@ -114,8 +150,8 @@ const LinkedInCard: React.FC<LinkedInCardProps> = ({
                 title={
                   currentSummaryStatus === 'summarized' ? 'Already Summarized' :
                   currentSummaryStatus === 'pending' ? 'Summary Pending' :
-                  currentSummaryStatus === 'processing' ? "Processing Summary" :
-                  "Summarize Content"
+                  currentSummaryStatus === 'processing' ? 'Processing Summary' :
+                  'Summarize Content'
                 }
               >
                 {isSummarizing && summarizingBookmarkId === bookmark._id ? (
@@ -171,4 +207,4 @@ const LinkedInCard: React.FC<LinkedInCardProps> = ({
   );
 };
 
-export default LinkedInCard;
+export default RedditCard;
