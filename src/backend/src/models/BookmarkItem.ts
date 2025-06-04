@@ -5,7 +5,7 @@ export interface IBookmarkItem extends Document { // Renaming to IBookmarkItem f
   userId: mongoose.Types.ObjectId;
   telegramMessageId?: mongoose.Types.ObjectId;
   originalUrl: string;
-  sourcePlatform: 'X' | 'LinkedIn' | 'Other';
+  sourcePlatform: 'X' | 'LinkedIn' | 'Reddit' | 'Other';
   title?: string;
   summary?: string;
   tags?: string[];
@@ -25,7 +25,7 @@ const BookmarkItemSchema: Schema<IBookmarkItem> = new Schema(
     originalUrl: { type: String, required: true },
     sourcePlatform: {
       type: String,
-      enum: ['X', 'LinkedIn', 'Other'],
+      enum: ['X', 'LinkedIn', 'Reddit', 'Other'],
       required: true,
     },
     title: { type: String, default: '' },

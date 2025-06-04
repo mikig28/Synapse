@@ -3,7 +3,7 @@ export interface BookmarkItemType {
   userId: string;
   telegramMessageId?: string;
   originalUrl: string;
-  sourcePlatform: 'X' | 'LinkedIn' | 'Other';
+  sourcePlatform: 'X' | 'LinkedIn' | 'Reddit' | 'Other';
   title?: string;
   summary?: string;
   tags?: string[];

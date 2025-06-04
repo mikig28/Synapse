@@ -40,7 +40,7 @@ const BookmarkItemSchema = new mongoose_1.Schema({
     originalUrl: { type: String, required: true },
     sourcePlatform: {
         type: String,
-        enum: ['X', 'LinkedIn', 'Other'],
+        enum: ['X', 'LinkedIn', 'Reddit', 'Other'],
         required: true,
     },
     title: { type: String, default: '' },

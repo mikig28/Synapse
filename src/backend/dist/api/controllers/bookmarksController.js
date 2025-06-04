@@ -69,6 +69,13 @@ const processAndCreateBookmark = async (userIdString, originalUrl, sourcePlatfor
             newBookmarkData.status = 'metadata_fetched'; // Set status to indicate attempt (even if placeholder)
             console.log(`[BookmarkController] Using placeholder metadata for LinkedIn URL: ${originalUrl}`);
         }
+        else if (sourcePlatform === 'Reddit') {
+            console.log(`[BookmarkController] Attempting to fetch metadata for Reddit URL: ${originalUrl}`);
+            newBookmarkData.fetchedTitle = `Reddit Post: ${originalUrl.substring(0, 50)}...`;
+            newBookmarkData.fetchedDescription = "Placeholder description - Metadata fetching needs implementation.";
+            newBookmarkData.status = 'metadata_fetched';
+            console.log(`[BookmarkController] Using placeholder metadata for Reddit URL: ${originalUrl}`);
+        }
         else if (sourcePlatform === 'Other') {
             // Optional: Add metadata fetching for 'Other' links here too if desired
             console.log(`[BookmarkController] Skipping metadata fetch for 'Other' URL: ${originalUrl}`);
