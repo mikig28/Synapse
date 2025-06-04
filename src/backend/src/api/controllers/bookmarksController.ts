@@ -1,3 +1,4 @@
+console.log('[BookmarkController] Forcing re-evaluation - v2'); // Trivial change to force update
 import mongoose, { Types, Schema } from 'mongoose';
 import { Request, Response } from 'express';
 import axios from 'axios';
