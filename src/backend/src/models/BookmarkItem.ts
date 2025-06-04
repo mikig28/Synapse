@@ -10,7 +10,7 @@ export interface IBookmarkItem extends Document { // Renaming to IBookmarkItem f
   summary?: string;
   tags?: string[];
   rawPageContent?: string;
-  status?: 'pending_summary' | 'summarized' | 'error' | 'metadata_fetched';
+  status?: 'pending' | 'summarized' | 'error' | 'metadata_fetched';
   // Fetched metadata fields (especially for LinkedIn/Other)
   fetchedTitle?: string;
   fetchedDescription?: string;
@@ -35,8 +35,8 @@ const BookmarkItemSchema: Schema<IBookmarkItem> = new Schema(
     rawPageContent: { type: String },
     status: {
       type: String,
-      enum: ['pending_summary', 'summarized', 'error', 'metadata_fetched'],
-      default: 'pending_summary',
+      enum: ['pending', 'summarized', 'error', 'metadata_fetched'],
+      default: 'pending',
     },
     fetchedTitle: { type: String },
     fetchedDescription: { type: String },

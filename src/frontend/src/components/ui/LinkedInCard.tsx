@@ -112,8 +112,8 @@ const LinkedInCard: React.FC<LinkedInCardProps> = ({
                 }}
                 disabled={isSummarizing || currentSummaryStatus === 'summarized' || currentSummaryStatus === 'processing'}
                 title={
-                  currentSummaryStatus === 'summarized' ? 'Already Summarized' :
-                  currentSummaryStatus === 'pending' ? 'Summary Pending' :
+                  currentSummaryStatus === 'summarized' ? "Already Summarized" :
+                  currentSummaryStatus === 'pending' ? "Summary Pending" :
                   currentSummaryStatus === 'processing' ? "Processing Summary" :
                   "Summarize Content"
                 }

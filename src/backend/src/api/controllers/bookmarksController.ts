@@ -47,8 +47,19 @@ const fetchLinkedInMetadata = async (url: string): Promise<{ title?: string; des
 };
 
 // Helper function to fetch Reddit Metadata
-const fetchRedditMetadata = async (url: string): Promise<{ title?: string; description?: string; image?: string; video?: string }> => {
+const fetchRedditMetadata = async (url: string): Promise<{ title?: string; description?: string; image?: string, video?: string }> => {
   try {
+    console.log(`[fetchRedditMetadata] Attempting to fetch: ${url}`);
+    // Reddit URLs often end with .json for API access, or we can try to scrape
+    // For scraping, we might need to adjust headers or use a library like puppeteer if Cheerio is blocked or content is JS-rendered
+    // For this example, let\'s assume a simple GET and Cheerio parsing, similar to LinkedIn
+    // but acknowledge it might be more complex for Reddit.
+    
+    // Append .json to get the JSON version of the post if it's a direct post URL
+    // This is a common way to get structured data from Reddit.
+    // However, scraping HTML might be necessary if the .json endpoint isn't suitable for all link types or has CORS issues client-side (though this is backend)
+    
+    // Let's try with a standard GET first for HTML scraping, similar to LinkedIn
     const { data: htmlResponseData } = await axios.get(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -60,25 +71,43 @@ const fetchRedditMetadata = async (url: string): Promise<{ title?: string; descr
     });
 
     if (typeof htmlResponseData !== 'string') {
-      throw new Error('Fetched content is not a string');
+      console.error("[fetchRedditMetadata] Fetched URL content is not a string.");
+      throw new Error("Fetched content is not a string");
     }
 
     const $ = cheerio.load(htmlResponseData);
-    const title = $('meta[property="og:title"]').attr('content') || $('title').text();
-    const description = $('meta[property="og:description"]').attr('content') || $('meta[name="description"]').attr('content');
-    const image = $('meta[property="og:image"]').attr('content');
-    const video = $('meta[property="og:video"]')
-      .attr('content') || $('meta[property="og:video:url"]').attr('content');
 
-    return {
-      title: title?.trim(),
-      description: description?.trim(),
+    // Reddit metadata extraction can be tricky and might require more specific selectors
+    // These are general examples and might need refinement
+    const title = $('meta[property="og:title"]').attr('content') || $('shreddit-title').attr('title') || $('title').text();
+    // For description, Reddit often uses post content itself.
+    // og:description might be a summary or not present.
+    // Let's try to find the post body if possible
+    let description = $('meta[property="og:description"]').attr('content');
+    if (!description) {
+      // This is a placeholder selector, actual Reddit structure will vary.
+      // It might be in a div with a specific data attribute or class.
+      // Example: $('div[data-click-id="text"]').text(); 
+      // For now, let's rely on og:description or leave it.
+    }
+    const image = $('meta[property="og:image"]').attr('content');
+    // Reddit videos (og:video, or specific video tags if embedded)
+    const video = $('meta[property="og:video"]').attr('content') || $('shreddit-player').attr('src');
+
+
+    console.log(`[fetchRedditMetadata] Extracted: Title='${title}', Desc='${description ? description.substring(0,50) + "..." : "N/A"}', Image='${image}', Video='${video}'`);
+
+    return { 
+      title: title?.trim(), 
+      description: description?.trim(), 
       image: image?.trim(),
       video: video?.trim(),
     };
+
   } catch (error: any) {
     console.error(`[fetchRedditMetadata] Error fetching or parsing Reddit URL ${url}:`, error.message || error);
-    throw error;
+    // Return undefined for all fields in case of error to let the caller handle it
+    return { title: undefined, description: undefined, image: undefined, video: undefined };
   }
 };
 
@@ -121,11 +150,10 @@ export const processAndCreateBookmark = async (
   try {
     const userId = new Types.ObjectId(userIdString);
 
-    // Check for existing bookmark first
     const existingBookmark = await BookmarkItem.findOne({ userId, originalUrl });
     if (existingBookmark) {
       console.warn(`[BookmarkController] Bookmark already exists for URL: ${originalUrl} and user: ${userIdString}. Skipping creation.`);
-      // Check if the existing bookmark needs metadata, e.g. if it was created when fetching failed
+      // Logic for re-fetching metadata for existing LinkedIn bookmarks (can be extended for Reddit if needed)
       if (existingBookmark.sourcePlatform === 'LinkedIn' && existingBookmark.status === 'error' && (!existingBookmark.fetchedTitle || existingBookmark.fetchedTitle.startsWith('LinkedIn Post:'))) {
           console.log(`[BookmarkController] Existing LinkedIn bookmark (ID: ${existingBookmark._id}) has error status or placeholder title. Attempting to re-fetch metadata.`);
           try {
@@ -133,15 +161,28 @@ export const processAndCreateBookmark = async (
             existingBookmark.fetchedTitle = metadata.title;
             existingBookmark.fetchedDescription = metadata.description;
             existingBookmark.fetchedImageUrl = metadata.image;
-            existingBookmark.status = 'metadata_fetched'; // Update status
+            existingBookmark.status = 'metadata_fetched'; 
             await existingBookmark.save();
             console.log(`[BookmarkController] Successfully re-fetched and updated metadata for existing LinkedIn bookmark: ${existingBookmark._id}`);
           } catch (metaError: any) {
             console.error(`[BookmarkController] Failed to re-fetch metadata for existing LinkedIn bookmark ${existingBookmark._id}:`, metaError.message || metaError);
-            // Status remains 'error', title/desc might still be placeholders
           }
+      } else if (existingBookmark.sourcePlatform === 'Reddit' && existingBookmark.status === 'error' && (!existingBookmark.fetchedTitle || existingBookmark.fetchedTitle.startsWith('Reddit Post:'))) {
+        console.log(`[BookmarkController] Existing Reddit bookmark (ID: ${existingBookmark._id}) has error status or placeholder title. Attempting to re-fetch metadata.`);
+        try {
+          const metadata = await fetchRedditMetadata(originalUrl);
+          existingBookmark.fetchedTitle = metadata.title;
+          existingBookmark.fetchedDescription = metadata.description;
+          existingBookmark.fetchedImageUrl = metadata.image;
+          existingBookmark.fetchedVideoUrl = metadata.video; // Added for Reddit
+          existingBookmark.status = 'metadata_fetched'; 
+          await existingBookmark.save();
+          console.log(`[BookmarkController] Successfully re-fetched and updated metadata for existing Reddit bookmark: ${existingBookmark._id}`);
+        } catch (metaError: any) {
+          console.error(`[BookmarkController] Failed to re-fetch metadata for existing Reddit bookmark ${existingBookmark._id}:`, metaError.message || metaError);
+        }
       }
-      return existingBookmark._id; // Return existing ID
+      return existingBookmark._id; 
     }
 
     const newBookmarkData: Partial<IBookmarkItem> = {
@@ -149,17 +190,16 @@ export const processAndCreateBookmark = async (
       originalUrl,
       sourcePlatform,
       ...(telegramMessageIdString && mongoose.Types.ObjectId.isValid(telegramMessageIdString) && { telegramMessageId: new mongoose.Types.ObjectId(telegramMessageIdString) as any }),
-      title: '', // Standard fields remain empty initially
+      title: '', 
       summary: '',
       tags: [],
-      status: 'pending_summary', // Default status
-      // Initialize fetched fields as undefined
+      status: 'pending', // Default status updated
       fetchedTitle: undefined,
       fetchedDescription: undefined,
       fetchedImageUrl: undefined,
+      fetchedVideoUrl: undefined, // Initialize fetchedVideoUrl
     };
 
-    // --- Metadata Fetching Logic --- 
     if (sourcePlatform === 'LinkedIn') {
         console.log(`[BookmarkController] Attempting to fetch metadata for LinkedIn URL: ${originalUrl}`);
         try {
@@ -171,33 +211,41 @@ export const processAndCreateBookmark = async (
           console.log(`[BookmarkController] Successfully fetched metadata for LinkedIn URL: ${originalUrl}`);
         } catch (metaError: any) {
           console.error(`[BookmarkController] Failed to fetch metadata for ${originalUrl}:`, metaError.message || metaError);
-          newBookmarkData.status = 'error'; // Mark as error if fetch fails
-          // Fallback to placeholder if metadata fetch fails but we still want to save the bookmark
+          newBookmarkData.status = 'error'; 
           newBookmarkData.fetchedTitle = `LinkedIn Post: ${originalUrl.substring(0, 50)}...`;
           newBookmarkData.fetchedDescription = "Could not fetch details. Link saved.";
         }
-    } else if (sourcePlatform === 'Reddit') {
-         console.log(`[BookmarkController] Attempting to fetch metadata for Reddit URL: ${originalUrl}`);
-         try {
-           const metadata = await fetchRedditMetadata(originalUrl);
-           newBookmarkData.fetchedTitle = metadata.title;
-           newBookmarkData.fetchedDescription = metadata.description;
-           newBookmarkData.fetchedImageUrl = metadata.image;
-           newBookmarkData.fetchedVideoUrl = metadata.video;
-           newBookmarkData.status = 'metadata_fetched';
-           console.log(`[BookmarkController] Successfully fetched metadata for Reddit URL: ${originalUrl}`);
-         } catch (metaError: any) {
-           console.error(`[BookmarkController] Failed to fetch metadata for ${originalUrl}:`, metaError.message || metaError);
-           newBookmarkData.status = 'error';
-           newBookmarkData.fetchedTitle = `Reddit Post: ${originalUrl.substring(0, 50)}...`;
-           newBookmarkData.fetchedDescription = 'Could not fetch details. Link saved.';
-         }
+    } else if (sourcePlatform === 'Reddit') { // Added Reddit handling
+        console.log(`[BookmarkController] Attempting to fetch metadata for Reddit URL: ${originalUrl}`);
+        try {
+          const metadata = await fetchRedditMetadata(originalUrl);
+          newBookmarkData.fetchedTitle = metadata.title;
+          newBookmarkData.fetchedDescription = metadata.description;
+          newBookmarkData.fetchedImageUrl = metadata.image;
+          newBookmarkData.fetchedVideoUrl = metadata.video; // Store fetched video URL
+          newBookmarkData.status = (metadata.title || metadata.description || metadata.image || metadata.video) ? 'metadata_fetched' : 'error'; // If nothing useful fetched, consider it an error
+          if (newBookmarkData.status === 'metadata_fetched') {
+            console.log(`[BookmarkController] Successfully fetched metadata for Reddit URL: ${originalUrl}`);
+          } else {
+             console.warn(`[BookmarkController] Partially or unsuccessfully fetched metadata for Reddit URL: ${originalUrl}. Title: ${metadata.title}, Desc: ${metadata.description}, Img: ${metadata.image}, Vid: ${metadata.video}`);
+             // Fallback for Reddit if metadata fetch is incomplete or fails
+             if (!newBookmarkData.fetchedTitle) newBookmarkData.fetchedTitle = `Reddit Post: ${originalUrl.substring(0, 50)}...`;
+             if (!newBookmarkData.fetchedDescription && !metadata.video) newBookmarkData.fetchedDescription = "Could not fetch full details. Link saved."; // Avoid overwriting if video exists
+          }
+        } catch (metaError: any) {
+          console.error(`[BookmarkController] Failed to fetch metadata for Reddit URL ${originalUrl}:`, metaError.message || metaError);
+          newBookmarkData.status = 'error'; 
+          newBookmarkData.fetchedTitle = `Reddit Post: ${originalUrl.substring(0, 50)}...`;
+          newBookmarkData.fetchedDescription = "Could not fetch details. Link saved.";
+        }
     } else if (sourcePlatform === 'Other') {
-         // Optional: Add metadata fetching for 'Other' links here too if desired
          console.log(`[BookmarkController] Skipping metadata fetch for 'Other' URL: ${originalUrl}`);
-    } // X platform likely relies on tweet embedding, not generic metadata
+         // For 'Other', we might not attempt to fetch metadata, or have a generic fetcher
+         // If no specific metadata is fetched, it might remain in 'pending' or go to 'metadata_fetched' if some basic info is parsed.
+         // For now, let's assume it goes to 'metadata_fetched' if we want to treat it as processed for initial save.
+         // Or, keep it 'pending' if summarization is the next step. The user wants 'pending' as the default, so let's stick to that unless metadata changes it.
+    } 
 
-    // Use Mongoose model to create a new document
     const createdBookmark = await BookmarkItem.create(newBookmarkData);
     console.log('Bookmark created with ID:', createdBookmark._id);
     return createdBookmark._id;

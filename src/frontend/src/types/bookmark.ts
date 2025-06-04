@@ -9,7 +9,7 @@ export interface BookmarkItemType {
   tags?: string[];
   createdAt: string; // Dates will be strings from JSON
   updatedAt: string;
-  status?: 'pending_summary' | 'summarized' | 'error' | 'metadata_fetched' | 'pending' | 'processing' | 'failed';
+  status?: 'pending' | 'summarized' | 'error' | 'metadata_fetched' | 'processing' | 'failed';
   fetchedTitle?: string;
   fetchedDescription?: string;
   fetchedImageUrl?: string;
