@@ -20,6 +20,7 @@ const processTelegramItemForBookmarks = async (telegramItem) => {
     const socialMediaPatterns = {
         X: /https?:\/\/(twitter\.com|x\.com)/i,
         LinkedIn: /https?:\/\/(?:www\.)?linkedin\.com/i,
+        Reddit: /https?:\/\/(?:www\.)?reddit\.com/i,
     };
     for (const url of telegramItem.urls) {
         let platform = null;
@@ -28,6 +29,9 @@ const processTelegramItemForBookmarks = async (telegramItem) => {
         }
         else if (socialMediaPatterns.LinkedIn.test(url)) {
             platform = 'LinkedIn';
+        }
+        else if (socialMediaPatterns.Reddit.test(url)) {
+            platform = 'Reddit';
         }
         if (platform) {
             try {
