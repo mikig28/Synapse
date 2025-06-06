@@ -69,13 +69,21 @@ axiosInstance.interceptors.response.use(
     });
     
     if (error.response && error.response.status === 401) {
-      // If unauthorized, logout the user
-      // Check if it's not a login/register attempt to avoid logout loop
-      if (error.config && !error.config.url?.includes('/auth/login') && !error.config.url?.includes('/auth/register')) {
-        console.log('[AxiosInterceptor] 401 response detected. Logging out user.');
-        useAuthStore.getState().logout();
-        // Optionally redirect to login page
-        // window.location.href = '/login';
+      // If unauthorized, indicate the session is invalid but avoid immediately
+      // logging the user out. This prevents abrupt page transitions when the
+      // backend rejects a request (e.g. stale token) and allows the caller to
+      // handle the error gracefully.
+      if (
+        error.config &&
+        !error.config.url?.includes('/auth/login') &&
+        !error.config.url?.includes('/auth/register')
+      ) {
+        console.warn(
+          '[AxiosInterceptor] 401 response detected. Token may be invalid.'
+        );
+        // Consumers can choose how to react (e.g. show a toast and redirect).
+        // The previous behaviour forcibly logged the user out which caused the
+        // bookmarks page to disappear while loading.
       }
     }
     return Promise.reject(error);
