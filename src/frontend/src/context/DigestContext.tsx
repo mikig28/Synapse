@@ -18,7 +18,7 @@ interface DigestContextType {
   isBatchSummarizing: boolean;
   summarizeLatestBookmarks: (
     currentBookmarks: BookmarkItemType[], 
-    setCurrentBookmarks: React.Dispatch<React.SetStateAction<BookmarkItemType[]>>
+    setCurrentBookmarks: React.Dispatch<React.SetStateAction<BookmarkItemType[] | null>>
   ) => Promise<void>;
 }
 
@@ -69,7 +69,7 @@ export const DigestProvider: React.FC<{children: ReactNode}> = ({ children }) =>
 
   const summarizeLatestBookmarks = async (
     currentBookmarks: BookmarkItemType[],
-    setCurrentBookmarks: React.Dispatch<React.SetStateAction<BookmarkItemType[]>>
+    setCurrentBookmarks: React.Dispatch<React.SetStateAction<BookmarkItemType[] | null>>
   ) => {
     console.log('[DigestProvider] summarizeLatestBookmarks action called');
     setIsBatchSummarizing(true);
@@ -91,12 +91,13 @@ export const DigestProvider: React.FC<{children: ReactNode}> = ({ children }) =>
       }
 
       if (response.summarizedBookmarks && response.summarizedBookmarks.length > 0) {
-        setCurrentBookmarks(prevBookmarks => 
-          prevBookmarks.map(b => {
+        setCurrentBookmarks(prevBookmarks => {
+          if (!prevBookmarks) return response.summarizedBookmarks;
+          return prevBookmarks.map(b => {
             const updated = response.summarizedBookmarks.find(sb => sb._id === b._id);
             return updated ? updated : b;
-          })
-        );
+          });
+        });
       }
 
       if (response.errors && response.errors.length > 0) {
@@ -106,11 +107,12 @@ export const DigestProvider: React.FC<{children: ReactNode}> = ({ children }) =>
             description: err.error,
             variant: "destructive",
           });
-          setCurrentBookmarks(prevBookmarks => 
-            prevBookmarks.map(b => 
+          setCurrentBookmarks(prevBookmarks => {
+            if (!prevBookmarks) return []; // Should not happen if we have errors, but as a safeguard
+            return prevBookmarks.map(b => 
               b._id === err.bookmarkId ? { ...b, status: 'error' as 'error', summary: b.summary || `Error while creating digest: ${err.error}` } : b
-            )
-          );
+            );
+          });
         });
       }
 
