@@ -162,21 +162,16 @@ const BookmarksPage: React.FC = () => {
     }
   }, [token]);
 
-  const filteredAndSortedBookmarks = useMemo(() => {
-    console.log("[BookmarksPage] Running filteredAndSortedBookmarks memo");
-    
-    // Early return an empty array if still loading or bookmarks is not yet populated
+  // Remove the useMemo and calculate the filtered/sorted array directly in the render logic
+  // This makes the data flow more predictable and avoids potential stale memoized values.
+
+  const getFilteredAndSortedBookmarks = () => {
     if (loading || !Array.isArray(bookmarks)) {
-      console.log("[BookmarksPage] Still loading or bookmarks not an array, returning empty array for filtered bookmarks");
       return [];
     }
-    
-    // Debug original bookmarks
-    console.log(`[BookmarksPage] Original bookmarks count: ${bookmarks.length}`);
-    
+
     const now = new Date();
-    let processedBookmarks = bookmarks.filter(bookmark => {
-      // Add comprehensive null/undefined check for bookmark
+    const processedBookmarks = bookmarks.filter(bookmark => {
       if (!bookmark || typeof bookmark !== 'object' || !bookmark._id) {
         console.warn("[BookmarksPage] Found invalid bookmark in bookmarks array:", bookmark);
         return false;
@@ -210,7 +205,7 @@ const BookmarksPage: React.FC = () => {
       }
     });
 
-    const sortedBookmarks = processedBookmarks.sort((a, b) => {
+    return processedBookmarks.sort((a, b) => {
       try {
         const dateA = new Date(a.createdAt).getTime();
         const dateB = new Date(b.createdAt).getTime();
@@ -220,12 +215,7 @@ const BookmarksPage: React.FC = () => {
         return 0;
       }
     });
-    
-    // Debug processed bookmarks
-    console.log(`[BookmarksPage] Filtered and sorted bookmarks count: ${sortedBookmarks.length}`);
-    
-    return sortedBookmarks;
-  }, [bookmarks, filter, searchTerm, sortOrder, loading]);
+  };
 
   const isValidUrlWithHostname = (url: string | null | undefined): boolean => {
     if (!url || typeof url !== 'string' || url.trim() === '') return false;
@@ -539,6 +529,9 @@ const BookmarksPage: React.FC = () => {
       </div>
     );
   }
+
+  // Calculate the bookmarks to display on every render for maximum safety
+  const filteredAndSortedBookmarks = getFilteredAndSortedBookmarks();
 
   console.log("[BookmarksPage] Rendering main content", {
     filteredBookmarksCount: filteredAndSortedBookmarks.length,
