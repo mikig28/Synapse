@@ -19,7 +19,7 @@ import { SkeletonList } from '@/components/ui/Skeleton';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 
 const BookmarksPage: React.FC = () => {
-  const [bookmarks, setBookmarks] = useState<BookmarkItemType[]>([]);
+  const [bookmarks, setBookmarks] = useState<BookmarkItemType[] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all');
@@ -54,7 +54,7 @@ const BookmarksPage: React.FC = () => {
   // Debug log for component state
   useEffect(() => {
     console.log("[BookmarksPage] Current state:", {
-      bookmarksLength: bookmarks.length,
+      bookmarksLength: bookmarks?.length || 0,
       loading,
       error,
       token: token ? "Present" : "Not present",
@@ -116,7 +116,7 @@ const BookmarksPage: React.FC = () => {
     console.log("[BookmarksPage] Ensuring component stability");
     
     // Force stable rendering after initial load
-    if (!loading && bookmarks.length > 0) {
+    if (!loading && bookmarks && bookmarks.length > 0) {
       const timer = setTimeout(() => {
         console.log("[BookmarksPage] Forcing stable render state");
         // Force a re-render without changing state values
@@ -126,7 +126,7 @@ const BookmarksPage: React.FC = () => {
       
       return () => clearTimeout(timer);
     }
-  }, [loading, bookmarks.length]);
+  }, [loading, bookmarks]);
   
   // Modify the fetchBookmarks useEffect
   useEffect(() => {
@@ -141,7 +141,7 @@ const BookmarksPage: React.FC = () => {
     }
     
     // Fetch bookmarks only if we don't already have them
-    if (bookmarks.length === 0 || currentPage !== lastPageFetched.current) {
+    if (!bookmarks || currentPage !== lastPageFetched.current) {
       lastPageFetched.current = currentPage;
       fetchBookmarksCallback(currentPage).catch(err => {
         console.error("[BookmarksPage] Unhandled error in fetchBookmarks effect:", err);
@@ -151,7 +151,7 @@ const BookmarksPage: React.FC = () => {
     } else {
       console.log("[BookmarksPage] Skipping fetch as we already have bookmarks for this page");
     }
-  }, [fetchBookmarksCallback, currentPage, token, bookmarks.length]);
+  }, [fetchBookmarksCallback, currentPage, token, bookmarks]);
 
   // Add a new useEffect specifically for authentication status changes
   useEffect(() => {
@@ -165,15 +165,9 @@ const BookmarksPage: React.FC = () => {
   const filteredAndSortedBookmarks = useMemo(() => {
     console.log("[BookmarksPage] Running filteredAndSortedBookmarks memo");
     
-    // Early return an empty array if still loading
-    if (loading && bookmarks.length === 0) {
-      console.log("[BookmarksPage] Still loading, returning empty array for filtered bookmarks");
-      return [];
-    }
-    
-    // Protection for invalid bookmarks data - ensure we always return an array
-    if (!Array.isArray(bookmarks) || bookmarks === null || bookmarks === undefined) {
-      console.warn('[BookmarksPage] bookmarks is not a valid array in useMemo. Value:', bookmarks);
+    // Early return an empty array if still loading or bookmarks is not yet populated
+    if (loading || !Array.isArray(bookmarks)) {
+      console.log("[BookmarksPage] Still loading or bookmarks not an array, returning empty array for filtered bookmarks");
       return [];
     }
     
@@ -255,7 +249,7 @@ const BookmarksPage: React.FC = () => {
   const handleDeleteBookmark = async (bookmarkId: string) => {
     try {
       await deleteBookmarkService(bookmarkId);
-      setBookmarks(prev => prev.filter(b => b._id !== bookmarkId));
+      setBookmarks(prev => prev?.filter(b => b._id !== bookmarkId) || null);
       toast({
         title: "Bookmark Deleted",
         description: "The bookmark has been successfully removed.",
@@ -276,7 +270,7 @@ const BookmarksPage: React.FC = () => {
     try {
       const updatedBookmark = await summarizeBookmarkById(bookmarkId);
       setBookmarks(prevBookmarks =>
-        prevBookmarks.map(b => b._id === bookmarkId ? { ...updatedBookmark, status: 'summarized' } : b)
+        prevBookmarks?.map(b => b._id === bookmarkId ? { ...updatedBookmark, status: 'summarized' } : b) || null
       );
       toast({
         title: "Summary Generated",
@@ -287,9 +281,9 @@ const BookmarksPage: React.FC = () => {
       console.error(`Error summarizing bookmark ${bookmarkId}:`, err);
       const errorMessage = err?.message || "Failed to summarize bookmark.";
       setBookmarks(prevBookmarks =>
-        prevBookmarks.map(b =>
+        prevBookmarks?.map(b =>
           b._id === bookmarkId ? { ...b, status: 'error', summary: `Error: ${errorMessage}` } : b
-        )
+        ) || null
       );
       toast({
         title: "Summarization Error",
@@ -303,7 +297,7 @@ const BookmarksPage: React.FC = () => {
   
   const handleSummarizeLatestClick = () => {
     console.log("[BookmarksPage] handleSummarizeLatestClick called, invoking context action.");
-    summarizeLatestBookmarks(bookmarks, setBookmarks);
+    summarizeLatestBookmarks(bookmarks || [], setBookmarks);
   };
 
   const handleSpeakSummary = async (bookmarkId: string, summaryText: string | undefined) => {
@@ -506,8 +500,8 @@ const BookmarksPage: React.FC = () => {
     return null;
   };
 
-  if (loading) {
-    console.log("[BookmarksPage] Rendering loading state");
+  if (loading || bookmarks === null) {
+    console.log("[BookmarksPage] Rendering loading state because loading is true or bookmarks is null");
     return (
       <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-background via-background to-muted/20 relative overflow-hidden">
         <div className="container mx-auto relative z-10">
@@ -682,6 +676,11 @@ const BookmarksPage: React.FC = () => {
           {!loading && !error && Array.isArray(filteredAndSortedBookmarks) && filteredAndSortedBookmarks.length > 0 && (
             <div className="space-y-3 sm:space-y-4 md:space-y-6">
               {filteredAndSortedBookmarks.map((bookmark, index) => {
+                if (!bookmark) {
+                  console.warn(`[BookmarksPage] Rendering null bookmark at index ${index}`);
+                  return null;
+                }
+
                 const isValidOriginalUrl = isValidUrlWithHostname(bookmark.originalUrl);
                 let displayableUrl = bookmark.originalUrl;
                 if (!isValidOriginalUrl) {
