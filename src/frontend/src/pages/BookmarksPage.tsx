@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { ExternalLink, Info, MessageSquareText, Trash2, CalendarDays, FileText, Zap, AlertCircle, Volume2, Search, BookmarkPlus, CheckCircle, XCircle, Loader2, PlayCircle, StopCircle, Brain, ListFilter, ArrowUpDown, Link as LinkIcon } from 'lucide-react';
@@ -85,9 +85,18 @@ const BookmarksPage: React.FC = () => {
         dataLength: response.data?.length || 0
       });
       
-      // Ensure we always set a valid array
-      const validBookmarks = Array.isArray(response.data) ? response.data : [];
-      setBookmarks(validBookmarks);
+      // Ensure we always set a valid array, even if the API response shape varies
+      let bookmarksArray: BookmarkItemType[] = [];
+      if (Array.isArray(response.data)) {
+        bookmarksArray = response.data;
+      } else if (Array.isArray((response as any).bookmarks)) {
+        bookmarksArray = (response as any).bookmarks;
+      } else if (Array.isArray((response as any).data?.data)) {
+        bookmarksArray = (response as any).data.data;
+      } else {
+        console.warn('[BookmarksPage] Unexpected bookmarks response shape', response);
+      }
+      setBookmarks(bookmarksArray);
       setCurrentPage(response.currentPage);
       setTotalPages(response.totalPages);
       setTotalBookmarks(response.totalBookmarks);
