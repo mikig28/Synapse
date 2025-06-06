@@ -48,7 +48,7 @@ const fetchLinkedInMetadata = async (url: string): Promise<{ title?: string; des
 };
 
 // Enhanced Helper function to fetch Reddit Metadata
-const fetchRedditMetadata = async (url: string): Promise<{ title?: string; description?: string; image?: string; video?: string }> => {
+const fetchRedditMetadata = async (url: string): Promise<{ title?: string; description?: string; image?: string; video?: string; postContent?: string; author?: string; subreddit?: string; upvotes?: number; numComments?: number; createdUtc?: number }> => {
   let jsonData: any = null;
   const originalUrl = url; // Keep original URL for fallback
 
@@ -83,31 +83,50 @@ const fetchRedditMetadata = async (url: string): Promise<{ title?: string; descr
     let description = jsonData.selftext; // For text posts
     if (!description && jsonData.body) description = jsonData.body; // For comments if URL is a comment
 
+    // Enhanced content extraction
+    let postContent = '';
+    if (jsonData.selftext && jsonData.selftext.trim()) {
+      postContent = jsonData.selftext.trim();
+    } else if (jsonData.body && jsonData.body.trim()) {
+      postContent = jsonData.body.trim();
+    }
+    
+    // Extract Reddit-specific metadata
+    const author = jsonData.author;
+    const subreddit = jsonData.subreddit;
+    const upvotes = jsonData.ups || jsonData.score;
+    const numComments = jsonData.num_comments;
+    const createdUtc = jsonData.created_utc;
+
     let image: string | undefined = undefined;
     if (jsonData.preview?.images?.[0]?.source?.url) {
-      image = jsonData.preview.images[0].source.url.replace(/&amp;s=/g, '&s='); // Decode &amp;s
+      image = jsonData.preview.images[0].source.url.replace(/&amp;/g, '&'); // Decode HTML entities
     } else if (jsonData.thumbnail && jsonData.thumbnail !== 'self' && jsonData.thumbnail !== 'default' && jsonData.thumbnail !== 'nsfw' && jsonData.thumbnail !== 'spoiler') {
       image = jsonData.thumbnail;
     } else if (jsonData.url_overridden_by_dest && /\.(jpg|jpeg|png|gif)$/i.test(jsonData.url_overridden_by_dest)) {
       image = jsonData.url_overridden_by_dest;
     }
 
-
     let video: string | undefined = undefined;
     if (jsonData.is_video && jsonData.media?.reddit_video?.fallback_url) {
-      video = jsonData.media.reddit_video.fallback_url.replace(/&amp;s=/g, '&s=');
+      video = jsonData.media.reddit_video.fallback_url.replace(/&amp;/g, '&');
     } else if (jsonData.preview?.reddit_video_preview?.fallback_url) {
-      video = jsonData.preview.reddit_video_preview.fallback_url.replace(/&amp;s=/g, '&s=');
+      video = jsonData.preview.reddit_video_preview.fallback_url.replace(/&amp;/g, '&');
     } else if (jsonData.url_overridden_by_dest && /\.(mp4|mov|webm)$/i.test(jsonData.url_overridden_by_dest)) {
         video = jsonData.url_overridden_by_dest;
     }
-
 
     return {
       title: title?.trim(),
       description: description?.trim(),
       image: image,
       video: video,
+      postContent: postContent,
+      author: author,
+      subreddit: subreddit,
+      upvotes: upvotes,
+      numComments: numComments,
+      createdUtc: createdUtc,
     };
   }
 
@@ -135,6 +154,15 @@ const fetchRedditMetadata = async (url: string): Promise<{ title?: string; descr
     const image = $('meta[property=\"og:image\"]').attr('content') || $('img[alt=\"Post image\"]').attr('src');
     const video = $('meta[property=\"og:video\"]').attr('content') || $('meta[property=\"og:video:secure_url\"]').attr('content') || $('shreddit-player').attr('src');
 
+    // Try to extract post content from HTML
+    let postContent = '';
+    const postTextElements = $('div[data-testid=\"post-content\"] p, div[slot=\"text-body\"] p, .usertext-body p');
+    if (postTextElements.length > 0) {
+      postContent = postTextElements.text().trim();
+    } else {
+      // Fallback to description if no specific post content found
+      postContent = description?.trim() || '';
+    }
 
     if (title || description || image) {
         console.log(`[fetchRedditMetadata] Successfully fetched some metadata via HTML scrape for ${originalUrl}`);
@@ -147,6 +175,12 @@ const fetchRedditMetadata = async (url: string): Promise<{ title?: string; descr
       description: description?.trim(),
       image: image?.trim(),
       video: video?.trim(),
+      postContent: postContent,
+      author: undefined, // HTML scraping might not reliably get this
+      subreddit: undefined,
+      upvotes: undefined,
+      numComments: undefined,
+      createdUtc: undefined,
     };
   } catch (scrapeError: any) {
     console.error(`[fetchRedditMetadata] HTML scraping also failed for ${originalUrl}: ${scrapeError.message}`);
@@ -217,7 +251,16 @@ export const processAndCreateBookmark = async (
           existingBookmark.fetchedDescription = metadata.description;
           existingBookmark.fetchedImageUrl = metadata.image;
           existingBookmark.fetchedVideoUrl = metadata.video;
-          existingBookmark.status = (metadata.title || metadata.description || metadata.image || metadata.video) ? 'metadata_fetched' : 'error';
+          
+          // Update Reddit-specific fields
+          (existingBookmark as any).redditPostContent = metadata.postContent;
+          (existingBookmark as any).redditAuthor = metadata.author;
+          (existingBookmark as any).redditSubreddit = metadata.subreddit;
+          (existingBookmark as any).redditUpvotes = metadata.upvotes;
+          (existingBookmark as any).redditNumComments = metadata.numComments;
+          (existingBookmark as any).redditCreatedUtc = metadata.createdUtc;
+          
+          existingBookmark.status = (metadata.title || metadata.description || metadata.image || metadata.video || metadata.postContent) ? 'metadata_fetched' : 'error';
            metadataUpdated = true;
         } catch (metaError: any) {
           console.error(`[BookmarkController] Failed to re-fetch metadata for existing Reddit bookmark ${existingBookmark._id}:`, metaError.message || metaError);
@@ -269,9 +312,17 @@ export const processAndCreateBookmark = async (
            newBookmarkData.fetchedImageUrl = metadata.image;
            newBookmarkData.fetchedVideoUrl = metadata.video;
            
+           // Store Reddit-specific fields
+           (newBookmarkData as any).redditPostContent = metadata.postContent;
+           (newBookmarkData as any).redditAuthor = metadata.author;
+           (newBookmarkData as any).redditSubreddit = metadata.subreddit;
+           (newBookmarkData as any).redditUpvotes = metadata.upvotes;
+           (newBookmarkData as any).redditNumComments = metadata.numComments;
+           (newBookmarkData as any).redditCreatedUtc = metadata.createdUtc;
+           
            // If any piece of metadata is found, consider it 'metadata_fetched'.
            // If title is still undefined/empty after fetch, then set the fallback.
-           if (metadata.title || metadata.description || metadata.image || metadata.video) {
+           if (metadata.title || metadata.description || metadata.image || metadata.video || metadata.postContent) {
              newBookmarkData.status = 'metadata_fetched';
              console.log(`[BookmarkController] Successfully fetched some metadata for Reddit URL: ${originalUrl}`);
              if (!newBookmarkData.fetchedTitle) { // Only set fallback if title is truly empty from metadata

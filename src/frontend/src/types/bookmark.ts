@@ -14,6 +14,13 @@ export interface BookmarkItemType {
   fetchedDescription?: string;
   fetchedImageUrl?: string;
   fetchedVideoUrl?: string;
+  // Reddit-specific content fields
+  redditPostContent?: string;
+  redditAuthor?: string;
+  redditSubreddit?: string;
+  redditUpvotes?: number;
+  redditNumComments?: number;
+  redditCreatedUtc?: number;
   tweetData?: any; // Added - consider a more specific type e.g. from react-tweet
   linkedInData?: any; // Added - consider a more specific type
 }

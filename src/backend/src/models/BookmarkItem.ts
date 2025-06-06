@@ -16,6 +16,13 @@ export interface IBookmarkItem extends Document { // Renaming to IBookmarkItem f
   fetchedDescription?: string;
   fetchedImageUrl?: string;
   fetchedVideoUrl?: string;
+  // Reddit-specific content fields
+  redditPostContent?: string;
+  redditAuthor?: string;
+  redditSubreddit?: string;
+  redditUpvotes?: number;
+  redditNumComments?: number;
+  redditCreatedUtc?: number;
   // createdAt and updatedAt are automatically added by timestamps: true
 }
 
@@ -42,6 +49,13 @@ const BookmarkItemSchema: Schema<IBookmarkItem> = new Schema(
     fetchedDescription: { type: String },
     fetchedImageUrl: { type: String },
     fetchedVideoUrl: { type: String },
+    // Reddit-specific fields
+    redditPostContent: { type: String },
+    redditAuthor: { type: String },
+    redditSubreddit: { type: String },
+    redditUpvotes: { type: Number },
+    redditNumComments: { type: Number },
+    redditCreatedUtc: { type: Number },
   },
   { timestamps: true } // Automatically adds createdAt and updatedAt fields
 );

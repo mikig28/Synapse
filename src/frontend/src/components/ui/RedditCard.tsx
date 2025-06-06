@@ -9,7 +9,7 @@ import {
   CardFooter
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, Trash2, Brain, PlayCircle, StopCircle, AlertCircle, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { ExternalLink, Trash2, Brain, PlayCircle, StopCircle, AlertCircle, Loader2, CheckCircle, XCircle, ArrowUp, MessageCircle, Calendar } from 'lucide-react';
 
 // Define a simple RedditIcon here for now if not available globally
 // You might want to move this to a shared CustomIcons.tsx file
@@ -50,32 +50,92 @@ const RedditCard: React.FC<RedditCardProps> = ({
 
   const displayTitle = bookmark.fetchedTitle || `Reddit Post: ${bookmark.originalUrl.substring(0, 70)}...`;
 
+  // Format Reddit timestamp if available
+  const formatRedditTimestamp = (utc?: number) => {
+    if (!utc) return null;
+    return new Date(utc * 1000).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
   return (
     <Card className="flex flex-col overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 h-full relative group">
       <CardHeader className="flex-grow p-4">
+        {/* Header with subreddit info */}
         <div className="flex justify-between items-start">
           <CardTitle className="text-base font-semibold leading-tight mb-1 flex items-center flex-grow mr-2">
             <RedditIcon className="w-5 h-5 mr-2 text-orange-600 shrink-0" />
-            <a
-              href={bookmark.originalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:underline group-hover:text-primary transition-colors duration-200"
-              title={bookmark.fetchedTitle || bookmark.originalUrl}
-            >
-              <span className="line-clamp-3">
-                {displayTitle}
-              </span>
-            </a>
+            <div className="flex flex-col min-w-0">
+              <a
+                href={bookmark.originalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:underline group-hover:text-primary transition-colors duration-200"
+                title={bookmark.fetchedTitle || bookmark.originalUrl}
+              >
+                <span className="line-clamp-3">
+                  {displayTitle}
+                </span>
+              </a>
+              {/* Subreddit and author info */}
+              {(bookmark.redditSubreddit || bookmark.redditAuthor) && (
+                <div className="flex items-center text-xs text-muted-foreground mt-1 space-x-2">
+                  {bookmark.redditSubreddit && (
+                    <span className="font-medium">r/{bookmark.redditSubreddit}</span>
+                  )}
+                  {bookmark.redditAuthor && (
+                    <span>by u/{bookmark.redditAuthor}</span>
+                  )}
+                  {bookmark.redditCreatedUtc && (
+                    <span className="flex items-center">
+                      <Calendar className="w-3 h-3 mr-1" />
+                      {formatRedditTimestamp(bookmark.redditCreatedUtc)}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </CardTitle>
         </div>
-        {bookmark.fetchedDescription && (
+
+        {/* Post content - this is the key improvement over the old version */}
+        {bookmark.redditPostContent && (
+          <CardContent className="px-0 pt-3 pb-0">
+            <div className="text-sm text-foreground whitespace-pre-wrap line-clamp-6 bg-muted/30 rounded-md p-3 border-l-2 border-orange-600/50">
+              {bookmark.redditPostContent}
+            </div>
+          </CardContent>
+        )}
+
+        {/* Fallback description if no post content */}
+        {!bookmark.redditPostContent && bookmark.fetchedDescription && (
           <CardDescription className="text-sm text-muted-foreground line-clamp-4 mt-1">
             {bookmark.fetchedDescription}
           </CardDescription>
         )}
+
+        {/* Reddit engagement stats */}
+        {(bookmark.redditUpvotes !== undefined || bookmark.redditNumComments !== undefined) && (
+          <div className="flex items-center space-x-4 mt-2 text-xs text-muted-foreground">
+            {bookmark.redditUpvotes !== undefined && (
+              <div className="flex items-center">
+                <ArrowUp className="w-3 h-3 mr-1 text-orange-600" />
+                <span>{bookmark.redditUpvotes.toLocaleString()} upvotes</span>
+              </div>
+            )}
+            {bookmark.redditNumComments !== undefined && (
+              <div className="flex items-center">
+                <MessageCircle className="w-3 h-3 mr-1 text-blue-600" />
+                <span>{bookmark.redditNumComments.toLocaleString()} comments</span>
+              </div>
+            )}
+          </div>
+        )}
       </CardHeader>
 
+      {/* Media content */}
       {(bookmark.fetchedImageUrl || bookmark.fetchedVideoUrl) && (
         <CardContent className="p-4 pt-0">
           {bookmark.fetchedImageUrl && !bookmark.fetchedVideoUrl && (
@@ -99,6 +159,7 @@ const RedditCard: React.FC<RedditCardProps> = ({
         </CardContent>
       )}
 
+      {/* Summary section */}
       {currentSummaryStatus === 'summarized' && currentSummaryText && (
         <CardContent className="p-4 pt-2 text-sm text-muted-foreground/90">
           <details>
@@ -116,6 +177,7 @@ const RedditCard: React.FC<RedditCardProps> = ({
         </div>
       )}
 
+      {/* Footer with actions */}
       <CardFooter className="p-4 pt-2 border-t mt-auto flex flex-col items-stretch gap-2">
         <div className="flex justify-between items-center w-full">
           <Button
@@ -135,7 +197,12 @@ const RedditCard: React.FC<RedditCardProps> = ({
                 size="icon"
                 onClick={(e) => { e.stopPropagation(); onSummarize(bookmark._id); }}
                 disabled={isSummarizing || currentSummaryStatus === 'summarized' || currentSummaryStatus === 'processing'}
-                title={                  currentSummaryStatus === 'summarized' ? "Already Summarized" :                  currentSummaryStatus === 'pending' ? "Summary Pending" :                  currentSummaryStatus === 'processing' ? "Processing Summary" :                  "Summarize Content"                }
+                title={
+                  currentSummaryStatus === 'summarized' ? "Already Summarized" :
+                  currentSummaryStatus === 'pending' ? "Summary Pending" :
+                  currentSummaryStatus === 'processing' ? "Processing Summary" :
+                  "Summarize Content"
+                }
               >
                 {isSummarizing && summarizingBookmarkId === bookmark._id ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -148,7 +215,8 @@ const RedditCard: React.FC<RedditCardProps> = ({
                 )}
               </Button>
             )}
-            {onSpeakSummary && currentSummaryStatus === 'summarized' && currentSummaryText && (
+            
+            {onSpeakSummary && (
               <Button
                 variant="outline"
                 size="icon"
