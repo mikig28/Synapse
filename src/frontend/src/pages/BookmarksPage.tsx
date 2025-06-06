@@ -85,7 +85,9 @@ const BookmarksPage: React.FC = () => {
         dataLength: response.data?.length || 0
       });
       
-      setBookmarks(response.data);
+      // Ensure we always set a valid array
+      const validBookmarks = Array.isArray(response.data) ? response.data : [];
+      setBookmarks(validBookmarks);
       setCurrentPage(response.currentPage);
       setTotalPages(response.totalPages);
       setTotalBookmarks(response.totalBookmarks);
@@ -169,9 +171,9 @@ const BookmarksPage: React.FC = () => {
       return [];
     }
     
-    // Protection for invalid bookmarks data
-    if (!Array.isArray(bookmarks)) {
-      console.warn('[BookmarksPage] bookmarks is not an array in useMemo. Value:', bookmarks);
+    // Protection for invalid bookmarks data - ensure we always return an array
+    if (!Array.isArray(bookmarks) || bookmarks === null || bookmarks === undefined) {
+      console.warn('[BookmarksPage] bookmarks is not a valid array in useMemo. Value:', bookmarks);
       return [];
     }
     
@@ -180,9 +182,9 @@ const BookmarksPage: React.FC = () => {
     
     const now = new Date();
     let processedBookmarks = bookmarks.filter(bookmark => {
-      // Add null check for bookmark
-      if (!bookmark) {
-        console.warn("[BookmarksPage] Found null or undefined bookmark in bookmarks array");
+      // Add comprehensive null/undefined check for bookmark
+      if (!bookmark || typeof bookmark !== 'object' || !bookmark._id) {
+        console.warn("[BookmarksPage] Found invalid bookmark in bookmarks array:", bookmark);
         return false;
       }
       
@@ -199,10 +201,13 @@ const BookmarksPage: React.FC = () => {
           searchTerm === '' ? true :
           bookmark.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           bookmark.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          bookmark.originalUrl.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (bookmark.sourcePlatform === 'X' && bookmark.fetchedTitle?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (bookmark.sourcePlatform === 'LinkedIn' && bookmark.fetchedTitle?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (bookmark.sourcePlatform === 'Reddit' && bookmark.fetchedTitle?.toLowerCase().includes(searchTerm.toLowerCase()));
+          bookmark.originalUrl?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          bookmark.fetchedTitle?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (bookmark.sourcePlatform === 'Reddit' && (
+            bookmark.redditPostContent?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            bookmark.redditAuthor?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            bookmark.redditSubreddit?.toLowerCase().includes(searchTerm.toLowerCase())
+          ));
 
         return matchesFilter && matchesSearch;
       } catch (err) {
@@ -674,7 +679,7 @@ const BookmarksPage: React.FC = () => {
             </Card>
           )}
 
-          {!loading && !error && filteredAndSortedBookmarks.length > 0 && (
+          {!loading && !error && Array.isArray(filteredAndSortedBookmarks) && filteredAndSortedBookmarks.length > 0 && (
             <div className="space-y-3 sm:space-y-4 md:space-y-6">
               {filteredAndSortedBookmarks.map((bookmark, index) => {
                 const isValidOriginalUrl = isValidUrlWithHostname(bookmark.originalUrl);
