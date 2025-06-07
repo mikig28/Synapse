@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuthAxios } from '../hooks/useAuthAxios'; // Assuming useAuthAxios is set up for authenticated requests
+import { useAuthAxios } from './useAuthAxios'; // Assuming useAuthAxios is set up for authenticated requests
 
 export const useSecureImage = (imageId: string | undefined) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
