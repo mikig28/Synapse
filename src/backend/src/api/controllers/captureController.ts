@@ -5,6 +5,7 @@ import path from 'path'; // <-- Import path for constructing file paths
 import { processAndCreateBookmark } from './bookmarksController'; // Import the new function
 import { ObjectId } from 'mongodb';
 import { AuthenticatedRequest } from '../../types/express';
+import { getBucket } from '../../config/gridfs';
 // Assuming you have a way to get authenticated user ID from request, e.g., from a JWT middleware
 // For now, we'll assume req.user.id exists after authentication middleware.
 
@@ -90,23 +91,22 @@ export const deleteTelegramItem = async (req: AuthenticatedRequest, res: Respons
       return res.status(404).json({ message: 'Telegram item not found or not authorized to delete' });
     }
 
-    // If the item has a local media file, delete it from the server
-    if (item.mediaLocalUrl) {
-      // Construct the absolute path to the file on the server
-      // mediaLocalUrl is stored as /public/uploads/telegram_media/filename.jpg
-      // We need to get to src/backend/public/uploads/telegram_media/filename.jpg
-      const relativePath = item.mediaLocalUrl.startsWith('/public/') 
-        ? item.mediaLocalUrl.substring('/public'.length) 
-        : item.mediaLocalUrl;
-      const filePath = path.join(__dirname, '..', '..', 'public', relativePath);
-      
-      fs.unlink(filePath, (err) => {
-        if (err) {
-          // Log the error, but don't necessarily block DB deletion if file deletion fails
-          // It could be that the file was already manually deleted or path is incorrect
-          console.error(`[DELETE_TELEGRAM_ITEM_FILE_ERROR] Failed to delete local file ${filePath}:`, err);
-        }
-      });
+    // If the item has a media file in GridFS, delete it
+    if (item.mediaGridFsId) {
+      try {
+        const bucket = getBucket();
+        await bucket.delete(new ObjectId(item.mediaGridFsId));
+        console.log(`[DELETE_TELEGRAM_ITEM_FILE] Deleted GridFS file: ${item.mediaGridFsId}`);
+      } catch (gridfsError: any) {
+          // Log the error, but don't block DB deletion if GridFS deletion fails.
+          // It could be that the file ID is invalid or file doesn't exist.
+          console.error(`[DELETE_TELEGRAM_ITEM_FILE_ERROR] Failed to delete GridFS file ${item.mediaGridFsId}:`, gridfsError);
+          if (gridfsError.message.includes('not found')) {
+            // This isn't a server error if the file is just not there, so don't throw.
+          } else {
+            // For other errors (e.g., DB connection), still log but proceed.
+          }
+      }
     }
 
     await TelegramItem.findByIdAndDelete(itemId);

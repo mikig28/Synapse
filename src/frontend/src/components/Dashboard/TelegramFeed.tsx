@@ -3,6 +3,9 @@ import { useTelegram } from '../../contexts/TelegramContext'; // Adjust path as 
 import { TelegramItemType } from '../../types/telegram'; // Adjust path as needed
 import { X, MessageSquareText } from 'lucide-react'; // Import X and an icon for transcription
 import { STATIC_ASSETS_BASE_URL } from '../../services/axiosConfig'; // Import the new base URL
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import { motion } from 'framer-motion';
 
 // Use Vite environment variable for the API base URL, fallback for local dev
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
@@ -47,7 +50,7 @@ const TelegramFeed: React.FC = () => {
       )}
       <ul className="space-y-3 max-h-72 sm:max-h-80 md:max-h-96 overflow-y-auto pr-2"> {/* Added pr-2 for scrollbar spacing */}
         {telegramItems.map((item: TelegramItemType) => (
-          <li key={item._id} className="p-2 sm:p-3 border rounded-md bg-background shadow-sm relative group">
+          <motion.li key={item._id} className="p-2 sm:p-3 border rounded-md bg-background shadow-sm relative group">
             <button 
               onClick={() => handleDelete(item._id, item.title || item.content || item.text || item.messageType)} 
               className="absolute top-1 right-1 p-1.5 text-muted-foreground hover:text-destructive opacity-75 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100 transition-opacity rounded-full hover:bg-muted/50"
@@ -80,13 +83,15 @@ const TelegramFeed: React.FC = () => {
               </div>
             )}
 
-            {item.messageType === 'photo' && item.mediaLocalUrl && (
-              <div className="mt-2">
-                <img 
-                  src={`${STATIC_ASSETS_BASE_URL}${item.mediaLocalUrl}`} 
-                  alt="Telegram Photo" 
-                  className="w-full sm:max-w-xs max-h-64 rounded-md border object-cover"
-                />
+            {item.messageType === 'photo' && item.mediaGridFsId && (
+              <div className="mt-2 rounded-lg overflow-hidden">
+                <a href={`/api/v1/media/${item.mediaGridFsId}`} target="_blank" rel="noopener noreferrer">
+                  <img 
+                    src={`/api/v1/media/${item.mediaGridFsId}`} 
+                    alt="Telegram attachment" 
+                    className="max-w-full h-auto" 
+                  />
+                </a>
               </div>
             )}
             {item.urls && item.urls.length > 0 && (
@@ -108,7 +113,7 @@ const TelegramFeed: React.FC = () => {
             {/* <div className="text-xs text-gray-400 mt-2">
               Source: {item.source || 'N/A'} | Type: {item.messageType || 'N/A'} | ID: {item._id}
             </div> */}
-          </li>
+          </motion.li>
         ))}
       </ul>
     </div>

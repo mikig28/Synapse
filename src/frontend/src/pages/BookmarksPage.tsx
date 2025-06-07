@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { ExternalLink, Info, MessageSquareText, Trash2, CalendarDays, FileText, Zap, AlertCircle, Volume2, Search, BookmarkPlus, CheckCircle, XCircle, Loader2, PlayCircle, StopCircle, Brain, ListFilter, ArrowUpDown, Link as LinkIcon } from 'lucide-react';
@@ -85,9 +85,18 @@ const BookmarksPage: React.FC = () => {
         dataLength: response.data?.length || 0
       });
       
-      // Ensure we always set a valid array
-      const validBookmarks = Array.isArray(response.data) ? response.data : [];
-      setBookmarks(validBookmarks);
+      // Ensure we always set a valid array, even if the API response shape varies
+      let bookmarksArray: BookmarkItemType[] = [];
+      if (Array.isArray(response.data)) {
+        bookmarksArray = response.data;
+      } else if (Array.isArray((response as any).bookmarks)) {
+        bookmarksArray = (response as any).bookmarks;
+      } else if (Array.isArray((response as any).data?.data)) {
+        bookmarksArray = (response as any).data.data;
+      } else {
+        console.warn('[BookmarksPage] Unexpected bookmarks response shape', response);
+      }
+      setBookmarks(bookmarksArray);
       setCurrentPage(response.currentPage);
       setTotalPages(response.totalPages);
       setTotalBookmarks(response.totalBookmarks);
@@ -109,24 +118,6 @@ const BookmarksPage: React.FC = () => {
       setLoading(false);
     }
   }, [token, toast]);
-
-  // Add this useEffect to prevent framer-motion from unmounting the components
-  useEffect(() => {
-    // This effect is to ensure the component stays mounted
-    console.log("[BookmarksPage] Ensuring component stability");
-    
-    // Force stable rendering after initial load
-    if (!loading && bookmarks && bookmarks.length > 0) {
-      const timer = setTimeout(() => {
-        console.log("[BookmarksPage] Forcing stable render state");
-        // Force a re-render without changing state values
-        // by setting state to the same value
-        setBookmarks([...bookmarks]);
-      }, 300);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [loading, bookmarks]);
   
   // Modify the fetchBookmarks useEffect
   useEffect(() => {
@@ -137,21 +128,31 @@ const BookmarksPage: React.FC = () => {
       console.error("[BookmarksPage] No authentication token available");
       setError("You must be logged in to view bookmarks. Please log in and try again.");
       setLoading(false);
+      setBookmarks(null); // Also clear bookmarks if token is lost
       return;
     }
     
-    // Fetch bookmarks only if we don't already have them
-    if (!bookmarks || currentPage !== lastPageFetched.current) {
-      lastPageFetched.current = currentPage;
+    // Fetch bookmarks if the page changed, or if bookmarks are not yet loaded for the current view.
+    // The `fetchBookmarksCallback` will handle the actual API call and state updates.
+    // `lastPageFetched.current` helps prevent re-fetching the same page if the effect runs
+    // due to other dependency changes (though `fetchBookmarksCallback` is stable).
+    if (currentPage !== lastPageFetched.current || !bookmarks) {
+      console.log(`[BookmarksPage] Conditions met to fetch. Current page: ${currentPage}, Last fetched: ${lastPageFetched.current}, Bookmarks exist: ${!!bookmarks}`);
+      lastPageFetched.current = currentPage; // Update last fetched page before calling fetch
       fetchBookmarksCallback(currentPage).catch(err => {
         console.error("[BookmarksPage] Unhandled error in fetchBookmarks effect:", err);
         setError(`Failed to load bookmarks: ${err.message || "Unknown error"}`);
-        setLoading(false);
+        setLoading(false); // Ensure loading is set to false on error
       });
     } else {
-      console.log("[BookmarksPage] Skipping fetch as we already have bookmarks for this page");
+      console.log(`[BookmarksPage] Skipping fetch for page ${currentPage}. lastPageFetched: ${lastPageFetched.current}, Bookmarks loaded: ${!!bookmarks}`);
+      // If we skipped fetch because data is already there, ensure loading is false.
+      // This can happen if token changes but page and data are current.
+      if (loading) {
+        setLoading(false);
+      }
     }
-  }, [fetchBookmarksCallback, currentPage, token, bookmarks]);
+  }, [fetchBookmarksCallback, currentPage, token]); // MODIFIED dependencies
 
   // Add a new useEffect specifically for authentication status changes
   useEffect(() => {
@@ -490,8 +491,8 @@ const BookmarksPage: React.FC = () => {
     return null;
   };
 
-  if (loading || bookmarks === null) {
-    console.log("[BookmarksPage] Rendering loading state because loading is true or bookmarks is null");
+  if (loading) {
+    console.log("[BookmarksPage] Rendering loading state because loading is true");
     return (
       <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-background via-background to-muted/20 relative overflow-hidden">
         <div className="container mx-auto relative z-10">
@@ -530,6 +531,21 @@ const BookmarksPage: React.FC = () => {
     );
   }
 
+  // This case should ideally not be hit if API always returns an array for data (even empty)
+  // and if token loss sets an error. But as a fallback:
+  if (bookmarks === null) {
+    console.log("[BookmarksPage] Rendering fallback state: bookmarks is null, not loading, no error.");
+    return (
+      <div className="p-4 md:p-8 min-h-screen flex items-center justify-center bg-background">
+        {/* Minimal indicator, or could be a more specific message */}
+        <Loader2 className="w-12 h-12 animate-spin text-primary opacity-50" />
+        <p className="ml-4 text-muted-foreground">Preparing your bookmarks...</p>
+      </div>
+    );
+  }
+
+  // If we reach here, loading is false, error is null, and bookmarks is an array.
+  // The rest of the component rendering logic (calculating filteredAndSortedBookmarks, returning main layout) follows.
   // Calculate the bookmarks to display on every render for maximum safety
   const filteredAndSortedBookmarks = getFilteredAndSortedBookmarks();
 

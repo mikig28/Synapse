@@ -22,7 +22,7 @@ const ImagesPage: React.FC = () => {
   const { ref: headerRef, isInView: headerVisible } = useScrollAnimation();
 
   const imageItems = telegramItems.filter(
-    (item) => item.messageType === 'photo' && item.mediaLocalUrl
+    (item) => item.messageType === 'photo' && item.mediaGridFsId
   );
 
   // Standard container and item variants for consistent page animations
@@ -43,8 +43,8 @@ const ImagesPage: React.FC = () => {
     }
   };
 
-  const handleDelete = async (itemId: string, itemInfo: string) => {
-    if (window.confirm(`Are you sure you want to delete this image (${itemInfo})?`)) {
+  const handleDelete = async (itemId: string) => {
+    if (window.confirm(`Are you sure you want to delete this image?`)) {
       try {
         await deleteTelegramItem(itemId);
       } catch (error) {
@@ -168,7 +168,7 @@ const ImagesPage: React.FC = () => {
                 <GlassCard className="overflow-hidden group relative h-full flex flex-col">
                   {/* Delete Button */}
                   <motion.button
-                    onClick={() => handleDelete(item._id, item.mediaLocalUrl || item._id)}
+                    onClick={() => handleDelete(item._id)}
                     className="absolute top-2 right-2 z-10 p-2 bg-red-500/80 text-white rounded-full hover:bg-red-600/90 opacity-0 group-hover:opacity-100 transition-all focus:opacity-100"
                     title="Delete image"
                     whileHover={{ scale: 1.1 }}
@@ -180,13 +180,13 @@ const ImagesPage: React.FC = () => {
                   {/* Image */}
                   <div className="relative overflow-hidden">
                     <a 
-                      href={`${STATIC_ASSETS_BASE_URL}${item.mediaLocalUrl}`} 
+                      href={`/api/v1/media/${item.mediaGridFsId}`} 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="block relative group"
                     >
                       <img 
-                        src={`${STATIC_ASSETS_BASE_URL}${item.mediaLocalUrl}`}
+                        src={`/api/v1/media/${item.mediaGridFsId}`}
                         alt={`Telegram Photo from ${item.fromUsername || 'Unknown'} in ${item.chatTitle || 'DM'}`}
                         className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-110"
                       />

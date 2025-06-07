@@ -15,7 +15,7 @@ interface TelegramItem {
   urls?: string[];
   messageType: 'text' | 'photo' | 'document' | 'voice' | 'video' | 'other';
   mediaFileId?: string;
-  mediaLocalUrl?: string;
+  mediaGridFsId?: string;
   receivedAt: string; // Date as string from JSON
   createdAt: string;
   updatedAt: string;

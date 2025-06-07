@@ -111,7 +111,7 @@ bot.on('message', async (msg: TelegramBot.Message) => {
         const fileLink = await bot.getFileLink(mediaFileId);
         const fileResponse = await axios<Readable>({ url: fileLink, responseType: 'stream' });
         
-        const fileName = `${mediaId}.jpg`;
+        const fileName = `${mediaFileId}.jpg`;
         const bucket = getBucket();
         const uploadStream = bucket.openUploadStream(fileName, {
           contentType: 'image/jpeg' // Set content type
@@ -148,7 +148,7 @@ bot.on('message', async (msg: TelegramBot.Message) => {
       try {
         const fileLink = await bot.getFileLink(mediaFileId);
         const fileResponse = await axios<Readable>({ url: fileLink, responseType: 'stream' });
-        const fileName = `${mediaId}.oga`;
+        const fileName = `${mediaFileId}.oga`;
         localFilePath = path.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_voice', fileName);
         if (fileResponse.data) {
           const writer = fs.createWriteStream(localFilePath);

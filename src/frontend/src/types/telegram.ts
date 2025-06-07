@@ -8,7 +8,7 @@ export interface TelegramItemType {
   urls?: string[];
   messageType?: string; // Original message type from Telegram
   mediaFileId?: string;
-  mediaLocalUrl?: string;
+  mediaGridFsId?: string;
   receivedAt: string; // Original message receivedAt
   createdAt: string; // Document createdAt
   updatedAt: string;
