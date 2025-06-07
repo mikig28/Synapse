@@ -9,6 +9,10 @@ let bucket: GridFSBucket;
 export const initializeGridFS = () => {
   if (!bucket && mongoose.connection.readyState === 1) {
     const db = mongoose.connection.db;
+    if (!db) {
+      console.error('[GridFS]: Cannot initialize. Mongoose has no db object.');
+      return;
+    }
     bucket = new GridFSBucket(db, {
       bucketName: 'media',
     });

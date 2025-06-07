@@ -279,7 +279,7 @@ bot.on('message', async (msg: TelegramBot.Message) => {
         for (const url of savedItem.urls) {
             if (isYouTubeUrl(url)) {
                 console.log(`[TelegramBot]: YouTube URL detected: ${url}. Processing as video...`);
-                await processAndCreateVideoItem(synapseUser._id, url, telegramItemIdString);
+                await processAndCreateVideoItem(synapseUser._id.toString(), url, telegramItemIdString);
                 processedAsVideo = true;
             }
         }
