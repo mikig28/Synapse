@@ -1,5 +1,5 @@
 import React from 'react';
-import { useSecureImage } from '../hooks/useSecureImage';
+import { useSecureImage } from '../../hooks/useSecureImage';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 interface SecureImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
