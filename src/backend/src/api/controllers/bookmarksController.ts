@@ -292,6 +292,7 @@ export const processAndCreateBookmark = async (
         console.log(`[BookmarkController] Attempting to fetch metadata for LinkedIn URL: ${originalUrl}`);
         try {
           const metadata = await fetchLinkedInMetadata(originalUrl);
+          console.log('[BookmarkController] LinkedIn metadata fetched:', metadata);
           newBookmarkData.fetchedTitle = metadata.title;
           newBookmarkData.fetchedDescription = metadata.description;
           newBookmarkData.fetchedImageUrl = metadata.image;
@@ -307,6 +308,7 @@ export const processAndCreateBookmark = async (
          console.log(`[BookmarkController] Attempting to fetch metadata for Reddit URL: ${originalUrl}`);
          try {
            const metadata = await fetchRedditMetadata(originalUrl);
+           console.log('[BookmarkController] Reddit metadata fetched:', metadata);
            newBookmarkData.fetchedTitle = metadata.title; // Trust the title from fetchRedditMetadata (could be undefined)
            newBookmarkData.fetchedDescription = metadata.description;
            newBookmarkData.fetchedImageUrl = metadata.image;
@@ -342,7 +344,7 @@ export const processAndCreateBookmark = async (
            newBookmarkData.fetchedDescription = 'Could not fetch details. Link saved.';
          }
     } else if (sourcePlatform === 'Other') {
-         console.log(`[BookmarkController] Skipping metadata fetch for 'Other' URL: ${originalUrl}`);
+         console.log(`[BookmarkController] Creating bookmark for 'Other' URL: ${originalUrl}`);
          // For 'Other' types, we may not have specific metadata fetching.
          // We can set to 'metadata_fetched' if no further processing is expected before summarization,
          // or leave as 'pending' if it needs other steps.

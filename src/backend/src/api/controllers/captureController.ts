@@ -26,8 +26,11 @@ export const processTelegramItemForBookmarks = async (telegramItem: ITelegramIte
     Reddit: /https?:\/\/(?:www\.)?reddit\.com\/r\/[a-zA-Z0-9_]+\/comments\//i,
   };
 
+  console.log('[processTelegramItemForBookmarks] Starting URL processing for TelegramItem ID:', telegramItem._id);
+
   for (const url of telegramItem.urls) {
     let platform: 'X' | 'LinkedIn' | 'Reddit' | 'Other' | null = null;
+    console.log(`[processTelegramItemForBookmarks] Evaluating URL: ${url}`);
 
     if (socialMediaPatterns.X.test(url)) {
       platform = 'X';
@@ -39,6 +42,8 @@ export const processTelegramItemForBookmarks = async (telegramItem: ITelegramIte
       // It's a URL, but doesn't match a specific social media pattern
       platform = 'Other';
     }
+
+    console.log(`[processTelegramItemForBookmarks] Assigned Platform: ${platform} for URL: ${url}`);
 
     if (platform) {
       try {
