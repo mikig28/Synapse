@@ -514,7 +514,7 @@ const BookmarksPage: React.FC = () => {
     console.log("[BookmarksPage] Rendering error state:", error);
     return (
       <div className="p-4 md:p-8 min-h-screen bg-gradient-to-br from-background via-destructive/5 to-background text-foreground flex flex-col items-center justify-center">
-        <Card className="w-full max-w-lg text-center border-destructive/20 bg-background/80 backdrop-blur-sm">
+        <Card className="w-full max-w-lg text-center border-destructive/20 bg-background/80 backdrop-blur-sm mobile-card">
           <CardHeader>
             <CardTitle className="text-3xl text-destructive flex items-center justify-center">
               <AlertCircle className="w-10 h-10 mr-3" /> Error Loading Bookmarks
@@ -522,7 +522,7 @@ const BookmarksPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <p className="text-lg mb-4">{error}</p>
-            <Button onClick={() => fetchBookmarksCallback(1)} className="hover:scale-105 transition-transform">
+            <Button onClick={() => fetchBookmarksCallback(1)} className="hover:scale-105 transition-transform mobile-button">
               <Zap className="mr-2 h-4 w-4" /> Try Again
             </Button>
           </CardContent>
@@ -570,7 +570,7 @@ const BookmarksPage: React.FC = () => {
         />
       </div>
 
-      <div className="relative z-10 container mx-auto p-3 sm:p-4 md:p-8 space-y-6 sm:space-y-8">
+      <div className="relative z-10 container mx-auto mobile-padding space-y-6 sm:space-y-8">
         <div
           ref={headerRef}
           className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 md:mb-8 gap-4 opacity-100"
@@ -592,7 +592,7 @@ const BookmarksPage: React.FC = () => {
             onClick={handleSummarizeLatestClick} 
             size="lg"
             disabled={isBatchSummarizing || loading || !!error || !token}
-            className="w-full sm:w-auto self-stretch sm:self-auto hover:scale-105 transition-all duration-200 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 min-h-[48px] touch-manipulation"
+            className="w-full sm:w-auto self-stretch sm:self-auto hover:scale-105 transition-all duration-200 bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 min-h-[48px] touch-manipulation mobile-button"
           >
             {isBatchSummarizing ? (
               <>
@@ -612,7 +612,7 @@ const BookmarksPage: React.FC = () => {
           ref={controlsRef}
           className="opacity-100"
         >
-          <Card className="p-3 sm:p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50">
+          <Card className="p-3 sm:p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50 mobile-card">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 items-end">
               <div className="lg:col-span-1">
                 <Label htmlFor="bookmarks-search" className="text-sm font-medium text-muted-foreground mb-2 block">Search</Label>
@@ -671,7 +671,7 @@ const BookmarksPage: React.FC = () => {
           )}
           
           {!loading && !error && filteredAndSortedBookmarks.length === 0 && (
-            <Card className="p-8 my-6 text-center bg-background/80 backdrop-blur-sm border-border/50">
+            <Card className="p-8 my-6 text-center bg-background/80 backdrop-blur-sm border-border/50 mobile-card">
               <BookmarkPlus className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
               <h3 className="text-xl font-semibold text-foreground mb-2">
                 {searchTerm || filter !== 'all' ? 'No Bookmarks Match Your Criteria' : 'No Bookmarks Yet'}
@@ -705,7 +705,7 @@ const BookmarksPage: React.FC = () => {
                     key={bookmark._id}
                     className="group"
                   >
-                    <Card className="p-3 sm:p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10">
+                    <Card className="p-3 sm:p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10 mobile-card">
                       <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-4">
                         <div className="flex-grow min-w-0 w-full sm:w-auto">
                           {isValidOriginalUrl ? (
@@ -734,7 +734,7 @@ const BookmarksPage: React.FC = () => {
                             variant="ghost"
                             onClick={() => handleSummarizeBookmark(bookmark._id)}
                             disabled={summarizingBookmarkId === bookmark._id || bookmark.status === 'processing'}
-                            className="hover:bg-primary/10 hover:text-primary transition-colors duration-200 min-h-[44px] min-w-[44px] touch-manipulation"
+                            className="hover:bg-primary/10 hover:text-primary transition-colors duration-200 min-h-[44px] min-w-[44px] touch-manipulation mobile-button tap-target"
                             title="Generate Summary"
                           >
                             {summarizingBookmarkId === bookmark._id ? (
@@ -752,7 +752,7 @@ const BookmarksPage: React.FC = () => {
                             variant="ghost"
                             onClick={() => handleSpeakSummary(bookmark._id, bookmark.summary)}
                             disabled={!bookmark.summary || bookmark.status !== 'summarized'}
-                            className={`hover:bg-accent/10 hover:text-accent transition-colors duration-200 min-h-[44px] min-w-[44px] touch-manipulation ${audioErrorId === bookmark._id ? 'text-destructive' : ''}`}
+                            className={`hover:bg-accent/10 hover:text-accent transition-colors duration-200 min-h-[44px] min-w-[44px] touch-manipulation mobile-button tap-target ${audioErrorId === bookmark._id ? 'text-destructive' : ''}`}
                             title={audioErrorId === bookmark._id ? "Audio Error" : (playingBookmarkId === bookmark._id ? "Stop Speaking" : "Speak Summary")}
                           >
                             {playingBookmarkId === bookmark._id ? (
@@ -767,7 +767,7 @@ const BookmarksPage: React.FC = () => {
                             size="icon"
                             variant="ghost"
                             onClick={() => handleDeleteBookmark(bookmark._id)}
-                            className="hover:bg-destructive/10 hover:text-destructive transition-colors duration-200 min-h-[44px] min-w-[44px] touch-manipulation"
+                            className="hover:bg-destructive/10 hover:text-destructive transition-colors duration-200 min-h-[44px] min-w-[44px] touch-manipulation mobile-button tap-target"
                             title="Delete Bookmark"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -800,7 +800,7 @@ const BookmarksPage: React.FC = () => {
               disabled={currentPage <= 1}
               variant="outline"
               size="sm"
-              className="w-full sm:w-auto min-h-[44px] touch-manipulation"
+              className="w-full sm:w-auto min-h-[44px] touch-manipulation mobile-button"
             >
               Previous
             </Button>
@@ -812,7 +812,7 @@ const BookmarksPage: React.FC = () => {
               disabled={currentPage >= totalPages}
               variant="outline"
               size="sm"
-              className="w-full sm:w-auto min-h-[44px] touch-manipulation"
+              className="w-full sm:w-auto min-h-[44px] touch-manipulation mobile-button"
             >
               Next
             </Button>
