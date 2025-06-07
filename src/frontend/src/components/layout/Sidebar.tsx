@@ -19,6 +19,8 @@ import {
   FileText,
   Lightbulb,
   Mic,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -29,6 +31,10 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
+  const [showScrollTop, setShowScrollTop] = React.useState(false);
+  const [showScrollBottom, setShowScrollBottom] = React.useState(false);
+  const navRef = React.useRef<HTMLElement>(null);
+
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/inbox", label: "Inbox", icon: Inbox },
@@ -53,6 +59,40 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
 
   const location = useLocation();
 
+  // Check scroll position to show/hide indicators
+  const checkScroll = React.useCallback(() => {
+    if (navRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = navRef.current;
+      setShowScrollTop(scrollTop > 10);
+      setShowScrollBottom(scrollTop < scrollHeight - clientHeight - 10);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const nav = navRef.current;
+    if (nav) {
+      checkScroll();
+      nav.addEventListener('scroll', checkScroll);
+      // Also check on resize
+      window.addEventListener('resize', checkScroll);
+      return () => {
+        nav.removeEventListener('scroll', checkScroll);
+        window.removeEventListener('resize', checkScroll);
+      };
+    }
+  }, [checkScroll]);
+
+  // Scroll functions
+  const scrollToTop = () => {
+    navRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const scrollToBottom = () => {
+    if (navRef.current) {
+      navRef.current.scrollTo({ top: navRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  };
+
   const linkVariants = {
     initial: { opacity: 0, x: -20 },
     animate: { opacity: 1, x: 0 },
@@ -64,7 +104,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
     <aside
       className={`
         flex flex-col z-40
-        bg-gray-900 backdrop-blur-sm border-r border-white/10 p-4
+        bg-gray-900 backdrop-blur-sm border-r border-white/10
         
         /* DESKTOP (≥ md) ----------------------------------- */
         md:block md:sticky md:top-0 
@@ -85,7 +125,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
       aria-label="Primary"
     >
       {/* Header section - fixed height */}
-      <div className="mb-4 flex items-center justify-center pt-2 flex-shrink-0">
+      <div className="px-4 pt-4 pb-2 flex items-center justify-center flex-shrink-0">
         {/* Synapse Logo/Icon - visible when open, tiny icon when closed */}
         <Link to="/dashboard" className="flex items-center gap-2">
           <motion.svg 
@@ -106,9 +146,31 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
         </Link>
       </div>
       
+      {/* Scroll top indicator */}
+      {showScrollTop && (
+        <div className="px-4 py-1 flex justify-center">
+          <button 
+            onClick={scrollToTop}
+            className="p-1 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+            aria-label="Scroll to top"
+          >
+            <ChevronUp className="h-4 w-4 text-white/60" />
+          </button>
+        </div>
+      )}
+      
       {/* Navigation section - flexible and scrollable */}
-      <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent hover:scrollbar-thumb-white/30 pr-1">
-        <ul className="flex flex-col gap-1 md:gap-2">
+      <nav 
+        ref={navRef}
+        className="flex-1 min-h-0 px-4 overflow-y-auto overflow-x-hidden relative
+          scrollbar-thin scrollbar-thumb-purple-500/30 scrollbar-track-white/5 
+          hover:scrollbar-thumb-purple-500/50 scrollbar-thumb-rounded-full"
+        style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'rgba(168, 85, 247, 0.3) rgba(255, 255, 255, 0.05)'
+        }}
+      >
+        <ul className="flex flex-col gap-1 md:gap-2 py-2">
           {navItems.map((item, index) => {
             const IconComponent = item.icon;
             const isActive = location.pathname.startsWith(item.href);
@@ -147,10 +209,24 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
           })}
         </ul>
       </nav>
-      {/* Placeholder for potential future elements like user profile snippet */}
+      
+      {/* Scroll bottom indicator */}
+      {showScrollBottom && (
+        <div className="px-4 py-1 flex justify-center">
+          <button 
+            onClick={scrollToBottom}
+            className="p-1 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+            aria-label="Scroll to bottom"
+          >
+            <ChevronDown className="h-4 w-4 text-white/60" />
+          </button>
+        </div>
+      )}
+      
+      {/* Footer section */}
       {isSidebarOpen && (
         <motion.div 
-          className="mt-4 pt-4 border-t border-white/10 flex-shrink-0"
+          className="px-4 pt-2 pb-4 border-t border-white/10 flex-shrink-0"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: navItems.length * 0.05 + 0.2 }}
