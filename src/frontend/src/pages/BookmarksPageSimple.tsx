@@ -33,8 +33,8 @@ const BookmarksPageSimple: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="p-8">
-        <h1 className="text-3xl font-bold mb-6">Bookmarks</h1>
+      <div className="mobile-padding">
+        <h1 className="text-3xl sm:text-4xl font-bold mb-6">Bookmarks</h1>
         <p>Loading...</p>
       </div>
     );
@@ -42,23 +42,23 @@ const BookmarksPageSimple: React.FC = () => {
 
   if (error) {
     return (
-      <div className="p-8">
-        <h1 className="text-3xl font-bold mb-6">Bookmarks</h1>
+      <div className="mobile-padding">
+        <h1 className="text-3xl sm:text-4xl font-bold mb-6">Bookmarks</h1>
         <p className="text-red-500">Error: {error}</p>
       </div>
     );
   }
 
   return (
-    <div className="p-8">
-      <h1 className="text-3xl font-bold mb-6">Bookmarks ({bookmarks.length})</h1>
+    <div className="mobile-padding">
+      <h1 className="text-3xl sm:text-4xl font-bold mb-6">Bookmarks ({bookmarks.length})</h1>
       
       {bookmarks.length === 0 ? (
         <p>No bookmarks found.</p>
       ) : (
         <div className="space-y-4">
           {bookmarks.map((bookmark) => (
-            <Card key={bookmark._id} className="p-4">
+            <Card key={bookmark._id} className="p-4 mobile-card">
               <CardHeader>
                 <CardTitle className="text-lg">
                   {bookmark.title || bookmark.fetchedTitle || 'Untitled'}
