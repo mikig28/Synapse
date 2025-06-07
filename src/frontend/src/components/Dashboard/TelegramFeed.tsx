@@ -6,6 +6,7 @@ import { STATIC_ASSETS_BASE_URL } from '../../services/axiosConfig'; // Import t
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
+import { SecureImage } from '@/components/common/SecureImage';
 
 // Use Vite environment variable for the API base URL, fallback for local dev
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
@@ -84,12 +85,12 @@ const TelegramFeed: React.FC = () => {
             )}
 
             {item.messageType === 'photo' && item.mediaGridFsId && (
-              <div className="mt-2 rounded-lg overflow-hidden">
-                <a href={`/api/v1/media/${item.mediaGridFsId}`} target="_blank" rel="noopener noreferrer">
-                  <img 
-                    src={`/api/v1/media/${item.mediaGridFsId}`} 
+              <div className="mt-2 rounded-lg overflow-hidden max-w-full h-auto">
+                <a href={`/api/v1/media/${item.mediaGridFsId}`} target="_blank" rel="noopener noreferrer" className="block">
+                  <SecureImage 
+                    imageId={item.mediaGridFsId}
                     alt="Telegram attachment" 
-                    className="max-w-full h-auto" 
+                    className="w-full h-auto object-cover" 
                   />
                 </a>
               </div>

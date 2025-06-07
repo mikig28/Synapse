@@ -16,6 +16,7 @@ import {
   Trash2,
   Camera
 } from 'lucide-react';
+import { SecureImage } from '@/components/common/SecureImage';
 
 const ImagesPage: React.FC = () => {
   const { telegramItems, isConnected, deleteTelegramItem } = useTelegram();
@@ -180,13 +181,13 @@ const ImagesPage: React.FC = () => {
                   {/* Image */}
                   <div className="relative overflow-hidden">
                     <a 
-                      href={`/api/v1/media/${item.mediaGridFsId}`} 
+                      href={item.mediaGridFsId ? `/api/v1/media/${item.mediaGridFsId}` : '#'}
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="block relative group"
                     >
-                      <img 
-                        src={`/api/v1/media/${item.mediaGridFsId}`}
+                      <SecureImage 
+                        imageId={item.mediaGridFsId}
                         alt={`Telegram Photo from ${item.fromUsername || 'Unknown'} in ${item.chatTitle || 'DM'}`}
                         className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-110"
                       />
