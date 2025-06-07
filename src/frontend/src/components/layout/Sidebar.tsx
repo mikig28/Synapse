@@ -84,7 +84,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
       `}
       aria-label="Primary"
     >
-      <div className="mb-6 flex items-center justify-center pt-2">
+      {/* Header section - fixed height */}
+      <div className="mb-4 flex items-center justify-center pt-2 flex-shrink-0">
         {/* Synapse Logo/Icon - visible when open, tiny icon when closed */}
         <Link to="/dashboard" className="flex items-center gap-2">
           <motion.svg 
@@ -104,7 +105,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
           </h2>
         </Link>
       </div>
-      <nav className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent pr-1">
+      
+      {/* Navigation section - flexible and scrollable */}
+      <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent hover:scrollbar-thumb-white/30 pr-1">
         <ul className="flex flex-col gap-1 md:gap-2">
           {navItems.map((item, index) => {
             const IconComponent = item.icon;

@@ -22,8 +22,8 @@ export const processTelegramItemForBookmarks = async (telegramItem: ITelegramIte
 
   const socialMediaPatterns = {
     X: /https?:\/\/(twitter\.com|x\.com)\/.+\/status\/\d+/i,
-    LinkedIn: /https?:\/\/(?:www\.)?linkedin\.com\/(posts|feed\/update)\//i,
-    Reddit: /https?:\/\/(?:www\.)?reddit\.com\/r\/[a-zA-Z0-9_]+\/comments\//i,
+    LinkedIn: /https?:\/\/(?:www\.)?linkedin\.com\/(posts|feed\/update|pulse)\//i,
+    Reddit: /https?:\/\/(?:www\.)?reddit\.com\/r\//i,
   };
 
   console.log('[processTelegramItemForBookmarks] Starting URL processing for TelegramItem ID:', telegramItem._id);
