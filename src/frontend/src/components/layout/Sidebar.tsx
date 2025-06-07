@@ -38,6 +38,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/inbox", label: "Inbox", icon: Inbox },
+    { href: "/settings", label: "Settings", icon: SettingsIcon },
     { href: "/images", label: "Images", icon: ImageIcon },
     { href: "/capture", label: "Capture", icon: Aperture }, 
     { href: "/projects", label: "Projects", icon: Briefcase }, 
@@ -54,7 +55,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
     { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
     { href: "/videos", label: "Videos", icon: Youtube },
     { href: "/news", label: "News", icon: Newspaper }, 
-    { href: "/settings", label: "Settings", icon: SettingsIcon },
   ];
 
   const location = useLocation();
@@ -109,7 +109,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
         /* DESKTOP (≥ md) ----------------------------------- */
         md:block md:sticky md:top-0 
         ${isSidebarOpen ? "md:w-64" : "md:w-20"}
-        md:h-screen
+        md:h-screen md:max-h-screen md:overflow-hidden
 
         /* MOBILE (< md) ------------------------------------ */
         fixed top-0 left-0 md:relative h-dvh 
@@ -162,12 +162,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
       {/* Navigation section - flexible and scrollable */}
       <nav 
         ref={navRef}
-        className="flex-1 min-h-0 px-4 overflow-y-auto overflow-x-hidden relative
-          scrollbar-thin scrollbar-thumb-purple-500/30 scrollbar-track-white/5 
-          hover:scrollbar-thumb-purple-500/50 scrollbar-thumb-rounded-full"
+        className="flex-1 min-h-0 px-4 overflow-y-scroll overflow-x-hidden relative
+          scrollbar scrollbar-w-2 scrollbar-thumb-purple-500/50 scrollbar-track-white/10 
+          hover:scrollbar-thumb-purple-500/70"
         style={{
-          scrollbarWidth: 'thin',
-          scrollbarColor: 'rgba(168, 85, 247, 0.3) rgba(255, 255, 255, 0.05)'
+          scrollbarWidth: 'auto',
+          scrollbarColor: 'rgba(168, 85, 247, 0.6) rgba(255, 255, 255, 0.2)',
+          maxHeight: 'calc(100vh - 240px)',
+          overflowY: 'scroll'
         }}
       >
         <ul className="flex flex-col gap-1 md:gap-2 py-2">
