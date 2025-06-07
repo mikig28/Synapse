@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useAuthAxios } from './useAuthAxios'; // Assuming useAuthAxios is set up for authenticated requests
+import axiosInstance from '../services/axiosConfig';
 
 export const useSecureImage = (imageId: string | undefined) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const authAxios = useAuthAxios();
 
   useEffect(() => {
     if (!imageId) {
@@ -17,7 +16,7 @@ export const useSecureImage = (imageId: string | undefined) => {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await authAxios.get(`/media/${imageId}`, {
+        const response = await axiosInstance.get(`/media/${imageId}`, {
           responseType: 'blob',
         });
         const blob = new Blob([response.data], { type: response.headers['content-type'] });
@@ -39,7 +38,7 @@ export const useSecureImage = (imageId: string | undefined) => {
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [imageId, authAxios]);
+  }, [imageId]);
 
   return { imageUrl, isLoading, error };
 }; 
