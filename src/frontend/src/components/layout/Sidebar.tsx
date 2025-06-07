@@ -150,7 +150,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
       {/* Placeholder for potential future elements like user profile snippet */}
       {isSidebarOpen && (
         <motion.div 
-          className="mt-auto pt-4 border-t border-white/10"
+          className="mt-4 pt-4 border-t border-white/10 flex-shrink-0"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: navItems.length * 0.05 + 0.2 }}
