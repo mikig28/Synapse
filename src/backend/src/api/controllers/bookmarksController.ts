@@ -467,6 +467,8 @@ const generateSummaryWithGPT = async (content: string): Promise<string> => {
 const fetchAndParseURL = async (url: string): Promise<string | null> => {
   try {
     const isTwitterUrl = /^https?:\/\/(twitter\.com|x\.com)/.test(url);
+    const isLinkedInUrl = /^https?:\/\/www\.linkedin\.com\/(feed\/update|posts)\//.test(url);
+    const isRedditUrl = /^https?:\/\/www\.reddit\.com\/r\//.test(url);
 
     if (isTwitterUrl) {
       try {
@@ -494,6 +496,32 @@ const fetchAndParseURL = async (url: string): Promise<string | null> => {
       } catch (oEmbedError: any) {
         console.warn("Log: Failed to fetch or parse Twitter oEmbed, falling back to generic fetch. Error:", oEmbedError.message || oEmbedError);
         // Fall through to generic fetching if oEmbed fails
+      }
+    } else if (isLinkedInUrl) {
+      try {
+        console.log("Log: Attempting to fetch LinkedIn content via custom metadata fetcher.");
+        const metadata = await fetchLinkedInMetadata(url);
+        if (metadata.description) {
+          console.log("Log: Successfully extracted LinkedIn description via metadata fetcher.");
+          return metadata.description;
+        }
+        console.warn("Log: LinkedIn metadata fetcher did not return a description.");
+      } catch (linkedInError: any) {
+        console.warn("Log: Failed to fetch or parse LinkedIn metadata, falling back to generic fetch. Error:", linkedInError.message || linkedInError);
+      }
+    } else if (isRedditUrl) {
+      try {
+        console.log("Log: Attempting to fetch Reddit content via custom metadata fetcher.");
+        const metadata = await fetchRedditMetadata(url);
+        // Use postContent first, fallback to description.
+        const content = metadata.postContent || metadata.description;
+        if (content) {
+          console.log("Log: Successfully extracted Reddit content via metadata fetcher.");
+          return content;
+        }
+        console.warn("Log: Reddit metadata fetcher did not return postContent or description.");
+      } catch (redditError: any) {
+        console.warn("Log: Failed to fetch or parse Reddit metadata, falling back to generic fetch. Error:", redditError.message || redditError);
       }
     }
 

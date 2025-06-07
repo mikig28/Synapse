@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import { initializeGridFS } from './gridfs'; // Import GridFS initializer
 
 dotenv.config();
 
@@ -19,8 +20,9 @@ export const connectToDatabase = async () => {
   // Mongoose connection listeners (optional but good for debugging)
   mongoose.connection.on('connected', () => {
     console.log('[mongoose]: Mongoose connected to DB');
+    initializeGridFS(); // Initialize GridFS after connection is established
   });
-  mongoose.connection.on('error', (err) => {
+  mongoose.connection.on('error', (err: Error) => {
     console.error('[mongoose]: Mongoose connection error:', err);
   });
   mongoose.connection.on('disconnected', () => {

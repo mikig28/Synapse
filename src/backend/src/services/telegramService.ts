@@ -15,6 +15,7 @@ import Task from '../models/Task'; // <-- IMPORT Task model
 import Note from '../models/Note'; // <-- IMPORT Note model
 import Idea from '../models/Idea'; // <-- IMPORT Idea model
 import mongoose from 'mongoose';
+import { getBucket } from '../config/gridfs'; // <-- IMPORT GridFS bucket
 
 dotenv.config();
 
@@ -71,7 +72,7 @@ const isYouTubeUrl = (url: string): boolean => {
 };
 
 // Basic message listener
-bot.on('message', async (msg) => {
+bot.on('message', async (msg: TelegramBot.Message) => {
   const chatId = msg.chat.id;
   const telegramMessageId = msg.message_id;
   const fromUserId = msg.from?.id;
@@ -83,7 +84,7 @@ bot.on('message', async (msg) => {
 
   let messageType = 'other';
   let mediaFileId: string | undefined = undefined;
-  let mediaLocalUrl: string | undefined = undefined;
+  let mediaGridFsId: string | undefined = undefined; // Changed from mediaLocalUrl
   const extractedUrls = extractUrls(textContent, messageEntities);
 
   // --- Define synapseUser and savedItem in a higher scope ---
@@ -108,23 +109,27 @@ bot.on('message', async (msg) => {
     if (mediaFileId) {
       try {
         const fileLink = await bot.getFileLink(mediaFileId);
-        const fileResponse = await axios<Readable>({ url: fileLink, responseType: 'stream' }); // Typed
+        const fileResponse = await axios<Readable>({ url: fileLink, responseType: 'stream' });
         
-        const fileName = `${mediaFileId}.jpg`;
-        const localFilePath = path.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_media', fileName);
-        
-        if (fileResponse.data) { // Check stream
-            const writer = fs.createWriteStream(localFilePath);
-            fileResponse.data.pipe(writer);
-            await new Promise<void>((resolve, reject) => {
-              writer.on('finish', resolve);
-              writer.on('error', reject);
+        const fileName = `${mediaId}.jpg`;
+        const bucket = getBucket();
+        const uploadStream = bucket.openUploadStream(fileName, {
+          contentType: 'image/jpeg' // Set content type
+        });
+
+        await new Promise<void>((resolve, reject) => {
+          fileResponse.data.pipe(uploadStream)
+            .on('finish', () => {
+              mediaGridFsId = uploadStream.id.toString();
+              console.log(`[TelegramBot]: Photo ${fileName} saved to GridFS with ID: ${mediaGridFsId}`);
+              resolve();
+            })
+            .on('error', (err: Error) => {
+              console.error(`[TelegramBot]: Error saving photo to GridFS for file ID ${mediaFileId}:`, err);
+              reject(err);
             });
-            mediaLocalUrl = `/public/uploads/telegram_media/${fileName}`;
-            console.log(`[TelegramBot]: Photo downloaded: ${localFilePath}`);
-        } else {
-            console.error("[TelegramBot]: No data stream for photo download.");
-        }
+        });
+
       } catch (downloadError) {
         console.error(`[TelegramBot]: Error downloading photo ${mediaFileId}:`, downloadError);
       }
@@ -136,14 +141,14 @@ bot.on('message', async (msg) => {
   }
   if (msg.voice && synapseUser) {
     messageType = 'voice';
-    mediaFileId = msg.voice.file_id; // mediaFileId is assigned here
+    mediaFileId = msg.voice.file_id;
     
-    if (mediaFileId) { // Check mediaFileId
+    if (mediaFileId) {
       let localFilePath: string | undefined = undefined;
       try {
-        const fileLink = await bot.getFileLink(mediaFileId); // Use mediaFileId
+        const fileLink = await bot.getFileLink(mediaFileId);
         const fileResponse = await axios<Readable>({ url: fileLink, responseType: 'stream' });
-        const fileName = `${mediaFileId}.oga`; // Use mediaFileId here
+        const fileName = `${mediaId}.oga`;
         localFilePath = path.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_voice', fileName);
         if (fileResponse.data) {
           const writer = fs.createWriteStream(localFilePath);
@@ -152,10 +157,9 @@ bot.on('message', async (msg) => {
             writer.on('finish', resolve);
             writer.on('error', reject);
           });
-          mediaLocalUrl = `/public/uploads/telegram_voice/${fileName}`;
+          
           console.log(`[TelegramBot]: Voice memo downloaded: ${localFilePath}`);
 
-          // Save initial Telegram item (BEFORE transcription)
           const newItemDataForVoice = {
             synapseUserId: synapseUser._id,
             telegramMessageId,
@@ -166,8 +170,8 @@ bot.on('message', async (msg) => {
             text: textContent,
             urls: extractedUrls,
             messageType,
-            mediaFileId, // Use mediaFileId
-            mediaLocalUrl,
+            mediaFileId,
+            mediaGridFsId: undefined, // Voice memos are not stored in GridFS, only photos for now
             receivedAt,
           };
           voiceMemoTelegramItem = await new TelegramItem(newItemDataForVoice).save();
@@ -214,7 +218,7 @@ bot.on('message', async (msg) => {
             console.error("[TelegramBot]: No data stream for voice download.");
         }
       } catch (downloadError: any) {
-        console.error(`[TelegramBot]: Error downloading/processing voice memo ${mediaFileId}:`, downloadError.message); // Use mediaFileId here
+        console.error(`[TelegramBot]: Error downloading/processing voice memo ${mediaFileId}:`, downloadError.message);
       } finally {
         if (localFilePath && fs.existsSync(localFilePath)) {
           try {
@@ -225,8 +229,8 @@ bot.on('message', async (msg) => {
           }
         }
       }
-    } // End of if (mediaFileId) for voice
-  } // End of if (msg.voice && synapseUser)
+    }
+  }
   if (msg.video) { // Added video detection
     messageType = 'video';
     mediaFileId = msg.video.file_id;
@@ -242,59 +246,57 @@ bot.on('message', async (msg) => {
   try {
     if (!synapseUser) {
       console.log(`[TelegramBot]: No Synapse user is monitoring chat ID: ${chatId}. Message not saved.`);
-      return; // Don't save if no user is monitoring this chat
+      return;
     }
 
     // Do not save a generic TelegramItem if it was ALREADY saved as a voice memo item
     if (messageType === 'voice' && voiceMemoTelegramItem) {
         console.log("[TelegramBot]: Voice memo already processed and saved. Skipping generic TelegramItem save.");
-    } else {
-        const newItemData = {
-          synapseUserId: synapseUser._id,
-          telegramMessageId,
-          chatId,
-          chatTitle,
-          fromUserId,
-          fromUsername,
-          text: textContent,
-          urls: extractedUrls,
-          messageType,
-          mediaFileId,
-          mediaLocalUrl, // <-- Add mediaLocalUrl here
-          receivedAt,
-        };
-        
-        const finalSavedItem = await new TelegramItem(newItemData).save();
-        console.log(`[TelegramBot]: Saved ${messageType} from chat ${chatId} to DB for user ${synapseUser.email}.`);
+        return;
+    }
 
-        let processedAsVideo = false;
-        if (synapseUser?._id && finalSavedItem.urls && finalSavedItem.urls.length > 0 && finalSavedItem._id) { 
-          const telegramItemIdString = (finalSavedItem._id as mongoose.Types.ObjectId).toString(); // Corrected cast
-          for (const url of finalSavedItem.urls) {
+    const newItemData = {
+        synapseUserId: synapseUser._id,
+        telegramMessageId,
+        chatId,
+        chatTitle,
+        fromUserId,
+        fromUsername,
+        text: textContent,
+        urls: extractedUrls,
+        messageType,
+        mediaFileId,
+        mediaGridFsId, // Use the new GridFS ID
+        receivedAt,
+    };
+    
+    const savedItem = await new TelegramItem(newItemData).save();
+    console.log(`[TelegramBot]: Saved ${messageType} from chat ${chatId} to DB for user ${synapseUser.email}.`);
+    
+    let processedAsVideo = false;
+    if (synapseUser?._id && savedItem.urls && savedItem.urls.length > 0 && savedItem._id) { 
+        const telegramItemIdString = (savedItem._id as mongoose.Types.ObjectId).toString();
+        for (const url of savedItem.urls) {
             if (isYouTubeUrl(url)) {
-              console.log(`[TelegramBot]: YouTube URL detected: ${url}. Processing as video...`);
-              await processAndCreateVideoItem(synapseUser._id.toString(), url, telegramItemIdString);
-              processedAsVideo = true;
-              break; // Process only the first YouTube URL as a video for this message
+                console.log(`[TelegramBot]: YouTube URL detected: ${url}. Processing as video...`);
+                await processAndCreateVideoItem(synapseUser._id, url, telegramItemIdString);
+                processedAsVideo = true;
             }
-          }
-        }
-
-        // Process for bookmarks if it has URLs and was not processed as a video
-        if (!processedAsVideo && synapseUser?._id && finalSavedItem.urls && finalSavedItem.urls.length > 0) {
-          processTelegramItemForBookmarks(finalSavedItem);
-        }
-
-        // Emit event to connected clients
-        if (io) { // Check if io is available
-          io.emit('new_telegram_item', finalSavedItem.toObject()); // Send the saved item data
-          console.log(`[Socket.IO]: Emitted \'new_telegram_item\' for chat ${chatId}`);
-        } else {
-          console.warn('[Socket.IO]: io instance not available in telegramService. Cannot emit event.');
         }
     }
 
-  } catch (error) {
+    if (!processedAsVideo && synapseUser?._id && savedItem.urls && savedItem.urls.length > 0) {
+        processTelegramItemForBookmarks(savedItem);
+    }
+    
+    if (io) {
+        io.emit('new_telegram_item', savedItem.toObject());
+        console.log(`[Socket.IO]: Emitted 'new_telegram_item' for chat ${chatId}`);
+    } else {
+        console.log('[Socket.IO]: io server not available. Skipping emit.');
+    }
+
+  } catch (error: any) {
     console.error('[TelegramBot]: Error processing message or saving to DB:', error);
   }
 

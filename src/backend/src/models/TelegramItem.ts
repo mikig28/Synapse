@@ -11,7 +11,7 @@ export interface ITelegramItem extends Document {
   urls?: string[]; // Added to store extracted URLs
   messageType: string; // e.g., 'text', 'photo', 'document', 'voice'
   mediaFileId?: string; // Telegram file_id for media
-  mediaLocalUrl?: string; // Path if we download and store media
+  mediaGridFsId?: string; // GridFS file ID if we download and store media
   receivedAt: Date;
   // Add other relevant fields as needed
 }
@@ -28,7 +28,7 @@ const TelegramItemSchema: Schema<ITelegramItem> = new Schema(
     urls: { type: [String], default: [] }, // Added urls field
     messageType: { type: String, required: true, default: 'text' },
     mediaFileId: { type: String }, // For later use if we download media
-    mediaLocalUrl: { type: String }, // For later use
+    mediaGridFsId: { type: String }, // For later use
     receivedAt: { type: Date, default: Date.now },
   },
   { timestamps: true } // Adds createdAt and updatedAt for the DB record itself

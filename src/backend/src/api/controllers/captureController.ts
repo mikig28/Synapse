@@ -20,9 +20,9 @@ export const processTelegramItemForBookmarks = async (telegramItem: ITelegramIte
   }
 
   const socialMediaPatterns = {
-    X: /https?:\/\/(twitter\.com|x\.com)/i,
-    LinkedIn: /https?:\/\/(?:www\.)?linkedin\.com/i,
-    Reddit: /https?:\/\/(?:www\.)?reddit\.com/i,
+    X: /https?:\/\/(twitter\.com|x\.com)\/.+\/status\/\d+/i,
+    LinkedIn: /https?:\/\/(?:www\.)?linkedin\.com\/(posts|feed\/update)\//i,
+    Reddit: /https?:\/\/(?:www\.)?reddit\.com\/r\/[a-zA-Z0-9_]+\/comments\//i,
   };
 
   for (const url of telegramItem.urls) {
@@ -34,6 +34,9 @@ export const processTelegramItemForBookmarks = async (telegramItem: ITelegramIte
       platform = 'LinkedIn';
     } else if (socialMediaPatterns.Reddit.test(url)) {
       platform = 'Reddit';
+    } else {
+      // It's a URL, but doesn't match a specific social media pattern
+      platform = 'Other';
     }
 
     if (platform) {

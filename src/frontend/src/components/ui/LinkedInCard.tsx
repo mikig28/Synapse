@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ExternalLink, Trash2, Briefcase, FileText, Zap, Volume2, PlayCircle, StopCircle, AlertCircle, Loader2, CheckCircle, XCircle, Brain } from 'lucide-react';
+import { timeAgo } from '@/utils/time-ago';
 
 interface LinkedInCardProps {
   bookmark: BookmarkItemType;
@@ -32,140 +33,101 @@ const LinkedInCard: React.FC<LinkedInCardProps> = ({
   playingBookmarkId,
   audioErrorId,
 }) => {
+  const {
+    _id,
+    fetchedTitle,
+    fetchedDescription,
+    fetchedImageUrl,
+    originalUrl,
+    summary,
+    status,
+  } = bookmark;
+
   const formattedDate = new Date(bookmark.createdAt).toLocaleString(undefined, { 
       year: 'numeric', month: 'numeric', day: 'numeric', 
       hour: '2-digit', minute: '2-digit' 
   });
 
-  const currentSummaryStatus = bookmark.status;
-  const currentSummaryText = bookmark.summary;
+  const currentSummaryStatus = status;
+  const currentSummaryText = summary;
 
   return (
-    <Card className="flex flex-col overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 h-full relative group">
-      <CardHeader className="flex-grow p-4">
-        <div className="flex justify-between items-start">
-          <CardTitle className="text-base font-semibold leading-tight mb-1 flex items-center flex-grow mr-2">
-              <Briefcase className="w-5 h-5 mr-2 text-blue-700 shrink-0" />
-              <span className="line-clamp-2" title={bookmark.fetchedTitle || bookmark.originalUrl}>
-                  {bookmark.fetchedTitle || 'LinkedIn Post'}
-              </span>
-          </CardTitle>
-          {/* Action buttons will be moved to CardFooter or an overlay */}
+    <Card className="not-prose rounded-lg border border-border bg-card text-card-foreground p-4 mb-2 max-w-full relative group transition-shadow hover:shadow-lg">
+      <CardHeader className="p-2">
+        <div className="flex items-start justify-between">
+          <CardTitle className="text-lg font-semibold leading-tight">{fetchedTitle || 'LinkedIn Post'}</CardTitle>
+          <a href={originalUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-600">
+            <ExternalLink className="w-5 h-5" />
+          </a>
         </div>
-        {bookmark.fetchedDescription && (
-          <CardDescription className="text-sm text-muted-foreground line-clamp-3 mt-1">
-            {bookmark.fetchedDescription}
-          </CardDescription>
-        )}
       </CardHeader>
-      
-      {/* Optional: Display image if fetchedImageUrl exists */}
-      {bookmark.fetchedImageUrl && (
-        <div className="px-4">
-          <img 
-            src={bookmark.fetchedImageUrl}
-            alt={`Preview for ${bookmark.fetchedTitle || 'LinkedIn Post'}`}
-            className="w-full h-40 object-cover rounded-md"
-          />
-        </div>
-      )}
-
-      {/* Summary Section */}
-      {currentSummaryStatus === 'summarized' && currentSummaryText && (
-        <CardContent className="p-4 pt-2 text-sm text-muted-foreground/90">
-          <details>
-            <summary className="cursor-pointer font-medium text-primary/80 hover:text-primary select-none">View Summary</summary>
-            <p className="pt-2 whitespace-pre-wrap">{currentSummaryText}</p>
-          </details>
-        </CardContent>
-      )}
-      {currentSummaryStatus === 'pending' && <p className="px-4 pb-2 text-xs text-amber-500">Summary pending...</p>}
-      {currentSummaryStatus === 'error' && <p className="px-4 pb-2 text-xs text-destructive">Summary failed.</p>}
-      {currentSummaryStatus === 'processing' && (
-        <div className="px-4 pb-2 flex items-center text-xs text-sky-500">
-          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-          <span>Processing summary...</span>
-        </div>
-      )}
-
-
-      <CardFooter className="p-4 pt-2 border-t mt-auto flex flex-col items-stretch gap-2">
-        <div className="flex justify-between items-center w-full">
-          <Button 
-            variant="outline"
-            size="sm"
-            onClick={() => window.open(bookmark.originalUrl, '_blank')}
-            title="View on LinkedIn"
-            className="text-xs"
-          >
-            <ExternalLink className="w-4 h-4 mr-1" /> View Post
-          </Button>
-          
-          <div className="flex space-x-1">
-            {onSummarize && (
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSummarize(bookmark._id);
-                }}
-                disabled={isSummarizing || currentSummaryStatus === 'summarized' || currentSummaryStatus === 'processing'}
-                title={
-                  currentSummaryStatus === 'summarized' ? "Already Summarized" :
-                  currentSummaryStatus === 'pending' ? "Summary Pending" :
-                  currentSummaryStatus === 'processing' ? "Processing Summary" :
-                  "Summarize Content"
-                }
-              >
-                {isSummarizing && summarizingBookmarkId === bookmark._id ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : currentSummaryStatus === 'summarized' ? (
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                ) : currentSummaryStatus === 'error' ? (
-                  <XCircle className="w-4 h-4 text-destructive" />
-                ) : (
-                  <Brain className="w-4 h-4" />
-                )}
-              </Button>
-            )}
-            {onSpeakSummary && currentSummaryStatus === 'summarized' && currentSummaryText && (
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSpeakSummary(bookmark._id, currentSummaryText);
-                }}
-                disabled={!currentSummaryText}
-                title={audioErrorId === bookmark._id ? "Audio Error" : (playingBookmarkId === bookmark._id ? "Stop Speaking" : "Speak Summary")}
-                className={`${audioErrorId === bookmark._id ? 'text-destructive' : ''}`}
-              >
-                {playingBookmarkId === bookmark._id ? (
-                  <StopCircle className="w-4 h-4" />
-                ) : audioErrorId === bookmark._id ? (
-                  <AlertCircle className="w-4 h-4" />
-                ) : (
-                  <PlayCircle className="w-4 h-4" />
-                )}
-              </Button>
-            )}
-            <Button 
-              variant="destructive" 
-              size="icon" 
+      <CardContent className="p-2">
+        {fetchedImageUrl && (
+          <div className="mb-4">
+            <img src={fetchedImageUrl} alt={fetchedTitle || 'LinkedIn Image'} className="rounded-lg w-full h-auto object-cover" />
+          </div>
+        )}
+        <CardDescription className="text-sm text-foreground/80 leading-relaxed">
+          {fetchedDescription || 'No description available.'}
+        </CardDescription>
+        {summary && (
+          <div className="mt-4 p-3 bg-secondary/50 rounded-lg border border-secondary">
+            <h4 className="font-semibold text-base mb-2 flex items-center">
+              <Zap className="w-4 h-4 mr-2 text-primary" />
+              Summary
+            </h4>
+            <p className="text-sm text-foreground/90 whitespace-pre-wrap">{summary}</p>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={(e) => {
                 e.stopPropagation();
-                onDelete(bookmark._id);
+                onSpeakSummary?.(_id, summary);
               }}
-              title="Delete Bookmark"
+              disabled={playingBookmarkId === _id}
+              className="mt-2 text-xs"
             >
-              <Trash2 className="w-4 h-4" />
+              <Volume2 className={`w-4 h-4 mr-1 ${playingBookmarkId === _id ? 'animate-pulse text-green-500' : ''} ${audioErrorId === _id ? 'text-red-500' : ''}`} />
+              {playingBookmarkId === _id ? 'Playing...' : 'Read Aloud'}
             </Button>
           </div>
+        )}
+      </CardContent>
+      <CardFooter className="p-2 flex justify-end">
+        <div className="absolute bottom-2 right-2 z-10 flex space-x-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSummarize?.(_id);
+            }}
+            disabled={isSummarizing || currentSummaryStatus === 'summarized'}
+            title={currentSummaryStatus === 'summarized' ? "Already Summarized" : currentSummaryStatus === 'pending' ? "Pending" : "Summarize Content"}
+            className="text-xs"
+          >
+            {isSummarizing && summarizingBookmarkId === _id ? (
+              <><Zap className="w-4 h-4 mr-1 animate-pulse" /> Summarizing...</>
+            ) : currentSummaryStatus === 'summarized' ? (
+              <><FileText className="w-4 h-4 mr-1" /> Summarized</>
+            ) : currentSummaryStatus === 'pending' ? (
+                <><FileText className="w-4 h-4 mr-1" /> Pending</>
+            ) : (
+              <><FileText className="w-4 h-4 mr-1" /> Summarize</>
+            )}
+          </Button>
+          <Button
+            variant="destructive"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(_id);
+            }}
+            title="Delete Bookmark"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
         </div>
-        <p className="text-xs text-muted-foreground text-right w-full mt-1"> 
-            Saved: {formattedDate}
-        </p>
       </CardFooter>
     </Card>
   );
