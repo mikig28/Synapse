@@ -613,7 +613,7 @@ const BookmarksPage: React.FC = () => {
           className="opacity-100"
         >
           <Card className="p-3 sm:p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50 mobile-card">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 items-end">
               <div className="lg:col-span-1">
                 <Label htmlFor="bookmarks-search" className="text-sm font-medium text-muted-foreground mb-2 block">Search</Label>
                 <div className="relative">
@@ -683,7 +683,7 @@ const BookmarksPage: React.FC = () => {
           )}
 
           {!loading && !error && Array.isArray(filteredAndSortedBookmarks) && filteredAndSortedBookmarks.length > 0 && (
-            <div className="space-y-3 sm:space-y-4 md:space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
               {filteredAndSortedBookmarks.map((bookmark, index) => {
                 if (!bookmark) {
                   console.warn(`[BookmarksPage] Rendering null bookmark at index ${index}`);
