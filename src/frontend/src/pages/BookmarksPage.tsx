@@ -293,6 +293,8 @@ const BookmarksPage: React.FC = () => {
 
   const handleSpeakSummary = async (bookmarkId: string, summaryText: string | undefined) => {
     console.log(`[handleSpeakSummary] Called for bookmarkId: ${bookmarkId}`);
+    // Log Summary Text (Point 2)
+    console.log("[handleSpeakSummary] Processing summary: ", summaryText);
     console.log(`[handleSpeakSummary] Initial summaryText: '${summaryText}'`);
 
     if (!summaryText) {
@@ -302,22 +304,24 @@ const BookmarksPage: React.FC = () => {
     }
     console.log("[handleSpeakSummary] Condition: !summaryText is FALSE. Proceeding.");
 
+    // Log Audio State (Point 3)
     if (currentAudio) {
-      console.log("[handleSpeakSummary] Condition: currentAudio exists.");
+      console.log("[handleSpeakSummary] currentAudio exists. Pausing and clearing previous audio.");
       currentAudio.pause();
       URL.revokeObjectURL(currentAudio.src);
       setCurrentAudio(null);
       if (playingBookmarkId === bookmarkId) {
-        console.log("[handleSpeakSummary] Condition: playingBookmarkId === bookmarkId is TRUE. Toggling off. Exiting.");
+        console.log("[handleSpeakSummary] Same bookmark clicked, stopping audio.");
         setPlayingBookmarkId(null);
         return;
       }
-      console.log("[handleSpeakSummary] Condition: playingBookmarkId === bookmarkId is FALSE. Proceeding.");
+      console.log("[handleSpeakSummary] Different bookmark or new play. Proceeding to play new audio.");
     } else {
-      console.log("[handleSpeakSummary] Condition: currentAudio does NOT exist. Proceeding.");
+      console.log("[handleSpeakSummary] No currentAudio. Will attempt to play new audio.");
     }
 
     const ELEVENLABS_API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY;
+    // Ensure API Key Logging (Point 1 - already present, confirmed)
     console.log(`[handleSpeakSummary] Retrieved VITE_ELEVENLABS_API_KEY: '${ELEVENLABS_API_KEY ? '********' : 'MISSING!'}'`);
 
     if (!ELEVENLABS_API_KEY) {
@@ -334,19 +338,29 @@ const BookmarksPage: React.FC = () => {
     setAudioErrorId(null);
 
     try {
+      // Log Before API Call (Point 4)
+      console.log(`[handleSpeakSummary] Calling speakTextWithElevenLabs for bookmarkId: ${bookmarkId} with VOICE_ID: ${VOICE_ID}`);
       const audioBlob = await speakTextWithElevenLabs(summaryText, VOICE_ID, ELEVENLABS_API_KEY);
+      // Log After API Call (Success) (Point 5)
+      console.log("[handleSpeakSummary] speakTextWithElevenLabs returned. audioBlob:", audioBlob);
       const audioUrl = URL.createObjectURL(audioBlob);
+      console.log("[handleSpeakSummary] Created audioUrl:", audioUrl);
       const audio = new Audio(audioUrl);
-      setCurrentAudio(audio); 
+      setCurrentAudio(audio);
       
+      // Log Audio Playback Attempt (Point 6)
+      console.log("[handleSpeakSummary] Attempting to play audio...");
       audio.play();
 
+      // Log Audio Event Handlers (Point 7)
       audio.onended = () => {
+        console.log("[handleSpeakSummary] Audio ended for bookmarkId:", bookmarkId);
         setPlayingBookmarkId(null);
-        URL.revokeObjectURL(audioUrl); 
+        URL.revokeObjectURL(audioUrl);
         setCurrentAudio(null);
       };
       audio.onerror = () => {
+        console.log("[handleSpeakSummary] Audio onerror event triggered for bookmarkId:", bookmarkId, audio.error);
         console.error("Error playing audio for bookmark:", bookmarkId);
         setPlayingBookmarkId(null);
         setAudioErrorId(bookmarkId);
@@ -359,6 +373,8 @@ const BookmarksPage: React.FC = () => {
         });
       };
     } catch (error: any) {
+      // Log Catch Block (Point 8)
+      console.error("[handleSpeakSummary] Error in try-catch block for bookmarkId:", bookmarkId, error);
       console.error(`Error generating audio for bookmark ${bookmarkId}:`, error);
       setPlayingBookmarkId(null);
       setAudioErrorId(bookmarkId);
