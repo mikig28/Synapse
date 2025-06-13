@@ -492,19 +492,19 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
       {/* Navigation - Restored */}
       <header
-        className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-8 py-6 ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 ease-out`}
+        className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 md:px-8 py-4 md:py-6 ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 ease-out`}
       >
         <div className="flex items-center gap-4">
           <Menu className="h-6 w-6 text-white" />
           <span className="text-2xl font-semibold text-white drop-shadow-lg">Calendar</span>
         </div>
         <div className="flex items-center gap-4">
-          <div className="relative">
+          <div className="relative w-40 sm:w-auto">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/70" />
             <input
               type="text"
               placeholder="Search"
-              className="rounded-full bg-white/10 backdrop-blur-sm pl-10 pr-4 py-2 text-white placeholder:text-white/70 border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/30"
+              className="rounded-full bg-white/10 backdrop-blur-sm pl-10 pr-4 py-2 text-white placeholder:text-white/70 border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/30 w-full"
             />
           </div>
           <Settings className="h-6 w-6 text-white drop-shadow-md" />
@@ -515,10 +515,10 @@ export default function CalendarPage() { // Renamed from Home for clarity
       </header>
 
       {/* Main Content */}
-      <main className="relative h-screen w-full pt-20 flex z-0"> {/* Added z-0 to main */}
+      <main className="relative h-screen w-full pt-20 flex flex-col md:flex-row z-0"> {/* Responsive layout */}
         {/* Sidebar - Restored */}
         <div
-          className={`w-64 h-full bg-white/10 backdrop-blur-lg p-4 shadow-xl border-r border-white/20 rounded-tr-3xl ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 ease-out delay-200 flex flex-col justify-between`}
+          className={`w-full md:w-64 h-auto md:h-full bg-white/10 backdrop-blur-lg p-4 shadow-xl md:border-r border-white/20 rounded-tr-3xl ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 ease-out delay-200 flex flex-col justify-between mb-4 md:mb-0`}
         >
           <div>
             <button 
@@ -633,7 +633,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
           {/* Week View / Day View / Month View Container */}
           <div className="flex-1 overflow-auto p-4">
             {currentView === "week" && (
-              <div className="bg-white/20 backdrop-blur-lg rounded-xl border border-white/20 shadow-xl h-full">
+              <div className="bg-white/20 backdrop-blur-lg rounded-xl border border-white/20 shadow-xl h-full min-w-[700px]">
                 {/* Week Header */}
                 <div className="grid grid-cols-8 border-b border-white/20">
                   <div className="p-2 text-center text-white/50 text-xs"></div>
@@ -833,7 +833,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
             )}
 
             {currentView === "day" && (
-              <div className="bg-white/20 backdrop-blur-lg rounded-xl border border-white/20 shadow-xl h-full flex flex-col">
+              <div className="bg-white/20 backdrop-blur-lg rounded-xl border border-white/20 shadow-xl h-full flex flex-col min-w-[700px]">
                 {/* Day Header */}
                 <div className="grid grid-cols-2 border-b border-white/20"> {/* Adjusted for Day View: Time slot column + Day column */}
                   <div className="p-2 text-center text-white/50 text-xs"></div> {/* Spacer for time column */}
@@ -1017,7 +1017,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
               </div>
             )}
             {currentView === "month" && (
-              <div className="bg-white/20 backdrop-blur-lg rounded-xl border border-white/20 shadow-xl h-full flex flex-col">
+              <div className="bg-white/20 backdrop-blur-lg rounded-xl border border-white/20 shadow-xl h-full flex flex-col min-w-[700px]">
                 {/* Month Header - Days of the week */}
                 <div className="grid grid-cols-7 border-b border-white/20">
                   {weekDays.map((day, i) => (
