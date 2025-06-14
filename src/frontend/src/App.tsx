@@ -16,102 +16,54 @@ import TasksPage from '@/pages/TasksPage';
 import NotesPage from '@/pages/NotesPage';
 import IdeasPage from '@/pages/IdeasPage';
 import MeetingsPage from '@/pages/MeetingsPage';
-import CalendarPage from '@/pages/CalendarPage';
-import { GoogleOAuthProvider } from '@react-oauth/google';
-import { DigestProvider } from './context/DigestContext';
-import { AnimatePresence } from 'framer-motion';
-import { PageTransition } from '@/components/animations/PageTransition';
+import { PageTransition } from '@/components/animations';
+import { CommandPalette, useCommandPalette } from '@/components/animations';
+import { useLocation } from 'react-router-dom';
 
-const App: React.FC = () => {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-
-  if (!googleClientId) {
-    console.error("VITE_GOOGLE_CLIENT_ID is not defined. Google Sign-In will not work.");
-    // Optionally, render a message to the user or a disabled login button
-  }
-
-  // Placeholder for loginWithRedirect if not using a specific provider yet
-  const loginWithRedirect = () => console.log("loginWithRedirect function called - needs implementation");
+function AppContent() {
+  const { isAuthenticated } = useAuthStore();
+  const location = useLocation();
+  const commandPalette = useCommandPalette();
 
   return (
-    <GoogleOAuthProvider clientId={googleClientId || ""}>
-      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-        <Router>
-          <DigestProvider>
-            <main className="flex-1">
-              <AnimatePresence mode="wait">
-                <Routes>
-                  <Route 
-                    path="/login" 
-                    element={
-                      isAuthenticated ? (
-                        <Navigate to="/dashboard" />
-                      ) : (
-                        <PageTransition mode="fade">
-                          <LoginPage />
-                        </PageTransition>
-                      )
-                    } 
-                  />
-                  <Route 
-                    path="/register" 
-                    element={
-                      isAuthenticated ? (
-                        <Navigate to="/dashboard" />
-                      ) : (
-                        <PageTransition mode="fade">
-                          <RegisterPage />
-                        </PageTransition>
-                      )
-                    } 
-                  />
-                  <Route 
-                    path="/" 
-                    element={
-                      isAuthenticated ? (
-                        <Navigate to="/dashboard" />
-                      ) : (
-                        <PageTransition mode="scale">
-                          <HomePage />
-                        </PageTransition>
-                      )
-                    } 
-                  />
+    <>
+      <PageTransition key={location.pathname}>
+        <Routes>
+          <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" /> : <HomePage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          
+          {/* Protected routes */}
+          <Route path="/dashboard" element={isAuthenticated ? <Layout><DashboardPage /></Layout> : <Navigate to="/login" />} />
+          <Route path="/inbox" element={isAuthenticated ? <Layout><InboxPage /></Layout> : <Navigate to="/login" />} />
+          <Route path="/tasks" element={isAuthenticated ? <Layout><TasksPage /></Layout> : <Navigate to="/login" />} />
+          <Route path="/notes" element={isAuthenticated ? <Layout><NotesPage /></Layout> : <Navigate to="/login" />} />
+          <Route path="/ideas" element={isAuthenticated ? <Layout><IdeasPage /></Layout> : <Navigate to="/login" />} />
+          <Route path="/meetings" element={isAuthenticated ? <Layout><MeetingsPage /></Layout> : <Navigate to="/login" />} />
+          <Route path="/images" element={isAuthenticated ? <Layout><ImagesPage /></Layout> : <Navigate to="/login" />} />
+          <Route path="/bookmarks" element={isAuthenticated ? <Layout><BookmarksPage /></Layout> : <Navigate to="/login" />} />
+          <Route path="/videos" element={isAuthenticated ? <Layout><VideosPage /></Layout> : <Navigate to="/login" />} />
+          <Route path="/settings" element={isAuthenticated ? <Layout><SettingsPage /></Layout> : <Navigate to="/login" />} />
+        </Routes>
+      </PageTransition>
 
-                  <Route 
-                    path="/*" 
-                    element={
-                      isAuthenticated ? (
-                        <Layout>
-                          <Routes>
-                            <Route path="dashboard" element={<PageTransition><DashboardPage /></PageTransition>} />
-                            <Route path="inbox" element={<PageTransition><InboxPage /></PageTransition>} />
-                            <Route path="images" element={<PageTransition><ImagesPage /></PageTransition>} />
-                            <Route path="bookmarks" element={<PageTransition><BookmarksPage /></PageTransition>} />
-                            <Route path="videos" element={<PageTransition><VideosPage /></PageTransition>} />
-                            <Route path="tasks" element={<PageTransition><TasksPage /></PageTransition>} />
-                            <Route path="notes" element={<PageTransition><NotesPage /></PageTransition>} />
-                            <Route path="ideas" element={<PageTransition><IdeasPage /></PageTransition>} />
-                            <Route path="meetings" element={<PageTransition><MeetingsPage /></PageTransition>} />
-                            <Route path="calendar" element={<PageTransition><CalendarPage /></PageTransition>} />
-                            <Route path="settings" element={<PageTransition mode="fade"><SettingsPage /></PageTransition>} />
-                            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                          </Routes>
-                        </Layout>
-                      ) : (
-                        <Navigate to="/login" replace />
-                      )
-                    }
-                  />
-                </Routes>
-              </AnimatePresence>
-            </main>
-          </DigestProvider>
-        </Router>
-      </ThemeProvider>
-    </GoogleOAuthProvider>
+      {/* Global Command Palette */}
+      <CommandPalette
+        isOpen={commandPalette.isOpen}
+        onClose={commandPalette.close}
+      />
+    </>
   );
-};
+}
+
+function App() {
+  return (
+    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+      <Router>
+        <AppContent />
+      </Router>
+    </ThemeProvider>
+  );
+}
 
 export default App;

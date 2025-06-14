@@ -336,6 +336,65 @@ code {
     text-wrap: pretty;
   }
 
+  /* 3D Perspective utilities */
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+  
+  .perspective-500 {
+    perspective: 500px;
+  }
+  
+  .preserve-3d {
+    transform-style: preserve-3d;
+  }
+  
+  .backface-hidden {
+    backface-visibility: hidden;
+  }
+
+  /* Magnetic hover effect */
+  .magnetic {
+    transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  
+  .magnetic:hover {
+    transform: scale(1.05);
+  }
+
+  /* Ripple effect base */
+  .ripple-container {
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Shimmer effect */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.4),
+      transparent
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  /* Pulse glow */
+  .pulse-glow {
+    animation: pulseGlow 2s ease-in-out infinite alternate;
+  }
+
+  /* Floating animation */
+  .float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  /* Bounce in animation */
+  .bounce-in {
+    animation: bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+
   /* Custom Scrollbar Styles */
   .scrollbar::-webkit-scrollbar,
   .scrollbar-thin::-webkit-scrollbar {
@@ -500,26 +559,23 @@ code {
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 150ms;
   }
-}
 
-.react-draggable {
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
+  /* Touch and mobile optimizations */
+  .react-draggable {
+    touch-action: none;
+  }
 
-/* Mobile-specific utilities */
-@layer utilities {
+  /* Mobile touch optimizations */
   .touch-manipulation {
     touch-action: manipulation;
   }
-  
-  /* Improved mobile scrolling */
+
   .mobile-scroll {
     -webkit-overflow-scrolling: touch;
-    scroll-behavior: smooth;
+    overscroll-behavior: contain;
   }
-  
-  /* Better mobile tap targets */
+
+  /* Improved tap targets for mobile */
   .tap-target {
     min-height: 44px;
     min-width: 44px;
@@ -527,44 +583,44 @@ code {
     align-items: center;
     justify-content: center;
   }
-  
-  /* Mobile-friendly spacing */
+
+  /* Mobile-specific padding adjustments */
   .mobile-padding {
-    padding: 0.75rem;
+    padding: 1rem;
   }
-  
+
   @media (min-width: 640px) {
-    .mobile-padding {
-      padding: 1rem;
-    }
-  }
-  
-  @media (min-width: 768px) {
     .mobile-padding {
       padding: 1.5rem;
     }
   }
 
-  /* Improved focus states for mobile */
+  @media (min-width: 768px) {
+    .mobile-padding {
+      padding: 2rem;
+    }
+  }
+
+  /* Focus visible for better accessibility */
   .focus-visible:focus-visible {
-    outline: 2px solid hsl(var(--ring));
+    outline: 2px solid hsl(var(--primary));
     outline-offset: 2px;
   }
-  
-  /* Better mobile button states */
+
+  /* Mobile button improvements */
   .mobile-button {
     min-height: 44px;
-    touch-action: manipulation;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    line-height: 1.5;
   }
-  
-  /* Mobile-optimized cards */
+
+  /* Mobile card improvements */
   .mobile-card {
-    border-radius: var(--radius-lg);
-    transition: all 0.2s ease;
+    margin: 0.5rem;
+    border-radius: 0.75rem;
   }
-  
+
   .mobile-card:active {
     transform: scale(0.98);
   }
@@ -576,18 +632,18 @@ code {
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
     }
-    
-    /* Better mobile typography */
+
+    /* Mobile text scaling */
     .mobile-text-sm {
       font-size: 0.875rem;
       line-height: 1.25rem;
     }
-    
+
     .mobile-text-base {
       font-size: 1rem;
       line-height: 1.5rem;
     }
-    
+
     .mobile-text-lg {
       font-size: 1.125rem;
       line-height: 1.75rem;
@@ -619,7 +675,7 @@ code {
 @keyframes scaleIn {
   from {
     opacity: 0;
-    transform: scale(0.95);
+    transform: scale(0.9);
   }
   to {
     opacity: 1;
@@ -629,16 +685,55 @@ code {
 
 @keyframes shimmer {
   0% {
-    background-position: -200px 0;
+    background-position: -200% 0;
   }
   100% {
-    background-position: calc(200px + 100%) 0;
+    background-position: 200% 0;
   }
 }
 
-/* Skeleton loading animation */
+@keyframes pulseGlow {
+  0% {
+    box-shadow: 0 0 5px hsl(var(--primary) / 0.5);
+  }
+  100% {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.8), 0 0 30px hsl(var(--primary) / 0.4);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 .skeleton {
-  background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--muted-foreground) / 0.1) 50%, hsl(var(--muted)) 75%);
-  background-size: 200px 100%;
-  animation: shimmer 1.5s infinite;
+  background: linear-gradient(90deg, 
+    hsl(var(--muted)) 25%, 
+    hsl(var(--muted-foreground) / 0.1) 50%, 
+    hsl(var(--muted)) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
 }
