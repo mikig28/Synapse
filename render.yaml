@@ -52,7 +52,7 @@ services:
     name: synapse-crewai
     runtime: python
     buildCommand: cd src/backend/services/crewai-agents && pip install --upgrade pip && pip install -r requirements.txt && ls -la
-    startCommand: cd src/backend/services/crewai-agents && ls -la && python simple_main.py
+    startCommand: cd src/backend/services/crewai-agents && ls -la && python main.py
     plan: starter
     envVars:
       - key: OPENAI_API_KEY
