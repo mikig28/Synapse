@@ -500,3 +500,29 @@ export const getSchedulerStatus = async (req: Request, res: Response): Promise<v
     });
   }
 };
+
+// Debug endpoint to check environment variables
+export const getEnvironmentDebug = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const envVars = {
+      NODE_ENV: process.env.NODE_ENV,
+      TWITTER_BEARER_TOKEN: process.env.TWITTER_BEARER_TOKEN ? 'SET' : 'NOT SET',
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET',
+      NEWS_API_KEY: process.env.NEWS_API_KEY ? 'SET' : 'NOT SET',
+      MONGODB_URI: process.env.MONGODB_URI ? 'SET' : 'NOT SET',
+      JWT_SECRET: process.env.JWT_SECRET ? 'SET' : 'NOT SET',
+    };
+    
+    res.json({
+      success: true,
+      data: envVars,
+    });
+  } catch (error: any) {
+    console.error('[AgentsController] Error checking environment:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check environment',
+      message: error.message,
+    });
+  }
+};

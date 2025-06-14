@@ -13,6 +13,7 @@ router.use(authMiddleware_1.authMiddleware);
 router.get('/', agentsController_1.getAgents);
 router.get('/runs', agentsController_1.getUserAgentRuns); // Get all runs for user (must be before /:agentId routes)
 router.get('/scheduler/status', agentsController_1.getSchedulerStatus); // Get scheduler status
+router.get('/debug/environment', agentsController_1.getEnvironmentDebug); // Debug environment variables
 router.post('/', agentsController_1.createAgent);
 router.get('/:agentId', agentsController_1.getAgentById);
 router.put('/:agentId', agentsController_1.updateAgent);

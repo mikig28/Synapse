@@ -13,6 +13,7 @@ import {
   pauseAgent,
   resumeAgent,
   getSchedulerStatus,
+  getEnvironmentDebug,
 } from '../controllers/agentsController';
 
 const router = express.Router();
@@ -24,6 +25,7 @@ router.use(authMiddleware);
 router.get('/', getAgents);
 router.get('/runs', getUserAgentRuns); // Get all runs for user (must be before /:agentId routes)
 router.get('/scheduler/status', getSchedulerStatus); // Get scheduler status
+router.get('/debug/environment', getEnvironmentDebug); // Debug environment variables
 router.post('/', createAgent);
 
 router.get('/:agentId', getAgentById);

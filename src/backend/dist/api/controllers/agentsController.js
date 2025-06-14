@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getSchedulerStatus = exports.resumeAgent = exports.pauseAgent = exports.getAgentStatistics = exports.getUserAgentRuns = exports.getAgentRuns = exports.executeAgent = exports.deleteAgent = exports.updateAgent = exports.createAgent = exports.getAgentById = exports.getAgents = exports.initializeAgentServices = void 0;
+exports.getEnvironmentDebug = exports.getSchedulerStatus = exports.resumeAgent = exports.pauseAgent = exports.getAgentStatistics = exports.getUserAgentRuns = exports.getAgentRuns = exports.executeAgent = exports.deleteAgent = exports.updateAgent = exports.createAgent = exports.getAgentById = exports.getAgents = exports.initializeAgentServices = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 // Initialize services (these will be injected from server setup)
 let agentService;
@@ -460,3 +460,29 @@ const getSchedulerStatus = async (req, res) => {
     }
 };
 exports.getSchedulerStatus = getSchedulerStatus;
+// Debug endpoint to check environment variables
+const getEnvironmentDebug = async (req, res) => {
+    try {
+        const envVars = {
+            NODE_ENV: process.env.NODE_ENV,
+            TWITTER_BEARER_TOKEN: process.env.TWITTER_BEARER_TOKEN ? 'SET' : 'NOT SET',
+            OPENAI_API_KEY: process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET',
+            NEWS_API_KEY: process.env.NEWS_API_KEY ? 'SET' : 'NOT SET',
+            MONGODB_URI: process.env.MONGODB_URI ? 'SET' : 'NOT SET',
+            JWT_SECRET: process.env.JWT_SECRET ? 'SET' : 'NOT SET',
+        };
+        res.json({
+            success: true,
+            data: envVars,
+        });
+    }
+    catch (error) {
+        console.error('[AgentsController] Error checking environment:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to check environment',
+            message: error.message,
+        });
+    }
+};
+exports.getEnvironmentDebug = getEnvironmentDebug;
