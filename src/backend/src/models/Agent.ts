@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IAgent extends Document {
   userId: mongoose.Types.ObjectId;
   name: string;
-  type: 'twitter' | 'news' | 'custom';
+  type: 'twitter' | 'news' | 'crewai_news' | 'custom';
   description?: string;
   isActive: boolean;
   configuration: {
@@ -16,6 +16,14 @@ export interface IAgent extends Document {
     sources?: string[];
     categories?: string[];
     language?: string;
+    // CrewAI agent config
+    topics?: string[];
+    sources?: {
+      reddit?: boolean;
+      linkedin?: boolean;
+      telegram?: boolean;
+      news_websites?: boolean;
+    };
     // Common config
     schedule?: string; // cron expression
     maxItemsPerRun?: number;
@@ -41,7 +49,7 @@ const AgentSchema: Schema<IAgent> = new Schema(
     name: { type: String, required: true, trim: true },
     type: {
       type: String,
-      enum: ['twitter', 'news', 'custom'],
+      enum: ['twitter', 'news', 'crewai_news', 'custom'],
       required: true,
     },
     description: { type: String, trim: true },
