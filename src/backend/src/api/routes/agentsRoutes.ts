@@ -18,14 +18,16 @@ import {
 
 const router = express.Router();
 
-// All routes require authentication
+// Debug endpoint (no auth required for testing)
+router.get('/debug/environment', getEnvironmentDebug);
+
+// All other routes require authentication
 router.use(authMiddleware);
 
 // Agent CRUD operations
 router.get('/', getAgents);
 router.get('/runs', getUserAgentRuns); // Get all runs for user (must be before /:agentId routes)
 router.get('/scheduler/status', getSchedulerStatus); // Get scheduler status
-router.get('/debug/environment', getEnvironmentDebug); // Debug environment variables
 router.post('/', createAgent);
 
 router.get('/:agentId', getAgentById);
