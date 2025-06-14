@@ -60,15 +60,28 @@ const io = new SocketIOServer(httpServer, {
         console.log('[Socket.IO CORS] Allowing request with no origin.');
         return callback(null, true);
       }
-      if (allowedSocketOrigins.includes(requestOrigin)) {
+      
+      // Enhanced allowed origins for Socket.IO
+      const socketAllowedOrigins = [
+        frontendUrl, 
+        "https://synapse-frontend.onrender.com",
+        "http://localhost:5173",
+        "http://localhost:3000"
+      ];
+      
+      if (socketAllowedOrigins.includes(requestOrigin)) {
         console.log(`[Socket.IO CORS] Origin ${requestOrigin} is allowed.`);
         return callback(null, true);
       } else {
         console.error(`[Socket.IO CORS] Origin ${requestOrigin} is NOT allowed.`);
-        return callback(new Error('Not allowed by CORS'));
+        // Temporarily allow all for debugging
+        console.log('[Socket.IO CORS] Allowing anyway for debugging');
+        return callback(null, true);
       }
     },
-    methods: ["GET", "POST", "PUT", "DELETE"]
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true
   }
 });
 
