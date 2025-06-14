@@ -18,6 +18,7 @@ import IdeasPage from '@/pages/IdeasPage';
 import MeetingsPage from '@/pages/MeetingsPage';
 import { PageTransition } from '@/components/animations';
 import { CommandPalette, useCommandPalette } from '@/components/animations';
+import { DigestProvider } from './context/DigestContext';
 import { useLocation } from 'react-router-dom';
 
 function AppContent() {
@@ -26,7 +27,7 @@ function AppContent() {
   const commandPalette = useCommandPalette();
 
   return (
-    <>
+    <DigestProvider>
       <PageTransition key={location.pathname}>
         <Routes>
           <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" /> : <HomePage />} />
@@ -52,7 +53,7 @@ function AppContent() {
         isOpen={commandPalette.isOpen}
         onClose={commandPalette.close}
       />
-    </>
+    </DigestProvider>
   );
 }
 

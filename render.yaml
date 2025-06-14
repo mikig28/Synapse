@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: synapse-frontend
+    runtime: static
+    buildCommand: cd src/frontend && npm install && npm run build
+    staticPublishPath: src/frontend/dist
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: VITE_BACKEND_ROOT_URL
+        value: https://synapse-pxad.onrender.com
+      - key: VITE_API_BASE_URL
+        value: https://synapse-pxad.onrender.com/api/v1
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html 

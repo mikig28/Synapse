@@ -8,6 +8,9 @@ import whatsappRoutes from './api/routes/whatsappRoutes'; // Import WhatsApp rou
 import { connectToDatabase } from './config/database'; // Import database connection
 import authRoutes from './api/routes/authRoutes'; // Import auth routes
 import { initializeTelegramBot } from './services/telegramService'; // Import Telegram Bot initializer
+import { AgentService } from './services/agentService'; // Import agent service
+import { AgentScheduler } from './services/agentScheduler'; // Import agent scheduler
+import { initializeAgentServices } from './api/controllers/agentsController'; // Import agent services initializer
 import captureRoutes from './api/routes/captureRoutes'; // Import capture routes
 import path from 'path'; // <-- Import path module
 import fs from 'fs'; // <-- Import fs module
@@ -19,6 +22,8 @@ import ideasRoutes from './api/routes/ideasRoutes'; // Add this
 import meetingsRoutes from './api/routes/meetingsRoutes'; // Add meetings routes
 import userRoutes from './api/routes/userRoutes'; // <-- IMPORT USER ROUTES
 import mediaRoutes from './api/routes/media'; // Import media routes
+import agentsRoutes from './api/routes/agentsRoutes'; // Import agents routes
+import newsRoutes from './api/routes/newsRoutes'; // Import news routes
 
 dotenv.config();
 
@@ -118,6 +123,8 @@ app.use('/api/v1/notes', notesRoutes); // Add this
 app.use('/api/v1/ideas', ideasRoutes); // Add this
 app.use('/api/v1/meetings', meetingsRoutes); // Add meetings routes
 app.use('/api/v1/users', userRoutes); // <-- USE USER ROUTES
+app.use('/api/v1/agents', agentsRoutes); // Use agents routes
+app.use('/api/v1/news', newsRoutes); // Use news routes
 
 // Basic route for testing
 app.get('/', (req: Request, res: Response) => {
@@ -159,6 +166,17 @@ const startServer = async () => {
     await mongoose.connect(mongoUri);
     await connectToDatabase(); // Calls the Mongoose connection logic
     initializeTelegramBot(); // Initialize and start the Telegram bot polling
+
+    // Initialize agent services
+    const agentService = new AgentService();
+    const agentScheduler = new AgentScheduler(agentService);
+    
+    // Initialize agent controller dependencies
+    initializeAgentServices(agentService, agentScheduler);
+    
+    // Start the agent scheduler
+    await agentScheduler.start();
+    console.log('[Server] Agent scheduler started successfully');
 
     httpServer.listen(PORT, '0.0.0.0', () => {
       console.log(`Server is running on port ${PORT}`);

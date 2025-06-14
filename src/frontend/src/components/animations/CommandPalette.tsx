@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Command, Search, ArrowRight, Hash, FileText, Settings, Users, Calendar, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { FloatingInput } from './FloatingInput';
 
 interface CommandItem {
   id: string;

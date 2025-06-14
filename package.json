@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "node scripts/dev.js",
     "dev:backend": "cd src/backend && npm run dev",
+    "build": "cd src/frontend && npm install && npm run build",
+    "start": "cd src/frontend && npm run preview",
     "list": "node scripts/dev.js list",
     "generate": "node scripts/dev.js generate",
     "parse-prd": "node scripts/dev.js parse-prd",
