@@ -74,8 +74,9 @@ const io = new SocketIOServer(httpServer, {
 // Middleware
 app.use(cors({
   origin: [frontendUrl, "https://synapse-frontend.onrender.com"], // MODIFIED - Added your specific production frontend URL
-  methods: ["GET", "POST", "PUT", "DELETE"], // MODIFIED - Added PUT and DELETE for Express
-  allowedHeaders: ["Content-Type", "Authorization"] // Added common headers
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // MODIFIED - Added OPTIONS for preflight requests
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"], // Added more headers
+  credentials: true // Allow credentials (cookies, authorization headers, etc.)
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

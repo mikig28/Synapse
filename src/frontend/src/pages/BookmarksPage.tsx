@@ -292,19 +292,21 @@ const BookmarksPage: React.FC = () => {
   };
 
   const handleSpeakSummary = async (bookmarkId: string, summaryText: string | undefined) => {
-    console.log(`[handleSpeakSummary] Called for bookmarkId: ${bookmarkId}`);
-    // Log Summary Text (Point 2)
-    console.log("[handleSpeakSummary] Processing summary: ", summaryText);
-    console.log(`[handleSpeakSummary] Initial summaryText: '${summaryText}'`);
-
-    if (!summaryText) {
-        console.log("[handleSpeakSummary] Condition: !summaryText is TRUE. Exiting.");
-        toast({ title: "No Summary", description: "No summary available to play.", variant: "destructive" });
-        return;
+    console.log(`[handleSpeakSummary] Initiated for bookmarkId: ${bookmarkId}`);
+    
+    // 1. Validate summaryText
+    if (!summaryText || summaryText.trim() === '') {
+      console.error(`[handleSpeakSummary] Aborting: summaryText is empty or undefined for bookmarkId: ${bookmarkId}.`);
+      toast({
+        title: "No Summary Available",
+        description: "There is no summary text to read for this bookmark.",
+        variant: "destructive",
+      });
+      setAudioErrorId(bookmarkId);
+      return;
     }
-    console.log("[handleSpeakSummary] Condition: !summaryText is FALSE. Proceeding.");
 
-    // Log Audio State (Point 3)
+    // Stop current audio if it's playing
     if (currentAudio) {
       console.log("[handleSpeakSummary] currentAudio exists. Pausing and clearing previous audio.");
       currentAudio.pause();
