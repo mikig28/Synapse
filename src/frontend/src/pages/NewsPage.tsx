@@ -267,12 +267,12 @@ const NewsPage: React.FC = () => {
 
               <div>
                 <Label>Category</Label>
-                <Select value={filters.category} onValueChange={(value) => setFilters(prev => ({ ...prev, category: value }))}>
+                <Select value={filters.category || 'all'} onValueChange={(value) => setFilters(prev => ({ ...prev, category: value === 'all' ? '' : value }))}>
                   <SelectTrigger>
                     <SelectValue placeholder="All categories" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All categories</SelectItem>
+                    <SelectItem value="all">All categories</SelectItem>
                     {categories.map(category => (
                       <SelectItem key={category} value={category}>
                         {category}
@@ -284,15 +284,15 @@ const NewsPage: React.FC = () => {
 
               <div>
                 <Label>Read Status</Label>
-                <Select value={filters.isRead?.toString() || ''} onValueChange={(value) => setFilters(prev => ({ 
+                <Select value={filters.isRead === undefined ? 'all' : filters.isRead.toString()} onValueChange={(value) => setFilters(prev => ({ 
                   ...prev, 
-                  isRead: value === '' ? undefined : value === 'true' 
+                  isRead: value === 'all' ? undefined : value === 'true' 
                 }))}>
                   <SelectTrigger>
                     <SelectValue placeholder="All articles" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All articles</SelectItem>
+                    <SelectItem value="all">All articles</SelectItem>
                     <SelectItem value="false">Unread only</SelectItem>
                     <SelectItem value="true">Read only</SelectItem>
                   </SelectContent>
@@ -301,15 +301,15 @@ const NewsPage: React.FC = () => {
 
               <div>
                 <Label>Favorites</Label>
-                <Select value={filters.isFavorite?.toString() || ''} onValueChange={(value) => setFilters(prev => ({ 
+                <Select value={filters.isFavorite === undefined ? 'all' : filters.isFavorite.toString()} onValueChange={(value) => setFilters(prev => ({ 
                   ...prev, 
-                  isFavorite: value === '' ? undefined : value === 'true' 
+                  isFavorite: value === 'all' ? undefined : value === 'true' 
                 }))}>
                   <SelectTrigger>
                     <SelectValue placeholder="All articles" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All articles</SelectItem>
+                    <SelectItem value="all">All articles</SelectItem>
                     <SelectItem value="true">Favorites only</SelectItem>
                     <SelectItem value="false">Non-favorites</SelectItem>
                   </SelectContent>
