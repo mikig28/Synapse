@@ -11,6 +11,29 @@ services:
         value: https://synapse-pxad.onrender.com
       - key: VITE_API_BASE_URL
         value: https://synapse-pxad.onrender.com/api/v1
+
+  - type: web
+    name: synapse-backend
+    runtime: node
+    buildCommand: cd src/backend && npm install && npm run build
+    startCommand: cd src/backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: TWITTER_BEARER_TOKEN
+        value: qVFCYmlK2s1xw9b90Wwg2lFiE42vy5XNEH2V6z5eJAML5MXv2M
+      - key: NEWS_API_KEY
+        sync: false
+      - key: TRANSCRIPTION_SERVICE_URL
+        value: https://synapse-transcription.onrender.com
+      - key: FRONTEND_URL
+        value: https://synapse-frontend.onrender.com
     headers:
       - path: /*
         name: X-Frame-Options
