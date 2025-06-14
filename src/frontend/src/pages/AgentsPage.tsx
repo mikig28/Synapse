@@ -316,7 +316,7 @@ const AgentsPage: React.FC = () => {
                       <SelectContent>
                         <SelectItem value="twitter">Twitter Agent</SelectItem>
                         <SelectItem value="news">News Agent</SelectItem>
-                        <SelectItem value="crewai_news">CrewAI Multi-Agent News</SelectItem>
+                        <SelectItem value="crewai_news">🤖 CrewAI Multi-Agent News</SelectItem>
                         <SelectItem value="custom">Custom Agent</SelectItem>
                       </SelectContent>
                     </Select>
