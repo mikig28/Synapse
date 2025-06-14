@@ -34,6 +34,8 @@ services:
         value: https://synapse-transcription.onrender.com
       - key: FRONTEND_URL
         value: https://synapse-frontend.onrender.com
+      - key: CREWAI_SERVICE_URL
+        value: https://synapse-crewai.onrender.com
     headers:
       - path: /*
         name: X-Frame-Options
@@ -45,3 +47,24 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html 
+
+  - type: web
+    name: synapse-crewai
+    runtime: python
+    buildCommand: cd src/backend/services/crewai-agents && pip install -r requirements.txt
+    startCommand: cd src/backend/services/crewai-agents && python main.py
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: REDDIT_CLIENT_ID
+        sync: false
+      - key: REDDIT_CLIENT_SECRET
+        sync: false
+      - key: REDDIT_USER_AGENT
+        value: SynapseAgent/1.0
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: PORT
+        value: 5000
+      - key: ENVIRONMENT
+        value: production
