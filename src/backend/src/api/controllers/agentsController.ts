@@ -91,10 +91,10 @@ export const createAgent = async (req: AuthenticatedRequest, res: Response): Pro
     }
     
     // Validate agent type
-    if (!['twitter', 'news', 'custom'].includes(type)) {
+    if (!['twitter', 'news', 'crewai_news', 'custom'].includes(type)) {
       res.status(400).json({
         success: false,
-        error: 'Invalid agent type. Must be: twitter, news, or custom',
+        error: 'Invalid agent type. Must be: twitter, news, crewai_news, or custom',
       });
       return;
     }
