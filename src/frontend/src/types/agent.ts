@@ -2,7 +2,7 @@ export interface Agent {
   _id: string;
   userId: string;
   name: string;
-  type: 'twitter' | 'news' | 'custom';
+  type: 'twitter' | 'news' | 'crewai_news' | 'custom';
   description?: string;
   isActive: boolean;
   configuration: {
@@ -10,9 +10,16 @@ export interface Agent {
     minLikes?: number;
     minRetweets?: number;
     excludeReplies?: boolean;
-    sources?: string[];
+    newsSources?: string[];
     categories?: string[];
     language?: string;
+    topics?: string[];
+    crewaiSources?: {
+      reddit?: boolean;
+      linkedin?: boolean;
+      telegram?: boolean;
+      news_websites?: boolean;
+    };
     schedule?: string;
     maxItemsPerRun?: number;
   };
@@ -72,16 +79,23 @@ export interface AgentStatistics {
 
 export interface CreateAgentData {
   name: string;
-  type: 'twitter' | 'news' | 'custom';
+  type: 'twitter' | 'news' | 'crewai_news' | 'custom';
   description?: string;
   configuration?: {
     keywords?: string[];
     minLikes?: number;
     minRetweets?: number;
     excludeReplies?: boolean;
-    sources?: string[];
+    newsSources?: string[];
     categories?: string[];
     language?: string;
+    topics?: string[];
+    crewaiSources?: {
+      reddit?: boolean;
+      linkedin?: boolean;
+      telegram?: boolean;
+      news_websites?: boolean;
+    };
     schedule?: string;
     maxItemsPerRun?: number;
   };

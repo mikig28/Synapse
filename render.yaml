@@ -53,6 +53,7 @@ services:
     runtime: python
     buildCommand: cd src/backend/services/crewai-agents && pip install -r requirements.txt
     startCommand: cd src/backend/services/crewai-agents && python main.py
+    plan: starter
     envVars:
       - key: OPENAI_API_KEY
         sync: false

@@ -48,16 +48,23 @@ const AgentsPage: React.FC = () => {
   // Form state for creating new agent
   const [newAgent, setNewAgent] = useState({
     name: '',
-    type: 'twitter' as 'twitter' | 'news' | 'custom',
+    type: 'twitter' as 'twitter' | 'news' | 'crewai_news' | 'custom',
     description: '',
     configuration: {
       keywords: '',
       minLikes: 10,
       minRetweets: 5,
       excludeReplies: true,
-      sources: '',
+      newsSources: '',
       categories: '',
       language: 'en',
+      topics: '',
+      crewaiSources: {
+        reddit: true,
+        linkedin: true,
+        telegram: true,
+        news_websites: true,
+      },
       schedule: '0 */6 * * *',
       maxItemsPerRun: 10,
     },
@@ -99,8 +106,9 @@ const AgentsPage: React.FC = () => {
         configuration: {
           ...newAgent.configuration,
           keywords: newAgent.configuration.keywords ? newAgent.configuration.keywords.split(',').map(k => k.trim()) : [],
-          sources: newAgent.configuration.sources ? newAgent.configuration.sources.split(',').map(s => s.trim()) : [],
+          newsSources: newAgent.configuration.newsSources ? newAgent.configuration.newsSources.split(',').map(s => s.trim()) : [],
           categories: newAgent.configuration.categories ? newAgent.configuration.categories.split(',').map(c => c.trim()) : [],
+          topics: newAgent.configuration.topics ? newAgent.configuration.topics.split(',').map(t => t.trim()) : [],
         },
       };
 
@@ -210,6 +218,8 @@ const AgentsPage: React.FC = () => {
         return <Twitter className="w-5 h-5" />;
       case 'news':
         return <Newspaper className="w-5 h-5" />;
+      case 'crewai_news':
+        return <Zap className="w-5 h-5 text-purple-500" />;
       default:
         return <Bot className="w-5 h-5" />;
     }
@@ -299,13 +309,14 @@ const AgentsPage: React.FC = () => {
                   </div>
                   <div>
                     <Label htmlFor="type">Agent Type</Label>
-                    <Select value={newAgent.type} onValueChange={(value: 'twitter' | 'news' | 'custom') => setNewAgent(prev => ({ ...prev, type: value }))}>
+                    <Select value={newAgent.type} onValueChange={(value: 'twitter' | 'news' | 'crewai_news' | 'custom') => setNewAgent(prev => ({ ...prev, type: value }))}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="twitter">Twitter Agent</SelectItem>
                         <SelectItem value="news">News Agent</SelectItem>
+                        <SelectItem value="crewai_news">CrewAI Multi-Agent News</SelectItem>
                         <SelectItem value="custom">Custom Agent</SelectItem>
                       </SelectContent>
                     </Select>
@@ -386,6 +397,122 @@ const AgentsPage: React.FC = () => {
                             <SelectItem value="de">German</SelectItem>
                           </SelectContent>
                         </Select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {newAgent.type === 'crewai_news' && (
+                  <div className="space-y-4">
+                    <Label>CrewAI Multi-Agent Configuration</Label>
+                    <div className="space-y-3">
+                      <div>
+                        <Label htmlFor="topics">Topics (comma-separated)</Label>
+                        <Input
+                          id="topics"
+                          value={newAgent.configuration.topics}
+                          onChange={(e) => setNewAgent(prev => ({ 
+                            ...prev, 
+                            configuration: { ...prev.configuration, topics: e.target.value }
+                          }))}
+                          placeholder="AI, machine learning, startups, blockchain, technology"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Topics for the multi-agent system to focus on across all sources
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <Label>News Sources</Label>
+                        <p className="text-xs text-muted-foreground mb-2">
+                          Select which sources the CrewAI agents should monitor
+                        </p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="reddit"
+                              checked={newAgent.configuration.crewaiSources?.reddit}
+                              onChange={(e) => setNewAgent(prev => ({
+                                ...prev,
+                                configuration: {
+                                  ...prev.configuration,
+                                  crewaiSources: {
+                                    ...prev.configuration.crewaiSources,
+                                    reddit: e.target.checked
+                                  }
+                                }
+                              }))}
+                              className="rounded"
+                            />
+                            <label htmlFor="reddit" className="text-sm font-medium">
+                              Reddit Discussions
+                            </label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="linkedin"
+                              checked={newAgent.configuration.crewaiSources?.linkedin}
+                              onChange={(e) => setNewAgent(prev => ({
+                                ...prev,
+                                configuration: {
+                                  ...prev.configuration,
+                                  crewaiSources: {
+                                    ...prev.configuration.crewaiSources,
+                                    linkedin: e.target.checked
+                                  }
+                                }
+                              }))}
+                              className="rounded"
+                            />
+                            <label htmlFor="linkedin" className="text-sm font-medium">
+                              LinkedIn Insights
+                            </label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="telegram"
+                              checked={newAgent.configuration.crewaiSources?.telegram}
+                              onChange={(e) => setNewAgent(prev => ({
+                                ...prev,
+                                configuration: {
+                                  ...prev.configuration,
+                                  crewaiSources: {
+                                    ...prev.configuration.crewaiSources,
+                                    telegram: e.target.checked
+                                  }
+                                }
+                              }))}
+                              className="rounded"
+                            />
+                            <label htmlFor="telegram" className="text-sm font-medium">
+                              Telegram Channels
+                            </label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="news_websites"
+                              checked={newAgent.configuration.crewaiSources?.news_websites}
+                              onChange={(e) => setNewAgent(prev => ({
+                                ...prev,
+                                configuration: {
+                                  ...prev.configuration,
+                                  crewaiSources: {
+                                    ...prev.configuration.crewaiSources,
+                                    news_websites: e.target.checked
+                                  }
+                                }
+                              }))}
+                              className="rounded"
+                            />
+                            <label htmlFor="news_websites" className="text-sm font-medium">
+                              News Websites
+                            </label>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
