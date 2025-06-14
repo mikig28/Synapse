@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { ExternalLink, Info, MessageSquareText, Trash2, CalendarDays, FileText, Zap, AlertCircle, Volume2, Search, BookmarkPlus, CheckCircle, XCircle, Loader2, PlayCircle, StopCircle, Brain, ListFilter, ArrowUpDown, Link as LinkIcon } from 'lucide-react';
-import { getBookmarks, deleteBookmarkService, summarizeBookmarkById, speakTextWithElevenLabs } from '../services/bookmarkService';
+import { getBookmarks, deleteBookmarkService, summarizeBookmarkById, speakTextViaBackend } from '../services/bookmarkService';
 import { BookmarkItemType } from '../types/bookmark';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ClientTweetCard } from '@/components/ui/TweetCard';
@@ -322,29 +322,13 @@ const BookmarksPage: React.FC = () => {
       console.log("[handleSpeakSummary] No currentAudio. Will attempt to play new audio.");
     }
 
-    const ELEVENLABS_API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY;
-    // Ensure API Key Logging (Point 1 - already present, confirmed)
-    console.log(`[handleSpeakSummary] Retrieved VITE_ELEVENLABS_API_KEY: '${ELEVENLABS_API_KEY ? '********' : 'MISSING!'}'`);
-
-    if (!ELEVENLABS_API_KEY) {
-        console.log("[handleSpeakSummary] Condition: !ELEVENLABS_API_KEY is TRUE. Exiting.");
-        toast({ title: "API Key Missing", description: "ElevenLabs API key is not configured.", variant: "destructive" });
-        setAudioErrorId(bookmarkId);
-        return;
-    }
-    console.log("[handleSpeakSummary] Condition: !ELEVENLABS_API_KEY is FALSE. API Key found. Proceeding to API call.");
-
-    const VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
-
+    // Proceed to call backend TTS proxy
     setPlayingBookmarkId(bookmarkId);
     setAudioErrorId(null);
 
     try {
-      // Log Before API Call (Point 4)
-      console.log(`[handleSpeakSummary] Calling speakTextWithElevenLabs for bookmarkId: ${bookmarkId} with VOICE_ID: ${VOICE_ID}`);
-      const audioBlob = await speakTextWithElevenLabs(summaryText, VOICE_ID, ELEVENLABS_API_KEY);
-      // Log After API Call (Success) (Point 5)
-      console.log("[handleSpeakSummary] speakTextWithElevenLabs returned. audioBlob:", audioBlob);
+      console.log(`[handleSpeakSummary] Calling speakTextViaBackend for bookmarkId: ${bookmarkId}`);
+      const audioBlob = await speakTextViaBackend(summaryText);
       const audioUrl = URL.createObjectURL(audioBlob);
       console.log("[handleSpeakSummary] Created audioUrl:", audioUrl);
       const audio = new Audio(audioUrl);

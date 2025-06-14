@@ -170,4 +170,18 @@ export const speakTextWithElevenLabs = async (text: string, voiceId: string, api
       throw new Error(`ElevenLabs API Error: ${error.message}`);
     }
   }
+};
+
+export const speakTextViaBackend = async (text: string): Promise<Blob> => {
+  try {
+    const response = await axiosInstance.post<Blob>(
+      '/tts',
+      { text },
+      { responseType: 'blob' }
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('Error calling backend TTS endpoint:', error);
+    throw error;
+  }
 }; 

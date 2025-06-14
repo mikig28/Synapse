@@ -25,6 +25,7 @@ import userRoutes from './api/routes/userRoutes'; // <-- IMPORT USER ROUTES
 import mediaRoutes from './api/routes/media'; // Import media routes
 import agentsRoutes from './api/routes/agentsRoutes'; // Import agents routes
 import newsRoutes from './api/routes/newsRoutes'; // Import news routes
+import ttsRoutes from './api/routes/ttsRoutes'; // Import text-to-speech routes
 
 dotenv.config();
 
@@ -127,6 +128,7 @@ app.use('/api/v1/meetings', meetingsRoutes); // Add meetings routes
 app.use('/api/v1/users', userRoutes); // <-- USE USER ROUTES
 app.use('/api/v1/agents', agentsRoutes); // Use agents routes
 app.use('/api/v1/news', newsRoutes); // Use news routes
+app.use('/api/v1/tts', ttsRoutes); // Use TTS proxy route
 
 // Basic route for testing
 app.get('/', (req: Request, res: Response) => {
