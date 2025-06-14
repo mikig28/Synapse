@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.protect = void 0;
+exports.authMiddleware = exports.protect = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const protect = async (req, res, next) => {
     let token;
@@ -26,3 +26,5 @@ const protect = async (req, res, next) => {
     }
 };
 exports.protect = protect;
+// Export as authMiddleware for compatibility
+exports.authMiddleware = exports.protect;

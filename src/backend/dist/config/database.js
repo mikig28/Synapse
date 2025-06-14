@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.connectToDatabase = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 const dotenv_1 = __importDefault(require("dotenv"));
+const gridfs_1 = require("./gridfs"); // Import GridFS initializer
 dotenv_1.default.config();
 const MONGODB_URI = process.env.MONGODB_URI;
 // const DB_NAME = process.env.DB_NAME || 'synapse_db'; // Not directly used by mongoose.connect if DB is in URI
@@ -20,6 +21,7 @@ const connectToDatabase = async () => {
     // Mongoose connection listeners (optional but good for debugging)
     mongoose_1.default.connection.on('connected', () => {
         console.log('[mongoose]: Mongoose connected to DB');
+        (0, gridfs_1.initializeGridFS)(); // Initialize GridFS after connection is established
     });
     mongoose_1.default.connection.on('error', (err) => {
         console.error('[mongoose]: Mongoose connection error:', err);

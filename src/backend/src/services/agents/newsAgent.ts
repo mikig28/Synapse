@@ -44,7 +44,7 @@ export class NewsAgentExecutor implements AgentExecutor {
       this.openaiClient = new OpenAI({ apiKey: openaiApiKey });
     }
 
-    this.rssParser = new Parser({
+    this.rssParser = new Parser.default({
       timeout: 10000,
       maxRedirects: 5,
     });
@@ -98,7 +98,7 @@ export class NewsAgentExecutor implements AgentExecutor {
       let addedCount = 0;
       for (const article of interestingArticles.slice(0, maxItemsPerRun)) {
         try {
-          const added = await this.addArticleToNews(article, userId, agent._id);
+          const added = await this.addArticleToNews(article, userId, agent._id as any);
           if (added) {
             addedCount++;
             await run.addLog('info', `Added article to news: ${article.title}`);
@@ -138,8 +138,8 @@ export class NewsAgentExecutor implements AgentExecutor {
           timeout: 10000,
         });
 
-        if (response.data && response.data.articles) {
-          for (const article of response.data.articles) {
+        if (response.data && (response.data as any).articles) {
+          for (const article of (response.data as any).articles) {
             if (article.url && article.title) {
               articles.push({
                 title: article.title,

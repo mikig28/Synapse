@@ -41,7 +41,7 @@ export interface AgentRun {
   duration?: number;
   itemsProcessed: number;
   itemsAdded: number;
-  errors: string[];
+  errorMessages: string[];
   logs: {
     timestamp: string;
     level: 'info' | 'warn' | 'error';

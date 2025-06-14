@@ -45,7 +45,7 @@ const TelegramItemSchema = new mongoose_1.Schema({
     urls: { type: [String], default: [] }, // Added urls field
     messageType: { type: String, required: true, default: 'text' },
     mediaFileId: { type: String }, // For later use if we download media
-    mediaLocalUrl: { type: String }, // For later use
+    mediaGridFsId: { type: String }, // For later use
     receivedAt: { type: Date, default: Date.now },
 }, { timestamps: true } // Adds createdAt and updatedAt for the DB record itself
 );

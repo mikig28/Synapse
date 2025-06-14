@@ -87,7 +87,7 @@ export class AgentScheduler {
   private async runAgentSafely(agent: IAgent): Promise<void> {
     try {
       console.log(`[AgentScheduler] Executing agent: ${agent.name} (${agent.type})`);
-      await this.agentService.executeAgent(agent._id.toString());
+      await this.agentService.executeAgent((agent._id as any).toString());
       console.log(`[AgentScheduler] Agent ${agent.name} completed successfully`);
     } catch (error: any) {
       console.error(`[AgentScheduler] Agent ${agent.name} failed:`, error.message);
@@ -103,7 +103,7 @@ export class AgentScheduler {
   }
 
   async scheduleAgent(agent: IAgent): Promise<void> {
-    const agentId = agent._id.toString();
+    const agentId = (agent._id as any).toString();
     
     // Stop existing schedule if any
     if (this.scheduledTasks.has(agentId)) {

@@ -13,6 +13,6 @@ router.post('/register', authController_1.registerUser);
 // @route   POST api/v1/auth/login
 // @desc    Authenticate user & get token
 // @access  Public
-router.post('/login', authController_1.loginUser); // We'll implement loginUser controller logic later
+router.post('/login', authController_1.loginUser);
 // We can add more auth-related routes here later (e.g., /me, /google, /google/callback)
 exports.default = router;

@@ -167,8 +167,8 @@ export class TwitterAgentExecutor implements AgentExecutor {
 
       const tweets: Tweet[] = [];
 
-      if (response.data) {
-        for (const tweet of response.data) {
+      if (response.data?.data) {
+        for (const tweet of response.data.data) {
           const author = response.includes?.users?.find(user => user.id === tweet.author_id);
           
           tweets.push({

@@ -9,7 +9,7 @@ export interface IAgentRun extends Document {
   duration?: number; // in milliseconds
   itemsProcessed: number;
   itemsAdded: number;
-  errors: string[];
+  errorMessages: string[];
   logs: {
     timestamp: Date;
     level: 'info' | 'warn' | 'error';
@@ -44,7 +44,7 @@ const AgentRunSchema: Schema<IAgentRun> = new Schema(
     duration: { type: Number }, // in milliseconds
     itemsProcessed: { type: Number, default: 0 },
     itemsAdded: { type: Number, default: 0 },
-    errors: { type: [String], default: [] },
+    errorMessages: { type: [String], default: [] },
     logs: [
       {
         timestamp: { type: Date, default: Date.now },
@@ -95,7 +95,7 @@ AgentRunSchema.methods.fail = function (error: string) {
   this.status = 'failed';
   this.endTime = new Date();
   this.duration = this.endTime.getTime() - this.startTime.getTime();
-  this.errors.push(error);
+  this.errorMessages.push(error);
   return this.save();
 };
 

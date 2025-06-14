@@ -5,9 +5,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteTelegramItem = exports.getTelegramItems = exports.processTelegramItemForBookmarks = void 0;
 const TelegramItem_1 = __importDefault(require("../../models/TelegramItem")); // Ensure TelegramItemDocument is not imported here
-const fs_1 = __importDefault(require("fs")); // <-- Import fs for file deletion
-const path_1 = __importDefault(require("path")); // <-- Import path for constructing file paths
 const bookmarksController_1 = require("./bookmarksController"); // Import the new function
+const mongodb_1 = require("mongodb");
+const gridfs_1 = require("../../config/gridfs");
+// Assuming you have a way to get authenticated user ID from request, e.g., from a JWT middleware
+// For now, we'll assume req.user.id exists after authentication middleware.
 // New function to process a saved Telegram item for bookmarks
 const processTelegramItemForBookmarks = async (telegramItem) => {
     if (!telegramItem.synapseUserId) {
@@ -18,12 +20,14 @@ const processTelegramItemForBookmarks = async (telegramItem) => {
         return; // No URLs to process
     }
     const socialMediaPatterns = {
-        X: /https?:\/\/(twitter\.com|x\.com)/i,
-        LinkedIn: /https?:\/\/(?:www\.)?linkedin\.com/i,
-        Reddit: /https?:\/\/(?:www\.)?reddit\.com/i,
+        X: /https?:\/\/(twitter\.com|x\.com)\/.+\/status\/\d+/i,
+        LinkedIn: /https?:\/\/(?:www\.)?linkedin\.com\/(posts|feed\/update|pulse)\//i,
+        Reddit: /https?:\/\/(?:www\.)?reddit\.com\/r\//i,
     };
+    console.log('[processTelegramItemForBookmarks] Starting URL processing for TelegramItem ID:', telegramItem._id);
     for (const url of telegramItem.urls) {
         let platform = null;
+        console.log(`[processTelegramItemForBookmarks] Evaluating URL: ${url}`);
         if (socialMediaPatterns.X.test(url)) {
             platform = 'X';
         }
@@ -33,6 +37,11 @@ const processTelegramItemForBookmarks = async (telegramItem) => {
         else if (socialMediaPatterns.Reddit.test(url)) {
             platform = 'Reddit';
         }
+        else {
+            // It's a URL, but doesn't match a specific social media pattern
+            platform = 'Other';
+        }
+        console.log(`[processTelegramItemForBookmarks] Assigned Platform: ${platform} for URL: ${url}`);
         if (platform) {
             try {
                 console.log(`Found ${platform} link: ${url}. Creating bookmark...`);
@@ -75,22 +84,24 @@ const deleteTelegramItem = async (req, res) => {
         if (!item) {
             return res.status(404).json({ message: 'Telegram item not found or not authorized to delete' });
         }
-        // If the item has a local media file, delete it from the server
-        if (item.mediaLocalUrl) {
-            // Construct the absolute path to the file on the server
-            // mediaLocalUrl is stored as /public/uploads/telegram_media/filename.jpg
-            // We need to get to src/backend/public/uploads/telegram_media/filename.jpg
-            const relativePath = item.mediaLocalUrl.startsWith('/public/')
-                ? item.mediaLocalUrl.substring('/public'.length)
-                : item.mediaLocalUrl;
-            const filePath = path_1.default.join(__dirname, '..', '..', 'public', relativePath);
-            fs_1.default.unlink(filePath, (err) => {
-                if (err) {
-                    // Log the error, but don't necessarily block DB deletion if file deletion fails
-                    // It could be that the file was already manually deleted or path is incorrect
-                    console.error(`[DELETE_TELEGRAM_ITEM_FILE_ERROR] Failed to delete local file ${filePath}:`, err);
+        // If the item has a media file in GridFS, delete it
+        if (item.mediaGridFsId) {
+            try {
+                const bucket = (0, gridfs_1.getBucket)();
+                await bucket.delete(new mongodb_1.ObjectId(item.mediaGridFsId));
+                console.log(`[DELETE_TELEGRAM_ITEM_FILE] Deleted GridFS file: ${item.mediaGridFsId}`);
+            }
+            catch (gridfsError) {
+                // Log the error, but don't block DB deletion if GridFS deletion fails.
+                // It could be that the file ID is invalid or file doesn't exist.
+                console.error(`[DELETE_TELEGRAM_ITEM_FILE_ERROR] Failed to delete GridFS file ${item.mediaGridFsId}:`, gridfsError);
+                if (gridfsError.message.includes('not found')) {
+                    // This isn't a server error if the file is just not there, so don't throw.
                 }
-            });
+                else {
+                    // For other errors (e.g., DB connection), still log but proceed.
+                }
+            }
         }
         await TelegramItem_1.default.findByIdAndDelete(itemId);
         // Or: await item.deleteOne(); if you prefer using the instance method

@@ -48,6 +48,7 @@ const VideoItemSchema = new mongoose_1.Schema({
         default: 'unwatched',
         required: true,
     },
+    summary: { type: String }, // AI-generated summary field
     telegramMessageId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'TelegramItem' }, // Optional link
 }, { timestamps: true });
 // Compound index to ensure a user doesn't have the same videoId saved multiple times.

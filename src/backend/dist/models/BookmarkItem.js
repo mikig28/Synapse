@@ -49,13 +49,20 @@ const BookmarkItemSchema = new mongoose_1.Schema({
     rawPageContent: { type: String },
     status: {
         type: String,
-        enum: ['pending_summary', 'summarized', 'error', 'metadata_fetched'],
-        default: 'pending_summary',
+        enum: ['pending', 'summarized', 'error', 'metadata_fetched'],
+        default: 'pending',
     },
     fetchedTitle: { type: String },
     fetchedDescription: { type: String },
     fetchedImageUrl: { type: String },
     fetchedVideoUrl: { type: String },
+    // Reddit-specific fields
+    redditPostContent: { type: String },
+    redditAuthor: { type: String },
+    redditSubreddit: { type: String },
+    redditUpvotes: { type: Number },
+    redditNumComments: { type: Number },
+    redditCreatedUtc: { type: Number },
 }, { timestamps: true } // Automatically adds createdAt and updatedAt fields
 );
 // Index for efficient querying

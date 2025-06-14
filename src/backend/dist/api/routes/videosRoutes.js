@@ -13,6 +13,8 @@ router.post('/telegram', authMiddleware_1.protect, videosController_1.createVide
 router.get('/', authMiddleware_1.protect, videosController_1.getVideos);
 // PUT /api/v1/videos/:id/status - Update the watchedStatus of a video
 router.put('/:id/status', authMiddleware_1.protect, videosController_1.updateVideoStatus);
+// POST /api/v1/videos/:id/summarize - Generate AI summary for a video
+router.post('/:id/summarize', authMiddleware_1.protect, videosController_1.summarizeVideo);
 // DELETE /api/v1/videos/:id - Delete a specific video
 router.delete('/:id', authMiddleware_1.protect, videosController_1.deleteVideo);
 exports.default = router;

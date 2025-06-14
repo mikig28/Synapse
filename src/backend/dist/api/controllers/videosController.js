@@ -3,10 +3,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteVideo = exports.updateVideoStatus = exports.getVideos = exports.createVideoFromTelegram = exports.processAndCreateVideoItem = void 0;
+exports.summarizeVideo = exports.deleteVideo = exports.updateVideoStatus = exports.getVideos = exports.createVideoFromTelegram = exports.processAndCreateVideoItem = void 0;
 const VideoItem_1 = __importDefault(require("../../models/VideoItem"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const axios_1 = __importDefault(require("axios")); // For oEmbed
+const videoSummarizationService_1 = require("../../services/videoSummarizationService");
 const extractYouTubeVideoId = (url) => {
     let videoId = null;
     try {
@@ -66,11 +67,12 @@ const processAndCreateVideoItem = async (userIdString, originalUrl, telegramItem
         let channelTitle;
         try {
             const oEmbedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(originalUrl)}&format=json`;
+            // Type the axios call
             const oEmbedResponse = await axios_1.default.get(oEmbedUrl);
             if (oEmbedResponse.data) {
                 title = oEmbedResponse.data.title || title;
-                thumbnailUrl = oEmbedResponse.data.thumbnail_url;
-                channelTitle = oEmbedResponse.data.author_name;
+                thumbnailUrl = oEmbedResponse.data.thumbnail_url; // This can be undefined
+                channelTitle = oEmbedResponse.data.author_name; // This can be undefined
             }
         }
         catch (oembedError) {
@@ -198,3 +200,47 @@ const deleteVideo = async (req, res) => {
     }
 };
 exports.deleteVideo = deleteVideo;
+// Function to summarize a video
+const summarizeVideo = async (req, res) => {
+    try {
+        const videoId = req.params.id;
+        const userId = req.user?.id;
+        if (!userId) {
+            return res.status(401).json({ message: 'User not authenticated' });
+        }
+        if (!mongoose_1.default.Types.ObjectId.isValid(videoId)) {
+            return res.status(400).json({ message: 'Invalid video ID' });
+        }
+        // Find the video
+        const video = await VideoItem_1.default.findOne({
+            _id: videoId,
+            userId: new mongoose_1.default.Types.ObjectId(userId)
+        });
+        if (!video) {
+            return res.status(404).json({ message: 'Video not found or user not authorized' });
+        }
+        // Generate summary using Gemini AI (always generate, even if exists)
+        console.log(`[VideoController] Generating summary for video ${video.videoId} (${video.title})`);
+        const summary = await (0, videoSummarizationService_1.summarizeYouTubeVideo)(video.videoId);
+        // Update the video with the generated summary
+        const updatedVideo = await VideoItem_1.default.findByIdAndUpdate(videoId, { summary }, { new: true });
+        if (!updatedVideo) {
+            return res.status(500).json({ message: 'Failed to save summary' });
+        }
+        console.log(`[VideoController] Summary generated and saved for video ${video.videoId}`);
+        res.status(200).json({
+            message: 'Summary generated successfully',
+            summary,
+            video: updatedVideo
+        });
+    }
+    catch (error) {
+        console.error('[VideoController] Error summarizing video:', error);
+        const message = error instanceof Error ? error.message : 'Unknown error generating summary';
+        res.status(500).json({
+            message: 'Failed to generate video summary',
+            error: message
+        });
+    }
+};
+exports.summarizeVideo = summarizeVideo;
