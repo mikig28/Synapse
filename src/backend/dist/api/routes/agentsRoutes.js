@@ -7,13 +7,14 @@ const express_1 = __importDefault(require("express"));
 const authMiddleware_1 = require("../middleware/authMiddleware");
 const agentsController_1 = require("../controllers/agentsController");
 const router = express_1.default.Router();
-// All routes require authentication
+// Debug endpoint (no auth required for testing)
+router.get('/debug/environment', agentsController_1.getEnvironmentDebug);
+// All other routes require authentication
 router.use(authMiddleware_1.authMiddleware);
 // Agent CRUD operations
 router.get('/', agentsController_1.getAgents);
 router.get('/runs', agentsController_1.getUserAgentRuns); // Get all runs for user (must be before /:agentId routes)
 router.get('/scheduler/status', agentsController_1.getSchedulerStatus); // Get scheduler status
-router.get('/debug/environment', agentsController_1.getEnvironmentDebug); // Debug environment variables
 router.post('/', agentsController_1.createAgent);
 router.get('/:agentId', agentsController_1.getAgentById);
 router.put('/:agentId', agentsController_1.updateAgent);

@@ -13,12 +13,12 @@ export interface IAgent extends Document {
     minRetweets?: number;
     excludeReplies?: boolean;
     // News agent config
-    sources?: string[];
+    newsSources?: string[];
     categories?: string[];
     language?: string;
     // CrewAI agent config
     topics?: string[];
-    sources?: {
+    crewaiSources?: {
       reddit?: boolean;
       linkedin?: boolean;
       telegram?: boolean;

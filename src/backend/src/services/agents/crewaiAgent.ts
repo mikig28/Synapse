@@ -57,10 +57,10 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       const config = agent.configuration;
       const topics = config.topics || ['technology', 'AI', 'startups', 'business'];
       const sources = {
-        reddit: config.sources?.reddit !== false,
-        linkedin: config.sources?.linkedin !== false,
-        telegram: config.sources?.telegram !== false,
-        news_websites: config.sources?.news_websites !== false
+        reddit: config.crewaiSources?.reddit !== false,
+        linkedin: config.crewaiSources?.linkedin !== false,
+        telegram: config.crewaiSources?.telegram !== false,
+        news_websites: config.crewaiSources?.news_websites !== false
       };
 
       await run.addLog('info', `Gathering news for topics: ${topics.join(', ')}`);
@@ -95,7 +95,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
 
   private async healthCheck(): Promise<void> {
     try {
-      const response = await axios.get(`${this.crewaiServiceUrl}/health`, {
+      const response = await axios.get<{initialized: boolean}>(`${this.crewaiServiceUrl}/health`, {
         timeout: 10000
       });
       
@@ -112,7 +112,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
 
   private async executeCrewAIGathering(request: CrewAINewsRequest): Promise<CrewAINewsResponse> {
     try {
-      const response = await axios.post(`${this.crewaiServiceUrl}/gather-news`, request, {
+      const response = await axios.post<CrewAINewsResponse>(`${this.crewaiServiceUrl}/gather-news`, request, {
         timeout: 300000, // 5 minutes timeout for news gathering
         headers: {
           'Content-Type': 'application/json'

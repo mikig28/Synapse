@@ -39,7 +39,7 @@ const AgentSchema = new mongoose_1.Schema({
     name: { type: String, required: true, trim: true },
     type: {
         type: String,
-        enum: ['twitter', 'news', 'custom'],
+        enum: ['twitter', 'news', 'crewai_news', 'custom'],
         required: true,
     },
     description: { type: String, trim: true },

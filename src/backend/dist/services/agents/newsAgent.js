@@ -59,7 +59,7 @@ class NewsAgentExecutor {
         const { agent, run, userId } = context;
         await run.addLog('info', 'Starting News agent execution');
         const config = agent.configuration;
-        const sources = config.sources || ['newsapi']; // Default to NewsAPI
+        const sources = config.newsSources || ['newsapi']; // Default to NewsAPI
         const categories = config.categories || ['technology', 'business'];
         const language = config.language || 'en';
         const maxItemsPerRun = config.maxItemsPerRun || 20;

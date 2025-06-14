@@ -31,6 +31,7 @@ const userRoutes_1 = __importDefault(require("./api/routes/userRoutes")); // <--
 const media_1 = __importDefault(require("./api/routes/media")); // Import media routes
 const agentsRoutes_1 = __importDefault(require("./api/routes/agentsRoutes")); // Import agents routes
 const newsRoutes_1 = __importDefault(require("./api/routes/newsRoutes")); // Import news routes
+const ttsRoutes_1 = __importDefault(require("./api/routes/ttsRoutes")); // Import text-to-speech routes
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const rawPort = process.env.PORT || '3001'; // Read as string
@@ -74,8 +75,9 @@ exports.io = io;
 // Middleware
 app.use((0, cors_1.default)({
     origin: [frontendUrl, "https://synapse-frontend.onrender.com"], // MODIFIED - Added your specific production frontend URL
-    methods: ["GET", "POST", "PUT", "DELETE"], // MODIFIED - Added PUT and DELETE for Express
-    allowedHeaders: ["Content-Type", "Authorization"] // Added common headers
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // MODIFIED - Added OPTIONS for preflight requests
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"], // Added more headers
+    credentials: true // Allow credentials (cookies, authorization headers, etc.)
 }));
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
@@ -125,6 +127,7 @@ app.use('/api/v1/meetings', meetingsRoutes_1.default); // Add meetings routes
 app.use('/api/v1/users', userRoutes_1.default); // <-- USE USER ROUTES
 app.use('/api/v1/agents', agentsRoutes_1.default); // Use agents routes
 app.use('/api/v1/news', newsRoutes_1.default); // Use news routes
+app.use('/api/v1/tts', ttsRoutes_1.default); // Use TTS proxy route
 // Basic route for testing
 app.get('/', (req, res) => {
     const readyState = mongoose_1.default.connection.readyState;
