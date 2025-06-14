@@ -51,7 +51,7 @@ services:
   - type: web
     name: synapse-crewai
     runtime: python
-    buildCommand: cd src/backend/services/crewai-agents && pip install --upgrade pip && pip install flask python-dotenv requests
+    buildCommand: cd src/backend/services/crewai-agents && pip install --upgrade pip && pip install -r requirements.txt
     startCommand: cd src/backend/services/crewai-agents && python simple_main.py
     plan: starter
     envVars:
