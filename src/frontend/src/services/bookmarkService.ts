@@ -74,8 +74,11 @@ export const summarizeLatestBookmarksService = async (): Promise<SummarizeLatest
 
 export const speakTextWithElevenLabs = async (text: string, voiceId: string, apiKey: string): Promise<Blob> => {
   const ELEVENLABS_API_URL = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
-  // A common default voice ID, you might want to make this configurable or fetch available voices
-  // const DEFAULT_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"; // Example Voice ID from docs
+  
+  // Validate API key format
+  if (!apiKey || apiKey.trim() === '') {
+    throw new Error('ElevenLabs API key is required');
+  }
 
   try {
     const response = await axios.post<Blob>(
@@ -83,17 +86,18 @@ export const speakTextWithElevenLabs = async (text: string, voiceId: string, api
       {
         text: text,
         model_id: "eleven_multilingual_v2", // Or "eleven_flash_v2.5" for lower latency
-        // voice_settings: { // Optional: customize voice settings
-        //   stability: 0.5,
-        //   similarity_boost: 0.75,
-        // },
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.75,
+        },
       },
       {
         headers: {
           "Content-Type": "application/json",
-          "xi-api-key": apiKey, // IMPORTANT: Handle your API key securely
+          "xi-api-key": apiKey.trim(), // Ensure no whitespace
         },
         responseType: 'blob', // To handle the audio file
+        timeout: 30000, // 30 second timeout
       }
     );
     return response.data;
@@ -101,20 +105,43 @@ export const speakTextWithElevenLabs = async (text: string, voiceId: string, api
     console.error("Error calling ElevenLabs Text-to-Speech API:", error);
 
     if (error.response) {
-      // Handle Blob error response first
+      const status = error.response.status;
+      
+      // Handle specific status codes
+      if (status === 401) {
+        throw new Error(`ElevenLabs API Error: Invalid API key. Please check your VITE_ELEVENLABS_API_KEY environment variable.`);
+      }
+      
+      if (status === 422) {
+        throw new Error(`ElevenLabs API Error: Invalid request parameters. Check voice ID and text content.`);
+      }
+      
+      if (status === 429) {
+        throw new Error(`ElevenLabs API Error: Rate limit exceeded. Please try again later.`);
+      }
+
+      // Handle Blob error response
       if (error.response.data instanceof Blob) {
         try {
           const errorText = await error.response.data.text();
           console.error("Error data as text (Blob):", errorText);
-          throw new Error(`ElevenLabs API Error: Status ${error.response.status} - ${errorText}`);
-        } catch (e) {
-          console.error("Could not parse Blob error response:", e);
-          throw new Error(`ElevenLabs API Error: Status ${error.response.status} - Could not parse Blob error response.`);
+          
+          // Try to parse JSON from the blob text
+          try {
+            const errorJson = JSON.parse(errorText);
+            const message = errorJson.detail?.message || errorJson.message || errorText;
+            throw new Error(`ElevenLabs API Error: Status ${status} - ${message}`);
+          } catch (parseError) {
+            throw new Error(`ElevenLabs API Error: Status ${status} - ${errorText}`);
+          }
+        } catch (blobError) {
+          console.error("Could not parse Blob error response:", blobError);
+          throw new Error(`ElevenLabs API Error: Status ${status} - Could not parse error response.`);
         }
       }
 
       // Handle other types of error.response.data (likely JSON or string)
-      let errorMessage = `Status ${error.response.status}`;
+      let errorMessage = `Status ${status}`;
       if (error.response.data && typeof error.response.data === 'object') {
         // Attempt to parse known error structures
         const detail = (error.response.data as any).detail;
@@ -137,7 +164,7 @@ export const speakTextWithElevenLabs = async (text: string, voiceId: string, api
 
     } else if (error.request) {
       console.error("Error request (no response received):", error.request);
-      throw new Error("ElevenLabs API Error: No response received from server.");
+      throw new Error("ElevenLabs API Error: No response received from server. Check your internet connection.");
     } else {
       console.error("Error message (request setup issue):", error.message);
       throw new Error(`ElevenLabs API Error: ${error.message}`);

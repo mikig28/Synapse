@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import AddNoteModal from '@/components/notes/AddNoteModal';
 import useAuthStore from '@/store/authStore';
 import { BACKEND_ROOT_URL } from "@/services/axiosConfig";
+import { AnimatedDashboardCard, DashboardGrid } from '@/components/animations/AnimatedDashboardCard';
 
 const API_BASE_URL = `${BACKEND_ROOT_URL}/api/v1`;
 
@@ -206,68 +207,21 @@ const DashboardPage: React.FC = () => {
           </AnimatedButton>
         </motion.div>
 
-        {/* Stats Grid */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
-        >
+        {/* Stats Grid - Updated with new components */}
+        <DashboardGrid columns={4}>
           {stats.map((stat, index) => (
-            <motion.div
+            <AnimatedDashboardCard
               key={stat.title}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: index * 0.1 + 0.3 }}
-            >
-              <GlassCard className="hover-lift hover-glow cursor-pointer">
-                <motion.div
-                  whileHover={{ scale: 1.02 }}
-                  className="p-6"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        {stat.title}
-                      </p>
-                      <motion.p
-                        className="text-3xl font-bold mt-1"
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ 
-                          type: "spring", 
-                          stiffness: 200, 
-                          delay: index * 0.1 + 0.5 
-                        }}
-                      >
-                        {stat.value}
-                      </motion.p>
-                    </div>
-                    <div className="p-3 bg-primary/10 rounded-full">
-                      <stat.icon className="h-6 w-6 text-primary" />
-                    </div>
-                  </div>
-                  <div className="flex items-center mt-4">
-                    <motion.span
-                      className={`text-sm flex items-center ${
-                        stat.trend > 0 ? 'text-success' : 'text-red-500'
-                      }`}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: index * 0.1 + 0.7 }}
-                    >
-                      <TrendingUp className={`w-4 h-4 mr-1 ${stat.trend < 0 ? 'rotate-180' : ''}`} />
-                      {Math.abs(stat.trend)}%
-                    </motion.span>
-                    <span className="text-xs text-muted-foreground ml-2">
-                      from last week
-                    </span>
-                  </div>
-                </motion.div>
-              </GlassCard>
-            </motion.div>
+              title={stat.title}
+              value={stat.value}
+              change={stat.trend}
+              icon={stat.icon}
+              iconColor="text-primary"
+              delay={index * 0.1}
+              onClick={() => console.log(`Clicked ${stat.title}`)}
+            />
           ))}
-        </motion.div>
+        </DashboardGrid>
         
         {/* Digest Section */}
         <motion.div

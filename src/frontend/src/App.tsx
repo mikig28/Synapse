@@ -19,6 +19,8 @@ import MeetingsPage from '@/pages/MeetingsPage';
 import CalendarPage from '@/pages/CalendarPage';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { DigestProvider } from './context/DigestContext';
+import { AnimatePresence } from 'framer-motion';
+import { PageTransition } from '@/components/animations/PageTransition';
 
 const App: React.FC = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -38,37 +40,72 @@ const App: React.FC = () => {
         <Router>
           <DigestProvider>
             <main className="flex-1">
-              <Routes>
-                <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />} />
-                <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <RegisterPage />} />
-                <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" /> : <HomePage />} />
+              <AnimatePresence mode="wait">
+                <Routes>
+                  <Route 
+                    path="/login" 
+                    element={
+                      isAuthenticated ? (
+                        <Navigate to="/dashboard" />
+                      ) : (
+                        <PageTransition mode="fade">
+                          <LoginPage />
+                        </PageTransition>
+                      )
+                    } 
+                  />
+                  <Route 
+                    path="/register" 
+                    element={
+                      isAuthenticated ? (
+                        <Navigate to="/dashboard" />
+                      ) : (
+                        <PageTransition mode="fade">
+                          <RegisterPage />
+                        </PageTransition>
+                      )
+                    } 
+                  />
+                  <Route 
+                    path="/" 
+                    element={
+                      isAuthenticated ? (
+                        <Navigate to="/dashboard" />
+                      ) : (
+                        <PageTransition mode="scale">
+                          <HomePage />
+                        </PageTransition>
+                      )
+                    } 
+                  />
 
-                <Route 
-                  path="/*" 
-                  element={
-                    isAuthenticated ? (
-                      <Layout>
-                        <Routes>
-                          <Route path="dashboard" element={<DashboardPage />} />
-                          <Route path="inbox" element={<InboxPage />} />
-                           <Route path="images" element={<ImagesPage />} />
-                          <Route path="bookmarks" element={<BookmarksPage />} />
-                          <Route path="videos" element={<VideosPage />} />
-                          <Route path="tasks" element={<TasksPage />} />
-                          <Route path="notes" element={<NotesPage />} />
-                          <Route path="ideas" element={<IdeasPage />} />
-                          <Route path="meetings" element={<MeetingsPage />} />
-                          <Route path="calendar" element={<CalendarPage />} />
-                          <Route path="settings" element={<SettingsPage />} />
-                          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                        </Routes>
-                      </Layout>
-                    ) : (
-                      <Navigate to="/login" replace />
-                    )
-                  }
-                />
-              </Routes>
+                  <Route 
+                    path="/*" 
+                    element={
+                      isAuthenticated ? (
+                        <Layout>
+                          <Routes>
+                            <Route path="dashboard" element={<PageTransition><DashboardPage /></PageTransition>} />
+                            <Route path="inbox" element={<PageTransition><InboxPage /></PageTransition>} />
+                            <Route path="images" element={<PageTransition><ImagesPage /></PageTransition>} />
+                            <Route path="bookmarks" element={<PageTransition><BookmarksPage /></PageTransition>} />
+                            <Route path="videos" element={<PageTransition><VideosPage /></PageTransition>} />
+                            <Route path="tasks" element={<PageTransition><TasksPage /></PageTransition>} />
+                            <Route path="notes" element={<PageTransition><NotesPage /></PageTransition>} />
+                            <Route path="ideas" element={<PageTransition><IdeasPage /></PageTransition>} />
+                            <Route path="meetings" element={<PageTransition><MeetingsPage /></PageTransition>} />
+                            <Route path="calendar" element={<PageTransition><CalendarPage /></PageTransition>} />
+                            <Route path="settings" element={<PageTransition mode="fade"><SettingsPage /></PageTransition>} />
+                            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                          </Routes>
+                        </Layout>
+                      ) : (
+                        <Navigate to="/login" replace />
+                      )
+                    }
+                  />
+                </Routes>
+              </AnimatePresence>
             </main>
           </DigestProvider>
         </Router>
