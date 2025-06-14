@@ -247,4 +247,6 @@ def test_agents():
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
+    logger.info(f"🚀 Starting SIMPLIFIED CrewAI service on port {port}")
+    logger.info("📝 Service mode: SIMPLIFIED (no complex dependencies)")
     app.run(host='0.0.0.0', port=port, debug=False)

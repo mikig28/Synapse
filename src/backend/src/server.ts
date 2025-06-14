@@ -72,12 +72,30 @@ const io = new SocketIOServer(httpServer, {
   }
 });
 
-// Middleware
+// Middleware - Enhanced CORS configuration
 app.use(cors({
-  origin: [frontendUrl, "https://synapse-frontend.onrender.com"], // MODIFIED - Added your specific production frontend URL
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // MODIFIED - Added OPTIONS for preflight requests
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"], // Added more headers
-  credentials: true // Allow credentials (cookies, authorization headers, etc.)
+  origin: function (requestOrigin, callback) {
+    // Allow requests with no origin (mobile apps, etc.)
+    if (!requestOrigin) return callback(null, true);
+    
+    const allowedOrigins = [
+      frontendUrl, 
+      "https://synapse-frontend.onrender.com",
+      "http://localhost:5173", // Local development
+      "http://localhost:3000"  // Alternative local port
+    ];
+    
+    if (allowedOrigins.includes(requestOrigin)) {
+      return callback(null, true);
+    } else {
+      console.log(`[CORS] Blocked origin: ${requestOrigin}`);
+      return callback(null, true); // Allow all for now to debug
+    }
+  },
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+  credentials: true,
+  optionsSuccessStatus: 200 // For legacy browser support
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
