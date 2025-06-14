@@ -1,20 +1,26 @@
 import { defineConfig, PluginOption } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
-import { visualizer } from 'rollup-plugin-visualizer'
 
+// Lazy-load rollup-plugin-visualizer only when requested and when the package is available.
 const plugins: PluginOption[] = [react()];
 
 if (process.env.VISUALIZER) {
-  plugins.push(
-    visualizer({
-      template: 'treemap',
-      open: true,
-      gzipSize: true,
-      brotliSize: true,
-      filename: 'bundle-analysis.html', // Relative to the root of the project
-    }) as unknown as PluginOption
-  );
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { visualizer } = require('rollup-plugin-visualizer');
+    plugins.push(
+      visualizer({
+        template: 'treemap',
+        open: true,
+        gzipSize: true,
+        brotliSize: true,
+        filename: 'bundle-analysis.html', // Relative to the root of the project
+      }) as unknown as PluginOption
+    );
+  } catch (err) {
+    console.warn('rollup-plugin-visualizer is not installed. Skipping bundle analysis plugin.');
+  }
 }
 
 // https://vitejs.dev/config/
