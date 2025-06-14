@@ -27,6 +27,10 @@ export interface INewsItem extends Document {
   readAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+  
+  // Method signatures
+  markAsRead(): Promise<INewsItem>;
+  toggleFavorite(): Promise<INewsItem>;
 }
 
 const NewsItemSchema: Schema<INewsItem> = new Schema(

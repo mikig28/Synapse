@@ -11,6 +11,7 @@ import { initializeTelegramBot } from './services/telegramService'; // Import Te
 import { AgentService } from './services/agentService'; // Import agent service
 import { AgentScheduler } from './services/agentScheduler'; // Import agent scheduler
 import { initializeAgentServices } from './api/controllers/agentsController'; // Import agent services initializer
+import { registerAgentExecutors } from './services/agents'; // Import agent executors registry
 import captureRoutes from './api/routes/captureRoutes'; // Import capture routes
 import path from 'path'; // <-- Import path module
 import fs from 'fs'; // <-- Import fs module
@@ -170,6 +171,9 @@ const startServer = async () => {
     // Initialize agent services
     const agentService = new AgentService();
     const agentScheduler = new AgentScheduler(agentService);
+    
+    // Register agent executors
+    registerAgentExecutors(agentService);
     
     // Initialize agent controller dependencies
     initializeAgentServices(agentService, agentScheduler);

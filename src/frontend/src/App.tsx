@@ -16,6 +16,8 @@ import TasksPage from '@/pages/TasksPage';
 import NotesPage from '@/pages/NotesPage';
 import IdeasPage from '@/pages/IdeasPage';
 import MeetingsPage from '@/pages/MeetingsPage';
+import AgentsPage from '@/pages/AgentsPage';
+import NewsPage from '@/pages/NewsPage';
 import { PageTransition } from '@/components/animations';
 import { CommandPalette, useCommandPalette } from '@/components/animations';
 import { DigestProvider } from './context/DigestContext';
@@ -41,6 +43,8 @@ function AppContent() {
           <Route path="/notes" element={isAuthenticated ? <Layout><NotesPage /></Layout> : <Navigate to="/login" />} />
           <Route path="/ideas" element={isAuthenticated ? <Layout><IdeasPage /></Layout> : <Navigate to="/login" />} />
           <Route path="/meetings" element={isAuthenticated ? <Layout><MeetingsPage /></Layout> : <Navigate to="/login" />} />
+          <Route path="/agents" element={isAuthenticated ? <Layout><AgentsPage /></Layout> : <Navigate to="/login" />} />
+          <Route path="/news" element={isAuthenticated ? <Layout><NewsPage /></Layout> : <Navigate to="/login" />} />
           <Route path="/images" element={isAuthenticated ? <Layout><ImagesPage /></Layout> : <Navigate to="/login" />} />
           <Route path="/bookmarks" element={isAuthenticated ? <Layout><BookmarksPage /></Layout> : <Navigate to="/login" />} />
           <Route path="/videos" element={isAuthenticated ? <Layout><VideosPage /></Layout> : <Navigate to="/login" />} />

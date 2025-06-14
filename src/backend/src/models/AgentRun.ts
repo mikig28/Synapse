@@ -22,6 +22,11 @@ export interface IAgentRun extends Document {
   };
   createdAt: Date;
   updatedAt: Date;
+  
+  // Method signatures
+  addLog(level: 'info' | 'warn' | 'error', message: string, data?: any): Promise<IAgentRun>;
+  complete(summary: string, details?: any): Promise<IAgentRun>;
+  fail(error: string): Promise<IAgentRun>;
 }
 
 const AgentRunSchema: Schema<IAgentRun> = new Schema(
