@@ -5,12 +5,18 @@ Uses real news scraper for websites while keeping social media sources simulated
 """
 
 import os
+import sys
 import json
 from typing import Dict, List, Any
 from datetime import datetime
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 import logging
+
+# Add current directory to Python path for imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
