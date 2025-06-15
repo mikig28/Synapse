@@ -11,6 +11,22 @@ interface CrewAINewsRequest {
     telegram?: boolean;
     news_websites?: boolean;
   };
+  tools?: {
+    web_search?: boolean;
+    content_analysis?: boolean;
+    sentiment_analysis?: boolean;
+    trend_detection?: boolean;
+    url_extraction?: boolean;
+  };
+  parameters?: {
+    max_items_per_source?: number;
+    time_range?: string;
+    quality_threshold?: number;
+    include_urls?: boolean;
+    include_metadata?: boolean;
+    analyze_sentiment?: boolean;
+    extract_entities?: boolean;
+  };
 }
 
 interface CrewAINewsResponse {
@@ -83,7 +99,24 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       
       const crewaiResponse = await this.executeCrewAIGathering({
         topics,
-        sources
+        sources,
+        // Add enhanced configuration
+        tools: {
+          web_search: true,
+          content_analysis: true,
+          sentiment_analysis: true,
+          trend_detection: true,
+          url_extraction: true
+        },
+        parameters: {
+          max_items_per_source: config.maxItemsPerRun || 10,
+          time_range: '24h',
+          quality_threshold: 0.7,
+          include_urls: true,
+          include_metadata: true,
+          analyze_sentiment: true,
+          extract_entities: true
+        }
       });
 
       const duration = Date.now() - startTime;
@@ -298,7 +331,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
         title: item.title || item.text || 'Untitled',
         description: this.generateSummary(item, source),
         content: item.content || item.text || '',
-        url: item.url || item.external_url || `https://crewai-placeholder.com/${Date.now()}`,
+        url: this.getValidUrl(item, source),
         source: {
           name: source.charAt(0).toUpperCase() + source.slice(1).replace('_', ' '),
           id: source
@@ -356,7 +389,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       title: `CrewAI Analysis Report - ${new Date().toLocaleDateString()}`,
       description: 'Comprehensive analysis from CrewAI multi-agent system covering Reddit, LinkedIn, Telegram, and news sources',
       content: analysisContent,
-      url: `https://crewai-analysis.internal/${Date.now()}`,
+      url: `#analysis-${Date.now()}`, // Use hash to indicate it's an internal analysis
       source: {
         name: 'CrewAI Analysis',
         id: 'crewai_analysis'
@@ -454,6 +487,54 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
     }
     
     return {};
+  }
+
+  private getValidUrl(item: any, source: string): string {
+    // Check if item has a valid URL
+    const url = item.url || item.external_url || item.link || item.permalink;
+    
+    if (url && this.isValidUrl(url)) {
+      return url;
+    }
+    
+    // Generate source-specific URLs for different platforms
+    switch (source) {
+      case 'reddit':
+        if (item.subreddit && item.id) {
+          return `https://reddit.com/r/${item.subreddit}/comments/${item.id}`;
+        }
+        return `https://reddit.com/search/?q=${encodeURIComponent(item.title || 'untitled')}`;
+        
+      case 'linkedin':
+        if (item.author && item.title) {
+          return `https://linkedin.com/search/results/content/?keywords=${encodeURIComponent(item.title)}`;
+        }
+        return `https://linkedin.com/feed/`;
+        
+      case 'telegram':
+        if (item.channel) {
+          return `https://t.me/${item.channel.replace('@', '')}`;
+        }
+        return `#telegram-${Date.now()}`;
+        
+      case 'news_website':
+        if (item.domain) {
+          return `https://${item.domain}`;
+        }
+        return `#news-${Date.now()}`;
+        
+      default:
+        return `#${source}-${Date.now()}`;
+    }
+  }
+  
+  private isValidUrl(string: string): boolean {
+    try {
+      const url = new URL(string);
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch (_) {
+      return false;
+    }
   }
 
   private calculateTotalItems(response: CrewAINewsResponse): number {

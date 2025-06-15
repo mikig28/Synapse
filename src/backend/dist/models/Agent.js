@@ -51,9 +51,17 @@ const AgentSchema = new mongoose_1.Schema({
         minRetweets: { type: Number, default: 0 },
         excludeReplies: { type: Boolean, default: true },
         // News agent configuration
-        sources: { type: [String], default: [] },
+        newsSources: { type: [String], default: [] },
         categories: { type: [String], default: [] },
         language: { type: String, default: 'en' },
+        // CrewAI agent configuration
+        topics: { type: [String], default: [] },
+        crewaiSources: {
+            reddit: { type: Boolean, default: true },
+            linkedin: { type: Boolean, default: true },
+            telegram: { type: Boolean, default: true },
+            news_websites: { type: Boolean, default: true },
+        },
         // Common configuration
         schedule: { type: String, default: '0 */6 * * *' }, // Every 6 hours by default
         maxItemsPerRun: { type: Number, default: 10 },
