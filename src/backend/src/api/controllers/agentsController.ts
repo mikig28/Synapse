@@ -279,10 +279,17 @@ export const executeAgent = async (req: AuthenticatedRequest, res: Response): Pr
     });
   } catch (error: any) {
     console.error('[AgentsController] Error executing agent:', error);
+    console.error('[AgentsController] Error details:', {
+      agentId,
+      userId,
+      errorMessage: error.message,
+      errorStack: error.stack
+    });
     res.status(400).json({
       success: false,
       error: 'Failed to execute agent',
       message: error.message,
+      details: error.message // Include the actual error message for debugging
     });
   }
 };

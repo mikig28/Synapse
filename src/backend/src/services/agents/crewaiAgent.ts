@@ -43,6 +43,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
   constructor() {
     // CrewAI service URL - should be configurable via environment
     this.crewaiServiceUrl = process.env.CREWAI_SERVICE_URL || 'http://localhost:5000';
+    console.log(`[CrewAI Agent] Service URL: ${this.crewaiServiceUrl}`);
   }
 
   async execute(context: AgentExecutionContext): Promise<void> {
@@ -95,18 +96,34 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
 
   private async healthCheck(): Promise<void> {
     try {
+      console.log(`[CrewAI Agent] Performing health check to: ${this.crewaiServiceUrl}/health`);
       const response = await axios.get<{initialized: boolean}>(`${this.crewaiServiceUrl}/health`, {
         timeout: 10000
       });
       
+      console.log(`[CrewAI Agent] Health check response:`, response.data);
+      
       if (!response.data.initialized) {
         throw new Error('CrewAI service is not properly initialized');
       }
+      
+      console.log(`[CrewAI Agent] Health check passed - service is initialized`);
     } catch (error: any) {
+      console.error(`[CrewAI Agent] Health check failed:`, {
+        url: `${this.crewaiServiceUrl}/health`,
+        error: error.message,
+        code: error.code,
+        status: error.response?.status,
+        statusText: error.response?.statusText
+      });
+      
       if (error.code === 'ECONNREFUSED') {
-        throw new Error('CrewAI service is not running. Please start the Python service.');
+        throw new Error(`CrewAI service is not running at ${this.crewaiServiceUrl}. Please verify the service is deployed and accessible.`);
       }
-      throw new Error(`CrewAI service health check failed: ${error.message}`);
+      if (error.code === 'ENOTFOUND') {
+        throw new Error(`CrewAI service URL not found: ${this.crewaiServiceUrl}. Please check the CREWAI_SERVICE_URL configuration.`);
+      }
+      throw new Error(`CrewAI service health check failed: ${error.message} (URL: ${this.crewaiServiceUrl})`);
     }
   }
 
