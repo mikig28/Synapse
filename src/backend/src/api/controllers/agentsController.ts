@@ -247,10 +247,10 @@ export const deleteAgent = async (req: AuthenticatedRequest, res: Response): Pro
 
 // Execute an agent manually
 export const executeAgent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const { agentId } = req.params;
+  const userId = req.user!.id;
+  
   try {
-    const { agentId } = req.params;
-    const userId = req.user!.id;
-    
     // Check if agent exists and belongs to user
     const agent = await agentService.getAgentById(agentId);
     if (!agent) {
