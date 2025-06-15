@@ -103,9 +103,16 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       await run.addLog('info', '🏥 Checking CrewAI service health...');
       try {
         const healthResponse = await axios.get(`${this.crewaiServiceUrl}/health`, { timeout: 10000 });
-        const health = healthResponse.data;
+        const health = healthResponse.data as {
+          status?: string;
+          mode?: string;
+          real_news_enabled?: boolean;
+          scraper_type?: string;
+          scraper_error?: string;
+          environment_variables?: Record<string, string>;
+        };
         
-        await run.addLog('info', `✅ Service Status: ${health.status}`);
+        await run.addLog('info', `✅ Service Status: ${health.status || 'unknown'}`);
         await run.addLog('info', `🔧 Mode: ${health.mode || 'unknown'}`);
         await run.addLog('info', `📰 Real News Enabled: ${health.real_news_enabled ? '✅ Yes' : '❌ No'}`);
         await run.addLog('info', `🛠️ Scraper Type: ${health.scraper_type || 'unknown'}`);
