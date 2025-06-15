@@ -42,8 +42,13 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
 
   constructor() {
     // CrewAI service URL - should be configurable via environment
+    console.log(`[CrewAI Agent] Environment variables check:`, {
+      CREWAI_SERVICE_URL: process.env.CREWAI_SERVICE_URL,
+      NODE_ENV: process.env.NODE_ENV,
+      PORT: process.env.PORT
+    });
     this.crewaiServiceUrl = process.env.CREWAI_SERVICE_URL || 'http://localhost:5000';
-    console.log(`[CrewAI Agent] Service URL: ${this.crewaiServiceUrl}`);
+    console.log(`[CrewAI Agent] Using Service URL: ${this.crewaiServiceUrl}`);
   }
 
   async execute(context: AgentExecutionContext): Promise<void> {
