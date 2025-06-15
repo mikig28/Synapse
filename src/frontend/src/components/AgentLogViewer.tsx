@@ -302,8 +302,12 @@ export const AgentLogViewer: React.FC<AgentLogViewerProps> = ({
             )}
 
             {/* Logs Container */}
-            <ScrollArea className="flex-1 h-0">
-              <div className="space-y-2 font-mono text-sm">
+            <div className="flex-1 h-0 relative border rounded-lg">
+              <div className="absolute top-2 right-2 z-10 bg-background/80 backdrop-blur-sm px-2 py-1 rounded text-xs text-muted-foreground border">
+                📜 Scroll to see all logs ({combinedLogs.length} entries)
+              </div>
+              <ScrollArea className="h-full w-full">
+                <div className="space-y-2 font-mono text-sm p-4 pb-16">
                 {combinedLogs.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <Terminal className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -359,8 +363,9 @@ export const AgentLogViewer: React.FC<AgentLogViewerProps> = ({
                   ))
                 )}
                 <div ref={logsEndRef} />
-              </div>
-            </ScrollArea>
+                </div>
+              </ScrollArea>
+            </div>
 
             {/* Footer */}
             <div className="flex items-center justify-between pt-4 border-t">
