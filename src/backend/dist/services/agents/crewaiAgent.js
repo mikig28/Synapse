@@ -150,6 +150,7 @@ class CrewAINewsAgentExecutor {
             if (data.organized_content) {
                 // Process news articles
                 if (data.organized_content.news_articles) {
+                    await run.addLog('info', `Processing ${data.organized_content.news_articles.length} news articles`);
                     for (const article of data.organized_content.news_articles) {
                         try {
                             const added = await this.storeNewsItem(article, userId, 'news_website');
@@ -163,6 +164,7 @@ class CrewAINewsAgentExecutor {
                 }
                 // Process Reddit posts
                 if (data.organized_content.reddit_posts) {
+                    await run.addLog('info', `Processing ${data.organized_content.reddit_posts.length} Reddit posts`);
                     for (const post of data.organized_content.reddit_posts) {
                         try {
                             const added = await this.storeNewsItem(post, userId, 'reddit');
@@ -176,6 +178,7 @@ class CrewAINewsAgentExecutor {
                 }
                 // Process LinkedIn posts
                 if (data.organized_content.linkedin_posts) {
+                    await run.addLog('info', `Processing ${data.organized_content.linkedin_posts.length} LinkedIn posts`);
                     for (const post of data.organized_content.linkedin_posts) {
                         try {
                             const added = await this.storeNewsItem(post, userId, 'linkedin');
@@ -189,6 +192,7 @@ class CrewAINewsAgentExecutor {
                 }
                 // Process Telegram messages
                 if (data.organized_content.telegram_messages) {
+                    await run.addLog('info', `Processing ${data.organized_content.telegram_messages.length} Telegram messages`);
                     for (const message of data.organized_content.telegram_messages) {
                         try {
                             const added = await this.storeNewsItem(message, userId, 'telegram');
@@ -226,8 +230,8 @@ class CrewAINewsAgentExecutor {
             const existingItem = await NewsItem_1.default.findOne({
                 userId,
                 $or: [
-                    { originalUrl: item.url },
-                    { title: item.title }
+                    { url: item.url || item.external_url || '' },
+                    { title: item.title || item.text || 'Untitled' }
                 ]
             });
             if (existingItem) {
@@ -237,25 +241,35 @@ class CrewAINewsAgentExecutor {
             const newsItem = new NewsItem_1.default({
                 userId,
                 title: item.title || item.text || 'Untitled',
-                summary: this.generateSummary(item, source),
+                description: this.generateSummary(item, source),
                 content: item.content || item.text || '',
-                originalUrl: item.url || item.external_url || '',
-                source: source,
+                url: item.url || item.external_url || `https://crewai-placeholder.com/${Date.now()}`,
+                source: {
+                    name: source.charAt(0).toUpperCase() + source.slice(1).replace('_', ' '),
+                    id: source
+                },
                 author: item.author || item.author_title || 'Unknown',
-                publishedDate: item.published_date || item.timestamp || item.created_utc || new Date(),
+                publishedAt: item.published_date ? new Date(item.published_date) :
+                    item.timestamp ? new Date(item.timestamp) :
+                        item.created_utc ? new Date(item.created_utc * 1000) :
+                            new Date(),
                 tags: this.generateTags(item, source),
                 category: this.determineCategory(item),
-                engagement: this.extractEngagement(item),
-                metadata: {
-                    crewai_source: source,
-                    original_data: JSON.stringify(item)
-                }
+                status: 'pending'
             });
             await newsItem.save();
             return true;
         }
         catch (error) {
-            console.error(`Error storing news item from ${source}:`, error);
+            console.error(`Error storing news item from ${source}:`, {
+                error: error.message,
+                validationErrors: error.errors,
+                item: {
+                    title: item.title || item.text,
+                    url: item.url || item.external_url,
+                    source: source
+                }
+            });
             return false;
         }
     }
@@ -279,21 +293,30 @@ class CrewAINewsAgentExecutor {
         const analysisItem = new NewsItem_1.default({
             userId,
             title: `CrewAI Analysis Report - ${new Date().toLocaleDateString()}`,
-            summary: 'Comprehensive analysis from CrewAI multi-agent system covering Reddit, LinkedIn, Telegram, and news sources',
+            description: 'Comprehensive analysis from CrewAI multi-agent system covering Reddit, LinkedIn, Telegram, and news sources',
             content: analysisContent,
-            originalUrl: '',
-            source: 'crewai_analysis',
+            url: `https://crewai-analysis.internal/${Date.now()}`,
+            source: {
+                name: 'CrewAI Analysis',
+                id: 'crewai_analysis'
+            },
             author: 'CrewAI Multi-Agent System',
-            publishedDate: new Date(),
+            publishedAt: new Date(),
             tags: ['analysis', 'crewai', 'multi-agent', 'trends'],
             category: 'analysis',
-            metadata: {
-                crewai_report: true,
-                topics_analyzed: response.topics,
-                sources_used: response.sources_used
-            }
+            status: 'summarized'
         });
-        await analysisItem.save();
+        try {
+            await analysisItem.save();
+            console.log('[CrewAI Agent] Successfully saved analysis report');
+        }
+        catch (error) {
+            console.error('[CrewAI Agent] Failed to save analysis report:', {
+                error: error.message,
+                validationErrors: error.errors
+            });
+            throw error;
+        }
     }
     generateSummary(item, source) {
         const content = item.content || item.text || item.summary || '';
