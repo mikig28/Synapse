@@ -26,6 +26,7 @@ class HybridNewsGatherer:
     
     def __init__(self):
         self.openai_api_key = os.getenv('OPENAI_API_KEY')
+        self.initialization_error = None
         
         # Try to import and initialize news scraper (fallback to simple version)
         try:
@@ -33,20 +34,21 @@ class HybridNewsGatherer:
             self.news_scraper = NewsScraperTool()
             self.real_news_available = True
             self.scraper_type = "full"
-            logger.info("Full news scraper initialized successfully")
+            logger.info("✅ Full news scraper initialized successfully")
         except Exception as e:
-            logger.warning(f"Full news scraper not available: {str(e)}")
+            logger.warning(f"⚠️ Full news scraper not available: {str(e)}")
             try:
                 from agents.simple_news_scraper import SimpleNewsScraperTool
                 self.news_scraper = SimpleNewsScraperTool()
                 self.real_news_available = True
                 self.scraper_type = "simple"
-                logger.info("Simple news scraper initialized successfully")
+                logger.info("✅ Simple news scraper initialized successfully")
             except Exception as e2:
-                logger.error(f"Simple news scraper also failed: {str(e2)}")
+                logger.error(f"❌ Simple news scraper also failed: {str(e2)}")
                 self.news_scraper = None
                 self.real_news_available = False
                 self.scraper_type = "none"
+                self.initialization_error = f"Full scraper: {str(e)} | Simple scraper: {str(e2)}"
         
         logger.info("HybridNewsGatherer initialized")
     
@@ -278,7 +280,49 @@ except Exception as e:
 # Flask API endpoints
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
+    """Health check endpoint with detailed diagnostics"""
+    
+    # Environment variables check
+    env_status = {
+        "REDDIT_CLIENT_ID": "✅ Set" if os.getenv('REDDIT_CLIENT_ID') else "❌ Missing",
+        "REDDIT_CLIENT_SECRET": "✅ Set" if os.getenv('REDDIT_CLIENT_SECRET') else "❌ Missing", 
+        "TELEGRAM_BOT_TOKEN": "✅ Set" if os.getenv('TELEGRAM_BOT_TOKEN') else "❌ Missing",
+        "OPENAI_API_KEY": "✅ Set" if os.getenv('OPENAI_API_KEY') else "❌ Missing"
+    }
+    
+    # Dependency check
+    dependencies = {}
+    try:
+        import requests
+        dependencies["requests"] = "✅ Available"
+    except ImportError:
+        dependencies["requests"] = "❌ Missing"
+        
+    try:
+        import bs4
+        dependencies["beautifulsoup4"] = "✅ Available"
+    except ImportError:
+        dependencies["beautifulsoup4"] = "❌ Missing"
+        
+    try:
+        import feedparser
+        dependencies["feedparser"] = "✅ Available"
+    except ImportError:
+        dependencies["feedparser"] = "❌ Missing"
+        
+    try:
+        import praw
+        dependencies["praw"] = "✅ Available"
+    except ImportError:
+        dependencies["praw"] = "❌ Missing"
+    
+    # Scraper status
+    scraper_status = "unknown"
+    scraper_error = None
+    if news_gatherer:
+        scraper_status = news_gatherer.scraper_type
+        scraper_error = getattr(news_gatherer, 'initialization_error', None)
+    
     return jsonify({
         "status": "healthy",
         "service": "synapse-hybrid-news-agents",
@@ -286,7 +330,13 @@ def health_check():
         "initialized": news_gatherer is not None,
         "mode": "hybrid",
         "real_news_enabled": news_gatherer.real_news_available if news_gatherer else False,
-        "scraper_type": getattr(news_gatherer, 'scraper_type', 'none') if news_gatherer else 'none'
+        "scraper_type": scraper_status,
+        "scraper_error": scraper_error,
+        "environment_variables": env_status,
+        "dependencies": dependencies,
+        "working_directory": os.getcwd(),
+        "files_in_directory": os.listdir('.'),
+        "python_path": os.environ.get('PYTHONPATH', 'Not set')
     })
 
 @app.route('/gather-news', methods=['POST'])
@@ -332,6 +382,40 @@ def test_agents():
         },
         "note": "Running in hybrid mode - real news scraping + simulated social media"
     })
+
+@app.route('/test-simple-scraper', methods=['GET'])
+def test_simple_scraper():
+    """Test the simple news scraper directly"""
+    
+    if not news_gatherer or not news_gatherer.real_news_available:
+        return jsonify({
+            "success": False,
+            "error": "News scraper not available",
+            "scraper_type": getattr(news_gatherer, 'scraper_type', 'none') if news_gatherer else 'none',
+            "initialization_error": getattr(news_gatherer, 'initialization_error', 'Unknown') if news_gatherer else 'News gatherer not initialized'
+        })
+    
+    try:
+        # Test simple scraper directly
+        topics = "technology"
+        result_json = news_gatherer.news_scraper.scrape_news(topics)
+        result = json.loads(result_json)
+        
+        return jsonify({
+            "success": True,
+            "scraper_type": news_gatherer.scraper_type,
+            "test_topics": topics,
+            "articles_found": len(result.get('articles', [])),
+            "sample_articles": result.get('articles', [])[:2],  # Show first 2 articles
+            "full_result": result
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "scraper_type": news_gatherer.scraper_type
+        })
 
 @app.route('/test-news-scraper', methods=['GET'])
 def test_news_scraper():

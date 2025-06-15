@@ -94,9 +94,38 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       await run.addLog('info', `Using sources: ${Object.entries(sources).filter(([_, enabled]) => enabled).map(([source]) => source).join(', ')}`, { sources });
 
       // Execute CrewAI news gathering
-      await run.addLog('info', 'Sending request to CrewAI agents...');
+      await run.addLog('info', `🔍 Connecting to CrewAI service at ${this.crewaiServiceUrl}...`);
+      await run.addLog('info', `📊 Requesting analysis for topics: ${topics.join(', ')}`);
+      await run.addLog('info', `🎯 Sources enabled: ${Object.entries(sources).filter(([_, enabled]) => enabled).map(([source]) => source).join(', ')}`);
       const startTime = Date.now();
       
+      // First check service health and get diagnostics
+      await run.addLog('info', '🏥 Checking CrewAI service health...');
+      try {
+        const healthResponse = await axios.get(`${this.crewaiServiceUrl}/health`, { timeout: 10000 });
+        const health = healthResponse.data;
+        
+        await run.addLog('info', `✅ Service Status: ${health.status}`);
+        await run.addLog('info', `🔧 Mode: ${health.mode || 'unknown'}`);
+        await run.addLog('info', `📰 Real News Enabled: ${health.real_news_enabled ? '✅ Yes' : '❌ No'}`);
+        await run.addLog('info', `🛠️ Scraper Type: ${health.scraper_type || 'unknown'}`);
+        
+        if (health.scraper_error) {
+          await run.addLog('warn', `⚠️ Scraper Error: ${health.scraper_error}`);
+        }
+        
+        if (health.environment_variables) {
+          const apiStatus = Object.entries(health.environment_variables)
+            .map(([key, status]) => `${key}: ${status}`)
+            .join(', ');
+          await run.addLog('info', `🔑 API Credentials: ${apiStatus}`);
+        }
+        
+      } catch (error: any) {
+        await run.addLog('warn', `⚠️ Health check failed: ${error.message}`);
+      }
+
+      await run.addLog('info', '🚀 Starting news gathering process...');
       const crewaiResponse = await this.executeCrewAIGathering({
         topics,
         sources,
