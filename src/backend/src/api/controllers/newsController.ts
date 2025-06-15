@@ -13,6 +13,10 @@ export const getNewsItems = async (req: AuthenticatedRequest, res: Response): Pr
     const isRead = req.query.isRead as string;
     const isFavorite = req.query.isFavorite as string;
     const search = req.query.search as string;
+    const tags = req.query.tags as string;
+    const startDate = req.query.startDate as string;
+    const endDate = req.query.endDate as string;
+    const runId = req.query.runId as string;
 
     const skip = (page - 1) * limit;
 
@@ -38,6 +42,24 @@ export const getNewsItems = async (req: AuthenticatedRequest, res: Response): Pr
         { summary: { $regex: search, $options: 'i' } },
         { 'source.name': { $regex: search, $options: 'i' } },
       ];
+    }
+
+    if (tags) {
+      filter.tags = { $in: tags.split(',').map(tag => tag.trim()) };
+    }
+
+    if (startDate || endDate) {
+      filter.publishedAt = {};
+      if (startDate) {
+        filter.publishedAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        filter.publishedAt.$lte = new Date(endDate);
+      }
+    }
+
+    if (runId) {
+      filter.runId = new mongoose.Types.ObjectId(runId);
     }
 
     // Get total count

@@ -287,7 +287,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
           await run.addLog('info', `Processing ${data.organized_content.news_articles.length} news articles`);
           for (const article of data.organized_content.news_articles) {
             try {
-              const added = await this.storeNewsItem(article, userId, 'news_website');
+              const added = await this.storeNewsItem(article, userId, 'news_website', run);
               if (added) addedCount++;
             } catch (error: any) {
               await run.addLog('warn', `Failed to store news article: ${error.message}`);
@@ -300,7 +300,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
           await run.addLog('info', `Processing ${data.organized_content.reddit_posts.length} Reddit posts`);
           for (const post of data.organized_content.reddit_posts) {
             try {
-              const added = await this.storeNewsItem(post, userId, 'reddit');
+              const added = await this.storeNewsItem(post, userId, 'reddit', run);
               if (added) addedCount++;
             } catch (error: any) {
               await run.addLog('warn', `Failed to store Reddit post: ${error.message}`);
@@ -313,7 +313,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
           await run.addLog('info', `Processing ${data.organized_content.linkedin_posts.length} LinkedIn posts`);
           for (const post of data.organized_content.linkedin_posts) {
             try {
-              const added = await this.storeNewsItem(post, userId, 'linkedin');
+              const added = await this.storeNewsItem(post, userId, 'linkedin', run);
               if (added) addedCount++;
             } catch (error: any) {
               await run.addLog('warn', `Failed to store LinkedIn post: ${error.message}`);
@@ -326,7 +326,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
           await run.addLog('info', `Processing ${data.organized_content.telegram_messages.length} Telegram messages`);
           for (const message of data.organized_content.telegram_messages) {
             try {
-              const added = await this.storeNewsItem(message, userId, 'telegram');
+              const added = await this.storeNewsItem(message, userId, 'telegram', run);
               if (added) addedCount++;
             } catch (error: any) {
               await run.addLog('warn', `Failed to store Telegram message: ${error.message}`);
@@ -338,7 +338,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       // Store AI insights and analysis as a special news item
       if (data.ai_insights || data.executive_summary) {
         try {
-          await this.storeAnalysisReport(response, userId);
+          await this.storeAnalysisReport(response, userId, run);
           addedCount++;
           await run.addLog('info', 'Stored AI analysis report');
         } catch (error: any) {
@@ -355,7 +355,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
     }
   }
 
-  private async storeNewsItem(item: any, userId: mongoose.Types.ObjectId, source: string): Promise<boolean> {
+  private async storeNewsItem(item: any, userId: mongoose.Types.ObjectId, source: string, run: any): Promise<boolean> {
     try {
       // Check if item already exists
       const existingItem = await NewsItem.findOne({
@@ -376,6 +376,8 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       // Create new news item
       const newsItem = new NewsItem({
         userId,
+        agentId: run.agentId,
+        runId: run._id,
         title: item.title || item.text || 'Untitled',
         description: this.generateSummary(item, source, isSimulated),
         content: item.content || item.text || '',
@@ -411,7 +413,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
     }
   }
 
-  private async storeAnalysisReport(response: CrewAINewsResponse, userId: mongoose.Types.ObjectId): Promise<void> {
+  private async storeAnalysisReport(response: CrewAINewsResponse, userId: mongoose.Types.ObjectId, run: any): Promise<void> {
     const data = response.data!;
     
     // Check if any source data is simulated
@@ -451,6 +453,8 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
 
     const analysisItem = new NewsItem({
       userId,
+      agentId: run.agentId,
+      runId: run._id,
       title: `CrewAI Analysis Report - ${new Date().toLocaleDateString()}`,
       description: 'Comprehensive analysis from CrewAI multi-agent system covering Reddit, LinkedIn, Telegram, and news sources',
       content: analysisContent,

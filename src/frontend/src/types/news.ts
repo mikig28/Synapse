@@ -2,6 +2,7 @@ export interface NewsItem {
   _id: string;
   userId: string;
   agentId?: string;
+  runId?: string;
   title: string;
   description?: string;
   content?: string;

@@ -1,0 +1,21 @@
+# Full dependencies for CrewAI service with real news scraping
+flask>=2.0.0
+python-dotenv>=0.19.0
+requests>=2.25.0
+
+# News scraping dependencies (from news_scraper_agent.py)
+beautifulsoup4>=4.9.0
+feedparser>=6.0.0
+newspaper3k>=0.2.8
+lxml>=4.6.0
+
+# CrewAI dependencies (for the full version)
+crewai>=0.1.0
+crewai-tools>=0.1.0
+langchain-openai>=0.1.0
+langchain>=0.1.0
+
+# Additional dependencies for better reliability
+urllib3>=1.26.0
+certifi>=2021.5.0
+charset-normalizer>=2.0.0

@@ -217,21 +217,15 @@ const NewsPage: React.FC = () => {
   };
 
   const fetchRelatedItems = async (analysisItem: NewsItem) => {
-    if (analysisItem.source.id !== 'crewai_analysis') return;
+    if (analysisItem.source.id !== 'crewai_analysis' || !analysisItem.runId) return;
     
     setLoadingRelated(true);
     try {
-      // Fetch items from the same time period with CrewAI tag
-      const timeWindow = 5 * 60 * 1000; // 5 minutes
-      const startTime = new Date(new Date(analysisItem.publishedAt).getTime() - timeWindow);
-      const endTime = new Date(new Date(analysisItem.publishedAt).getTime() + timeWindow);
-      
+      // Fetch items from the same agent run
       const response = await newsService.getNewsItems({
         page: 1,
         limit: 100, // Get all related items
-        tags: 'crewai',
-        startDate: startTime.toISOString(),
-        endDate: endTime.toISOString()
+        runId: analysisItem.runId
       });
       
       if (response.data) {

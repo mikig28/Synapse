@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface INewsItem extends Document {
   userId: mongoose.Types.ObjectId;
   agentId?: mongoose.Types.ObjectId; // Which agent discovered this news item
+  runId?: mongoose.Types.ObjectId; // Which agent run discovered this news item
   title: string;
   description?: string;
   content?: string;
@@ -37,6 +38,7 @@ const NewsItemSchema: Schema<INewsItem> = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     agentId: { type: Schema.Types.ObjectId, ref: 'Agent' },
+    runId: { type: Schema.Types.ObjectId, ref: 'AgentRun' },
     title: { type: String, required: true, trim: true },
     description: { type: String, trim: true },
     content: { type: String },
@@ -78,6 +80,7 @@ NewsItemSchema.index({ userId: 1, category: 1 });
 NewsItemSchema.index({ userId: 1, publishedAt: -1 });
 NewsItemSchema.index({ url: 1, userId: 1 }, { unique: true }); // Prevent duplicate news items per user
 NewsItemSchema.index({ agentId: 1, createdAt: -1 });
+NewsItemSchema.index({ runId: 1, createdAt: -1 });
 
 // Method to mark as read
 NewsItemSchema.methods.markAsRead = function () {

@@ -33,6 +33,7 @@ export interface NewsFilters {
   tags?: string;
   startDate?: string;
   endDate?: string;
+  runId?: string;
 }
 
 export const newsService = {
@@ -49,6 +50,7 @@ export const newsService = {
     if (filters.tags) params.append('tags', filters.tags);
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.runId) params.append('runId', filters.runId);
 
     const response = await axiosInstance.get<NewsListResponse>(`/news?${params.toString()}`);
     return {
