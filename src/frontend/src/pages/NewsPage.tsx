@@ -33,6 +33,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const NewsPage: React.FC = () => {
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
@@ -47,6 +54,8 @@ const NewsPage: React.FC = () => {
     isRead: undefined as boolean | undefined,
     isFavorite: undefined as boolean | undefined,
   });
+  const [selectedContent, setSelectedContent] = useState<NewsItem | null>(null);
+  const [contentModalOpen, setContentModalOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -195,6 +204,21 @@ const NewsPage: React.FC = () => {
         {sentiment}
       </Badge>
     );
+  };
+
+  const isExternalUrl = (url: string): boolean => {
+    return url.startsWith('http://') || url.startsWith('https://');
+  };
+
+  const handleItemClick = (item: NewsItem) => {
+    if (isExternalUrl(item.url)) {
+      window.open(item.url, '_blank', 'noopener,noreferrer');
+    } else {
+      // For internal items (analysis reports, etc.), show content in modal
+      setSelectedContent(item);
+      setContentModalOpen(true);
+    }
+    handleToggleRead(item);
   };
 
   return (
@@ -350,15 +374,24 @@ const NewsPage: React.FC = () => {
                       <div className="flex items-start justify-between gap-4 mb-2">
                         <div className="flex-1">
                           <h3 className="text-lg font-semibold line-clamp-2 mb-1">
-                            <a
-                              href={item.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="hover:text-primary transition-colors"
-                              onClick={() => handleToggleRead(item)}
-                            >
-                              {item.title}
-                            </a>
+                            {isExternalUrl(item.url) ? (
+                              <a
+                                href={item.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:text-primary transition-colors"
+                                onClick={() => handleToggleRead(item)}
+                              >
+                                {item.title}
+                              </a>
+                            ) : (
+                              <button
+                                className="text-left hover:text-primary transition-colors"
+                                onClick={() => handleItemClick(item)}
+                              >
+                                {item.title}
+                              </button>
+                            )}
                           </h3>
                           
                           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
@@ -413,10 +446,17 @@ const NewsPage: React.FC = () => {
                               <Archive className="w-4 h-4 mr-2" />
                               {item.status === 'archived' ? 'Unarchive' : 'Archive'}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => window.open(item.url, '_blank')}>
-                              <ExternalLink className="w-4 h-4 mr-2" />
-                              Open article
-                            </DropdownMenuItem>
+                            {isExternalUrl(item.url) ? (
+                              <DropdownMenuItem onClick={() => window.open(item.url, '_blank')}>
+                                <ExternalLink className="w-4 h-4 mr-2" />
+                                Open article
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem onClick={() => handleItemClick(item)}>
+                                <Eye className="w-4 h-4 mr-2" />
+                                View content
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem 
                               onClick={() => handleDelete(item._id)}
                               className="text-destructive"
@@ -446,13 +486,23 @@ const NewsPage: React.FC = () => {
                           <Heart className={`w-4 h-4 ${item.isFavorite ? 'fill-current' : ''}`} />
                         </Button>
                         
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => window.open(item.url, '_blank')}
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </Button>
+                        {isExternalUrl(item.url) ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => window.open(item.url, '_blank')}
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleItemClick(item)}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        )}
 
                         {!item.isRead && (
                           <Badge variant="secondary" className="text-xs">
@@ -509,6 +559,104 @@ const NewsPage: React.FC = () => {
             </Button>
           </div>
         )}
+
+        {/* Content Modal for Internal Items */}
+        <Dialog open={contentModalOpen} onOpenChange={setContentModalOpen}>
+          <DialogContent className="max-w-4xl max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Newspaper className="w-5 h-5" />
+                {selectedContent?.title}
+              </DialogTitle>
+            </DialogHeader>
+            
+            {selectedContent && (
+              <ScrollArea className="max-h-[60vh] pr-4">
+                <div className="space-y-4">
+                  {/* Article Info */}
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground border-b pb-3">
+                    <span>{selectedContent.source.name}</span>
+                    {selectedContent.author && (
+                      <>
+                        <span>•</span>
+                        <span>{selectedContent.author}</span>
+                      </>
+                    )}
+                    <span>•</span>
+                    <span>{formatTimeAgo(selectedContent.publishedAt)}</span>
+                  </div>
+
+                  {/* Categories and Tags */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {selectedContent.category && (
+                      <Badge variant="outline" className="text-xs">
+                        {selectedContent.category}
+                      </Badge>
+                    )}
+                    {getSentimentBadge(selectedContent.sentiment)}
+                    {selectedContent.tags?.map((tag) => (
+                      <Badge key={tag} variant="secondary" className="text-xs">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+
+                  {/* Description/Summary */}
+                  {(selectedContent.summary || selectedContent.description) && (
+                    <div className="bg-muted/20 p-4 rounded-lg">
+                      <h4 className="font-medium mb-2">Summary</h4>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedContent.summary || selectedContent.description}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Content */}
+                  {selectedContent.content && (
+                    <div className="prose prose-sm max-w-none dark:prose-invert">
+                      <h4 className="font-medium mb-3">Full Content</h4>
+                      <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                        {selectedContent.content}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        await handleToggleFavorite(selectedContent);
+                        // Update the modal content to reflect changes
+                        const updated = newsItems.find(item => item._id === selectedContent._id);
+                        if (updated) setSelectedContent(updated);
+                      }}
+                      className={selectedContent.isFavorite ? 'text-red-500' : ''}
+                    >
+                      <Heart className={`w-4 h-4 mr-2 ${selectedContent.isFavorite ? 'fill-current' : ''}`} />
+                      {selectedContent.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        await handleArchive(selectedContent);
+                        // Update the modal content to reflect changes
+                        const updated = newsItems.find(item => item._id === selectedContent._id);
+                        if (updated) setSelectedContent(updated);
+                      }}
+                    >
+                      <Archive className="w-4 h-4 mr-2" />
+                      {selectedContent.status === 'archived' ? 'Unarchive' : 'Archive'}
+                    </Button>
+                  </div>
+                </div>
+              </ScrollArea>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
