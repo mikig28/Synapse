@@ -37,8 +37,8 @@ class HybridNewsGatherer:
         except Exception as e:
             logger.warning(f"Full news scraper not available: {str(e)}")
             try:
-                from agents.simple_news_scraper import SimpleNewsScraperAgent
-                self.news_scraper = SimpleNewsScraperAgent()
+                from agents.simple_news_scraper import SimpleNewsScraperTool
+                self.news_scraper = SimpleNewsScraperTool()
                 self.real_news_available = True
                 self.scraper_type = "simple"
                 logger.info("Simple news scraper initialized successfully")
