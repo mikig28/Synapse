@@ -192,6 +192,13 @@ io.on('connection', (socket) => {
 const startServer = async () => {
   try {
     const mongoUri = process.env.MONGODB_URI;
+    
+    // Debug: Log environment variables for troubleshooting
+    console.log('[Server] Environment Variables Check:', {
+      NODE_ENV: process.env.NODE_ENV,
+      FRONTEND_URL: process.env.FRONTEND_URL,
+      CREWAI_SERVICE_URL: process.env.CREWAI_SERVICE_URL
+    });
 
     if (!mongoUri) {
       console.error('FATAL ERROR: MONGODB_URI is not defined.');
