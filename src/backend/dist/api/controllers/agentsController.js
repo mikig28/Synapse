@@ -224,9 +224,9 @@ const deleteAgent = async (req, res) => {
 exports.deleteAgent = deleteAgent;
 // Execute an agent manually
 const executeAgent = async (req, res) => {
+    const { agentId } = req.params;
+    const userId = req.user.id;
     try {
-        const { agentId } = req.params;
-        const userId = req.user.id;
         // Check if agent exists and belongs to user
         const agent = await agentService.getAgentById(agentId);
         if (!agent) {
@@ -253,10 +253,17 @@ const executeAgent = async (req, res) => {
     }
     catch (error) {
         console.error('[AgentsController] Error executing agent:', error);
+        console.error('[AgentsController] Error details:', {
+            agentId,
+            userId,
+            errorMessage: error.message,
+            errorStack: error.stack
+        });
         res.status(400).json({
             success: false,
             error: 'Failed to execute agent',
             message: error.message,
+            details: error.message // Include the actual error message for debugging
         });
     }
 };

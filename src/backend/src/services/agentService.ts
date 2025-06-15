@@ -28,7 +28,7 @@ export class AgentService {
     userId: mongoose.Types.ObjectId,
     agentData: {
       name: string;
-      type: 'twitter' | 'news' | 'custom';
+      type: 'twitter' | 'news' | 'crewai_news' | 'custom';
       description?: string;
       configuration?: any;
     }
@@ -94,23 +94,34 @@ export class AgentService {
   }
 
   async executeAgent(agentId: string): Promise<IAgentRun> {
+    console.log(`[AgentService] Starting execution for agent ID: ${agentId}`);
+    
     const agent = await Agent.findById(agentId);
     if (!agent) {
+      console.error(`[AgentService] Agent not found: ${agentId}`);
       throw new Error(`Agent with ID ${agentId} not found`);
     }
 
+    console.log(`[AgentService] Found agent: ${agent.name} (type: ${agent.type}, active: ${agent.isActive}, status: ${agent.status})`);
+
     if (!agent.isActive) {
+      console.error(`[AgentService] Agent is not active: ${agent.name}`);
       throw new Error(`Agent ${agent.name} is not active`);
     }
 
     if (agent.status === 'running') {
+      console.error(`[AgentService] Agent already running: ${agent.name}`);
       throw new Error(`Agent ${agent.name} is already running`);
     }
 
     const executor = this.executors.get(agent.type);
     if (!executor) {
+      console.error(`[AgentService] No executor found for agent type: ${agent.type}`);
+      console.error(`[AgentService] Available executors:`, Array.from(this.executors.keys()));
       throw new Error(`No executor registered for agent type: ${agent.type}`);
     }
+
+    console.log(`[AgentService] Found executor for agent type: ${agent.type}`);
 
     // Create agent run record
     const agentRun = new AgentRun({
@@ -120,16 +131,27 @@ export class AgentService {
       startTime: new Date(),
       itemsProcessed: 0,
       itemsAdded: 0,
-      errors: [],
+      errorMessages: [],
       logs: [],
       results: { summary: '' },
     });
     await agentRun.save();
+    console.log(`[AgentService] Created agent run record: ${agentRun._id}`);
 
     // Update agent status
     agent.status = 'running';
     agent.lastRun = new Date();
     await agent.save();
+    console.log(`[AgentService] Updated agent status to running`);
+
+    // Emit real-time update
+    this.emitAgentUpdate(agent.userId.toString(), {
+      agentId: (agent._id as any).toString(),
+      runId: (agentRun._id as any).toString(),
+      status: 'running',
+      message: `Starting execution of agent: ${agent.name}`,
+      timestamp: new Date()
+    });
 
     try {
       const context: AgentExecutionContext = {
@@ -138,10 +160,17 @@ export class AgentService {
         userId: agent.userId,
       };
 
-      await agentRun.addLog('info', `Starting execution of agent: ${agent.name}`);
+      await agentRun.addLog('info', `Starting execution of agent: ${agent.name}`, {
+        agentType: agent.type,
+        configuration: agent.configuration
+      });
+      
+      console.log(`[AgentService] Starting agent execution with context`);
       
       // Execute the agent
       await executor.execute(context);
+
+      console.log(`[AgentService] Agent execution completed successfully`);
 
       // Update statistics
       agent.statistics.totalRuns += 1;
@@ -157,10 +186,28 @@ export class AgentService {
       
       await agentRun.complete(`Successfully processed ${agentRun.itemsProcessed} items, added ${agentRun.itemsAdded} new items`);
       
-      console.log(`[AgentService] Agent ${agent.name} completed successfully`);
+      console.log(`[AgentService] Agent ${agent.name} completed successfully - processed: ${agentRun.itemsProcessed}, added: ${agentRun.itemsAdded}`);
+
+      // Emit completion update
+      this.emitAgentUpdate(agent.userId.toString(), {
+        agentId: (agent._id as any).toString(),
+        runId: (agentRun._id as any).toString(),
+        status: 'completed',
+        message: `Agent completed successfully - processed: ${agentRun.itemsProcessed}, added: ${agentRun.itemsAdded}`,
+        timestamp: new Date(),
+        stats: {
+          itemsProcessed: agentRun.itemsProcessed,
+          itemsAdded: agentRun.itemsAdded,
+          duration: agentRun.duration
+        }
+      });
 
     } catch (error: any) {
-      console.error(`[AgentService] Agent ${agent.name} failed:`, error);
+      console.error(`[AgentService] Agent ${agent.name} failed:`, {
+        error: error.message,
+        stack: error.stack,
+        agentType: agent.type
+      });
       
       // Update statistics
       agent.statistics.totalRuns += 1;
@@ -171,10 +218,34 @@ export class AgentService {
       
       await agentRun.fail(error.message);
       
+      // Emit failure update
+      this.emitAgentUpdate(agent.userId.toString(), {
+        agentId: (agent._id as any).toString(),
+        runId: (agentRun._id as any).toString(),
+        status: 'failed',
+        message: `Agent execution failed: ${error.message}`,
+        timestamp: new Date(),
+        error: error.message
+      });
+      
       throw error;
     }
 
     return agentRun;
+  }
+
+  private emitAgentUpdate(userId: string, update: any): void {
+    try {
+      // Get io instance from global if available
+      if ((global as any).io) {
+        (global as any).io.to(`user_${userId}`).emit('agent_update', update);
+        console.log(`[AgentService] Emitted real-time update for user ${userId}:`, update.message);
+      } else {
+        console.warn(`[AgentService] Socket.IO instance not available for real-time updates`);
+      }
+    } catch (error) {
+      console.warn(`[AgentService] Failed to emit real-time update:`, error);
+    }
   }
 
   async getAgentRuns(agentId: string, limit: number = 50): Promise<IAgentRun[]> {

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { agentService } from '../services/agentService';
 import { Agent, AgentRun } from '../types/agent';
+import { AgentLogViewer } from '@/components/AgentLogViewer';
 import {
   Bot,
   Plus,
@@ -124,9 +125,16 @@ const AgentsPage: React.FC = () => {
           minLikes: 10,
           minRetweets: 5,
           excludeReplies: true,
-          sources: '',
+          newsSources: '',
           categories: '',
           language: 'en',
+          topics: '',
+          crewaiSources: {
+            reddit: true,
+            linkedin: true,
+            telegram: true,
+            news_websites: true,
+          },
           schedule: '0 */6 * * *',
           maxItemsPerRun: 10,
         },
@@ -635,38 +643,46 @@ const AgentsPage: React.FC = () => {
                   )}
 
                   {/* Actions */}
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleExecuteAgent(agent._id)}
-                      disabled={executingAgents.has(agent._id) || agent.status === 'running'}
-                      className="flex-1"
-                    >
-                      {executingAgents.has(agent._id) ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Play className="w-4 h-4" />
-                      )}
-                      Run
-                    </Button>
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleExecuteAgent(agent._id)}
+                        disabled={executingAgents.has(agent._id) || agent.status === 'running'}
+                        className="flex-1"
+                      >
+                        {executingAgents.has(agent._id) ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Play className="w-4 h-4" />
+                        )}
+                        Run
+                      </Button>
 
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleToggleAgent(agent)}
-                    >
-                      {agent.isActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                    </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleToggleAgent(agent)}
+                      >
+                        {agent.isActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                      </Button>
 
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleDeleteAgent(agent._id)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDeleteAgent(agent._id)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    
+                    <AgentLogViewer
+                      agentId={agent._id}
+                      agentName={agent.name}
+                      isRunning={agent.status === 'running' || executingAgents.has(agent._id)}
+                    />
                   </div>
                 </CardContent>
               </Card>

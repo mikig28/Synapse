@@ -9,14 +9,25 @@ const NewsItem_1 = __importDefault(require("../../models/NewsItem"));
 class CrewAINewsAgentExecutor {
     constructor() {
         // CrewAI service URL - should be configurable via environment
+        console.log(`[CrewAI Agent] Environment variables check:`, {
+            CREWAI_SERVICE_URL: process.env.CREWAI_SERVICE_URL,
+            NODE_ENV: process.env.NODE_ENV,
+            PORT: process.env.PORT
+        });
         this.crewaiServiceUrl = process.env.CREWAI_SERVICE_URL || 'http://localhost:5000';
+        console.log(`[CrewAI Agent] Using Service URL: ${this.crewaiServiceUrl}`);
     }
     async execute(context) {
         const { agent, run, userId } = context;
-        await run.addLog('info', 'Starting CrewAI multi-agent news gathering');
+        await run.addLog('info', 'Starting CrewAI multi-agent news gathering', {
+            agentName: agent.name,
+            serviceUrl: this.crewaiServiceUrl
+        });
         try {
             // Check if CrewAI service is available
+            await run.addLog('info', 'Performing health check on CrewAI service...');
             await this.healthCheck();
+            await run.addLog('info', 'CrewAI service health check passed');
             const config = agent.configuration;
             const topics = config.topics || ['technology', 'AI', 'startups', 'business'];
             const sources = {
@@ -25,43 +36,89 @@ class CrewAINewsAgentExecutor {
                 telegram: config.crewaiSources?.telegram !== false,
                 news_websites: config.crewaiSources?.news_websites !== false
             };
-            await run.addLog('info', `Gathering news for topics: ${topics.join(', ')}`);
-            await run.addLog('info', `Using sources: ${Object.entries(sources).filter(([_, enabled]) => enabled).map(([source]) => source).join(', ')}`);
+            await run.addLog('info', `Gathering news for topics: ${topics.join(', ')}`, { topics });
+            await run.addLog('info', `Using sources: ${Object.entries(sources).filter(([_, enabled]) => enabled).map(([source]) => source).join(', ')}`, { sources });
             // Execute CrewAI news gathering
+            await run.addLog('info', 'Sending request to CrewAI agents...');
+            const startTime = Date.now();
             const crewaiResponse = await this.executeCrewAIGathering({
                 topics,
                 sources
             });
+            const duration = Date.now() - startTime;
+            await run.addLog('info', `CrewAI agents completed in ${duration}ms`, {
+                duration,
+                success: crewaiResponse.success,
+                timestamp: crewaiResponse.timestamp
+            });
             if (!crewaiResponse.success) {
                 throw new Error(`CrewAI execution failed: ${crewaiResponse.error}`);
             }
-            await run.addLog('info', 'CrewAI news gathering completed successfully');
+            await run.addLog('info', 'CrewAI news gathering completed successfully', {
+                sourcesUsed: crewaiResponse.sources_used,
+                topicsAnalyzed: crewaiResponse.topics
+            });
+            // Log executive summary if available
+            if (crewaiResponse.data?.executive_summary) {
+                await run.addLog('info', 'Received executive summary from AI agents', {
+                    summaryPoints: crewaiResponse.data.executive_summary.length
+                });
+            }
+            // Log trending topics if available
+            if (crewaiResponse.data?.trending_topics) {
+                const topTrends = crewaiResponse.data.trending_topics.slice(0, 3);
+                await run.addLog('info', `Top trending topics: ${topTrends.map(t => `${t.topic} (${t.mentions} mentions)`).join(', ')}`, {
+                    trendingTopics: topTrends
+                });
+            }
             // Process and store the results
+            await run.addLog('info', 'Processing and storing results...');
             await this.processAndStoreResults(crewaiResponse, userId, run);
             // Update run statistics
             const totalItems = this.calculateTotalItems(crewaiResponse);
             run.itemsProcessed = totalItems;
-            await run.addLog('info', `Successfully processed ${totalItems} items from CrewAI agents`);
+            await run.addLog('info', `Successfully processed ${totalItems} items from CrewAI agents`, {
+                totalItems,
+                itemsAdded: run.itemsAdded,
+                processingComplete: true
+            });
         }
         catch (error) {
-            await run.addLog('error', `CrewAI agent execution failed: ${error.message}`);
+            await run.addLog('error', `CrewAI agent execution failed: ${error.message}`, {
+                error: error.message,
+                stack: error.stack,
+                serviceUrl: this.crewaiServiceUrl
+            });
             throw error;
         }
     }
     async healthCheck() {
         try {
+            console.log(`[CrewAI Agent] Performing health check to: ${this.crewaiServiceUrl}/health`);
             const response = await axios_1.default.get(`${this.crewaiServiceUrl}/health`, {
                 timeout: 10000
             });
+            console.log(`[CrewAI Agent] Health check response:`, response.data);
             if (!response.data.initialized) {
                 throw new Error('CrewAI service is not properly initialized');
             }
+            console.log(`[CrewAI Agent] Health check passed - service is initialized`);
         }
         catch (error) {
+            console.error(`[CrewAI Agent] Health check failed:`, {
+                url: `${this.crewaiServiceUrl}/health`,
+                error: error.message,
+                code: error.code,
+                status: error.response?.status,
+                statusText: error.response?.statusText
+            });
             if (error.code === 'ECONNREFUSED') {
-                throw new Error('CrewAI service is not running. Please start the Python service.');
+                throw new Error(`CrewAI service is not running at ${this.crewaiServiceUrl}. Please verify the service is deployed and accessible.`);
             }
-            throw new Error(`CrewAI service health check failed: ${error.message}`);
+            if (error.code === 'ENOTFOUND') {
+                throw new Error(`CrewAI service URL not found: ${this.crewaiServiceUrl}. Please check the CREWAI_SERVICE_URL configuration.`);
+            }
+            throw new Error(`CrewAI service health check failed: ${error.message} (URL: ${this.crewaiServiceUrl})`);
         }
     }
     async executeCrewAIGathering(request) {

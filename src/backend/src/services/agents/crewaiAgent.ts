@@ -54,11 +54,16 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
   async execute(context: AgentExecutionContext): Promise<void> {
     const { agent, run, userId } = context;
 
-    await run.addLog('info', 'Starting CrewAI multi-agent news gathering');
+    await run.addLog('info', 'Starting CrewAI multi-agent news gathering', {
+      agentName: agent.name,
+      serviceUrl: this.crewaiServiceUrl
+    });
 
     try {
       // Check if CrewAI service is available
+      await run.addLog('info', 'Performing health check on CrewAI service...');
       await this.healthCheck();
+      await run.addLog('info', 'CrewAI service health check passed');
 
       const config = agent.configuration;
       const topics = config.topics || ['technology', 'AI', 'startups', 'business'];
@@ -69,32 +74,69 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
         news_websites: config.crewaiSources?.news_websites !== false
       };
 
-      await run.addLog('info', `Gathering news for topics: ${topics.join(', ')}`);
-      await run.addLog('info', `Using sources: ${Object.entries(sources).filter(([_, enabled]) => enabled).map(([source]) => source).join(', ')}`);
+      await run.addLog('info', `Gathering news for topics: ${topics.join(', ')}`, { topics });
+      await run.addLog('info', `Using sources: ${Object.entries(sources).filter(([_, enabled]) => enabled).map(([source]) => source).join(', ')}`, { sources });
 
       // Execute CrewAI news gathering
+      await run.addLog('info', 'Sending request to CrewAI agents...');
+      const startTime = Date.now();
+      
       const crewaiResponse = await this.executeCrewAIGathering({
         topics,
         sources
+      });
+
+      const duration = Date.now() - startTime;
+      await run.addLog('info', `CrewAI agents completed in ${duration}ms`, { 
+        duration,
+        success: crewaiResponse.success,
+        timestamp: crewaiResponse.timestamp
       });
 
       if (!crewaiResponse.success) {
         throw new Error(`CrewAI execution failed: ${crewaiResponse.error}`);
       }
 
-      await run.addLog('info', 'CrewAI news gathering completed successfully');
+      await run.addLog('info', 'CrewAI news gathering completed successfully', {
+        sourcesUsed: crewaiResponse.sources_used,
+        topicsAnalyzed: crewaiResponse.topics
+      });
+
+      // Log executive summary if available
+      if (crewaiResponse.data?.executive_summary) {
+        await run.addLog('info', 'Received executive summary from AI agents', {
+          summaryPoints: crewaiResponse.data.executive_summary.length
+        });
+      }
+
+      // Log trending topics if available
+      if (crewaiResponse.data?.trending_topics) {
+        const topTrends = crewaiResponse.data.trending_topics.slice(0, 3);
+        await run.addLog('info', `Top trending topics: ${topTrends.map(t => `${t.topic} (${t.mentions} mentions)`).join(', ')}`, {
+          trendingTopics: topTrends
+        });
+      }
 
       // Process and store the results
+      await run.addLog('info', 'Processing and storing results...');
       await this.processAndStoreResults(crewaiResponse, userId, run);
 
       // Update run statistics
       const totalItems = this.calculateTotalItems(crewaiResponse);
       run.itemsProcessed = totalItems;
       
-      await run.addLog('info', `Successfully processed ${totalItems} items from CrewAI agents`);
+      await run.addLog('info', `Successfully processed ${totalItems} items from CrewAI agents`, {
+        totalItems,
+        itemsAdded: run.itemsAdded,
+        processingComplete: true
+      });
 
     } catch (error: any) {
-      await run.addLog('error', `CrewAI agent execution failed: ${error.message}`);
+      await run.addLog('error', `CrewAI agent execution failed: ${error.message}`, {
+        error: error.message,
+        stack: error.stack,
+        serviceUrl: this.crewaiServiceUrl
+      });
       throw error;
     }
   }

@@ -180,6 +180,12 @@ app.get('/', (req: Request, res: Response) => {
 io.on('connection', (socket) => {
   console.log(`[Socket.IO]: Client connected: ${socket.id}`);
 
+  // Handle user room joining
+  socket.on('join', (room: string) => {
+    socket.join(room);
+    console.log(`[Socket.IO]: Client ${socket.id} joined room: ${room}`);
+  });
+
   // Handle client disconnection
   socket.on('disconnect', () => {
     console.log(`[Socket.IO]: Client disconnected: ${socket.id}`);
@@ -222,6 +228,9 @@ const startServer = async () => {
     // Start the agent scheduler
     await agentScheduler.start();
     console.log('[Server] Agent scheduler started successfully');
+
+    // Make io available globally for real-time updates
+    (global as any).io = io;
 
     httpServer.listen(PORT, '0.0.0.0', () => {
       console.log(`Server is running on port ${PORT}`);

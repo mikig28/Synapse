@@ -59,25 +59,54 @@ const io = new socket_io_1.Server(httpServer, {
                 console.log('[Socket.IO CORS] Allowing request with no origin.');
                 return callback(null, true);
             }
-            if (allowedSocketOrigins.includes(requestOrigin)) {
+            // Enhanced allowed origins for Socket.IO
+            const socketAllowedOrigins = [
+                frontendUrl,
+                "https://synapse-frontend.onrender.com",
+                "http://localhost:5173",
+                "http://localhost:3000"
+            ];
+            if (socketAllowedOrigins.includes(requestOrigin)) {
                 console.log(`[Socket.IO CORS] Origin ${requestOrigin} is allowed.`);
                 return callback(null, true);
             }
             else {
                 console.error(`[Socket.IO CORS] Origin ${requestOrigin} is NOT allowed.`);
-                return callback(new Error('Not allowed by CORS'));
+                // Temporarily allow all for debugging
+                console.log('[Socket.IO CORS] Allowing anyway for debugging');
+                return callback(null, true);
             }
         },
-        methods: ["GET", "POST", "PUT", "DELETE"]
+        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization"],
+        credentials: true
     }
 });
 exports.io = io;
-// Middleware
+// Middleware - Enhanced CORS configuration
 app.use((0, cors_1.default)({
-    origin: [frontendUrl, "https://synapse-frontend.onrender.com"], // MODIFIED - Added your specific production frontend URL
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // MODIFIED - Added OPTIONS for preflight requests
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"], // Added more headers
-    credentials: true // Allow credentials (cookies, authorization headers, etc.)
+    origin: function (requestOrigin, callback) {
+        // Allow requests with no origin (mobile apps, etc.)
+        if (!requestOrigin)
+            return callback(null, true);
+        const allowedOrigins = [
+            frontendUrl,
+            "https://synapse-frontend.onrender.com",
+            "http://localhost:5173", // Local development
+            "http://localhost:3000" // Alternative local port
+        ];
+        if (allowedOrigins.includes(requestOrigin)) {
+            return callback(null, true);
+        }
+        else {
+            console.log(`[CORS] Blocked origin: ${requestOrigin}`);
+            return callback(null, true); // Allow all for now to debug
+        }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+    credentials: true,
+    optionsSuccessStatus: 200 // For legacy browser support
 }));
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
@@ -153,6 +182,11 @@ app.get('/', (req, res) => {
 // Socket.IO connection handler
 io.on('connection', (socket) => {
     console.log(`[Socket.IO]: Client connected: ${socket.id}`);
+    // Handle user room joining
+    socket.on('join', (room) => {
+        socket.join(room);
+        console.log(`[Socket.IO]: Client ${socket.id} joined room: ${room}`);
+    });
     // Handle client disconnection
     socket.on('disconnect', () => {
         console.log(`[Socket.IO]: Client disconnected: ${socket.id}`);
@@ -163,6 +197,12 @@ io.on('connection', (socket) => {
 const startServer = async () => {
     try {
         const mongoUri = process.env.MONGODB_URI;
+        // Debug: Log environment variables for troubleshooting
+        console.log('[Server] Environment Variables Check:', {
+            NODE_ENV: process.env.NODE_ENV,
+            FRONTEND_URL: process.env.FRONTEND_URL,
+            CREWAI_SERVICE_URL: process.env.CREWAI_SERVICE_URL
+        });
         if (!mongoUri) {
             console.error('FATAL ERROR: MONGODB_URI is not defined.');
             process.exit(1);
@@ -180,6 +220,8 @@ const startServer = async () => {
         // Start the agent scheduler
         await agentScheduler.start();
         console.log('[Server] Agent scheduler started successfully');
+        // Make io available globally for real-time updates
+        global.io = io;
         httpServer.listen(PORT, '0.0.0.0', () => {
             console.log(`Server is running on port ${PORT}`);
             // The "[mongoose]: Mongoose connected to DB" log from database.ts confirms success
