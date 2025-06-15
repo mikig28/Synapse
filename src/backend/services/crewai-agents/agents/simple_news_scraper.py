@@ -26,6 +26,16 @@ class SimpleNewsScraperTool:
                 'api_url': 'https://www.reddit.com/r/technology.json',
                 'category': 'tech'
             },
+            'reddit_news': {
+                'name': 'Reddit News',
+                'api_url': 'https://www.reddit.com/r/news.json',
+                'category': 'news'
+            },
+            'reddit_worldnews': {
+                'name': 'Reddit World News',
+                'api_url': 'https://www.reddit.com/r/worldnews.json',
+                'category': 'world'
+            },
             'github_trending': {
                 'name': 'GitHub Trending',
                 'api_url': 'https://api.github.com/search/repositories?q=created:>{}+language:python&sort=stars&order=desc',
@@ -56,9 +66,15 @@ class SimpleNewsScraperTool:
             hn_articles = self._scrape_hackernews()
             all_articles.extend(hn_articles)
             
-            # Try Reddit API
-            reddit_articles = self._scrape_reddit_api()
-            all_articles.extend(reddit_articles)
+            # Try Reddit APIs
+            reddit_tech_articles = self._scrape_reddit_api('reddit_api')
+            all_articles.extend(reddit_tech_articles)
+            
+            reddit_news_articles = self._scrape_reddit_api('reddit_news')
+            all_articles.extend(reddit_news_articles)
+            
+            reddit_world_articles = self._scrape_reddit_api('reddit_worldnews')
+            all_articles.extend(reddit_world_articles)
             
             # Try GitHub trending
             github_articles = self._scrape_github_trending()
@@ -136,7 +152,7 @@ class SimpleNewsScraperTool:
         
         return articles
     
-    def _scrape_reddit_api(self) -> List[Dict[str, Any]]:
+    def _scrape_reddit_api(self, source_key: str = 'reddit_api') -> List[Dict[str, Any]]:
         """Scrape Reddit using their JSON API"""
         
         articles = []
@@ -144,7 +160,7 @@ class SimpleNewsScraperTool:
         try:
             headers = {'User-Agent': 'SynapseNewsBot/1.0'}
             
-            response = requests.get(self.news_sources['reddit_api']['api_url'], 
+            response = requests.get(self.news_sources[source_key]['api_url'], 
                                   headers=headers, timeout=10)
             response.raise_for_status()
             
@@ -162,8 +178,8 @@ class SimpleNewsScraperTool:
                             'summary': post_data.get('title', ''),
                             'author': post_data.get('author', 'Unknown'),
                             'published_date': datetime.fromtimestamp(post_data.get('created_utc', 0)).isoformat() if post_data.get('created_utc') else '',
-                            'source': 'Reddit r/technology',
-                            'source_category': 'tech',
+                            'source': self.news_sources[source_key]['name'],
+                            'source_category': self.news_sources[source_key]['category'],
                             'score': post_data.get('score', 0),
                             'comments': post_data.get('num_comments', 0),
                             'subreddit': post_data.get('subreddit', 'technology'),
@@ -225,7 +241,14 @@ class SimpleNewsScraperTool:
         return articles
     
     def _filter_articles_by_topics(self, articles: List[Dict[str, Any]], topics: List[str]) -> List[Dict[str, Any]]:
-        """Filter articles based on topic relevance"""
+        """Filter articles based on topic relevance - more flexible approach"""
+        
+        # If articles are few or topics are very specific, be more lenient
+        if len(articles) <= 5 or any(len(topic) > 10 for topic in topics):
+            # Return all articles but mark them as general content
+            for article in articles:
+                article['matched_topic'] = 'general'
+            return articles
         
         filtered_articles = []
         
@@ -233,11 +256,31 @@ class SimpleNewsScraperTool:
             # Check if any topic appears in title, summary, or content
             text_to_search = f"{article.get('title', '')} {article.get('summary', '')} {article.get('content', '')}".lower()
             
+            # Also check subreddit and source
+            subreddit = article.get('subreddit', '').lower()
+            source_category = article.get('source_category', '').lower()
+            
             for topic in topics:
-                if topic in text_to_search or any(keyword in text_to_search for keyword in self._get_topic_keywords(topic)):
+                topic_keywords = [topic] + self._get_topic_keywords(topic)
+                
+                # Check text content
+                if any(keyword in text_to_search for keyword in topic_keywords):
                     article['matched_topic'] = topic
                     filtered_articles.append(article)
                     break
+                    
+                # Check if source is relevant (e.g., world news for geopolitical topics)
+                if self._is_source_relevant_for_topic(source_category, subreddit, topic):
+                    article['matched_topic'] = topic
+                    filtered_articles.append(article)
+                    break
+        
+        # If we still have very few results, include some general articles
+        if len(filtered_articles) < 3:
+            remaining_articles = [a for a in articles if a not in filtered_articles]
+            for article in remaining_articles[:5]:
+                article['matched_topic'] = 'related'
+                filtered_articles.append(article)
         
         return filtered_articles
     
@@ -245,14 +288,37 @@ class SimpleNewsScraperTool:
         """Get related keywords for a topic"""
         
         keyword_map = {
-            'ai': ['artificial intelligence', 'machine learning', 'deep learning', 'neural', 'gpt', 'llm'],
-            'technology': ['tech', 'software', 'hardware', 'computing', 'digital'],
-            'startups': ['startup', 'venture', 'funding', 'investment', 'entrepreneur'],
-            'business': ['company', 'corporate', 'market', 'industry', 'enterprise'],
-            'innovation': ['breakthrough', 'revolutionary', 'cutting-edge', 'advanced', 'novel']
+            'ai': ['artificial intelligence', 'machine learning', 'deep learning', 'neural', 'gpt', 'llm', 'chatgpt', 'openai'],
+            'technology': ['tech', 'software', 'hardware', 'computing', 'digital', 'innovation'],
+            'startups': ['startup', 'venture', 'funding', 'investment', 'entrepreneur', 'vc'],
+            'business': ['company', 'corporate', 'market', 'industry', 'enterprise', 'economy'],
+            'innovation': ['breakthrough', 'revolutionary', 'cutting-edge', 'advanced', 'novel'],
+            'israel': ['israeli', 'jerusalem', 'tel aviv', 'gaza', 'palestine', 'middle east', 'netanyahu'],
+            'politics': ['government', 'election', 'policy', 'senate', 'congress', 'president'],
+            'security': ['cybersecurity', 'privacy', 'encryption', 'hacking', 'breach'],
+            'crypto': ['cryptocurrency', 'bitcoin', 'blockchain', 'ethereum', 'nft'],
+            'climate': ['environment', 'global warming', 'carbon', 'renewable', 'sustainability'],
+            'health': ['medical', 'healthcare', 'medicine', 'hospital', 'treatment', 'vaccine'],
+            'space': ['nasa', 'spacex', 'rocket', 'satellite', 'mars', 'moon'],
+            'finance': ['banking', 'stocks', 'market', 'trading', 'economy', 'inflation']
         }
         
         return keyword_map.get(topic.lower(), [])
+    
+    def _is_source_relevant_for_topic(self, source_category: str, subreddit: str, topic: str) -> bool:
+        """Check if source is generally relevant for a topic"""
+        
+        # World news is relevant for geopolitical topics
+        if topic.lower() in ['israel', 'ukraine', 'china', 'politics', 'war', 'conflict']:
+            if source_category in ['world', 'news'] or subreddit in ['worldnews', 'news']:
+                return True
+                
+        # Tech sources for tech topics
+        if topic.lower() in ['ai', 'technology', 'crypto', 'security']:
+            if source_category == 'tech' or subreddit == 'technology':
+                return True
+                
+        return False
 
 class SimpleNewsScraperAgent:
     """Simple news scraper agent using basic HTTP requests"""

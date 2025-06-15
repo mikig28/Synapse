@@ -188,33 +188,96 @@ class HybridNewsGatherer:
             return []
     
     def _generate_reddit_posts(self, topics: List[str]) -> List[Dict[str, Any]]:
-        """Generate simulated Reddit posts"""
+        """Generate simulated Reddit posts with better variety"""
         posts = []
-        for i, topic in enumerate(topics[:3]):
+        
+        reddit_templates = [
+            {
+                "title": "Breaking: Major developments in {topic} - What are your thoughts?",
+                "content": "Just saw some significant news regarding {topic}. The implications could be huge for the industry. What's everyone's take on this?",
+                "subreddit": "worldnews" if topics[0].lower() in ['israel', 'politics', 'ukraine'] else "technology"
+            },
+            {
+                "title": "Analysis: How {topic} is reshaping the global landscape",
+                "content": "Deep dive into recent {topic} trends and their potential impact on various sectors. Key stakeholders are already adapting strategies.",
+                "subreddit": "news" if topics[0].lower() in ['israel', 'politics'] else "technology"
+            },
+            {
+                "title": "Discussion: {topic} megathread - Latest updates and community insights",
+                "content": "Comprehensive thread covering all recent {topic} developments. Community members sharing expertise and diverse perspectives.",
+                "subreddit": "worldnews" if topics[0].lower() in ['israel', 'politics'] else "technology"
+            },
+            {
+                "title": "LIVE: {topic} situation developing - Real-time updates",
+                "content": "Continuous coverage of ongoing {topic} events. Multiple sources confirming significant developments in the past hour.",
+                "subreddit": "news"
+            },
+            {
+                "title": "Expert AMA: Working in {topic} industry - Ask me anything",
+                "content": "10+ years experience in {topic} sector. Happy to answer questions about current trends, challenges, and opportunities.",
+                "subreddit": "IAmA"
+            }
+        ]
+        
+        for i, topic in enumerate(topics[:5]):  # Increased from 3 to 5
+            template = reddit_templates[i % len(reddit_templates)]
             posts.append({
-                "title": f"Breaking: Major developments in {topic} space",
-                "content": f"Exciting news in the {topic} industry. Community discussing potential impacts and opportunities.",
-                "url": f"https://reddit.com/r/technology/post_{i}",
-                "subreddit": "technology",
-                "score": 156 + i*20,
-                "num_comments": 23 + i*5,
+                "title": template["title"].format(topic=topic),
+                "content": template["content"].format(topic=topic),
+                "url": f"https://reddit.com/r/{template['subreddit']}/post_{i}",
+                "subreddit": template["subreddit"],
+                "score": 256 + i*47 + (hash(topic) % 200),  # More varied scores
+                "num_comments": 45 + i*12 + (hash(topic) % 50),
                 "created_utc": datetime.now().isoformat(),
-                "author": f"tech_enthusiast_{i}",
+                "author": f"expert_{topic.lower().replace(' ', '_')}_{i}",
                 "source": "reddit",
                 "simulated": True
             })
         return posts
     
     def _generate_linkedin_posts(self, topics: List[str]) -> List[Dict[str, Any]]:
-        """Generate simulated LinkedIn posts"""
+        """Generate simulated LinkedIn posts with professional insights"""
         posts = []
-        for i, topic in enumerate(topics[:3]):
+        
+        linkedin_templates = [
+            {
+                "title": "Strategic Outlook: {topic} transformation in 2025",
+                "content": "As {topic} continues to evolve, industry leaders must adapt their strategies. Key insights from recent market analysis and expert consultations. #Leadership #Strategy",
+                "author": "Sarah Chen, MBA",
+                "company": "Global Strategy Consulting"
+            },
+            {
+                "title": "Investment Perspective: {topic} market opportunities",
+                "content": "The {topic} sector presents compelling investment opportunities. Our team has identified three key growth drivers that institutional investors should monitor. #Investment #Growth",
+                "author": "Michael Rodriguez",
+                "company": "Venture Capital Partners"
+            },
+            {
+                "title": "Policy Impact: How {topic} regulations are changing business",
+                "content": "New regulatory frameworks around {topic} are reshaping operational strategies across industries. Companies need to prepare for compliance requirements. #Policy #Compliance",
+                "author": "Dr. Jennifer Walsh",
+                "company": "Regulatory Affairs Institute"
+            },
+            {
+                "title": "Innovation Spotlight: {topic} breakthrough technologies",
+                "content": "Exciting developments in {topic} technology are creating new possibilities for enterprise solutions. Early adopters are already seeing competitive advantages. #Innovation #Technology",
+                "author": "David Kim, CTO",
+                "company": "Enterprise Solutions Inc"
+            }
+        ]
+        
+        for i, topic in enumerate(topics[:4]):  # Increased to 4
+            template = linkedin_templates[i % len(linkedin_templates)]
             posts.append({
-                "title": f"Industry Insights: The Future of {topic}",
-                "content": f"Professional analysis of {topic} trends and market implications for businesses.",
-                "author": f"Industry Expert {i+1}",
-                "company": f"Tech Corp {i+1}",
-                "engagement": {"likes": 89 + i*15, "comments": 12 + i*3, "shares": 8 + i*2},
+                "title": template["title"].format(topic=topic),
+                "content": template["content"].format(topic=topic),
+                "author": template["author"],
+                "company": template["company"],
+                "engagement": {
+                    "likes": 147 + i*23 + (hash(topic) % 100), 
+                    "comments": 18 + i*7 + (hash(topic) % 20), 
+                    "shares": 12 + i*4 + (hash(topic) % 15)
+                },
                 "timestamp": datetime.now().isoformat(),
                 "url": f"https://linkedin.com/posts/expert_{i}",
                 "source": "linkedin",
@@ -223,15 +286,45 @@ class HybridNewsGatherer:
         return posts
     
     def _generate_telegram_messages(self, topics: List[str]) -> List[Dict[str, Any]]:
-        """Generate simulated Telegram messages"""
+        """Generate simulated Telegram messages with diverse content"""
         messages = []
-        for i, topic in enumerate(topics[:3]):
+        
+        telegram_templates = [
+            {
+                "channel": "@breaking_alerts",
+                "text": "🚨 BREAKING: Major {topic} development confirmed by multiple sources. This could have significant implications. Details emerging... #Breaking #Alert"
+            },
+            {
+                "channel": "@global_intel", 
+                "text": "📊 ANALYSIS: {topic} trends show accelerating momentum. Intelligence reports suggest this is part of larger strategic shift. Monitor closely. #Intelligence #Analysis"
+            },
+            {
+                "channel": "@insider_updates",
+                "text": "💼 INSIDER: Sources close to {topic} developments indicate major announcements coming soon. Industry insiders already positioning for impact. #Insider #Update"
+            },
+            {
+                "channel": "@market_signals",
+                "text": "📈 MARKET: {topic} related assets showing unusual activity. Smart money appears to be moving. Technical indicators suggest momentum building. #Market #Trading"
+            },
+            {
+                "channel": "@expert_network",
+                "text": "🎯 EXPERT: Leading {topic} specialist shares exclusive insights on current situation. Key factors to watch in coming 48 hours. #Expert #Insights"
+            }
+        ]
+        
+        for i, topic in enumerate(topics[:5]):  # Increased to 5
+            template = telegram_templates[i % len(telegram_templates)]
             messages.append({
-                "channel": f"@tech_news_{i}",
-                "text": f"🚀 Breaking: {topic} announcement could revolutionize the industry",
+                "channel": template["channel"],
+                "text": template["text"].format(topic=topic),
                 "timestamp": datetime.now().isoformat(),
-                "views": 1250 + i*200,
-                "forwards": 45 + i*10,
+                "views": 2150 + i*340 + (hash(topic) % 1000),  # More varied engagement
+                "forwards": 67 + i*15 + (hash(topic) % 50),
+                "reactions": {
+                    "👍": 45 + (hash(topic) % 30),
+                    "🔥": 23 + (hash(topic) % 20),
+                    "💯": 12 + (hash(topic) % 15)
+                },
                 "source": "telegram",
                 "simulated": True
             })
@@ -255,25 +348,137 @@ class HybridNewsGatherer:
         return articles
     
     def _generate_analysis(self, topics: List[str], content: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate analysis based on available content"""
+        """Generate topic-specific analysis based on available content"""
         
         # Count real vs simulated articles
         news_articles = content.get('news_articles', [])
         real_articles = [a for a in news_articles if not a.get('simulated', False)]
         simulated_articles = [a for a in news_articles if a.get('simulated', False)]
         
+        primary_topic = topics[0].lower() if topics else "general"
+        
+        # Generate topic-specific insights
+        sentiment = self._analyze_topic_sentiment(primary_topic)
+        trends = self._identify_emerging_trends(primary_topic, topics)
+        implications = self._generate_market_implications(primary_topic)
+        focus_areas = self._identify_focus_areas(primary_topic)
+        risk_factors = self._identify_risk_factors(primary_topic)
+        opportunities = self._identify_opportunities(primary_topic)
+        
         return {
             "key_themes": topics[:3],
-            "sentiment_analysis": "positive",
-            "emerging_trends": [f"{topic} adoption" for topic in topics[:2]],
-            "market_implications": "Strong growth potential across technology sectors",
-            "technology_focus": "AI and automation leading innovation",
+            "sentiment_analysis": sentiment,
+            "emerging_trends": trends,
+            "market_implications": implications,
+            "technology_focus": focus_areas,
+            "risk_assessment": risk_factors,
+            "strategic_opportunities": opportunities,
+            "content_summary": {
+                "reddit_discussions": len(content.get('reddit_posts', [])),
+                "professional_insights": len(content.get('linkedin_posts', [])),
+                "breaking_alerts": len(content.get('telegram_messages', [])),
+                "news_coverage": len(real_articles)
+            },
             "data_quality": {
                 "real_news_articles": len(real_articles),
                 "simulated_social_posts": len(content.get('reddit_posts', [])) + len(content.get('linkedin_posts', [])) + len(content.get('telegram_messages', [])),
-                "total_sources": len([k for k, v in content.items() if v])
+                "total_sources": len([k for k, v in content.items() if v]),
+                "coverage_depth": "comprehensive" if len(real_articles) > 5 else "moderate" if len(real_articles) > 0 else "limited"
             }
         }
+    
+    def _analyze_topic_sentiment(self, topic: str) -> str:
+        """Analyze sentiment for specific topics"""
+        sentiment_map = {
+            'israel': 'mixed_tending_negative',
+            'politics': 'polarized',
+            'ukraine': 'concerned',
+            'ai': 'optimistic_cautious',
+            'technology': 'positive',
+            'crypto': 'volatile_optimistic',
+            'climate': 'urgent_hopeful',
+            'health': 'cautiously_positive',
+            'economy': 'mixed',
+            'security': 'vigilant'
+        }
+        return sentiment_map.get(topic, 'neutral_positive')
+    
+    def _identify_emerging_trends(self, primary_topic: str, topics: List[str]) -> List[str]:
+        """Identify emerging trends for specific topics"""
+        trend_map = {
+            'israel': [
+                "Regional security cooperation increasing",
+                "Diplomatic normalization efforts expanding",
+                "Technology sector resilience amid challenges"
+            ],
+            'ai': [
+                "Enterprise AI adoption accelerating",
+                "Regulatory frameworks emerging globally",
+                "Open-source AI models gaining traction"
+            ],
+            'technology': [
+                "Quantum computing breakthroughs",
+                "Edge computing deployment",
+                "Sustainable tech solutions"
+            ],
+            'politics': [
+                "Digital governance initiatives",
+                "Policy transparency demands",
+                "Citizen engagement platforms"
+            ],
+            'crypto': [
+                "Institutional adoption patterns",
+                "Regulatory clarity improving",
+                "DeFi integration mainstream"
+            ]
+        }
+        return trend_map.get(primary_topic, [f"{topic} innovation acceleration" for topic in topics[:3]])
+    
+    def _generate_market_implications(self, topic: str) -> str:
+        """Generate market implications for specific topics"""
+        implications_map = {
+            'israel': "Regional stability factors influencing global energy markets and tech innovation hubs",
+            'ai': "Massive productivity gains expected across sectors, with significant investment flowing to AI infrastructure",
+            'technology': "Digital transformation driving competitive advantages and new business models",
+            'politics': "Policy uncertainty creating both risks and opportunities for strategic positioning",
+            'crypto': "Financial infrastructure evolution accelerating, traditional banking adaptation required",
+            'health': "Healthcare innovation driving cost reduction and improved patient outcomes",
+            'climate': "Green transition creating trillion-dollar market opportunities and regulatory pressures"
+        }
+        return implications_map.get(topic, "Market dynamics shifting toward innovation and adaptation strategies")
+    
+    def _identify_focus_areas(self, topic: str) -> str:
+        """Identify key focus areas for specific topics"""
+        focus_map = {
+            'israel': "Geopolitical stability, technology sector growth, and regional economic partnerships",
+            'ai': "Responsible AI development, enterprise integration, and regulatory compliance",
+            'technology': "Innovation acceleration, digital infrastructure, and cybersecurity enhancement",
+            'politics': "Democratic institutions, policy effectiveness, and public trust building",
+            'crypto': "Regulatory compliance, institutional adoption, and infrastructure scaling"
+        }
+        return focus_map.get(topic, "Strategic innovation and market positioning")
+    
+    def _identify_risk_factors(self, topic: str) -> List[str]:
+        """Identify risk factors for specific topics"""
+        risk_map = {
+            'israel': ["Regional escalation", "Economic disruption", "Security threats"],
+            'ai': ["Bias and fairness", "Job displacement", "Privacy concerns"],
+            'technology': ["Cybersecurity threats", "Data breaches", "Regulatory backlash"],
+            'politics': ["Polarization", "Institutional trust", "Policy gridlock"],
+            'crypto': ["Regulatory crackdowns", "Market volatility", "Technical vulnerabilities"]
+        }
+        return risk_map.get(topic, ["Market uncertainty", "Regulatory changes", "Competitive pressures"])
+    
+    def _identify_opportunities(self, topic: str) -> List[str]:
+        """Identify strategic opportunities for specific topics"""
+        opportunity_map = {
+            'israel': ["Tech innovation partnerships", "Regional trade expansion", "Security technology exports"],
+            'ai': ["Productivity enhancement", "New business models", "Competitive differentiation"],
+            'technology': ["Digital transformation", "Automation benefits", "New market creation"],
+            'politics': ["Policy innovation", "Democratic renewal", "Civic engagement"],
+            'crypto': ["Financial inclusion", "Payment innovation", "Investment diversification"]
+        }
+        return opportunity_map.get(topic, ["Innovation leadership", "Market expansion", "Strategic partnerships"])
 
 # Initialize the news gatherer
 try:
