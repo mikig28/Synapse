@@ -210,13 +210,17 @@ const NewsPage: React.FC = () => {
     return url.startsWith('http://') || url.startsWith('https://');
   };
 
+  const isInternalContent = (url: string): boolean => {
+    return url.startsWith('#') || !isExternalUrl(url);
+  };
+
   const handleItemClick = (item: NewsItem) => {
-    if (isExternalUrl(item.url)) {
-      window.open(item.url, '_blank', 'noopener,noreferrer');
-    } else {
+    if (isInternalContent(item.url)) {
       // For internal items (analysis reports, etc.), show content in modal
       setSelectedContent(item);
       setContentModalOpen(true);
+    } else {
+      window.open(item.url, '_blank', 'noopener,noreferrer');
     }
     handleToggleRead(item);
   };
@@ -374,7 +378,14 @@ const NewsPage: React.FC = () => {
                       <div className="flex items-start justify-between gap-4 mb-2">
                         <div className="flex-1">
                           <h3 className="text-lg font-semibold line-clamp-2 mb-1">
-                            {isExternalUrl(item.url) ? (
+                            {isInternalContent(item.url) ? (
+                              <button
+                                className="text-left hover:text-primary transition-colors"
+                                onClick={() => handleItemClick(item)}
+                              >
+                                {item.title}
+                              </button>
+                            ) : (
                               <a
                                 href={item.url}
                                 target="_blank"
@@ -384,13 +395,6 @@ const NewsPage: React.FC = () => {
                               >
                                 {item.title}
                               </a>
-                            ) : (
-                              <button
-                                className="text-left hover:text-primary transition-colors"
-                                onClick={() => handleItemClick(item)}
-                              >
-                                {item.title}
-                              </button>
                             )}
                           </h3>
                           
@@ -446,15 +450,15 @@ const NewsPage: React.FC = () => {
                               <Archive className="w-4 h-4 mr-2" />
                               {item.status === 'archived' ? 'Unarchive' : 'Archive'}
                             </DropdownMenuItem>
-                            {isExternalUrl(item.url) ? (
-                              <DropdownMenuItem onClick={() => window.open(item.url, '_blank')}>
-                                <ExternalLink className="w-4 h-4 mr-2" />
-                                Open article
-                              </DropdownMenuItem>
-                            ) : (
+                            {isInternalContent(item.url) ? (
                               <DropdownMenuItem onClick={() => handleItemClick(item)}>
                                 <Eye className="w-4 h-4 mr-2" />
                                 View content
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem onClick={() => window.open(item.url, '_blank')}>
+                                <ExternalLink className="w-4 h-4 mr-2" />
+                                Open article
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuItem 
@@ -486,21 +490,21 @@ const NewsPage: React.FC = () => {
                           <Heart className={`w-4 h-4 ${item.isFavorite ? 'fill-current' : ''}`} />
                         </Button>
                         
-                        {isExternalUrl(item.url) ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => window.open(item.url, '_blank')}
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </Button>
-                        ) : (
+                        {isInternalContent(item.url) ? (
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => handleItemClick(item)}
                           >
                             <Eye className="w-4 h-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => window.open(item.url, '_blank')}
+                          >
+                            <ExternalLink className="w-4 h-4" />
                           </Button>
                         )}
 
