@@ -98,11 +98,32 @@ export const AgentLogViewer: React.FC<AgentLogViewerProps> = ({
   };
 
   const setupSocketConnection = () => {
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+    // Determine backend URL based on environment
+    let backendUrl: string;
+    
+    if (import.meta.env.VITE_BACKEND_ROOT_URL) {
+      // Use explicit environment variable if set
+      backendUrl = import.meta.env.VITE_BACKEND_ROOT_URL;
+    } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      // Local development
+      backendUrl = 'http://localhost:3001';
+    } else {
+      // Production - use your actual backend URL
+      backendUrl = 'https://synapse-pxad.onrender.com';
+    }
+    
+    console.log('Environment check:', {
+      hostname: window.location.hostname,
+      envVar: import.meta.env.VITE_BACKEND_ROOT_URL,
+      selectedUrl: backendUrl
+    });
+    console.log('Connecting to Socket.IO at:', backendUrl);
+    
     const socket = io(backendUrl, {
       transports: ['websocket', 'polling'],
       upgrade: true,
       rememberUpgrade: true,
+      forceNew: true,
     });
 
     socketRef.current = socket;
