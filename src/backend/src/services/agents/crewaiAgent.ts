@@ -198,7 +198,16 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       });
       
       if (error.code === 'ECONNREFUSED') {
-        throw new Error(`CrewAI service is not running at ${this.crewaiServiceUrl}. Please verify the service is deployed and accessible.`);
+        throw new Error(`❌ CrewAI service is not running at ${this.crewaiServiceUrl}. 
+
+🔧 To fix this issue:
+1. Install Python dependencies: cd src/backend/services/crewai-agents && pip install -r requirements.txt
+2. Start the service: python3 main.py
+3. For real data instead of simulated content, add API credentials to .env:
+   - REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET (for Reddit posts)
+   - TELEGRAM_BOT_TOKEN (for Telegram messages)
+
+ℹ️ Currently all sources show fake URLs because the service is generating simulated data.`);
       }
       if (error.code === 'ENOTFOUND') {
         throw new Error(`CrewAI service URL not found: ${this.crewaiServiceUrl}. Please check the CREWAI_SERVICE_URL configuration.`);
@@ -325,11 +334,14 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
         return false; // Already exists
       }
 
+      // Check if this is simulated data
+      const isSimulated = item.simulated === true;
+      
       // Create new news item
       const newsItem = new NewsItem({
         userId,
         title: item.title || item.text || 'Untitled',
-        description: this.generateSummary(item, source),
+        description: this.generateSummary(item, source, isSimulated),
         content: item.content || item.text || '',
         url: this.getValidUrl(item, source),
         source: {
@@ -341,7 +353,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
                      item.timestamp ? new Date(item.timestamp) : 
                      item.created_utc ? new Date(item.created_utc * 1000) : 
                      new Date(),
-        tags: this.generateTags(item, source),
+        tags: this.generateTags(item, source, isSimulated),
         category: this.determineCategory(item),
         status: 'pending'
       });
@@ -366,9 +378,26 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
   private async storeAnalysisReport(response: CrewAINewsResponse, userId: mongoose.Types.ObjectId): Promise<void> {
     const data = response.data!;
     
+    // Check if any source data is simulated
+    const hasSimulatedData = this.checkForSimulatedData(data);
+    const simulationWarning = hasSimulatedData ? [
+      '⚠️ **DATA NOTICE**: This analysis contains simulated data because some sources are not configured with real API credentials.',
+      '',
+      '🔧 **To get real data:**',
+      '- Add Reddit API credentials (REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET)',
+      '- Add Telegram Bot Token (TELEGRAM_BOT_TOKEN)', 
+      '- LinkedIn data requires complex scraping setup',
+      '',
+      '📰 **News articles may contain real data** if the news scraper is properly configured.',
+      '',
+      '---',
+      ''
+    ] : [];
+    
     const analysisContent = [
       '# CrewAI Multi-Agent News Analysis Report',
       '',
+      ...simulationWarning,
       '## Executive Summary',
       ...(data.executive_summary || []).map(item => `- ${item}`),
       '',
@@ -413,24 +442,45 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
     }
   }
 
-  private generateSummary(item: any, source: string): string {
+  private checkForSimulatedData(data: any): boolean {
+    const content = data.organized_content || {};
+    
+    // Check if any source has simulated data
+    const sources = ['reddit_posts', 'linkedin_posts', 'telegram_messages', 'news_articles'];
+    
+    for (const source of sources) {
+      const items = content[source] || [];
+      if (items.some((item: any) => item.simulated === true)) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  private generateSummary(item: any, source: string, isSimulated: boolean = false): string {
     const content = item.content || item.text || item.summary || '';
     const title = item.title || '';
+    const simulatedPrefix = isSimulated ? '⚠️ SIMULATED DATA: ' : '';
     
     if (source === 'reddit') {
-      return `Reddit discussion: ${title}. Score: ${item.score || 0}, Comments: ${item.num_comments || 0}`;
+      return `${simulatedPrefix}Reddit discussion: ${title}. Score: ${item.score || 0}, Comments: ${item.num_comments || 0}`;
     } else if (source === 'linkedin') {
       const engagement = item.engagement || {};
-      return `LinkedIn post by ${item.author || 'Professional'}. Likes: ${engagement.likes || 0}`;
+      return `${simulatedPrefix}LinkedIn post by ${item.author || 'Professional'}. Likes: ${engagement.likes || 0}`;
     } else if (source === 'telegram') {
-      return `Telegram message from ${item.channel || 'channel'}. Views: ${item.views || 0}`;
+      return `${simulatedPrefix}Telegram message from ${item.channel || 'channel'}. Views: ${item.views || 0}`;
     } else {
-      return content.substring(0, 200) + (content.length > 200 ? '...' : '');
+      return `${simulatedPrefix}${content.substring(0, 200) + (content.length > 200 ? '...' : '')}`;
     }
   }
 
-  private generateTags(item: any, source: string): string[] {
+  private generateTags(item: any, source: string, isSimulated: boolean = false): string[] {
     const tags = [source, 'crewai'];
+    
+    if (isSimulated) {
+      tags.push('simulated');
+    }
     
     if (item.hashtags) {
       tags.push(...item.hashtags.map((tag: string) => tag.replace('#', '')));
