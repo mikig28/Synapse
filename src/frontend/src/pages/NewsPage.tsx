@@ -56,6 +56,8 @@ const NewsPage: React.FC = () => {
   });
   const [selectedContent, setSelectedContent] = useState<NewsItem | null>(null);
   const [contentModalOpen, setContentModalOpen] = useState(false);
+  const [relatedItems, setRelatedItems] = useState<NewsItem[]>([]);
+  const [loadingRelated, setLoadingRelated] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -214,11 +216,53 @@ const NewsPage: React.FC = () => {
     return url.startsWith('#') || !isExternalUrl(url);
   };
 
-  const handleItemClick = (item: NewsItem) => {
+  const fetchRelatedItems = async (analysisItem: NewsItem) => {
+    if (analysisItem.source.id !== 'crewai_analysis') return;
+    
+    setLoadingRelated(true);
+    try {
+      // Fetch items from the same time period with CrewAI tag
+      const timeWindow = 5 * 60 * 1000; // 5 minutes
+      const startTime = new Date(new Date(analysisItem.publishedAt).getTime() - timeWindow);
+      const endTime = new Date(new Date(analysisItem.publishedAt).getTime() + timeWindow);
+      
+      const response = await newsService.getNewsItems({
+        page: 1,
+        limit: 100, // Get all related items
+        tags: 'crewai',
+        startDate: startTime.toISOString(),
+        endDate: endTime.toISOString()
+      });
+      
+      if (response.data) {
+        // Filter out the analysis report itself and only show source items
+        const sourceItems = response.data.filter(item => 
+          item._id !== analysisItem._id && 
+          item.source?.id &&
+          ['reddit', 'linkedin', 'telegram', 'news_website'].includes(item.source.id)
+        );
+        setRelatedItems(sourceItems);
+      }
+    } catch (error) {
+      console.error('Failed to fetch related items:', error);
+      setRelatedItems([]);
+    } finally {
+      setLoadingRelated(false);
+    }
+  };
+
+  const handleItemClick = async (item: NewsItem) => {
     if (isInternalContent(item.url)) {
       // For internal items (analysis reports, etc.), show content in modal
       setSelectedContent(item);
       setContentModalOpen(true);
+      
+      // If it's a CrewAI analysis report, fetch related items
+      if (item.source.id === 'crewai_analysis') {
+        await fetchRelatedItems(item);
+      } else {
+        setRelatedItems([]);
+      }
     } else {
       window.open(item.url, '_blank', 'noopener,noreferrer');
     }
@@ -565,7 +609,13 @@ const NewsPage: React.FC = () => {
         )}
 
         {/* Content Modal for Internal Items */}
-        <Dialog open={contentModalOpen} onOpenChange={setContentModalOpen}>
+        <Dialog open={contentModalOpen} onOpenChange={(open) => {
+          setContentModalOpen(open);
+          if (!open) {
+            setRelatedItems([]);
+            setLoadingRelated(false);
+          }
+        }}>
           <DialogContent className="max-w-4xl max-h-[80vh]">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -622,6 +672,81 @@ const NewsPage: React.FC = () => {
                       <div className="whitespace-pre-wrap text-sm leading-relaxed">
                         {selectedContent.content}
                       </div>
+                    </div>
+                  )}
+
+                  {/* Related Items - show for CrewAI analysis reports */}
+                  {selectedContent.source.id === 'crewai_analysis' && (
+                    <div className="border-t pt-4">
+                      <h4 className="font-medium mb-3 flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4" />
+                        Source Items Analyzed ({relatedItems.length})
+                      </h4>
+                      
+                      {loadingRelated ? (
+                        <div className="flex items-center justify-center py-4">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                          <span className="ml-2 text-sm text-muted-foreground">Loading source items...</span>
+                        </div>
+                      ) : relatedItems.length > 0 ? (
+                        <div className="space-y-3 max-h-64 overflow-y-auto">
+                          {relatedItems.map((item) => (
+                            <div key={item._id} className="border rounded-lg p-3 bg-muted/10">
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <div className="flex-1 min-w-0">
+                                  <h5 className="font-medium text-sm line-clamp-2 mb-1">
+                                    {item.title}
+                                  </h5>
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <Badge variant="secondary" className="text-xs">
+                                      {item.source.name}
+                                    </Badge>
+                                    {item.author && <span>{item.author}</span>}
+                                    <span>•</span>
+                                    <span>{formatTimeAgo(item.publishedAt)}</span>
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (isInternalContent(item.url)) {
+                                      setSelectedContent(item);
+                                      setRelatedItems([]);
+                                    } else {
+                                      window.open(item.url, '_blank', 'noopener,noreferrer');
+                                    }
+                                  }}
+                                >
+                                  {isInternalContent(item.url) ? (
+                                    <Eye className="w-3 h-3" />
+                                  ) : (
+                                    <ExternalLink className="w-3 h-3" />
+                                  )}
+                                </Button>
+                              </div>
+                              
+                              {item.description && (
+                                <p className="text-xs text-muted-foreground line-clamp-2">
+                                  {item.description}
+                                </p>
+                              )}
+                              
+                              <div className="flex items-center gap-1 mt-2 flex-wrap">
+                                {item.tags?.slice(0, 3).map((tag) => (
+                                  <Badge key={tag} variant="outline" className="text-xs px-1 py-0">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground py-4">
+                          No related source items found for this analysis.
+                        </p>
+                      )}
                     </div>
                   )}
 

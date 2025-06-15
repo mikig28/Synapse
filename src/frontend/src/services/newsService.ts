@@ -30,6 +30,9 @@ export interface NewsFilters {
   isRead?: boolean;
   isFavorite?: boolean;
   search?: string;
+  tags?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 export const newsService = {
@@ -43,6 +46,9 @@ export const newsService = {
     if (filters.isRead !== undefined) params.append('isRead', filters.isRead.toString());
     if (filters.isFavorite !== undefined) params.append('isFavorite', filters.isFavorite.toString());
     if (filters.search) params.append('search', filters.search);
+    if (filters.tags) params.append('tags', filters.tags);
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
 
     const response = await axiosInstance.get<NewsListResponse>(`/news?${params.toString()}`);
     return {
