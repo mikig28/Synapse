@@ -5,7 +5,23 @@ Converts custom tools to CrewAI-compatible tool format
 
 import json
 from typing import Any, Dict, List, Optional
-from crewai_tools import BaseTool as CrewAIBaseTool
+
+# Try different import paths for CrewAI tools
+try:
+    from crewai_tools import BaseTool as CrewAIBaseTool
+except ImportError:
+    try:
+        from crewai.tools import BaseTool as CrewAIBaseTool
+    except ImportError:
+        # Create a minimal base tool if neither works
+        class CrewAIBaseTool:
+            def __init__(self):
+                self.name = ""
+                self.description = ""
+            
+            def _run(self, **kwargs) -> str:
+                return ""
+
 from custom_tools import AVAILABLE_TOOLS, get_tool, BaseTool
 
 class CrewAIToolWrapper(CrewAIBaseTool):
@@ -16,7 +32,11 @@ class CrewAIToolWrapper(CrewAIBaseTool):
         # Set CrewAI tool properties
         self.name = custom_tool.name
         self.description = custom_tool.description
-        super().__init__()
+        try:
+            super().__init__()
+        except Exception:
+            # If super().__init__() fails, just set the basic properties
+            pass
     
     def _run(self, **kwargs) -> str:
         """Execute the custom tool and return results as JSON string"""
@@ -30,17 +50,26 @@ class CrewAIToolWrapper(CrewAIBaseTool):
                 "tool": self.custom_tool.name
             }
             return json.dumps(error_result, indent=2)
+    
+    def run(self, **kwargs) -> str:
+        """Alternative run method in case _run doesn't work"""
+        return self._run(**kwargs)
 
 # Create CrewAI-compatible versions of all custom tools
 def get_crewai_tools() -> Dict[str, CrewAIToolWrapper]:
     """Get all custom tools wrapped for CrewAI compatibility"""
     crewai_tools = {}
     
-    for tool_name, custom_tool in AVAILABLE_TOOLS.items():
-        try:
-            crewai_tools[tool_name] = CrewAIToolWrapper(custom_tool)
-        except Exception as e:
-            print(f"Failed to wrap tool {tool_name}: {str(e)}")
+    try:
+        for tool_name, custom_tool in AVAILABLE_TOOLS.items():
+            try:
+                crewai_tools[tool_name] = CrewAIToolWrapper(custom_tool)
+            except Exception as e:
+                print(f"Failed to wrap tool {tool_name}: {str(e)}")
+    except Exception as e:
+        print(f"Error accessing AVAILABLE_TOOLS: {str(e)}")
+        # Return empty dict if AVAILABLE_TOOLS is not accessible
+        return {}
     
     return crewai_tools
 
@@ -52,7 +81,11 @@ def get_crewai_tool(tool_name: str) -> Optional[CrewAIToolWrapper]:
     return None
 
 # Pre-create all wrapped tools for easy access
-CREWAI_TOOLS = get_crewai_tools()
+try:
+    CREWAI_TOOLS = get_crewai_tools()
+except Exception as e:
+    print(f"Failed to initialize CREWAI_TOOLS: {str(e)}")
+    CREWAI_TOOLS = {}
 
 def get_tools_for_agent(agent_type: str) -> List[CrewAIToolWrapper]:
     """Get recommended tools for specific agent types"""

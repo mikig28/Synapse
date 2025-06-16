@@ -35,6 +35,10 @@ except ImportError:
 import logging
 import sys
 
+# Configure logging FIRST
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Add tools directory to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 tools_dir = os.path.join(os.path.dirname(current_dir), 'tools')
@@ -44,18 +48,47 @@ if tools_dir not in sys.path:
 # Import custom tools
 try:
     from custom_tools import AVAILABLE_TOOLS, get_tool, list_available_tools
-    from crewai_tool_wrapper import get_tools_for_agent, CREWAI_TOOLS, list_available_crewai_tools
-    CUSTOM_TOOLS_AVAILABLE = True
-    logger.info("✅ Custom tools loaded successfully")
+    BASIC_TOOLS_AVAILABLE = True
+    logger.info("✅ Basic custom tools loaded successfully")
     logger.info(f"📦 Available tools: {list_available_tools()}")
-    logger.info(f"🔧 CrewAI-compatible tools: {list_available_crewai_tools()}")
+    
+    # Try to import CrewAI tool wrapper (optional)
+    try:
+        from crewai_tool_wrapper import get_tools_for_agent, CREWAI_TOOLS, list_available_crewai_tools
+        CREWAI_WRAPPER_AVAILABLE = True
+        logger.info(f"🔧 CrewAI-compatible tools: {list_available_crewai_tools()}")
+    except ImportError as wrapper_e:
+        logger.warning(f"⚠️ CrewAI tool wrapper not available: {str(wrapper_e)}")
+        CREWAI_WRAPPER_AVAILABLE = False
+        
+        # Create fallback functions
+        def get_tools_for_agent(agent_type: str):
+            return []
+        
+        CREWAI_TOOLS = {}
+        
+        def list_available_crewai_tools():
+            return []
+    
+    CUSTOM_TOOLS_AVAILABLE = BASIC_TOOLS_AVAILABLE
+    
 except ImportError as e:
     logger.error(f"❌ Failed to import custom tools: {str(e)}")
     CUSTOM_TOOLS_AVAILABLE = False
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+    BASIC_TOOLS_AVAILABLE = False
+    CREWAI_WRAPPER_AVAILABLE = False
+    
+    # Create fallback functions
+    def get_tools_for_agent(agent_type: str):
+        return []
+    
+    def list_available_tools():
+        return []
+    
+    CREWAI_TOOLS = {}
+    
+    def list_available_crewai_tools():
+        return []
 
 class URLValidator:
     """Advanced URL validation and cleaning"""
@@ -942,11 +975,21 @@ class DynamicNewsResearchCrew:
         """Create specialized agents with dynamic capabilities and tools"""
         
         # Get tools for each agent type if available
-        news_tools = get_tools_for_agent('news_researcher') if CUSTOM_TOOLS_AVAILABLE else []
-        content_tools = get_tools_for_agent('content_analyst') if CUSTOM_TOOLS_AVAILABLE else []
-        url_tools = get_tools_for_agent('url_validator') if CUSTOM_TOOLS_AVAILABLE else []
-        trend_tools = get_tools_for_agent('trend_analyst') if CUSTOM_TOOLS_AVAILABLE else []
-        social_tools = get_tools_for_agent('social_monitor') if CUSTOM_TOOLS_AVAILABLE else []
+        if CREWAI_WRAPPER_AVAILABLE:
+            news_tools = get_tools_for_agent('news_researcher')
+            content_tools = get_tools_for_agent('content_analyst')
+            url_tools = get_tools_for_agent('url_validator')
+            trend_tools = get_tools_for_agent('trend_analyst')
+            social_tools = get_tools_for_agent('social_monitor')
+            logger.info(f"🔧 Using CrewAI-compatible tools for agents")
+        else:
+            # No tools available - agents will work without tools
+            news_tools = []
+            content_tools = []
+            url_tools = []
+            trend_tools = []
+            social_tools = []
+            logger.info(f"⚠️ No tools available - agents will work without tools")
         
         logger.info(f"🔧 Assigning tools to agents:")
         logger.info(f"   News Researcher: {len(news_tools)} tools")
