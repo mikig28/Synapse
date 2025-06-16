@@ -250,6 +250,7 @@ class HybridNewsGatherer:
                         "title": post.get("title", "Untitled"),
                         "content": post.get("content", post.get("selftext", "")),
                         "url": post.get("url", ""),
+                        "permalink": post.get("permalink", ""),
                         "subreddit": post.get("subreddit", "technology"),
                         "author": post.get("author", "reddituser"),
                         "score": post.get("score", 0),
