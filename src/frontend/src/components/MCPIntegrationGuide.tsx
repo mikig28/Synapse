@@ -22,7 +22,7 @@ import {
   HelpCircle,
   BookOpen,
   Terminal,
-  Docker,
+  Container,
   Settings,
   ExternalLink,
   Copy,
@@ -345,7 +345,7 @@ const MCPIntegrationGuide: React.FC<MCPIntegrationGuideProps> = ({
                   {mcpServer.dockerImage && (
                     <div>
                       <h4 className="font-medium mb-2 flex items-center gap-2">
-                        <Docker className="w-4 h-4" />
+                        <Container className="w-4 h-4" />
                         Docker
                       </h4>
                       <div className="bg-muted p-3 rounded-md font-mono text-sm relative">
