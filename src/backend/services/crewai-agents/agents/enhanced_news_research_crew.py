@@ -102,8 +102,10 @@ class URLValidator:
 class ContentValidator:
     """Validates content quality and relevance"""
     
-    @staticmethod
-    def is_quality_content(content: Dict[str, Any]) -> bool:
+    def __init__(self, url_validator: URLValidator):
+        self.url_validator = url_validator
+
+    def is_quality_content(self, content: Dict[str, Any]) -> bool:
         """Check if content meets quality standards"""
         title = content.get('title', '')
         text = content.get('content', '') or content.get('text', '')
@@ -121,22 +123,20 @@ class ContentValidator:
         
         return True
     
-    @staticmethod
-    def extract_key_information(content: Dict[str, Any]) -> Dict[str, Any]:
+    def extract_key_information(self, content: Dict[str, Any]) -> Dict[str, Any]:
         """Extract and structure key information from content"""
         return {
             'title': content.get('title', '').strip(),
             'summary': content.get('summary', content.get('content', ''))[:300] + '...' if content.get('content', '') else '',
-            'url': URLValidator.clean_url(content.get('url', '')),
+            'url': self.url_validator.clean_url(content.get('url', '')),
             'source': content.get('source', 'Unknown'),
             'published_date': content.get('published_date', datetime.now().isoformat()),
             'author': content.get('author', 'Unknown'),
             'tags': content.get('tags', []),
-            'quality_score': ContentValidator.calculate_quality_score(content)
+            'quality_score': self.calculate_quality_score(content)
         }
     
-    @staticmethod
-    def calculate_quality_score(content: Dict[str, Any]) -> float:
+    def calculate_quality_score(self, content: Dict[str, Any]) -> float:
         """Calculate content quality score (0-1)"""
         score = 0.5  # Base score
         
@@ -160,7 +160,7 @@ class ContentValidator:
             score += 0.1
         
         # Has valid URL
-        if URLValidator.is_valid_url(content.get('url', '')):
+        if self.url_validator.is_valid_url(content.get('url', '')):
             score += 0.1
         
         return min(score, 1.0)
@@ -224,11 +224,13 @@ class TaskDelegator:
 class EnhancedNewsScraperAgent:
     """Enhanced news scraper with URL validation and error handling"""
     
-    def __init__(self):
+    def __init__(self, url_validator: URLValidator, content_validator: ContentValidator):
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         })
+        self.url_validator = url_validator
+        self.content_validator = content_validator
         
         self.news_sources = {
             'hackernews': {
@@ -344,7 +346,7 @@ class EnhancedNewsScraperAgent:
                     if item_data and item_data.get('type') == 'story':
                         # Validate URL if present
                         url = item_data.get('url', f'https://news.ycombinator.com/item?id={story_id}')
-                        cleaned_url = URLValidator.clean_url(url)
+                        cleaned_url = self.url_validator.clean_url(url)
                         
                         article = {
                             'title': item_data.get('title', ''),
@@ -399,7 +401,7 @@ class EnhancedNewsScraperAgent:
                         
                         # Validate URL
                         url = post_data.get('url', '')
-                        cleaned_url = URLValidator.clean_url(url)
+                        cleaned_url = self.url_validator.clean_url(url)
                         
                         article = {
                             'title': post_data.get('title', ''),
@@ -457,7 +459,7 @@ class EnhancedNewsScraperAgent:
                     try:
                         article = {
                             'title': f"{repo.get('name', '')}: {repo.get('description', '')}",
-                            'url': URLValidator.clean_url(repo.get('html_url', '')),
+                            'url': self.url_validator.clean_url(repo.get('html_url', '')),
                             'content': repo.get('description', ''),
                             'summary': repo.get('description', ''),
                             'author': repo.get('owner', {}).get('login', 'Unknown'),
@@ -495,7 +497,7 @@ class EnhancedNewsScraperAgent:
                     try:
                         article = {
                             'title': article_data.get('title', ''),
-                            'url': URLValidator.clean_url(article_data.get('url', '')),
+                            'url': self.url_validator.clean_url(article_data.get('url', '')),
                             'content': article_data.get('description', '')[:500],
                             'summary': article_data.get('description', ''),
                             'author': article_data.get('user', {}).get('name', 'Unknown'),
@@ -529,7 +531,7 @@ class EnhancedNewsScraperAgent:
             for entry in feed.entries[:10]:  # Get top 10 entries
                 try:
                     # Validate URL
-                    url = URLValidator.clean_url(entry.get('link', ''))
+                    url = self.url_validator.clean_url(entry.get('link', ''))
                     
                     article = {
                         'title': entry.get('title', ''),
@@ -598,9 +600,9 @@ class EnhancedNewsScraperAgent:
         for article in articles:
             try:
                 # Check content quality
-                if ContentValidator.is_quality_content(article):
+                if self.content_validator.is_quality_content(article):
                     # Extract and structure key information
-                    validated_article = ContentValidator.extract_key_information(article)
+                    validated_article = self.content_validator.extract_key_information(article)
                     validated_articles.append(validated_article)
                 else:
                     logger.debug(f"Article failed quality check: {article.get('title', 'Unknown')}")
@@ -665,9 +667,9 @@ class EnhancedNewsResearchCrew:
     
     def __init__(self):
         self.url_validator = URLValidator()
-        self.content_validator = ContentValidator()
+        self.content_validator = ContentValidator(self.url_validator)
         self.task_delegator = TaskDelegator()
-        self.news_scraper = EnhancedNewsScraperAgent()
+        self.news_scraper = EnhancedNewsScraperAgent(self.url_validator, self.content_validator)
         
         # Initialize agents
         self.agents = self._create_agents()
