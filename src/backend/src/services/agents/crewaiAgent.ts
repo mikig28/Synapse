@@ -286,23 +286,42 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
           const items = data.organized_content[sourceKey as keyof typeof data.organized_content];
           const sourceName = sourceNames[sourceKey as keyof typeof sourceNames];
           
-          // Special debugging for Telegram since user can't see it
-          if (sourceKey === 'telegram_messages') {
-            await run.addLog('info', `🔍 TELEGRAM DEBUG: Received ${items?.length || 0} telegram messages`);
-            if (items && items.length > 0) {
-              await run.addLog('info', '📱 Sample Telegram data:', {
+          if (items && items.length > 0) {
+            // Enhanced Debugging
+            if (sourceKey === 'reddit_posts') {
+              await run.addLog('info', `🔴 REDDIT DEBUG: Received ${items.length} posts. Sample:`, {
                 sampleItem: {
-                  title: items[0]?.title || items[0]?.text,
-                  channel: items[0]?.channel,
                   id: items[0]?.id,
+                  title: items[0]?.title,
+                  subreddit: items[0]?.subreddit,
+                  permalink: items[0]?.permalink,
+                  url: items[0]?.url,
                   simulated: items[0]?.simulated,
-                  views: items[0]?.views
                 }
               });
             }
-          }
-          
-          if (items && items.length > 0) {
+            if (sourceKey === 'linkedin_posts') {
+              await run.addLog('info', `💼 LINKEDIN DEBUG: Received ${items.length} posts. Sample:`, {
+                sampleItem: {
+                  id: items[0]?.id,
+                  title: items[0]?.title || items[0]?.text,
+                  author: items[0]?.author,
+                  external_url: items[0]?.external_url,
+                  simulated: items[0]?.simulated,
+                }
+              });
+            }
+            if (sourceKey === 'telegram_messages') {
+              await run.addLog('info', `📱 TELEGRAM DEBUG: Received ${items.length} messages. Sample:`, {
+                sampleItem: {
+                  id: items[0]?.id,
+                  title: items[0]?.title || items[0]?.text,
+                  channel: items[0]?.channel,
+                  simulated: items[0]?.simulated,
+                }
+              });
+            }
+
             await run.addLog('info', `📝 Processing ${items.length} items from ${sourceName.replace('_', ' ')}`);
             
             let sourceAddedCount = 0;
@@ -452,11 +471,19 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
   private async storeAnalysisReport(response: CrewAINewsResponse, userId: mongoose.Types.ObjectId, run: any): Promise<void> {
     const data = response.data!;
     
+    // Check data types for better reporting
+    const dataTypeInfo = this.analyzeDataTypes(data.organized_content || {});
+    
     const analysisContent = [
       '# CrewAI Multi-Agent News Analysis Report',
       '',
+      dataTypeInfo.hasSimulated ? '⚠️ **DATA NOTICE**: Some content is simulated due to missing API credentials.' : '✅ **DATA STATUS**: All content is from real sources.',
+      '',
       '## Executive Summary',
       ...(data.executive_summary || []).map(item => `- ${item}`),
+      '',
+      '## Data Sources Status',
+      ...dataTypeInfo.statusLines,
       '',
       '## Trending Topics',
       ...(data.trending_topics || []).slice(0, 10).map(t => `- **${t.topic}** (${t.mentions} mentions, score: ${t.trending_score})`),
@@ -512,13 +539,72 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
     const lines: string[] = [];
     lines.push(`### ${title}`);
     lines.push('');
+    
     for (const item of items.slice(0, 50)) { // limit to 50 to avoid huge reports
-      const url = item.url || item.external_url || this.getValidUrl(item, title.toLowerCase());
+      // Determine source type for URL processing
+      const sourceType = this.getSourceTypeFromTitle(title);
+      
+      // Use our enhanced URL processing instead of raw URLs
+      const url = this.getValidUrl(item, sourceType);
       const displayTitle = item.title || item.text?.substring(0, 80) || 'Untitled';
-      lines.push(`- [${displayTitle}](${url})`);
+      
+      // Add simulation indicator if needed
+      const isSimulated = item.simulated === true || this.isSimulatedId(item.id);
+      const simulationPrefix = isSimulated ? '🤖 ' : '';
+      
+      lines.push(`- [${simulationPrefix}${displayTitle}](${url})`);
     }
     lines.push('');
     return lines;
+  }
+
+  private getSourceTypeFromTitle(title: string): string {
+    const titleLower = title.toLowerCase();
+    if (titleLower.includes('reddit')) return 'reddit';
+    if (titleLower.includes('linkedin')) return 'linkedin';
+    if (titleLower.includes('telegram')) return 'telegram';
+    if (titleLower.includes('news')) return 'news_website';
+    return 'unknown';
+  }
+
+  private analyzeDataTypes(organizedContent: any): { hasSimulated: boolean; statusLines: string[] } {
+    const statusLines: string[] = [];
+    let hasSimulated = false;
+
+    const sources = [
+      { key: 'news_articles', name: 'News Articles', icon: '📰' },
+      { key: 'reddit_posts', name: 'Reddit Posts', icon: '🔴' },
+      { key: 'linkedin_posts', name: 'LinkedIn Posts', icon: '💼' },
+      { key: 'telegram_messages', name: 'Telegram Messages', icon: '📱' }
+    ];
+
+    for (const source of sources) {
+      const items = organizedContent[source.key] || [];
+      if (items.length === 0) {
+        statusLines.push(`- ${source.icon} **${source.name}**: No items received`);
+        continue;
+      }
+
+      const simulatedCount = items.filter((item: any) => 
+        item.simulated === true || this.isSimulatedId(item.id)
+      ).length;
+      
+      const realCount = items.length - simulatedCount;
+
+      if (simulatedCount > 0) {
+        hasSimulated = true;
+      }
+
+      if (realCount === items.length) {
+        statusLines.push(`- ${source.icon} **${source.name}**: ✅ ${realCount} real items`);
+      } else if (simulatedCount === items.length) {
+        statusLines.push(`- ${source.icon} **${source.name}**: 🤖 ${simulatedCount} simulated items`);
+      } else {
+        statusLines.push(`- ${source.icon} **${source.name}**: ✅ ${realCount} real, 🤖 ${simulatedCount} simulated`);
+      }
+    }
+
+    return { hasSimulated, statusLines };
   }
 
   private checkForSimulatedData(data: any): boolean {
