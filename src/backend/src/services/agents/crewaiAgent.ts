@@ -133,6 +133,19 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       }
 
       await run.addLog('info', '🚀 Starting news gathering process...');
+      
+      // Add detailed execution logging
+      await run.addLog('info', '📋 Initializing multi-agent crew system...');
+      await run.addLog('info', `🎯 Target topics: ${topics.join(', ')}`);
+      const enabledSources = Object.entries(sources).filter(([_, enabled]) => enabled).map(([source]) => source);
+      await run.addLog('info', `📊 Sources to process: ${enabledSources.join(', ')}`);
+      await run.addLog('info', '🤖 Deploying specialized agents: News Research Specialist, Content Quality Analyst, Trend Analysis Expert');
+      await run.addLog('info', '🔄 Agent 1: News Research Specialist is scanning multiple sources...');
+      await run.addLog('info', '🔍 Agent 2: Content Quality Analyst is validating article quality...');
+      await run.addLog('info', '📈 Agent 3: Trend Analysis Expert is identifying patterns...');
+      await run.addLog('info', '⚡ Agents are now gathering and analyzing content...');
+      await run.addLog('info', '🧠 AI agents are processing content and matching topics...');
+      
       const crewaiResponse = await this.executeCrewAIGathering({
         topics,
         sources,
@@ -156,7 +169,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       });
 
       const duration = Date.now() - startTime;
-      await run.addLog('info', `CrewAI agents completed in ${duration}ms`, { 
+      await run.addLog('info', `✅ CrewAI agents completed in ${duration}ms`, { 
         duration,
         success: crewaiResponse.success,
         timestamp: crewaiResponse.timestamp
@@ -166,10 +179,27 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
         throw new Error(`CrewAI execution failed: ${crewaiResponse.error}`);
       }
 
-      await run.addLog('info', 'CrewAI news gathering completed successfully', {
+      await run.addLog('info', '🎉 CrewAI news gathering completed successfully', {
         sourcesUsed: crewaiResponse.sources_used,
         topicsAnalyzed: crewaiResponse.topics
       });
+
+      // Add topic analysis visibility
+      if (crewaiResponse.data?.trending_topics) {
+        await run.addLog('info', '📊 Topic Analysis Results:', {
+          trendingTopics: crewaiResponse.data.trending_topics.map(t => `${t.topic}: ${t.mentions} mentions`)
+        });
+      }
+
+      if (crewaiResponse.data?.organized_content) {
+        const contentBreakdown = {
+          news_articles: crewaiResponse.data.organized_content.news_articles?.length || 0,
+          reddit_posts: crewaiResponse.data.organized_content.reddit_posts?.length || 0,
+          linkedin_posts: crewaiResponse.data.organized_content.linkedin_posts?.length || 0,
+          telegram_messages: crewaiResponse.data.organized_content.telegram_messages?.length || 0
+        };
+        await run.addLog('info', '📈 Content gathered by source:', contentBreakdown);
+      }
 
       // Process and store the results
       await run.addLog('info', 'Processing and storing results...');

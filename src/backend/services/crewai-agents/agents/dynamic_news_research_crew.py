@@ -924,11 +924,17 @@ class DynamicNewsResearchCrew:
         topics = user_input.get('topics', ['technology'])
         sources = user_input.get('sources', ['news_websites'])
         
+        logger.info(f"📋 Processing request for topics: {topics}")
+        logger.info(f"📋 Processing request for sources: {sources}")
+        
         # Use the enhanced news scraper to get actual articles
         articles = self.news_scraper.scrape_news_with_validation(
             topics=topics,
             max_articles=user_input.get('max_articles', 50)
         )
+        
+        # Add topic matching to articles based on content analysis
+        articles = self._match_articles_to_topics(articles, topics)
         
         # Generate analysis and insights
         analysis = self._generate_dynamic_analysis(articles, topics, user_input)
@@ -1002,6 +1008,49 @@ class DynamicNewsResearchCrew:
         logger.info(f"Source distribution: {source_counts}")
         
         return organized
+    
+    def _match_articles_to_topics(self, articles: List[Dict[str, Any]], topics: List[str]) -> List[Dict[str, Any]]:
+        """Match articles to requested topics based on content analysis"""
+        for article in articles:
+            title = (article.get('title', '') + ' ' + article.get('content', '')).lower()
+            best_topic = 'general'
+            max_score = 0
+            
+            for topic in topics:
+                topic_lower = topic.lower()
+                # Simple keyword matching - count occurrences
+                score = title.count(topic_lower)
+                
+                # Add bonus for exact matches in title
+                if topic_lower in article.get('title', '').lower():
+                    score += 2
+                
+                # Special handling for compound topics
+                if topic_lower == 'vibe coding':
+                    score += title.count('vibe') + title.count('coding') + title.count('collaborative')
+                elif topic_lower == 'ai':
+                    score += title.count('artificial intelligence') + title.count('machine learning') + title.count('ai ')
+                elif topic_lower == 'n8n':
+                    score += title.count('workflow') + title.count('automation') + title.count('n8n')
+                elif topic_lower == 'tech':
+                    score += title.count('technology') + title.count('software') + title.count('development')
+                
+                if score > max_score:
+                    max_score = score
+                    best_topic = topic
+            
+            # If no good match found, try to infer from source or content
+            if max_score == 0:
+                if any(tech_word in title for tech_word in ['ai', 'tech', 'software', 'app', 'digital', 'data', 'algorithm']):
+                    best_topic = 'tech'
+                else:
+                    best_topic = topics[0] if topics else 'general'
+            
+            article['matched_topic'] = best_topic
+            article['topic_score'] = max_score
+            
+        logger.info(f"📊 Topic matching complete. Distribution: {dict((topic, len([a for a in articles if a.get('matched_topic') == topic])) for topic in topics + ['general'])}")
+        return articles
     
     def _generate_dynamic_analysis(self, articles: List[Dict[str, Any]], topics: List[str], user_input: Dict[str, Any]) -> Dict[str, Any]:
         """Generate dynamic analysis based on user input and articles"""
