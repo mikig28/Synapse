@@ -59,4 +59,415 @@ const MCPIntegrationGuide: React.FC<MCPIntegrationGuideProps> = ({
   };
 
   const getSetupInstructions = () => {
-    const instructions = {\n      npm: `npm install -g ${mcpServer.npmPackage}`,\n      npx: mcpServer.serverUri,\n      docker: mcpServer.dockerImage \n        ? `docker run -d --name ${mcpServer.id}-server ${mcpServer.dockerImage}`\n        : 'Docker image not available for this server'\n    };\n\n    return instructions;\n  };\n\n  const getConfigurationExample = () => {\n    const config = {\n      \"mcpServers\": {\n        [mcpServer.id]: {\n          \"command\": mcpServer.serverUri.includes('npx') ? 'npx' : 'node',\n          \"args\": mcpServer.serverUri.includes('npx') \n            ? mcpServer.serverUri.split(' ').slice(1)\n            : [mcpServer.serverUri],\n          \"env\": mcpServer.configuration || {}\n        }\n      }\n    };\n\n    return JSON.stringify(config, null, 2);\n  };\n\n  const getEnvironmentVariables = () => {\n    switch (mcpServer.id) {\n      case 'algolia':\n        return [\n          { name: 'ALGOLIA_APPLICATION_ID', description: 'Your Algolia application ID', required: true },\n          { name: 'ALGOLIA_API_KEY', description: 'Your Algolia admin API key', required: true },\n          { name: 'ALGOLIA_SEARCH_KEY', description: 'Your Algolia search-only API key', required: false }\n        ];\n      case 'dart':\n        return [\n          { name: 'DART_API_TOKEN', description: 'Your Dart API access token', required: true },\n          { name: 'DART_WORKSPACE_ID', description: 'Your Dart workspace identifier', required: true }\n        ];\n      case 'builtwith':\n        return [\n          { name: 'BUILTWITH_API_KEY', description: 'Your BuiltWith API key', required: true }\n        ];\n      case 'devhub':\n        return [\n          { name: 'DEVHUB_API_TOKEN', description: 'Your DevHub API token', required: true },\n          { name: 'DEVHUB_BASE_URL', description: 'Your DevHub instance URL', required: true }\n        ];\n      case 'filesystem':\n        return [\n          { name: 'ALLOWED_PATHS', description: 'Comma-separated list of allowed directory paths', required: true },\n          { name: 'READ_ONLY', description: 'Set to \"true\" for read-only access', required: false }\n        ];\n      case 'memory':\n        return [\n          { name: 'MEMORY_FILE_PATH', description: 'Path to store the knowledge graph data', required: false }\n        ];\n      default:\n        return [];\n    }\n  };\n\n  const getUsageExamples = () => {\n    switch (mcpServer.id) {\n      case 'memory':\n        return [\n          {\n            title: 'Create Knowledge Entities',\n            description: 'Store information about people, projects, or concepts',\n            example: 'Create entity \"John Doe\" of type \"person\" with observation \"Software engineer at TechCorp\"'\n          },\n          {\n            title: 'Link Related Information',\n            description: 'Create relationships between different entities',\n            example: 'Create relation \"John Doe\" \"works_on\" \"Project Alpha\"'\n          },\n          {\n            title: 'Search Knowledge Graph',\n            description: 'Find entities and their connections',\n            example: 'Search for all entities related to \"artificial intelligence\"'\n          }\n        ];\n      case 'filesystem':\n        return [\n          {\n            title: 'Read Project Files',\n            description: 'Access and analyze project documentation',\n            example: 'Read the contents of \"/workspace/README.md\"'\n          },\n          {\n            title: 'Search for Files',\n            description: 'Find files matching specific patterns',\n            example: 'Search for all \".py\" files containing \"import pandas\"'\n          },\n          {\n            title: 'Create Documentation',\n            description: 'Generate and save new documents',\n            example: 'Write a summary report to \"/workspace/reports/analysis.md\"'\n          }\n        ];\n      case 'sequential-thinking':\n        return [\n          {\n            title: 'Complex Problem Solving',\n            description: 'Break down complex tasks into manageable steps',\n            example: 'Plan a multi-phase product launch with dependencies and timeline'\n          },\n          {\n            title: 'Iterative Analysis',\n            description: 'Refine understanding through multiple thinking steps',\n            example: 'Analyze market trends with revision and refinement of insights'\n          },\n          {\n            title: 'Strategic Planning',\n            description: 'Develop comprehensive strategies with contingencies',\n            example: 'Create a business expansion plan with risk assessment and alternatives'\n          }\n        ];\n      case 'algolia':\n        return [\n          {\n            title: 'Semantic Search',\n            description: 'Search across all your content with natural language',\n            example: 'Find all documents related to \"machine learning best practices\"'\n          },\n          {\n            title: 'Content Indexing',\n            description: 'Automatically index new content for search',\n            example: 'Index new blog posts and documentation for discovery'\n          },\n          {\n            title: 'Search Analytics',\n            description: 'Analyze search patterns and optimize content',\n            example: 'Show popular search terms and content gaps'\n          }\n        ];\n      default:\n        return [\n          {\n            title: 'Basic Usage',\n            description: 'Start using this MCP server with your agent',\n            example: 'Configure the server and test the connection'\n          }\n        ];\n    }\n  };\n\n  const instructions = getSetupInstructions();\n  const envVars = getEnvironmentVariables();\n  const examples = getUsageExamples();\n\n  return (\n    <Dialog>\n      <DialogTrigger asChild>\n        {children}\n      </DialogTrigger>\n      <DialogContent className=\"sm:max-w-[900px] max-h-[90vh]\">\n        <DialogHeader>\n          <DialogTitle className=\"flex items-center gap-2\">\n            <BookOpen className=\"w-5 h-5\" />\n            {mcpServer.name} Integration Guide\n          </DialogTitle>\n          <DialogDescription>\n            Complete setup and usage guide for integrating {mcpServer.name} with your Synapse agents.\n          </DialogDescription>\n        </DialogHeader>\n\n        <Tabs defaultValue=\"overview\" className=\"w-full\">\n          <TabsList className=\"grid w-full grid-cols-4\">\n            <TabsTrigger value=\"overview\">Overview</TabsTrigger>\n            <TabsTrigger value=\"setup\">Setup</TabsTrigger>\n            <TabsTrigger value=\"config\">Configuration</TabsTrigger>\n            <TabsTrigger value=\"usage\">Usage</TabsTrigger>\n          </TabsList>\n\n          <ScrollArea className=\"max-h-[60vh] mt-4\">\n            <TabsContent value=\"overview\" className=\"space-y-4\">\n              <Card>\n                <CardHeader>\n                  <CardTitle className=\"text-lg flex items-center gap-2\">\n                    <Globe className=\"w-5 h-5\" />\n                    About {mcpServer.name}\n                  </CardTitle>\n                </CardHeader>\n                <CardContent className=\"space-y-4\">\n                  <p className=\"text-muted-foreground\">{mcpServer.description}</p>\n                  \n                  <div>\n                    <h4 className=\"font-medium mb-2\">Key Capabilities</h4>\n                    <div className=\"flex flex-wrap gap-2\">\n                      {mcpServer.capabilities.map((cap) => (\n                        <Badge key={cap} variant=\"secondary\" className=\"text-xs\">\n                          {cap}\n                        </Badge>\n                      ))}\n                    </div>\n                  </div>\n\n                  <div className=\"bg-blue-50 dark:bg-blue-950/50 p-4 rounded-lg border border-blue-200 dark:border-blue-800\">\n                    <div className=\"flex items-start gap-2\">\n                      <Lightbulb className=\"w-4 h-4 text-blue-600 mt-0.5\" />\n                      <div>\n                        <h4 className=\"font-medium text-blue-900 dark:text-blue-100\">Use Case</h4>\n                        <p className=\"text-sm text-blue-700 dark:text-blue-200\">{mcpServer.useCase}</p>\n                      </div>\n                    </div>\n                  </div>\n\n                  {mcpServer.documentation && (\n                    <Button\n                      variant=\"outline\"\n                      onClick={() => window.open(mcpServer.documentation, '_blank')}\n                      className=\"w-full\"\n                    >\n                      <ExternalLink className=\"w-4 h-4 mr-2\" />\n                      View Official Documentation\n                    </Button>\n                  )}\n                </CardContent>\n              </Card>\n            </TabsContent>\n\n            <TabsContent value=\"setup\" className=\"space-y-4\">\n              <Card>\n                <CardHeader>\n                  <CardTitle className=\"text-lg flex items-center gap-2\">\n                    <Terminal className=\"w-5 h-5\" />\n                    Installation Methods\n                  </CardTitle>\n                </CardHeader>\n                <CardContent className=\"space-y-4\">\n                  {mcpServer.npmPackage && (\n                    <div>\n                      <h4 className=\"font-medium mb-2 flex items-center gap-2\">\n                        <Code className=\"w-4 h-4\" />\n                        NPX (Recommended)\n                      </h4>\n                      <div className=\"bg-muted p-3 rounded-md font-mono text-sm relative\">\n                        <code>{instructions.npx}</code>\n                        <Button\n                          size=\"sm\"\n                          variant=\"ghost\"\n                          className=\"absolute top-1 right-1 h-6 w-6 p-0\"\n                          onClick={() => copyToClipboard(instructions.npx, 'NPX')}\n                        >\n                          {copiedCode === 'NPX' ? (\n                            <CheckCircle className=\"w-3 h-3 text-green-500\" />\n                          ) : (\n                            <Copy className=\"w-3 h-3\" />\n                          )}\n                        </Button>\n                      </div>\n                      <p className=\"text-xs text-muted-foreground mt-1\">\n                        This will run the latest version without installing globally\n                      </p>\n                    </div>\n                  )}\n\n                  {mcpServer.npmPackage && (\n                    <div>\n                      <h4 className=\"font-medium mb-2 flex items-center gap-2\">\n                        <Code className=\"w-4 h-4\" />\n                        Global Installation\n                      </h4>\n                      <div className=\"bg-muted p-3 rounded-md font-mono text-sm relative\">\n                        <code>{instructions.npm}</code>\n                        <Button\n                          size=\"sm\"\n                          variant=\"ghost\"\n                          className=\"absolute top-1 right-1 h-6 w-6 p-0\"\n                          onClick={() => copyToClipboard(instructions.npm, 'NPM')}\n                        >\n                          {copiedCode === 'NPM' ? (\n                            <CheckCircle className=\"w-3 h-3 text-green-500\" />\n                          ) : (\n                            <Copy className=\"w-3 h-3\" />\n                          )}\n                        </Button>\n                      </div>\n                    </div>\n                  )}\n\n                  {mcpServer.dockerImage && (\n                    <div>\n                      <h4 className=\"font-medium mb-2 flex items-center gap-2\">\n                        <Docker className=\"w-4 h-4\" />\n                        Docker\n                      </h4>\n                      <div className=\"bg-muted p-3 rounded-md font-mono text-sm relative\">\n                        <code>{instructions.docker}</code>\n                        <Button\n                          size=\"sm\"\n                          variant=\"ghost\"\n                          className=\"absolute top-1 right-1 h-6 w-6 p-0\"\n                          onClick={() => copyToClipboard(instructions.docker, 'Docker')}\n                        >\n                          {copiedCode === 'Docker' ? (\n                            <CheckCircle className=\"w-3 h-3 text-green-500\" />\n                          ) : (\n                            <Copy className=\"w-3 h-3\" />\n                          )}\n                        </Button>\n                      </div>\n                    </div>\n                  )}\n                </CardContent>\n              </Card>\n            </TabsContent>\n\n            <TabsContent value=\"config\" className=\"space-y-4\">\n              <Card>\n                <CardHeader>\n                  <CardTitle className=\"text-lg flex items-center gap-2\">\n                    <Settings className=\"w-5 h-5\" />\n                    Configuration\n                  </CardTitle>\n                </CardHeader>\n                <CardContent className=\"space-y-4\">\n                  {envVars.length > 0 && (\n                    <div>\n                      <h4 className=\"font-medium mb-3\">Environment Variables</h4>\n                      <div className=\"space-y-3\">\n                        {envVars.map((envVar) => (\n                          <div key={envVar.name} className=\"border rounded-lg p-3\">\n                            <div className=\"flex items-center gap-2 mb-1\">\n                              <code className=\"text-sm font-mono bg-muted px-2 py-1 rounded\">\n                                {envVar.name}\n                              </code>\n                              {envVar.required && (\n                                <Badge variant=\"destructive\" className=\"text-xs\">\n                                  Required\n                                </Badge>\n                              )}\n                            </div>\n                            <p className=\"text-sm text-muted-foreground\">{envVar.description}</p>\n                          </div>\n                        ))}\n                      </div>\n                    </div>\n                  )}\n\n                  <div>\n                    <h4 className=\"font-medium mb-2\">MCP Configuration Example</h4>\n                    <div className=\"bg-muted p-3 rounded-md relative\">\n                      <pre className=\"text-xs overflow-x-auto\">\n                        <code>{getConfigurationExample()}</code>\n                      </pre>\n                      <Button\n                        size=\"sm\"\n                        variant=\"ghost\"\n                        className=\"absolute top-1 right-1 h-6 w-6 p-0\"\n                        onClick={() => copyToClipboard(getConfigurationExample(), 'Config')}\n                      >\n                        {copiedCode === 'Config' ? (\n                          <CheckCircle className=\"w-3 h-3 text-green-500\" />\n                        ) : (\n                          <Copy className=\"w-3 h-3\" />\n                        )}\n                      </Button>\n                    </div>\n                  </div>\n\n                  {mcpServer.authentication?.type !== 'none' && (\n                    <div className=\"bg-yellow-50 dark:bg-yellow-950/50 p-4 rounded-lg border border-yellow-200 dark:border-yellow-800\">\n                      <div className=\"flex items-start gap-2\">\n                        <AlertTriangle className=\"w-4 h-4 text-yellow-600 mt-0.5\" />\n                        <div>\n                          <h4 className=\"font-medium text-yellow-900 dark:text-yellow-100\">Authentication Required</h4>\n                          <p className=\"text-sm text-yellow-700 dark:text-yellow-200\">\n                            This server requires {mcpServer.authentication.type} authentication. \n                            Make sure to configure your credentials in the agent settings.\n                          </p>\n                        </div>\n                      </div>\n                    </div>\n                  )}\n                </CardContent>\n              </Card>\n            </TabsContent>\n\n            <TabsContent value=\"usage\" className=\"space-y-4\">\n              <Card>\n                <CardHeader>\n                  <CardTitle className=\"text-lg flex items-center gap-2\">\n                    <Zap className=\"w-5 h-5\" />\n                    Usage Examples\n                  </CardTitle>\n                </CardHeader>\n                <CardContent>\n                  <div className=\"space-y-4\">\n                    {examples.map((example, index) => (\n                      <div key={index} className=\"border rounded-lg p-4\">\n                        <h4 className=\"font-medium mb-2\">{example.title}</h4>\n                        <p className=\"text-sm text-muted-foreground mb-2\">{example.description}</p>\n                        <div className=\"bg-muted p-3 rounded-md\">\n                          <code className=\"text-sm\">{example.example}</code>\n                        </div>\n                      </div>\n                    ))}\n                  </div>\n                </CardContent>\n              </Card>\n            </TabsContent>\n          </ScrollArea>\n        </Tabs>\n      </DialogContent>\n    </Dialog>\n  );\n};\n\nexport default MCPIntegrationGuide;
+    const instructions = {
+      npm: `npm install -g ${mcpServer.npmPackage}`,
+      npx: mcpServer.serverUri,
+      docker: mcpServer.dockerImage 
+        ? `docker run -d --name ${mcpServer.id}-server ${mcpServer.dockerImage}`
+        : 'Docker image not available for this server'
+    };
+
+    return instructions;
+  };
+
+  const getConfigurationExample = () => {
+    const config = {
+      "mcpServers": {
+        [mcpServer.id]: {
+          "command": mcpServer.serverUri.includes('npx') ? 'npx' : 'node',
+          "args": mcpServer.serverUri.includes('npx') 
+            ? mcpServer.serverUri.split(' ').slice(1)
+            : [mcpServer.serverUri],
+          "env": mcpServer.configuration || {}
+        }
+      }
+    };
+
+    return JSON.stringify(config, null, 2);
+  };
+
+  const getEnvironmentVariables = () => {
+    switch (mcpServer.id) {
+      case 'algolia':
+        return [
+          { name: 'ALGOLIA_APPLICATION_ID', description: 'Your Algolia application ID', required: true },
+          { name: 'ALGOLIA_API_KEY', description: 'Your Algolia admin API key', required: true },
+          { name: 'ALGOLIA_SEARCH_KEY', description: 'Your Algolia search-only API key', required: false }
+        ];
+      case 'dart':
+        return [
+          { name: 'DART_API_TOKEN', description: 'Your Dart API access token', required: true },
+          { name: 'DART_WORKSPACE_ID', description: 'Your Dart workspace identifier', required: true }
+        ];
+      case 'builtwith':
+        return [
+          { name: 'BUILTWITH_API_KEY', description: 'Your BuiltWith API key', required: true }
+        ];
+      case 'devhub':
+        return [
+          { name: 'DEVHUB_API_TOKEN', description: 'Your DevHub API token', required: true },
+          { name: 'DEVHUB_BASE_URL', description: 'Your DevHub instance URL', required: true }
+        ];
+      case 'filesystem':
+        return [
+          { name: 'ALLOWED_PATHS', description: 'Comma-separated list of allowed directory paths', required: true },
+          { name: 'READ_ONLY', description: 'Set to "true" for read-only access', required: false }
+        ];
+      case 'memory':
+        return [
+          { name: 'MEMORY_FILE_PATH', description: 'Path to store the knowledge graph data', required: false }
+        ];
+      default:
+        return [];
+    }
+  };
+
+  const getUsageExamples = () => {
+    switch (mcpServer.id) {
+      case 'memory':
+        return [
+          {
+            title: 'Create Knowledge Entities',
+            description: 'Store information about people, projects, or concepts',
+            example: 'Create entity "John Doe" of type "person" with observation "Software engineer at TechCorp"'
+          },
+          {
+            title: 'Link Related Information',
+            description: 'Create relationships between different entities',
+            example: 'Create relation "John Doe" "works_on" "Project Alpha"'
+          },
+          {
+            title: 'Search Knowledge Graph',
+            description: 'Find entities and their connections',
+            example: 'Search for all entities related to "artificial intelligence"'
+          }
+        ];
+      case 'filesystem':
+        return [
+          {
+            title: 'Read Project Files',
+            description: 'Access and analyze project documentation',
+            example: 'Read the contents of "/workspace/README.md"'
+          },
+          {
+            title: 'Search for Files',
+            description: 'Find files matching specific patterns',
+            example: 'Search for all ".py" files containing "import pandas"'
+          },
+          {
+            title: 'Create Documentation',
+            description: 'Generate and save new documents',
+            example: 'Write a summary report to "/workspace/reports/analysis.md"'
+          }
+        ];
+      case 'sequential-thinking':
+        return [
+          {
+            title: 'Complex Problem Solving',
+            description: 'Break down complex tasks into manageable steps',
+            example: 'Plan a multi-phase product launch with dependencies and timeline'
+          },
+          {
+            title: 'Iterative Analysis',
+            description: 'Refine understanding through multiple thinking steps',
+            example: 'Analyze market trends with revision and refinement of insights'
+          },
+          {
+            title: 'Strategic Planning',
+            description: 'Develop comprehensive strategies with contingencies',
+            example: 'Create a business expansion plan with risk assessment and alternatives'
+          }
+        ];
+      case 'algolia':
+        return [
+          {
+            title: 'Semantic Search',
+            description: 'Search across all your content with natural language',
+            example: 'Find all documents related to "machine learning best practices"'
+          },
+          {
+            title: 'Content Indexing',
+            description: 'Automatically index new content for search',
+            example: 'Index new blog posts and documentation for discovery'
+          },
+          {
+            title: 'Search Analytics',
+            description: 'Analyze search patterns and optimize content',
+            example: 'Show popular search terms and content gaps'
+          }
+        ];
+      default:
+        return [
+          {
+            title: 'Basic Usage',
+            description: 'Start using this MCP server with your agent',
+            example: 'Configure the server and test the connection'
+          }
+        ];
+    }
+  };
+
+  const instructions = getSetupInstructions();
+  const envVars = getEnvironmentVariables();
+  const examples = getUsageExamples();
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        {children}
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[900px] max-h-[90vh]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <BookOpen className="w-5 h-5" />
+            {mcpServer.name} Integration Guide
+          </DialogTitle>
+          <DialogDescription>
+            Complete setup and usage guide for integrating {mcpServer.name} with your Synapse agents.
+          </DialogDescription>
+        </DialogHeader>
+
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="setup">Setup</TabsTrigger>
+            <TabsTrigger value="config">Configuration</TabsTrigger>
+            <TabsTrigger value="usage">Usage</TabsTrigger>
+          </TabsList>
+
+          <ScrollArea className="max-h-[60vh] mt-4">
+            <TabsContent value="overview" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Globe className="w-5 h-5" />
+                    About {mcpServer.name}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">{mcpServer.description}</p>
+                  
+                  <div>
+                    <h4 className="font-medium mb-2">Key Capabilities</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {mcpServer.capabilities.map((cap) => (
+                        <Badge key={cap} variant="secondary" className="text-xs">
+                          {cap}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 dark:bg-blue-950/50 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <div className="flex items-start gap-2">
+                      <Lightbulb className="w-4 h-4 text-blue-600 mt-0.5" />
+                      <div>
+                        <h4 className="font-medium text-blue-900 dark:text-blue-100">Use Case</h4>
+                        <p className="text-sm text-blue-700 dark:text-blue-200">{mcpServer.useCase}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {mcpServer.documentation && (
+                    <Button
+                      variant="outline"
+                      onClick={() => window.open(mcpServer.documentation, '_blank')}
+                      className="w-full"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      View Official Documentation
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="setup" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Terminal className="w-5 h-5" />
+                    Installation Methods
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {mcpServer.npmPackage && (
+                    <div>
+                      <h4 className="font-medium mb-2 flex items-center gap-2">
+                        <Code className="w-4 h-4" />
+                        NPX (Recommended)
+                      </h4>
+                      <div className="bg-muted p-3 rounded-md font-mono text-sm relative">
+                        <code>{instructions.npx}</code>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="absolute top-1 right-1 h-6 w-6 p-0"
+                          onClick={() => copyToClipboard(instructions.npx, 'NPX')}
+                        >
+                          {copiedCode === 'NPX' ? (
+                            <CheckCircle className="w-3 h-3 text-green-500" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        This will run the latest version without installing globally
+                      </p>
+                    </div>
+                  )}
+
+                  {mcpServer.npmPackage && (
+                    <div>
+                      <h4 className="font-medium mb-2 flex items-center gap-2">
+                        <Code className="w-4 h-4" />
+                        Global Installation
+                      </h4>
+                      <div className="bg-muted p-3 rounded-md font-mono text-sm relative">
+                        <code>{instructions.npm}</code>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="absolute top-1 right-1 h-6 w-6 p-0"
+                          onClick={() => copyToClipboard(instructions.npm, 'NPM')}
+                        >
+                          {copiedCode === 'NPM' ? (
+                            <CheckCircle className="w-3 h-3 text-green-500" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {mcpServer.dockerImage && (
+                    <div>
+                      <h4 className="font-medium mb-2 flex items-center gap-2">
+                        <Docker className="w-4 h-4" />
+                        Docker
+                      </h4>
+                      <div className="bg-muted p-3 rounded-md font-mono text-sm relative">
+                        <code>{instructions.docker}</code>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="absolute top-1 right-1 h-6 w-6 p-0"
+                          onClick={() => copyToClipboard(instructions.docker, 'Docker')}
+                        >
+                          {copiedCode === 'Docker' ? (
+                            <CheckCircle className="w-3 h-3 text-green-500" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="config" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Settings className="w-5 h-5" />
+                    Configuration
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {envVars.length > 0 && (
+                    <div>
+                      <h4 className="font-medium mb-3">Environment Variables</h4>
+                      <div className="space-y-3">
+                        {envVars.map((envVar) => (
+                          <div key={envVar.name} className="border rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <code className="text-sm font-mono bg-muted px-2 py-1 rounded">
+                                {envVar.name}
+                              </code>
+                              {envVar.required && (
+                                <Badge variant="destructive" className="text-xs">
+                                  Required
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground">{envVar.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <h4 className="font-medium mb-2">MCP Configuration Example</h4>
+                    <div className="bg-muted p-3 rounded-md relative">
+                      <pre className="text-xs overflow-x-auto">
+                        <code>{getConfigurationExample()}</code>
+                      </pre>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="absolute top-1 right-1 h-6 w-6 p-0"
+                        onClick={() => copyToClipboard(getConfigurationExample(), 'Config')}
+                      >
+                        {copiedCode === 'Config' ? (
+                          <CheckCircle className="w-3 h-3 text-green-500" />
+                        ) : (
+                          <Copy className="w-3 h-3" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {mcpServer.authentication?.type !== 'none' && (
+                    <div className="bg-yellow-50 dark:bg-yellow-950/50 p-4 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5" />
+                        <div>
+                          <h4 className="font-medium text-yellow-900 dark:text-yellow-100">Authentication Required</h4>
+                          <p className="text-sm text-yellow-700 dark:text-yellow-200">
+                            This server requires {mcpServer.authentication.type} authentication. 
+                            Make sure to configure your credentials in the agent settings.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="usage" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Zap className="w-5 h-5" />
+                    Usage Examples
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {examples.map((example, index) => (
+                      <div key={index} className="border rounded-lg p-4">
+                        <h4 className="font-medium mb-2">{example.title}</h4>
+                        <p className="text-sm text-muted-foreground mb-2">{example.description}</p>
+                        <div className="bg-muted p-3 rounded-md">
+                          <code className="text-sm">{example.example}</code>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </ScrollArea>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default MCPIntegrationGuide;
