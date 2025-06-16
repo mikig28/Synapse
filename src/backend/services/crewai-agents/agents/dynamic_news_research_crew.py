@@ -818,16 +818,39 @@ class EnhancedNewsScraperAgent:
         return articles
     
     def _scrape_rss_feed(self, feed_name: str, feed_url: str, topics: List[str]) -> List[Dict[str, Any]]:
-        """Scrape RSS feed with validation"""
+        """Scrape RSS feed with validation and recency filtering"""
         articles = []
         
         try:
             feed = feedparser.parse(feed_url)
             
-            for entry in feed.entries[:10]:  # Get top 10 entries
+            # Sort entries by published date (most recent first)
+            sorted_entries = sorted(
+                feed.entries, 
+                key=lambda x: x.get('published_parsed', (0,)) or (0,), 
+                reverse=True
+            )
+            
+            for entry in sorted_entries[:15]:  # Get top 15 entries
                 try:
+                    # Check if article is recent (last 72 hours for RSS feeds)
+                    if entry.get('published_parsed'):
+                        published_time = datetime(*entry.published_parsed[:6])
+                        hours_old = (datetime.now() - published_time).total_seconds() / 3600
+                        
+                        # Skip articles older than 72 hours
+                        if hours_old > 72:
+                            continue
+                    
                     # Validate URL
                     url = URLValidator.clean_url(entry.get('link', ''))
+                    
+                    # Check topic relevance for the article
+                    article_text = f"{entry.get('title', '')} {entry.get('summary', '')}"
+                    is_relevant = any(self._is_topic_relevant(article_text, topic) for topic in topics)
+                    
+                    if not is_relevant:
+                        continue
                     
                     article = {
                         'title': entry.get('title', ''),
@@ -839,7 +862,8 @@ class EnhancedNewsScraperAgent:
                         'source': feed_name.replace('_', ' ').title(),
                         'source_category': 'news',
                         'scraped_at': datetime.now().isoformat(),
-                        'validated': True
+                        'validated': True,
+                        'hours_old': hours_old if entry.get('published_parsed') else None
                     }
                     
                     # Extract full content if URL is valid
@@ -974,6 +998,10 @@ class DynamicNewsResearchCrew:
     def _create_dynamic_agents(self) -> Dict[str, Agent]:
         """Create specialized agents with dynamic capabilities and tools"""
         
+        # Get current date context
+        current_date = datetime.now().strftime('%Y-%m-%d')
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
+        
         # Get tools for each agent type if available
         if CREWAI_WRAPPER_AVAILABLE:
             news_tools = get_tools_for_agent('news_researcher')
@@ -1001,8 +1029,8 @@ class DynamicNewsResearchCrew:
         # News Research Agent
         news_researcher = Agent(
             role='Dynamic News Research Specialist',
-            goal='Adaptively find and validate high-quality news articles based on user requirements',
-            backstory='You are an expert at finding relevant, high-quality news articles from various sources. You adapt your search strategy based on user input and validate URLs, check content quality, and ensure information accuracy.',
+            goal=f'Adaptively find and validate high-quality, RECENT news articles based on user requirements. Current date: {current_date}. Focus on news from the last 24-48 hours.',
+            backstory=f'You are an expert at finding relevant, high-quality news articles from various sources. Today is {current_time}. You adapt your search strategy based on user input, validate URLs, check content quality, and ensure information accuracy. You prioritize recent news and current events, filtering out outdated content.',
             tools=news_tools,
             verbose=True,
             allow_delegation=False
@@ -1011,8 +1039,8 @@ class DynamicNewsResearchCrew:
         # Content Analyst Agent
         content_analyst = Agent(
             role='Adaptive Content Quality Analyst',
-            goal='Dynamically analyze and validate content quality, relevance, and authenticity based on user criteria',
-            backstory='You are a content quality expert who evaluates articles for relevance, accuracy, and overall quality. You adapt your quality standards based on user requirements and filter out low-quality content and spam.',
+            goal=f'Dynamically analyze and validate content quality, relevance, authenticity, and RECENCY based on user criteria. Current date: {current_date}. Prioritize recent, timely content.',
+            backstory=f'You are a content quality expert who evaluates articles for relevance, accuracy, and overall quality. Current time: {current_time}. You adapt your quality standards based on user requirements and filter out low-quality content, spam, and outdated news. You prefer articles published within the last 24-48 hours.',
             tools=content_tools,
             verbose=True,
             allow_delegation=False
@@ -1022,7 +1050,7 @@ class DynamicNewsResearchCrew:
         url_validator = Agent(
             role='Smart URL Validation Specialist',
             goal='Intelligently validate and clean URLs to ensure they are accessible and safe',
-            backstory='You are a technical specialist focused on URL validation, cleaning, and accessibility checking. You ensure all links work properly and adapt validation criteria based on source types.',
+            backstory=f'You are a technical specialist focused on URL validation, cleaning, and accessibility checking. Current date: {current_date}. You ensure all links work properly, lead to current active content, and adapt validation criteria based on source types.',
             tools=url_tools,
             verbose=True,
             allow_delegation=False
@@ -1031,8 +1059,8 @@ class DynamicNewsResearchCrew:
         # Trend Analysis Agent
         trend_analyst = Agent(
             role='Dynamic Trend Analysis Expert',
-            goal='Identify emerging trends and patterns in news content based on user-specified topics and timeframes',
-            backstory='You are an expert at identifying trends, patterns, and emerging topics from news content. You provide insights on what topics are gaining momentum and adapt your analysis based on user interests.',
+            goal=f'Identify emerging trends and patterns in CURRENT news content based on user-specified topics. Focus on trends happening now. Today is {current_date}.',
+            backstory=f'You are an expert at identifying trends, patterns, and emerging topics from current news content. Today is {current_time}. You provide insights on what topics are gaining momentum RIGHT NOW, focusing on recent developments and current events. You adapt your analysis based on user interests and current timeframes.',
             tools=trend_tools,
             verbose=True,
             allow_delegation=False
@@ -1041,8 +1069,8 @@ class DynamicNewsResearchCrew:
         # Social Media Monitor Agent
         social_monitor = Agent(
             role='Adaptive Social Media Monitor',
-            goal='Monitor social media platforms for discussions based on user-specified topics and platforms',
-            backstory='You are a social media monitoring expert who tracks discussions across various platforms. You adapt your monitoring strategy based on user preferences and validate all social content.',
+            goal=f'Monitor social media platforms for CURRENT discussions based on user-specified topics. Focus on recent posts and trending conversations. Today is {current_date}.',
+            backstory=f'You are a social media monitoring expert who tracks current discussions across various platforms. Current time: {current_time}. You adapt your monitoring strategy based on user preferences, validate all social content, and focus on recent posts and trending topics from the last 24-48 hours.',
             tools=social_tools,
             verbose=True,
             allow_delegation=False
@@ -1296,6 +1324,14 @@ class DynamicNewsResearchCrew:
                                 logger.info(f"🔍 Searching r/{subreddit_name} for '{topic}'")
                                 
                                 for post in subreddit.hot(limit=max_items // len(topics)):
+                                    # Check if post is recent (last 48 hours)
+                                    post_time = datetime.fromtimestamp(post.created_utc)
+                                    hours_old = (datetime.now() - post_time).total_seconds() / 3600
+                                    
+                                    # Skip posts older than 48 hours
+                                    if hours_old > 48:
+                                        continue
+                                    
                                     # Filter posts by topic relevance
                                     if self._is_topic_relevant(post.title + ' ' + post.selftext, topic):
                                         reddit_post = {
@@ -1416,25 +1452,33 @@ class DynamicNewsResearchCrew:
         return any(keyword in text_lower for keyword in keywords)
     
     def _generate_simulated_reddit_content(self, topics: List[str], max_items: int) -> List[Dict[str, Any]]:
-        """Generate simulated Reddit content for topics"""
+        """Generate simulated Reddit content for topics with recent timestamps"""
         simulated_posts = []
+        
+        # Generate posts with timestamps in the last 24 hours
+        base_time = datetime.now()
         
         for i, topic in enumerate(topics):
             for j in range(max_items // len(topics)):
+                # Create posts with random times in the last 24 hours
+                hours_ago = j * 2 + (i * 0.5)  # Spread posts across time
+                post_time = base_time - timedelta(hours=hours_ago)
+                
                 post = {
-                    'title': f"Discussion about {topic} - Post {j+1}",
-                    'content': f"This is a simulated Reddit post about {topic}. Real Reddit content would appear here with actual REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET.",
+                    'title': f"Breaking: Latest developments in {topic} - {post_time.strftime('%H:%M')}",
+                    'content': f"This is a simulated Reddit post about {topic} published {hours_ago:.1f} hours ago. Real Reddit content would appear here with actual REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET.",
                     'url': f"https://reddit.com/r/simulated/posts/{topic}_{i}_{j}",
                     'external_url': None,
                     'author': f'user_{i}{j}',
                     'score': 100 + (i * 10) + j,
                     'num_comments': 25 + j,
                     'subreddit': f'{topic}_related',
-                    'created_utc': datetime.now().isoformat(),
+                    'created_utc': post_time.isoformat(),
                     'source': f'Reddit r/{topic}_related',
                     'source_type': 'reddit',
                     'matched_topic': topic,
                     'simulated': True,
+                    'hours_old': hours_ago,
                     'scraped_at': datetime.now().isoformat()
                 }
                 simulated_posts.append(post)
@@ -1442,22 +1486,30 @@ class DynamicNewsResearchCrew:
         return simulated_posts
     
     def _generate_simulated_linkedin_content(self, topics: List[str], max_items: int) -> List[Dict[str, Any]]:
-        """Generate simulated LinkedIn content for topics"""
+        """Generate simulated LinkedIn content for topics with recent timestamps"""
         simulated_posts = []
+        
+        # Generate posts with timestamps in the last 48 hours
+        base_time = datetime.now()
         
         for i, topic in enumerate(topics):
             for j in range(max_items // len(topics)):
+                # Create posts with random times in the last 48 hours
+                hours_ago = j * 3 + (i * 1.2)  # Spread posts across time
+                post_time = base_time - timedelta(hours=hours_ago)
+                
                 post = {
-                    'title': f"Professional insights on {topic}",
-                    'content': f"This is a simulated LinkedIn post about {topic}. Professional content and industry insights would appear here.",
+                    'title': f"Professional insights on {topic} - {post_time.strftime('%b %d')}",
+                    'content': f"This is a simulated LinkedIn post about {topic} published {hours_ago:.1f} hours ago. Professional content and industry insights would appear here with real LinkedIn integration.",
                     'url': f"https://linkedin.com/posts/simulated_{topic}_{i}_{j}",
                     'author': f'Professional_{i}{j}',
                     'company': f'{topic.title()} Corp',
-                    'created_utc': datetime.now().isoformat(),
+                    'created_utc': post_time.isoformat(),
                     'source': 'LinkedIn',
                     'source_type': 'linkedin',
                     'matched_topic': topic,
                     'simulated': True,
+                    'hours_old': hours_ago,
                     'scraped_at': datetime.now().isoformat()
                 }
                 simulated_posts.append(post)
@@ -1465,21 +1517,29 @@ class DynamicNewsResearchCrew:
         return simulated_posts
     
     def _generate_simulated_telegram_content(self, topics: List[str], max_items: int) -> List[Dict[str, Any]]:
-        """Generate simulated Telegram content for topics"""
+        """Generate simulated Telegram content for topics with recent timestamps"""
         simulated_messages = []
+        
+        # Generate messages with timestamps in the last 12 hours (Telegram is more real-time)
+        base_time = datetime.now()
         
         for i, topic in enumerate(topics):
             for j in range(max_items // len(topics)):
+                # Create messages with random times in the last 12 hours
+                hours_ago = j * 1 + (i * 0.3)  # Spread messages across time
+                message_time = base_time - timedelta(hours=hours_ago)
+                
                 message = {
-                    'title': f"Telegram update on {topic}",
-                    'content': f"This is a simulated Telegram message about {topic}. Real-time updates and discussions would appear here.",
+                    'title': f"📱 Breaking: {topic} update - {message_time.strftime('%H:%M')}",
+                    'content': f"This is a simulated Telegram message about {topic} sent {hours_ago:.1f} hours ago. Real-time updates and discussions would appear here with actual Telegram integration.",
                     'url': f"https://t.me/simulated_{topic}_{i}_{j}",
                     'channel': f'{topic}_updates',
-                    'created_utc': datetime.now().isoformat(),
+                    'created_utc': message_time.isoformat(),
                     'source': f'Telegram @{topic}_updates',
                     'source_type': 'telegram',
                     'matched_topic': topic,
                     'simulated': True,
+                    'hours_old': hours_ago,
                     'scraped_at': datetime.now().isoformat()
                 }
                 simulated_messages.append(message)

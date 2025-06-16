@@ -688,11 +688,15 @@ class EnhancedNewsResearchCrew:
     def _create_agents(self) -> Dict[str, Agent]:
         """Create specialized agents"""
         
+        # Get current date context
+        current_date = datetime.now().strftime('%Y-%m-%d')
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
+        
         # News Research Agent
         news_researcher = Agent(
             role='News Research Specialist',
-            goal='Find and validate high-quality news articles from multiple sources',
-            backstory='You are an expert at finding relevant, high-quality news articles from various sources. You validate URLs, check content quality, and ensure information accuracy.',
+            goal=f'Find and validate high-quality, RECENT news articles from multiple sources. Current date: {current_date}. Focus on news from the last 24-48 hours.',
+            backstory=f'You are an expert at finding relevant, high-quality news articles from various sources. Today is {current_time}. You validate URLs, check content quality, and ensure information accuracy. You prioritize recent news and current events, filtering out outdated content.',
             verbose=True,
             allow_delegation=False
         )
@@ -700,8 +704,8 @@ class EnhancedNewsResearchCrew:
         # Content Analyst Agent
         content_analyst = Agent(
             role='Content Quality Analyst',
-            goal='Analyze and validate content quality, relevance, and authenticity',
-            backstory='You are a content quality expert who evaluates articles for relevance, accuracy, and overall quality. You filter out low-quality content and spam.',
+            goal=f'Analyze and validate content quality, relevance, and authenticity for current news. Today is {current_date}. Prioritize recent, timely content.',
+            backstory=f'You are a content quality expert who evaluates articles for relevance, accuracy, and overall quality. Current time: {current_time}. You filter out low-quality content, spam, and outdated news. You prefer articles published within the last 24-48 hours.',
             verbose=True,
             allow_delegation=False
         )
@@ -710,7 +714,7 @@ class EnhancedNewsResearchCrew:
         url_validator_agent = Agent(
             role='URL Validation Specialist',
             goal='Validate and clean URLs to ensure they are accessible and safe',
-            backstory='You are a technical specialist focused on URL validation, cleaning, and accessibility checking. You ensure all links work properly.',
+            backstory=f'You are a technical specialist focused on URL validation, cleaning, and accessibility checking. Current date: {current_date}. You ensure all links work properly and lead to current, active content.',
             verbose=True,
             allow_delegation=False
         )
@@ -718,8 +722,8 @@ class EnhancedNewsResearchCrew:
         # Trend Analysis Agent
         trend_analyst = Agent(
             role='Trend Analysis Expert',
-            goal='Identify emerging trends and patterns in news content',
-            backstory='You are an expert at identifying trends, patterns, and emerging topics from news content. You provide insights on what topics are gaining momentum.',
+            goal=f'Identify emerging trends and patterns in CURRENT news content. Focus on trends happening now and recently. Today is {current_date}.',
+            backstory=f'You are an expert at identifying trends, patterns, and emerging topics from current news content. Today is {current_time}. You provide insights on what topics are gaining momentum RIGHT NOW, focusing on recent developments and current events.',
             verbose=True,
             allow_delegation=False
         )
@@ -743,32 +747,38 @@ class EnhancedNewsResearchCrew:
             }
         
         try:
-            logger.info(f"Starting enhanced news research for topics: {topics}")
+            current_date = datetime.now().strftime('%Y-%m-%d')
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
             
-            # Task 1: Scrape and validate news articles
+            logger.info(f"Starting enhanced news research for topics: {topics} on {current_date}")
+            
+            # Task 1: Scrape and validate RECENT news articles
             scraping_task = Task(
-                description=f"Scrape high-quality news articles for topics: {', '.join(topics)}.",
+                description=f"Scrape high-quality, RECENT news articles for topics: {', '.join(topics)}. "
+                           f"Current date: {current_date}. Focus on articles published within the last 24-48 hours. "
+                           f"Prioritize current events and breaking news. Filter out outdated content (older than 3 days).",
                 agent=self.agents['news_researcher'],
-                expected_output="A list of validated and cleaned news articles as dictionaries, related to the topics."
+                expected_output="A list of validated and cleaned RECENT news articles as dictionaries, related to the topics and published within the last 48 hours."
             )
 
-            # Task 2: Analyze content quality and relevance
+            # Task 2: Analyze content quality, relevance, and recency
             analysis_task = Task(
-                description="Analyze the provided articles for quality, relevance, and authenticity. "
-                            "Filter out any low-quality content, ads, or spam. "
-                            "Assign a quality score to each article.",
+                description=f"Analyze the provided articles for quality, relevance, authenticity, and RECENCY. "
+                           f"Current time: {current_time}. Filter out any low-quality content, ads, spam, or OUTDATED articles. "
+                           f"Prioritize articles published within the last 24-48 hours. Assign quality and recency scores to each article.",
                 agent=self.agents['content_analyst'],
                 context=[scraping_task],
-                expected_output="A curated list of high-quality articles with analysis and scores."
+                expected_output="A curated list of high-quality, RECENT articles with analysis, quality scores, and publication timestamps."
             )
 
-            # Task 3: Identify trends from the analyzed news
+            # Task 3: Identify CURRENT trends from recent news
             trending_task = Task(
-                description="From the curated list of articles, identify emerging trends, key topics, and patterns. "
-                            "Summarize the most important trends discovered.",
+                description=f"From the curated list of recent articles, identify CURRENT emerging trends, breaking news, and developing patterns. "
+                           f"Today is {current_date}. Focus on trends happening NOW and in the last 24-48 hours. "
+                           f"Summarize the most important current trends and breaking developments.",
                 agent=self.agents['trend_analyst'],
                 context=[analysis_task],
-                expected_output="A report summarizing the top 3-5 news trends with supporting articles."
+                expected_output="A report summarizing the top 3-5 CURRENT news trends with supporting recent articles and timestamps."
             )
             
             # Create and run the crew
@@ -781,13 +791,30 @@ class EnhancedNewsResearchCrew:
             
             result = crew.kickoff()
             
+            # Extract usage metrics safely
+            usage_metrics = {}
+            if hasattr(crew, 'usage_metrics') and crew.usage_metrics:
+                metrics = crew.usage_metrics
+                usage_metrics = {
+                    "total_tokens": getattr(metrics, 'total_tokens', 0),
+                    "successful_tasks": getattr(metrics, 'successful_tasks', 0),
+                    "total_costs": getattr(metrics, 'total_costs', 0),
+                    "prompt_tokens": getattr(metrics, 'prompt_tokens', 0),
+                    "completion_tokens": getattr(metrics, 'completion_tokens', 0)
+                }
+            else:
+                usage_metrics = {
+                    "total_tokens": 0,
+                    "successful_tasks": len([task for task in [scraping_task, analysis_task, trending_task] if task]),
+                    "total_costs": 0,
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0
+                }
+            
             return {
                 "status": "success",
                 "result": result,
-                "usage_metrics": {
-                    "total_tokens": getattr(crew, 'usage_metrics', {}).get('total_tokens', 0) if hasattr(crew, 'usage_metrics') else 0,
-                    "successful_tasks": getattr(crew, 'usage_metrics', {}).get('successful_tasks', 0) if hasattr(crew, 'usage_metrics') else 0
-                }
+                "usage_metrics": usage_metrics
             }
 
         except Exception as e:
