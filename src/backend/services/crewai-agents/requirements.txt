@@ -8,9 +8,8 @@ praw>=7.0.0
 newspaper3k>=0.2.8
 lxml[html_clean]>=4.9.0
 
-# CrewAI and AI dependencies
-crewai>=0.28.0
-crewai-tools>=0.1.0
+# CrewAI and AI dependencies (compatible versions)
+crewai==0.28.8
 openai>=1.0.0
 anthropic>=0.7.0
 

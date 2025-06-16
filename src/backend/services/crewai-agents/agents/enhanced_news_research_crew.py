@@ -14,7 +14,7 @@ from urllib.parse import urlparse, urljoin, quote
 from bs4 import BeautifulSoup
 import feedparser
 from crewai import Agent, Task, Crew, Process
-from crewai_tools import SerperDevTool, ScrapeWebsiteTool
+# from crewai_tools import SerperDevTool, ScrapeWebsiteTool  # Removed due to dependency conflicts
 import logging
 
 # Configure logging
