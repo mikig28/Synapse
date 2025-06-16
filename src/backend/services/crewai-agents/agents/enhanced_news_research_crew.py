@@ -16,6 +16,23 @@ import feedparser
 from crewai import Agent, Task, Crew, Process
 # from crewai_tools import SerperDevTool, ScrapeWebsiteTool  # Removed due to dependency conflicts
 import logging
+import sys
+import os
+
+# Add tools directory to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+tools_dir = os.path.join(os.path.dirname(current_dir), 'tools')
+if tools_dir not in sys.path:
+    sys.path.insert(0, tools_dir)
+
+# Import custom tools
+try:
+    from custom_tools import AVAILABLE_TOOLS, get_tool
+    CUSTOM_TOOLS_AVAILABLE = True
+    logger.info("✅ Custom tools loaded successfully")
+except ImportError as e:
+    logger.error(f"❌ Failed to import custom tools: {str(e)}")
+    CUSTOM_TOOLS_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -664,7 +681,8 @@ class EnhancedNewsResearchCrew:
             goal='Find and validate high-quality news articles from multiple sources',
             backstory='You are an expert at finding relevant, high-quality news articles from various sources. You validate URLs, check content quality, and ensure information accuracy.',
             verbose=True,
-            allow_delegation=True
+            allow_delegation=True,
+            tools=[self.news_scraper.scrape_news_with_validation]
         )
         
         # Content Analyst Agent
@@ -677,12 +695,13 @@ class EnhancedNewsResearchCrew:
         )
         
         # URL Validation Agent
-        url_validator = Agent(
+        url_validator_agent = Agent(
             role='URL Validation Specialist',
             goal='Validate and clean URLs to ensure they are accessible and safe',
             backstory='You are a technical specialist focused on URL validation, cleaning, and accessibility checking. You ensure all links work properly.',
             verbose=True,
-            allow_delegation=False
+            allow_delegation=False,
+            tools=[self.url_validator.validate_and_clean_urls]
         )
         
         # Trend Analysis Agent
@@ -697,7 +716,7 @@ class EnhancedNewsResearchCrew:
         return {
             'news_researcher': news_researcher,
             'content_analyst': content_analyst,
-            'url_validator': url_validator,
+            'url_validator': url_validator_agent,
             'trend_analyst': trend_analyst
         }
     
@@ -717,5 +736,67 @@ class EnhancedNewsResearchCrew:
             
             # Task 1: Scrape and validate news articles
             scraping_task = Task(
-                description=f"""
-                Scrape high-quality news articles for topics: {', '.join(topics)}
+                description=f"Scrape high-quality news articles for topics: {', '.join(topics)}.",
+                agent=self.agents['news_researcher'],
+                expected_output="A list of validated and cleaned news articles as dictionaries, related to the topics."
+            )
+
+            # Task 2: Analyze content quality and relevance
+            analysis_task = Task(
+                description="Analyze the provided articles for quality, relevance, and authenticity. "
+                            "Filter out any low-quality content, ads, or spam. "
+                            "Assign a quality score to each article.",
+                agent=self.agents['content_analyst'],
+                context=[scraping_task],
+                expected_output="A curated list of high-quality articles with analysis and scores."
+            )
+
+            # Task 3: Identify trends from the analyzed news
+            trending_task = Task(
+                description="From the curated list of articles, identify emerging trends, key topics, and patterns. "
+                            "Summarize the most important trends discovered.",
+                agent=self.agents['trend_analyst'],
+                context=[analysis_task],
+                expected_output="A report summarizing the top 3-5 news trends with supporting articles."
+            )
+            
+            # Create and run the crew
+            crew = Crew(
+                agents=list(self.agents.values()),
+                tasks=[scraping_task, analysis_task, trending_task],
+                process=Process.sequential,
+                verbose=True
+            )
+            
+            result = crew.kickoff()
+            
+            return {
+                "status": "success",
+                "result": result,
+                "usage_metrics": {
+                    "total_tokens": crew.usage_metrics.get('total_tokens', 0),
+                    "successful_tasks": crew.usage_metrics.get('successful_tasks', 0)
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"An error occurred during news research: {str(e)}")
+            return {"status": "error", "message": str(e)}
+
+if __name__ == '__main__':
+    # Example usage
+    news_crew = EnhancedNewsResearchCrew()
+    
+    # Define topics to research
+    research_topics = ['israel', 'ai', 'startups']
+    
+    # Run the research
+    research_result = news_crew.research_news(topics=research_topics)
+    
+    # Print the result
+    if research_result['status'] == 'success':
+        logger.info("\n\n--- News Research Final Report ---")
+        print(json.dumps(research_result['result'], indent=2))
+        logger.info(f"\nUsage Metrics: {research_result['usage_metrics']}")
+    else:
+        logger.error(f"News research failed: {research_result['message']}")
