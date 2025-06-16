@@ -389,7 +389,25 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       '',
       '## Executive Summary',
       ...(data.executive_summary || []).map(item => `- ${item}`),
-    ].join('\\n');
+      '',
+      '## Trending Topics',
+      ...(data.trending_topics || []).slice(0, 10).map(t => `- **${t.topic}** (${t.mentions} mentions, score: ${t.trending_score})`),
+      '',
+      '---',
+      '## Source Items Processed',
+      '',
+      ...this.buildSourceSection('News Articles', data.organized_content?.news_articles),
+      ...this.buildSourceSection('Reddit Posts', data.organized_content?.reddit_posts),
+      ...this.buildSourceSection('LinkedIn Posts', data.organized_content?.linkedin_posts),
+      ...this.buildSourceSection('Telegram Messages', data.organized_content?.telegram_messages),
+      '',
+      '---',
+      '## AI Insights',
+      data.ai_insights ? '```json\n' + JSON.stringify(data.ai_insights, null, 2) + '\n```' : 'No AI insights available.',
+      '',
+      '## Recommendations',
+      ...(data.recommendations || []).map(rec => `- ${rec}`)
+    ].join('\n');
 
     const analysisItem = new NewsItem({
       userId,
@@ -418,6 +436,21 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       });
       throw error;
     }
+  }
+
+  /** Build formatted markdown section for a specific source list */
+  private buildSourceSection(title: string, items: any[] | undefined): string[] {
+    if (!items || items.length === 0) return [];
+    const lines: string[] = [];
+    lines.push(`### ${title}`);
+    lines.push('');
+    for (const item of items.slice(0, 50)) { // limit to 50 to avoid huge reports
+      const url = item.url || item.external_url || this.getValidUrl(item, title.toLowerCase());
+      const displayTitle = item.title || item.text?.substring(0, 80) || 'Untitled';
+      lines.push(`- [${displayTitle}](${url})`);
+    }
+    lines.push('');
+    return lines;
   }
 
   private checkForSimulatedData(data: any): boolean {
