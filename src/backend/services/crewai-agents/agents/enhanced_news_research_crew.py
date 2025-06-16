@@ -694,7 +694,7 @@ class EnhancedNewsResearchCrew:
             goal='Find and validate high-quality news articles from multiple sources',
             backstory='You are an expert at finding relevant, high-quality news articles from various sources. You validate URLs, check content quality, and ensure information accuracy.',
             verbose=True,
-            allow_delegation=True
+            allow_delegation=False
         )
         
         # Content Analyst Agent
@@ -703,7 +703,7 @@ class EnhancedNewsResearchCrew:
             goal='Analyze and validate content quality, relevance, and authenticity',
             backstory='You are a content quality expert who evaluates articles for relevance, accuracy, and overall quality. You filter out low-quality content and spam.',
             verbose=True,
-            allow_delegation=True
+            allow_delegation=False
         )
         
         # URL Validation Agent
@@ -721,7 +721,7 @@ class EnhancedNewsResearchCrew:
             goal='Identify emerging trends and patterns in news content',
             backstory='You are an expert at identifying trends, patterns, and emerging topics from news content. You provide insights on what topics are gaining momentum.',
             verbose=True,
-            allow_delegation=True
+            allow_delegation=False
         )
         
         return {

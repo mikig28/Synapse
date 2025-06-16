@@ -782,7 +782,7 @@ class DynamicNewsResearchCrew:
             goal='Adaptively find and validate high-quality news articles based on user requirements',
             backstory='You are an expert at finding relevant, high-quality news articles from various sources. You adapt your search strategy based on user input and validate URLs, check content quality, and ensure information accuracy.',
             verbose=True,
-            allow_delegation=True
+            allow_delegation=False
         )
         
         # Content Analyst Agent
@@ -791,7 +791,7 @@ class DynamicNewsResearchCrew:
             goal='Dynamically analyze and validate content quality, relevance, and authenticity based on user criteria',
             backstory='You are a content quality expert who evaluates articles for relevance, accuracy, and overall quality. You adapt your quality standards based on user requirements and filter out low-quality content and spam.',
             verbose=True,
-            allow_delegation=True
+            allow_delegation=False
         )
         
         # URL Validation Agent
@@ -809,7 +809,7 @@ class DynamicNewsResearchCrew:
             goal='Identify emerging trends and patterns in news content based on user-specified topics and timeframes',
             backstory='You are an expert at identifying trends, patterns, and emerging topics from news content. You provide insights on what topics are gaining momentum and adapt your analysis based on user interests.',
             verbose=True,
-            allow_delegation=True
+            allow_delegation=False
         )
         
         # Social Media Monitor Agent
@@ -818,7 +818,7 @@ class DynamicNewsResearchCrew:
             goal='Monitor social media platforms for discussions based on user-specified topics and platforms',
             backstory='You are a social media monitoring expert who tracks discussions across various platforms. You adapt your monitoring strategy based on user preferences and validate all social content.',
             verbose=True,
-            allow_delegation=True
+            allow_delegation=False
         )
         
         return {
