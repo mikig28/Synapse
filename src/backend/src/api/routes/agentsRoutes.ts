@@ -13,6 +13,9 @@ import {
   pauseAgent,
   resumeAgent,
   getSchedulerStatus,
+  getBuiltinTools,
+  testMCPConnection,
+  getAgentCapabilities,
   getEnvironmentDebug,
 } from '../controllers/agentsController';
 
@@ -23,6 +26,10 @@ router.get('/debug/environment', getEnvironmentDebug);
 
 // All other routes require authentication
 router.use(authMiddleware);
+
+// Tools and capabilities endpoints
+router.get('/builtin-tools', getBuiltinTools);
+router.post('/test-mcp', testMCPConnection);
 
 // Agent CRUD operations
 router.get('/', getAgents);
@@ -42,5 +49,6 @@ router.post('/:agentId/resume', resumeAgent);
 // Agent runs and statistics
 router.get('/:agentId/runs', getAgentRuns);
 router.get('/:agentId/statistics', getAgentStatistics);
+router.get('/:agentId/capabilities', getAgentCapabilities);
 
 export default router;

@@ -24,6 +24,27 @@ export interface IAgent extends Document {
       telegram?: boolean;
       news_websites?: boolean;
     };
+    // MCP (Model Context Protocol) configuration
+    mcpServers?: {
+      name: string;
+      serverUri: string;
+      enabled: boolean;
+      capabilities: string[];
+      description?: string;
+      authentication?: {
+        type: 'none' | 'bearer' | 'basic' | 'apikey';
+        credentials?: string;
+      };
+    }[];
+    // Agent tools configuration
+    tools?: {
+      name: string;
+      type: 'builtin' | 'custom' | 'mcp';
+      enabled: boolean;
+      configuration?: Record<string, any>;
+      description?: string;
+      mcpServerId?: string;
+    }[];
     // Common config
     schedule?: string; // cron expression
     maxItemsPerRun?: number;
@@ -73,6 +94,35 @@ const AgentSchema: Schema<IAgent> = new Schema(
         linkedin: { type: Boolean, default: true },
         telegram: { type: Boolean, default: true },
         news_websites: { type: Boolean, default: true },
+      },
+      
+      // MCP (Model Context Protocol) configuration
+      mcpServers: {
+        type: [{
+          name: { type: String, required: true },
+          serverUri: { type: String, required: true },
+          enabled: { type: Boolean, default: true },
+          capabilities: { type: [String], default: [] },
+          description: { type: String },
+          authentication: {
+            type: { type: String, enum: ['none', 'bearer', 'basic', 'apikey'], default: 'none' },
+            credentials: { type: String }
+          }
+        }],
+        default: []
+      },
+      
+      // Agent tools configuration
+      tools: {
+        type: [{
+          name: { type: String, required: true },
+          type: { type: String, enum: ['builtin', 'custom', 'mcp'], required: true },
+          enabled: { type: Boolean, default: true },
+          configuration: { type: Schema.Types.Mixed, default: {} },
+          description: { type: String },
+          mcpServerId: { type: String }
+        }],
+        default: []
       },
       
       // Common configuration

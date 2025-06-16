@@ -1,5 +1,5 @@
 import axiosInstance from './axiosConfig';
-import { Agent, AgentRun, AgentStatistics, CreateAgentData } from '../types/agent';
+import { Agent, AgentRun, AgentStatistics, CreateAgentData, BuiltinTool, MCPServer } from '../types/agent';
 
 export interface AgentResponse {
   success: boolean;
@@ -30,6 +30,47 @@ export interface SchedulerStatusResponse {
     isRunning: boolean;
     scheduledAgentsCount: number;
     nextCheckIn?: number;
+  };
+}
+
+export interface BuiltinToolsResponse {
+  success: boolean;
+  data: BuiltinTool[];
+}
+
+export interface MCPTestResponse {
+  success: boolean;
+  data: {
+    connectable: boolean;
+    status?: number;
+    statusText?: string;
+    error?: string;
+    message: string;
+  };
+}
+
+export interface AgentCapabilitiesResponse {
+  success: boolean;
+  data: {
+    mcpServers: {
+      total: number;
+      enabled: number;
+      capabilities: string[];
+    };
+    tools: {
+      total: number;
+      enabled: number;
+      byType: {
+        builtin: number;
+        mcp: number;
+        custom: number;
+      };
+    };
+    integrations: {
+      hasWebScraping: boolean;
+      hasNotifications: boolean;
+      hasAnalysis: boolean;
+    };
   };
 }
 
@@ -103,5 +144,57 @@ export const agentService = {
   async getSchedulerStatus(): Promise<{ isRunning: boolean; scheduledAgentsCount: number; nextCheckIn?: number }> {
     const response = await axiosInstance.get<SchedulerStatusResponse>('/agents/scheduler/status');
     return response.data.data;
+  },
+
+  // Get available builtin tools
+  async getBuiltinTools(): Promise<BuiltinTool[]> {
+    const response = await axiosInstance.get<BuiltinToolsResponse>('/agents/builtin-tools');
+    return response.data.data;
+  },
+
+  // Test MCP server connection
+  async testMCPConnection(serverUri: string, authentication?: MCPServer['authentication']): Promise<{
+    connectable: boolean;
+    status?: number;
+    statusText?: string;
+    error?: string;
+    message: string;
+  }> {
+    const response = await axiosInstance.post<MCPTestResponse>('/agents/test-mcp', {
+      serverUri,
+      authentication
+    });
+    return response.data.data;
+  },
+
+  // Get agent capabilities summary
+  async getAgentCapabilities(agentId: string): Promise<{
+    mcpServers: {
+      total: number;
+      enabled: number;
+      capabilities: string[];
+    };
+    tools: {
+      total: number;
+      enabled: number;
+      byType: {
+        builtin: number;
+        mcp: number;
+        custom: number;
+      };
+    };
+    integrations: {
+      hasWebScraping: boolean;
+      hasNotifications: boolean;
+      hasAnalysis: boolean;
+    };
+  }> {
+    const response = await axiosInstance.get<AgentCapabilitiesResponse>(`/agents/${agentId}/capabilities`);
+    return response.data.data;
+  },
+
+  // Helper function to get agent by ID (alias for getAgentById)
+  async getAgent(agentId: string): Promise<Agent> {
+    return this.getAgentById(agentId);
   },
 };

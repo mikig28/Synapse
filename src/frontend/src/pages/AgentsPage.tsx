@@ -7,6 +7,8 @@ import { useToast } from '@/hooks/use-toast';
 import { agentService } from '../services/agentService';
 import { Agent, AgentRun } from '../types/agent';
 import { AgentLogViewer } from '@/components/AgentLogViewer';
+import AgentActivityDashboard from '@/components/AgentActivityDashboard';
+import { useNavigate } from 'react-router-dom';
 import {
   Bot,
   Plus,
@@ -45,6 +47,7 @@ const AgentsPage: React.FC = () => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [schedulerStatus, setSchedulerStatus] = useState<{ isRunning: boolean; scheduledAgentsCount: number } | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // Form state for creating new agent
   const [newAgent, setNewAgent] = useState({
@@ -671,6 +674,15 @@ const AgentsPage: React.FC = () => {
                       <Button
                         size="sm"
                         variant="outline"
+                        onClick={() => navigate(`/agents/${agent._id}/settings`)}
+                        title="Agent Settings"
+                      >
+                        <Settings className="w-4 h-4" />
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
                         onClick={() => handleDeleteAgent(agent._id)}
                         className="text-destructive hover:text-destructive"
                       >
@@ -706,46 +718,12 @@ const AgentsPage: React.FC = () => {
           </Card>
         )}
 
-        {/* Recent Activity */}
-        {recentRuns.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5" />
-                Recent Activity
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {recentRuns.slice(0, 10).map((run) => (
-                  <div key={run._id} className="flex items-center justify-between p-3 bg-muted/30 rounded">
-                    <div className="flex items-center gap-3">
-                      {getStatusIcon(run.status)}
-                      <div>
-                        <p className="font-medium">
-                          {typeof run.agentId === 'object' ? run.agentId.name : 'Unknown Agent'}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {run.results.summary || `Processed ${run.itemsProcessed} items, added ${run.itemsAdded}`}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-muted-foreground">
-                        {formatTimeAgo(run.createdAt)}
-                      </p>
-                      {run.duration && (
-                        <p className="text-xs text-muted-foreground">
-                          {Math.round(run.duration / 1000)}s
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* Agent Activity Dashboard */}
+        <AgentActivityDashboard
+          agents={agents}
+          onAgentExecute={handleExecuteAgent}
+          onAgentToggle={handleToggleAgent}
+        />
       </div>
     </div>
   );

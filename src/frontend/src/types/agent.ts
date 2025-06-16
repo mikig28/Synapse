@@ -1,3 +1,24 @@
+export interface MCPServer {
+  name: string;
+  serverUri: string;
+  enabled: boolean;
+  capabilities: string[];
+  description?: string;
+  authentication?: {
+    type: 'none' | 'bearer' | 'basic' | 'apikey';
+    credentials?: string;
+  };
+}
+
+export interface AgentTool {
+  name: string;
+  type: 'builtin' | 'custom' | 'mcp';
+  enabled: boolean;
+  configuration?: Record<string, any>;
+  description?: string;
+  mcpServerId?: string;
+}
+
 export interface Agent {
   _id: string;
   userId: string;
@@ -20,6 +41,8 @@ export interface Agent {
       telegram?: boolean;
       news_websites?: boolean;
     };
+    mcpServers?: MCPServer[];
+    tools?: AgentTool[];
     schedule?: string;
     maxItemsPerRun?: number;
   };
@@ -96,7 +119,22 @@ export interface CreateAgentData {
       telegram?: boolean;
       news_websites?: boolean;
     };
+    mcpServers?: MCPServer[];
+    tools?: AgentTool[];
     schedule?: string;
     maxItemsPerRun?: number;
   };
+}
+
+export interface BuiltinTool {
+  name: string;
+  description: string;
+  category: 'data' | 'communication' | 'analysis' | 'utility';
+  parameters?: {
+    name: string;
+    type: 'string' | 'number' | 'boolean' | 'array' | 'object';
+    required: boolean;
+    description: string;
+    default?: any;
+  }[];
 }

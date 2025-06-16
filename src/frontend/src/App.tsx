@@ -26,6 +26,7 @@ const NotesPage = React.lazy(() => import('@/pages/NotesPage'));
 const IdeasPage = React.lazy(() => import('@/pages/IdeasPage'));
 const MeetingsPage = React.lazy(() => import('@/pages/MeetingsPage'));
 const AgentsPage = React.lazy(() => import('@/pages/AgentsPage'));
+const AgentSettingsPage = React.lazy(() => import('@/pages/AgentSettingsPage'));
 const NewsPage = React.lazy(() => import('@/pages/NewsPage'));
 
 // Loading component with beautiful animation
@@ -68,6 +69,7 @@ function AppContent() {
               <Route path="/ideas" element={isAuthenticated ? <Layout><IdeasPage /></Layout> : <Navigate to="/login" />} />
               <Route path="/meetings" element={isAuthenticated ? <Layout><MeetingsPage /></Layout> : <Navigate to="/login" />} />
               <Route path="/agents" element={isAuthenticated ? <Layout><AgentsPage /></Layout> : <Navigate to="/login" />} />
+              <Route path="/agents/:agentId/settings" element={isAuthenticated ? <Layout><AgentSettingsPage /></Layout> : <Navigate to="/login" />} />
               <Route path="/news" element={isAuthenticated ? <Layout><NewsPage /></Layout> : <Navigate to="/login" />} />
               <Route path="/images" element={isAuthenticated ? <Layout><ImagesPage /></Layout> : <Navigate to="/login" />} />
               <Route path="/bookmarks" element={isAuthenticated ? <Layout><BookmarksPage /></Layout> : <Navigate to="/login" />} />

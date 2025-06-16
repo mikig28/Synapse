@@ -508,6 +508,219 @@ export const getSchedulerStatus = async (req: Request, res: Response): Promise<v
   }
 };
 
+// Get available builtin tools
+export const getBuiltinTools = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const builtinTools = [
+      {
+        name: 'web_scraper',
+        description: 'Scrape content from web pages',
+        category: 'data',
+        parameters: [
+          { name: 'url', type: 'string', required: true, description: 'URL to scrape' },
+          { name: 'selector', type: 'string', required: false, description: 'CSS selector for specific content' }
+        ]
+      },
+      {
+        name: 'content_summarizer',
+        description: 'Summarize long text content',
+        category: 'analysis',
+        parameters: [
+          { name: 'max_length', type: 'number', required: false, description: 'Maximum summary length', default: 200 }
+        ]
+      },
+      {
+        name: 'sentiment_analyzer',
+        description: 'Analyze sentiment of text content',
+        category: 'analysis'
+      },
+      {
+        name: 'telegram_notifier',
+        description: 'Send notifications via Telegram',
+        category: 'communication',
+        parameters: [
+          { name: 'chat_id', type: 'string', required: true, description: 'Telegram chat ID' },
+          { name: 'template', type: 'string', required: false, description: 'Message template' }
+        ]
+      },
+      {
+        name: 'data_validator',
+        description: 'Validate data formats and content',
+        category: 'utility',
+        parameters: [
+          { name: 'schema', type: 'object', required: true, description: 'Validation schema' }
+        ]
+      },
+      {
+        name: 'email_notifier',
+        description: 'Send email notifications',
+        category: 'communication',
+        parameters: [
+          { name: 'to', type: 'string', required: true, description: 'Recipient email' },
+          { name: 'subject_template', type: 'string', required: false, description: 'Email subject template' }
+        ]
+      },
+      {
+        name: 'content_filter',
+        description: 'Filter content based on rules',
+        category: 'utility',
+        parameters: [
+          { name: 'keywords', type: 'array', required: false, description: 'Keywords to filter by' },
+          { name: 'min_score', type: 'number', required: false, description: 'Minimum relevance score' }
+        ]
+      }
+    ];
+    
+    res.json({
+      success: true,
+      data: builtinTools,
+    });
+  } catch (error: any) {
+    console.error('[AgentsController] Error fetching builtin tools:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch builtin tools',
+      message: error.message,
+    });
+  }
+};
+
+// Test MCP server connection
+export const testMCPConnection = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { serverUri, authentication } = req.body;
+    
+    if (!serverUri) {
+      res.status(400).json({
+        success: false,
+        error: 'Server URI is required',
+      });
+      return;
+    }
+    
+    // Here you would implement actual MCP connection testing
+    // For now, we'll do a simple HTTP check
+    const fetch = (await import('node-fetch')).default;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (authentication?.type === 'bearer' && authentication?.credentials) {
+      headers['Authorization'] = `Bearer ${authentication.credentials}`;
+    } else if (authentication?.type === 'apikey' && authentication?.credentials) {
+      headers['X-API-Key'] = authentication.credentials;
+    }
+    
+    try {
+      const response = await fetch(serverUri, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'initialize',
+          params: {
+            protocolVersion: '2024-11-05',
+            capabilities: {}
+          },
+          id: 1
+        }),
+        timeout: 5000
+      });
+      
+      const isConnectable = response.status < 500;
+      
+      res.json({
+        success: true,
+        data: {
+          connectable: isConnectable,
+          status: response.status,
+          statusText: response.statusText,
+          message: isConnectable ? 'MCP server is reachable' : 'MCP server returned an error'
+        },
+      });
+    } catch (fetchError: any) {
+      res.json({
+        success: true,
+        data: {
+          connectable: false,
+          error: fetchError.message,
+          message: 'Unable to connect to MCP server'
+        },
+      });
+    }
+  } catch (error: any) {
+    console.error('[AgentsController] Error testing MCP connection:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to test MCP connection',
+      message: error.message,
+    });
+  }
+};
+
+// Get agent capabilities summary
+export const getAgentCapabilities = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { agentId } = req.params;
+    const userId = req.user!.id;
+    
+    // Check if agent exists and belongs to user
+    const agent = await agentService.getAgentById(agentId);
+    if (!agent) {
+      res.status(404).json({
+        success: false,
+        error: 'Agent not found',
+      });
+      return;
+    }
+    
+    if (agent.userId.toString() !== userId) {
+      res.status(403).json({
+        success: false,
+        error: 'Access denied',
+      });
+      return;
+    }
+    
+    const mcpServers = agent.configuration.mcpServers || [];
+    const tools = agent.configuration.tools || [];
+    
+    const capabilities = {
+      mcpServers: {
+        total: mcpServers.length,
+        enabled: mcpServers.filter(s => s.enabled).length,
+        capabilities: [...new Set(mcpServers.flatMap(s => s.capabilities))]
+      },
+      tools: {
+        total: tools.length,
+        enabled: tools.filter(t => t.enabled).length,
+        byType: {
+          builtin: tools.filter(t => t.type === 'builtin').length,
+          mcp: tools.filter(t => t.type === 'mcp').length,
+          custom: tools.filter(t => t.type === 'custom').length
+        }
+      },
+      integrations: {
+        hasWebScraping: tools.some(t => t.name === 'web_scraper' && t.enabled),
+        hasNotifications: tools.some(t => ['telegram_notifier', 'email_notifier'].includes(t.name) && t.enabled),
+        hasAnalysis: tools.some(t => ['sentiment_analyzer', 'content_summarizer'].includes(t.name) && t.enabled)
+      }
+    };
+    
+    res.json({
+      success: true,
+      data: capabilities,
+    });
+  } catch (error: any) {
+    console.error('[AgentsController] Error fetching agent capabilities:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch agent capabilities',
+      message: error.message,
+    });
+  }
+};
+
 // Debug endpoint to check environment variables
 export const getEnvironmentDebug = async (req: Request, res: Response): Promise<void> => {
   try {
