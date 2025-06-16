@@ -52,10 +52,12 @@ services:
     name: synapse-crewai
     runtime: python
     buildCommand: cd src/backend/services/crewai-agents && pip install --upgrade pip && pip install -r requirements.txt && ls -la
-    startCommand: cd src/backend/services/crewai-agents && ls -la && python main.py
+    startCommand: cd src/backend/services/crewai-agents && ls -la && python main_enhanced.py
     plan: starter
     envVars:
       - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
         sync: false
       - key: REDDIT_CLIENT_ID
         sync: false

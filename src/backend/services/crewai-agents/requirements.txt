@@ -1,4 +1,4 @@
-# Dependencies for hybrid CrewAI service with real news scraping
+# Dependencies for enhanced multi-agent CrewAI service
 flask>=2.0.0
 python-dotenv>=0.19.0
 requests>=2.25.0
@@ -7,3 +7,14 @@ feedparser>=6.0.0
 praw>=7.0.0
 newspaper3k>=0.2.8
 lxml[html_clean]>=4.9.0
+
+# CrewAI and AI dependencies
+crewai>=0.28.0
+crewai-tools>=0.1.0
+openai>=1.0.0
+anthropic>=0.7.0
+
+# Additional dependencies for enhanced features
+urllib3>=1.26.0
+python-dateutil>=2.8.0
+pytz>=2021.3
