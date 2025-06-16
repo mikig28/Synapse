@@ -483,60 +483,99 @@ class EnhancedNewsScraperAgent:
         return articles
     
     def _scrape_reddit_enhanced(self) -> List[Dict[str, Any]]:
-        """Enhanced Reddit scraping with validation"""
+        """Enhanced Reddit scraping using PRAW API"""
         articles = []
         
         try:
-            response = self.session.get(self.news_sources['reddit_tech']['api_url'], timeout=10)
-            response.raise_for_status()
+            # Check if we have Reddit credentials
+            reddit_client_id = os.getenv('REDDIT_CLIENT_ID')
+            reddit_client_secret = os.getenv('REDDIT_CLIENT_SECRET')
             
-            data = response.json()
-            
-            if data and 'data' in data and 'children' in data['data']:
-                for post in data['data']['children'][:20]:  # Get top 20 posts
-                    try:
-                        post_data = post['data']
-                        
-                        # Validate URL
-                        url = post_data.get('url', '')
-                        cleaned_url = URLValidator.clean_url(url)
-                        
-                        article = {
-                            'title': post_data.get('title', ''),
-                            'url': cleaned_url,
-                            'content': post_data.get('selftext', '')[:500],
-                            'summary': post_data.get('selftext', '')[:300] + '...' if post_data.get('selftext') else post_data.get('title', ''),
-                            'author': post_data.get('author', 'Unknown'),
-                            'published_date': datetime.fromtimestamp(post_data.get('created_utc', 0)).isoformat() if post_data.get('created_utc') else '',
-                            'source': 'Reddit r/technology',
-                            'source_category': 'tech',
-                            'score': post_data.get('score', 0),
-                            'comments': post_data.get('num_comments', 0),
-                            'subreddit': post_data.get('subreddit', 'technology'),
-                            'scraped_at': datetime.now().isoformat(),
-                            'validated': True
-                        }
-                        
-                        # Extract content from URL if it's an external link
-                        if cleaned_url and not cleaned_url.startswith('https://www.reddit.com'):
-                            try:
-                                content = self._extract_content_from_url(cleaned_url)
-                                if content:
-                                    article['content'] = content[:1000]
-                                    article['summary'] = content[:300] + '...'
-                            except Exception:
-                                pass
-                        
-                        articles.append(article)
-                        
-                    except Exception as e:
-                        logger.error(f"Error processing Reddit post: {str(e)}")
-                        continue
+            if reddit_client_id and reddit_client_secret:
+                # Use PRAW API
+                try:
+                    import praw
+                    reddit = praw.Reddit(
+                        client_id=reddit_client_id,
+                        client_secret=reddit_client_secret,
+                        user_agent='SynapseAgent/1.0'
+                    )
+                    
+                    subreddit = reddit.subreddit('technology')
+                    for post in subreddit.hot(limit=20):
+                        try:
+                            # Skip if post is too old
+                            post_time = datetime.fromtimestamp(post.created_utc)
+                            if datetime.now() - post_time > timedelta(days=1):
+                                continue
+                            
+                            # Filter for quality content
+                            if post.score < 50:
+                                continue
+                            
+                            article = {
+                                'title': post.title,
+                                'url': f"https://reddit.com{post.permalink}",
+                                'content': post.selftext[:500] if post.selftext else '',
+                                'summary': post.selftext[:300] + '...' if len(post.selftext) > 300 else post.selftext or post.title,
+                                'author': str(post.author) if post.author else 'Unknown',
+                                'published_date': post_time.isoformat(),
+                                'source': 'Reddit r/technology',
+                                'source_category': 'tech',
+                                'score': post.score,
+                                'comments': post.num_comments,
+                                'subreddit': 'technology',
+                                'scraped_at': datetime.now().isoformat(),
+                                'validated': True,
+                                'simulated': False
+                            }
+                            
+                            # Add external URL if available
+                            if post.url and not post.url.startswith('https://www.reddit.com'):
+                                article['external_url'] = URLValidator.clean_url(post.url)
+                            
+                            articles.append(article)
+                            
+                        except Exception as e:
+                            logger.error(f"Error processing Reddit post: {str(e)}")
+                            continue
+                            
+                except ImportError:
+                    logger.error("PRAW not available, falling back to simulated data")
+                    return self._generate_simulated_reddit_posts()
+                except Exception as e:
+                    logger.error(f"Error with PRAW Reddit API: {str(e)}")
+                    return self._generate_simulated_reddit_posts()
+            else:
+                logger.warning("Reddit API credentials not found, using simulated data")
+                return self._generate_simulated_reddit_posts()
                         
         except Exception as e:
             logger.error(f"Error scraping Reddit: {str(e)}")
+            return self._generate_simulated_reddit_posts()
         
         return articles
+    
+    def _generate_simulated_reddit_posts(self) -> List[Dict[str, Any]]:
+        """Generate simulated Reddit posts as fallback"""
+        return [
+            {
+                'title': 'AI breakthrough in language processing',
+                'url': 'https://reddit.com/r/technology/simulated_post_1',
+                'content': 'Researchers achieve new milestone in AI language understanding...',
+                'summary': 'Major breakthrough in AI language processing technology',
+                'author': 'tech_researcher',
+                'published_date': datetime.now().isoformat(),
+                'source': 'Reddit r/technology (simulated)',
+                'source_category': 'tech',
+                'score': 150,
+                'comments': 45,
+                'subreddit': 'technology',
+                'scraped_at': datetime.now().isoformat(),
+                'validated': True,
+                'simulated': True
+            }
+        ]
     
     def _scrape_github_enhanced(self) -> List[Dict[str, Any]]:
         """Enhanced GitHub trending scraping"""

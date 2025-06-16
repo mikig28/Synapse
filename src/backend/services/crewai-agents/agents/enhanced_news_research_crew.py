@@ -785,8 +785,8 @@ class EnhancedNewsResearchCrew:
                 "status": "success",
                 "result": result,
                 "usage_metrics": {
-                    "total_tokens": crew.usage_metrics.get('total_tokens', 0),
-                    "successful_tasks": crew.usage_metrics.get('successful_tasks', 0)
+                    "total_tokens": getattr(crew, 'usage_metrics', {}).get('total_tokens', 0) if hasattr(crew, 'usage_metrics') else 0,
+                    "successful_tasks": getattr(crew, 'usage_metrics', {}).get('successful_tasks', 0) if hasattr(crew, 'usage_metrics') else 0
                 }
             }
 
