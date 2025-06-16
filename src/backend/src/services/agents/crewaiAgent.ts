@@ -295,40 +295,25 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       run.itemsAdded = addedCount;
       await run.addLog('info', `Successfully stored ${addedCount} items from CrewAI agents`);
       
-      // for some reason it looks that we storing just the agent summary and not all content      
-      // he fetching during the process.. we should fix this
-      // The issue is that we were creating a separate NewsItem for the analysis report,
-      // which was confusing. The analysis and summary should be part of the agent run itself.
-      // Now, we will store the summary and detailed analysis in the AgentRun's 'results' field.
+      const summary = (data.executive_summary || ['CrewAI analysis complete.']).join('\\n');
+      const details = {
+        trending_topics: data.trending_topics,
+        ai_insights: data.ai_insights,
+        recommendations: data.recommendations,
+        sources_used: response.sources_used,
+      };
 
+      await run.complete(summary, details);
+      await run.addLog('info', 'Stored AI analysis report in agent run results.');
+
+      // Also create a summary NewsItem to act as a container for the run in the UI
       if (data.ai_insights || data.executive_summary) {
-        const summary = (data.executive_summary || ['CrewAI analysis complete.']).join('\n');
-        
-        // Check if any source data is simulated
-        const hasSimulatedData = this.checkForSimulatedData(data);
-        const simulationWarning = hasSimulatedData ? [
-          '---',
-          '⚠️ **DATA NOTICE**: This analysis may contain simulated data because some sources are not configured with real API credentials.',
-          '🔧 To get real data, configure API keys for Reddit, Telegram, etc., in your CrewAI environment.',
-          '---',
-        ].join('\n') : '';
-
-        const details = {
-          simulationWarning,
-          trending_topics: data.trending_topics,
-          ai_insights: data.ai_insights,
-          recommendations: data.recommendations,
-          sources_used: response.sources_used,
-          // We can avoid storing the full content again here if it's already in NewsItems
-          // organized_content: data.organized_content 
-        };
-        
-        await run.complete(summary, details);
-        await run.addLog('info', 'Stored AI analysis report in agent run results.');
-
-      } else {
-        // If there's no analysis, we still need to complete the run.
-        await run.complete('CrewAI processing finished. No summary generated.');
+        try {
+          await this.storeAnalysisReport(response, userId, run);
+          await run.addLog('info', 'Stored AI analysis report summary NewsItem.');
+        } catch (error: any) {
+          await run.addLog('warn', `Failed to store analysis report summary NewsItem: ${error.message}`);
+        }
       }
 
     } catch (error: any) {
@@ -393,6 +378,45 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
         }
       });
       return false;
+    }
+  }
+
+  private async storeAnalysisReport(response: CrewAINewsResponse, userId: mongoose.Types.ObjectId, run: any): Promise<void> {
+    const data = response.data!;
+    
+    const analysisContent = [
+      '# CrewAI Multi-Agent News Analysis Report',
+      '',
+      '## Executive Summary',
+      ...(data.executive_summary || []).map(item => `- ${item}`),
+    ].join('\\n');
+
+    const analysisItem = new NewsItem({
+      userId,
+      agentId: run.agentId,
+      runId: run._id,
+      title: `CrewAI Analysis Report - ${new Date().toLocaleDateString()}`,
+      description: 'Comprehensive analysis from CrewAI multi-agent system. Click to see details and related items.',
+      content: analysisContent,
+      url: `#analysis-${run._id}`, // Use run ID for a stable URL
+      source: {
+        name: 'CrewAI Analysis',
+        id: 'crewai_analysis'
+      },
+      author: 'CrewAI Multi-Agent System',
+      publishedAt: new Date(),
+      tags: ['analysis', 'crewai', 'multi-agent', 'trends'],
+      category: 'analysis',
+      status: 'summarized'
+    });
+
+    try {
+      await analysisItem.save();
+    } catch (error: any) {
+      console.error('[CrewAI Agent] Failed to save analysis report NewsItem:', {
+        error: error.message,
+      });
+      throw error;
     }
   }
 
