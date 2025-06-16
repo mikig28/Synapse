@@ -34,6 +34,33 @@ class HybridNewsGatherer:
         self.openai_api_key = os.getenv('OPENAI_API_KEY')
         self.initialization_error = None
         
+        # Check for real API credentials
+        self.reddit_client_id = os.getenv('REDDIT_CLIENT_ID')
+        self.reddit_client_secret = os.getenv('REDDIT_CLIENT_SECRET')
+        self.telegram_bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+        
+        # Initialize Reddit scraper if credentials available
+        self.real_reddit_available = False
+        if self.reddit_client_id and self.reddit_client_secret:
+            try:
+                from agents.reddit_agent import RedditScraperTool
+                self.reddit_scraper = RedditScraperTool()
+                self.real_reddit_available = True
+                logger.info("✅ Real Reddit scraper initialized successfully")
+            except Exception as e:
+                logger.warning(f"⚠️ Reddit scraper failed to initialize: {str(e)}")
+        
+        # Initialize Telegram scraper if credentials available
+        self.real_telegram_available = False
+        if self.telegram_bot_token:
+            try:
+                from agents.telegram_agent import TelegramScraperTool
+                self.telegram_scraper = TelegramScraperTool()
+                self.real_telegram_available = True
+                logger.info("✅ Real Telegram scraper initialized successfully")
+            except Exception as e:
+                logger.warning(f"⚠️ Telegram scraper failed to initialize: {str(e)}")
+        
         # Try to import and initialize news scraper (fallback to simple version)
         try:
             from agents.news_scraper_agent import NewsScraperTool
@@ -101,15 +128,34 @@ class HybridNewsGatherer:
         
         organized_content = {}
         
-        # Use simulated data for social media sources
+        # Use real or simulated data for social media sources
         if sources.get("reddit", False):
-            organized_content["reddit_posts"] = self._generate_reddit_posts(topics)
+            if self.real_reddit_available:
+                try:
+                    reddit_data = self._get_real_reddit_posts(topics)
+                    organized_content["reddit_posts"] = reddit_data
+                    logger.info(f"Retrieved {len(reddit_data)} real Reddit posts")
+                except Exception as e:
+                    logger.error(f"Real Reddit scraping failed: {str(e)}")
+                    organized_content["reddit_posts"] = self._generate_reddit_posts(topics)
+            else:
+                organized_content["reddit_posts"] = self._generate_reddit_posts(topics)
         
         if sources.get("linkedin", False):
+            # LinkedIn always simulated (complex API requirements)
             organized_content["linkedin_posts"] = self._generate_linkedin_posts(topics)
         
         if sources.get("telegram", False):
-            organized_content["telegram_messages"] = self._generate_telegram_messages(topics)
+            if self.real_telegram_available:
+                try:
+                    telegram_data = self._get_real_telegram_messages(topics)
+                    organized_content["telegram_messages"] = telegram_data
+                    logger.info(f"Retrieved {len(telegram_data)} real Telegram messages")
+                except Exception as e:
+                    logger.error(f"Real Telegram scraping failed: {str(e)}")
+                    organized_content["telegram_messages"] = self._generate_telegram_messages(topics)
+            else:
+                organized_content["telegram_messages"] = self._generate_telegram_messages(topics)
         
         # Use real news scraper for websites if available
         if sources.get("news_websites", False):
@@ -186,6 +232,76 @@ class HybridNewsGatherer:
         except Exception as e:
             logger.error(f"Error getting real news articles: {str(e)}")
             return []
+    
+    def _get_real_reddit_posts(self, topics: List[str]) -> List[Dict[str, Any]]:
+        """Get real Reddit posts using the Reddit scraper"""
+        try:
+            topics_str = ','.join(topics)
+            result_json = self.reddit_scraper._run(topics_str)
+            result = json.loads(result_json)
+            
+            if result.get('success') and result.get('posts'):
+                posts = result['posts']
+                # Process posts to ensure they have all required fields
+                processed_posts = []
+                for post in posts:
+                    processed_post = {
+                        "id": post.get("id", f"reddit_{len(processed_posts)}"),
+                        "title": post.get("title", "Untitled"),
+                        "content": post.get("content", post.get("selftext", "")),
+                        "url": post.get("url", ""),
+                        "subreddit": post.get("subreddit", "technology"),
+                        "author": post.get("author", "reddituser"),
+                        "score": post.get("score", 0),
+                        "num_comments": post.get("num_comments", 0),
+                        "created_utc": post.get("created_utc", datetime.now().timestamp()),
+                        "simulated": False
+                    }
+                    processed_posts.append(processed_post)
+                
+                logger.info(f"Successfully retrieved {len(processed_posts)} real Reddit posts")
+                return processed_posts
+            else:
+                logger.warning("Reddit scraper returned no posts")
+                return []
+                
+        except Exception as e:
+            logger.error(f"Error getting real Reddit posts: {str(e)}")
+            raise e
+    
+    def _get_real_telegram_messages(self, topics: List[str]) -> List[Dict[str, Any]]:
+        """Get real Telegram messages using the Telegram scraper"""
+        try:
+            topics_str = ','.join(topics)
+            result_json = self.telegram_scraper._run(topics_str)
+            result = json.loads(result_json)
+            
+            if result.get('success') and result.get('messages'):
+                messages = result['messages']
+                # Process messages to ensure they have all required fields
+                processed_messages = []
+                for msg in messages:
+                    processed_message = {
+                        "id": msg.get("id", f"telegram_{len(processed_messages)}"),
+                        "text": msg.get("text", ""),
+                        "title": msg.get("title", msg.get("text", "")[:50] + "..." if len(msg.get("text", "")) > 50 else msg.get("text", "")),
+                        "channel": msg.get("channel", "@tech_channel"),
+                        "views": msg.get("views", 0),
+                        "forwards": msg.get("forwards", 0),
+                        "timestamp": msg.get("timestamp", datetime.now().isoformat()),
+                        "simulated": False
+                    }
+                    processed_messages.append(processed_message)
+                
+                logger.info(f"Successfully retrieved {len(processed_messages)} real Telegram messages")
+                return processed_messages
+            else:
+                logger.warning("Telegram scraper returned no messages")
+                return []
+                
+        except Exception as e:
+            logger.error(f"Error getting real Telegram messages: {str(e)}")
+            raise e
     
     def _generate_reddit_posts(self, topics: List[str]) -> List[Dict[str, Any]]:
         """Generate simulated Reddit posts with better variety"""
@@ -527,6 +643,15 @@ def health_check():
     except ImportError:
         dependencies["praw"] = "❌ Missing"
     
+    # Real API status
+    real_apis_status = {}
+    if news_gatherer:
+        real_apis_status = {
+            "reddit_scraper": "✅ Enabled" if news_gatherer.real_reddit_available else "❌ Disabled",
+            "telegram_scraper": "✅ Enabled" if news_gatherer.real_telegram_available else "❌ Disabled",
+            "news_scraper": "✅ Enabled" if news_gatherer.real_news_available else "❌ Disabled"
+        }
+    
     # Scraper status
     scraper_status = "unknown"
     scraper_error = None
@@ -541,6 +666,7 @@ def health_check():
         "initialized": news_gatherer is not None,
         "mode": "hybrid",
         "real_news_enabled": news_gatherer.real_news_available if news_gatherer else False,
+        "real_apis_status": real_apis_status,
         "scraper_type": scraper_status,
         "scraper_error": scraper_error,
         "environment_variables": env_status,
