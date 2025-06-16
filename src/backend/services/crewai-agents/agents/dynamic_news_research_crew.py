@@ -932,6 +932,9 @@ class DynamicNewsResearchCrew:
         # Generate analysis and insights
         analysis = self._generate_dynamic_analysis(articles, topics, user_input)
         
+        # Categorize articles by source for proper backend parsing
+        organized_content = self._categorize_articles_by_source(articles)
+        
         return {
             'success': True,
             'timestamp': datetime.now().isoformat(),
@@ -947,6 +950,7 @@ class DynamicNewsResearchCrew:
                     {"topic": topic, "mentions": len([a for a in articles if a.get('matched_topic') == topic]), "trending_score": 75 + i*5}
                     for i, topic in enumerate(topics[:5])
                 ],
+                'organized_content': organized_content,
                 'validated_articles': articles,
                 'ai_insights': analysis,
                 'task_execution_summary': {
@@ -957,6 +961,32 @@ class DynamicNewsResearchCrew:
                 'recommendations': self._generate_recommendations(articles, topics, user_input)
             }
         }
+    
+    def _categorize_articles_by_source(self, articles: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+        """Categorize articles by source type for backend compatibility"""
+        organized = {
+            'news_articles': [],
+            'reddit_posts': [],
+            'linkedin_posts': [],
+            'telegram_messages': []
+        }
+        
+        for article in articles:
+            source = article.get('source', '').lower()
+            source_category = article.get('source_category', '').lower()
+            
+            # Categorize based on source information
+            if 'reddit' in source or 'reddit' in source_category:
+                organized['reddit_posts'].append(article)
+            elif 'linkedin' in source or 'linkedin' in source_category:
+                organized['linkedin_posts'].append(article)
+            elif 'telegram' in source or 'telegram' in source_category:
+                organized['telegram_messages'].append(article)
+            else:
+                # Default to news articles for tech sources, RSS feeds, etc.
+                organized['news_articles'].append(article)
+        
+        return organized
     
     def _generate_dynamic_analysis(self, articles: List[Dict[str, Any]], topics: List[str], user_input: Dict[str, Any]) -> Dict[str, Any]:
         """Generate dynamic analysis based on user input and articles"""
