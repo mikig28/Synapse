@@ -23,6 +23,11 @@ import {
   MoreHorizontal,
   ChevronLeft,
   ChevronRight,
+  Bot,
+  MessageSquare,
+  Briefcase,
+  FileText,
+  AlertTriangle,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -51,6 +56,7 @@ const NewsPage: React.FC = () => {
   const [filters, setFilters] = useState({
     search: '',
     category: '',
+    source: '',
     isRead: undefined as boolean | undefined,
     isFavorite: undefined as boolean | undefined,
   });
@@ -216,6 +222,26 @@ const NewsPage: React.FC = () => {
     return url.startsWith('#') || !isExternalUrl(url);
   };
 
+  const getSourceIcon = (sourceId: string) => {
+    switch (sourceId) {
+      case 'reddit':
+        return <span className="text-orange-500">🔴</span>;
+      case 'linkedin':
+        return <Briefcase className="w-3 h-3 text-blue-600" />;
+      case 'telegram':
+        return <MessageSquare className="w-3 h-3 text-blue-500" />;
+      case 'crewai_analysis':
+        return <Bot className="w-3 h-3 text-purple-500" />;
+      case 'news_website':
+      case 'news':
+        return <Newspaper className="w-3 h-3 text-gray-600" />;
+      case 'twitter':
+        return <span className="text-sky-500">🐦</span>;
+      default:
+        return <FileText className="w-3 h-3 text-gray-500" />;
+    }
+  };
+
   const fetchRelatedItems = async (analysisItem: NewsItem) => {
     if (analysisItem.source.id !== 'crewai_analysis' || !analysisItem.runId) return;
     
@@ -313,10 +339,61 @@ const NewsPage: React.FC = () => {
           </div>
         )}
 
+        {/* Quick Filters for CrewAI Sources */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-medium text-muted-foreground">Quick filters:</span>
+              <Button
+                variant={filters.source === '' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFilters(prev => ({ ...prev, source: '' }))}
+              >
+                All Sources
+              </Button>
+              <Button
+                variant={filters.source === 'reddit' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFilters(prev => ({ ...prev, source: 'reddit' }))}
+                className="flex items-center gap-1"
+              >
+                🔴 Reddit
+              </Button>
+              <Button
+                variant={filters.source === 'linkedin' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFilters(prev => ({ ...prev, source: 'linkedin' }))}
+                className="flex items-center gap-1"
+              >
+                <Briefcase className="w-3 h-3" />
+                LinkedIn
+              </Button>
+              <Button
+                variant={filters.source === 'telegram' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFilters(prev => ({ ...prev, source: 'telegram' }))}
+                className="flex items-center gap-1"
+              >
+                <MessageSquare className="w-3 h-3" />
+                Telegram
+              </Button>
+              <Button
+                variant={filters.source === 'crewai_analysis' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFilters(prev => ({ ...prev, source: 'crewai_analysis' }))}
+                className="flex items-center gap-1"
+              >
+                <Bot className="w-3 h-3" />
+                AI Analysis
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Filters */}
         <Card>
           <CardContent className="p-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div>
                 <Label htmlFor="search">Search</Label>
                 <div className="relative">
@@ -344,6 +421,24 @@ const NewsPage: React.FC = () => {
                         {category}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Source</Label>
+                <Select value={filters.source || 'all'} onValueChange={(value) => setFilters(prev => ({ ...prev, source: value === 'all' ? '' : value }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All sources" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All sources</SelectItem>
+                    <SelectItem value="reddit">🔴 Reddit</SelectItem>
+                    <SelectItem value="linkedin">💼 LinkedIn</SelectItem>
+                    <SelectItem value="telegram">📱 Telegram</SelectItem>
+                    <SelectItem value="news">📰 News Sites</SelectItem>
+                    <SelectItem value="crewai_analysis">🤖 CrewAI Analysis</SelectItem>
+                    <SelectItem value="twitter">🐦 Twitter</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -437,7 +532,10 @@ const NewsPage: React.FC = () => {
                           </h3>
                           
                           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                            <span>{item.source.name}</span>
+                            <span className="flex items-center gap-1">
+                              {getSourceIcon(item.source.id)}
+                              {item.source.name}
+                            </span>
                             {item.author && (
                               <>
                                 <span>•</span>
@@ -463,6 +561,17 @@ const NewsPage: React.FC = () => {
                             {item.status === 'archived' && (
                               <Badge variant="secondary" className="text-xs">
                                 Archived
+                              </Badge>
+                            )}
+                            {item.tags?.includes('simulated') && (
+                              <Badge variant="destructive" className="text-xs flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3" />
+                                Simulated Data
+                              </Badge>
+                            )}
+                            {item.tags?.includes('crewai') && (
+                              <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                                CrewAI
                               </Badge>
                             )}
                           </div>
