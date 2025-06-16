@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SkeletonList } from '@/components/ui/Skeleton';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
+import { ExpandableContent } from '@/components/ui/ExpandableContent';
 
 const BookmarksPage: React.FC = () => {
   const [bookmarks, setBookmarks] = useState<BookmarkItemType[] | null>(null);
@@ -466,10 +467,10 @@ const BookmarksPage: React.FC = () => {
   const renderSummarySection = (bookmark: BookmarkItemType) => {
     if (bookmark.summary && bookmark.status === 'summarized') {
       return (
-        <details className="mt-3 text-sm text-muted-foreground/90 leading-relaxed">
-          <summary className="cursor-pointer font-medium text-primary/80 hover:text-primary select-none transition-colors duration-200">View Summary</summary>
-          <p className="pt-2 whitespace-pre-wrap">{String(bookmark.summary)}</p>
-        </details>
+        <div className="mt-3 text-sm text-muted-foreground/90 leading-relaxed">
+          <h4 className="font-medium text-primary/80">Summary</h4>
+          <ExpandableContent content={String(bookmark.summary)} maxLength={150} />
+        </div>
       );
     }
     

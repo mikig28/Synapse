@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { ExternalLink, Trash2, Brain, PlayCircle, StopCircle, AlertCircle, Loader2, CheckCircle, XCircle, ArrowUp, MessageCircle, Calendar, FileText, Zap, Volume2 } from 'lucide-react';
 import { timeAgo } from '@/utils/time-ago';
+import { ExpandableContent } from './ExpandableContent';
 
 // Define a simple RedditIcon here for now if not available globally
 // You might want to move this to a shared CustomIcons.tsx file
@@ -115,9 +116,7 @@ const RedditCard: React.FC<RedditCardProps> = ({
         )}
         {redditPostContent && (
           <div className="prose prose-sm dark:prose-invert max-w-none mt-4 text-foreground/80">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {redditPostContent}
-            </ReactMarkdown>
+            <ExpandableContent content={redditPostContent} maxLength={300} isMarkdown />
           </div>
         )}
         {summary && (
@@ -126,7 +125,7 @@ const RedditCard: React.FC<RedditCardProps> = ({
               <Zap className="w-4 h-4 mr-2 text-primary" />
               Summary
             </h4>
-            <p className="text-sm text-foreground/90 whitespace-pre-wrap">{summary}</p>
+            <ExpandableContent content={summary} />
             <Button
               variant="ghost"
               size="sm"

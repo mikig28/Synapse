@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { ExternalLink, Trash2, Briefcase, FileText, Zap, Volume2, PlayCircle, StopCircle, AlertCircle, Loader2, CheckCircle, XCircle, Brain } from 'lucide-react';
 import { timeAgo } from '@/utils/time-ago';
+import { ExpandableContent } from './ExpandableContent';
 
 interface LinkedInCardProps {
   bookmark: BookmarkItemType;
@@ -67,16 +68,14 @@ const LinkedInCard: React.FC<LinkedInCardProps> = ({
             <img src={fetchedImageUrl} alt={fetchedTitle || 'LinkedIn Image'} className="rounded-lg w-full h-auto object-cover" />
           </div>
         )}
-        <CardDescription className="text-sm text-foreground/80 leading-relaxed">
-          {fetchedDescription || 'No description available.'}
-        </CardDescription>
+        <ExpandableContent content={fetchedDescription || 'No description available.'} />
         {summary && (
           <div className="mt-4 p-3 bg-secondary/50 rounded-lg border border-secondary">
             <h4 className="font-semibold text-base mb-2 flex items-center">
               <Zap className="w-4 h-4 mr-2 text-primary" />
               Summary
             </h4>
-            <p className="text-sm text-foreground/90 whitespace-pre-wrap">{summary}</p>
+            <ExpandableContent content={summary} />
             <Button
               variant="ghost"
               size="sm"
