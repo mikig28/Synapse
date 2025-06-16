@@ -45,6 +45,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const NewsPage: React.FC = () => {
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
@@ -773,7 +775,9 @@ const NewsPage: React.FC = () => {
                     <div className="prose prose-sm max-w-none dark:prose-invert">
                       <h4 className="font-medium mb-3">Full Content</h4>
                       <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                        {selectedContent.content}
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {selectedContent.content}
+                        </ReactMarkdown>
                       </div>
                     </div>
                   )}
