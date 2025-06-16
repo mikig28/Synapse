@@ -30,6 +30,10 @@ import logging
 import sys
 import os
 
+# Configure logging first
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Add tools directory to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 tools_dir = os.path.join(os.path.dirname(current_dir), 'tools')
@@ -44,10 +48,6 @@ try:
 except ImportError as e:
     logger.error(f"❌ Failed to import custom tools: {str(e)}")
     CUSTOM_TOOLS_AVAILABLE = False
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 class URLValidator:
     """Advanced URL validation and cleaning"""
