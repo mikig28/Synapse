@@ -27,16 +27,27 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# Import the dynamic crew system
+# Import the enhanced crew system
 try:
-    from agents.dynamic_news_research_crew import (
-        create_dynamic_news_research_crew,
-        research_news_with_user_input,
+    from agents.enhanced_news_research_crew import (
+        EnhancedNewsResearchCrew,
         URLValidator,
         ContentValidator
     )
+    ENHANCED_CREW_AVAILABLE = True
+    logger.info("✅ Enhanced news research crew system loaded successfully")
+except ImportError as e:
+    logger.error(f"❌ Failed to import enhanced crew system: {str(e)}")
+    ENHANCED_CREW_AVAILABLE = False
+
+# Try dynamic crew as fallback
+try:
+    from agents.dynamic_news_research_crew import (
+        create_dynamic_news_research_crew,
+        research_news_with_user_input
+    )
     DYNAMIC_CREW_AVAILABLE = True
-    logger.info("✅ Dynamic multi-agent crew system loaded successfully")
+    logger.info("✅ Dynamic multi-agent crew system loaded as fallback")
 except ImportError as e:
     logger.error(f"❌ Failed to import dynamic crew system: {str(e)}")
     DYNAMIC_CREW_AVAILABLE = False
@@ -58,18 +69,30 @@ class EnhancedNewsGatherer:
         self.anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
         self.initialization_error = None
         
-        # Initialize dynamic crew if available
-        if DYNAMIC_CREW_AVAILABLE:
+        # Initialize enhanced crew if available
+        if ENHANCED_CREW_AVAILABLE:
+            try:
+                self.enhanced_crew = EnhancedNewsResearchCrew()
+                self.mode = "enhanced_multi_agent"
+                logger.info("✅ Enhanced multi-agent crew initialized successfully")
+            except Exception as e:
+                logger.error(f"❌ Enhanced crew initialization failed: {str(e)}")
+                self.enhanced_crew = None
+                self.mode = "fallback"
+                self.initialization_error = str(e)
+        # Fallback to dynamic crew if enhanced is not available
+        elif DYNAMIC_CREW_AVAILABLE:
             try:
                 self.dynamic_crew = create_dynamic_news_research_crew()
                 self.mode = "dynamic_multi_agent"
-                logger.info("✅ Dynamic multi-agent crew initialized successfully")
+                logger.info("✅ Dynamic multi-agent crew initialized as fallback")
             except Exception as e:
                 logger.error(f"❌ Dynamic crew initialization failed: {str(e)}")
                 self.dynamic_crew = None
                 self.mode = "fallback"
                 self.initialization_error = str(e)
         else:
+            self.enhanced_crew = None
             self.dynamic_crew = None
             self.mode = "fallback"
         
@@ -114,25 +137,29 @@ class EnhancedNewsGatherer:
                 'platforms': [k for k, v in sources.items() if v] if isinstance(sources, dict) else sources
             }
             
-            # Try dynamic multi-agent system first
-            if self.dynamic_crew and self.mode == "dynamic_multi_agent":
+            # Try enhanced multi-agent system first
+            if self.enhanced_crew and self.mode == "enhanced_multi_agent":
                 try:
-                    result = self.dynamic_crew.research_news_dynamically(user_input)
+                    result = self.enhanced_crew.research_news(topics, sources)
                     
                     if result.get('success'):
-                        logger.info("✅ Dynamic multi-agent research completed successfully")
+                        logger.info("✅ Enhanced multi-agent research completed successfully")
                         return self._format_enhanced_result(result, topics, sources)
                     else:
-                        logger.warning(f"Dynamic crew returned error: {result.get('error')}")
-                        # Fall back to simple scraper
-                        return self._fallback_to_simple_scraper(topics, sources)
+                        logger.warning(f"Enhanced crew returned error: {result.get('error')}")
+                        # Fall back to dynamic crew
+                        return self._try_dynamic_crew(user_input, topics, sources)
                         
                 except Exception as e:
-                    logger.error(f"Dynamic crew execution failed: {str(e)}")
-                    # Fall back to simple scraper
-                    return self._fallback_to_simple_scraper(topics, sources)
+                    logger.error(f"Enhanced crew execution failed: {str(e)}")
+                    # Fall back to dynamic crew
+                    return self._try_dynamic_crew(user_input, topics, sources)
             
-            # Use simple scraper as fallback
+            # Try dynamic multi-agent system as fallback
+            elif self.dynamic_crew and self.mode == "dynamic_multi_agent":
+                return self._try_dynamic_crew(user_input, topics, sources)
+            
+            # Use simple scraper as final fallback
             else:
                 return self._fallback_to_simple_scraper(topics, sources)
                 
@@ -144,6 +171,25 @@ class EnhancedNewsGatherer:
                 "timestamp": datetime.now().isoformat(),
                 "mode": self.mode
             }
+    
+    def _try_dynamic_crew(self, user_input: Dict[str, Any], topics: List[str], sources: Dict[str, Any]) -> Dict[str, Any]:
+        """Try dynamic crew as fallback"""
+        if self.dynamic_crew:
+            try:
+                result = self.dynamic_crew.research_news_dynamically(user_input)
+                
+                if result.get('success'):
+                    logger.info("✅ Dynamic multi-agent research completed as fallback")
+                    return self._format_enhanced_result(result, topics, sources)
+                else:
+                    logger.warning(f"Dynamic crew returned error: {result.get('error')}")
+                    return self._fallback_to_simple_scraper(topics, sources)
+                    
+            except Exception as e:
+                logger.error(f"Dynamic crew execution failed: {str(e)}")
+                return self._fallback_to_simple_scraper(topics, sources)
+        else:
+            return self._fallback_to_simple_scraper(topics, sources)
     
     def _format_enhanced_result(self, result: Dict[str, Any], topics: List[str], sources: Dict[str, Any]) -> Dict[str, Any]:
         """Format the enhanced result from dynamic crew"""

@@ -11,8 +11,19 @@ import json
 import re
 import time
 from urllib.parse import urlparse, urljoin, quote
-from bs4 import BeautifulSoup
-import feedparser
+try:
+    from bs4 import BeautifulSoup
+    BS4_AVAILABLE = True
+except ImportError:
+    BS4_AVAILABLE = False
+    BeautifulSoup = None
+
+try:
+    import feedparser
+    FEEDPARSER_AVAILABLE = True
+except ImportError:
+    FEEDPARSER_AVAILABLE = False
+    feedparser = None
 from crewai import Agent, Task, Crew, Process
 from crewai_tools import SerperDevTool, ScrapeWebsiteTool
 import logging
