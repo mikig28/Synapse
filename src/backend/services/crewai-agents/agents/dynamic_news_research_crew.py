@@ -554,6 +554,7 @@ class EnhancedNewsScraperAgent:
             logger.error(f"Error scraping Reddit: {str(e)}")
             return self._generate_simulated_reddit_posts()
         
+        logger.info(f"Reddit scraping completed: {len(articles)} articles found")
         return articles
     
     def _generate_simulated_reddit_posts(self) -> List[Dict[str, Any]]:
@@ -971,9 +972,16 @@ class DynamicNewsResearchCrew:
             'telegram_messages': []
         }
         
+        logger.info(f"Categorizing {len(articles)} articles by source")
+        source_counts = {}
+        
         for article in articles:
             source = article.get('source', '').lower()
             source_category = article.get('source_category', '').lower()
+            
+            # Track source distribution for debugging
+            source_key = article.get('source', 'Unknown')
+            source_counts[source_key] = source_counts.get(source_key, 0) + 1
             
             # Categorize based on source information
             if 'reddit' in source or 'reddit' in source_category:
@@ -985,6 +993,13 @@ class DynamicNewsResearchCrew:
             else:
                 # Default to news articles for tech sources, RSS feeds, etc.
                 organized['news_articles'].append(article)
+        
+        logger.info(f"Article categorization complete:")
+        logger.info(f"- news_articles: {len(organized['news_articles'])}")
+        logger.info(f"- reddit_posts: {len(organized['reddit_posts'])}")
+        logger.info(f"- linkedin_posts: {len(organized['linkedin_posts'])}")
+        logger.info(f"- telegram_messages: {len(organized['telegram_messages'])}")
+        logger.info(f"Source distribution: {source_counts}")
         
         return organized
     

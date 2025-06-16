@@ -213,12 +213,13 @@ class EnhancedNewsGatherer:
             "data": {
                 "executive_summary": data.get('executive_summary', []),
                 "trending_topics": data.get('trending_topics', []),
-                "organized_content": {
-                    "validated_articles": data.get('validated_articles', []),
-                    "quality_metrics": data.get('ai_insights', {}).get('quality_metrics', {}),
-                    "source_distribution": data.get('ai_insights', {}).get('source_distribution', {}),
-                    "url_validation_stats": data.get('ai_insights', {}).get('url_validation_stats', {})
-                },
+                "organized_content": data.get('organized_content', {
+                    "news_articles": [],
+                    "reddit_posts": [],
+                    "linkedin_posts": [],
+                    "telegram_messages": []
+                }),
+                "validated_articles": data.get('validated_articles', []),
                 "ai_insights": data.get('ai_insights', {}),
                 "task_execution_summary": data.get('task_execution_summary', {}),
                 "recommendations": data.get('recommendations', [])
