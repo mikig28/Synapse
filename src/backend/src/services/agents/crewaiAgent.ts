@@ -683,7 +683,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
     return idString.includes('post_') || 
            idString.includes('message_') || 
            idString.includes('article_') ||
-           idString.match(/^(post|msg|art|item)_?\d+$/);
+           !!idString.match(/^(post|msg|art|item)_?\d+$/);
   }
 
   private isFakeUrl(url: string): boolean {
