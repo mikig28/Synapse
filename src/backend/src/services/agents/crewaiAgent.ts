@@ -275,21 +275,44 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
           telegram_messages: 'telegram'
         };
 
+        await run.addLog('info', '📊 Content breakdown received from CrewAI:', {
+          news_articles: data.organized_content.news_articles?.length || 0,
+          reddit_posts: data.organized_content.reddit_posts?.length || 0,
+          linkedin_posts: data.organized_content.linkedin_posts?.length || 0,
+          telegram_messages: data.organized_content.telegram_messages?.length || 0
+        });
+
         for (const sourceKey of sources) {
           const items = data.organized_content[sourceKey as keyof typeof data.organized_content];
           if (items && items.length > 0) {
             const sourceName = sourceNames[sourceKey as keyof typeof sourceNames];
-            await run.addLog('info', `Processing ${items.length} ${sourceName.replace('_', ' ')}`);
-            for (const item of items) {
+            await run.addLog('info', `📝 Processing ${items.length} items from ${sourceName.replace('_', ' ')}`);
+            
+            let sourceAddedCount = 0;
+            for (const [index, item] of items.entries()) {
               try {
+                await run.addLog('info', `Processing ${sourceName} item ${index + 1}/${items.length}: ${(item.title || item.text || 'Untitled').substring(0, 80)}...`);
                 const added = await this.storeNewsItem(item, userId, sourceName, run);
-                if (added) addedCount++;
+                if (added) {
+                  sourceAddedCount++;
+                  addedCount++;
+                  await run.addLog('info', `✅ Successfully stored ${sourceName} item ${index + 1}`);
+                } else {
+                  await run.addLog('info', `⏭️  Skipped ${sourceName} item ${index + 1} (already exists)`);
+                }
               } catch (error: any) {
-                await run.addLog('warn', `Failed to store item from ${sourceName}: ${error.message}`);
+                await run.addLog('warn', `❌ Failed to store ${sourceName} item ${index + 1}: ${error.message}`);
               }
             }
+            
+            await run.addLog('info', `📊 ${sourceName}: Stored ${sourceAddedCount}/${items.length} items`);
+          } else {
+            const sourceName = sourceNames[sourceKey as keyof typeof sourceNames];
+            await run.addLog('info', `📭 No items received from ${sourceName.replace('_', ' ')}`);
           }
         }
+      } else {
+        await run.addLog('warn', '⚠️  No organized_content received from CrewAI service');
       }
       
       run.itemsAdded = addedCount;
@@ -325,56 +348,85 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
 
   private async storeNewsItem(item: any, userId: mongoose.Types.ObjectId, source: string, run: any): Promise<boolean> {
     try {
-      // Check if item already exists
+      // Check if this is simulated data
+      const isSimulated = item.simulated === true;
+      
+      // Generate the URL early so we can log it
+      const url = this.getValidUrl(item, source);
+      const title = item.title || item.text || 'Untitled';
+      
+      console.log(`[CrewAI Agent] Storing ${source} item:`, {
+        title: title.substring(0, 100),
+        url,
+        isSimulated,
+        hasContent: !!(item.content || item.text),
+        author: item.author || item.author_title
+      });
+
+      // Check if item already exists (be more specific with URL matching)
       const existingItem = await NewsItem.findOne({
         userId,
         $or: [
-          { url: item.url || item.external_url || '' },
-          { title: item.title || item.text || 'Untitled' }
+          { url: url }, // Use the processed URL
+          { 
+            title: title,
+            'source.id': source // Same title AND same source
+          }
         ]
       });
 
       if (existingItem) {
+        console.log(`[CrewAI Agent] Item already exists, skipping:`, title.substring(0, 100));
         return false; // Already exists
       }
-
-      // Check if this is simulated data
-      const isSimulated = item.simulated === true;
       
-      // Create new news item
+      // Create new news item with enhanced data
       const newsItem = new NewsItem({
         userId,
         agentId: run.agentId,
         runId: run._id,
-        title: item.title || item.text || 'Untitled',
+        title,
         description: this.generateSummary(item, source, isSimulated),
-        content: item.content || item.text || '',
-        url: this.getValidUrl(item, source),
+        content: this.generateContent(item, source),
+        url,
         source: {
-          name: source.charAt(0).toUpperCase() + source.slice(1).replace('_', ' '),
+          name: this.getSourceDisplayName(source),
           id: source
         },
-        author: item.author || item.author_title || 'Unknown',
-        publishedAt: item.published_date ? new Date(item.published_date) : 
-                     item.timestamp ? new Date(item.timestamp) : 
-                     item.created_utc ? new Date(item.created_utc * 1000) : 
-                     new Date(),
+        author: item.author || item.author_title || item.username || 'Unknown',
+        publishedAt: this.parseDate(item),
         tags: this.generateTags(item, source, isSimulated),
         category: this.determineCategory(item),
-        status: 'pending'
+        status: 'pending',
+        // Add metadata for better tracking
+        metadata: {
+          engagement: this.extractEngagement(item),
+          platform: source,
+          isSimulated,
+          originalData: isSimulated ? null : {
+            id: item.id,
+            score: item.score,
+            num_comments: item.num_comments,
+            subreddit: item.subreddit,
+            channel: item.channel,
+            views: item.views
+          }
+        }
       });
 
       await newsItem.save();
+      console.log(`[CrewAI Agent] Successfully stored ${source} item:`, title.substring(0, 100));
       return true;
 
     } catch (error: any) {
-      console.error(`Error storing news item from ${source}:`, {
+      console.error(`[CrewAI Agent] Error storing news item from ${source}:`, {
         error: error.message,
         validationErrors: error.errors,
         item: {
           title: item.title || item.text,
           url: item.url || item.external_url,
-          source: source
+          source: source,
+          simulated: item.simulated
         }
       });
       return false;
@@ -551,41 +603,92 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
   }
 
   private getValidUrl(item: any, source: string): string {
+    // Debug logging to see what URLs we're receiving
+    console.log(`[CrewAI Agent] URL debug for ${source}:`, {
+      url: item.url,
+      external_url: item.external_url,
+      link: item.link,
+      permalink: item.permalink,
+      id: item.id,
+      subreddit: item.subreddit,
+      channel: item.channel,
+      domain: item.domain,
+      simulated: item.simulated
+    });
+
     // Check if item has a valid URL
-    const url = item.url || item.external_url || item.link || item.permalink;
+    const possibleUrls = [
+      item.url,
+      item.external_url, 
+      item.link,
+      item.permalink,
+      item.source_url
+    ].filter(Boolean);
     
-    if (url && this.isValidUrl(url)) {
-      return url;
+    // Try to find a valid URL first
+    for (const url of possibleUrls) {
+      if (this.isValidUrl(url)) {
+        console.log(`[CrewAI Agent] Using valid URL for ${source}:`, url);
+        return url;
+      }
     }
     
-    // Generate source-specific URLs for different platforms
+    // If no valid URL found, generate source-specific URLs
+    console.log(`[CrewAI Agent] No valid URL found for ${source}, generating fallback`);
+    
     switch (source) {
       case 'reddit':
+        // Try to construct Reddit URL from available data
         if (item.subreddit && item.id) {
           return `https://reddit.com/r/${item.subreddit}/comments/${item.id}`;
         }
-        return `https://reddit.com/search/?q=${encodeURIComponent(item.title || 'untitled')}`;
+        if (item.subreddit && item.title) {
+          // Use Reddit search within the subreddit
+          return `https://reddit.com/r/${item.subreddit}/search/?q=${encodeURIComponent(item.title)}&restrict_sr=1`;
+        }
+        if (item.title) {
+          return `https://reddit.com/search/?q=${encodeURIComponent(item.title)}`;
+        }
+        return `https://reddit.com`;
         
       case 'linkedin':
-        if (item.author && item.title) {
+        // For LinkedIn, we can only do content search since direct post URLs require specific IDs
+        if (item.title) {
           return `https://linkedin.com/search/results/content/?keywords=${encodeURIComponent(item.title)}`;
+        }
+        if (item.author) {
+          return `https://linkedin.com/search/results/people/?keywords=${encodeURIComponent(item.author)}`;
         }
         return `https://linkedin.com/feed/`;
         
       case 'telegram':
+        // Try to construct Telegram URL
         if (item.channel) {
-          return `https://t.me/${item.channel.replace('@', '')}`;
+          const channelName = item.channel.replace('@', '').replace('t.me/', '');
+          if (item.message_id) {
+            return `https://t.me/${channelName}/${item.message_id}`;
+          }
+          return `https://t.me/${channelName}`;
         }
-        return `#telegram-${Date.now()}`;
+        // Fallback to internal reference
+        return `#telegram-${item.id || Date.now()}`;
         
       case 'news_website':
+        // For news articles, try to use domain or source information
         if (item.domain) {
           return `https://${item.domain}`;
         }
-        return `#news-${Date.now()}`;
+        if (item.source) {
+          return `https://${item.source}`;
+        }
+        if (item.title) {
+          // Use Google search as fallback for news articles
+          return `https://google.com/search?q=${encodeURIComponent(item.title + ' news')}`;
+        }
+        return `#news-${item.id || Date.now()}`;
         
       default:
-        return `#${source}-${Date.now()}`;
+        return `#${source}-${item.id || Date.now()}`;
     }
   }
   
@@ -596,6 +699,61 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
     } catch (_) {
       return false;
     }
+  }
+
+  private getSourceDisplayName(source: string): string {
+    const displayNames = {
+      'reddit': 'Reddit',
+      'linkedin': 'LinkedIn',
+      'telegram': 'Telegram',
+      'news_website': 'News Website',
+      'crewai_analysis': 'CrewAI Analysis'
+    };
+    return displayNames[source as keyof typeof displayNames] || source.charAt(0).toUpperCase() + source.slice(1);
+  }
+
+  private generateContent(item: any, source: string): string {
+    const content = item.content || item.text || item.selftext || '';
+    const title = item.title || '';
+    
+    // For different sources, format content appropriately
+    switch (source) {
+      case 'reddit':
+        const subredditInfo = item.subreddit ? `**r/${item.subreddit}**\n\n` : '';
+        const flairInfo = item.flair ? `*${item.flair}*\n\n` : '';
+        const engagement = `Score: ${item.score || 0} | Comments: ${item.num_comments || 0}`;
+        return `${subredditInfo}${flairInfo}${content}\n\n---\n${engagement}`;
+        
+      case 'linkedin':
+        const authorInfo = item.author ? `**${item.author}**\n\n` : '';
+        const likes = item.engagement?.likes ? `👍 ${item.engagement.likes} likes` : '';
+        return `${authorInfo}${content}${likes ? `\n\n---\n${likes}` : ''}`;
+        
+      case 'telegram':
+        const channelInfo = item.channel ? `**${item.channel}**\n\n` : '';
+        const views = item.views ? `👁️ ${item.views} views` : '';
+        return `${channelInfo}${content}${views ? `\n\n---\n${views}` : ''}`;
+        
+      default:
+        return content || title;
+    }
+  }
+
+  private parseDate(item: any): Date {
+    // Try different date formats
+    if (item.published_date) {
+      return new Date(item.published_date);
+    }
+    if (item.timestamp) {
+      return new Date(item.timestamp);
+    }
+    if (item.created_utc) {
+      return new Date(item.created_utc * 1000); // Unix timestamp
+    }
+    if (item.date) {
+      return new Date(item.date);
+    }
+    return new Date(); // Default to now
   }
 
   private calculateTotalItems(response: CrewAINewsResponse): number {
