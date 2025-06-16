@@ -69,7 +69,12 @@ class EnhancedNewsGatherer:
         self.anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
         self.initialization_error = None
         
-        # Initialize enhanced crew if available
+        # Initialize attributes to None first
+        self.enhanced_crew = None
+        self.dynamic_crew = None
+        self.mode = "fallback"
+        
+        # Try to initialize enhanced crew first
         if ENHANCED_CREW_AVAILABLE:
             try:
                 self.enhanced_crew = EnhancedNewsResearchCrew()
@@ -78,23 +83,20 @@ class EnhancedNewsGatherer:
             except Exception as e:
                 logger.error(f"❌ Enhanced crew initialization failed: {str(e)}")
                 self.enhanced_crew = None
-                self.mode = "fallback"
                 self.initialization_error = str(e)
-        # Fallback to dynamic crew if enhanced is not available
-        elif DYNAMIC_CREW_AVAILABLE:
+        
+        # Try to initialize dynamic crew as fallback (always try if available)
+        if DYNAMIC_CREW_AVAILABLE:
             try:
                 self.dynamic_crew = create_dynamic_news_research_crew()
-                self.mode = "dynamic_multi_agent"
-                logger.info("✅ Dynamic multi-agent crew initialized as fallback")
+                if self.mode == "fallback":  # Only change mode if not already set to enhanced
+                    self.mode = "dynamic_multi_agent"
+                    logger.info("✅ Dynamic multi-agent crew initialized as fallback")
             except Exception as e:
                 logger.error(f"❌ Dynamic crew initialization failed: {str(e)}")
                 self.dynamic_crew = None
-                self.mode = "fallback"
-                self.initialization_error = str(e)
-        else:
-            self.enhanced_crew = None
-            self.dynamic_crew = None
-            self.mode = "fallback"
+                if not hasattr(self, 'initialization_error'):
+                    self.initialization_error = str(e)
         
         # Initialize simple scraper as fallback
         if SIMPLE_SCRAPER_AVAILABLE:
