@@ -132,6 +132,25 @@ export const SYNAPSE_MCP_SERVERS: MCPServerTemplate[] = [
     npmPackage: '@modelcontextprotocol/server-devhub',
     useCase: 'Streamline content management workflows and website operations.',
     documentation: 'https://github.com/modelcontextprotocol/servers/tree/main/src/devhub'
+  },
+  {
+    id: 'firecrawl',
+    name: 'Firecrawl Scraper',
+    description: 'Advanced web scraping and crawling with AI-powered content extraction',
+    serverUri: 'npx -y @mendable/firecrawl-mcp-server',
+    category: 'data',
+    capabilities: ['web-scraping', 'content-extraction', 'website-crawling', 'markdown-conversion', 'llm-extraction'],
+    authentication: {
+      type: 'apikey',
+      credentials: ''
+    },
+    npmPackage: '@mendable/firecrawl-mcp-server',
+    configuration: {
+      apiKey: '',
+      baseUrl: 'https://api.firecrawl.dev'
+    },
+    useCase: 'Perfect for extracting clean, structured content from websites for AI agents and data processing.',
+    documentation: 'https://docs.firecrawl.dev/'
   }
 ];
 
@@ -167,6 +186,7 @@ export const getRecommendedMCPsForAgent = (agentType: string): MCPServerTemplate
   switch (agentType) {
     case 'crewai_news':
       return [
+        SYNAPSE_MCP_SERVERS.find(s => s.id === 'firecrawl')!,
         SYNAPSE_MCP_SERVERS.find(s => s.id === 'memory')!,
         SYNAPSE_MCP_SERVERS.find(s => s.id === 'sequential-thinking')!,
         SYNAPSE_MCP_SERVERS.find(s => s.id === 'algolia')!,
@@ -174,6 +194,7 @@ export const getRecommendedMCPsForAgent = (agentType: string): MCPServerTemplate
       ];
     case 'news':
       return [
+        SYNAPSE_MCP_SERVERS.find(s => s.id === 'firecrawl')!,
         SYNAPSE_MCP_SERVERS.find(s => s.id === 'filesystem')!,
         SYNAPSE_MCP_SERVERS.find(s => s.id === 'algolia')!,
         SYNAPSE_MCP_SERVERS.find(s => s.id === 'memory')!
@@ -182,7 +203,8 @@ export const getRecommendedMCPsForAgent = (agentType: string): MCPServerTemplate
       return [
         SYNAPSE_MCP_SERVERS.find(s => s.id === 'everything')!,
         SYNAPSE_MCP_SERVERS.find(s => s.id === 'filesystem')!,
-        SYNAPSE_MCP_SERVERS.find(s => s.id === 'sequential-thinking')!
+        SYNAPSE_MCP_SERVERS.find(s => s.id === 'sequential-thinking')!,
+        SYNAPSE_MCP_SERVERS.find(s => s.id === 'firecrawl')!
       ];
     default:
       return [

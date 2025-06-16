@@ -33,6 +33,25 @@ except ImportError:
     SerperDevTool = None
     ScrapeWebsiteTool = None
 import logging
+import sys
+
+# Add tools directory to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+tools_dir = os.path.join(os.path.dirname(current_dir), 'tools')
+if tools_dir not in sys.path:
+    sys.path.insert(0, tools_dir)
+
+# Import custom tools
+try:
+    from custom_tools import AVAILABLE_TOOLS, get_tool, list_available_tools
+    from crewai_tool_wrapper import get_tools_for_agent, CREWAI_TOOLS, list_available_crewai_tools
+    CUSTOM_TOOLS_AVAILABLE = True
+    logger.info("✅ Custom tools loaded successfully")
+    logger.info(f"📦 Available tools: {list_available_tools()}")
+    logger.info(f"🔧 CrewAI-compatible tools: {list_available_crewai_tools()}")
+except ImportError as e:
+    logger.error(f"❌ Failed to import custom tools: {str(e)}")
+    CUSTOM_TOOLS_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -920,13 +939,28 @@ class DynamicNewsResearchCrew:
         self.agents = self._create_dynamic_agents()
         
     def _create_dynamic_agents(self) -> Dict[str, Agent]:
-        """Create specialized agents with dynamic capabilities"""
+        """Create specialized agents with dynamic capabilities and tools"""
+        
+        # Get tools for each agent type if available
+        news_tools = get_tools_for_agent('news_researcher') if CUSTOM_TOOLS_AVAILABLE else []
+        content_tools = get_tools_for_agent('content_analyst') if CUSTOM_TOOLS_AVAILABLE else []
+        url_tools = get_tools_for_agent('url_validator') if CUSTOM_TOOLS_AVAILABLE else []
+        trend_tools = get_tools_for_agent('trend_analyst') if CUSTOM_TOOLS_AVAILABLE else []
+        social_tools = get_tools_for_agent('social_monitor') if CUSTOM_TOOLS_AVAILABLE else []
+        
+        logger.info(f"🔧 Assigning tools to agents:")
+        logger.info(f"   News Researcher: {len(news_tools)} tools")
+        logger.info(f"   Content Analyst: {len(content_tools)} tools")
+        logger.info(f"   URL Validator: {len(url_tools)} tools")
+        logger.info(f"   Trend Analyst: {len(trend_tools)} tools")
+        logger.info(f"   Social Monitor: {len(social_tools)} tools")
         
         # News Research Agent
         news_researcher = Agent(
             role='Dynamic News Research Specialist',
             goal='Adaptively find and validate high-quality news articles based on user requirements',
             backstory='You are an expert at finding relevant, high-quality news articles from various sources. You adapt your search strategy based on user input and validate URLs, check content quality, and ensure information accuracy.',
+            tools=news_tools,
             verbose=True,
             allow_delegation=False
         )
@@ -936,6 +970,7 @@ class DynamicNewsResearchCrew:
             role='Adaptive Content Quality Analyst',
             goal='Dynamically analyze and validate content quality, relevance, and authenticity based on user criteria',
             backstory='You are a content quality expert who evaluates articles for relevance, accuracy, and overall quality. You adapt your quality standards based on user requirements and filter out low-quality content and spam.',
+            tools=content_tools,
             verbose=True,
             allow_delegation=False
         )
@@ -945,6 +980,7 @@ class DynamicNewsResearchCrew:
             role='Smart URL Validation Specialist',
             goal='Intelligently validate and clean URLs to ensure they are accessible and safe',
             backstory='You are a technical specialist focused on URL validation, cleaning, and accessibility checking. You ensure all links work properly and adapt validation criteria based on source types.',
+            tools=url_tools,
             verbose=True,
             allow_delegation=False
         )
@@ -954,6 +990,7 @@ class DynamicNewsResearchCrew:
             role='Dynamic Trend Analysis Expert',
             goal='Identify emerging trends and patterns in news content based on user-specified topics and timeframes',
             backstory='You are an expert at identifying trends, patterns, and emerging topics from news content. You provide insights on what topics are gaining momentum and adapt your analysis based on user interests.',
+            tools=trend_tools,
             verbose=True,
             allow_delegation=False
         )
@@ -963,6 +1000,7 @@ class DynamicNewsResearchCrew:
             role='Adaptive Social Media Monitor',
             goal='Monitor social media platforms for discussions based on user-specified topics and platforms',
             backstory='You are a social media monitoring expert who tracks discussions across various platforms. You adapt your monitoring strategy based on user preferences and validate all social content.',
+            tools=social_tools,
             verbose=True,
             allow_delegation=False
         )

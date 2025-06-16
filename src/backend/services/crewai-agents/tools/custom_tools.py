@@ -14,6 +14,14 @@ from bs4 import BeautifulSoup
 import feedparser
 import logging
 
+# Try to import firecrawl
+try:
+    from firecrawl import FirecrawlApp
+    FIRECRAWL_AVAILABLE = True
+except ImportError:
+    FIRECRAWL_AVAILABLE = False
+    FirecrawlApp = None
+
 logger = logging.getLogger(__name__)
 
 class BaseTool:
@@ -322,6 +330,210 @@ class WebScrapeTool(BaseTool):
         
         return metadata
 
+class FirecrawlScrapeTool(BaseTool):
+    """Advanced web scraping tool using Firecrawl for better content extraction"""
+    
+    def __init__(self):
+        super().__init__(
+            name="firecrawl_scrape",
+            description="Advanced web scraping with Firecrawl for clean, structured content extraction"
+        )
+        self.api_key = os.getenv('FIRECRAWL_API_KEY')
+        self.firecrawl = None
+        
+        if FIRECRAWL_AVAILABLE and self.api_key:
+            try:
+                self.firecrawl = FirecrawlApp(api_key=self.api_key)
+                logger.info("✅ Firecrawl initialized successfully")
+            except Exception as e:
+                logger.error(f"❌ Firecrawl initialization failed: {str(e)}")
+                self.firecrawl = None
+        else:
+            if not FIRECRAWL_AVAILABLE:
+                logger.warning("⚠️ Firecrawl package not installed. Install with: pip install firecrawl-py")
+            if not self.api_key:
+                logger.warning("⚠️ FIRECRAWL_API_KEY environment variable not set")
+    
+    def execute(self, url: str, extract_options: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Scrape content using Firecrawl with advanced options"""
+        try:
+            # Validate URL
+            parsed_url = urlparse(url)
+            if not all([parsed_url.scheme, parsed_url.netloc]):
+                return {
+                    "success": False,
+                    "error": "Invalid URL format",
+                    "url": url
+                }
+            
+            if not self.firecrawl:
+                # Fallback to basic scraping if Firecrawl not available
+                logger.info("🔄 Falling back to basic scraping (Firecrawl unavailable)")
+                return self._fallback_scrape(url)
+            
+            # Set default extraction options
+            default_options = {
+                "formats": ["markdown", "html"],
+                "includeTags": ["title", "meta", "h1", "h2", "h3", "p", "article"],
+                "excludeTags": ["nav", "footer", "aside", "script", "style"],
+                "onlyMainContent": True,
+                "extractorOptions": {
+                    "mode": "llm-extraction"
+                }
+            }
+            
+            # Merge with user options
+            if extract_options:
+                default_options.update(extract_options)
+            
+            # Scrape with Firecrawl
+            result = self.firecrawl.scrape_url(url, params=default_options)
+            
+            if result.get('success'):
+                content_data = result.get('data', {})
+                
+                return {
+                    "success": True,
+                    "url": url,
+                    "title": content_data.get('metadata', {}).get('title', ''),
+                    "content": {
+                        "markdown": content_data.get('markdown', ''),
+                        "html": content_data.get('html', ''),
+                        "text": content_data.get('content', '')
+                    },
+                    "metadata": content_data.get('metadata', {}),
+                    "links": content_data.get('links', []),
+                    "images": content_data.get('images', []),
+                    "timestamp": datetime.now().isoformat(),
+                    "source": "firecrawl",
+                    "processing_time": result.get('processingTime', 0)
+                }
+            else:
+                error_msg = result.get('error', 'Unknown Firecrawl error')
+                logger.error(f"❌ Firecrawl scraping failed: {error_msg}")
+                return self._fallback_scrape(url)
+                
+        except Exception as e:
+            logger.error(f"❌ Firecrawl execution error: {str(e)}")
+            return self._fallback_scrape(url)
+    
+    def crawl_website(self, url: str, max_pages: int = 5, crawl_options: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Crawl entire website or multiple pages using Firecrawl"""
+        try:
+            if not self.firecrawl:
+                return {
+                    "success": False,
+                    "error": "Firecrawl not available for crawling",
+                    "url": url
+                }
+            
+            # Set default crawl options
+            default_options = {
+                "crawlerOptions": {
+                    "maxDepth": 2,
+                    "limit": max_pages,
+                    "allowBackwardCrawling": False,
+                    "allowExternalContentLinks": False
+                },
+                "pageOptions": {
+                    "onlyMainContent": True,
+                    "formats": ["markdown"]
+                }
+            }
+            
+            # Merge with user options
+            if crawl_options:
+                default_options.update(crawl_options)
+            
+            # Start crawl job
+            crawl_result = self.firecrawl.crawl_url(url, params=default_options)
+            
+            if crawl_result.get('success'):
+                pages = crawl_result.get('data', [])
+                
+                return {
+                    "success": True,
+                    "url": url,
+                    "pages_found": len(pages),
+                    "pages": [
+                        {
+                            "url": page.get('metadata', {}).get('sourceURL', ''),
+                            "title": page.get('metadata', {}).get('title', ''),
+                            "content": page.get('markdown', ''),
+                            "metadata": page.get('metadata', {})
+                        }
+                        for page in pages
+                    ],
+                    "timestamp": datetime.now().isoformat(),
+                    "source": "firecrawl-crawl"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": crawl_result.get('error', 'Crawl failed'),
+                    "url": url
+                }
+                
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Crawl execution error: {str(e)}",
+                "url": url
+            }
+    
+    def _fallback_scrape(self, url: str) -> Dict[str, Any]:
+        """Fallback to basic scraping when Firecrawl is unavailable"""
+        try:
+            session = requests.Session()
+            session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            })
+            
+            response = session.get(url, timeout=15)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Remove unwanted elements
+            for element in soup(["script", "style", "nav", "footer", "aside"]):
+                element.decompose()
+            
+            # Extract content
+            title = soup.title.string if soup.title else ""
+            content = soup.get_text()
+            
+            # Clean content
+            lines = (line.strip() for line in content.splitlines())
+            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+            clean_content = ' '.join(chunk for chunk in chunks if chunk)
+            
+            return {
+                "success": True,
+                "url": url,
+                "title": title,
+                "content": {
+                    "text": clean_content[:5000],  # Limit content length
+                    "markdown": "",
+                    "html": str(soup)[:10000]
+                },
+                "metadata": {
+                    "title": title,
+                    "url": url
+                },
+                "links": [],
+                "images": [],
+                "timestamp": datetime.now().isoformat(),
+                "source": "fallback-scrape",
+                "note": "Firecrawl unavailable - using basic scraping"
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Fallback scraping failed: {str(e)}",
+                "url": url
+            }
+
 class NewsAnalysisTool(BaseTool):
     """Tool for analyzing news content and trends"""
     
@@ -590,6 +802,7 @@ class URLValidatorTool(BaseTool):
 AVAILABLE_TOOLS = {
     'web_search': WebSearchTool(),
     'web_scrape': WebScrapeTool(),
+    'firecrawl_scrape': FirecrawlScrapeTool(),
     'news_analysis': NewsAnalysisTool(),
     'url_validator': URLValidatorTool()
 }
