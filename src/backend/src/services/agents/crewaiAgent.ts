@@ -171,21 +171,6 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
         topicsAnalyzed: crewaiResponse.topics
       });
 
-      // Log executive summary if available
-      if (crewaiResponse.data?.executive_summary) {
-        await run.addLog('info', 'Received executive summary from AI agents', {
-          summaryPoints: crewaiResponse.data.executive_summary.length
-        });
-      }
-
-      // Log trending topics if available
-      if (crewaiResponse.data?.trending_topics) {
-        const topTrends = crewaiResponse.data.trending_topics.slice(0, 3);
-        await run.addLog('info', `Top trending topics: ${topTrends.map(t => `${t.topic} (${t.mentions} mentions)`).join(', ')}`, {
-          trendingTopics: topTrends
-        });
-      }
-
       // Process and store the results
       await run.addLog('info', 'Processing and storing results...');
       await this.processAndStoreResults(crewaiResponse, userId, run);
@@ -282,75 +267,73 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
 
       // Store news articles from various sources
       if (data.organized_content) {
-        // Process news articles
-        if (data.organized_content.news_articles) {
-          await run.addLog('info', `Processing ${data.organized_content.news_articles.length} news articles`);
-          for (const article of data.organized_content.news_articles) {
-            try {
-              const added = await this.storeNewsItem(article, userId, 'news_website', run);
-              if (added) addedCount++;
-            } catch (error: any) {
-              await run.addLog('warn', `Failed to store news article: ${error.message}`);
-            }
-          }
-        }
+        const sources = ['news_articles', 'reddit_posts', 'linkedin_posts', 'telegram_messages'];
+        const sourceNames = {
+          news_articles: 'news_website',
+          reddit_posts: 'reddit',
+          linkedin_posts: 'linkedin',
+          telegram_messages: 'telegram'
+        };
 
-        // Process Reddit posts
-        if (data.organized_content.reddit_posts) {
-          await run.addLog('info', `Processing ${data.organized_content.reddit_posts.length} Reddit posts`);
-          for (const post of data.organized_content.reddit_posts) {
-            try {
-              const added = await this.storeNewsItem(post, userId, 'reddit', run);
-              if (added) addedCount++;
-            } catch (error: any) {
-              await run.addLog('warn', `Failed to store Reddit post: ${error.message}`);
-            }
-          }
-        }
-
-        // Process LinkedIn posts
-        if (data.organized_content.linkedin_posts) {
-          await run.addLog('info', `Processing ${data.organized_content.linkedin_posts.length} LinkedIn posts`);
-          for (const post of data.organized_content.linkedin_posts) {
-            try {
-              const added = await this.storeNewsItem(post, userId, 'linkedin', run);
-              if (added) addedCount++;
-            } catch (error: any) {
-              await run.addLog('warn', `Failed to store LinkedIn post: ${error.message}`);
-            }
-          }
-        }
-
-        // Process Telegram messages
-        if (data.organized_content.telegram_messages) {
-          await run.addLog('info', `Processing ${data.organized_content.telegram_messages.length} Telegram messages`);
-          for (const message of data.organized_content.telegram_messages) {
-            try {
-              const added = await this.storeNewsItem(message, userId, 'telegram', run);
-              if (added) addedCount++;
-            } catch (error: any) {
-              await run.addLog('warn', `Failed to store Telegram message: ${error.message}`);
+        for (const sourceKey of sources) {
+          const items = data.organized_content[sourceKey as keyof typeof data.organized_content];
+          if (items && items.length > 0) {
+            const sourceName = sourceNames[sourceKey as keyof typeof sourceNames];
+            await run.addLog('info', `Processing ${items.length} ${sourceName.replace('_', ' ')}`);
+            for (const item of items) {
+              try {
+                const added = await this.storeNewsItem(item, userId, sourceName, run);
+                if (added) addedCount++;
+              } catch (error: any) {
+                await run.addLog('warn', `Failed to store item from ${sourceName}: ${error.message}`);
+              }
             }
           }
         }
       }
-
-      // Store AI insights and analysis as a special news item
-      if (data.ai_insights || data.executive_summary) {
-        try {
-          await this.storeAnalysisReport(response, userId, run);
-          addedCount++;
-          await run.addLog('info', 'Stored AI analysis report');
-        } catch (error: any) {
-          await run.addLog('warn', `Failed to store analysis report: ${error.message}`);
-        }
-      }
-
+      
       run.itemsAdded = addedCount;
       await run.addLog('info', `Successfully stored ${addedCount} items from CrewAI agents`);
+      
+      // for some reason it looks that we storing just the agent summary and not all content      
+      // he fetching during the process.. we should fix this
+      // The issue is that we were creating a separate NewsItem for the analysis report,
+      // which was confusing. The analysis and summary should be part of the agent run itself.
+      // Now, we will store the summary and detailed analysis in the AgentRun's 'results' field.
+
+      if (data.ai_insights || data.executive_summary) {
+        const summary = (data.executive_summary || ['CrewAI analysis complete.']).join('\n');
+        
+        // Check if any source data is simulated
+        const hasSimulatedData = this.checkForSimulatedData(data);
+        const simulationWarning = hasSimulatedData ? [
+          '---',
+          '⚠️ **DATA NOTICE**: This analysis may contain simulated data because some sources are not configured with real API credentials.',
+          '🔧 To get real data, configure API keys for Reddit, Telegram, etc., in your CrewAI environment.',
+          '---',
+        ].join('\n') : '';
+
+        const details = {
+          simulationWarning,
+          trending_topics: data.trending_topics,
+          ai_insights: data.ai_insights,
+          recommendations: data.recommendations,
+          sources_used: response.sources_used,
+          // We can avoid storing the full content again here if it's already in NewsItems
+          // organized_content: data.organized_content 
+        };
+        
+        await run.complete(summary, details);
+        await run.addLog('info', 'Stored AI analysis report in agent run results.');
+
+      } else {
+        // If there's no analysis, we still need to complete the run.
+        await run.complete('CrewAI processing finished. No summary generated.');
+      }
 
     } catch (error: any) {
       await run.addLog('error', `Error processing CrewAI results: ${error.message}`);
+      await run.fail(`Error processing CrewAI results: ${error.message}`);
       throw error;
     }
   }
@@ -413,75 +396,6 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
     }
   }
 
-  private async storeAnalysisReport(response: CrewAINewsResponse, userId: mongoose.Types.ObjectId, run: any): Promise<void> {
-    const data = response.data!;
-    
-    // Check if any source data is simulated
-    const hasSimulatedData = this.checkForSimulatedData(data);
-    const simulationWarning = hasSimulatedData ? [
-      '⚠️ **DATA NOTICE**: This analysis contains simulated data because some sources are not configured with real API credentials.',
-      '',
-      '🔧 **To get real data:**',
-      '- Add Reddit API credentials (REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET)',
-      '- Add Telegram Bot Token (TELEGRAM_BOT_TOKEN)', 
-      '- LinkedIn data requires complex scraping setup',
-      '',
-      '📰 **News articles may contain real data** if the news scraper is properly configured.',
-      '',
-      '---',
-      ''
-    ] : [];
-    
-    const analysisContent = [
-      '# CrewAI Multi-Agent News Analysis Report',
-      '',
-      ...simulationWarning,
-      '## Executive Summary',
-      ...(data.executive_summary || []).map(item => `- ${item}`),
-      '',
-      '## Trending Topics',
-      ...(data.trending_topics || []).slice(0, 5).map(topic => 
-        `- **${topic.topic}**: ${topic.mentions} mentions (score: ${topic.trending_score})`
-      ),
-      '',
-      '## AI Insights',
-      data.ai_insights ? JSON.stringify(data.ai_insights, null, 2) : 'No AI insights available',
-      '',
-      '## Recommendations',
-      ...(data.recommendations || []).map(rec => `- ${rec}`)
-    ].join('\n');
-
-    const analysisItem = new NewsItem({
-      userId,
-      agentId: run.agentId,
-      runId: run._id,
-      title: `CrewAI Analysis Report - ${new Date().toLocaleDateString()}`,
-      description: 'Comprehensive analysis from CrewAI multi-agent system covering Reddit, LinkedIn, Telegram, and news sources',
-      content: analysisContent,
-      url: `#analysis-${Date.now()}`, // Use hash to indicate it's an internal analysis
-      source: {
-        name: 'CrewAI Analysis',
-        id: 'crewai_analysis'
-      },
-      author: 'CrewAI Multi-Agent System',
-      publishedAt: new Date(),
-      tags: ['analysis', 'crewai', 'multi-agent', 'trends'],
-      category: 'analysis',
-      status: 'summarized'
-    });
-
-    try {
-      await analysisItem.save();
-      console.log('[CrewAI Agent] Successfully saved analysis report');
-    } catch (error: any) {
-      console.error('[CrewAI Agent] Failed to save analysis report:', {
-        error: error.message,
-        validationErrors: error.errors
-      });
-      throw error;
-    }
-  }
-
   private checkForSimulatedData(data: any): boolean {
     const content = data.organized_content || {};
     
@@ -516,7 +430,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
   }
 
   private generateTags(item: any, source: string, isSimulated: boolean = false): string[] {
-    const tags = [source, 'crewai'];
+    const tags: string[] = [source, 'crewai'];
     
     if (isSimulated) {
       tags.push('simulated');
