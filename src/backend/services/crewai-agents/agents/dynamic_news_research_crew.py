@@ -25,7 +25,13 @@ except ImportError:
     FEEDPARSER_AVAILABLE = False
     feedparser = None
 from crewai import Agent, Task, Crew, Process
-from crewai_tools import SerperDevTool, ScrapeWebsiteTool
+try:
+    from crewai_tools import SerperDevTool, ScrapeWebsiteTool
+    CREWAI_TOOLS_AVAILABLE = True
+except ImportError:
+    CREWAI_TOOLS_AVAILABLE = False
+    SerperDevTool = None
+    ScrapeWebsiteTool = None
 import logging
 
 # Configure logging
