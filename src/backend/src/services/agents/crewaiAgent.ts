@@ -284,8 +284,25 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
 
         for (const sourceKey of sources) {
           const items = data.organized_content[sourceKey as keyof typeof data.organized_content];
+          const sourceName = sourceNames[sourceKey as keyof typeof sourceNames];
+          
+          // Special debugging for Telegram since user can't see it
+          if (sourceKey === 'telegram_messages') {
+            await run.addLog('info', `🔍 TELEGRAM DEBUG: Received ${items?.length || 0} telegram messages`);
+            if (items && items.length > 0) {
+              await run.addLog('info', '📱 Sample Telegram data:', {
+                sampleItem: {
+                  title: items[0]?.title || items[0]?.text,
+                  channel: items[0]?.channel,
+                  id: items[0]?.id,
+                  simulated: items[0]?.simulated,
+                  views: items[0]?.views
+                }
+              });
+            }
+          }
+          
           if (items && items.length > 0) {
-            const sourceName = sourceNames[sourceKey as keyof typeof sourceNames];
             await run.addLog('info', `📝 Processing ${items.length} items from ${sourceName.replace('_', ' ')}`);
             
             let sourceAddedCount = 0;
@@ -307,7 +324,6 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
             
             await run.addLog('info', `📊 ${sourceName}: Stored ${sourceAddedCount}/${items.length} items`);
           } else {
-            const sourceName = sourceNames[sourceKey as keyof typeof sourceNames];
             await run.addLog('info', `📭 No items received from ${sourceName.replace('_', ' ')}`);
           }
         }
@@ -524,15 +540,24 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
   private generateSummary(item: any, source: string, isSimulated: boolean = false): string {
     const content = item.content || item.text || item.summary || '';
     const title = item.title || '';
-    const simulatedPrefix = isSimulated ? '⚠️ SIMULATED DATA: ' : '';
+    
+    // Enhanced simulated data detection
+    const isActuallySimulated = isSimulated || item.simulated === true || this.isSimulatedId(item.id);
+    const simulatedPrefix = isActuallySimulated ? '🤖 SIMULATED: ' : '';
     
     if (source === 'reddit') {
-      return `${simulatedPrefix}Reddit discussion: ${title}. Score: ${item.score || 0}, Comments: ${item.num_comments || 0}`;
+      const subredditInfo = item.subreddit ? `r/${item.subreddit}` : 'Reddit';
+      const scoreInfo = isActuallySimulated ? '(fake metrics)' : `Score: ${item.score || 0}, Comments: ${item.num_comments || 0}`;
+      return `${simulatedPrefix}${subredditInfo} discussion: ${title}. ${scoreInfo}`;
     } else if (source === 'linkedin') {
       const engagement = item.engagement || {};
-      return `${simulatedPrefix}LinkedIn post by ${item.author || 'Professional'}. Likes: ${engagement.likes || 0}`;
+      const authorInfo = item.author && !item.author.includes('expert_') ? item.author : 'Professional';
+      const engagementInfo = isActuallySimulated ? '(fake engagement)' : `Likes: ${engagement.likes || 0}`;
+      return `${simulatedPrefix}LinkedIn post by ${authorInfo}. ${engagementInfo}`;
     } else if (source === 'telegram') {
-      return `${simulatedPrefix}Telegram message from ${item.channel || 'channel'}. Views: ${item.views || 0}`;
+      const channelInfo = item.channel && !item.channel.includes('channel_') ? item.channel : 'Telegram channel';
+      const viewsInfo = isActuallySimulated ? '(fake views)' : `Views: ${item.views || 0}`;
+      return `${simulatedPrefix}Message from ${channelInfo}. ${viewsInfo}`;
     } else {
       return `${simulatedPrefix}${content.substring(0, 200) + (content.length > 200 ? '...' : '')}`;
     }
@@ -541,7 +566,10 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
   private generateTags(item: any, source: string, isSimulated: boolean = false): string[] {
     const tags: string[] = [source, 'crewai'];
     
-    if (isSimulated) {
+    // Enhanced simulated data detection
+    const isActuallySimulated = isSimulated || item.simulated === true || this.isSimulatedId(item.id);
+    
+    if (isActuallySimulated) {
       tags.push('simulated');
     }
     
@@ -616,6 +644,9 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       simulated: item.simulated
     });
 
+    // Check if this is simulated data with fake IDs
+    const isSimulated = item.simulated === true || this.isSimulatedId(item.id);
+
     // Check if item has a valid URL
     const possibleUrls = [
       item.url,
@@ -625,25 +656,87 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       item.source_url
     ].filter(Boolean);
     
-    // Try to find a valid URL first
+    // Try to find a valid URL first (only if not obviously fake)
     for (const url of possibleUrls) {
-      if (this.isValidUrl(url)) {
+      if (this.isValidUrl(url) && !this.isFakeUrl(url)) {
         console.log(`[CrewAI Agent] Using valid URL for ${source}:`, url);
         return url;
       }
     }
     
-    // If no valid URL found, generate source-specific URLs
-    console.log(`[CrewAI Agent] No valid URL found for ${source}, generating fallback`);
+    // If no valid URL found or data is simulated, generate useful fallback URLs
+    console.log(`[CrewAI Agent] Generating fallback URL for ${source} (simulated: ${isSimulated})`);
     
+    if (isSimulated) {
+      // For simulated data, provide useful search/browse URLs instead of broken links
+      return this.generateSimulatedDataUrl(item, source);
+    }
+    
+    // For real data without valid URLs, try to construct platform URLs
+    return this.generatePlatformUrl(item, source);
+  }
+
+  private isSimulatedId(id: any): boolean {
+    if (!id) return false;
+    const idString = String(id).toLowerCase();
+    // Check for patterns that indicate fake IDs
+    return idString.includes('post_') || 
+           idString.includes('message_') || 
+           idString.includes('article_') ||
+           idString.match(/^(post|msg|art|item)_?\d+$/);
+  }
+
+  private isFakeUrl(url: string): boolean {
+    if (!url) return false;
+    const urlLower = url.toLowerCase();
+    return urlLower.includes('post_') || 
+           urlLower.includes('message_') || 
+           urlLower.includes('article_') ||
+           urlLower.includes('example.com') ||
+           urlLower.includes('fake.') ||
+           urlLower.includes('simulation');
+  }
+
+  private generateSimulatedDataUrl(item: any, source: string): string {
+    // For simulated data, provide useful browsing URLs instead of broken links
     switch (source) {
       case 'reddit':
-        // Try to construct Reddit URL from available data
-        if (item.subreddit && item.id) {
+        if (item.subreddit) {
+          return `https://reddit.com/r/${item.subreddit}`;
+        }
+        return `https://reddit.com/r/technology`; // Default to tech subreddit
+        
+      case 'linkedin':
+        if (item.author && !item.author.includes('expert_')) {
+          return `https://linkedin.com/search/results/people/?keywords=${encodeURIComponent(item.author)}`;
+        }
+        return `https://linkedin.com/feed/`; // LinkedIn feed
+        
+      case 'telegram':
+        if (item.channel && !item.channel.includes('channel_')) {
+          const channelName = item.channel.replace('@', '').replace('t.me/', '');
+          return `https://t.me/${channelName}`;
+        }
+        return `https://t.me/s/durov`; // Telegram's official channel as example
+        
+      case 'news_website':
+        // Use Google News search for the topic
+        const searchTerm = item.title || item.topic || 'technology news';
+        return `https://news.google.com/search?q=${encodeURIComponent(searchTerm)}`;
+        
+      default:
+        return `#simulated-${source}-content`;
+    }
+  }
+
+  private generatePlatformUrl(item: any, source: string): string {
+    // For real data without valid URLs, try to construct platform URLs
+    switch (source) {
+      case 'reddit':
+        if (item.subreddit && item.id && !this.isSimulatedId(item.id)) {
           return `https://reddit.com/r/${item.subreddit}/comments/${item.id}`;
         }
         if (item.subreddit && item.title) {
-          // Use Reddit search within the subreddit
           return `https://reddit.com/r/${item.subreddit}/search/?q=${encodeURIComponent(item.title)}&restrict_sr=1`;
         }
         if (item.title) {
@@ -652,7 +745,6 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
         return `https://reddit.com`;
         
       case 'linkedin':
-        // For LinkedIn, we can only do content search since direct post URLs require specific IDs
         if (item.title) {
           return `https://linkedin.com/search/results/content/?keywords=${encodeURIComponent(item.title)}`;
         }
@@ -662,27 +754,23 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
         return `https://linkedin.com/feed/`;
         
       case 'telegram':
-        // Try to construct Telegram URL
         if (item.channel) {
           const channelName = item.channel.replace('@', '').replace('t.me/', '');
-          if (item.message_id) {
+          if (item.message_id && !this.isSimulatedId(item.message_id)) {
             return `https://t.me/${channelName}/${item.message_id}`;
           }
           return `https://t.me/${channelName}`;
         }
-        // Fallback to internal reference
         return `#telegram-${item.id || Date.now()}`;
         
       case 'news_website':
-        // For news articles, try to use domain or source information
-        if (item.domain) {
+        if (item.domain && !item.domain.includes('fake') && !item.domain.includes('example')) {
           return `https://${item.domain}`;
         }
-        if (item.source) {
+        if (item.source && !item.source.includes('fake')) {
           return `https://${item.source}`;
         }
         if (item.title) {
-          // Use Google search as fallback for news articles
           return `https://google.com/search?q=${encodeURIComponent(item.title + ' news')}`;
         }
         return `#news-${item.id || Date.now()}`;
