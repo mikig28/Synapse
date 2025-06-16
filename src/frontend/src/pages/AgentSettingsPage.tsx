@@ -24,6 +24,10 @@ import {
   Save,
   Copy,
   ExternalLink,
+  Star,
+  Zap,
+  HelpCircle,
+  BookOpen,
 } from 'lucide-react';
 import {
   Dialog,
@@ -46,6 +50,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useParams, useNavigate } from 'react-router-dom';
+import { SYNAPSE_MCP_SERVERS, MCP_CATEGORIES, getRecommendedMCPsForAgent, MCPServerTemplate } from '../data/mcpServers';
+import MCPIntegrationGuide from '@/components/MCPIntegrationGuide';
 
 const AgentSettingsPage: React.FC = () => {
   const { agentId } = useParams<{ agentId: string }>();
@@ -55,9 +61,11 @@ const AgentSettingsPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [showMCPDialog, setShowMCPDialog] = useState(false);
   const [showToolDialog, setShowToolDialog] = useState(false);
+  const [showMCPTemplatesDialog, setShowMCPTemplatesDialog] = useState(false);
   const [editingMCP, setEditingMCP] = useState<MCPServer | null>(null);
   const [editingTool, setEditingTool] = useState<AgentTool | null>(null);
   const [builtinTools, setBuiltinTools] = useState<BuiltinTool[]>([]);
+  const [selectedMCPTemplate, setSelectedMCPTemplate] = useState<MCPServerTemplate | null>(null);
   const { toast } = useToast();
 
   // Form states
@@ -198,6 +206,46 @@ const AgentSettingsPage: React.FC = () => {
       }
     });
     setShowMCPDialog(true);
+  };
+
+  const handleAddMCPFromTemplate = (template: MCPServerTemplate) => {
+    const newMCP: MCPServer = {
+      name: template.name,
+      serverUri: template.serverUri,
+      enabled: true,
+      capabilities: template.capabilities,
+      description: template.description,
+      authentication: template.authentication
+    };
+    
+    if (!agent) return;
+
+    const mcpServers = [...(agent.configuration.mcpServers || [])];
+    
+    // Check if server already exists
+    if (mcpServers.find(s => s.name === template.name)) {
+      toast({
+        title: 'Already Added',
+        description: `${template.name} is already configured for this agent`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    mcpServers.push(newMCP);
+
+    setAgent({
+      ...agent,
+      configuration: {
+        ...agent.configuration,
+        mcpServers
+      }
+    });
+
+    toast({
+      title: 'Success',
+      description: `${template.name} added successfully`,
+    });
   };
 
   const handleEditMCP = (mcp: MCPServer) => {
@@ -470,10 +518,16 @@ const AgentSettingsPage: React.FC = () => {
                   Configure Model Context Protocol servers for enhanced agent capabilities
                 </p>
               </div>
-              <Button onClick={handleAddMCP}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add MCP Server
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setShowMCPTemplatesDialog(true)}>
+                  <Zap className="w-4 h-4 mr-2" />
+                  Quick Add
+                </Button>
+                <Button onClick={handleAddMCP}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Custom MCP
+                </Button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -644,6 +698,206 @@ const AgentSettingsPage: React.FC = () => {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* MCP Templates Dialog */}
+        <Dialog open={showMCPTemplatesDialog} onOpenChange={setShowMCPTemplatesDialog}>
+          <DialogContent className="sm:max-w-[800px] max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle>Add MCP Server from Template</DialogTitle>
+              <DialogDescription>
+                Choose from pre-configured MCP servers optimized for your agent type.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <ScrollArea className="max-h-[60vh] pr-4">
+              <div className="space-y-6">
+                {/* Recommended for this agent type */}
+                {agent && (
+                  <div>
+                    <h4 className="font-medium mb-3 flex items-center gap-2">
+                      <Star className="w-4 h-4 text-yellow-500" />
+                      Recommended for {agent.type} agents
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {getRecommendedMCPsForAgent(agent.type).map((template) => {
+                        const isAdded = (agent.configuration.mcpServers || []).some(s => s.name === template.name);
+                        return (
+                          <Card key={template.id} className="relative">
+                            <CardContent className="p-4">
+                              <div className="space-y-3">
+                                <div className="flex items-start justify-between">
+                                  <div>
+                                    <h5 className="font-medium text-sm">{template.name}</h5>
+                                    <p className="text-xs text-muted-foreground line-clamp-2">
+                                      {template.description}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <MCPIntegrationGuide mcpServer={template}>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0"
+                                        title="Integration Guide"
+                                      >
+                                        <HelpCircle className="w-3 h-3" />
+                                      </Button>
+                                    </MCPIntegrationGuide>
+                                    <Badge className={`text-xs ${MCP_CATEGORIES[template.category].color}`}>
+                                      {MCP_CATEGORIES[template.category].name}
+                                    </Badge>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex flex-wrap gap-1">
+                                  {template.capabilities.slice(0, 3).map((cap) => (
+                                    <Badge key={cap} variant="outline" className="text-xs px-1 py-0">
+                                      {cap}
+                                    </Badge>
+                                  ))}
+                                  {template.capabilities.length > 3 && (
+                                    <Badge variant="outline" className="text-xs px-1 py-0">
+                                      +{template.capabilities.length - 3}
+                                    </Badge>
+                                  )}
+                                </div>
+                                
+                                <div className="text-xs text-muted-foreground">
+                                  {template.useCase}
+                                </div>
+                                
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleAddMCPFromTemplate(template)}
+                                  disabled={isAdded}
+                                  className="w-full"
+                                  variant={isAdded ? "secondary" : "default"}
+                                >
+                                  {isAdded ? (
+                                    <>
+                                      <CheckCircle className="w-3 h-3 mr-2" />
+                                      Added
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Plus className="w-3 h-3 mr-2" />
+                                      Add to Agent
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                
+                {/* All MCP servers by category */}
+                {Object.entries(MCP_CATEGORIES).map(([categoryKey, category]) => {
+                  const serversInCategory = SYNAPSE_MCP_SERVERS.filter(s => s.category === categoryKey);
+                  if (serversInCategory.length === 0) return null;
+                  
+                  return (
+                    <div key={categoryKey}>
+                      <h4 className="font-medium mb-3 flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded ${category.color}`}></div>
+                        {category.name}
+                      </h4>
+                      <p className="text-xs text-muted-foreground mb-3">{category.description}</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {serversInCategory.map((template) => {
+                          const isAdded = agent && (agent.configuration.mcpServers || []).some(s => s.name === template.name);
+                          return (
+                            <Card key={template.id} className="relative">
+                              <CardContent className="p-4">
+                                <div className="space-y-3">
+                                  <div className="flex items-start justify-between">
+                                    <div>
+                                      <h5 className="font-medium text-sm">{template.name}</h5>
+                                      <p className="text-xs text-muted-foreground line-clamp-2">
+                                        {template.description}
+                                      </p>
+                                    </div>
+                                    <div className="flex gap-1">
+                                      <MCPIntegrationGuide mcpServer={template}>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          title="Integration Guide"
+                                        >
+                                          <HelpCircle className="w-3 h-3" />
+                                        </Button>
+                                      </MCPIntegrationGuide>
+                                      {template.documentation && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => window.open(template.documentation, '_blank')}
+                                          title="Official Documentation"
+                                        >
+                                          <ExternalLink className="w-3 h-3" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="flex flex-wrap gap-1">
+                                    {template.capabilities.slice(0, 3).map((cap) => (
+                                      <Badge key={cap} variant="outline" className="text-xs px-1 py-0">
+                                        {cap}
+                                      </Badge>
+                                    ))}
+                                    {template.capabilities.length > 3 && (
+                                      <Badge variant="outline" className="text-xs px-1 py-0">
+                                        +{template.capabilities.length - 3}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  
+                                  <div className="text-xs text-muted-foreground">
+                                    {template.useCase}
+                                  </div>
+                                  
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleAddMCPFromTemplate(template)}
+                                    disabled={isAdded}
+                                    className="w-full"
+                                    variant={isAdded ? "secondary" : "default"}
+                                  >
+                                    {isAdded ? (
+                                      <>
+                                        <CheckCircle className="w-3 h-3 mr-2" />
+                                        Added
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Plus className="w-3 h-3 mr-2" />
+                                        Add to Agent
+                                      </>
+                                    )}
+                                  </Button>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+            
+            <div className="flex justify-end pt-4 border-t">
+              <Button variant="outline" onClick={() => setShowMCPTemplatesDialog(false)}>
+                Close
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* MCP Server Dialog */}
         <Dialog open={showMCPDialog} onOpenChange={setShowMCPDialog}>

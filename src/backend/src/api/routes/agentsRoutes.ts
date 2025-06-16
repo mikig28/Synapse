@@ -16,6 +16,7 @@ import {
   getBuiltinTools,
   testMCPConnection,
   getAgentCapabilities,
+  getMCPRecommendations,
   getEnvironmentDebug,
 } from '../controllers/agentsController';
 
@@ -30,6 +31,7 @@ router.use(authMiddleware);
 // Tools and capabilities endpoints
 router.get('/builtin-tools', getBuiltinTools);
 router.post('/test-mcp', testMCPConnection);
+router.get('/mcp-recommendations/:agentType', getMCPRecommendations);
 
 // Agent CRUD operations
 router.get('/', getAgents);

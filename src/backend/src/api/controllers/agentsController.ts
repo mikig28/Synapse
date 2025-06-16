@@ -658,6 +658,76 @@ export const testMCPConnection = async (req: AuthenticatedRequest, res: Response
   }
 };
 
+// Get MCP server recommendations based on agent type
+export const getMCPRecommendations = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { agentType } = req.params;
+    
+    // Define recommendations based on agent type
+    const recommendations = {
+      'crewai_news': [
+        {
+          id: 'memory',
+          priority: 'high',
+          reason: 'Knowledge graph for connecting news stories and analysis across time'
+        },
+        {
+          id: 'sequential-thinking',
+          priority: 'high', 
+          reason: 'Enhanced reasoning for complex news analysis and pattern detection'
+        },
+        {
+          id: 'algolia',
+          priority: 'medium',
+          reason: 'Powerful search across analyzed news content and historical data'
+        }
+      ],
+      'news': [
+        {
+          id: 'filesystem',
+          priority: 'high',
+          reason: 'File operations for saving and managing news articles and reports'
+        },
+        {
+          id: 'memory',
+          priority: 'medium',
+          reason: 'Remember important news stories and track developing narratives'
+        }
+      ],
+      'custom': [
+        {
+          id: 'everything',
+          priority: 'high',
+          reason: 'Comprehensive toolset for custom agent development and testing'
+        },
+        {
+          id: 'filesystem',
+          priority: 'medium',
+          reason: 'Basic file operations for most custom agent use cases'
+        }
+      ]
+    };
+    
+    const agentRecommendations = recommendations[agentType as keyof typeof recommendations] || [];
+    
+    res.json({
+      success: true,
+      data: {
+        agentType,
+        recommendations: agentRecommendations,
+        totalRecommendations: agentRecommendations.length
+      },
+    });
+  } catch (error: any) {
+    console.error('[AgentsController] Error getting MCP recommendations:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get MCP recommendations',
+      message: error.message,
+    });
+  }
+};
+
 // Get agent capabilities summary
 export const getAgentCapabilities = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
@@ -685,11 +755,25 @@ export const getAgentCapabilities = async (req: AuthenticatedRequest, res: Respo
     const mcpServers = agent.configuration.mcpServers || [];
     const tools = agent.configuration.tools || [];
     
+    // Calculate sophistication score
+    let sophisticationScore = 0;
+    sophisticationScore += mcpServers.filter(s => s.enabled).length * 20;
+    sophisticationScore += tools.filter(t => t.enabled).length * 10;
+    sophisticationScore += mcpServers.flatMap(s => s.capabilities).length * 5;
+    sophisticationScore = Math.min(sophisticationScore, 100);
+    
     const capabilities = {
       mcpServers: {
         total: mcpServers.length,
         enabled: mcpServers.filter(s => s.enabled).length,
-        capabilities: [...new Set(mcpServers.flatMap(s => s.capabilities))]
+        capabilities: [...new Set(mcpServers.flatMap(s => s.capabilities))],
+        byCategory: {
+          ai: mcpServers.filter(s => ['memory', 'sequential-thinking', 'everything'].includes(s.name.toLowerCase())).length,
+          productivity: mcpServers.filter(s => ['dart', 'devhub'].includes(s.name.toLowerCase())).length,
+          data: mcpServers.filter(s => ['builtwith'].includes(s.name.toLowerCase())).length,
+          files: mcpServers.filter(s => ['filesystem'].includes(s.name.toLowerCase())).length,
+          search: mcpServers.filter(s => ['algolia'].includes(s.name.toLowerCase())).length
+        }
       },
       tools: {
         total: tools.length,
@@ -703,8 +787,13 @@ export const getAgentCapabilities = async (req: AuthenticatedRequest, res: Respo
       integrations: {
         hasWebScraping: tools.some(t => t.name === 'web_scraper' && t.enabled),
         hasNotifications: tools.some(t => ['telegram_notifier', 'email_notifier'].includes(t.name) && t.enabled),
-        hasAnalysis: tools.some(t => ['sentiment_analyzer', 'content_summarizer'].includes(t.name) && t.enabled)
-      }
+        hasAnalysis: tools.some(t => ['sentiment_analyzer', 'content_summarizer'].includes(t.name) && t.enabled),
+        hasMemory: mcpServers.some(s => s.name.toLowerCase().includes('memory') && s.enabled),
+        hasFileSystem: mcpServers.some(s => s.name.toLowerCase().includes('filesystem') && s.enabled),
+        hasSearch: mcpServers.some(s => s.name.toLowerCase().includes('algolia') && s.enabled)
+      },
+      sophisticationScore,
+      sophisticationLevel: sophisticationScore < 30 ? 'Basic' : sophisticationScore < 60 ? 'Intermediate' : 'Advanced'
     };
     
     res.json({

@@ -56,6 +56,13 @@ export interface AgentCapabilitiesResponse {
       total: number;
       enabled: number;
       capabilities: string[];
+      byCategory: {
+        ai: number;
+        productivity: number;
+        data: number;
+        files: number;
+        search: number;
+      };
     };
     tools: {
       total: number;
@@ -70,7 +77,25 @@ export interface AgentCapabilitiesResponse {
       hasWebScraping: boolean;
       hasNotifications: boolean;
       hasAnalysis: boolean;
+      hasMemory: boolean;
+      hasFileSystem: boolean;
+      hasSearch: boolean;
     };
+    sophisticationScore: number;
+    sophisticationLevel: string;
+  };
+}
+
+export interface MCPRecommendationsResponse {
+  success: boolean;
+  data: {
+    agentType: string;
+    recommendations: {
+      id: string;
+      priority: 'high' | 'medium' | 'low';
+      reason: string;
+    }[];
+    totalRecommendations: number;
   };
 }
 
@@ -173,6 +198,13 @@ export const agentService = {
       total: number;
       enabled: number;
       capabilities: string[];
+      byCategory: {
+        ai: number;
+        productivity: number;
+        data: number;
+        files: number;
+        search: number;
+      };
     };
     tools: {
       total: number;
@@ -187,9 +219,28 @@ export const agentService = {
       hasWebScraping: boolean;
       hasNotifications: boolean;
       hasAnalysis: boolean;
+      hasMemory: boolean;
+      hasFileSystem: boolean;
+      hasSearch: boolean;
     };
+    sophisticationScore: number;
+    sophisticationLevel: string;
   }> {
     const response = await axiosInstance.get<AgentCapabilitiesResponse>(`/agents/${agentId}/capabilities`);
+    return response.data.data;
+  },
+
+  // Get MCP recommendations for agent type
+  async getMCPRecommendations(agentType: string): Promise<{
+    agentType: string;
+    recommendations: {
+      id: string;
+      priority: 'high' | 'medium' | 'low';
+      reason: string;
+    }[];
+    totalRecommendations: number;
+  }> {
+    const response = await axiosInstance.get<MCPRecommendationsResponse>(`/agents/mcp-recommendations/${agentType}`);
     return response.data.data;
   },
 
