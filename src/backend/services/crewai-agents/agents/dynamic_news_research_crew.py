@@ -322,7 +322,7 @@ class DynamicTaskDelegator:
         return task_id
 
 class EnhancedNewsScraperAgent:
-    """Enhanced news scraper with URL validation and error handling"""
+    """Enhanced news scraper with dynamic topic-based source selection"""
     
     def __init__(self):
         self.session = requests.Session()
@@ -330,78 +330,184 @@ class EnhancedNewsScraperAgent:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         })
         
-        self.news_sources = {
-            'hackernews': {
-                'name': 'Hacker News',
-                'api_url': 'https://hacker-news.firebaseio.com/v0/topstories.json',
-                'item_url': 'https://hacker-news.firebaseio.com/v0/item/{}.json',
-                'category': 'tech'
-            },
-            'reddit_tech': {
-                'name': 'Reddit Technology',
-                'api_url': 'https://www.reddit.com/r/technology.json',
-                'category': 'tech'
-            },
-            'github_trending': {
-                'name': 'GitHub Trending',
-                'api_url': 'https://api.github.com/search/repositories?q=created:>{}+language:python&sort=stars&order=desc',
-                'category': 'tech'
-            },
-            'dev_to': {
-                'name': 'Dev.to',
-                'api_url': 'https://dev.to/api/articles?top=7',
-                'category': 'tech'
-            }
+        # Topic-based RSS feed mapping
+        self.topic_rss_feeds = {
+            'israel': [
+                'https://www.haaretz.com/feed/rss',
+                'https://feeds.reuters.com/reuters/worldNews',
+                'https://www.timesofisrael.com/feed/',
+                'https://feeds.bbci.co.uk/news/world/middle_east/rss.xml'
+            ],
+            'palestine': [
+                'https://feeds.reuters.com/reuters/worldNews',
+                'https://feeds.bbci.co.uk/news/world/middle_east/rss.xml',
+                'https://english.wafa.ps/feed/'
+            ],
+            'politics': [
+                'https://feeds.reuters.com/reuters/politicsNews',
+                'https://feeds.bbci.co.uk/news/politics/rss.xml',
+                'https://rss.cnn.com/rss/edition.rss'
+            ],
+            'technology': [
+                'https://techcrunch.com/feed/',
+                'https://feeds.arstechnica.com/arstechnica/index',
+                'https://www.wired.com/feed/rss',
+                'https://feeds.reuters.com/reuters/technologyNews'
+            ],
+            'ai': [
+                'https://www.technologyreview.com/feed/',
+                'https://feeds.arstechnica.com/arstechnica/index',
+                'https://techcrunch.com/category/artificial-intelligence/feed/'
+            ],
+            'business': [
+                'https://feeds.reuters.com/reuters/businessNews',
+                'https://feeds.bbci.co.uk/news/business/rss.xml',
+                'https://rss.cnn.com/rss/money_latest.rss'
+            ],
+            'health': [
+                'https://feeds.reuters.com/reuters/health',
+                'https://feeds.bbci.co.uk/news/health/rss.xml'
+            ],
+            'sports': [
+                'https://feeds.bbci.co.uk/sport/rss.xml',
+                'https://rss.cnn.com/rss/edition_sport.rss'
+            ],
+            'entertainment': [
+                'https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml',
+                'https://rss.cnn.com/rss/edition_entertainment.rss'
+            ]
         }
         
-        self.rss_feeds = {
-            'techcrunch': 'https://techcrunch.com/feed/',
-            'arstechnica': 'https://feeds.arstechnica.com/arstechnica/index',
-            'wired': 'https://www.wired.com/feed/rss',
-            'mit_tech_review': 'https://www.technologyreview.com/feed/',
-            'reuters_tech': 'https://feeds.reuters.com/reuters/technologyNews',
-            'bbc_tech': 'https://feeds.bbci.co.uk/news/technology/rss.xml'
+        # Universal news sources that can search by keyword
+        self.universal_sources = {
+            'bbc_search': {
+                'name': 'BBC News Search',
+                'search_url': 'https://feeds.bbci.co.uk/news/rss.xml',
+                'supports_search': False  # BBC doesn't have keyword search in RSS
+            },
+            'reuters_search': {
+                'name': 'Reuters Search', 
+                'search_url': 'https://feeds.reuters.com/reuters/worldNews',
+                'supports_search': False  # Reuters doesn't have keyword search in RSS
+            }
         }
     
     def scrape_news_with_validation(self, topics: List[str], max_articles: int = 50) -> List[Dict[str, Any]]:
-        """Scrape news with comprehensive validation"""
+        """Scrape news with dynamic topic-based source selection"""
         all_articles = []
         
         try:
-            # Scrape from API sources
-            for source_name, source_config in self.news_sources.items():
-                try:
-                    articles = self._scrape_api_source(source_name, source_config, topics)
-                    validated_articles = self._validate_articles(articles)
-                    all_articles.extend(validated_articles)
-                    
-                    logger.info(f"Scraped {len(validated_articles)} validated articles from {source_name}")
-                    
-                except Exception as e:
-                    logger.error(f"Error scraping {source_name}: {str(e)}")
-                    continue
+            logger.info(f"🎯 Starting topic-based scraping for: {topics}")
             
-            # Scrape from RSS feeds
-            for feed_name, feed_url in self.rss_feeds.items():
-                try:
-                    articles = self._scrape_rss_feed(feed_name, feed_url, topics)
-                    validated_articles = self._validate_articles(articles)
-                    all_articles.extend(validated_articles)
-                    
-                    logger.info(f"Scraped {len(validated_articles)} validated articles from {feed_name}")
-                    
-                except Exception as e:
-                    logger.error(f"Error scraping RSS feed {feed_name}: {str(e)}")
-                    continue
+            # Get topic-specific RSS feeds for each topic
+            for topic in topics:
+                topic_lower = topic.lower()
+                logger.info(f"📰 Searching for '{topic}' content...")
+                
+                # Get RSS feeds specific to this topic
+                topic_feeds = self._get_topic_specific_feeds(topic_lower)
+                
+                for feed_name, feed_url in topic_feeds.items():
+                    try:
+                        logger.info(f"📡 Scraping {feed_name} for topic '{topic}'")
+                        articles = self._scrape_rss_feed(feed_name, feed_url, [topic])
+                        validated_articles = self._validate_articles(articles)
+                        
+                        # Add topic metadata to articles
+                        for article in validated_articles:
+                            article['matched_topic'] = topic
+                            article['source_type'] = 'news_website'
+                            
+                        all_articles.extend(validated_articles)
+                        logger.info(f"✅ Found {len(validated_articles)} articles from {feed_name}")
+                        
+                    except Exception as e:
+                        logger.error(f"❌ Error scraping {feed_name}: {str(e)}")
+                        continue
             
-            # Filter by topics and quality
+            # If no topic-specific feeds found, use general search
+            if not all_articles:
+                logger.info("🔍 No topic-specific feeds found, using general search...")
+                all_articles = self._scrape_general_sources(topics)
+            
+            # Filter and rank by relevance
             filtered_articles = self._filter_and_rank_articles(all_articles, topics)
             
+            logger.info(f"📊 Total articles found: {len(all_articles)}, after filtering: {len(filtered_articles)}")
             return filtered_articles[:max_articles]
             
         except Exception as e:
-            logger.error(f"Error in enhanced news scraping: {str(e)}")
+            logger.error(f"❌ Error in topic-based news scraping: {str(e)}")
             return []
+    
+    def _get_topic_specific_feeds(self, topic: str) -> Dict[str, str]:
+        """Get RSS feeds specific to a topic"""
+        topic_feeds = {}
+        
+        # Check exact topic match first
+        if topic in self.topic_rss_feeds:
+            feeds = self.topic_rss_feeds[topic]
+            for i, feed_url in enumerate(feeds):
+                topic_feeds[f"{topic}_{i+1}"] = feed_url
+        
+        # Check for partial matches and related topics
+        related_topics = self._get_related_topics(topic)
+        for related_topic in related_topics:
+            if related_topic in self.topic_rss_feeds:
+                feeds = self.topic_rss_feeds[related_topic]
+                for i, feed_url in enumerate(feeds):
+                    topic_feeds[f"{related_topic}_{i+1}"] = feed_url
+        
+        return topic_feeds
+    
+    def _get_related_topics(self, topic: str) -> List[str]:
+        """Get related topics for broader search"""
+        topic_map = {
+            'israel': ['politics', 'middle_east'],
+            'palestine': ['politics', 'middle_east'],
+            'ai': ['technology', 'artificial intelligence'],
+            'tech': ['technology'],
+            'coding': ['technology'],
+            'n8n': ['technology', 'automation'],
+            'startup': ['business', 'technology'],
+            'crypto': ['technology', 'business'],
+            'biden': ['politics'],
+            'trump': ['politics'],
+            'ukraine': ['politics'],
+            'covid': ['health'],
+            'climate': ['environment'],
+            'space': ['technology', 'science']
+        }
+        
+        related = topic_map.get(topic, [])
+        
+        # Add partial matches
+        for key in self.topic_rss_feeds.keys():
+            if topic in key or key in topic:
+                related.append(key)
+        
+        return list(set(related))  # Remove duplicates
+    
+    def _scrape_general_sources(self, topics: List[str]) -> List[Dict[str, Any]]:
+        """Fallback to general news sources when no topic-specific feeds exist"""
+        articles = []
+        
+        # Use general world news feeds and filter by topic
+        general_feeds = {
+            'bbc_world': 'https://feeds.bbci.co.uk/news/world/rss.xml',
+            'reuters_world': 'https://feeds.reuters.com/reuters/worldNews',
+            'cnn_world': 'https://rss.cnn.com/rss/edition.rss'
+        }
+        
+        for feed_name, feed_url in general_feeds.items():
+            try:
+                feed_articles = self._scrape_rss_feed(feed_name, feed_url, topics)
+                articles.extend(feed_articles)
+                logger.info(f"📰 Scraped {len(feed_articles)} from general source {feed_name}")
+            except Exception as e:
+                logger.error(f"❌ Error scraping general source {feed_name}: {str(e)}")
+        
+        return articles
     
     def _scrape_api_source(self, source_name: str, source_config: Dict[str, Any], topics: List[str]) -> List[Dict[str, Any]]:
         """Scrape from API source with error handling"""
@@ -927,14 +1033,42 @@ class DynamicNewsResearchCrew:
         logger.info(f"📋 Processing request for topics: {topics}")
         logger.info(f"📋 Processing request for sources: {sources}")
         
-        # Use the enhanced news scraper to get actual articles
-        articles = self.news_scraper.scrape_news_with_validation(
-            topics=topics,
-            max_articles=user_input.get('max_articles', 50)
-        )
+        # Get articles from multiple sources based on enabled sources
+        all_articles = []
         
-        # Add topic matching to articles based on content analysis
-        articles = self._match_articles_to_topics(articles, topics)
+        # 1. Get news articles if news_websites source is enabled
+        if 'news_websites' in sources:
+            logger.info("📰 Gathering articles from news websites...")
+            news_articles = self.news_scraper.scrape_news_with_validation(
+                topics=topics,
+                max_articles=user_input.get('max_articles', 50) // len(sources)  # Distribute quota across sources
+            )
+            all_articles.extend(news_articles)
+            logger.info(f"✅ Found {len(news_articles)} news articles")
+        
+        # 2. Get Reddit posts if reddit source is enabled
+        if 'reddit' in sources:
+            logger.info("🔴 Gathering posts from Reddit...")
+            reddit_posts = self._scrape_reddit_content(topics, user_input.get('max_articles', 50) // len(sources))
+            all_articles.extend(reddit_posts)
+            logger.info(f"✅ Found {len(reddit_posts)} Reddit posts")
+        
+        # 3. Get LinkedIn posts if linkedin source is enabled
+        if 'linkedin' in sources:
+            logger.info("💼 Gathering posts from LinkedIn...")
+            linkedin_posts = self._scrape_linkedin_content(topics, user_input.get('max_articles', 50) // len(sources))
+            all_articles.extend(linkedin_posts)
+            logger.info(f"✅ Found {len(linkedin_posts)} LinkedIn posts")
+        
+        # 4. Get Telegram messages if telegram source is enabled
+        if 'telegram' in sources:
+            logger.info("📱 Gathering messages from Telegram...")
+            telegram_messages = self._scrape_telegram_content(topics, user_input.get('max_articles', 50) // len(sources))
+            all_articles.extend(telegram_messages)
+            logger.info(f"✅ Found {len(telegram_messages)} Telegram messages")
+        
+        # Add topic matching to all articles based on content analysis
+        articles = self._match_articles_to_topics(all_articles, topics)
         
         # Generate analysis and insights
         analysis = self._generate_dynamic_analysis(articles, topics, user_input)
@@ -1051,6 +1185,225 @@ class DynamicNewsResearchCrew:
             
         logger.info(f"📊 Topic matching complete. Distribution: {dict((topic, len([a for a in articles if a.get('matched_topic') == topic])) for topic in topics + ['general'])}")
         return articles
+    
+    def _scrape_reddit_content(self, topics: List[str], max_items: int = 10) -> List[Dict[str, Any]]:
+        """Scrape Reddit content for specific topics"""
+        reddit_posts = []
+        
+        try:
+            # Check if we have Reddit credentials
+            reddit_client_id = os.getenv('REDDIT_CLIENT_ID')
+            reddit_client_secret = os.getenv('REDDIT_CLIENT_SECRET')
+            
+            if reddit_client_id and reddit_client_secret:
+                # Use PRAW API for topic-specific subreddit search
+                try:
+                    import praw
+                    reddit = praw.Reddit(
+                        client_id=reddit_client_id,
+                        client_secret=reddit_client_secret,
+                        user_agent='SynapseAgent/1.0'
+                    )
+                    
+                    # Get topic-specific subreddits
+                    for topic in topics:
+                        subreddits = self._get_topic_subreddits(topic.lower())
+                        
+                        for subreddit_name in subreddits[:3]:  # Limit to 3 subreddits per topic
+                            try:
+                                subreddit = reddit.subreddit(subreddit_name)
+                                logger.info(f"🔍 Searching r/{subreddit_name} for '{topic}'")
+                                
+                                for post in subreddit.hot(limit=max_items // len(topics)):
+                                    # Filter posts by topic relevance
+                                    if self._is_topic_relevant(post.title + ' ' + post.selftext, topic):
+                                        reddit_post = {
+                                            'title': post.title,
+                                            'content': post.selftext[:500] if post.selftext else '',
+                                            'url': f"https://reddit.com{post.permalink}",
+                                            'external_url': post.url if post.url != f"https://reddit.com{post.permalink}" else None,
+                                            'author': str(post.author) if post.author else '[deleted]',
+                                            'score': post.score,
+                                            'num_comments': post.num_comments,
+                                            'subreddit': subreddit_name,
+                                            'created_utc': datetime.fromtimestamp(post.created_utc).isoformat(),
+                                            'source': f'Reddit r/{subreddit_name}',
+                                            'source_type': 'reddit',
+                                            'matched_topic': topic,
+                                            'scraped_at': datetime.now().isoformat()
+                                        }
+                                        reddit_posts.append(reddit_post)
+                                        
+                            except Exception as e:
+                                logger.error(f"❌ Error scraping r/{subreddit_name}: {str(e)}")
+                                continue
+                                
+                except Exception as e:
+                    logger.error(f"❌ PRAW Reddit API error: {str(e)}")
+                    # Fallback to simulated Reddit content
+                    reddit_posts = self._generate_simulated_reddit_content(topics, max_items)
+            else:
+                logger.warning("⚠️ Reddit credentials not found, generating simulated content")
+                reddit_posts = self._generate_simulated_reddit_content(topics, max_items)
+                
+        except Exception as e:
+            logger.error(f"❌ Error in Reddit scraping: {str(e)}")
+            reddit_posts = self._generate_simulated_reddit_content(topics, max_items)
+        
+        return reddit_posts
+    
+    def _get_topic_subreddits(self, topic: str) -> List[str]:
+        """Get relevant subreddits for a topic"""
+        subreddit_map = {
+            'israel': ['israel', 'worldnews', 'MiddleEastNews', 'IsraelPalestine'],
+            'palestine': ['Palestine', 'worldnews', 'MiddleEastNews', 'IsraelPalestine'],
+            'ai': ['artificial', 'MachineLearning', 'deeplearning', 'ChatGPT'],
+            'technology': ['technology', 'tech', 'gadgets', 'programming'],
+            'politics': ['politics', 'worldnews', 'PoliticalDiscussion'],
+            'business': ['business', 'investing', 'entrepreneur', 'startups'],
+            'health': ['health', 'medicine', 'COVID19'],
+            'sports': ['sports', 'nfl', 'soccer', 'nba'],
+            'gaming': ['gaming', 'Games', 'pcgaming'],
+            'science': ['science', 'Physics', 'chemistry'],
+            'crypto': ['CryptoCurrency', 'Bitcoin', 'ethereum']
+        }
+        
+        # Get exact matches first
+        subreddits = subreddit_map.get(topic, [])
+        
+        # Add partial matches
+        for key, subs in subreddit_map.items():
+            if topic in key or key in topic:
+                subreddits.extend(subs)
+        
+        # Default fallback
+        if not subreddits:
+            subreddits = ['worldnews', 'news', 'technology']
+        
+        return list(set(subreddits))  # Remove duplicates
+    
+    def _scrape_linkedin_content(self, topics: List[str], max_items: int = 10) -> List[Dict[str, Any]]:
+        """Scrape LinkedIn content for specific topics"""
+        # LinkedIn doesn't have a public API for posts, so we'll generate simulated content
+        # that's topic-relevant
+        logger.info("💼 Generating simulated LinkedIn content (no public API available)")
+        return self._generate_simulated_linkedin_content(topics, max_items)
+    
+    def _scrape_telegram_content(self, topics: List[str], max_items: int = 10) -> List[Dict[str, Any]]:
+        """Scrape Telegram content for specific topics"""
+        telegram_messages = []
+        
+        try:
+            # Check if we have Telegram bot token
+            telegram_token = os.getenv('TELEGRAM_BOT_TOKEN')
+            
+            if telegram_token:
+                # Note: Telegram Bot API doesn't allow reading from public channels directly
+                # This would require a different approach using Telethon or similar
+                logger.info("📱 Telegram integration not implemented (requires Telethon)")
+                telegram_messages = self._generate_simulated_telegram_content(topics, max_items)
+            else:
+                logger.warning("⚠️ Telegram bot token not found, generating simulated content")
+                telegram_messages = self._generate_simulated_telegram_content(topics, max_items)
+                
+        except Exception as e:
+            logger.error(f"❌ Error in Telegram scraping: {str(e)}")
+            telegram_messages = self._generate_simulated_telegram_content(topics, max_items)
+        
+        return telegram_messages
+    
+    def _is_topic_relevant(self, text: str, topic: str) -> bool:
+        """Check if text is relevant to the topic"""
+        text_lower = text.lower()
+        topic_lower = topic.lower()
+        
+        # Direct match
+        if topic_lower in text_lower:
+            return True
+        
+        # Check for related keywords
+        topic_keywords = {
+            'israel': ['israeli', 'jerusalem', 'tel aviv', 'gaza', 'netanyahu', 'idf'],
+            'palestine': ['palestinian', 'gaza', 'west bank', 'ramallah', 'hamas'],
+            'ai': ['artificial intelligence', 'machine learning', 'chatgpt', 'openai', 'neural'],
+            'technology': ['tech', 'software', 'programming', 'computer', 'digital'],
+            'politics': ['government', 'election', 'president', 'senator', 'congress'],
+            'business': ['company', 'startup', 'investment', 'market', 'economy']
+        }
+        
+        keywords = topic_keywords.get(topic_lower, [topic_lower])
+        return any(keyword in text_lower for keyword in keywords)
+    
+    def _generate_simulated_reddit_content(self, topics: List[str], max_items: int) -> List[Dict[str, Any]]:
+        """Generate simulated Reddit content for topics"""
+        simulated_posts = []
+        
+        for i, topic in enumerate(topics):
+            for j in range(max_items // len(topics)):
+                post = {
+                    'title': f"Discussion about {topic} - Post {j+1}",
+                    'content': f"This is a simulated Reddit post about {topic}. Real Reddit content would appear here with actual REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET.",
+                    'url': f"https://reddit.com/r/simulated/posts/{topic}_{i}_{j}",
+                    'external_url': None,
+                    'author': f'user_{i}{j}',
+                    'score': 100 + (i * 10) + j,
+                    'num_comments': 25 + j,
+                    'subreddit': f'{topic}_related',
+                    'created_utc': datetime.now().isoformat(),
+                    'source': f'Reddit r/{topic}_related',
+                    'source_type': 'reddit',
+                    'matched_topic': topic,
+                    'simulated': True,
+                    'scraped_at': datetime.now().isoformat()
+                }
+                simulated_posts.append(post)
+        
+        return simulated_posts
+    
+    def _generate_simulated_linkedin_content(self, topics: List[str], max_items: int) -> List[Dict[str, Any]]:
+        """Generate simulated LinkedIn content for topics"""
+        simulated_posts = []
+        
+        for i, topic in enumerate(topics):
+            for j in range(max_items // len(topics)):
+                post = {
+                    'title': f"Professional insights on {topic}",
+                    'content': f"This is a simulated LinkedIn post about {topic}. Professional content and industry insights would appear here.",
+                    'url': f"https://linkedin.com/posts/simulated_{topic}_{i}_{j}",
+                    'author': f'Professional_{i}{j}',
+                    'company': f'{topic.title()} Corp',
+                    'created_utc': datetime.now().isoformat(),
+                    'source': 'LinkedIn',
+                    'source_type': 'linkedin',
+                    'matched_topic': topic,
+                    'simulated': True,
+                    'scraped_at': datetime.now().isoformat()
+                }
+                simulated_posts.append(post)
+        
+        return simulated_posts
+    
+    def _generate_simulated_telegram_content(self, topics: List[str], max_items: int) -> List[Dict[str, Any]]:
+        """Generate simulated Telegram content for topics"""
+        simulated_messages = []
+        
+        for i, topic in enumerate(topics):
+            for j in range(max_items // len(topics)):
+                message = {
+                    'title': f"Telegram update on {topic}",
+                    'content': f"This is a simulated Telegram message about {topic}. Real-time updates and discussions would appear here.",
+                    'url': f"https://t.me/simulated_{topic}_{i}_{j}",
+                    'channel': f'{topic}_updates',
+                    'created_utc': datetime.now().isoformat(),
+                    'source': f'Telegram @{topic}_updates',
+                    'source_type': 'telegram',
+                    'matched_topic': topic,
+                    'simulated': True,
+                    'scraped_at': datetime.now().isoformat()
+                }
+                simulated_messages.append(message)
+        
+        return simulated_messages
     
     def _generate_dynamic_analysis(self, articles: List[Dict[str, Any]], topics: List[str], user_input: Dict[str, Any]) -> Dict[str, Any]:
         """Generate dynamic analysis based on user input and articles"""
