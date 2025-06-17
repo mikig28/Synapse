@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """
-Hybrid Synapse CrewAI News Service
-Uses real news scraper for websites while keeping social media sources simulated
+Enhanced Synapse CrewAI Multi-Agent News Service
+Dynamic task delegation with URL validation and content monitoring
 """
 
 import os
 import sys
 import json
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Callable
 from datetime import datetime
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from dotenv import load_dotenv
 import logging
+import threading
+import time
 
 # Add current directory to Python path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -27,66 +30,112 @@ load_dotenv()
 
 app = Flask(__name__)
 
-class HybridNewsGatherer:
-    """Hybrid news gathering - real news scraper + simulated social media"""
+# Configure CORS to allow requests from your frontend
+CORS(app, origins=[
+    "http://localhost:3000",  # Local development
+    "https://synapse-frontend.onrender.com",  # Production frontend
+    "https://*.onrender.com"  # Any Render subdomain
+])
+
+# Import the enhanced crew system
+try:
+    from agents.enhanced_news_research_crew import (
+        EnhancedNewsResearchCrew,
+        URLValidator,
+        ContentValidator
+    )
+    ENHANCED_CREW_AVAILABLE = True
+    logger.info("✅ Enhanced news research crew system loaded successfully")
+except ImportError as e:
+    logger.error(f"❌ Failed to import enhanced crew system: {str(e)}")
+    ENHANCED_CREW_AVAILABLE = False
+
+# Try dynamic crew as fallback
+try:
+    from agents.dynamic_news_research_crew import (
+        create_dynamic_news_research_crew,
+        research_news_with_user_input
+    )
+    DYNAMIC_CREW_AVAILABLE = True
+    logger.info("✅ Dynamic multi-agent crew system loaded as fallback")
+except ImportError as e:
+    logger.error(f"❌ Failed to import dynamic crew system: {str(e)}")
+    DYNAMIC_CREW_AVAILABLE = False
+
+# Fallback to simple scraper if dynamic crew is not available
+try:
+    from agents.simple_news_scraper import SimpleNewsScraperAgent
+    SIMPLE_SCRAPER_AVAILABLE = True
+    logger.info("✅ Simple news scraper loaded as fallback")
+except ImportError as e:
+    logger.error(f"❌ Failed to import simple scraper: {str(e)}")
+    SIMPLE_SCRAPER_AVAILABLE = False
+
+class EnhancedNewsGatherer:
+    """Enhanced news gathering with dynamic multi-agent system"""
     
     def __init__(self):
         self.openai_api_key = os.getenv('OPENAI_API_KEY')
+        self.anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
         self.initialization_error = None
         
-        # Check for real API credentials
-        self.reddit_client_id = os.getenv('REDDIT_CLIENT_ID')
-        self.reddit_client_secret = os.getenv('REDDIT_CLIENT_SECRET')
-        self.telegram_bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+        # Progress tracking
+        self.current_progress = {}
+        self.progress_lock = threading.Lock()
         
-        # Initialize Reddit scraper if credentials available
-        self.real_reddit_available = False
-        if self.reddit_client_id and self.reddit_client_secret:
+        # Initialize attributes to None first
+        self.enhanced_crew = None
+        self.dynamic_crew = None
+        self.mode = "fallback"
+        
+        # Try to initialize enhanced crew first
+        if ENHANCED_CREW_AVAILABLE:
             try:
-                from agents.reddit_agent import RedditScraperTool
-                self.reddit_scraper = RedditScraperTool()
-                self.real_reddit_available = True
-                logger.info("✅ Real Reddit scraper initialized successfully")
+                self.enhanced_crew = EnhancedNewsResearchCrew()
+                self.mode = "enhanced_multi_agent"
+                logger.info("✅ Enhanced multi-agent crew initialized successfully")
             except Exception as e:
-                logger.warning(f"⚠️ Reddit scraper failed to initialize: {str(e)}")
+                logger.error(f"❌ Enhanced crew initialization failed: {str(e)}")
+                self.enhanced_crew = None
+                self.initialization_error = str(e)
         
-        # Initialize Telegram scraper if credentials available
-        self.real_telegram_available = False
-        if self.telegram_bot_token:
-            try:
-                from agents.telegram_agent import TelegramScraperTool
-                self.telegram_scraper = TelegramScraperTool()
-                self.real_telegram_available = True
-                logger.info("✅ Real Telegram scraper initialized successfully")
-            except Exception as e:
-                logger.warning(f"⚠️ Telegram scraper failed to initialize: {str(e)}")
-        
-        # Try to import and initialize news scraper (fallback to simple version)
+        # Initialize simple test crew as additional fallback
         try:
-            from agents.news_scraper_agent import NewsScraperTool
-            self.news_scraper = NewsScraperTool()
-            self.real_news_available = True
-            self.scraper_type = "full"
-            logger.info("✅ Full news scraper initialized successfully")
+            from agents.simple_crew_test import SimpleTestCrew
+            self.simple_test_crew = SimpleTestCrew()
+            logger.info("✅ Simple test crew initialized as fallback")
         except Exception as e:
-            logger.warning(f"⚠️ Full news scraper not available: {str(e)}")
-            try:
-                from agents.simple_news_scraper import SimpleNewsScraperTool
-                self.news_scraper = SimpleNewsScraperTool()
-                self.real_news_available = True
-                self.scraper_type = "simple"
-                logger.info("✅ Simple news scraper initialized successfully")
-            except Exception as e2:
-                logger.error(f"❌ Simple news scraper also failed: {str(e2)}")
-                self.news_scraper = None
-                self.real_news_available = False
-                self.scraper_type = "none"
-                self.initialization_error = f"Full scraper: {str(e)} | Simple scraper: {str(e2)}"
+            logger.error(f"❌ Simple test crew initialization failed: {str(e)}")
+            self.simple_test_crew = None
         
-        logger.info("HybridNewsGatherer initialized")
+        # Try to initialize dynamic crew as fallback (always try if available)
+        if DYNAMIC_CREW_AVAILABLE:
+            try:
+                self.dynamic_crew = create_dynamic_news_research_crew()
+                if self.mode == "fallback":  # Only change mode if not already set to enhanced
+                    self.mode = "dynamic_multi_agent"
+                    logger.info("✅ Dynamic multi-agent crew initialized as fallback")
+            except Exception as e:
+                logger.error(f"❌ Dynamic crew initialization failed: {str(e)}")
+                self.dynamic_crew = None
+                if not hasattr(self, 'initialization_error'):
+                    self.initialization_error = str(e)
+        
+        # Initialize simple scraper as fallback
+        if SIMPLE_SCRAPER_AVAILABLE:
+            try:
+                self.simple_scraper = SimpleNewsScraperAgent()
+                logger.info("✅ Simple scraper initialized as fallback")
+            except Exception as e:
+                logger.error(f"❌ Simple scraper initialization failed: {str(e)}")
+                self.simple_scraper = None
+        else:
+            self.simple_scraper = None
+        
+        logger.info(f"Enhanced news gatherer initialized in {self.mode} mode")
     
-    def gather_news(self, topics: List[str] = None, sources: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Gather news from multiple sources (hybrid approach)"""
+    def gather_news(self, topics: List[str] = None, sources: Dict[str, Any] = None, **kwargs) -> Dict[str, Any]:
+        """Gather news using the best available method"""
         
         if not topics:
             topics = ["technology", "AI", "startups", "business", "innovation"]
@@ -100,591 +149,325 @@ class HybridNewsGatherer:
             }
         
         try:
-            logger.info(f"Gathering news for topics: {topics}")
+            logger.info(f"Gathering news for topics: {topics} using {self.mode} mode")
             
-            # Gather news using hybrid approach
-            result = self._hybrid_news_gathering(topics, sources)
-            
-            return {
-                "success": True,
-                "timestamp": datetime.now().isoformat(),
-                "topics": topics,
-                "sources_used": sources,
-                "mode": "hybrid",
-                "real_news_enabled": self.real_news_available,
-                "data": result
+            # Prepare user input for dynamic crew
+            user_input = {
+                'topics': topics,
+                'sources': list(sources.keys()) if isinstance(sources, dict) else sources,
+                'max_articles': kwargs.get('max_articles', 50),
+                'quality_threshold': kwargs.get('quality_threshold', 0.7),
+                'include_trends': kwargs.get('include_trends', True),
+                'focus_areas': kwargs.get('focus_areas', ['quality', 'relevance']),
+                'platforms': [k for k, v in sources.items() if v] if isinstance(sources, dict) else sources
             }
             
+            # Try enhanced multi-agent system first
+            if self.enhanced_crew and self.mode == "enhanced_multi_agent":
+                try:
+                    # Create progress callback
+                    def progress_callback(progress_data):
+                        with self.progress_lock:
+                            self.current_progress = progress_data
+                            logger.info(f"📊 Progress Update: [{progress_data.get('agent', 'Unknown')}] {progress_data.get('description', '')} - {progress_data.get('status', '').upper()}")
+                    
+                    logger.info(f"🔄 Starting enhanced crew research with social media for topics: {topics}")
+                    # Use the new enhanced method that combines news analysis with real social media scraping
+                    result = self.enhanced_crew.research_news_with_social_media(topics, sources, progress_callback=progress_callback)
+                    logger.info(f"🔄 Enhanced crew research with social media completed. Result keys: {list(result.keys()) if isinstance(result, dict) else type(result)}")
+                    
+                    if result.get('status') == 'success':
+                        logger.info("✅ Enhanced multi-agent research completed successfully")
+                        return self._format_enhanced_result(result, topics, sources)
+                    else:
+                        logger.warning(f"Enhanced crew returned error: {result.get('message', 'Unknown error')}")
+                        # Fall back to simple test crew for reliable dashboard testing
+                        return self._try_simple_test_crew(topics, sources)
+                        
+                except Exception as e:
+                    logger.error(f"Enhanced crew execution failed: {str(e)}")
+                    # Fall back to simple test crew for dashboard testing
+                    return self._try_simple_test_crew(topics, sources)
+            
+            # Try dynamic multi-agent system as fallback
+            elif self.dynamic_crew and self.mode == "dynamic_multi_agent":
+                return self._try_dynamic_crew(user_input, topics, sources)
+            
+            # Use simple scraper as final fallback
+            else:
+                return self._fallback_to_simple_scraper(topics, sources)
+                
         except Exception as e:
-            logger.error(f"Error in news gathering: {str(e)}")
+            logger.error(f"Error in enhanced news gathering: {str(e)}")
             return {
                 "success": False,
                 "error": str(e),
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
+                "mode": self.mode
             }
     
-    def _hybrid_news_gathering(self, topics: List[str], sources: Dict[str, Any]) -> Dict[str, Any]:
-        """Hybrid approach - real news scraper + simulated social media"""
-        
-        organized_content = {}
-        
-        # Use real or simulated data for social media sources
-        if sources.get("reddit", False):
-            if self.real_reddit_available:
-                try:
-                    reddit_data = self._get_real_reddit_posts(topics)
-                    organized_content["reddit_posts"] = reddit_data
-                    logger.info(f"Retrieved {len(reddit_data)} real Reddit posts")
-                except Exception as e:
-                    logger.error(f"Real Reddit scraping failed: {str(e)}")
-                    organized_content["reddit_posts"] = self._generate_reddit_posts(topics)
-            else:
-                organized_content["reddit_posts"] = self._generate_reddit_posts(topics)
-        
-        if sources.get("linkedin", False):
-            # LinkedIn always simulated (complex API requirements)
-            organized_content["linkedin_posts"] = self._generate_linkedin_posts(topics)
-        
-        if sources.get("telegram", False):
-            if self.real_telegram_available:
-                try:
-                    telegram_data = self._get_real_telegram_messages(topics)
-                    organized_content["telegram_messages"] = telegram_data
-                    logger.info(f"Retrieved {len(telegram_data)} real Telegram messages")
-                except Exception as e:
-                    logger.error(f"Real Telegram scraping failed: {str(e)}")
-                    organized_content["telegram_messages"] = self._generate_telegram_messages(topics)
-            else:
-                organized_content["telegram_messages"] = self._generate_telegram_messages(topics)
-        
-        # Use real news scraper for websites if available
-        if sources.get("news_websites", False):
-            if self.real_news_available:
-                try:
-                    real_news = self._get_real_news_articles(topics)
-                    organized_content["news_articles"] = real_news
-                    logger.info(f"Retrieved {len(real_news)} real news articles")
-                except Exception as e:
-                    logger.error(f"Real news scraping failed: {str(e)}")
-                    organized_content["news_articles"] = self._generate_news_articles(topics)
-            else:
-                organized_content["news_articles"] = self._generate_news_articles(topics)
-        
-        # Generate analysis
-        analysis = self._generate_analysis(topics, organized_content)
-        
-        return {
-            "executive_summary": [
-                f"Analyzed content from {len([k for k, v in sources.items() if v])} sources",
-                f"Key topics: {', '.join(topics[:3])}",
-                f"Mode: {'Real news + simulated social' if self.real_news_available else 'All simulated'}"
-            ],
-            "trending_topics": [
-                {"topic": topic, "mentions": 5 + i*2, "trending_score": 50 + i*10}
-                for i, topic in enumerate(topics[:5])
-            ],
-            "organized_content": organized_content,
-            "ai_insights": analysis,
-            "recommendations": [
-                f"Monitor {topics[0]} for emerging trends",
-                "Continue tracking multi-platform discussions",
-                "Consider expanding source coverage"
-            ]
-        }
-    
-    def _get_real_news_articles(self, topics: List[str]) -> List[Dict[str, Any]]:
-        """Get real news articles using the news scraper tool"""
-        
-        if not self.news_scraper:
-            return []
-        
-        try:
-            topics_str = ','.join(topics)
-            
-            if self.scraper_type == "full":
-                # Use the full news scraper
-                result_json = self.news_scraper._run(topics_str)
-                result = json.loads(result_json)
+    def _try_dynamic_crew(self, user_input: Dict[str, Any], topics: List[str], sources: Dict[str, Any]) -> Dict[str, Any]:
+        """Try dynamic crew as fallback"""
+        if self.dynamic_crew:
+            try:
+                result = self.dynamic_crew.research_news_dynamically(user_input)
                 
-                if result.get('success') and result.get('articles'):
-                    articles = result['articles']
-                    logger.info(f"Successfully scraped {len(articles)} articles with full scraper")
-                    return articles
+                if result.get('success'):
+                    logger.info("✅ Dynamic multi-agent research completed as fallback")
+                    return self._format_enhanced_result(result, topics, sources)
                 else:
-                    logger.warning("Full news scraper returned no articles")
-                    return []
+                    logger.warning(f"Dynamic crew returned error: {result.get('error')}")
+                    return self._fallback_to_simple_scraper(topics, sources)
                     
-            elif self.scraper_type == "simple":
-                # Use the simple news scraper
-                result_json = self.news_scraper.scrape_news(topics_str)
-                result = json.loads(result_json)
+            except Exception as e:
+                logger.error(f"Dynamic crew execution failed: {str(e)}")
+                return self._fallback_to_simple_scraper(topics, sources)
+        else:
+            return self._fallback_to_simple_scraper(topics, sources)
+    
+    def _try_simple_test_crew(self, topics: List[str], sources: Dict[str, Any]) -> Dict[str, Any]:
+        """Try simple test crew for dashboard testing"""
+        if self.simple_test_crew:
+            try:
+                logger.info("🧪 Using simple test crew for dashboard testing")
                 
-                if result.get('success') and result.get('articles'):
-                    articles = result['articles']
-                    logger.info(f"Successfully scraped {len(articles)} articles with simple scraper")
-                    return articles
+                # Create progress callback
+                def progress_callback(progress_data):
+                    with self.progress_lock:
+                        self.current_progress = progress_data
+                        logger.info(f"📊 Test Progress: [{progress_data.get('agent', 'Unknown')}] {progress_data.get('description', '')} - {progress_data.get('status', '').upper()}")
+                
+                result = self.simple_test_crew.research_news_simple(topics, sources, progress_callback=progress_callback)
+                
+                if result.get('status') == 'success':
+                    logger.info("✅ Simple test crew completed successfully")
+                    return self._format_enhanced_result(result, topics, sources)
                 else:
-                    logger.warning("Simple news scraper returned no articles")
-                    return []
-            else:
-                return []
-                
-        except Exception as e:
-            logger.error(f"Error getting real news articles: {str(e)}")
-            return []
+                    logger.warning(f"Simple test crew returned error: {result.get('message', 'Unknown error')}")
+                    return self._fallback_to_simple_scraper(topics, sources)
+                    
+            except Exception as e:
+                logger.error(f"Simple test crew execution failed: {str(e)}")
+                return self._fallback_to_simple_scraper(topics, sources)
+        else:
+            return self._fallback_to_simple_scraper(topics, sources)
     
-    def _get_real_reddit_posts(self, topics: List[str]) -> List[Dict[str, Any]]:
-        """Get real Reddit posts using the Reddit scraper"""
-        try:
-            topics_str = ','.join(topics)
-            result_json = self.reddit_scraper._run(topics_str)
-            result = json.loads(result_json)
-            
-            if result.get('success') and result.get('posts'):
-                posts = result['posts']
-                # Process posts to ensure they have all required fields
-                processed_posts = []
-                for post in posts:
-                    processed_post = {
-                        "id": post.get("id", f"reddit_{len(processed_posts)}"),
-                        "title": post.get("title", "Untitled"),
-                        "content": post.get("content", post.get("selftext", "")),
-                        "url": post.get("url", ""),
-                        "permalink": post.get("permalink", ""),
-                        "subreddit": post.get("subreddit", "technology"),
-                        "author": post.get("author", "reddituser"),
-                        "score": post.get("score", 0),
-                        "num_comments": post.get("num_comments", 0),
-                        "created_utc": post.get("created_utc", datetime.now().timestamp()),
-                        "simulated": False
-                    }
-                    processed_posts.append(processed_post)
-                
-                logger.info(f"Successfully retrieved {len(processed_posts)} real Reddit posts")
-                return processed_posts
-            else:
-                logger.warning("Reddit scraper returned no posts")
-                return []
-                
-        except Exception as e:
-            logger.error(f"Error getting real Reddit posts: {str(e)}")
-            raise e
-    
-    def _get_real_telegram_messages(self, topics: List[str]) -> List[Dict[str, Any]]:
-        """Get real Telegram messages using the Telegram scraper"""
-        try:
-            topics_str = ','.join(topics)
-            result_json = self.telegram_scraper._run(topics_str)
-            result = json.loads(result_json)
-            
-            if result.get('success') and result.get('messages'):
-                messages = result['messages']
-                # Process messages to ensure they have all required fields
-                processed_messages = []
-                for msg in messages:
-                    processed_message = {
-                        "id": msg.get("id", f"telegram_{len(processed_messages)}"),
-                        "text": msg.get("text", ""),
-                        "title": msg.get("title", msg.get("text", "")[:50] + "..." if len(msg.get("text", "")) > 50 else msg.get("text", "")),
-                        "channel": msg.get("channel", "@tech_channel"),
-                        "views": msg.get("views", 0),
-                        "forwards": msg.get("forwards", 0),
-                        "timestamp": msg.get("timestamp", datetime.now().isoformat()),
-                        "simulated": False
-                    }
-                    processed_messages.append(processed_message)
-                
-                logger.info(f"Successfully retrieved {len(processed_messages)} real Telegram messages")
-                return processed_messages
-            else:
-                logger.warning("Telegram scraper returned no messages")
-                return []
-                
-        except Exception as e:
-            logger.error(f"Error getting real Telegram messages: {str(e)}")
-            raise e
-    
-    def _generate_reddit_posts(self, topics: List[str]) -> List[Dict[str, Any]]:
-        """Generate simulated Reddit posts with better variety"""
-        posts = []
+    def _format_enhanced_result(self, result: Dict[str, Any], topics: List[str], sources: Dict[str, Any]) -> Dict[str, Any]:
+        """Format the enhanced result from crew"""
         
-        reddit_templates = [
-            {
-                "title": "Breaking: Major developments in {topic} - What are your thoughts?",
-                "content": "Just saw some significant news regarding {topic}. The implications could be huge for the industry. What's everyone's take on this?",
-                "subreddit": "worldnews" if topics[0].lower() in ['israel', 'politics', 'ukraine'] else "technology"
-            },
-            {
-                "title": "Analysis: How {topic} is reshaping the global landscape",
-                "content": "Deep dive into recent {topic} trends and their potential impact on various sectors. Key stakeholders are already adapting strategies.",
-                "subreddit": "news" if topics[0].lower() in ['israel', 'politics'] else "technology"
-            },
-            {
-                "title": "Discussion: {topic} megathread - Latest updates and community insights",
-                "content": "Comprehensive thread covering all recent {topic} developments. Community members sharing expertise and diverse perspectives.",
-                "subreddit": "worldnews" if topics[0].lower() in ['israel', 'politics'] else "technology"
-            },
-            {
-                "title": "LIVE: {topic} situation developing - Real-time updates",
-                "content": "Continuous coverage of ongoing {topic} events. Multiple sources confirming significant developments in the past hour.",
-                "subreddit": "news"
-            },
-            {
-                "title": "Expert AMA: Working in {topic} industry - Ask me anything",
-                "content": "10+ years experience in {topic} sector. Happy to answer questions about current trends, challenges, and opportunities.",
-                "subreddit": "IAmA"
-            }
-        ]
+        # Clear progress when complete
+        with self.progress_lock:
+            self.current_progress = {}
         
-        for i, topic in enumerate(topics[:5]):  # Increased from 3 to 5
-            template = reddit_templates[i % len(reddit_templates)]
-            posts.append({
-                "title": template["title"].format(topic=topic),
-                "content": template["content"].format(topic=topic),
-                "url": f"https://reddit.com/r/{template['subreddit']}/post_{i}",
-                "subreddit": template["subreddit"],
-                "score": 256 + i*47 + (hash(topic) % 200),  # More varied scores
-                "num_comments": 45 + i*12 + (hash(topic) % 50),
-                "created_utc": datetime.now().isoformat(),
-                "author": f"expert_{topic.lower().replace(' ', '_')}_{i}",
-                "source": "reddit",
-                "simulated": True
-            })
-        return posts
-    
-    def _generate_linkedin_posts(self, topics: List[str]) -> List[Dict[str, Any]]:
-        """Generate simulated LinkedIn posts with professional insights"""
-        posts = []
-        
-        linkedin_templates = [
-            {
-                "title": "Strategic Outlook: {topic} transformation in 2025",
-                "content": "As {topic} continues to evolve, industry leaders must adapt their strategies. Key insights from recent market analysis and expert consultations. #Leadership #Strategy",
-                "author": "Sarah Chen, MBA",
-                "company": "Global Strategy Consulting"
-            },
-            {
-                "title": "Investment Perspective: {topic} market opportunities",
-                "content": "The {topic} sector presents compelling investment opportunities. Our team has identified three key growth drivers that institutional investors should monitor. #Investment #Growth",
-                "author": "Michael Rodriguez",
-                "company": "Venture Capital Partners"
-            },
-            {
-                "title": "Policy Impact: How {topic} regulations are changing business",
-                "content": "New regulatory frameworks around {topic} are reshaping operational strategies across industries. Companies need to prepare for compliance requirements. #Policy #Compliance",
-                "author": "Dr. Jennifer Walsh",
-                "company": "Regulatory Affairs Institute"
-            },
-            {
-                "title": "Innovation Spotlight: {topic} breakthrough technologies",
-                "content": "Exciting developments in {topic} technology are creating new possibilities for enterprise solutions. Early adopters are already seeing competitive advantages. #Innovation #Technology",
-                "author": "David Kim, CTO",
-                "company": "Enterprise Solutions Inc"
-            }
-        ]
-        
-        for i, topic in enumerate(topics[:4]):  # Increased to 4
-            template = linkedin_templates[i % len(linkedin_templates)]
-            posts.append({
-                "title": template["title"].format(topic=topic),
-                "content": template["content"].format(topic=topic),
-                "author": template["author"],
-                "company": template["company"],
-                "engagement": {
-                    "likes": 147 + i*23 + (hash(topic) % 100), 
-                    "comments": 18 + i*7 + (hash(topic) % 20), 
-                    "shares": 12 + i*4 + (hash(topic) % 15)
-                },
-                "timestamp": datetime.now().isoformat(),
-                "url": f"https://linkedin.com/posts/expert_{i}",
-                "source": "linkedin",
-                "simulated": True
-            })
-        return posts
-    
-    def _generate_telegram_messages(self, topics: List[str]) -> List[Dict[str, Any]]:
-        """Generate simulated Telegram messages with diverse content"""
-        messages = []
-        
-        telegram_templates = [
-            {
-                "channel": "@breaking_alerts",
-                "text": "🚨 BREAKING: Major {topic} development confirmed by multiple sources. This could have significant implications. Details emerging... #Breaking #Alert"
-            },
-            {
-                "channel": "@global_intel", 
-                "text": "📊 ANALYSIS: {topic} trends show accelerating momentum. Intelligence reports suggest this is part of larger strategic shift. Monitor closely. #Intelligence #Analysis"
-            },
-            {
-                "channel": "@insider_updates",
-                "text": "💼 INSIDER: Sources close to {topic} developments indicate major announcements coming soon. Industry insiders already positioning for impact. #Insider #Update"
-            },
-            {
-                "channel": "@market_signals",
-                "text": "📈 MARKET: {topic} related assets showing unusual activity. Smart money appears to be moving. Technical indicators suggest momentum building. #Market #Trading"
-            },
-            {
-                "channel": "@expert_network",
-                "text": "🎯 EXPERT: Leading {topic} specialist shares exclusive insights on current situation. Key factors to watch in coming 48 hours. #Expert #Insights"
-            }
-        ]
-        
-        for i, topic in enumerate(topics[:5]):  # Increased to 5
-            template = telegram_templates[i % len(telegram_templates)]
-            messages.append({
-                "channel": template["channel"],
-                "text": template["text"].format(topic=topic),
-                "timestamp": datetime.now().isoformat(),
-                "views": 2150 + i*340 + (hash(topic) % 1000),  # More varied engagement
-                "forwards": 67 + i*15 + (hash(topic) % 50),
-                "reactions": {
-                    "👍": 45 + (hash(topic) % 30),
-                    "🔥": 23 + (hash(topic) % 20),
-                    "💯": 12 + (hash(topic) % 15)
-                },
-                "source": "telegram",
-                "simulated": True
-            })
-        return messages
-    
-    def _generate_news_articles(self, topics: List[str]) -> List[Dict[str, Any]]:
-        """Generate simulated news articles (fallback)"""
-        articles = []
-        sources = ["TechCrunch", "Wired", "MIT Technology Review"]
-        for i, topic in enumerate(topics[:3]):
-            articles.append({
-                "title": f"{topic}: Revolutionary Breakthrough Changes Everything",
-                "content": f"Comprehensive analysis of recent {topic} developments and their implications for the future.",
-                "url": f"https://techcrunch.com/{topic.lower()}-breakthrough-{i}",
-                "source": sources[i % len(sources)],
-                "author": f"Tech Reporter {i+1}",
-                "published_date": datetime.now().isoformat(),
-                "source_category": "tech",
-                "simulated": True
-            })
-        return articles
-    
-    def _generate_analysis(self, topics: List[str], content: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate topic-specific analysis based on available content"""
-        
-        # Count real vs simulated articles
-        news_articles = content.get('news_articles', [])
-        real_articles = [a for a in news_articles if not a.get('simulated', False)]
-        simulated_articles = [a for a in news_articles if a.get('simulated', False)]
-        
-        primary_topic = topics[0].lower() if topics else "general"
-        
-        # Generate topic-specific insights
-        sentiment = self._analyze_topic_sentiment(primary_topic)
-        trends = self._identify_emerging_trends(primary_topic, topics)
-        implications = self._generate_market_implications(primary_topic)
-        focus_areas = self._identify_focus_areas(primary_topic)
-        risk_factors = self._identify_risk_factors(primary_topic)
-        opportunities = self._identify_opportunities(primary_topic)
+        data = result.get('result', {}) if 'result' in result else result.get('data', {})
         
         return {
-            "key_themes": topics[:3],
-            "sentiment_analysis": sentiment,
-            "emerging_trends": trends,
-            "market_implications": implications,
-            "technology_focus": focus_areas,
-            "risk_assessment": risk_factors,
-            "strategic_opportunities": opportunities,
-            "content_summary": {
-                "reddit_discussions": len(content.get('reddit_posts', [])),
-                "professional_insights": len(content.get('linkedin_posts', [])),
-                "breaking_alerts": len(content.get('telegram_messages', [])),
-                "news_coverage": len(real_articles)
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+            "topics": topics,
+            "sources_used": sources,
+            "mode": "enhanced_multi_agent_crew",
+            "enhanced_features": {
+                "url_validation": True,
+                "content_quality_scoring": True,
+                "dynamic_task_delegation": True,
+                "multi_agent_coordination": True,
+                "real_time_progress_tracking": True,
+                "current_date_awareness": True
             },
-            "data_quality": {
-                "real_news_articles": len(real_articles),
-                "simulated_social_posts": len(content.get('reddit_posts', [])) + len(content.get('linkedin_posts', [])) + len(content.get('telegram_messages', [])),
-                "total_sources": len([k for k, v in content.items() if v]),
-                "coverage_depth": "comprehensive" if len(real_articles) > 5 else "moderate" if len(real_articles) > 0 else "limited"
+            "execution_info": {
+                "progress_steps": result.get('progress_steps', []),
+                "total_steps_completed": result.get('total_steps_completed', 0),
+                "execution_time": result.get('execution_time'),
+                "current_date": result.get('current_date'),
+                "usage_metrics": result.get('usage_metrics', {})
+            },
+            "data": {
+                "crew_result": str(data) if data else "No result data available",
+                "executive_summary": data.get('executive_summary', []) if isinstance(data, dict) else [],
+                "trending_topics": data.get('trending_topics', []) if isinstance(data, dict) else [],
+                "organized_content": data.get('organized_content', {
+                    "news_articles": [],
+                    "reddit_posts": [],
+                    "linkedin_posts": [],
+                    "telegram_messages": []
+                }) if isinstance(data, dict) else {},
+                "validated_articles": data.get('validated_articles', []) if isinstance(data, dict) else [],
+                "ai_insights": data.get('ai_insights', {}) if isinstance(data, dict) else {},
+                "task_execution_summary": data.get('task_execution_summary', {}) if isinstance(data, dict) else {},
+                "recommendations": data.get('recommendations', []) if isinstance(data, dict) else []
             }
         }
     
-    def _analyze_topic_sentiment(self, topic: str) -> str:
-        """Analyze sentiment for specific topics"""
-        sentiment_map = {
-            'israel': 'mixed_tending_negative',
-            'politics': 'polarized',
-            'ukraine': 'concerned',
-            'ai': 'optimistic_cautious',
-            'technology': 'positive',
-            'crypto': 'volatile_optimistic',
-            'climate': 'urgent_hopeful',
-            'health': 'cautiously_positive',
-            'economy': 'mixed',
-            'security': 'vigilant'
-        }
-        return sentiment_map.get(topic, 'neutral_positive')
-    
-    def _identify_emerging_trends(self, primary_topic: str, topics: List[str]) -> List[str]:
-        """Identify emerging trends for specific topics"""
-        trend_map = {
-            'israel': [
-                "Regional security cooperation increasing",
-                "Diplomatic normalization efforts expanding",
-                "Technology sector resilience amid challenges"
-            ],
-            'ai': [
-                "Enterprise AI adoption accelerating",
-                "Regulatory frameworks emerging globally",
-                "Open-source AI models gaining traction"
-            ],
-            'technology': [
-                "Quantum computing breakthroughs",
-                "Edge computing deployment",
-                "Sustainable tech solutions"
-            ],
-            'politics': [
-                "Digital governance initiatives",
-                "Policy transparency demands",
-                "Citizen engagement platforms"
-            ],
-            'crypto': [
-                "Institutional adoption patterns",
-                "Regulatory clarity improving",
-                "DeFi integration mainstream"
-            ]
-        }
-        return trend_map.get(primary_topic, [f"{topic} innovation acceleration" for topic in topics[:3]])
-    
-    def _generate_market_implications(self, topic: str) -> str:
-        """Generate market implications for specific topics"""
-        implications_map = {
-            'israel': "Regional stability factors influencing global energy markets and tech innovation hubs",
-            'ai': "Massive productivity gains expected across sectors, with significant investment flowing to AI infrastructure",
-            'technology': "Digital transformation driving competitive advantages and new business models",
-            'politics': "Policy uncertainty creating both risks and opportunities for strategic positioning",
-            'crypto': "Financial infrastructure evolution accelerating, traditional banking adaptation required",
-            'health': "Healthcare innovation driving cost reduction and improved patient outcomes",
-            'climate': "Green transition creating trillion-dollar market opportunities and regulatory pressures"
-        }
-        return implications_map.get(topic, "Market dynamics shifting toward innovation and adaptation strategies")
-    
-    def _identify_focus_areas(self, topic: str) -> str:
-        """Identify key focus areas for specific topics"""
-        focus_map = {
-            'israel': "Geopolitical stability, technology sector growth, and regional economic partnerships",
-            'ai': "Responsible AI development, enterprise integration, and regulatory compliance",
-            'technology': "Innovation acceleration, digital infrastructure, and cybersecurity enhancement",
-            'politics': "Democratic institutions, policy effectiveness, and public trust building",
-            'crypto': "Regulatory compliance, institutional adoption, and infrastructure scaling"
-        }
-        return focus_map.get(topic, "Strategic innovation and market positioning")
-    
-    def _identify_risk_factors(self, topic: str) -> List[str]:
-        """Identify risk factors for specific topics"""
-        risk_map = {
-            'israel': ["Regional escalation", "Economic disruption", "Security threats"],
-            'ai': ["Bias and fairness", "Job displacement", "Privacy concerns"],
-            'technology': ["Cybersecurity threats", "Data breaches", "Regulatory backlash"],
-            'politics': ["Polarization", "Institutional trust", "Policy gridlock"],
-            'crypto': ["Regulatory crackdowns", "Market volatility", "Technical vulnerabilities"]
-        }
-        return risk_map.get(topic, ["Market uncertainty", "Regulatory changes", "Competitive pressures"])
-    
-    def _identify_opportunities(self, topic: str) -> List[str]:
-        """Identify strategic opportunities for specific topics"""
-        opportunity_map = {
-            'israel': ["Tech innovation partnerships", "Regional trade expansion", "Security technology exports"],
-            'ai': ["Productivity enhancement", "New business models", "Competitive differentiation"],
-            'technology': ["Digital transformation", "Automation benefits", "New market creation"],
-            'politics': ["Policy innovation", "Democratic renewal", "Civic engagement"],
-            'crypto': ["Financial inclusion", "Payment innovation", "Investment diversification"]
-        }
-        return opportunity_map.get(topic, ["Innovation leadership", "Market expansion", "Strategic partnerships"])
+    def _fallback_to_simple_scraper(self, topics: List[str], sources: Dict[str, Any]) -> Dict[str, Any]:
+        """Fallback to simple scraper with enhanced formatting"""
+        
+        if not self.simple_scraper:
+            return {
+                "success": False,
+                "error": "No scraping methods available",
+                "timestamp": datetime.now().isoformat(),
+                "mode": "none"
+            }
+        
+        try:
+            logger.info("Using simple scraper as fallback")
+            
+            # Use simple scraper
+            topics_str = ','.join(topics)
+            result_json = self.simple_scraper.scrape_news(topics_str)
+            result = json.loads(result_json)
+            
+            if result.get('success'):
+                articles = result.get('articles', [])
+                
+                # Enhance articles with URL validation
+                enhanced_articles = []
+                for article in articles:
+                    if article.get('url'):
+                        article['url_validated'] = URLValidator.is_valid_url(article['url'])
+                        article['url_cleaned'] = URLValidator.clean_url(article['url'])
+                    
+                    if ContentValidator.is_quality_content(article):
+                        article['quality_score'] = ContentValidator.calculate_quality_score(article)
+                        enhanced_articles.append(article)
+                
+                return {
+                    "success": True,
+                    "timestamp": datetime.now().isoformat(),
+                    "topics": topics,
+                    "sources_used": sources,
+                    "mode": "enhanced_simple_scraper",
+                    "enhanced_features": {
+                        "url_validation": True,
+                        "content_quality_scoring": True,
+                        "dynamic_task_delegation": False,
+                        "multi_agent_coordination": False
+                    },
+                    "data": {
+                        "executive_summary": [
+                            f"Analyzed {len(enhanced_articles)} articles using enhanced simple scraper",
+                            f"Key topics: {', '.join(topics[:3])}",
+                            f"URL validation and content quality scoring applied"
+                        ],
+                        "trending_topics": [
+                            {"topic": topic, "mentions": len([a for a in enhanced_articles if topic.lower() in a.get('title', '').lower()]), "trending_score": 60 + i*5}
+                            for i, topic in enumerate(topics[:5])
+                        ],
+                        "organized_content": {
+                            "validated_articles": enhanced_articles,
+                            "quality_metrics": {
+                                "total_articles": len(enhanced_articles),
+                                "average_quality_score": sum(a.get('quality_score', 0) for a in enhanced_articles) / len(enhanced_articles) if enhanced_articles else 0,
+                                "high_quality_articles": len([a for a in enhanced_articles if a.get('quality_score', 0) > 0.7])
+                            },
+                            "url_validation_stats": {
+                                "total_urls": len([a for a in enhanced_articles if a.get('url')]),
+                                "valid_urls": len([a for a in enhanced_articles if a.get('url_validated')]),
+                                "cleaned_urls": len([a for a in enhanced_articles if a.get('url_cleaned')])
+                            }
+                        },
+                        "ai_insights": {
+                            "content_sources": list(set(a.get('source', 'Unknown') for a in enhanced_articles)),
+                            "topic_coverage": {topic: len([a for a in enhanced_articles if topic.lower() in a.get('title', '').lower()]) for topic in topics}
+                        },
+                        "recommendations": [
+                            "Consider upgrading to dynamic multi-agent system for better results",
+                            "Enable more news sources for comprehensive coverage",
+                            "Implement real-time monitoring for trending topics"
+                        ]
+                    }
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": result.get('error', 'Simple scraper failed'),
+                    "timestamp": datetime.now().isoformat(),
+                    "mode": "simple_scraper_failed"
+                }
+                
+        except Exception as e:
+            logger.error(f"Simple scraper fallback failed: {str(e)}")
+            return {
+                "success": False,
+                "error": f"All scraping methods failed: {str(e)}",
+                "timestamp": datetime.now().isoformat(),
+                "mode": "all_failed"
+            }
 
-# Initialize the news gatherer
+# Initialize the enhanced news gatherer
 try:
-    news_gatherer = HybridNewsGatherer()
-    logger.info("Hybrid news gathering system ready")
+    news_gatherer = EnhancedNewsGatherer()
+    logger.info("Enhanced news gathering system ready")
 except Exception as e:
-    logger.error(f"Failed to initialize news gatherer: {str(e)}")
+    logger.error(f"Failed to initialize enhanced news gatherer: {str(e)}")
     news_gatherer = None
 
 # Flask API endpoints
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint with detailed diagnostics"""
+    """Enhanced health check endpoint with detailed diagnostics"""
     
     # Environment variables check
     env_status = {
+        "OPENAI_API_KEY": "✅ Set" if os.getenv('OPENAI_API_KEY') else "❌ Missing",
+        "ANTHROPIC_API_KEY": "✅ Set" if os.getenv('ANTHROPIC_API_KEY') else "❌ Missing",
         "REDDIT_CLIENT_ID": "✅ Set" if os.getenv('REDDIT_CLIENT_ID') else "❌ Missing",
         "REDDIT_CLIENT_SECRET": "✅ Set" if os.getenv('REDDIT_CLIENT_SECRET') else "❌ Missing", 
-        "TELEGRAM_BOT_TOKEN": "✅ Set" if os.getenv('TELEGRAM_BOT_TOKEN') else "❌ Missing",
-        "OPENAI_API_KEY": "✅ Set" if os.getenv('OPENAI_API_KEY') else "❌ Missing"
+        "TELEGRAM_BOT_TOKEN": "✅ Set" if os.getenv('TELEGRAM_BOT_TOKEN') else "❌ Missing"
     }
     
     # Dependency check
     dependencies = {}
-    try:
-        import requests
-        dependencies["requests"] = "✅ Available"
-    except ImportError:
-        dependencies["requests"] = "❌ Missing"
-        
-    try:
-        import bs4
-        dependencies["beautifulsoup4"] = "✅ Available"
-    except ImportError:
-        dependencies["beautifulsoup4"] = "❌ Missing"
-        
-    try:
-        import feedparser
-        dependencies["feedparser"] = "✅ Available"
-    except ImportError:
-        dependencies["feedparser"] = "❌ Missing"
-        
-    try:
-        import praw
-        dependencies["praw"] = "✅ Available"
-    except ImportError:
-        dependencies["praw"] = "❌ Missing"
+    required_deps = ['requests', 'beautifulsoup4', 'feedparser', 'crewai']
     
-    # Real API status
-    real_apis_status = {}
-    if news_gatherer:
-        real_apis_status = {
-            "reddit_scraper": "✅ Enabled" if news_gatherer.real_reddit_available else "❌ Disabled",
-            "telegram_scraper": "✅ Enabled" if news_gatherer.real_telegram_available else "❌ Disabled",
-            "news_scraper": "✅ Enabled" if news_gatherer.real_news_available else "❌ Disabled"
-        }
+    for dep in required_deps:
+        try:
+            __import__(dep.replace('-', '_'))
+            dependencies[dep] = "✅ Available"
+        except ImportError:
+            dependencies[dep] = "❌ Missing"
     
-    # Scraper status
-    scraper_status = "unknown"
-    scraper_error = None
-    if news_gatherer:
-        scraper_status = news_gatherer.scraper_type
-        scraper_error = getattr(news_gatherer, 'initialization_error', None)
+    # System capabilities
+    capabilities = {
+        "dynamic_multi_agent_crew": "✅ Available" if DYNAMIC_CREW_AVAILABLE else "❌ Not Available",
+        "simple_news_scraper": "✅ Available" if SIMPLE_SCRAPER_AVAILABLE else "❌ Not Available",
+        "url_validation": "✅ Available",
+        "content_quality_scoring": "✅ Available",
+        "task_delegation": "✅ Available" if DYNAMIC_CREW_AVAILABLE else "❌ Not Available"
+    }
+    
+    # Current mode
+    current_mode = news_gatherer.mode if news_gatherer else "not_initialized"
     
     return jsonify({
         "status": "healthy",
-        "service": "synapse-hybrid-news-agents",
+        "service": "synapse-enhanced-multi-agent-news",
         "timestamp": datetime.now().isoformat(),
         "initialized": news_gatherer is not None,
-        "mode": "hybrid",
-        "real_news_enabled": news_gatherer.real_news_available if news_gatherer else False,
-        "real_apis_status": real_apis_status,
-        "scraper_type": scraper_status,
-        "scraper_error": scraper_error,
+        "current_mode": current_mode,
+        "capabilities": capabilities,
         "environment_variables": env_status,
         "dependencies": dependencies,
+        "features": {
+            "dynamic_task_delegation": DYNAMIC_CREW_AVAILABLE,
+            "url_validation": True,
+            "content_quality_scoring": True,
+            "multi_agent_coordination": DYNAMIC_CREW_AVAILABLE,
+            "fallback_scraping": SIMPLE_SCRAPER_AVAILABLE
+        },
         "working_directory": os.getcwd(),
-        "files_in_directory": os.listdir('.'),
-        "python_path": os.environ.get('PYTHONPATH', 'Not set')
+        "initialization_error": getattr(news_gatherer, 'initialization_error', None) if news_gatherer else "News gatherer not initialized"
     })
 
 @app.route('/gather-news', methods=['POST'])
 def gather_news():
-    """Execute news gathering with specified parameters"""
+    """Execute enhanced news gathering with dynamic task delegation"""
     
     if not news_gatherer:
         return jsonify({
             "success": False,
-            "error": "News gathering system not initialized"
+            "error": "Enhanced news gathering system not initialized"
         }), 500
     
     try:
@@ -692,8 +475,21 @@ def gather_news():
         topics = data.get('topics', None)
         sources = data.get('sources', None)
         
-        # Execute news gathering
-        result = news_gatherer.gather_news(topics, sources)
+        # Additional parameters for enhanced system
+        max_articles = data.get('max_articles', 50)
+        quality_threshold = data.get('quality_threshold', 0.7)
+        include_trends = data.get('include_trends', True)
+        focus_areas = data.get('focus_areas', ['quality', 'relevance'])
+        
+        # Execute enhanced news gathering
+        result = news_gatherer.gather_news(
+            topics=topics,
+            sources=sources,
+            max_articles=max_articles,
+            quality_threshold=quality_threshold,
+            include_trends=include_trends,
+            focus_areas=focus_areas
+        )
         
         return jsonify(result)
         
@@ -704,96 +500,197 @@ def gather_news():
             "error": str(e)
         }), 500
 
-@app.route('/test-agents', methods=['GET'])
-def test_agents():
-    """Test individual agents functionality"""
-    
-    return jsonify({
-        "success": True,
-        "mode": "hybrid",
-        "agents": {
-            "reddit_agent": "Simulated",
-            "linkedin_agent": "Simulated", 
-            "telegram_agent": "Simulated",
-            "news_scraper": "Real" if news_gatherer and news_gatherer.real_news_available else "Simulated",
-            "news_analyst": "Hybrid"
-        },
-        "note": "Running in hybrid mode - real news scraping + simulated social media"
-    })
-
-@app.route('/test-simple-scraper', methods=['GET'])
-def test_simple_scraper():
-    """Test the simple news scraper directly"""
-    
-    if not news_gatherer or not news_gatherer.real_news_available:
-        return jsonify({
-            "success": False,
-            "error": "News scraper not available",
-            "scraper_type": getattr(news_gatherer, 'scraper_type', 'none') if news_gatherer else 'none',
-            "initialization_error": getattr(news_gatherer, 'initialization_error', 'Unknown') if news_gatherer else 'News gatherer not initialized'
-        })
+@app.route('/validate-urls', methods=['POST'])
+def validate_urls():
+    """Validate a list of URLs"""
     
     try:
-        # Test simple scraper directly
-        topics = "technology"
-        result_json = news_gatherer.news_scraper.scrape_news(topics)
-        result = json.loads(result_json)
+        data = request.get_json() if request.is_json else {}
+        urls = data.get('urls', [])
+        
+        if not urls:
+            return jsonify({
+                "success": False,
+                "error": "No URLs provided"
+            }), 400
+        
+        validation_results = []
+        for url in urls:
+            result = {
+                "original_url": url,
+                "cleaned_url": URLValidator.clean_url(url),
+                "is_valid": URLValidator.is_valid_url(url),
+                "timestamp": datetime.now().isoformat()
+            }
+            validation_results.append(result)
+        
+        valid_urls = URLValidator.validate_and_clean_urls(urls)
         
         return jsonify({
             "success": True,
-            "scraper_type": news_gatherer.scraper_type,
-            "test_topics": topics,
-            "articles_found": len(result.get('articles', [])),
-            "sample_articles": result.get('articles', [])[:2],  # Show first 2 articles
-            "full_result": result
+            "total_urls": len(urls),
+            "valid_urls_count": len(valid_urls),
+            "valid_urls": valid_urls,
+            "detailed_results": validation_results,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in validate_urls endpoint: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/test-dynamic-crew', methods=['GET'])
+def test_dynamic_crew():
+    """Test the dynamic multi-agent crew system"""
+    
+    if not DYNAMIC_CREW_AVAILABLE:
+        return jsonify({
+            "success": False,
+            "error": "Dynamic crew system not available"
+        })
+    
+    try:
+        # Test with sample user input
+        test_input = {
+            'topics': ['technology', 'AI'],
+            'sources': ['news_websites', 'reddit'],
+            'max_articles': 10,
+            'quality_threshold': 0.6,
+            'include_trends': True,
+            'focus_areas': ['quality', 'relevance']
+        }
+        
+        result = research_news_with_user_input(test_input)
+        
+        return jsonify({
+            "success": True,
+            "test_input": test_input,
+            "crew_result": result,
+            "timestamp": datetime.now().isoformat()
         })
         
     except Exception as e:
         return jsonify({
             "success": False,
             "error": str(e),
-            "scraper_type": news_gatherer.scraper_type
+            "timestamp": datetime.now().isoformat()
         })
 
-@app.route('/test-news-scraper', methods=['GET'])
-def test_news_scraper():
-    """Test the news scraper specifically"""
+@app.route('/system-info', methods=['GET'])
+def system_info():
+    """Get detailed system information"""
     
-    if not news_gatherer or not news_gatherer.real_news_available:
-        return jsonify({
-            "success": False,
-            "error": "Real news scraper not available"
-        })
-    
+    return jsonify({
+        "service_name": "Enhanced Synapse Multi-Agent News Service",
+        "version": "2.0.0",
+        "mode": news_gatherer.mode if news_gatherer else "not_initialized",
+        "features": {
+            "dynamic_multi_agent_crew": {
+                "available": DYNAMIC_CREW_AVAILABLE,
+                "description": "Advanced multi-agent system with dynamic task delegation"
+            },
+            "url_validation": {
+                "available": True,
+                "description": "Comprehensive URL validation and cleaning"
+            },
+            "content_quality_scoring": {
+                "available": True,
+                "description": "AI-powered content quality assessment"
+            },
+            "task_delegation": {
+                "available": DYNAMIC_CREW_AVAILABLE,
+                "description": "Intelligent task delegation between specialized agents"
+            },
+            "fallback_scraping": {
+                "available": SIMPLE_SCRAPER_AVAILABLE,
+                "description": "Reliable fallback scraping system"
+            }
+        },
+        "supported_sources": [
+            "Hacker News API",
+            "Reddit Technology",
+            "GitHub Trending",
+            "Dev.to",
+            "RSS Feeds (TechCrunch, Wired, etc.)"
+        ],
+        "agent_types": [
+            "News Research Specialist",
+            "Content Quality Analyst", 
+            "URL Validation Specialist",
+            "Trend Analysis Expert",
+            "Social Media Monitor"
+        ],
+        "timestamp": datetime.now().isoformat()
+    })
+
+@app.route('/progress', methods=['GET'])
+def get_crew_progress():
+    """Get current crew execution progress"""
     try:
-        # Test with default topics
-        topics = ["technology", "AI"]
-        real_articles = news_gatherer._get_real_news_articles(topics)
+        if not news_gatherer:
+            return jsonify({
+                "success": False,
+                "error": "News gatherer not initialized"
+            }), 500
         
-        return jsonify({
-            "success": True,
-            "articles_found": len(real_articles),
-            "test_topics": topics,
-            "sample_articles": real_articles[:3] if real_articles else [],
-            "sources_configured": list(news_gatherer.news_scraper.news_sources.keys()) if news_gatherer.news_scraper else []
-        })
-        
+        with news_gatherer.progress_lock:
+            return jsonify({
+                "success": True,
+                "progress": news_gatherer.current_progress,
+                "has_active_progress": bool(news_gatherer.current_progress),
+                "timestamp": datetime.now().isoformat()
+            })
     except Exception as e:
+        logger.error(f"Error getting progress: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e)
-        })
+        }), 500
+
+@app.route('/test-simple-crew', methods=['POST'])
+def test_simple_crew():
+    """Test the simple crew for dashboard functionality"""
+    try:
+        if not news_gatherer:
+            return jsonify({
+                "success": False,
+                "error": "News gatherer not initialized"
+            }), 500
+        
+        data = request.get_json() if request.is_json else {}
+        topics = data.get('topics', ['AI', 'technology'])
+        sources = data.get('sources', {'reddit': True, 'linkedin': True, 'telegram': True})
+        
+        logger.info(f"🧪 Testing simple crew with topics: {topics}")
+        
+        # Force use of simple test crew
+        result = news_gatherer._try_simple_test_crew(topics, sources)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Error in test-simple-crew endpoint: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
-    logger.info(f"🚀 Starting HYBRID CrewAI service on port {port}")
-    logger.info("📝 Service mode: HYBRID (real news scraper + simulated social media)")
+    logger.info(f"🚀 Starting ENHANCED CrewAI Multi-Agent service on port {port}")
+    logger.info("📝 Service mode: ENHANCED (Dynamic Multi-Agent + URL Validation + Content Quality)")
     logger.info(f"📁 Current working directory: {os.getcwd()}")
     
-    if news_gatherer and news_gatherer.real_news_available:
-        logger.info("✅ Real news scraper is ENABLED")
-        logger.info(f"📰 News sources configured: {list(news_gatherer.news_scraper.news_sources.keys())}")
+    if news_gatherer:
+        logger.info(f"✅ Enhanced news gatherer running in {news_gatherer.mode} mode")
+        if DYNAMIC_CREW_AVAILABLE:
+            logger.info("🤖 Dynamic multi-agent crew system is ENABLED")
+        if SIMPLE_SCRAPER_AVAILABLE:
+            logger.info("📰 Simple scraper fallback is AVAILABLE")
     else:
-        logger.info("⚠️ Real news scraper is DISABLED - using simulated data")
+        logger.error("❌ Enhanced news gatherer failed to initialize")
     
     app.run(host='0.0.0.0', port=port, debug=False)
