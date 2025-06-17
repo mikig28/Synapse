@@ -99,6 +99,15 @@ class EnhancedNewsGatherer:
                 self.enhanced_crew = None
                 self.initialization_error = str(e)
         
+        # Initialize simple test crew as additional fallback
+        try:
+            from agents.simple_crew_test import SimpleTestCrew
+            self.simple_test_crew = SimpleTestCrew()
+            logger.info("✅ Simple test crew initialized as fallback")
+        except Exception as e:
+            logger.error(f"❌ Simple test crew initialization failed: {str(e)}")
+            self.simple_test_crew = None
+        
         # Try to initialize dynamic crew as fallback (always try if available)
         if DYNAMIC_CREW_AVAILABLE:
             try:
@@ -171,13 +180,13 @@ class EnhancedNewsGatherer:
                         return self._format_enhanced_result(result, topics, sources)
                     else:
                         logger.warning(f"Enhanced crew returned error: {result.get('message', 'Unknown error')}")
-                        # Fall back to dynamic crew
-                        return self._try_dynamic_crew(user_input, topics, sources)
+                        # Fall back to simple test crew for reliable dashboard testing
+                        return self._try_simple_test_crew(topics, sources)
                         
                 except Exception as e:
                     logger.error(f"Enhanced crew execution failed: {str(e)}")
-                    # Fall back to dynamic crew
-                    return self._try_dynamic_crew(user_input, topics, sources)
+                    # Fall back to simple test crew for dashboard testing
+                    return self._try_simple_test_crew(topics, sources)
             
             # Try dynamic multi-agent system as fallback
             elif self.dynamic_crew and self.mode == "dynamic_multi_agent":
@@ -211,6 +220,33 @@ class EnhancedNewsGatherer:
                     
             except Exception as e:
                 logger.error(f"Dynamic crew execution failed: {str(e)}")
+                return self._fallback_to_simple_scraper(topics, sources)
+        else:
+            return self._fallback_to_simple_scraper(topics, sources)
+    
+    def _try_simple_test_crew(self, topics: List[str], sources: Dict[str, Any]) -> Dict[str, Any]:
+        """Try simple test crew for dashboard testing"""
+        if self.simple_test_crew:
+            try:
+                logger.info("🧪 Using simple test crew for dashboard testing")
+                
+                # Create progress callback
+                def progress_callback(progress_data):
+                    with self.progress_lock:
+                        self.current_progress = progress_data
+                        logger.info(f"📊 Test Progress: [{progress_data.get('agent', 'Unknown')}] {progress_data.get('description', '')} - {progress_data.get('status', '').upper()}")
+                
+                result = self.simple_test_crew.research_news_simple(topics, sources, progress_callback=progress_callback)
+                
+                if result.get('status') == 'success':
+                    logger.info("✅ Simple test crew completed successfully")
+                    return self._format_enhanced_result(result, topics, sources)
+                else:
+                    logger.warning(f"Simple test crew returned error: {result.get('message', 'Unknown error')}")
+                    return self._fallback_to_simple_scraper(topics, sources)
+                    
+            except Exception as e:
+                logger.error(f"Simple test crew execution failed: {str(e)}")
                 return self._fallback_to_simple_scraper(topics, sources)
         else:
             return self._fallback_to_simple_scraper(topics, sources)
@@ -608,6 +644,34 @@ def get_crew_progress():
             })
     except Exception as e:
         logger.error(f"Error getting progress: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/test-simple-crew', methods=['POST'])
+def test_simple_crew():
+    """Test the simple crew for dashboard functionality"""
+    try:
+        if not news_gatherer:
+            return jsonify({
+                "success": False,
+                "error": "News gatherer not initialized"
+            }), 500
+        
+        data = request.get_json() if request.is_json else {}
+        topics = data.get('topics', ['AI', 'technology'])
+        sources = data.get('sources', {'reddit': True, 'linkedin': True, 'telegram': True})
+        
+        logger.info(f"🧪 Testing simple crew with topics: {topics}")
+        
+        # Force use of simple test crew
+        result = news_gatherer._try_simple_test_crew(topics, sources)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Error in test-simple-crew endpoint: {str(e)}")
         return jsonify({
             "success": False,
             "error": str(e)
