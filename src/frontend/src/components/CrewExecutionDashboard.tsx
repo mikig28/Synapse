@@ -74,6 +74,8 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
   const [crewProgress, setCrewProgress] = useState<CrewProgress | null>(null);
   const [progressHistory, setProgressHistory] = useState<CrewProgress[]>([]);
   const [overallProgress, setOverallProgress] = useState(0);
+  const [lastExecutionHistory, setLastExecutionHistory] = useState<CrewProgress[]>([]);
+  const [executionStartTime, setExecutionStartTime] = useState<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -94,6 +96,11 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
         const progress = data.progress as CrewProgress;
         setCrewProgress(progress);
         
+        // Mark execution start time
+        if (!executionStartTime) {
+          setExecutionStartTime(new Date().toISOString());
+        }
+        
         // Update progress history
         setProgressHistory(prev => {
           const newHistory = [...prev];
@@ -113,6 +120,13 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
         // Calculate overall progress
         const progressPercent = (progress.step / progress.total_steps) * 100;
         setOverallProgress(Math.min(progressPercent, 100));
+      } else if (data.success && (!data.progress || Object.keys(data.progress).length === 0)) {
+        // No active progress - execution might have completed
+        if (progressHistory.length > 0 && crewProgress) {
+          console.log('📊 CrewDashboard: Execution completed, saving history');
+          setLastExecutionHistory([...progressHistory]);
+          // Don't clear current progress immediately to show completion state
+        }
       }
     } catch (error) {
       console.error('Failed to fetch crew progress:', error);
@@ -233,10 +247,13 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
                 variant="ghost" 
                 onClick={() => {
                   setProgressHistory([]);
+                  setLastExecutionHistory([]);
                   setCrewProgress(null);
                   setOverallProgress(0);
+                  setExecutionStartTime(null);
                 }}
                 className="h-8 w-8 p-0"
+                title="Clear All History"
               >
                 <RotateCcw className="w-4 h-4" />
               </Button>
@@ -331,7 +348,7 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
               </CardHeader>
               <CardContent className="p-0 h-full">
                 <ScrollArea className="h-full max-h-[400px] px-4 pb-4" ref={scrollAreaRef}>
-                  {progressHistory.length === 0 && !hasActiveProgress ? (
+                  {(progressHistory.length === 0 && lastExecutionHistory.length === 0) ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
                       <p>No crew execution data available</p>
@@ -339,7 +356,33 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {progressHistory.map((progress, index) => (
+                      {/* Show execution start time */}
+                      {executionStartTime && (
+                        <div className="text-xs text-muted-foreground border-b pb-2 mb-3">
+                          🚀 Execution started: {new Date(executionStartTime).toLocaleString()}
+                        </div>
+                      )}
+                      
+                      {/* Show last execution if no current progress */}
+                      {progressHistory.length === 0 && lastExecutionHistory.length > 0 && (
+                        <div className="text-xs text-muted-foreground border-b pb-2 mb-3 flex items-center justify-between">
+                          <span>📋 Last Execution History</span>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => {
+                              setProgressHistory([]);
+                              setLastExecutionHistory([]);
+                              setCrewProgress(null);
+                              setOverallProgress(0);
+                            }}
+                          >
+                            Clear
+                          </Button>
+                        </div>
+                      )}
+                      
+                      {(progressHistory.length > 0 ? progressHistory : lastExecutionHistory).map((progress, index) => (
                         <div
                           key={`${progress.agent}-${progress.step}-${index}`}
                           className={`p-3 rounded-lg border-l-4 ${getStatusColor(progress.status)} transition-all duration-200`}

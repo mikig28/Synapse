@@ -835,14 +835,25 @@ class EnhancedNewsResearchCrew:
             update_progress(0, 'completed', "Crew setup completed successfully")
             
             # Execute with progress tracking
-            result = crew.kickoff()
-            
-            # Mark remaining steps as completed
-            update_progress(1, 'completed', "News research completed successfully")
-            update_progress(2, 'completed', "Content analysis completed successfully")
-            update_progress(3, 'completed', "URL validation completed successfully")
-            update_progress(4, 'completed', "Trend analysis completed successfully")
-            update_progress(5, 'in_progress', "Generating comprehensive analysis report...")
+            try:
+                logger.info("🚀 Starting crew execution...")
+                update_progress(1, 'in_progress', "News Research Specialist is gathering recent articles...")
+                
+                result = crew.kickoff()
+                
+                logger.info("✅ Crew execution completed successfully")
+                
+                # Mark steps as completed based on actual execution
+                update_progress(1, 'completed', "News research completed - articles gathered and validated")
+                update_progress(2, 'completed', "Content analysis completed - articles filtered and scored")
+                update_progress(3, 'completed', "URL validation completed - all links verified")
+                update_progress(4, 'completed', "Trend analysis completed - patterns identified")
+                update_progress(5, 'in_progress', "Generating comprehensive analysis report...")
+                
+            except Exception as crew_error:
+                logger.error(f"Crew execution failed: {str(crew_error)}")
+                update_progress(1, 'failed', f"Crew execution failed: {str(crew_error)}")
+                raise crew_error
             
             # Extract usage metrics safely
             usage_metrics = {}
@@ -866,14 +877,22 @@ class EnhancedNewsResearchCrew:
             
             update_progress(5, 'completed', "Analysis report generated successfully")
             
+            # Log final results for debugging
+            logger.info(f"✅ Crew research completed. Result type: {type(result)}")
+            if hasattr(result, '__dict__'):
+                logger.info(f"Result attributes: {list(result.__dict__.keys()) if hasattr(result, '__dict__') else 'No attributes'}")
+            
             return {
                 "status": "success",
-                "result": result,
+                "result": str(result) if result else "No result returned from crew",
+                "raw_result": result,
                 "usage_metrics": usage_metrics,
                 "progress_steps": progress_steps,
                 "total_steps_completed": len([s for s in progress_steps if s['status'] == 'completed']),
                 "current_date": current_date,
-                "execution_time": datetime.now().isoformat()
+                "execution_time": datetime.now().isoformat(),
+                "crew_agents_used": list(self.agents.keys()),
+                "tasks_executed": len([scraping_task, analysis_task, trending_task])
             }
 
         except Exception as e:

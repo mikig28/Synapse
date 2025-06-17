@@ -162,7 +162,9 @@ class EnhancedNewsGatherer:
                             self.current_progress = progress_data
                             logger.info(f"📊 Progress Update: [{progress_data.get('agent', 'Unknown')}] {progress_data.get('description', '')} - {progress_data.get('status', '').upper()}")
                     
+                    logger.info(f"🔄 Starting enhanced crew research with topics: {topics}")
                     result = self.enhanced_crew.research_news(topics, sources, progress_callback=progress_callback)
+                    logger.info(f"🔄 Enhanced crew research completed. Result keys: {list(result.keys()) if isinstance(result, dict) else type(result)}")
                     
                     if result.get('status') == 'success':
                         logger.info("✅ Enhanced multi-agent research completed successfully")
