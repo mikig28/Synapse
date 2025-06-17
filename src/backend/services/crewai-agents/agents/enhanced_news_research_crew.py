@@ -1331,11 +1331,8 @@ class EnhancedNewsResearchCrew:
                             logger.info(f"📜 Feed title: {feed.feed.get('title', 'Unknown')}")
                             logger.info(f"📜 Feed description: {feed.feed.get('description', 'Unknown')[:100]}")
                             continue
-                    else:
-                        logger.error(f"❌ feedparser library not available - RSS parsing disabled")
-                        continue
                             
-                            for entry in feed.entries[:5]:  # Get 5 articles per feed
+                        for entry in feed.entries[:5]:  # Get 5 articles per feed
                                 # Check if article is relevant to topics
                                 title = entry.get('title', '').lower()
                                 summary = entry.get('summary', entry.get('description', '')).lower()
@@ -1361,6 +1358,9 @@ class EnhancedNewsResearchCrew:
                                         "simulated": False,
                                         "relevance_score": self._calculate_relevance_score(entry, topics)
                                     })
+                    else:
+                        logger.error(f"❌ feedparser library not available - RSS parsing disabled")
+                        continue
                                 
                 except Exception as feed_error:
                     logger.warning(f"Failed to parse news feed {feed_url}: {str(feed_error)}")
