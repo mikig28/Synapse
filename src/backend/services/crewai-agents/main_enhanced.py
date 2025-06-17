@@ -10,6 +10,7 @@ import json
 from typing import Dict, List, Any, Callable
 from datetime import datetime
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from dotenv import load_dotenv
 import logging
 import threading
@@ -28,6 +29,13 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 app = Flask(__name__)
+
+# Configure CORS to allow requests from your frontend
+CORS(app, origins=[
+    "http://localhost:3000",  # Local development
+    "https://synapse-frontend.onrender.com",  # Production frontend
+    "https://*.onrender.com"  # Any Render subdomain
+])
 
 # Import the enhanced crew system
 try:
