@@ -80,11 +80,15 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
   // Fetch crew progress from the Python service
   const fetchCrewProgress = async () => {
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_ROOT_URL || 'http://localhost:3001';
-      const crewServiceUrl = `${backendUrl.replace(':3001', ':5000')}/progress`;
+      // Use environment variable for CrewAI service URL, fallback to production URL
+      const crewServiceUrl = import.meta.env.VITE_CREWAI_SERVICE_URL || 
+        'https://synapse-crewai.onrender.com';
+      const progressUrl = `${crewServiceUrl}/progress`;
       
-      const response = await fetch(crewServiceUrl);
+      console.log('📊 CrewDashboard: Fetching progress from:', progressUrl);
+      const response = await fetch(progressUrl);
       const data = await response.json();
+      console.log('📊 CrewDashboard: Progress response:', data);
       
       if (data.success && data.progress && Object.keys(data.progress).length > 0) {
         const progress = data.progress as CrewProgress;
