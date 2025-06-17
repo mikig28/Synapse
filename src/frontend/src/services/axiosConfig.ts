@@ -12,9 +12,21 @@ export const BACKEND_ROOT_URL =
 // Define the common path for your API endpoints.
 const API_PATH = '/api/v1'; // This can be made configurable via another env var if needed
 
+// Validate backend URL configuration
+const isValidBackendUrl = BACKEND_ROOT_URL && BACKEND_ROOT_URL !== window?.location?.origin;
+if (!isValidBackendUrl && import.meta.env.PROD) {
+  console.error('❌ [AxiosConfig] VITE_BACKEND_ROOT_URL not properly configured for production!');
+  console.error('   Current value:', BACKEND_ROOT_URL);
+  console.error('   Expected: A different URL than the frontend origin');
+  console.error('   Please set VITE_BACKEND_ROOT_URL in your environment variables');
+}
+
 // Add more detailed logging for debugging
-console.log('[AxiosConfig] BACKEND_ROOT_URL:', BACKEND_ROOT_URL);
+console.log('[AxiosConfig] Environment:', import.meta.env.MODE);
+console.log('[AxiosConfig] VITE_BACKEND_ROOT_URL from env:', import.meta.env.VITE_BACKEND_ROOT_URL);
+console.log('[AxiosConfig] BACKEND_ROOT_URL resolved to:', BACKEND_ROOT_URL);
 console.log('[AxiosConfig] Full API Base URL:', `${BACKEND_ROOT_URL}${API_PATH}`);
+console.log('[AxiosConfig] Is valid backend URL:', isValidBackendUrl);
 
 const axiosInstance = axios.create({
   baseURL: `${BACKEND_ROOT_URL}${API_PATH}`, // e.g., http://localhost:3001/api/v1 or https://your-backend.onrender.com/api/v1
