@@ -1038,9 +1038,11 @@ class EnhancedNewsResearchCrew:
             # 3. Scrape real LinkedIn posts
             if sources.get('linkedin', True):
                 update_progress(3, 'in_progress', 'Scraping real LinkedIn professional content...')
+                logger.info(f"💼 [Social Media Monitor] Collecting LinkedIn posts - STARTING")
                 try:
                     # Scrape real LinkedIn posts
                     linkedin_posts = self._scrape_real_linkedin_posts(topics)
+                    logger.info(f"🔍 LinkedIn scraper returned {len(linkedin_posts)} posts")
                     organized_content['linkedin_posts'] = linkedin_posts
                     update_progress(3, 'completed', f"Scraped {len(linkedin_posts)} real LinkedIn posts")
                     logger.info(f"✅ Scraped {len(linkedin_posts)} real LinkedIn posts")
@@ -1049,12 +1051,15 @@ class EnhancedNewsResearchCrew:
                     logger.error(f"LinkedIn scraping failed: {str(e)}")
             else:
                 update_progress(3, 'skipped', 'LinkedIn disabled')
+                logger.warning(f"💼 [Social Media Monitor] Collecting LinkedIn posts - SKIPPED")
             
             # 4. Scrape real news websites
             if sources.get('news_websites', True):
                 update_progress(4, 'in_progress', 'Scraping real news websites...')
+                logger.info(f"📰 [News Research Specialist] Scraping news websites - STARTING")
                 try:
                     news_articles = self._scrape_real_news_websites(topics)
+                    logger.info(f"🔍 News scraper returned {len(news_articles)} articles")
                     organized_content['news_articles'] = news_articles
                     update_progress(4, 'completed', f"Scraped {len(news_articles)} real news articles")
                     logger.info(f"✅ Scraped {len(news_articles)} real news articles")
@@ -1063,6 +1068,7 @@ class EnhancedNewsResearchCrew:
                     logger.error(f"News scraping failed: {str(e)}")
             else:
                 update_progress(4, 'skipped', 'News websites disabled')
+                logger.warning(f"📰 [News Research Specialist] Scraping news websites - SKIPPED")
             
             # 5. Analyze all content quality
             update_progress(5, 'in_progress', 'Analyzing content quality across all sources...')
@@ -1171,8 +1177,10 @@ class EnhancedNewsResearchCrew:
             }
     
     def _scrape_real_linkedin_posts(self, topics: List[str]) -> List[Dict[str, Any]]:
-        """Scrape real LinkedIn posts using web scraping"""
+        """Scrape real LinkedIn posts using web scraping with graceful degradation"""
         posts = []
+        
+        logger.info(f"💼 Starting LinkedIn scraping for topics: {topics}")
         
         try:
             import requests
@@ -1194,7 +1202,10 @@ class EnhancedNewsResearchCrew:
                     for feed_url in linkedin_rss_feeds:
                         if any(keyword in feed_url for keyword in [topic.lower(), 'artificial-intelligence', 'technology']):
                             try:
+                                logger.info(f"📡 Fetching LinkedIn RSS: {feed_url}")
                                 response = requests.get(feed_url, headers=headers, timeout=10)
+                                logger.info(f"📊 LinkedIn RSS response: {response.status_code}")
+                                
                                 if response.status_code == 200 and FEEDPARSER_AVAILABLE:
                                     feed = feedparser.parse(response.content)
                                     
@@ -1217,19 +1228,39 @@ class EnhancedNewsResearchCrew:
                                         })
                                         
                             except Exception as feed_error:
-                                logger.warning(f"Failed to parse LinkedIn RSS feed: {str(feed_error)}")
+                                logger.warning(f"⚠️ Failed to parse LinkedIn RSS feed {feed_url}: {str(feed_error)}")
                                 continue
                                     
                 except Exception as topic_error:
-                    logger.warning(f"Failed to scrape LinkedIn for topic {topic}: {str(topic_error)}")
+                    logger.warning(f"⚠️ Failed to scrape LinkedIn for topic {topic}: {str(topic_error)}")
                     continue
             
             # If no real posts found, try alternative sources
             if not posts:
-                logger.info("No LinkedIn RSS data found, trying alternative sources...")
+                logger.warning("⚠️ No LinkedIn RSS data found, trying alternative professional sources...")
                 posts = self._get_alternative_professional_content(topics)
+                
+            # If still no posts, create informative fallback
+            if not posts:
+                logger.warning("⚠️ No LinkedIn or alternative content found, creating diagnostic entry")
+                posts = [{
+                    "id": f"linkedin_diagnostic_{int(datetime.now().timestamp())}",
+                    "title": f"LinkedIn Scraping Status for {', '.join(topics)}",
+                    "content": "LinkedIn RSS feeds are currently inaccessible. This may be due to rate limiting, feed changes, or network issues.",
+                    "author": "System Diagnostic",
+                    "company": "Synapse",
+                    "url": "#",
+                    "published_date": datetime.now().isoformat(),
+                    "engagement": {"likes": 0, "comments": 0, "shares": 0},
+                    "source": "diagnostic",
+                    "simulated": True,
+                    "diagnostic": True
+                }]
             
-            logger.info(f"✅ Successfully collected {len(posts)} LinkedIn posts")
+            if any(post.get('diagnostic') for post in posts):
+                logger.warning(f"⚠️ LinkedIn scraping failed - returned {len(posts)} diagnostic entries")
+            else:
+                logger.info(f"✅ Successfully collected {len(posts)} LinkedIn posts")
             return posts
             
         except Exception as e:
@@ -1409,12 +1440,47 @@ class EnhancedNewsResearchCrew:
             # Sort by relevance score and recency
             articles.sort(key=lambda x: (x.get('relevance_score', 0), x.get('published_date', '')), reverse=True)
             
-            logger.info(f"✅ Successfully scraped {len(articles)} real news articles")
+            # If no articles found, create diagnostic entry
+            if not articles:
+                logger.warning("⚠️ No news articles found from any source, creating diagnostic entry")
+                articles = [{
+                    "id": f"news_diagnostic_{int(datetime.now().timestamp())}",
+                    "title": f"News Scraping Status for {', '.join(topics) if topics else 'General News'}",
+                    "content": "News RSS feeds are currently returning no articles. This may be due to feed changes, rate limiting, or content filtering issues.",
+                    "url": "#",
+                    "source": "System Diagnostic",
+                    "author": "Synapse News Monitor",
+                    "published_date": datetime.now().isoformat(),
+                    "summary": "Diagnostic message indicating news scraping issues",
+                    "simulated": True,
+                    "diagnostic": True,
+                    "relevance_score": 0.1
+                }]
+            
+            if any(article.get('diagnostic') for article in articles):
+                logger.warning(f"⚠️ News scraping failed - returned {len(articles)} diagnostic entries")
+            else:
+                logger.info(f"✅ Successfully scraped {len(articles)} real news articles")
+            
             return articles[:20]  # Return top 20 most relevant articles
             
         except Exception as e:
             logger.error(f"❌ News website scraping failed: {str(e)}")
-            return []
+            # Return diagnostic entry instead of empty list
+            return [{
+                "id": f"news_error_{int(datetime.now().timestamp())}",
+                "title": f"News Scraping Error for {', '.join(topics) if topics else 'General News'}",
+                "content": f"News scraping encountered a critical error: {str(e)}",
+                "url": "#",
+                "source": "Error Handler",
+                "author": "Synapse Error Reporter",
+                "published_date": datetime.now().isoformat(),
+                "summary": f"Critical error in news scraping: {str(e)[:100]}",
+                "simulated": True,
+                "diagnostic": True,
+                "error": True,
+                "relevance_score": 0.0
+            }]
     
     def _extract_domain(self, url: str) -> str:
         """Extract clean domain name from URL"""

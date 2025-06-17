@@ -38,44 +38,81 @@ class RedditScraperTool(BaseTool):
     
     def __init__(self):
         super().__init__()
+        # Initialize with defensive attribute setting
+        self._init_attributes()
+        
+    def _init_attributes(self):
+        """Initialize attributes with defensive programming"""
+        # Use setattr to ensure compatibility with all BaseTool implementations
+        setattr(self, 'reddit', None)
+        setattr(self, 'is_authenticated', False)
+        setattr(self, '_credentials_available', False)
+        
         # Initialize Reddit API client with proper error handling
         reddit_client_id = os.getenv('REDDIT_CLIENT_ID')
         reddit_client_secret = os.getenv('REDDIT_CLIENT_SECRET')
         reddit_user_agent = os.getenv('REDDIT_USER_AGENT', 'SynapseAgent/1.0')
         
-        self.reddit = None
-        self.is_authenticated = False
+        # Debug environment variables
+        logger.info(f"🔍 Reddit credentials check:")
+        logger.info(f"   CLIENT_ID: {'✅ Set' if reddit_client_id else '❌ Missing'}")
+        logger.info(f"   CLIENT_SECRET: {'✅ Set' if reddit_client_secret else '❌ Missing'}")
+        logger.info(f"   USER_AGENT: {reddit_user_agent}")
         
         if not reddit_client_id or not reddit_client_secret:
             logger.error("❌ Reddit API credentials not configured")
+            setattr(self, '_credentials_available', False)
             return
         
+        setattr(self, '_credentials_available', True)
+        
         try:
-            self.reddit = praw.Reddit(
+            reddit_instance = praw.Reddit(
                 client_id=reddit_client_id,
                 client_secret=reddit_client_secret,
                 user_agent=reddit_user_agent,
                 check_for_async=False
             )
             # Test connection with a simple request
-            list(self.reddit.subreddit('technology').hot(limit=1))
-            self.is_authenticated = True
+            list(reddit_instance.subreddit('technology').hot(limit=1))
+            
+            # Use setattr for compatibility
+            setattr(self, 'reddit', reddit_instance)
+            setattr(self, 'is_authenticated', True)
             logger.info("✅ Reddit API connection successful")
         except Exception as e:
             logger.error(f"❌ Reddit API connection failed: {str(e)}")
-            self.reddit = None
-            self.is_authenticated = False
+            setattr(self, 'reddit', None)
+            setattr(self, 'is_authenticated', False)
     
     def _run(self, topics: str = "technology,AI,startups") -> str:
         """Scrape Reddit for posts on specified topics"""
         
         try:
-            if not self.reddit or not self.is_authenticated:
-                logger.error("❌ Reddit API not available - returning empty result")
+            # Defensive attribute access
+            reddit_instance = getattr(self, 'reddit', None)
+            is_authenticated = getattr(self, 'is_authenticated', False)
+            credentials_available = getattr(self, '_credentials_available', False)
+            
+            logger.info(f"🔍 Reddit scraper status check:")
+            logger.info(f"   Credentials available: {credentials_available}")
+            logger.info(f"   Reddit instance: {reddit_instance is not None}")
+            logger.info(f"   Is authenticated: {is_authenticated}")
+            
+            if not credentials_available or not reddit_instance or not is_authenticated:
+                error_msg = "Reddit API not available"
+                if not credentials_available:
+                    error_msg += " - missing credentials"
+                elif not reddit_instance:
+                    error_msg += " - instance not created"
+                elif not is_authenticated:
+                    error_msg += " - authentication failed"
+                    
+                logger.error(f"❌ {error_msg} - returning empty result")
                 return json.dumps({
                     'success': False,
                     'source': 'reddit',
-                    'error': 'Reddit API not authenticated',
+                    'error': error_msg,
                     'posts': [],
                     'timestamp': datetime.now().isoformat()
                 })
@@ -109,7 +146,7 @@ class RedditScraperTool(BaseTool):
             # Scrape each subreddit
             for subreddit_name in list(subreddits_to_check)[:5]:  # Limit to 5 subreddits
                 try:
-                    subreddit = self.reddit.subreddit(subreddit_name)
+                    subreddit = reddit_instance.subreddit(subreddit_name)
                     
                     # Get hot posts from last 24 hours
                     for post in subreddit.hot(limit=10):
