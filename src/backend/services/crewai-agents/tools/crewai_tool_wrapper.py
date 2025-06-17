@@ -26,17 +26,27 @@ from custom_tools import AVAILABLE_TOOLS, get_tool, BaseTool
 
 class CrewAIToolWrapper(CrewAIBaseTool):
     """Wrapper to make custom tools compatible with CrewAI agents"""
-    
+
     def __init__(self, custom_tool: BaseTool):
-        self.custom_tool = custom_tool
-        # Set CrewAI tool properties
+        """Initialise and adapt a custom tool for CrewAI"""
+        # Attempt to initialise the base tool with name/description first
+        try:
+            super().__init__(name=custom_tool.name, description=custom_tool.description)
+        except Exception:
+            try:
+                super().__init__()
+            except Exception:
+                pass
+
+        # Assign the wrapped tool after initialisation to avoid attribute errors
+        try:
+            setattr(self, "custom_tool", custom_tool)
+        except Exception:
+            object.__setattr__(self, "custom_tool", custom_tool)
+
+        # Ensure basic properties are set
         self.name = custom_tool.name
         self.description = custom_tool.description
-        try:
-            super().__init__()
-        except Exception:
-            # If super().__init__() fails, just set the basic properties
-            pass
     
     def _run(self, **kwargs) -> str:
         """Execute the custom tool and return results as JSON string"""
