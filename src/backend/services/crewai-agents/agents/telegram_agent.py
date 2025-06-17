@@ -20,8 +20,17 @@ except ImportError:
     except ImportError:
         # Fallback for older versions
         class BaseTool:
-            name: str = ""
-            description: str = ""
+            def __init__(self):
+                self.name = getattr(self, 'name', 'Tool')
+                self.description = getattr(self, 'description', 'A tool')
+                
+            def __setattr__(self, name, value):
+                object.__setattr__(self, name, value)
+                
+            def __getattr__(self, name):
+                # Return None for any missing attribute instead of raising AttributeError
+                return None
+                
             def _run(self, *args, **kwargs):
                 pass
 import logging
