@@ -8,6 +8,7 @@ import { agentService } from '../services/agentService';
 import { Agent, AgentRun } from '../types/agent';
 import { AgentLogViewer } from '@/components/AgentLogViewer';
 import AgentActivityDashboard from '@/components/AgentActivityDashboard';
+import { CrewExecutionDashboard } from '@/components/CrewExecutionDashboard';
 import { useNavigate } from 'react-router-dom';
 import {
   Bot,
@@ -690,11 +691,24 @@ const AgentsPage: React.FC = () => {
                       </Button>
                     </div>
                     
-                    <AgentLogViewer
-                      agentId={agent._id}
-                      agentName={agent.name}
-                      isRunning={agent.status === 'running' || executingAgents.has(agent._id)}
-                    />
+                    <div className="flex gap-2">
+                      <AgentLogViewer
+                        agentId={agent._id}
+                        agentName={agent.name}
+                        isRunning={agent.status === 'running' || executingAgents.has(agent._id)}
+                      />
+                      
+                      {/* Show Crew Dashboard for CrewAI agents */}
+                      {agent.type === 'crewai_news' && (
+                        <CrewExecutionDashboard
+                          agentId={agent._id}
+                          agentName={agent.name}
+                          isRunning={agent.status === 'running' || executingAgents.has(agent._id)}
+                          onExecuteAgent={() => handleExecuteAgent(agent._id)}
+                          onPauseAgent={() => handleToggleAgent(agent)}
+                        />
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>

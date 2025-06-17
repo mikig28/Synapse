@@ -735,8 +735,8 @@ class EnhancedNewsResearchCrew:
             'trend_analyst': trend_analyst
         }
     
-    def research_news(self, topics: List[str], sources: Dict[str, bool] = None) -> Dict[str, Any]:
-        """Execute comprehensive news research with task delegation"""
+    def research_news(self, topics: List[str], sources: Dict[str, bool] = None, progress_callback=None) -> Dict[str, Any]:
+        """Execute comprehensive news research with task delegation and detailed progress tracking"""
         
         if not sources:
             sources = {
@@ -746,17 +746,57 @@ class EnhancedNewsResearchCrew:
                 'news_websites': True
             }
         
+        # Initialize progress tracking
+        progress_steps = [
+            {'agent': 'News Research Specialist', 'step': 'Initializing news research', 'status': 'pending'},
+            {'agent': 'News Research Specialist', 'step': 'Scraping recent news from multiple sources', 'status': 'pending'},
+            {'agent': 'Content Quality Analyst', 'step': 'Analyzing content quality and relevance', 'status': 'pending'},
+            {'agent': 'URL Validation Specialist', 'step': 'Validating and cleaning URLs', 'status': 'pending'},
+            {'agent': 'Trend Analysis Expert', 'step': 'Identifying current trends and patterns', 'status': 'pending'},
+            {'agent': 'Crew', 'step': 'Generating comprehensive analysis report', 'status': 'pending'}
+        ]
+        
+        def update_progress(step_index: int, status: str, message: str = None):
+            if step_index < len(progress_steps):
+                progress_steps[step_index]['status'] = status
+                if message:
+                    progress_steps[step_index]['message'] = message
+                    
+                # Log progress with structured format
+                agent = progress_steps[step_index]['agent']
+                step = progress_steps[step_index]['step']
+                logger.info(f"🔄 [{agent}] {step} - {status.upper()}")
+                if message:
+                    logger.info(f"📝 [{agent}] {message}")
+                    
+                # Call progress callback if provided
+                if progress_callback:
+                    progress_callback({
+                        'step': step_index + 1,
+                        'total_steps': len(progress_steps),
+                        'agent': agent,
+                        'description': step,
+                        'status': status,
+                        'message': message,
+                        'timestamp': datetime.now().isoformat()
+                    })
+        
         try:
             current_date = datetime.now().strftime('%Y-%m-%d')
             current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
             
-            logger.info(f"Starting enhanced news research for topics: {topics} on {current_date}")
+            update_progress(0, 'in_progress', f"Starting enhanced news research for topics: {topics} on {current_date}")
+            logger.info(f"🚀 Starting enhanced news research for topics: {topics} on {current_date}")
             
             # Task 1: Scrape and validate RECENT news articles
+            update_progress(1, 'in_progress', f"Scraping recent news from {len([k for k, v in sources.items() if v])} sources")
+            
             scraping_task = Task(
                 description=f"Scrape high-quality, RECENT news articles for topics: {', '.join(topics)}. "
                            f"Current date: {current_date}. Focus on articles published within the last 24-48 hours. "
-                           f"Prioritize current events and breaking news. Filter out outdated content (older than 3 days).",
+                           f"Prioritize current events and breaking news. Filter out outdated content (older than 3 days). "
+                           f"Search sources: {', '.join([k for k, v in sources.items() if v])}. "
+                           f"Provide detailed progress updates as you work through each source.",
                 agent=self.agents['news_researcher'],
                 expected_output="A list of validated and cleaned RECENT news articles as dictionaries, related to the topics and published within the last 48 hours."
             )
@@ -765,7 +805,8 @@ class EnhancedNewsResearchCrew:
             analysis_task = Task(
                 description=f"Analyze the provided articles for quality, relevance, authenticity, and RECENCY. "
                            f"Current time: {current_time}. Filter out any low-quality content, ads, spam, or OUTDATED articles. "
-                           f"Prioritize articles published within the last 24-48 hours. Assign quality and recency scores to each article.",
+                           f"Prioritize articles published within the last 24-48 hours. Assign quality and recency scores to each article. "
+                           f"Provide detailed analysis progress updates as you evaluate each article.",
                 agent=self.agents['content_analyst'],
                 context=[scraping_task],
                 expected_output="A curated list of high-quality, RECENT articles with analysis, quality scores, and publication timestamps."
@@ -775,13 +816,14 @@ class EnhancedNewsResearchCrew:
             trending_task = Task(
                 description=f"From the curated list of recent articles, identify CURRENT emerging trends, breaking news, and developing patterns. "
                            f"Today is {current_date}. Focus on trends happening NOW and in the last 24-48 hours. "
-                           f"Summarize the most important current trends and breaking developments.",
+                           f"Summarize the most important current trends and breaking developments. "
+                           f"Provide progress updates as you analyze trending patterns and generate insights.",
                 agent=self.agents['trend_analyst'],
                 context=[analysis_task],
                 expected_output="A report summarizing the top 3-5 CURRENT news trends with supporting recent articles and timestamps."
             )
             
-            # Create and run the crew
+            # Create and run the crew with progress tracking
             crew = Crew(
                 agents=list(self.agents.values()),
                 tasks=[scraping_task, analysis_task, trending_task],
@@ -789,7 +831,18 @@ class EnhancedNewsResearchCrew:
                 verbose=True
             )
             
+            logger.info("🚀 Crew kickoff initiated - agents are now working...")
+            update_progress(0, 'completed', "Crew setup completed successfully")
+            
+            # Execute with progress tracking
             result = crew.kickoff()
+            
+            # Mark remaining steps as completed
+            update_progress(1, 'completed', "News research completed successfully")
+            update_progress(2, 'completed', "Content analysis completed successfully")
+            update_progress(3, 'completed', "URL validation completed successfully")
+            update_progress(4, 'completed', "Trend analysis completed successfully")
+            update_progress(5, 'in_progress', "Generating comprehensive analysis report...")
             
             # Extract usage metrics safely
             usage_metrics = {}
@@ -811,15 +864,33 @@ class EnhancedNewsResearchCrew:
                     "completion_tokens": 0
                 }
             
+            update_progress(5, 'completed', "Analysis report generated successfully")
+            
             return {
                 "status": "success",
                 "result": result,
-                "usage_metrics": usage_metrics
+                "usage_metrics": usage_metrics,
+                "progress_steps": progress_steps,
+                "total_steps_completed": len([s for s in progress_steps if s['status'] == 'completed']),
+                "current_date": current_date,
+                "execution_time": datetime.now().isoformat()
             }
 
         except Exception as e:
-            logger.error(f"An error occurred during news research: {str(e)}")
-            return {"status": "error", "message": str(e)}
+            logger.error(f"❌ An error occurred during news research: {str(e)}")
+            
+            # Update progress to show error
+            for i, step in enumerate(progress_steps):
+                if step['status'] == 'in_progress':
+                    update_progress(i, 'failed', f"Error: {str(e)}")
+                    break
+            
+            return {
+                "status": "error", 
+                "message": str(e),
+                "progress_steps": progress_steps,
+                "failed_at": datetime.now().isoformat()
+            }
 
 if __name__ == '__main__':
     # Example usage

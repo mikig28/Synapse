@@ -651,7 +651,7 @@ const NewsPage: React.FC = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => window.open(item.url, '_blank')}
+                            onClick={() => window.open(item.url, '_blank', 'noopener,noreferrer')}
                           >
                             <ExternalLink className="w-4 h-4" />
                           </Button>

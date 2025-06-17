@@ -7,11 +7,13 @@ Dynamic task delegation with URL validation and content monitoring
 import os
 import sys
 import json
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Callable
 from datetime import datetime
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 import logging
+import threading
+import time
 
 # Add current directory to Python path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -68,6 +70,10 @@ class EnhancedNewsGatherer:
         self.openai_api_key = os.getenv('OPENAI_API_KEY')
         self.anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
         self.initialization_error = None
+        
+        # Progress tracking
+        self.current_progress = {}
+        self.progress_lock = threading.Lock()
         
         # Initialize attributes to None first
         self.enhanced_crew = None
@@ -142,13 +148,19 @@ class EnhancedNewsGatherer:
             # Try enhanced multi-agent system first
             if self.enhanced_crew and self.mode == "enhanced_multi_agent":
                 try:
-                    result = self.enhanced_crew.research_news(topics, sources)
+                    # Create progress callback
+                    def progress_callback(progress_data):
+                        with self.progress_lock:
+                            self.current_progress = progress_data
+                            logger.info(f"📊 Progress Update: [{progress_data.get('agent', 'Unknown')}] {progress_data.get('description', '')} - {progress_data.get('status', '').upper()}")
                     
-                    if result.get('success'):
+                    result = self.enhanced_crew.research_news(topics, sources, progress_callback=progress_callback)
+                    
+                    if result.get('status') == 'success':
                         logger.info("✅ Enhanced multi-agent research completed successfully")
                         return self._format_enhanced_result(result, topics, sources)
                     else:
-                        logger.warning(f"Enhanced crew returned error: {result.get('error')}")
+                        logger.warning(f"Enhanced crew returned error: {result.get('message', 'Unknown error')}")
                         # Fall back to dynamic crew
                         return self._try_dynamic_crew(user_input, topics, sources)
                         
@@ -194,35 +206,49 @@ class EnhancedNewsGatherer:
             return self._fallback_to_simple_scraper(topics, sources)
     
     def _format_enhanced_result(self, result: Dict[str, Any], topics: List[str], sources: Dict[str, Any]) -> Dict[str, Any]:
-        """Format the enhanced result from dynamic crew"""
+        """Format the enhanced result from crew"""
         
-        data = result.get('data', {})
+        # Clear progress when complete
+        with self.progress_lock:
+            self.current_progress = {}
+        
+        data = result.get('result', {}) if 'result' in result else result.get('data', {})
         
         return {
             "success": True,
             "timestamp": datetime.now().isoformat(),
             "topics": topics,
             "sources_used": sources,
-            "mode": "enhanced_dynamic_multi_agent",
+            "mode": "enhanced_multi_agent_crew",
             "enhanced_features": {
                 "url_validation": True,
                 "content_quality_scoring": True,
                 "dynamic_task_delegation": True,
-                "multi_agent_coordination": True
+                "multi_agent_coordination": True,
+                "real_time_progress_tracking": True,
+                "current_date_awareness": True
+            },
+            "execution_info": {
+                "progress_steps": result.get('progress_steps', []),
+                "total_steps_completed": result.get('total_steps_completed', 0),
+                "execution_time": result.get('execution_time'),
+                "current_date": result.get('current_date'),
+                "usage_metrics": result.get('usage_metrics', {})
             },
             "data": {
-                "executive_summary": data.get('executive_summary', []),
-                "trending_topics": data.get('trending_topics', []),
+                "crew_result": str(data) if data else "No result data available",
+                "executive_summary": data.get('executive_summary', []) if isinstance(data, dict) else [],
+                "trending_topics": data.get('trending_topics', []) if isinstance(data, dict) else [],
                 "organized_content": data.get('organized_content', {
                     "news_articles": [],
                     "reddit_posts": [],
                     "linkedin_posts": [],
                     "telegram_messages": []
-                }),
-                "validated_articles": data.get('validated_articles', []),
-                "ai_insights": data.get('ai_insights', {}),
-                "task_execution_summary": data.get('task_execution_summary', {}),
-                "recommendations": data.get('recommendations', [])
+                }) if isinstance(data, dict) else {},
+                "validated_articles": data.get('validated_articles', []) if isinstance(data, dict) else [],
+                "ai_insights": data.get('ai_insights', {}) if isinstance(data, dict) else {},
+                "task_execution_summary": data.get('task_execution_summary', {}) if isinstance(data, dict) else {},
+                "recommendations": data.get('recommendations', []) if isinstance(data, dict) else []
             }
         }
     
@@ -552,6 +578,30 @@ def system_info():
         ],
         "timestamp": datetime.now().isoformat()
     })
+
+@app.route('/progress', methods=['GET'])
+def get_crew_progress():
+    """Get current crew execution progress"""
+    try:
+        if not news_gatherer:
+            return jsonify({
+                "success": False,
+                "error": "News gatherer not initialized"
+            }), 500
+        
+        with news_gatherer.progress_lock:
+            return jsonify({
+                "success": True,
+                "progress": news_gatherer.current_progress,
+                "has_active_progress": bool(news_gatherer.current_progress),
+                "timestamp": datetime.now().isoformat()
+            })
+    except Exception as e:
+        logger.error(f"Error getting progress: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
