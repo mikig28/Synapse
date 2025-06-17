@@ -4,7 +4,6 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { ScrollArea } from './ui/scroll-area';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { ChevronDown, ChevronRight, Bug, AlertTriangle, X, Trash2 } from 'lucide-react';
 
 interface DebugPanelProps {
@@ -125,83 +124,78 @@ const DebugPanel: React.FC<DebugPanelProps> = ({ isVisible, onClose }) => {
                 </div>
               ) : (
                 filteredErrors.map((error, index) => (
-                  <Collapsible
-                    key={index}
-                    open={expandedErrors.has(index)}
-                    onOpenChange={() => toggleError(index)}
-                  >
-                    <Card className="border">
-                      <CollapsibleTrigger asChild>
-                        <CardHeader className="cursor-pointer hover:bg-gray-50 pb-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              {expandedErrors.has(index) ? (
-                                <ChevronDown className="h-4 w-4" />
-                              ) : (
-                                <ChevronRight className="h-4 w-4" />
-                              )}
-                              <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                              <Badge className={getErrorTypeColor(error.type)}>
-                                {error.type}
-                              </Badge>
-                              {error.statusCode && (
-                                <Badge variant="outline">{error.statusCode}</Badge>
-                              )}
-                            </div>
-                            <span className="text-xs text-gray-500">
-                              {new Date(error.timestamp).toLocaleTimeString()}
-                            </span>
-                          </div>
-                          <div className="text-left">
-                            <p className="font-medium text-sm truncate">{error.message}</p>
-                          </div>
-                        </CardHeader>
-                      </CollapsibleTrigger>
-                      
-                      <CollapsibleContent>
-                        <CardContent className="pt-0 space-y-3">
-                          {/* Error Details */}
-                          <div>
-                            <h4 className="font-medium text-sm mb-1">Full Message:</h4>
-                            <p className="text-sm bg-gray-100 p-2 rounded">{error.message}</p>
-                          </div>
-
-                          {/* Suggestions */}
-                          {error.suggestions && error.suggestions.length > 0 && (
-                            <div>
-                              <h4 className="font-medium text-sm mb-1">Suggestions:</h4>
-                              <ul className="text-sm space-y-1">
-                                {error.suggestions.map((suggestion, i) => (
-                                  <li key={i} className="flex items-start gap-1">
-                                    <span className="text-blue-600">•</span>
-                                    <span>{suggestion}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
+                  <Card key={index} className="border">
+                    <CardHeader 
+                      className="cursor-pointer hover:bg-gray-50 pb-2"
+                      onClick={() => toggleError(index)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {expandedErrors.has(index) ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
                           )}
-
-                          {/* Context */}
-                          {error.context && (
-                            <div>
-                              <h4 className="font-medium text-sm mb-1">Context:</h4>
-                              <pre className="text-xs bg-gray-100 p-2 rounded overflow-auto max-h-40">
-                                {JSON.stringify(error.context, null, 2)}
-                              </pre>
-                            </div>
+                          <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                          <Badge className={getErrorTypeColor(error.type)}>
+                            {error.type}
+                          </Badge>
+                          {error.statusCode && (
+                            <Badge variant="outline">{error.statusCode}</Badge>
                           )}
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {new Date(error.timestamp).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <div className="text-left">
+                        <p className="font-medium text-sm truncate">{error.message}</p>
+                      </div>
+                    </CardHeader>
+                    
+                    {expandedErrors.has(index) && (
+                      <CardContent className="pt-0 space-y-3">
+                        {/* Error Details */}
+                        <div>
+                          <h4 className="font-medium text-sm mb-1">Full Message:</h4>
+                          <p className="text-sm bg-gray-100 p-2 rounded">{error.message}</p>
+                        </div>
 
-                          {/* Original Error */}
+                        {/* Suggestions */}
+                        {error.suggestions && error.suggestions.length > 0 && (
                           <div>
-                            <h4 className="font-medium text-sm mb-1">Original Error:</h4>
-                            <pre className="text-xs bg-red-50 p-2 rounded overflow-auto max-h-40">
-                              {error.originalError.stack || error.originalError.toString()}
+                            <h4 className="font-medium text-sm mb-1">Suggestions:</h4>
+                            <ul className="text-sm space-y-1">
+                              {error.suggestions.map((suggestion, i) => (
+                                <li key={i} className="flex items-start gap-1">
+                                  <span className="text-blue-600">•</span>
+                                  <span>{suggestion}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Context */}
+                        {error.context && (
+                          <div>
+                            <h4 className="font-medium text-sm mb-1">Context:</h4>
+                            <pre className="text-xs bg-gray-100 p-2 rounded overflow-auto max-h-40">
+                              {JSON.stringify(error.context, null, 2)}
                             </pre>
                           </div>
-                        </CardContent>
-                      </CollapsibleContent>
-                    </Card>
-                  </Collapsible>
+                        )}
+
+                        {/* Original Error */}
+                        <div>
+                          <h4 className="font-medium text-sm mb-1">Original Error:</h4>
+                          <pre className="text-xs bg-red-50 p-2 rounded overflow-auto max-h-40">
+                            {error.originalError.stack || error.originalError.toString()}
+                          </pre>
+                        </div>
+                      </CardContent>
+                    )}
+                  </Card>
                 ))
               )}
             </div>
