@@ -1,4 +1,4 @@
-# Dependencies for enhanced multi-agent CrewAI service - Updated for scraping
+# Dependencies for enhanced multi-agent CrewAI service - Updated for real scraping
 flask>=2.0.0
 flask-cors>=3.0.0
 python-dotenv>=0.19.0
@@ -8,6 +8,8 @@ praw>=7.0.0
 feedparser>=6.0.0
 newspaper3k>=0.2.8
 lxml[html_clean]>=4.9.0
+python-telegram-bot>=20.0
+selenium>=4.0.0
 
 # CrewAI and AI dependencies (latest compatible versions)
 crewai>=0.130.0

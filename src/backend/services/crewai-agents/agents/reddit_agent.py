@@ -17,12 +17,32 @@ class RedditScraperTool(BaseTool):
     
     def __init__(self):
         super().__init__()
-        # Initialize Reddit API client
-        self.reddit = praw.Reddit(
-            client_id=os.getenv('REDDIT_CLIENT_ID', 'dummy'),
-            client_secret=os.getenv('REDDIT_CLIENT_SECRET', 'dummy'),
-            user_agent=os.getenv('REDDIT_USER_AGENT', 'SynapseAgent/1.0')
-        )
+        # Initialize Reddit API client with proper error handling
+        self.reddit_client_id = os.getenv('REDDIT_CLIENT_ID')
+        self.reddit_client_secret = os.getenv('REDDIT_CLIENT_SECRET')
+        self.reddit_user_agent = os.getenv('REDDIT_USER_AGENT', 'SynapseAgent/1.0')
+        
+        if not self.reddit_client_id or not self.reddit_client_secret:
+            logger.error("❌ Reddit API credentials not configured")
+            raise ValueError("Reddit API credentials missing")
+        
+        try:
+            self.reddit = praw.Reddit(
+                client_id=self.reddit_client_id,
+                client_secret=self.reddit_client_secret,
+                user_agent=self.reddit_user_agent
+            )
+            # Test connection
+            self.reddit.user.me()
+            logger.info("✅ Reddit API connection successful")
+        except Exception as e:
+            logger.error(f"❌ Reddit API connection failed: {str(e)}")
+            # Create read-only instance for public data
+            self.reddit = praw.Reddit(
+                client_id=self.reddit_client_id,
+                client_secret=self.reddit_client_secret,
+                user_agent=self.reddit_user_agent
+            )
     
     def _run(self, topics: str = "technology,AI,startups") -> str:
         """Scrape Reddit for posts on specified topics"""
