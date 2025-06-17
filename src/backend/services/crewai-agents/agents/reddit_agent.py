@@ -4,7 +4,18 @@ from typing import List, Dict, Any
 from datetime import datetime, timedelta
 import praw
 from crewai import Agent
-from crewai_tools import BaseTool
+try:
+    from crewai_tools import BaseTool
+except ImportError:
+    try:
+        from crewai.tools import BaseTool
+    except ImportError:
+        # Fallback for older versions
+        class BaseTool:
+            name: str = ""
+            description: str = ""
+            def _run(self, *args, **kwargs):
+                pass
 import logging
 
 logger = logging.getLogger(__name__)

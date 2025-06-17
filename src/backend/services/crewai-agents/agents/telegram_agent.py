@@ -3,10 +3,27 @@ import json
 import asyncio
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
-from telegram import Bot
-from telegram.error import TelegramError
+try:
+    from telegram import Bot
+    from telegram.error import TelegramError
+    TELEGRAM_AVAILABLE = True
+except ImportError:
+    TELEGRAM_AVAILABLE = False
+    Bot = None
+    TelegramError = Exception
 from crewai import Agent
-from crewai_tools import BaseTool
+try:
+    from crewai_tools import BaseTool
+except ImportError:
+    try:
+        from crewai.tools import BaseTool
+    except ImportError:
+        # Fallback for older versions
+        class BaseTool:
+            name: str = ""
+            description: str = ""
+            def _run(self, *args, **kwargs):
+                pass
 import logging
 
 logger = logging.getLogger(__name__)
@@ -22,6 +39,10 @@ class TelegramMonitorTool(BaseTool):
         self.bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
         self.bot = None
         
+        if not TELEGRAM_AVAILABLE:
+            logger.warning("Telegram library not available")
+            return
+            
         if self.bot_token:
             try:
                 self.bot = Bot(token=self.bot_token)
@@ -38,7 +59,7 @@ class TelegramMonitorTool(BaseTool):
         try:
             topics_list = [topic.strip() for topic in topics.split(',')]
             
-            if not self.bot:
+            if not TELEGRAM_AVAILABLE or not self.bot:
                 # Return simulated data if bot is not available
                 return self._generate_simulated_telegram_data(topics_list)
             
