@@ -10,10 +10,12 @@ except ImportError:
     try:
         from crewai.tools import BaseTool
     except ImportError:
-        # Fallback for older versions
+        # Fallback for older versions - more complete implementation
         class BaseTool:
-            name: str = ""
-            description: str = ""
+            def __init__(self):
+                self.name = getattr(self, 'name', 'Tool')
+                self.description = getattr(self, 'description', 'A tool')
+                
             def _run(self, *args, **kwargs):
                 pass
 import logging
@@ -29,36 +31,47 @@ class RedditScraperTool(BaseTool):
     def __init__(self):
         super().__init__()
         # Initialize Reddit API client with proper error handling
-        self.reddit_client_id = os.getenv('REDDIT_CLIENT_ID')
-        self.reddit_client_secret = os.getenv('REDDIT_CLIENT_SECRET')
-        self.reddit_user_agent = os.getenv('REDDIT_USER_AGENT', 'SynapseAgent/1.0')
+        reddit_client_id = os.getenv('REDDIT_CLIENT_ID')
+        reddit_client_secret = os.getenv('REDDIT_CLIENT_SECRET')
+        reddit_user_agent = os.getenv('REDDIT_USER_AGENT', 'SynapseAgent/1.0')
         
-        if not self.reddit_client_id or not self.reddit_client_secret:
+        self.reddit = None
+        self.is_authenticated = False
+        
+        if not reddit_client_id or not reddit_client_secret:
             logger.error("❌ Reddit API credentials not configured")
-            raise ValueError("Reddit API credentials missing")
+            return
         
         try:
             self.reddit = praw.Reddit(
-                client_id=self.reddit_client_id,
-                client_secret=self.reddit_client_secret,
-                user_agent=self.reddit_user_agent
+                client_id=reddit_client_id,
+                client_secret=reddit_client_secret,
+                user_agent=reddit_user_agent,
+                check_for_async=False
             )
-            # Test connection
-            self.reddit.user.me()
+            # Test connection with a simple request
+            list(self.reddit.subreddit('technology').hot(limit=1))
+            self.is_authenticated = True
             logger.info("✅ Reddit API connection successful")
         except Exception as e:
             logger.error(f"❌ Reddit API connection failed: {str(e)}")
-            # Create read-only instance for public data
-            self.reddit = praw.Reddit(
-                client_id=self.reddit_client_id,
-                client_secret=self.reddit_client_secret,
-                user_agent=self.reddit_user_agent
-            )
+            self.reddit = None
+            self.is_authenticated = False
     
     def _run(self, topics: str = "technology,AI,startups") -> str:
         """Scrape Reddit for posts on specified topics"""
         
         try:
+            if not self.reddit or not self.is_authenticated:
+                logger.error("❌ Reddit API not available - returning empty result")
+                return json.dumps({
+                    'success': False,
+                    'source': 'reddit',
+                    'error': 'Reddit API not authenticated',
+                    'posts': [],
+                    'timestamp': datetime.now().isoformat()
+                })
+            
             topics_list = [topic.strip() for topic in topics.split(',')]
             all_posts = []
             

@@ -1306,46 +1306,61 @@ class EnhancedNewsResearchCrew:
                 'https://techcrunch.com/feed/',
                 'https://www.theverge.com/rss/index.xml',
                 'https://feeds.arstechnica.com/arstechnica/index',
-                'https://www.wired.com/feed/rss',
-                'https://rss.cnn.com/rss/edition.rss',
-                'https://feeds.feedburner.com/venturebeat/SZYF',
-                'https://feeds.feedburner.com/oreilly/radar/atom',
-                'https://hacker-news.firebaseio.com/v0/topstories.json'  # Hacker News API
+                'https://www.wired.com/feed/rss'
             ]
             
             # Scrape from RSS feeds
-            for feed_url in news_feeds[:4]:  # Limit to avoid timeouts
+            for feed_url in news_feeds:  # Try all feeds
                 try:
+                    logger.info(f"📡 Fetching RSS feed: {feed_url}")
                     response = requests.get(feed_url, headers=headers, timeout=15)
-                    if response.status_code == 200 and FEEDPARSER_AVAILABLE:
+                    logger.info(f"📊 Response status for {feed_url}: {response.status_code}")
+                    logger.info(f"📄 Response content length: {len(response.content)} bytes")
+                    
+                    if response.status_code != 200:
+                        logger.warning(f"⚠️  Non-200 status code for {feed_url}: {response.status_code}")
+                        continue
+                    
+                    if FEEDPARSER_AVAILABLE:
+                        logger.info(f"🗜️ Parsing RSS feed with feedparser...")
                         feed = feedparser.parse(response.content)
+                        logger.info(f"🔍 Feed parsed successfully: {len(feed.entries)} entries found")
                         
-                        for entry in feed.entries[:5]:  # Get 5 articles per feed
-                            # Check if article is relevant to topics
-                            title = entry.get('title', '').lower()
-                            summary = entry.get('summary', entry.get('description', '')).lower()
+                        if not feed.entries:
+                            logger.warning(f"⚠️  No entries found in feed: {feed_url}")
+                            logger.info(f"📜 Feed title: {feed.feed.get('title', 'Unknown')}")
+                            logger.info(f"📜 Feed description: {feed.feed.get('description', 'Unknown')[:100]}")
+                            continue
+                    else:
+                        logger.error(f"❌ feedparser library not available - RSS parsing disabled")
+                        continue
                             
-                            is_relevant = any(topic.lower() in title or topic.lower() in summary 
-                                            for topic in topics) if topics else True
-                            
-                            if is_relevant:
-                                # Extract content if available
-                                content = entry.get('summary', entry.get('description', ''))
-                                if content and len(content) > 50:
-                                    content = content[:500] + "..." if len(content) > 500 else content
+                            for entry in feed.entries[:5]:  # Get 5 articles per feed
+                                # Check if article is relevant to topics
+                                title = entry.get('title', '').lower()
+                                summary = entry.get('summary', entry.get('description', '')).lower()
                                 
-                                articles.append({
-                                    "id": f"news_real_{len(articles)}_{int(datetime.now().timestamp())}",
-                                    "title": entry.get('title', f"News article about {topics[0] if topics else 'technology'}"),
-                                    "content": content,
-                                    "url": entry.get('link', ''),
-                                    "source": self._extract_domain(feed_url),
-                                    "author": entry.get('author', 'News Reporter'),
-                                    "published_date": entry.get('published', datetime.now().isoformat()),
-                                    "summary": content[:200] + "..." if len(content) > 200 else content,
-                                    "simulated": False,
-                                    "relevance_score": self._calculate_relevance_score(entry, topics)
-                                })
+                                is_relevant = any(topic.lower() in title or topic.lower() in summary 
+                                                for topic in topics) if topics else True
+                                
+                                if is_relevant:
+                                    # Extract content if available
+                                    content = entry.get('summary', entry.get('description', ''))
+                                    if content and len(content) > 50:
+                                        content = content[:500] + "..." if len(content) > 500 else content
+                                    
+                                    articles.append({
+                                        "id": f"news_real_{len(articles)}_{int(datetime.now().timestamp())}",
+                                        "title": entry.get('title', f"News article about {topics[0] if topics else 'technology'}"),
+                                        "content": content,
+                                        "url": entry.get('link', ''),
+                                        "source": self._extract_domain(feed_url),
+                                        "author": entry.get('author', 'News Reporter'),
+                                        "published_date": entry.get('published', datetime.now().isoformat()),
+                                        "summary": content[:200] + "..." if len(content) > 200 else content,
+                                        "simulated": False,
+                                        "relevance_score": self._calculate_relevance_score(entry, topics)
+                                    })
                                 
                 except Exception as feed_error:
                     logger.warning(f"Failed to parse news feed {feed_url}: {str(feed_error)}")
