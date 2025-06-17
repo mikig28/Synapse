@@ -49,6 +49,7 @@ interface CrewAINewsResponse {
     };
     ai_insights?: any;
     recommendations?: string[];
+    crew_result?: string;
   };
   error?: string;
 }
@@ -220,15 +221,15 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       // Check if we got real data or fallback data
       const dataAnalysis = this.analyzeDataQuality(crewaiResponse);
       if (dataAnalysis.isFallbackData) {
-        await run.addLog('warning', '⚠️ Received simulated/fallback data instead of real sources');
+        await run.addLog('warn', '⚠️ Received simulated/fallback data instead of real sources');
         await run.addLog('info', '🔍 Possible reasons: API rate limits, source unavailability, or service configuration issues');
         await run.addLog('info', '💡 The system generated AI analysis based on the topics instead of scraping real content');
       } else if (dataAnalysis.realItemCount === 0) {
-        await run.addLog('warning', '📭 No real items found from any data sources');
+        await run.addLog('warn', '📭 No real items found from any data sources');
         await run.addLog('info', '🔍 This could indicate: API limits, network issues, or sources being temporarily unavailable');
         await run.addLog('info', '💡 Consider trying again later or with different topics');
       } else {
-        await run.addLog('success', `✅ Successfully gathered ${dataAnalysis.realItemCount} real items from ${dataAnalysis.activeSources.length} sources`);
+        await run.addLog('info', `✅ Successfully gathered ${dataAnalysis.realItemCount} real items from ${dataAnalysis.activeSources.length} sources`);
         await run.addLog('info', `📊 Active sources: ${dataAnalysis.activeSources.join(', ')}`);
       }
       

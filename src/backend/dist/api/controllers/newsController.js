@@ -16,6 +16,10 @@ const getNewsItems = async (req, res) => {
         const isRead = req.query.isRead;
         const isFavorite = req.query.isFavorite;
         const search = req.query.search;
+        const tags = req.query.tags;
+        const startDate = req.query.startDate;
+        const endDate = req.query.endDate;
+        const runId = req.query.runId;
         const skip = (page - 1) * limit;
         // Build filter object
         const filter = { userId: new mongoose_1.default.Types.ObjectId(userId) };
@@ -35,6 +39,21 @@ const getNewsItems = async (req, res) => {
                 { summary: { $regex: search, $options: 'i' } },
                 { 'source.name': { $regex: search, $options: 'i' } },
             ];
+        }
+        if (tags) {
+            filter.tags = { $in: tags.split(',').map(tag => tag.trim()) };
+        }
+        if (startDate || endDate) {
+            filter.publishedAt = {};
+            if (startDate) {
+                filter.publishedAt.$gte = new Date(startDate);
+            }
+            if (endDate) {
+                filter.publishedAt.$lte = new Date(endDate);
+            }
+        }
+        if (runId) {
+            filter.runId = new mongoose_1.default.Types.ObjectId(runId);
         }
         // Get total count
         const totalItems = await NewsItem_1.default.countDocuments(filter);

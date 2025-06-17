@@ -37,6 +37,7 @@ const mongoose_1 = __importStar(require("mongoose"));
 const NewsItemSchema = new mongoose_1.Schema({
     userId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
     agentId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Agent' },
+    runId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'AgentRun' },
     title: { type: String, required: true, trim: true },
     description: { type: String, trim: true },
     content: { type: String },
@@ -75,6 +76,7 @@ NewsItemSchema.index({ userId: 1, category: 1 });
 NewsItemSchema.index({ userId: 1, publishedAt: -1 });
 NewsItemSchema.index({ url: 1, userId: 1 }, { unique: true }); // Prevent duplicate news items per user
 NewsItemSchema.index({ agentId: 1, createdAt: -1 });
+NewsItemSchema.index({ runId: 1, createdAt: -1 });
 // Method to mark as read
 NewsItemSchema.methods.markAsRead = function () {
     this.isRead = true;

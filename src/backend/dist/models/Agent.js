@@ -62,6 +62,33 @@ const AgentSchema = new mongoose_1.Schema({
             telegram: { type: Boolean, default: true },
             news_websites: { type: Boolean, default: true },
         },
+        // MCP (Model Context Protocol) configuration
+        mcpServers: {
+            type: [{
+                    name: { type: String, required: true },
+                    serverUri: { type: String, required: true },
+                    enabled: { type: Boolean, default: true },
+                    capabilities: { type: [String], default: [] },
+                    description: { type: String },
+                    authentication: {
+                        type: { type: String, enum: ['none', 'bearer', 'basic', 'apikey'], default: 'none' },
+                        credentials: { type: String }
+                    }
+                }],
+            default: []
+        },
+        // Agent tools configuration
+        tools: {
+            type: [{
+                    name: { type: String, required: true },
+                    type: { type: String, enum: ['builtin', 'custom', 'mcp'], required: true },
+                    enabled: { type: Boolean, default: true },
+                    configuration: { type: mongoose_1.Schema.Types.Mixed, default: {} },
+                    description: { type: String },
+                    mcpServerId: { type: String }
+                }],
+            default: []
+        },
         // Common configuration
         schedule: { type: String, default: '0 */6 * * *' }, // Every 6 hours by default
         maxItemsPerRun: { type: Number, default: 10 },

@@ -11,6 +11,10 @@ const router = express_1.default.Router();
 router.get('/debug/environment', agentsController_1.getEnvironmentDebug);
 // All other routes require authentication
 router.use(authMiddleware_1.authMiddleware);
+// Tools and capabilities endpoints
+router.get('/builtin-tools', agentsController_1.getBuiltinTools);
+router.post('/test-mcp', agentsController_1.testMCPConnection);
+router.get('/mcp-recommendations/:agentType', agentsController_1.getMCPRecommendations);
 // Agent CRUD operations
 router.get('/', agentsController_1.getAgents);
 router.get('/runs', agentsController_1.getUserAgentRuns); // Get all runs for user (must be before /:agentId routes)
@@ -26,4 +30,7 @@ router.post('/:agentId/resume', agentsController_1.resumeAgent);
 // Agent runs and statistics
 router.get('/:agentId/runs', agentsController_1.getAgentRuns);
 router.get('/:agentId/statistics', agentsController_1.getAgentStatistics);
+router.get('/:agentId/capabilities', agentsController_1.getAgentCapabilities);
+// Debug and testing endpoints
+router.get('/debug/crewai-sources', agentsController_1.testCrewAISources);
 exports.default = router;
