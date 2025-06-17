@@ -216,6 +216,22 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
 
       // Process and store the results
       await run.addLog('info', 'Processing and storing results...');
+      
+      // Check if we got real data or fallback data
+      const dataAnalysis = this.analyzeDataQuality(crewaiResponse);
+      if (dataAnalysis.isFallbackData) {
+        await run.addLog('warning', '⚠️ Received simulated/fallback data instead of real sources');
+        await run.addLog('info', '🔍 Possible reasons: API rate limits, source unavailability, or service configuration issues');
+        await run.addLog('info', '💡 The system generated AI analysis based on the topics instead of scraping real content');
+      } else if (dataAnalysis.realItemCount === 0) {
+        await run.addLog('warning', '📭 No real items found from any data sources');
+        await run.addLog('info', '🔍 This could indicate: API limits, network issues, or sources being temporarily unavailable');
+        await run.addLog('info', '💡 Consider trying again later or with different topics');
+      } else {
+        await run.addLog('success', `✅ Successfully gathered ${dataAnalysis.realItemCount} real items from ${dataAnalysis.activeSources.length} sources`);
+        await run.addLog('info', `📊 Active sources: ${dataAnalysis.activeSources.join(', ')}`);
+      }
+      
       await this.processAndStoreResults(crewaiResponse, userId, run);
 
       // Update run statistics
@@ -225,7 +241,8 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       await run.addLog('info', `Successfully processed ${totalItems} items from CrewAI agents`, {
         totalItems,
         itemsAdded: run.itemsAdded,
-        processingComplete: true
+        processingComplete: true,
+        dataQuality: dataAnalysis
       });
 
     } catch (error: any) {
@@ -1129,6 +1146,88 @@ Using fallback test crew to demonstrate dashboard functionality.`);
       return new Date(item.date);
     }
     return new Date(); // Default to now
+  }
+
+  private analyzeDataQuality(response: CrewAINewsResponse): {
+    isFallbackData: boolean;
+    realItemCount: number;
+    activeSources: string[];
+    dataQuality: 'real' | 'mixed' | 'fallback';
+    issues: string[];
+  } {
+    const analysis = {
+      isFallbackData: false,
+      realItemCount: 0,
+      activeSources: [] as string[],
+      dataQuality: 'real' as 'real' | 'mixed' | 'fallback',
+      issues: [] as string[]
+    };
+
+    // Check if we have organized content
+    if (!response.data?.organized_content) {
+      // If no organized content but we have crew_result, it's likely fallback
+      if (response.data?.crew_result) {
+        analysis.isFallbackData = true;
+        analysis.dataQuality = 'fallback';
+        analysis.issues.push('No organized content from real sources');
+      }
+      return analysis;
+    }
+
+    const content = response.data.organized_content;
+    
+    // Count real items from each source
+    const sourceCounts = {
+      reddit: content.reddit_posts?.length || 0,
+      linkedin: content.linkedin_posts?.length || 0,
+      telegram: content.telegram_messages?.length || 0,
+      news_websites: content.news_articles?.length || 0
+    };
+
+    // Calculate total real items
+    analysis.realItemCount = Object.values(sourceCounts).reduce((sum, count) => sum + count, 0);
+    
+    // Identify active sources
+    analysis.activeSources = Object.entries(sourceCounts)
+      .filter(([_, count]) => count > 0)
+      .map(([source]) => source);
+
+    // Detect fallback patterns
+    if (analysis.realItemCount === 0) {
+      // Check if we have crew_result with generic content
+      const crewResult = response.data?.crew_result || '';
+      const hasMockIndicators = crewResult.includes('Global Climate Summit') ||
+                               crewResult.includes('Tech Giants Face Scrutiny') ||
+                               crewResult.includes('Emerging Trends and Developments') ||
+                               crewResult.length > 1000; // Long generated text
+
+      if (hasMockIndicators) {
+        analysis.isFallbackData = true;
+        analysis.dataQuality = 'fallback';
+        analysis.issues.push('AI-generated content detected instead of real sources');
+      } else {
+        analysis.dataQuality = 'real'; // Empty but real attempt
+        analysis.issues.push('No items found from real sources - may be API limits or connectivity issues');
+      }
+    } else if (analysis.realItemCount < 3) {
+      analysis.dataQuality = 'mixed';
+      analysis.issues.push('Low item count - some sources may be unavailable');
+    }
+
+    // Check for simulated items (if the data structure indicates simulation)
+    if (content.reddit_posts?.some((post: any) => this.isSimulatedId(post.id))) {
+      analysis.isFallbackData = true;
+      analysis.dataQuality = 'fallback';
+      analysis.issues.push('Simulated Reddit posts detected');
+    }
+
+    if (content.news_articles?.some((article: any) => this.isSimulatedId(article.id))) {
+      analysis.isFallbackData = true;
+      analysis.dataQuality = 'fallback';
+      analysis.issues.push('Simulated news articles detected');
+    }
+
+    return analysis;
   }
 
   private calculateTotalItems(response: CrewAINewsResponse): number {

@@ -850,6 +850,98 @@ export const getAgentCapabilities = async (req: AuthenticatedRequest, res: Respo
   }
 };
 
+// Test CrewAI service sources health
+export const testCrewAISources = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const crewaiServiceUrl = process.env.CREWAI_SERVICE_URL || 'https://synapse-crewai.onrender.com';
+    
+    // Test health endpoint
+    const healthResponse = await fetch(`${crewaiServiceUrl}/health`);
+    const healthData = await healthResponse.json();
+    
+    // Test system info
+    const sysResponse = await fetch(`${crewaiServiceUrl}/system-info`);
+    const sysData = await sysResponse.json();
+    
+    // Test individual sources with small requests
+    const sourceTests = await Promise.allSettled([
+      // Test Reddit
+      fetch(`${crewaiServiceUrl}/gather-news`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topics: ['test'],
+          sources: { reddit: true },
+          max_items: 1
+        })
+      }).then(r => r.json()),
+      
+      // Test News websites
+      fetch(`${crewaiServiceUrl}/gather-news`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topics: ['test'],
+          sources: { news_websites: true },
+          max_items: 1
+        })
+      }).then(r => r.json())
+    ]);
+
+    const sourceResults = {
+      reddit: sourceTests[0].status === 'fulfilled' ? 
+        { 
+          status: 'success', 
+          itemCount: sourceTests[0].value?.data?.organized_content?.reddit_posts?.length || 0,
+          isMockData: sourceTests[0].value?.data?.crew_result?.includes('Global Climate Summit') || false
+        } : 
+        { status: 'failed', error: sourceTests[0].reason?.message || 'Unknown error' },
+      
+      news_websites: sourceTests[1].status === 'fulfilled' ? 
+        { 
+          status: 'success', 
+          itemCount: sourceTests[1].value?.data?.organized_content?.news_articles?.length || 0,
+          isMockData: sourceTests[1].value?.data?.crew_result?.includes('Global Climate Summit') || false
+        } : 
+        { status: 'failed', error: sourceTests[1].reason?.message || 'Unknown error' }
+    };
+    
+    res.json({
+      success: true,
+      data: {
+        serviceHealth: {
+          status: healthData.status,
+          initialized: healthData.initialized,
+          mode: healthData.current_mode,
+          realNewsEnabled: healthData.real_news_enabled
+        },
+        systemInfo: {
+          mode: sysData.mode,
+          supportedSources: sysData.supported_sources,
+          features: Object.keys(sysData.features || {})
+        },
+        sourceTests: sourceResults,
+        recommendations: [
+          sourceResults.reddit.status === 'failed' || sourceResults.reddit.isMockData ? 
+            'Reddit source may be unavailable or rate limited' : null,
+          sourceResults.news_websites.status === 'failed' || sourceResults.news_websites.isMockData ? 
+            'News websites source may be unavailable or blocked' : null,
+          healthData.real_news_enabled === false ? 
+            'Real news gathering is disabled - service is in fallback mode' : null
+        ].filter(Boolean)
+      }
+    });
+    
+  } catch (error: any) {
+    console.error('[AgentsController] Error testing CrewAI sources:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to test CrewAI sources',
+      message: error.message,
+    });
+  }
+};
+
 // Debug endpoint to check environment variables
 export const getEnvironmentDebug = async (req: Request, res: Response): Promise<void> => {
   try {

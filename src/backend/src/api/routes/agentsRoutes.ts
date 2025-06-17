@@ -17,6 +17,7 @@ import {
   testMCPConnection,
   getAgentCapabilities,
   getMCPRecommendations,
+  testCrewAISources,
   getEnvironmentDebug,
 } from '../controllers/agentsController';
 
@@ -52,5 +53,8 @@ router.post('/:agentId/resume', resumeAgent);
 router.get('/:agentId/runs', getAgentRuns);
 router.get('/:agentId/statistics', getAgentStatistics);
 router.get('/:agentId/capabilities', getAgentCapabilities);
+
+// Debug and testing endpoints
+router.get('/debug/crewai-sources', testCrewAISources);
 
 export default router;
