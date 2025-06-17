@@ -9,7 +9,7 @@ import { Agent, AgentRun } from '../types/agent';
 import { ErrorHandler } from '@/utils/errorHandler';
 import { AgentLogViewer } from '@/components/AgentLogViewer';
 import AgentActivityDashboard from '@/components/AgentActivityDashboard';
-import { DebugPanel } from '@/components/DebugPanel';
+import DebugPanel from '@/components/DebugPanel';
 import { CrewExecutionDashboard } from '@/components/CrewExecutionDashboard';
 import { useNavigate } from 'react-router-dom';
 import {
