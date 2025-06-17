@@ -118,10 +118,18 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
         lastUpdate: new Date().toISOString()
       });
     } catch (error: any) {
+      console.error('[AgentActivityDashboard] Failed to fetch agent activity:', {
+        error: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        silent
+      });
+      
       if (!silent) {
+        const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch agent activity';
         toast({
           title: 'Error',
-          description: 'Failed to fetch agent activity',
+          description: errorMessage,
           variant: 'destructive',
         });
       }

@@ -6,8 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { agentService } from '../services/agentService';
 import { Agent, AgentRun } from '../types/agent';
+import { ErrorHandler } from '@/utils/errorHandler';
 import { AgentLogViewer } from '@/components/AgentLogViewer';
 import AgentActivityDashboard from '@/components/AgentActivityDashboard';
+import { DebugPanel } from '@/components/DebugPanel';
 import { CrewExecutionDashboard } from '@/components/CrewExecutionDashboard';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -46,6 +48,7 @@ const AgentsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [executingAgents, setExecutingAgents] = useState<Set<string>>(new Set());
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [schedulerStatus, setSchedulerStatus] = useState<{ isRunning: boolean; scheduledAgentsCount: number } | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -172,9 +175,15 @@ const AgentsPage: React.FC = () => {
         fetchData();
       }, 2000);
     } catch (error: any) {
+      const errorInfo = ErrorHandler.processError(error, { 
+        action: 'agent_execution',
+        agentId,
+        component: 'AgentsPage'
+      });
+      
       toast({
-        title: 'Error',
-        description: error.message || 'Failed to execute agent',
+        title: 'Agent Execution Failed',
+        description: errorInfo.message,
         variant: 'destructive',
       });
     } finally {
@@ -739,6 +748,26 @@ const AgentsPage: React.FC = () => {
           onAgentToggle={handleToggleAgent}
         />
       </div>
+
+      {/* Debug Panel - only shows in development */}
+      {import.meta.env.DEV && (
+        <>
+          {/* Floating Debug Button */}
+          <Button
+            className="fixed bottom-4 right-4 z-40 rounded-full w-12 h-12 p-0"
+            variant="outline"
+            onClick={() => setShowDebugPanel(true)}
+            title="Open Debug Panel"
+          >
+            🐛
+          </Button>
+          
+          <DebugPanel 
+            isVisible={showDebugPanel}
+            onClose={() => setShowDebugPanel(false)}
+          />
+        </>
+      )}
     </div>
   );
 };

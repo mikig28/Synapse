@@ -63,9 +63,13 @@ axiosInstance.interceptors.response.use(
     console.error('[AxiosInterceptor] Response error from:', error.config?.url, 'Status:', error.response?.status);
     console.error('[AxiosInterceptor] Error details:', {
       message: error.message,
-      responseData: error.response?.data ? JSON.stringify(error.response.data).slice(0, 200) + '...' : 'No data',
+      responseData: error.response?.data ? JSON.stringify(error.response.data, null, 2) : 'No data', // Full response data for debugging
+      requestData: error.config?.data ? JSON.stringify(error.config.data, null, 2) : 'No request data',
       isAxiosError: error.isAxiosError,
-      statusCode: error.response?.status
+      statusCode: error.response?.status,
+      headers: error.response?.headers,
+      method: error.config?.method?.toUpperCase(),
+      fullUrl: error.config?.url
     });
     
     if (error.response && error.response.status === 401) {

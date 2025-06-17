@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -26,7 +27,12 @@ import {
   Play,
   Pause,
   RotateCcw,
+  Terminal,
+  FileText,
+  ExternalLink,
 } from 'lucide-react';
+import { AgentRun } from '@/types/agent';
+import { agentService } from '@/services/agentService';
 
 interface CrewProgress {
   step: number;
@@ -76,6 +82,9 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
   const [overallProgress, setOverallProgress] = useState(0);
   const [lastExecutionHistory, setLastExecutionHistory] = useState<CrewProgress[]>([]);
   const [executionStartTime, setExecutionStartTime] = useState<string | null>(null);
+  const [agentRuns, setAgentRuns] = useState<AgentRun[]>([]);
+  const [currentRun, setCurrentRun] = useState<AgentRun | null>(null);
+  const [runSummary, setRunSummary] = useState<any>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -133,11 +142,39 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
     }
   };
 
+  // Fetch agent runs and current execution details
+  const fetchAgentRuns = async () => {
+    try {
+      const runs = await agentService.getAgentRuns(agentId, 10);
+      setAgentRuns(runs);
+      
+      // Find the most recent running or completed run
+      const mostRecentRun = runs.find(run => run.status === 'running') || runs[0];
+      if (mostRecentRun) {
+        setCurrentRun(mostRecentRun);
+        
+        // Extract summary information for the run
+        if (mostRecentRun.results && mostRecentRun.status === 'completed') {
+          setRunSummary(mostRecentRun.results);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch agent runs:', error);
+    }
+  };
+
   // Poll for progress updates when dialog is open and agent is running
   useEffect(() => {
-    if (isDialogOpen && isRunning) {
-      fetchCrewProgress(); // Initial fetch
-      intervalRef.current = setInterval(fetchCrewProgress, 2000); // Poll every 2 seconds
+    if (isDialogOpen) {
+      fetchAgentRuns(); // Always fetch runs when opening dialog
+      
+      if (isRunning) {
+        fetchCrewProgress(); // Initial fetch for progress
+        intervalRef.current = setInterval(() => {
+          fetchCrewProgress();
+          fetchAgentRuns(); // Also update runs
+        }, 2000); // Poll every 2 seconds
+      }
     } else if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;

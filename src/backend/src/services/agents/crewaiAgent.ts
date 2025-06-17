@@ -65,6 +65,14 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
     });
     this.crewaiServiceUrl = process.env.CREWAI_SERVICE_URL || 'http://localhost:5000';
     console.log(`[CrewAI Agent] Using Service URL: ${this.crewaiServiceUrl}`);
+    
+    // Validate URL format
+    try {
+      new URL(this.crewaiServiceUrl);
+    } catch (error) {
+      console.error(`[CrewAI Agent] Invalid CREWAI_SERVICE_URL: ${this.crewaiServiceUrl}`);
+      throw new Error(`Invalid CREWAI_SERVICE_URL: ${this.crewaiServiceUrl}`);
+    }
   }
 
   async execute(context: AgentExecutionContext): Promise<void> {
@@ -231,56 +239,122 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
   }
 
   private async healthCheck(): Promise<void> {
-    try {
-      console.log(`[CrewAI Agent] Performing health check to: ${this.crewaiServiceUrl}/health`);
-      const response = await axios.get<{initialized: boolean}>(`${this.crewaiServiceUrl}/health`, {
-        timeout: 15000 // Increased timeout for Render cold starts
-      });
-      
-      console.log(`[CrewAI Agent] Health check response:`, response.data);
-      
-      if (!response.data.initialized) {
-        throw new Error('CrewAI service is not properly initialized');
+    return this.healthCheckWithRetry();
+  }
+
+  private async healthCheckWithRetry(maxAttempts: number = 3): Promise<void> {
+    let lastError: any;
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        console.log(`[CrewAI Agent] Health check attempt ${attempt}/${maxAttempts} to: ${this.crewaiServiceUrl}/health`);
+        
+        // Progressive timeout: 15s first attempt, 45s for subsequent attempts (Render cold starts)
+        const timeout = attempt === 1 ? 15000 : 45000;
+        
+        const response = await axios.get<{initialized: boolean}>(`${this.crewaiServiceUrl}/health`, {
+          timeout,
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
+        
+        console.log(`[CrewAI Agent] Health check response (attempt ${attempt}):`, response.data);
+        
+        if (!response.data.initialized) {
+          throw new Error('CrewAI service is not properly initialized');
+        }
+        
+        console.log(`[CrewAI Agent] Health check passed on attempt ${attempt} - service is initialized`);
+        return; // Success!
+        
+      } catch (error: any) {
+        lastError = error;
+        console.error(`[CrewAI Agent] Health check attempt ${attempt} failed:`, {
+          url: `${this.crewaiServiceUrl}/health`,
+          error: error.message,
+          code: error.code,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          timeout: attempt === 1 ? 15000 : 45000
+        });
+        
+        // If this is not the last attempt and it's a connection/timeout error, wait before retrying
+        if (attempt < maxAttempts && (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT' || error.code === 'ENOTFOUND')) {
+          const waitTime = Math.min(5000 * attempt, 15000); // Progressive backoff: 5s, 10s, 15s max
+          console.log(`[CrewAI Agent] Waiting ${waitTime}ms before retry (service may be cold starting)`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          continue;
+        }
+        
+        // If it's the last attempt or a non-retryable error, break
+        break;
       }
-      
-      console.log(`[CrewAI Agent] Health check passed - service is initialized`);
-    } catch (error: any) {
-      console.error(`[CrewAI Agent] Health check failed:`, {
-        url: `${this.crewaiServiceUrl}/health`,
-        error: error.message,
-        code: error.code,
-        status: error.response?.status,
-        statusText: error.response?.statusText
-      });
-      
-      if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT' || error.code === 'ENOTFOUND') {
-        throw new Error(`CrewAI service is unavailable at ${this.crewaiServiceUrl}. This could be due to:
-- Service is sleeping on Render (common after inactivity)
+    }
+    
+    // All attempts failed
+    if (lastError.code === 'ECONNREFUSED' || lastError.code === 'ETIMEDOUT' || lastError.code === 'ENOTFOUND') {
+      throw new Error(`CrewAI service is unavailable at ${this.crewaiServiceUrl} after ${maxAttempts} attempts. This could be due to:
+- Service is sleeping on Render (cold start can take 30-60 seconds)
 - Network connectivity issues
 - Service deployment problems
 
+Attempted with progressive timeouts (15s, 45s, 45s) to account for cold starts.
 Using fallback test crew to demonstrate dashboard functionality.`);
-      }
-      throw new Error(`CrewAI service health check failed: ${error.message} (URL: ${this.crewaiServiceUrl})`);
     }
+    
+    throw new Error(`CrewAI service health check failed after ${maxAttempts} attempts: ${lastError.message} (URL: ${this.crewaiServiceUrl})`);
   }
 
   private async executeCrewAIGathering(request: CrewAINewsRequest): Promise<CrewAINewsResponse> {
-    try {
-      const response = await axios.post<CrewAINewsResponse>(`${this.crewaiServiceUrl}/gather-news`, request, {
-        timeout: 300000, // 5 minutes timeout for news gathering
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+    return this.executeCrewAIGatheringWithRetry(request);
+  }
 
-      return response.data;
-    } catch (error: any) {
-      if (error.response) {
-        throw new Error(`CrewAI service error: ${error.response.data?.error || error.response.statusText}`);
+  private async executeCrewAIGatheringWithRetry(request: CrewAINewsRequest, maxAttempts: number = 2): Promise<CrewAINewsResponse> {
+    let lastError: any;
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        console.log(`[CrewAI Agent] News gathering attempt ${attempt}/${maxAttempts}`);
+        
+        const response = await axios.post<CrewAINewsResponse>(`${this.crewaiServiceUrl}/gather-news`, request, {
+          timeout: 300000, // 5 minutes timeout for news gathering
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache'
+          }
+        });
+
+        console.log(`[CrewAI Agent] News gathering succeeded on attempt ${attempt}`);
+        return response.data;
+        
+      } catch (error: any) {
+        lastError = error;
+        console.error(`[CrewAI Agent] News gathering attempt ${attempt} failed:`, {
+          error: error.message,
+          code: error.code,
+          status: error.response?.status,
+          statusText: error.response?.statusText
+        });
+        
+        // Only retry on connection/timeout errors and if not the last attempt
+        if (attempt < maxAttempts && (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT' || error.code === 'ENOTFOUND')) {
+          const waitTime = 10000; // 10 seconds between news gathering retries
+          console.log(`[CrewAI Agent] Waiting ${waitTime}ms before retry (service may have restarted)`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          continue;
+        }
+        
+        break;
       }
-      throw new Error(`Failed to communicate with CrewAI service: ${error.message}`);
     }
+    
+    // All attempts failed
+    if (lastError.response) {
+      throw new Error(`CrewAI service error after ${maxAttempts} attempts: ${lastError.response.data?.error || lastError.response.statusText}`);
+    }
+    throw new Error(`Failed to communicate with CrewAI service after ${maxAttempts} attempts: ${lastError.message}`);
   }
 
   private async executeCrewAIGatheringWithFallback(request: CrewAINewsRequest, run: any): Promise<CrewAINewsResponse> {

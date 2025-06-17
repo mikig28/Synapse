@@ -69,6 +69,10 @@ export class AgentService {
     return false;
   }
 
+  getAvailableExecutors(): string[] {
+    return Array.from(this.executors.keys());
+  }
+
   async getAgentsByUser(userId: mongoose.Types.ObjectId): Promise<IAgent[]> {
     return Agent.find({ userId }).sort({ createdAt: -1 });
   }
@@ -99,26 +103,41 @@ export class AgentService {
     const agent = await Agent.findById(agentId);
     if (!agent) {
       console.error(`[AgentService] Agent not found: ${agentId}`);
-      throw new Error(`Agent with ID ${agentId} not found`);
+      const error = new Error(`Agent with ID ${agentId} not found`) as any;
+      error.agentExists = false;
+      throw error;
     }
 
     console.log(`[AgentService] Found agent: ${agent.name} (type: ${agent.type}, active: ${agent.isActive}, status: ${agent.status})`);
 
     if (!agent.isActive) {
       console.error(`[AgentService] Agent is not active: ${agent.name}`);
-      throw new Error(`Agent ${agent.name} is not active`);
+      const error = new Error(`Agent ${agent.name} is not active`) as any;
+      error.agentExists = true;
+      error.agentActive = false;
+      error.agentStatus = agent.status;
+      throw error;
     }
 
     if (agent.status === 'running') {
       console.error(`[AgentService] Agent already running: ${agent.name}`);
-      throw new Error(`Agent ${agent.name} is already running`);
+      const error = new Error(`Agent ${agent.name} is already running`) as any;
+      error.agentExists = true;
+      error.agentActive = agent.isActive;
+      error.agentStatus = agent.status;
+      throw error;
     }
 
     const executor = this.executors.get(agent.type);
     if (!executor) {
       console.error(`[AgentService] No executor found for agent type: ${agent.type}`);
       console.error(`[AgentService] Available executors:`, Array.from(this.executors.keys()));
-      throw new Error(`No executor registered for agent type: ${agent.type}`);
+      const error = new Error(`No executor registered for agent type: ${agent.type}`) as any;
+      error.agentExists = true;
+      error.agentActive = agent.isActive;
+      error.agentStatus = agent.status;
+      error.availableExecutors = Array.from(this.executors.keys());
+      throw error;
     }
 
     console.log(`[AgentService] Found executor for agent type: ${agent.type}`);

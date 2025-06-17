@@ -283,13 +283,53 @@ export const executeAgent = async (req: AuthenticatedRequest, res: Response): Pr
       agentId,
       userId,
       errorMessage: error.message,
-      errorStack: error.stack
+      errorStack: error.stack,
+      errorName: error.name,
+      errorCode: error.code
     });
-    res.status(400).json({
+    
+    // Determine appropriate HTTP status code based on error type
+    let statusCode = 400;
+    let errorType = 'execution_error';
+    
+    if (error.message.includes('not found')) {
+      statusCode = 404;
+      errorType = 'agent_not_found';
+    } else if (error.message.includes('not active')) {
+      statusCode = 409;
+      errorType = 'agent_inactive';
+    } else if (error.message.includes('already running')) {
+      statusCode = 409;
+      errorType = 'agent_already_running';
+    } else if (error.message.includes('No executor registered')) {
+      statusCode = 501;
+      errorType = 'executor_not_available';
+    } else if (error.message.includes('service is unavailable') || error.code === 'ECONNREFUSED') {
+      statusCode = 503;
+      errorType = 'service_unavailable';
+    } else if (error.message.includes('timeout') || error.code === 'ETIMEDOUT') {
+      statusCode = 504;
+      errorType = 'service_timeout';
+    }
+    
+    // Get additional context for debugging
+    const agent = await agentService.getAgentById(agentId).catch(() => null);
+    const debugContext = {
+      agentExists: !!agent,
+      agentType: agent?.type,
+      agentActive: agent?.isActive,
+      agentStatus: agent?.status,
+      availableExecutors: agentService.getAvailableExecutors(),
+      errorType,
+      timestamp: new Date().toISOString()
+    };
+    
+    res.status(statusCode).json({
       success: false,
       error: 'Failed to execute agent',
+      errorType,
       message: error.message,
-      details: error.message // Include the actual error message for debugging
+      details: process.env.NODE_ENV === 'development' ? debugContext : { errorType, timestamp: debugContext.timestamp }
     });
   }
 };
