@@ -1216,9 +1216,9 @@ class EnhancedNewsResearchCrew:
                                             "simulated": False
                                         })
                                         
-                                except Exception as feed_error:
-                                    logger.warning(f"Failed to parse LinkedIn RSS feed: {str(feed_error)}")
-                                    continue
+                            except Exception as feed_error:
+                                logger.warning(f"Failed to parse LinkedIn RSS feed: {str(feed_error)}")
+                                continue
                                     
                 except Exception as topic_error:
                     logger.warning(f"Failed to scrape LinkedIn for topic {topic}: {str(topic_error)}")
