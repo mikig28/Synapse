@@ -47,14 +47,18 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import TelegramCard from '@/components/ui/TelegramCard';
 
 const NewsPage: React.FC = () => {
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
+  const [telegramMessages, setTelegramMessages] = useState<any[]>([]);
   const [statistics, setStatistics] = useState<NewsStatistics | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [telegramLoading, setTelegramLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [showTelegramSection, setShowTelegramSection] = useState(true);
   const [filters, setFilters] = useState({
     search: '',
     category: '',
@@ -75,6 +79,7 @@ const NewsPage: React.FC = () => {
   useEffect(() => {
     fetchCategories();
     fetchStatistics();
+    fetchTelegramMessages();
   }, []);
 
   const fetchData = async () => {
@@ -114,6 +119,23 @@ const NewsPage: React.FC = () => {
       setStatistics(data);
     } catch (error) {
       console.error('Failed to fetch statistics:', error);
+    }
+  };
+
+  const fetchTelegramMessages = async () => {
+    try {
+      setTelegramLoading(true);
+      const telegramItems = await newsService.getTelegramMessages({ limit: 20 });
+      setTelegramMessages(telegramItems);
+    } catch (error) {
+      console.error('Failed to fetch Telegram messages:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch Telegram messages',
+        variant: 'destructive',
+      });
+    } finally {
+      setTelegramLoading(false);
     }
   };
 
@@ -289,6 +311,10 @@ const NewsPage: React.FC = () => {
       window.open(item.url, '_blank', 'noopener,noreferrer');
     }
     handleToggleRead(item);
+  };
+
+  const handleTelegramExternalLink = (url: string) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -711,6 +737,50 @@ const NewsPage: React.FC = () => {
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
+        )}
+
+        {/* Telegram Messages Section */}
+        {showTelegramSection && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-blue-500" />
+                Telegram Messages
+                <Badge variant="secondary" className="ml-2">
+                  {telegramMessages.length}
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                Recent messages and content from Telegram channels
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {telegramLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                  <span className="ml-2 text-sm text-muted-foreground">Loading Telegram messages...</span>
+                </div>
+              ) : telegramMessages.length === 0 ? (
+                <div className="text-center py-8">
+                  <MessageSquare className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <h3 className="text-lg font-semibold mb-2">No Telegram Messages</h3>
+                  <p className="text-muted-foreground">
+                    No Telegram content found. Your agents will populate this section when they find relevant messages.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {telegramMessages.map((message) => (
+                    <TelegramCard
+                      key={message.message_id}
+                      message={message}
+                      onViewExternal={handleTelegramExternalLink}
+                    />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {/* Content Modal for Internal Items */}
