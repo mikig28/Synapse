@@ -59,7 +59,7 @@ except ImportError as e:
     REDDIT_SCRAPER_AVAILABLE = False
 
 try:
-    from .telegram_agent import TelegramScraperTool
+    from .telegram_agent import TelegramMonitorTool
     TELEGRAM_SCRAPER_AVAILABLE = True
     logger.info("✅ Telegram scraper available")
 except ImportError as e:
@@ -1016,7 +1016,7 @@ class EnhancedNewsResearchCrew:
             if sources.get('telegram', True) and TELEGRAM_SCRAPER_AVAILABLE:
                 update_progress(2, 'in_progress', 'Connecting to Telegram API...')
                 try:
-                    telegram_scraper = TelegramScraperTool()
+                    telegram_scraper = TelegramMonitorTool()
                     topics_str = ','.join(topics)
                     telegram_result = telegram_scraper._run(topics_str)
                     telegram_data = json.loads(telegram_result)
