@@ -1425,36 +1425,51 @@ class EnhancedNewsResearchCrew:
                             title = entry.get('title', '').lower()
                             summary = entry.get('summary', '').lower()
                             
-                            # VERY lenient topic matching - include almost everything for Israel
+                            # DEBUG: Log the titles we're checking
+                            logger.info(f"   🔍 Checking entry: {entry.get('title', 'No title')[:80]}")
+                            
+                            # EXTREMELY lenient topic matching
                             is_relevant = False
                             
-                            # Check direct topic match
-                            for topic in topics:
-                                topic_lower = topic.lower()
-                                if (topic_lower in title or topic_lower in summary):
+                            # For Israel topics, include almost any news content
+                            if any(topic.lower() == 'israel' for topic in topics):
+                                # Include any news that mentions these broad keywords
+                                israel_keywords = [
+                                    'israel', 'israeli', 'palestine', 'palestinian', 'gaza', 'west bank', 
+                                    'middle east', 'jerusalem', 'tel aviv', 'netanyahu', 'hamas',
+                                    'war', 'conflict', 'military', 'attack', 'defense', 'security',
+                                    'peace', 'diplomatic', 'government', 'politics', 'international'
+                                ]
+                                
+                                if any(keyword in title or keyword in summary for keyword in israel_keywords):
                                     is_relevant = True
-                                    break
-                                    
-                                # Check broader keywords
-                                broader_keywords = self._get_broader_topic_keywords(topic)
-                                if any(keyword in title or keyword in summary for keyword in broader_keywords):
-                                    is_relevant = True
-                                    break
+                                    logger.info(f"   ✅ MATCHED Israel keywords: {entry.get('title', '')[:50]}")
                             
-                            # For news topics like "Israel", be even more lenient
-                            if not is_relevant and any(topic.lower() in ['israel', 'news', 'politics', 'world'] for topic in topics):
-                                # Include any international/political/conflict content
-                                political_keywords = ['war', 'conflict', 'government', 'election', 'international', 'global', 'world', 'nation', 'country', 'military', 'peace', 'diplomatic']
-                                if any(keyword in title or keyword in summary for keyword in political_keywords):
-                                    is_relevant = True
+                            # Check other topics with their broader keywords
+                            if not is_relevant:
+                                for topic in topics:
+                                    topic_lower = topic.lower()
+                                    if (topic_lower in title or topic_lower in summary):
+                                        is_relevant = True
+                                        logger.info(f"   ✅ MATCHED direct topic '{topic}': {entry.get('title', '')[:50]}")
+                                        break
+                                        
+                                    # Check broader keywords
+                                    broader_keywords = self._get_broader_topic_keywords(topic)
+                                    if any(keyword in title or keyword in summary for keyword in broader_keywords):
+                                        is_relevant = True
+                                        logger.info(f"   ✅ MATCHED broader keywords for '{topic}': {entry.get('title', '')[:50]}")
+                                        break
                             
-                            # Fallback: if still no relevant content found, include business/tech content anyway
-                            if not is_relevant and len(posts) == 0:
-                                tech_business_keywords = ['business', 'economy', 'market', 'technology', 'company', 'industry']
-                                if any(keyword in title or keyword in summary for keyword in tech_business_keywords):
+                            # Last resort: if we're still finding nothing, include ANY world news
+                            if not is_relevant and relevant_entries == 0 and len(posts) == 0:
+                                # Include anything that looks like news
+                                any_news_keywords = ['news', 'report', 'says', 'announces', 'claims', 'states', 'according', 'sources']
+                                if any(keyword in title or keyword in summary for keyword in any_news_keywords):
                                     is_relevant = True
+                                    logger.info(f"   ✅ FALLBACK match (any news): {entry.get('title', '')[:50]}")
                             
-                            if is_relevant or len(topics) == 0:  # Include all if no specific topics
+                            if is_relevant:
                                 relevant_entries += 1
                                 logger.info(f"   ✅ Relevant broader entry: {entry.get('title', 'No title')[:50]}...")
                                 posts.append({
