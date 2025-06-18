@@ -80,14 +80,12 @@ class RedditScraperTool(BaseTool):
         logger.info(f"   USER_AGENT: {reddit_user_agent}")
         
         if not reddit_client_id or not reddit_client_secret:
-            logger.error("❌ Reddit API credentials not configured in Render environment")
-            logger.error("   Please check Render dashboard environment variables:")
-            logger.error("   - REDDIT_CLIENT_ID should be set")
-            logger.error("   - REDDIT_CLIENT_SECRET should be set")
+            logger.warning("⚠️ Reddit API credentials not configured - using fallback JSON scraping")
+            logger.info("   Using public Reddit JSON endpoints instead of API")
             self._creds_available = False
-            return
-        
-        self._creds_available = True
+            # Don't return here - continue with fallback method
+        else:
+            self._creds_available = True
         
         try:
             logger.info("🔄 Attempting Reddit API connection...")
@@ -215,88 +213,215 @@ class RedditScraperTool(BaseTool):
             return json.dumps(error_result, indent=2)
     
     def _get_reddit_json_data(self, topics: List[str]) -> List[Dict[str, Any]]:
-        """Get Reddit data directly from JSON endpoints (no auth required)"""
+        """Get Reddit data directly from JSON endpoints (no auth required) with enhanced retry logic"""
         posts = []
         
         try:
             import requests
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
+            import random
+            import time
             
-            # Direct JSON endpoints that don't require authentication
+            # Enhanced user agent rotation to avoid detection
+            user_agents = [
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0'
+            ]
+            
+            # Direct JSON endpoints - expanded with better coverage
             subreddit_endpoints = {
-                'technology': 'https://www.reddit.com/r/technology/hot.json?limit=10',
-                'programming': 'https://www.reddit.com/r/programming/hot.json?limit=10',
-                'artificial': 'https://www.reddit.com/r/artificial/hot.json?limit=10',
-                'MachineLearning': 'https://www.reddit.com/r/MachineLearning/hot.json?limit=10',
-                'startups': 'https://www.reddit.com/r/startups/hot.json?limit=10'
+                'technology': ['https://www.reddit.com/r/technology/hot.json?limit=15', 'https://www.reddit.com/r/tech/hot.json?limit=10'],
+                'programming': ['https://www.reddit.com/r/programming/hot.json?limit=15', 'https://www.reddit.com/r/coding/hot.json?limit=10'],
+                'artificial': ['https://www.reddit.com/r/artificial/hot.json?limit=15', 'https://www.reddit.com/r/MachineLearning/hot.json?limit=10'],
+                'MachineLearning': ['https://www.reddit.com/r/MachineLearning/hot.json?limit=15', 'https://www.reddit.com/r/artificial/hot.json?limit=10'],
+                'startups': ['https://www.reddit.com/r/startups/hot.json?limit=15', 'https://www.reddit.com/r/entrepreneur/hot.json?limit=10'],
+                'business': ['https://www.reddit.com/r/business/hot.json?limit=15', 'https://www.reddit.com/r/investing/hot.json?limit=10'],
+                'crypto': ['https://www.reddit.com/r/cryptocurrency/hot.json?limit=15', 'https://www.reddit.com/r/bitcoin/hot.json?limit=10'],
+                'gaming': ['https://www.reddit.com/r/gaming/hot.json?limit=15', 'https://www.reddit.com/r/pcgaming/hot.json?limit=10']
             }
             
-            for topic in topics[:3]:  # Limit topics
+            # Enhanced topic mapping
+            topic_mapping = {
+                'tech': ['technology', 'programming'],
+                'technology': ['technology', 'programming'],
+                'ai': ['artificial', 'MachineLearning'],
+                'artificial': ['artificial', 'MachineLearning'],
+                'machine learning': ['MachineLearning', 'artificial'],
+                'startup': ['startups', 'business'],
+                'startups': ['startups', 'business'],
+                'business': ['business', 'startups'],
+                'crypto': ['crypto'],
+                'cryptocurrency': ['crypto'],
+                'bitcoin': ['crypto'],
+                'blockchain': ['crypto'],
+                'gaming': ['gaming'],
+                'games': ['gaming']
+            }
+            
+            logger.info(f"🔍 Starting Reddit JSON fetch for topics: {topics}")
+            
+            for topic in topics[:4]:  # Increased topic limit
                 relevant_subreddits = []
                 topic_lower = topic.lower()
                 
-                # Map topics to subreddits
-                if 'tech' in topic_lower or 'technology' in topic_lower:
-                    relevant_subreddits.extend(['technology', 'programming'])
-                elif 'ai' in topic_lower or 'artificial' in topic_lower:
-                    relevant_subreddits.extend(['artificial', 'MachineLearning'])
-                elif 'startup' in topic_lower:
-                    relevant_subreddits.append('startups')
-                else:
-                    relevant_subreddits.append('technology')  # Default
+                # Enhanced topic mapping
+                for keyword, subreddits in topic_mapping.items():
+                    if keyword in topic_lower:
+                        relevant_subreddits.extend(subreddits)
+                        break
+                
+                # Fallback to technology if no match
+                if not relevant_subreddits:
+                    relevant_subreddits.append('technology')
+                
+                logger.info(f"📊 Topic '{topic}' mapped to subreddits: {relevant_subreddits}")
                 
                 for subreddit in set(relevant_subreddits):
                     if subreddit in subreddit_endpoints:
-                        try:
-                            logger.info(f"📡 Fetching r/{subreddit} JSON directly...")
-                            response = requests.get(
-                                subreddit_endpoints[subreddit],
-                                headers=headers,
-                                timeout=10
-                            )
-                            
-                            if response.status_code == 200:
-                                data = response.json()
-                                if data and 'data' in data and 'children' in data['data']:
-                                    for post in data['data']['children'][:5]:  # 5 posts per subreddit
+                        endpoints = subreddit_endpoints[subreddit]
+                        
+                        for endpoint_url in endpoints:
+                            success = False
+                            for attempt in range(3):  # 3 retry attempts per endpoint
+                                try:
+                                    # Random user agent and headers
+                                    headers = {
+                                        'User-Agent': random.choice(user_agents),
+                                        'Accept': 'application/json, text/plain, */*',
+                                        'Accept-Language': 'en-US,en;q=0.9',
+                                        'Accept-Encoding': 'gzip, deflate, br',
+                                        'DNT': '1',
+                                        'Connection': 'keep-alive',
+                                        'Upgrade-Insecure-Requests': '1',
+                                    }
+                                    
+                                    logger.info(f"📡 Attempt {attempt + 1}: Fetching {endpoint_url}")
+                                    
+                                    response = requests.get(
+                                        endpoint_url,
+                                        headers=headers,
+                                        timeout=15,  # Increased timeout
+                                        allow_redirects=True
+                                    )
+                                    
+                                    logger.info(f"📊 Response: {response.status_code} for r/{subreddit}")
+                                    
+                                    if response.status_code == 200:
                                         try:
-                                            post_data = post['data']
-                                            
-                                            # Extract post data
-                                            posts.append({
-                                                'title': post_data.get('title', ''),
-                                                'content': post_data.get('selftext', '')[:500],
-                                                'url': post_data.get('url', ''),
-                                                'reddit_url': f"https://reddit.com{post_data.get('permalink', '')}",
-                                                'author': post_data.get('author', 'Unknown'),
-                                                'subreddit': subreddit,
-                                                'score': post_data.get('score', 0),
-                                                'num_comments': post_data.get('num_comments', 0),
-                                                'created_utc': datetime.fromtimestamp(
-                                                    post_data.get('created_utc', 0)
-                                                ).isoformat() if post_data.get('created_utc') else '',
-                                                'source': 'reddit_json',
-                                                'source_type': 'direct_json'
-                                            })
-                                        except Exception as e:
-                                            logger.debug(f"Error parsing post: {e}")
-                                            continue
-                                            
-                            # Add delay to respect rate limits
-                            import time
-                            time.sleep(0.5)
+                                            data = response.json()
+                                            if data and 'data' in data and 'children' in data['data']:
+                                                children = data['data']['children']
+                                                logger.info(f"📋 Found {len(children)} posts in r/{subreddit}")
+                                                
+                                                for post in children[:8]:  # Increased posts per subreddit
+                                                    try:
+                                                        post_data = post['data']
+                                                        
+                                                        # Skip removed, deleted, or empty posts
+                                                        if post_data.get('removed_by_category') or post_data.get('title') == '[deleted]':
+                                                            continue
+                                                        
+                                                        # Enhanced post data extraction
+                                                        reddit_post = {
+                                                            'id': post_data.get('id', ''),
+                                                            'title': post_data.get('title', ''),
+                                                            'content': post_data.get('selftext', '')[:800],  # Increased content length
+                                                            'url': post_data.get('url', ''),
+                                                            'reddit_url': f"https://reddit.com{post_data.get('permalink', '')}",
+                                                            'author': post_data.get('author', 'Unknown'),
+                                                            'subreddit': subreddit,
+                                                            'score': post_data.get('score', 0),
+                                                            'num_comments': post_data.get('num_comments', 0),
+                                                            'upvote_ratio': post_data.get('upvote_ratio', 0),
+                                                            'created_utc': datetime.fromtimestamp(
+                                                                post_data.get('created_utc', 0)
+                                                            ).isoformat() if post_data.get('created_utc') else '',
+                                                            'domain': post_data.get('domain', ''),
+                                                            'flair': post_data.get('link_flair_text', ''),
+                                                            'source': 'reddit_json',
+                                                            'source_type': 'direct_json',
+                                                            'simulated': False,
+                                                            'is_video': post_data.get('is_video', False),
+                                                            'post_hint': post_data.get('post_hint', '')
+                                                        }
+                                                        
+                                                        # Filter for quality content
+                                                        if reddit_post['score'] >= 10 or reddit_post['num_comments'] >= 5:
+                                                            posts.append(reddit_post)
+                                                            logger.debug(f"✅ Added post: {reddit_post['title'][:50]}...")
+                                                        
+                                                    except Exception as e:
+                                                        logger.debug(f"Error parsing individual post: {e}")
+                                                        continue
+                                                
+                                                success = True
+                                                break  # Success, no need to retry
+                                            else:
+                                                logger.warning(f"⚠️ Invalid JSON structure from r/{subreddit}")
+                                        except ValueError as e:
+                                            logger.error(f"❌ JSON decode error for r/{subreddit}: {e}")
+                                    
+                                    elif response.status_code == 429:
+                                        logger.warning(f"⚠️ Rate limited by Reddit for r/{subreddit}")
+                                        # Exponential backoff for rate limits
+                                        wait_time = (2 ** attempt) + random.uniform(0, 1)
+                                        logger.info(f"⏱️ Waiting {wait_time:.1f}s before retry...")
+                                        time.sleep(wait_time)
+                                        continue
+                                    
+                                    elif response.status_code == 403:
+                                        logger.warning(f"⚠️ Access forbidden for r/{subreddit} (subreddit may be private)")
+                                        break  # Don't retry 403s
+                                    
+                                    else:
+                                        logger.warning(f"⚠️ HTTP {response.status_code} for r/{subreddit}")
+                                        
+                                except requests.exceptions.Timeout:
+                                    logger.warning(f"⏱️ Timeout fetching r/{subreddit}, attempt {attempt + 1}")
+                                except requests.exceptions.ConnectionError:
+                                    logger.warning(f"🔌 Connection error for r/{subreddit}, attempt {attempt + 1}")
+                                except Exception as e:
+                                    logger.error(f"❌ Unexpected error for r/{subreddit}: {e}")
+                                
+                                # Wait between retries
+                                if attempt < 2:  # Don't wait after last attempt
+                                    time.sleep(random.uniform(1, 3))
                             
-                        except Exception as e:
-                            logger.debug(f"Failed to fetch r/{subreddit}: {e}")
-                            continue
+                            # If we got posts from this endpoint, try next subreddit
+                            if success:
+                                break
+                            
+                            # Wait between different endpoints for same subreddit
+                            time.sleep(random.uniform(0.5, 1.5))
+                        
+                        # Wait between different subreddits
+                        time.sleep(random.uniform(1, 2))
             
-            logger.info(f"✅ Got {len(posts)} posts from Reddit JSON endpoints")
-            return posts
+            # Remove duplicates based on ID
+            unique_posts = {}
+            for post in posts:
+                post_id = post.get('id', post.get('title', ''))
+                if post_id not in unique_posts:
+                    unique_posts[post_id] = post
+            
+            final_posts = list(unique_posts.values())
+            
+            # Sort by score and recency
+            final_posts.sort(key=lambda x: (x.get('score', 0), x.get('created_utc', '')), reverse=True)
+            
+            logger.info(f"✅ Reddit JSON fetch complete: {len(final_posts)} unique posts collected")
+            
+            if len(final_posts) == 0:
+                logger.warning("⚠️ No Reddit posts collected - possible rate limiting or network issues")
+                logger.info("💡 Try again in a few minutes, or check Reddit status")
+            
+            return final_posts[:20]  # Return top 20 posts
             
         except Exception as e:
-            logger.error(f"Reddit JSON fetch failed: {e}")
+            logger.error(f"❌ Reddit JSON fetch failed: {e}")
+            logger.error(f"📋 Stack trace: {e.__class__.__name__}: {str(e)}")
             return []
     
     def _fetch_authenticated_posts(self, reddit_instance, topics_list: List[str]) -> List[Dict[str, Any]]:

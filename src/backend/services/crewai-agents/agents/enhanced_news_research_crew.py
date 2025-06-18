@@ -49,9 +49,9 @@ except ImportError as e:
     logger.error(f"❌ Failed to import custom tools: {str(e)}")
     CUSTOM_TOOLS_AVAILABLE = False
 
-# Import social media scrapers with proper relative imports
+# Import social media scrapers with absolute imports
 try:
-    from .reddit_agent import RedditScraperTool
+    from reddit_agent import RedditScraperTool
     REDDIT_SCRAPER_AVAILABLE = True
     logger.info("✅ Reddit scraper available")
 except ImportError as e:
@@ -59,7 +59,7 @@ except ImportError as e:
     REDDIT_SCRAPER_AVAILABLE = False
 
 try:
-    from .telegram_agent import TelegramMonitorTool
+    from telegram_agent import TelegramMonitorTool
     TELEGRAM_SCRAPER_AVAILABLE = True
     logger.info("✅ Telegram scraper available")
 except ImportError as e:
@@ -991,40 +991,74 @@ class EnhancedNewsResearchCrew:
             
             # 1. Scrape Reddit if enabled and available
             if sources.get('reddit', True) and REDDIT_SCRAPER_AVAILABLE:
-                update_progress(1, 'in_progress', 'Connecting to Reddit API...')
+                update_progress(1, 'in_progress', 'Connecting to Reddit JSON endpoints...')
                 try:
                     reddit_scraper = RedditScraperTool()
                     topics_str = ','.join(topics)
+                    
+                    logger.info(f"🔴 [Reddit] Starting scrape for topics: {topics_str}")
                     reddit_result = reddit_scraper._run(topics_str)
                     reddit_data = json.loads(reddit_result)
                     
+                    logger.info(f"🔴 [Reddit] Raw result: success={reddit_data.get('success')}, posts_found={reddit_data.get('posts_found', 0)}")
+                    
                     if reddit_data.get('success') and reddit_data.get('posts'):
-                        organized_content['reddit_posts'] = reddit_data['posts']
-                        update_progress(1, 'completed', f"Found {len(reddit_data['posts'])} Reddit posts")
-                        logger.info(f"✅ Successfully scraped {len(reddit_data['posts'])} Reddit posts")
+                        posts = reddit_data['posts']
+                        # Filter out any obviously simulated posts
+                        real_posts = [p for p in posts if not p.get('simulated', False)]
+                        
+                        organized_content['reddit_posts'] = real_posts
+                        update_progress(1, 'completed', f"Found {len(real_posts)} real Reddit posts")
+                        logger.info(f"✅ Successfully scraped {len(real_posts)} real Reddit posts")
+                        
+                        if len(posts) != len(real_posts):
+                            logger.info(f"🔍 Filtered out {len(posts) - len(real_posts)} simulated posts")
                     else:
-                        update_progress(1, 'completed', 'No Reddit posts found')
-                        logger.warning("Reddit scraping returned no posts")
+                        error_msg = reddit_data.get('error', reddit_data.get('message', 'Unknown error'))
+                        update_progress(1, 'completed', f"No Reddit posts found")
+                        logger.warning(f"❌ No Reddit posts found: {error_msg}")
+                        
+                        # Add diagnostic info
+                        if 'rate limit' in error_msg.lower():
+                            logger.info("💡 Reddit rate limited - try again in a few minutes")
+                        elif 'network' in error_msg.lower() or 'connection' in error_msg.lower():
+                            logger.info("💡 Network issues with Reddit - check connectivity")
+                        else:
+                            logger.info("💡 Reddit may be temporarily unavailable or no matching posts found")
                         
                 except Exception as e:
                     update_progress(1, 'failed', f"Reddit scraping failed: {str(e)}")
-                    logger.error(f"Reddit scraping failed: {str(e)}")
+                    logger.error(f"❌ Reddit scraping exception: {str(e)}")
+                    logger.error(f"📋 Exception type: {type(e).__name__}")
             else:
-                update_progress(1, 'skipped', 'Reddit scraper not available or disabled')
+                if not REDDIT_SCRAPER_AVAILABLE:
+                    update_progress(1, 'skipped', 'Reddit scraper not available (missing dependencies)')
+                    logger.warning("⚠️ Reddit scraper not available - check dependencies")
+                else:
+                    update_progress(1, 'skipped', 'Reddit disabled in sources')
+                    logger.info("📭 Reddit scraping disabled by user")
             
             # 2. Scrape Telegram if enabled and available
             if sources.get('telegram', True) and TELEGRAM_SCRAPER_AVAILABLE:
-                update_progress(2, 'in_progress', 'Connecting to Telegram API...')
+                update_progress(2, 'in_progress', 'Connecting to Telegram channels via web scraping...')
                 try:
                     telegram_scraper = TelegramMonitorTool()
                     topics_str = ','.join(topics)
+                    
+                    logger.info(f"📱 [Telegram] Starting scrape for topics: {topics_str}")
                     telegram_result = telegram_scraper._run(topics_str)
                     telegram_data = json.loads(telegram_result)
                     
+                    logger.info(f"📱 [Telegram] Raw result: success={telegram_data.get('success')}, messages_found={telegram_data.get('messages_found', 0)}")
+                    
                     if telegram_data.get('success') and telegram_data.get('messages'):
+                        messages = telegram_data['messages']
+                        # Filter out any obviously simulated messages  
+                        real_messages = [m for m in messages if not m.get('simulated', False)]
+                        
                         # Enhance Telegram messages with card metadata
                         enhanced_messages = []
-                        for msg in telegram_data['messages']:
+                        for msg in real_messages:
                             enhanced_msg = {
                                 **msg,
                                 'card_type': 'telegram',
@@ -1042,24 +1076,52 @@ class EnhancedNewsResearchCrew:
                                     'engagement_stats': {
                                         'views': msg.get('views', 0),
                                         'forwards': msg.get('forwards', 0),
-                                        'reactions_count': sum(msg.get('reactions', {}).values())
+                                        'reactions_count': sum(msg.get('reactions', {}).values()) if msg.get('reactions') else 0
                                     }
                                 }
                             }
                             enhanced_messages.append(enhanced_msg)
                         
                         organized_content['telegram_messages'] = enhanced_messages
-                        update_progress(2, 'completed', f"Found {len(enhanced_messages)} Telegram messages")
-                        logger.info(f"✅ Successfully scraped {len(enhanced_messages)} Telegram messages with rich metadata")
+                        update_progress(2, 'completed', f"Found {len(enhanced_messages)} real Telegram messages")
+                        logger.info(f"✅ Successfully scraped {len(enhanced_messages)} real Telegram messages with rich metadata")
+                        
+                        if len(messages) != len(real_messages):
+                            logger.info(f"🔍 Filtered out {len(messages) - len(real_messages)} simulated messages")
+                        
+                        # Log channel sources
+                        channels = list(set(msg.get('channel', 'Unknown') for msg in enhanced_messages))
+                        logger.info(f"📡 Sources: {', '.join(channels[:5])}")
+                        
                     else:
-                        update_progress(2, 'completed', 'No Telegram messages found')
-                        logger.warning("Telegram scraping returned no messages")
+                        error_msg = telegram_data.get('error', 'Unknown error')
+                        limitations = telegram_data.get('limitations', [])
+                        
+                        update_progress(2, 'completed', f"Telegram failed: {error_msg}")
+                        logger.warning(f"Telegram scraping failed: {error_msg}")
+                        
+                        if limitations:
+                            logger.info(f"📋 Telegram limitations: {', '.join(limitations)}")
+                        
+                        # Add diagnostic info
+                        if 'bot api' in error_msg.lower():
+                            logger.info("💡 Using web scraping instead of Bot API for better channel access")
+                        elif 'network' in error_msg.lower():
+                            logger.info("💡 Network issues with Telegram - check connectivity")
+                        else:
+                            logger.info("💡 Telegram channels may be temporarily unavailable")
                         
                 except Exception as e:
                     update_progress(2, 'failed', f"Telegram scraping failed: {str(e)}")
-                    logger.error(f"Telegram scraping failed: {str(e)}")
+                    logger.error(f"❌ Telegram scraping exception: {str(e)}")
+                    logger.error(f"📋 Exception type: {type(e).__name__}")
             else:
-                update_progress(2, 'skipped', 'Telegram scraper not available or disabled')
+                if not TELEGRAM_SCRAPER_AVAILABLE:
+                    update_progress(2, 'skipped', 'Telegram scraper not available (missing dependencies)')
+                    logger.warning("⚠️ Telegram scraper not available - check dependencies")
+                else:
+                    update_progress(2, 'skipped', 'Telegram disabled in sources')
+                    logger.info("📭 Telegram scraping disabled by user")
             
             # 3. Scrape real LinkedIn posts
             if sources.get('linkedin', True):
