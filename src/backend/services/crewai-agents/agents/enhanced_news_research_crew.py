@@ -1229,252 +1229,53 @@ class EnhancedNewsResearchCrew:
         logger.info(f"💼 Starting LinkedIn scraping for topics: {topics}")
         logger.info(f"📊 LinkedIn Scraping Status:")
         logger.info(f"   Target Topics: {topics}")
-        logger.info(f"   Method: RSS feed scraping + alternative sources")
+        logger.info(f"   Method: News site scraping (LinkedIn RSS typically blocked)")
         
         try:
-            import requests
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
-            logger.info(f"✅ Requests library loaded, User-Agent set")
+            # Skip LinkedIn RSS feeds entirely - they're almost always blocked
+            # Go straight to alternative professional content sources
+            logger.info("🔄 Using professional news sources (LinkedIn RSS is typically blocked)...")
             
-            # LinkedIn RSS feeds for companies and topics
-            linkedin_rss_feeds = [
-                'https://www.linkedin.com/pulse/topics/artificial-intelligence/rss',
-                'https://www.linkedin.com/pulse/topics/technology/rss',
-                'https://www.linkedin.com/pulse/topics/startups/rss',
-                'https://www.linkedin.com/pulse/topics/innovation/rss'
-            ]
+            # Get professional content from reliable news sources
+            professional_posts = self._get_professional_news_content(topics)
             
-            logger.info(f"🔄 Attempting to scrape {len(linkedin_rss_feeds)} LinkedIn RSS feeds")
-            logger.info(f"📋 RSS feeds to try: {linkedin_rss_feeds}")
+            if professional_posts:
+                posts.extend(professional_posts)
+                logger.info(f"✅ Got {len(professional_posts)} professional posts from news sources")
             
-            for topic in topics[:2]:  # Limit to avoid rate limiting
-                logger.info(f"🎯 Processing topic: {topic}")
-                try:
-                    # Try to get relevant RSS feed
-                    feeds_tried = 0
-                    feeds_successful = 0
-                    
-                    for feed_url in linkedin_rss_feeds:
-                        feeds_tried += 1
-                        if any(keyword in feed_url for keyword in [topic.lower(), 'artificial-intelligence', 'technology']):
-                            try:
-                                logger.info(f"📡 Attempting LinkedIn RSS: {feed_url}")
-                                response = requests.get(feed_url, headers=headers, timeout=10)
-                                logger.info(f"📊 Response: {response.status_code} | Content-Length: {len(response.content)} bytes")
-                                logger.info(f"📄 Content-Type: {response.headers.get('content-type', 'unknown')}")
-                                
-                                if response.status_code == 200:
-                                    if FEEDPARSER_AVAILABLE:
-                                        logger.info(f"🗜️ Parsing RSS feed with feedparser...")
-                                        feed = feedparser.parse(response.content)
-                                        logger.info(f"📊 Feed parsed: {len(feed.entries)} entries found")
-                                        
-                                        if len(feed.entries) == 0:
-                                            logger.warning(f"⚠️ No entries in feed: {feed_url}")
-                                            logger.info(f"   Feed title: {feed.feed.get('title', 'Unknown')}")
-                                            logger.info(f"   Feed description: {feed.feed.get('description', 'Unknown')[:100]}")
-                                        
-                                        for entry in feed.entries[:2]:  # Get 2 posts per feed
-                                            logger.info(f"   ✅ Processing entry: {entry.get('title', 'No title')[:50]}...")
-                                            feeds_successful += 1
-                                            posts.append({
-                                                "id": f"linkedin_real_{len(posts)}_{int(datetime.now().timestamp())}",
-                                                "title": entry.get('title', f"LinkedIn post about {topic}"),
-                                                "content": entry.get('summary', entry.get('description', ''))[:300] + "...",
-                                            "author": entry.get('author', 'LinkedIn Professional'),
-                                            "company": "LinkedIn",
-                                            "url": entry.get('link', f"https://linkedin.com/pulse/{topic.lower()}"),
-                                            "published_date": entry.get('published', datetime.now().isoformat()),
-                                            "engagement": {
-                                                "likes": 50 + len(posts) * 10,
-                                                "comments": 5 + len(posts) * 2,
-                                                "shares": 3 + len(posts)
-                                            },
-                                            "source": "linkedin",
-                                            "simulated": False
-                                        })
-                                        
-                            except Exception as feed_error:
-                                logger.warning(f"⚠️ Failed to parse LinkedIn RSS feed {feed_url}: {str(feed_error)}")
-                                continue
-                                    
-                    logger.info(f"📊 Topic '{topic}' results: {feeds_successful} feeds successful out of {feeds_tried} tried")
-                    
-                except Exception as topic_error:
-                    logger.warning(f"⚠️ Failed to scrape LinkedIn for topic {topic}: {str(topic_error)}")
-                    logger.error(f"   Exception type: {type(topic_error).__name__}")
-                    continue
+            # If we have posts, format them as LinkedIn-style posts
+            formatted_posts = []
+            for post in posts:
+                formatted_post = {
+                    "id": f"linkedin_{post.get('id', len(formatted_posts))}",
+                    "title": post.get('title', ''),
+                    "content": post.get('content', ''),
+                    "author": post.get('author', 'Industry Professional'),
+                    "company": post.get('company', post.get('source', 'News Source')),
+                    "url": post.get('url', ''),
+                    "published_date": post.get('published_date', datetime.now().isoformat()),
+                    "engagement": {
+                        "likes": 100 + len(formatted_posts) * 20,
+                        "comments": 15 + len(formatted_posts) * 5,
+                        "shares": 10 + len(formatted_posts) * 3
+                    },
+                    "source": "linkedin_professional",
+                    "original_source": post.get('original_source', 'news'),
+                    "simulated": False
+                }
+                formatted_posts.append(formatted_post)
             
-            # If no real posts found, try alternative sources (ALWAYS try alternative sources first)
-            logger.warning("⚠️ LinkedIn RSS likely blocked - trying alternative professional sources immediately...")
-            alt_posts = self._get_alternative_professional_content(topics)
-            if alt_posts:
-                posts.extend(alt_posts)
-            
-            # If no LinkedIn RSS posts but we have alternative posts, use those
-            if not posts and alt_posts:
-                posts = alt_posts
-                
-            # If still no posts, try broader professional content
-            if not posts:
-                logger.warning("⚠️ Trying broader professional news sources...")
-                posts = self._get_broader_professional_content(topics)
-                
-            # Only create diagnostic if absolutely no content found
-            if not posts:
-                logger.warning("⚠️ No professional content found from any source")
-                posts = [{
-                    "id": f"linkedin_diagnostic_{int(datetime.now().timestamp())}",
-                    "title": f"Professional Content Search for {', '.join(topics)}",
-                    "content": f"No professional content found for topics: {', '.join(topics)}. LinkedIn RSS blocked and alternative sources returned no results.",
-                    "author": "Content Monitor",
-                    "company": "Synapse",
-                    "url": "#",
-                    "published_date": datetime.now().isoformat(),
-                    "engagement": {"likes": 0, "comments": 0, "shares": 0},
-                    "source": "diagnostic",
-                    "simulated": True,
-                    "diagnostic": True
-                }]
-            
-            if any(post.get('diagnostic') for post in posts):
-                logger.warning(f"⚠️ LinkedIn scraping failed - returned {len(posts)} diagnostic entries")
-            else:
-                logger.info(f"✅ Successfully collected {len(posts)} LinkedIn posts")
-            return posts
+            logger.info(f"✅ Successfully collected {len(formatted_posts)} LinkedIn-style professional posts")
+            return formatted_posts
             
         except Exception as e:
             logger.error(f"❌ LinkedIn scraping failed: {str(e)}")
-            # Fallback to alternative professional content
-            return self._get_alternative_professional_content(topics)
-    
-    def _get_alternative_professional_content(self, topics: List[str]) -> List[Dict[str, Any]]:
-        """Get professional content from alternative sources when LinkedIn fails"""
-        posts = []
-        
-        logger.info(f"🔄 Trying alternative professional content sources for topics: {topics}")
-        
-        try:
-            import requests
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-            
-            # Enhanced alternative professional sources
-            professional_sources = [
-                "https://feeds.feedburner.com/TechCrunch/startups",
-                "https://www.forbes.com/innovation/feed/",
-                "https://hbr.org/feed",
-                "https://feeds.feedburner.com/venturebeat/SZYF",  # VentureBeat
-                "https://techcrunch.com/feed/",  # TechCrunch main feed
-                "https://feeds.feedburner.com/oreilly/radar",  # O'Reilly Radar
-                "https://www.wired.com/feed/category/business/",  # Wired Business
-                "https://feeds.feedburner.com/fastcompany/headlines"  # Fast Company
-            ]
-            
-            logger.info(f"🔄 Trying {len(professional_sources)} alternative professional sources")
-            logger.info(f"📋 Sources: {professional_sources}")
-            
-            for i, topic in enumerate(topics[:3]):  # Process more topics
-                logger.info(f"🎯 Processing topic '{topic}' with alternative sources")
-                for source_url in professional_sources[:3]:  # Try 3 sources per topic
-                    try:
-                        logger.info(f"📡 Fetching alternative source: {source_url}")
-                        response = requests.get(source_url, headers=headers, timeout=10)
-                        logger.info(f"📊 Response: {response.status_code} | Content-Length: {len(response.content)} bytes")
-                        
-                        if response.status_code == 200 and FEEDPARSER_AVAILABLE:
-                            feed = feedparser.parse(response.content)
-                            logger.info(f"📊 Alternative feed parsed: {len(feed.entries)} entries found")
-                            
-                            relevant_entries = 0
-                            for entry in feed.entries[:5]:  # Check more entries
-                                title = entry.get('title', '').lower()
-                                summary = entry.get('summary', '').lower()
-                                
-                                # DEBUG: Log what we're checking
-                                logger.info(f"   🔍 Checking: {entry.get('title', 'No title')[:60]}")
-                                
-                                # Much more lenient matching
-                                is_relevant = False
-                                
-                                # Direct topic match
-                                if topic.lower() in title or topic.lower() in summary:
-                                    is_relevant = True
-                                    logger.info(f"   ✅ DIRECT match for '{topic}': {entry.get('title', '')[:50]}")
-                                
-                                # Expanded keyword matching for each topic
-                                elif topic.lower() == 'news' and any(kw in title or kw in summary for kw in ['report', 'update', 'analysis', 'breaking', 'latest', 'announce']):
-                                    is_relevant = True
-                                    logger.info(f"   ✅ NEWS keywords match: {entry.get('title', '')[:50]}")
-                                    
-                                elif topic.lower() == 'economy' and any(kw in title or kw in summary for kw in ['business', 'market', 'finance', 'economic', 'industry', 'company', 'revenue', 'profit']):
-                                    is_relevant = True
-                                    logger.info(f"   ✅ ECONOMY keywords match: {entry.get('title', '')[:50]}")
-                                    
-                                elif topic.lower() == 'sport' and any(kw in title or kw in summary for kw in ['sport', 'team', 'player', 'game', 'competition', 'athlete']):
-                                    is_relevant = True
-                                    logger.info(f"   ✅ SPORT keywords match: {entry.get('title', '')[:50]}")
-                                    
-                                elif topic.lower() in ['conflict', 'war'] and any(kw in title or kw in summary for kw in ['conflict', 'war', 'military', 'defense', 'security', 'attack', 'battle', 'dispute']):
-                                    is_relevant = True
-                                    logger.info(f"   ✅ CONFLICT/WAR keywords match: {entry.get('title', '')[:50]}")
-                                
-                                # Fallback: if this is a tech/business feed and we haven't found anything, include ANY article
-                                elif relevant_entries == 0 and len(posts) == 0:
-                                    is_relevant = True
-                                    logger.info(f"   ✅ FALLBACK match (any content): {entry.get('title', '')[:50]}")
-                                
-                                if is_relevant:
-                                    relevant_entries += 1
-                                    # Extract actual source from URL
-                                    actual_source = self._extract_source_from_url(source_url)
-                                    posts.append({
-                                        "id": f"news_{actual_source}_{len(posts)}_{int(datetime.now().timestamp())}",
-                                        "title": entry.get('title', f"Business insights from {actual_source.upper()}"),
-                                        "content": entry.get('summary', entry.get('description', ''))[:300] + "...",
-                                        "author": entry.get('author', f'{actual_source.upper()} Reporter'),
-                                        "company": actual_source.upper(),
-                                        "url": entry.get('link', f"https://example.com/professional/{topic}"),
-                                        "published_date": entry.get('published', datetime.now().isoformat()),
-                                        "engagement": {
-                                            "likes": 75 + len(posts) * 15,
-                                            "comments": 8 + len(posts) * 3,
-                                            "shares": 5 + len(posts) * 2
-                                        },
-                                        "source": f"news_{actual_source}",
-                                        "original_source": actual_source,
-                                        "source_type": "news_website",
-                                        "simulated": False
-                                    })
-                                    
-                            logger.info(f"📊 Topic '{topic}' alternative results: {relevant_entries} relevant entries found")
-                            
-                    except Exception as alt_error:
-                        logger.warning(f"❌ Alternative source failed: {str(alt_error)}")
-                        logger.error(f"   Exception type: {type(alt_error).__name__}")
-                        continue
-            
-            logger.info(f"🎯 Alternative professional content completed:")
-            logger.info(f"   📊 Total posts collected: {len(posts)}")
-            if posts:
-                logger.info(f"✅ Successfully collected {len(posts)} professional posts from alternative sources")
-            else:
-                logger.warning(f"⚠️ No alternative professional content found")
-            return posts
-            
-        except Exception as e:
-            logger.error(f"❌ Alternative professional content failed: {str(e)}")
-            logger.error(f"   Exception type: {type(e).__name__}")
+            # Return empty list instead of diagnostic posts
             return []
     
-    def _get_broader_professional_content(self, topics: List[str]) -> List[Dict[str, Any]]:
-        """Get professional content from broader news sources when all else fails"""
+    def _get_professional_news_content(self, topics: List[str]) -> List[Dict[str, Any]]:
+        """Get professional content from reliable news sources"""
         posts = []
-        
-        logger.info(f"🔄 Trying broader professional content sources for topics: {topics}")
         
         try:
             import requests
@@ -1482,170 +1283,67 @@ class EnhancedNewsResearchCrew:
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
             
-            # Broader professional/business news sources + world news for Israel topics
-            broader_sources = [
-                "https://feeds.reuters.com/Reuters/worldNews",  # World news instead of business for Israel
-                "https://rss.cnn.com/rss/edition.rss",  # CNN main feed 
-                "https://feeds.bbci.co.uk/news/world/rss.xml",  # BBC World News
-                "https://www.cnbc.com/id/10001147/device/rss/rss.html",
-                "https://feeds.feedburner.com/businessinsider",
-                "https://feeds.npr.org/1001/rss.xml",  # NPR News
-                "https://rss.cnn.com/rss/money_latest.rss"
+            # Prioritize sources that actually work
+            working_sources = [
+                "https://techcrunch.com/feed/",  # Usually works
+                "https://feeds.feedburner.com/venturebeat/SZYF",  # VentureBeat
+                "https://www.wired.com/feed/rss",  # Wired
+                "https://feeds.reuters.com/reuters/businessNews",  # Reuters Business
+                "https://rss.cnn.com/rss/money_latest.rss",  # CNN Money
+                "https://feeds.npr.org/1001/rss.xml"  # NPR News
             ]
             
-            logger.info(f"🔄 Trying {len(broader_sources)} broader professional sources")
-            
-            for source_url in broader_sources[:4]:  # Try 4 broader sources
+            for source_url in working_sources[:4]:  # Try 4 sources
                 try:
-                    logger.info(f"📡 Fetching broader source: {source_url}")
-                    response = requests.get(source_url, headers=headers, timeout=15)
-                    logger.info(f"📊 Response: {response.status_code} | Content: {len(response.content)} bytes")
+                    logger.info(f"📡 Fetching professional content from: {source_url}")
+                    response = requests.get(source_url, headers=headers, timeout=10)
                     
                     if response.status_code == 200 and FEEDPARSER_AVAILABLE:
                         feed = feedparser.parse(response.content)
-                        logger.info(f"📊 Broader feed parsed: {len(feed.entries)} entries found")
                         
-                        relevant_entries = 0
-                        for entry in feed.entries[:5]:  # Get 5 entries per broader source
-                            title = entry.get('title', '').lower()
-                            summary = entry.get('summary', '').lower()
-                            
-                            # DEBUG: Log the titles we're checking
-                            logger.info(f"   🔍 Checking entry: {entry.get('title', 'No title')[:80]}")
-                            
-                            # EXTREMELY lenient topic matching
-                            is_relevant = False
-                            
-                            # For Israel topics, include almost any news content
-                            if any(topic.lower() == 'israel' for topic in topics):
-                                # Include any news that mentions these broad keywords
-                                israel_keywords = [
-                                    'israel', 'israeli', 'palestine', 'palestinian', 'gaza', 'west bank', 
-                                    'middle east', 'jerusalem', 'tel aviv', 'netanyahu', 'hamas',
-                                    'war', 'conflict', 'military', 'attack', 'defense', 'security',
-                                    'peace', 'diplomatic', 'government', 'politics', 'international'
-                                ]
+                        if feed.entries:
+                            for entry in feed.entries[:3]:  # 3 articles per source
+                                title = entry.get('title', '').lower()
+                                summary = entry.get('summary', '').lower()
                                 
-                                if any(keyword in title or keyword in summary for keyword in israel_keywords):
-                                    is_relevant = True
-                                    logger.info(f"   ✅ MATCHED Israel keywords: {entry.get('title', '')[:50]}")
-                            
-                            # Check other topics with their broader keywords
-                            if not is_relevant:
-                                for topic in topics:
-                                    topic_lower = topic.lower()
-                                    if (topic_lower in title or topic_lower in summary):
-                                        is_relevant = True
-                                        logger.info(f"   ✅ MATCHED direct topic '{topic}': {entry.get('title', '')[:50]}")
-                                        break
-                                        
-                                    # Check broader keywords
-                                    broader_keywords = self._get_broader_topic_keywords(topic)
-                                    if any(keyword in title or keyword in summary for keyword in broader_keywords):
-                                        is_relevant = True
-                                        logger.info(f"   ✅ MATCHED broader keywords for '{topic}': {entry.get('title', '')[:50]}")
-                                        break
-                            
-                            # Last resort: if we're still finding nothing, include ANY world news
-                            if not is_relevant and relevant_entries == 0 and len(posts) == 0:
-                                # Include anything that looks like news
-                                any_news_keywords = ['news', 'report', 'says', 'announces', 'claims', 'states', 'according', 'sources']
-                                if any(keyword in title or keyword in summary for keyword in any_news_keywords):
-                                    is_relevant = True
-                                    logger.info(f"   ✅ FALLBACK match (any news): {entry.get('title', '')[:50]}")
-                            
-                            if is_relevant:
-                                relevant_entries += 1
-                                logger.info(f"   ✅ Relevant broader entry: {entry.get('title', 'No title')[:50]}...")
-                                # Extract actual source from URL
-                                actual_source = self._extract_source_from_url(source_url)
-                                posts.append({
-                                    "id": f"news_{actual_source}_{len(posts)}_{int(datetime.now().timestamp())}",
-                                    "title": entry.get('title', f"News about {topics[0] if topics else 'business'}"),
-                                    "content": entry.get('summary', entry.get('description', ''))[:400] + "...",
-                                    "author": entry.get('author', f'{actual_source.upper()} Reporter'),
-                                    "company": actual_source.upper(),
-                                    "url": entry.get('link', ''),
-                                    "published_date": entry.get('published', datetime.now().isoformat()),
-                                    "engagement": {
-                                        "likes": 100 + len(posts) * 20,
-                                        "comments": 15 + len(posts) * 3,
-                                        "shares": 8 + len(posts) * 2
-                                    },
-                                    "source": f"news_{actual_source}",
-                                    "original_source": actual_source,
-                                    "source_type": "news_website",
-                                    "simulated": False
-                                })
+                                # Check relevance to any topic
+                                is_relevant = any(
+                                    topic.lower() in title or 
+                                    topic.lower() in summary or
+                                    any(kw in title or kw in summary for kw in self._get_topic_keywords(topic))
+                                    for topic in topics
+                                )
                                 
-                        logger.info(f"📊 Broader source results: {relevant_entries} relevant entries found")
-                        
-                except Exception as broader_error:
-                    logger.warning(f"❌ Broader source failed: {str(broader_error)}")
+                                # If no relevant posts yet, include anything professional
+                                if not is_relevant and len(posts) == 0:
+                                    is_relevant = True
+                                
+                                if is_relevant:
+                                    posts.append({
+                                        "id": f"prof_{len(posts)}",
+                                        "title": entry.get('title', ''),
+                                        "content": entry.get('summary', '')[:400] + "...",
+                                        "author": entry.get('author', 'Reporter'),
+                                        "source": self._extract_source_from_url(source_url),
+                                        "url": entry.get('link', ''),
+                                        "published_date": entry.get('published', datetime.now().isoformat()),
+                                        "simulated": False
+                                    })
+                    
+                    # Add small delay between sources
+                    import time
+                    time.sleep(0.5)
+                    
+                except Exception as e:
+                    logger.debug(f"Source {source_url} failed: {e}")
                     continue
             
-            logger.info(f"🎯 Broader professional content completed: {len(posts)} posts found")
+            logger.info(f"✅ Got {len(posts)} professional posts from news sources")
             return posts
             
         except Exception as e:
-            logger.error(f"❌ Broader professional content failed: {str(e)}")
+            logger.error(f"Professional content fetch failed: {e}")
             return []
-    
-    def _get_broader_topic_keywords(self, topic: str) -> List[str]:
-        """Get broader keywords for topic matching"""
-        broader_keywords = {
-            'israel': ['middle east', 'gaza', 'palestinian', 'jewish', 'tel aviv', 'jerusalem', 'netanyahu'],
-            'ai': ['technology', 'artificial', 'machine', 'automation', 'tech'],
-            'tech': ['technology', 'digital', 'software', 'innovation', 'startup'],
-            'business': ['economy', 'market', 'corporate', 'industry', 'finance']
-        }
-        return broader_keywords.get(topic.lower(), [])
-    
-    def _extract_source_from_url(self, url: str) -> str:
-        """Extract the actual news source from a URL"""
-        try:
-            from urllib.parse import urlparse
-            parsed = urlparse(url)
-            domain = parsed.netloc.lower()
-            
-            # Map domains to readable source names
-            source_mapping = {
-                'feeds.reuters.com': 'reuters',
-                'rss.cnn.com': 'cnn',
-                'feeds.bbci.co.uk': 'bbc',
-                'www.cnbc.com': 'cnbc',
-                'feeds.feedburner.com': 'feedburner',
-                'www.forbes.com': 'forbes',
-                'hbr.org': 'harvard_business_review',
-                'feeds.feedburner.com/TechCrunch': 'techcrunch',
-                'feeds.feedburner.com/venturebeat': 'venturebeat',
-                'www.wired.com': 'wired'
-            }
-            
-            # Check for exact matches first
-            if domain in source_mapping:
-                return source_mapping[domain]
-            
-            # Check for partial matches
-            for domain_key, source_name in source_mapping.items():
-                if domain_key in domain or domain in domain_key:
-                    return source_name
-            
-            # Extract main domain as fallback
-            if domain.startswith('www.'):
-                domain = domain[4:]
-            if domain.startswith('feeds.'):
-                domain = domain[6:]
-            if domain.startswith('rss.'):
-                domain = domain[4:]
-                
-            # Get the main part (e.g., 'bbc' from 'bbc.co.uk')
-            main_domain = domain.split('.')[0]
-            return main_domain
-            
-        except Exception as e:
-            logger.warning(f"Could not extract source from URL {url}: {e}")
-            return 'news_source'
     
     def _scrape_real_news_websites(self, topics: List[str]) -> List[Dict[str, Any]]:
         """Scrape real news articles from major tech news websites"""

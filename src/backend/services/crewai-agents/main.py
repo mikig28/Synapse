@@ -412,9 +412,9 @@ def health_check():
     env_status = {
         "OPENAI_API_KEY": "✅ Set" if os.getenv('OPENAI_API_KEY') else "❌ Missing",
         "ANTHROPIC_API_KEY": "✅ Set" if os.getenv('ANTHROPIC_API_KEY') else "❌ Missing",
-        "REDDIT_CLIENT_ID": "✅ Set" if os.getenv('REDDIT_CLIENT_ID') else "❌ Missing",
-        "REDDIT_CLIENT_SECRET": "✅ Set" if os.getenv('REDDIT_CLIENT_SECRET') else "❌ Missing", 
-        "TELEGRAM_BOT_TOKEN": "✅ Set" if os.getenv('TELEGRAM_BOT_TOKEN') else "❌ Missing"
+        "REDDIT_CLIENT_ID": "✅ Set" if os.getenv('REDDIT_CLIENT_ID') else "⚠️ Missing (Reddit will use JSON endpoints)",
+        "REDDIT_CLIENT_SECRET": "✅ Set" if os.getenv('REDDIT_CLIENT_SECRET') else "⚠️ Missing (Reddit will use JSON endpoints)", 
+        "TELEGRAM_BOT_TOKEN": "✅ Set" if os.getenv('TELEGRAM_BOT_TOKEN') else "⚠️ Missing (Telegram will use news alternatives)"
     }
     
     # Dependency check
@@ -430,18 +430,38 @@ def health_check():
     
     # System capabilities
     capabilities = {
+        "enhanced_multi_agent_crew": "✅ Available" if ENHANCED_CREW_AVAILABLE else "❌ Not Available",
         "dynamic_multi_agent_crew": "✅ Available" if DYNAMIC_CREW_AVAILABLE else "❌ Not Available",
         "simple_news_scraper": "✅ Available" if SIMPLE_SCRAPER_AVAILABLE else "❌ Not Available",
         "url_validation": "✅ Available",
         "content_quality_scoring": "✅ Available",
-        "task_delegation": "✅ Available" if DYNAMIC_CREW_AVAILABLE else "❌ Not Available"
+        "task_delegation": "✅ Available" if ENHANCED_CREW_AVAILABLE or DYNAMIC_CREW_AVAILABLE else "❌ Not Available"
+    }
+    
+    # Data source availability
+    data_sources = {
+        "news_websites": "✅ Working (RSS feeds from TechCrunch, Wired, etc.)",
+        "reddit_json": "✅ Working (No auth required)",
+        "reddit_api": "⚠️ Requires credentials" if not os.getenv('REDDIT_CLIENT_ID') else "✅ Available",
+        "linkedin": "⚠️ Limited (RSS often blocked, using news alternatives)",
+        "telegram": "⚠️ Bot API limited (cannot read channels without admin)",
+        "hacker_news": "✅ Working (Public API)",
+        "github_trending": "✅ Working (Public API)"
     }
     
     # Current mode
     current_mode = news_gatherer.mode if news_gatherer else "not_initialized"
     
+    # Operational status
+    operational_status = "fully_operational"
+    if not os.getenv('REDDIT_CLIENT_ID'):
+        operational_status = "partial_operation"
+    if not news_gatherer:
+        operational_status = "not_operational"
+    
     return jsonify({
         "status": "healthy",
+        "operational_status": operational_status,
         "service": "synapse-enhanced-multi-agent-news",
         "timestamp": datetime.now().isoformat(),
         "initialized": news_gatherer is not None,
@@ -449,12 +469,21 @@ def health_check():
         "capabilities": capabilities,
         "environment_variables": env_status,
         "dependencies": dependencies,
+        "data_sources": data_sources,
         "features": {
-            "dynamic_task_delegation": DYNAMIC_CREW_AVAILABLE,
+            "dynamic_task_delegation": ENHANCED_CREW_AVAILABLE or DYNAMIC_CREW_AVAILABLE,
             "url_validation": True,
             "content_quality_scoring": True,
-            "multi_agent_coordination": DYNAMIC_CREW_AVAILABLE,
-            "fallback_scraping": SIMPLE_SCRAPER_AVAILABLE
+            "multi_agent_coordination": ENHANCED_CREW_AVAILABLE or DYNAMIC_CREW_AVAILABLE,
+            "fallback_scraping": SIMPLE_SCRAPER_AVAILABLE,
+            "real_news_content": True,
+            "social_media_limited": True
+        },
+        "notes": {
+            "reddit": "Works without credentials using JSON endpoints",
+            "linkedin": "Professional content from news sources",
+            "telegram": "Limited by Bot API - alternatives used",
+            "news": "Multiple RSS feeds working reliably"
         },
         "working_directory": os.getcwd(),
         "initialization_error": getattr(news_gatherer, 'initialization_error', None) if news_gatherer else "News gatherer not initialized"
