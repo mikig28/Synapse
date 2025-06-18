@@ -1040,12 +1040,32 @@ class EnhancedNewsResearchCrew:
                 update_progress(3, 'in_progress', 'Scraping real LinkedIn professional content...')
                 logger.info(f"💼 [Social Media Monitor] Collecting LinkedIn posts - STARTING")
                 try:
-                    # Scrape real LinkedIn posts
-                    linkedin_posts = self._scrape_real_linkedin_posts(topics)
-                    logger.info(f"🔍 LinkedIn scraper returned {len(linkedin_posts)} posts")
-                    organized_content['linkedin_posts'] = linkedin_posts
-                    update_progress(3, 'completed', f"Scraped {len(linkedin_posts)} real LinkedIn posts")
-                    logger.info(f"✅ Scraped {len(linkedin_posts)} real LinkedIn posts")
+                    # Scrape professional content (may include news websites as fallback)
+                    professional_content = self._scrape_real_linkedin_posts(topics)
+                    logger.info(f"🔍 Professional content scraper returned {len(professional_content)} posts")
+                    
+                    # Separate actual LinkedIn posts from news website content
+                    actual_linkedin_posts = []
+                    news_website_posts = []
+                    
+                    for post in professional_content:
+                        source_type = post.get('source_type', 'linkedin')
+                        if source_type == 'news_website' or post.get('source', '').startswith('news_'):
+                            news_website_posts.append(post)
+                        else:
+                            actual_linkedin_posts.append(post)
+                    
+                    # Add to appropriate categories
+                    organized_content['linkedin_posts'] = actual_linkedin_posts
+                    if news_website_posts:
+                        # Add news website posts to news_articles instead of LinkedIn
+                        if 'news_articles' not in organized_content:
+                            organized_content['news_articles'] = []
+                        organized_content['news_articles'].extend(news_website_posts)
+                        logger.info(f"📰 Moved {len(news_website_posts)} news website posts from LinkedIn to news_articles")
+                    
+                    update_progress(3, 'completed', f"Found {len(actual_linkedin_posts)} LinkedIn posts + {len(news_website_posts)} news articles")
+                    logger.info(f"✅ Scraped {len(actual_linkedin_posts)} LinkedIn posts + {len(news_website_posts)} news articles")
                 except Exception as e:
                     update_progress(3, 'failed', f"LinkedIn scraping failed: {str(e)}")
                     logger.error(f"LinkedIn scraping failed: {str(e)}")
@@ -1383,12 +1403,14 @@ class EnhancedNewsResearchCrew:
                                 
                                 if is_relevant:
                                     relevant_entries += 1
+                                    # Extract actual source from URL
+                                    actual_source = self._extract_source_from_url(source_url)
                                     posts.append({
-                                        "id": f"professional_{len(posts)}_{int(datetime.now().timestamp())}",
-                                        "title": entry.get('title', f"Professional insights on {topic}"),
+                                        "id": f"news_{actual_source}_{len(posts)}_{int(datetime.now().timestamp())}",
+                                        "title": entry.get('title', f"Business insights from {actual_source.upper()}"),
                                         "content": entry.get('summary', entry.get('description', ''))[:300] + "...",
-                                        "author": entry.get('author', 'Industry Professional'),
-                                        "company": "Professional Network",
+                                        "author": entry.get('author', f'{actual_source.upper()} Reporter'),
+                                        "company": actual_source.upper(),
                                         "url": entry.get('link', f"https://example.com/professional/{topic}"),
                                         "published_date": entry.get('published', datetime.now().isoformat()),
                                         "engagement": {
@@ -1396,7 +1418,9 @@ class EnhancedNewsResearchCrew:
                                             "comments": 8 + len(posts) * 3,
                                             "shares": 5 + len(posts) * 2
                                         },
-                                        "source": "professional_network",
+                                        "source": f"news_{actual_source}",
+                                        "original_source": actual_source,
+                                        "source_type": "news_website",
                                         "simulated": False
                                     })
                                     
@@ -1507,12 +1531,14 @@ class EnhancedNewsResearchCrew:
                             if is_relevant:
                                 relevant_entries += 1
                                 logger.info(f"   ✅ Relevant broader entry: {entry.get('title', 'No title')[:50]}...")
+                                # Extract actual source from URL
+                                actual_source = self._extract_source_from_url(source_url)
                                 posts.append({
-                                    "id": f"broader_prof_{len(posts)}_{int(datetime.now().timestamp())}",
-                                    "title": entry.get('title', f"Professional news about {topics[0] if topics else 'business'}"),
+                                    "id": f"news_{actual_source}_{len(posts)}_{int(datetime.now().timestamp())}",
+                                    "title": entry.get('title', f"News about {topics[0] if topics else 'business'}"),
                                     "content": entry.get('summary', entry.get('description', ''))[:400] + "...",
-                                    "author": entry.get('author', 'Business Reporter'),
-                                    "company": "Professional News Network",
+                                    "author": entry.get('author', f'{actual_source.upper()} Reporter'),
+                                    "company": actual_source.upper(),
                                     "url": entry.get('link', ''),
                                     "published_date": entry.get('published', datetime.now().isoformat()),
                                     "engagement": {
@@ -1520,7 +1546,9 @@ class EnhancedNewsResearchCrew:
                                         "comments": 15 + len(posts) * 3,
                                         "shares": 8 + len(posts) * 2
                                     },
-                                    "source": "broader_professional",
+                                    "source": f"news_{actual_source}",
+                                    "original_source": actual_source,
+                                    "source_type": "news_website",
                                     "simulated": False
                                 })
                                 
@@ -1546,6 +1574,52 @@ class EnhancedNewsResearchCrew:
             'business': ['economy', 'market', 'corporate', 'industry', 'finance']
         }
         return broader_keywords.get(topic.lower(), [])
+    
+    def _extract_source_from_url(self, url: str) -> str:
+        """Extract the actual news source from a URL"""
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            domain = parsed.netloc.lower()
+            
+            # Map domains to readable source names
+            source_mapping = {
+                'feeds.reuters.com': 'reuters',
+                'rss.cnn.com': 'cnn',
+                'feeds.bbci.co.uk': 'bbc',
+                'www.cnbc.com': 'cnbc',
+                'feeds.feedburner.com': 'feedburner',
+                'www.forbes.com': 'forbes',
+                'hbr.org': 'harvard_business_review',
+                'feeds.feedburner.com/TechCrunch': 'techcrunch',
+                'feeds.feedburner.com/venturebeat': 'venturebeat',
+                'www.wired.com': 'wired'
+            }
+            
+            # Check for exact matches first
+            if domain in source_mapping:
+                return source_mapping[domain]
+            
+            # Check for partial matches
+            for domain_key, source_name in source_mapping.items():
+                if domain_key in domain or domain in domain_key:
+                    return source_name
+            
+            # Extract main domain as fallback
+            if domain.startswith('www.'):
+                domain = domain[4:]
+            if domain.startswith('feeds.'):
+                domain = domain[6:]
+            if domain.startswith('rss.'):
+                domain = domain[4:]
+                
+            # Get the main part (e.g., 'bbc' from 'bbc.co.uk')
+            main_domain = domain.split('.')[0]
+            return main_domain
+            
+        except Exception as e:
+            logger.warning(f"Could not extract source from URL {url}: {e}")
+            return 'news_source'
     
     def _scrape_real_news_websites(self, topics: List[str]) -> List[Dict[str, Any]]:
         """Scrape real news articles from major tech news websites"""
