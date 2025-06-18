@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,26 +31,61 @@ import {
   Terminal,
   FileText,
   ExternalLink,
+  Search,
+  Sparkles,
+  Globe,
+  MessageCircle,
+  Linkedin,
+  Hash,
+  Newspaper,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  ThumbsUp,
+  Share2,
+  Eye
 } from 'lucide-react';
 import { AgentRun } from '@/types/agent';
 import { agentService } from '@/services/agentService';
 
-interface CrewProgress {
-  step: number;
-  total_steps: number;
+interface ProgressStep {
   agent: string;
-  description: string;
+  step: string;
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
   message?: string;
-  timestamp: string;
+  timestamp?: string;
+}
+
+interface ContentItem {
+  id: string;
+  title: string;
+  content: string;
+  url?: string;
+  author?: string;
+  source: string;
+  published_date?: string;
+  score?: number;
+  engagement?: {
+    likes?: number;
+    comments?: number;
+    shares?: number;
+    views?: number;
+  };
 }
 
 interface CrewExecutionDashboardProps {
-  agentId: string;
-  agentName: string;
-  isRunning: boolean;
-  onExecuteAgent?: () => void;
-  onPauseAgent?: () => void;
+  isExecuting: boolean;
+  progressSteps: ProgressStep[];
+  results?: {
+    reddit_posts?: ContentItem[];
+    linkedin_posts?: ContentItem[];
+    telegram_messages?: ContentItem[];
+    news_articles?: ContentItem[];
+    executive_summary?: string[];
+    trending_topics?: Array<{topic: string; mentions: number; trending_score: number}>;
+  };
+  error?: string;
+  onRetry?: () => void;
 }
 
 const AGENT_ICONS = {
@@ -68,177 +104,271 @@ const AGENT_COLORS = {
   'Crew': 'bg-gray-100 dark:bg-gray-900/20 border-gray-200 dark:border-gray-800',
 };
 
+const sourceIcons = {
+  'reddit': <Hash className="w-4 h-4 text-orange-500" />,
+  'linkedin': <Linkedin className="w-4 h-4 text-blue-600" />,
+  'telegram': <MessageCircle className="w-4 h-4 text-blue-400" />,
+  'news': <Newspaper className="w-4 h-4 text-gray-600" />
+};
+
+const statusColors = {
+  'pending': 'text-gray-500',
+  'in_progress': 'text-blue-500',
+  'completed': 'text-green-500',
+  'failed': 'text-red-500'
+};
+
+const statusIcons = {
+  'pending': <Clock className="w-4 h-4" />,
+  'in_progress': <RefreshCw className="w-4 h-4 animate-spin" />,
+  'completed': <CheckCircle className="w-4 h-4" />,
+  'failed': <AlertCircle className="w-4 h-4" />
+};
+
 export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
-  agentId,
-  agentName,
-  isRunning,
-  onExecuteAgent,
-  onPauseAgent,
+  isExecuting,
+  progressSteps,
+  results,
+  error,
+  onRetry
 }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [crewProgress, setCrewProgress] = useState<CrewProgress | null>(null);
-  const [progressHistory, setProgressHistory] = useState<CrewProgress[]>([]);
-  const [overallProgress, setOverallProgress] = useState(0);
-  const [lastExecutionHistory, setLastExecutionHistory] = useState<CrewProgress[]>([]);
-  const [executionStartTime, setExecutionStartTime] = useState<string | null>(null);
-  const [agentRuns, setAgentRuns] = useState<AgentRun[]>([]);
-  const [currentRun, setCurrentRun] = useState<AgentRun | null>(null);
-  const [runSummary, setRunSummary] = useState<any>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+  const [activeTab, setActiveTab] = useState('overview');
+  const [animatedProgress, setAnimatedProgress] = useState(0);
+  const [parsedContent, setParsedContent] = useState<any>(null);
+  const [agentStates, setAgentStates] = useState<any>({
+    research: 'idle',
+    quality: 'idle',
+    trend: 'idle'
+  });
 
-  // Fetch crew progress from the Python service
-  const fetchCrewProgress = async () => {
-    try {
-      // Use environment variable for CrewAI service URL, fallback to production URL
-      const crewServiceUrl = import.meta.env.VITE_CREWAI_SERVICE_URL || 
-        'https://synapse-crewai.onrender.com';
-      const progressUrl = `${crewServiceUrl}/progress`;
-      
-      console.log('📊 CrewDashboard: Fetching progress from:', progressUrl);
-      const response = await fetch(progressUrl);
-      const data = await response.json();
-      console.log('📊 CrewDashboard: Progress response:', data);
-      
-      if (data.success && data.progress && Object.keys(data.progress).length > 0) {
-        const progress = data.progress as CrewProgress;
-        setCrewProgress(progress);
+  useEffect(() => {
+    const completedSteps = progressSteps.filter(s => s.status === 'completed').length;
+    const totalSteps = progressSteps.length || 1;
+    const targetProgress = (completedSteps / totalSteps) * 100;
+    
+    const timer = setTimeout(() => {
+      setAnimatedProgress(targetProgress);
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [progressSteps]);
+
+  const toggleCard = (id: string) => {
+    setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const renderContentCard = (item: ContentItem, type: string) => {
+    const isExpanded = expandedCards[item.id];
+    const icon = sourceIcons[type as keyof typeof sourceIcons] || sourceIcons.news;
+
+    return (
+      <motion.div
+        key={item.id}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        className="mb-4"
+      >
+        <Card className="p-4 hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                {icon}
+                <Badge variant="secondary" className="text-xs">
+                  {item.source}
+                </Badge>
+                {item.score && item.score > 100 && (
+                  <Badge variant="default" className="text-xs bg-orange-500">
+                    🔥 Trending
+                  </Badge>
+                )}
+              </div>
+              
+              <h3 className="font-semibold text-lg mb-2 line-clamp-2">
+                {item.title}
+              </h3>
+              
+              <div className={`text-sm text-muted-foreground ${isExpanded ? '' : 'line-clamp-3'}`}>
+                {item.content}
+              </div>
+
+              {item.engagement && (
+                <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
+                  {item.engagement.likes && (
+                    <span className="flex items-center gap-1">
+                      <ThumbsUp className="w-3 h-3" />
+                      {item.engagement.likes}
+                    </span>
+                  )}
+                  {item.engagement.comments && (
+                    <span className="flex items-center gap-1">
+                      <MessageCircle className="w-3 h-3" />
+                      {item.engagement.comments}
+                    </span>
+                  )}
+                  {item.engagement.shares && (
+                    <span className="flex items-center gap-1">
+                      <Share2 className="w-3 h-3" />
+                      {item.engagement.shares}
+                    </span>
+                  )}
+                  {item.engagement.views && (
+                    <span className="flex items-center gap-1">
+                      <Eye className="w-3 h-3" />
+                      {item.engagement.views}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between mt-3">
+                <div className="flex items-center gap-2">
+                  {item.author && (
+                    <span className="text-xs text-muted-foreground">
+                      by {item.author}
+                    </span>
+                  )}
+                  {item.published_date && (
+                    <span className="text-xs text-muted-foreground">
+                      • {new Date(item.published_date).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  {item.url && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => window.open(item.url, '_blank')}
+                      className="h-8"
+                    >
+                      <ExternalLink className="w-3 h-3 mr-1" />
+                      View
+                    </Button>
+                  )}
+                  
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toggleCard(item.id)}
+                    className="h-8"
+                  >
+                    {isExpanded ? (
+                      <ChevronUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </motion.div>
+    );
+  };
+
+  const renderProgressStep = (step: ProgressStep, index: number) => {
+    const icon = AGENT_ICONS[step.agent as keyof typeof AGENT_ICONS] || <Users className="w-5 h-5" />;
+    const statusIcon = statusIcons[step.status];
+    const statusColor = statusColors[step.status];
+
+    return (
+      <motion.div
+        key={`${step.agent}-${index}`}
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: index * 0.1 }}
+        className="flex items-start gap-3 mb-4"
+      >
+        <div className="relative">
+          <div className={`p-2 rounded-full bg-gray-100 dark:bg-gray-800 ${statusColor}`}>
+            {icon}
+          </div>
+          {index < progressSteps.length - 1 && (
+            <div className="absolute top-10 left-1/2 transform -translate-x-1/2 w-0.5 h-12 bg-gray-200 dark:bg-gray-700" />
+          )}
+        </div>
         
-        // Mark execution start time
-        if (!executionStartTime) {
-          setExecutionStartTime(new Date().toISOString());
-        }
-        
-        // Update progress history
-        setProgressHistory(prev => {
-          const newHistory = [...prev];
-          const existingIndex = newHistory.findIndex(
-            p => p.step === progress.step && p.agent === progress.agent
-          );
-          
-          if (existingIndex >= 0) {
-            newHistory[existingIndex] = progress;
-          } else {
-            newHistory.push(progress);
-          }
-          
-          return newHistory.sort((a, b) => a.step - b.step);
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">{step.agent}</span>
+            <span className={statusColor}>{statusIcon}</span>
+          </div>
+          <p className="text-sm text-muted-foreground">{step.step}</p>
+          {step.message && (
+            <p className="text-xs text-muted-foreground mt-1">{step.message}</p>
+          )}
+          {step.timestamp && (
+            <p className="text-xs text-muted-foreground">
+              {new Date(step.timestamp).toLocaleTimeString()}
+            </p>
+          )}
+        </div>
+      </motion.div>
+    );
+  };
+
+  const processCrewAIResults = (results: any) => {
+    console.log('Processing CrewAI results:', results);
+    
+    // Check if this is an error result
+    if (results.error || results.success === false) {
+      // Handle no content found
+      if (results.mode === 'no_content_found' || results.mode === 'scraping_failed') {
+        setParsedContent({
+          executive_summary: results.data?.executive_summary || [
+            'No content found',
+            results.error || 'Unable to fetch content from the requested sources'
+          ],
+          trending_topics: [],
+          organized_content: {
+            reddit_posts: [],
+            linkedin_posts: [],
+            telegram_messages: [],
+            news_articles: []
+          },
+          ai_insights: results.data?.ai_insights || {
+            failed_sources: results.details?.failed_sources || [],
+            error_message: results.error || 'Content fetching failed'
+          },
+          recommendations: results.data?.recommendations || []
         });
         
-        // Calculate overall progress
-        const progressPercent = (progress.step / progress.total_steps) * 100;
-        setOverallProgress(Math.min(progressPercent, 100));
-      } else if (data.success && (!data.progress || Object.keys(data.progress).length === 0)) {
-        // No active progress - execution might have completed
-        if (progressHistory.length > 0 && crewProgress) {
-          console.log('📊 CrewDashboard: Execution completed, saving history');
-          setLastExecutionHistory([...progressHistory]);
-          // Don't clear current progress immediately to show completion state
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch crew progress:', error);
-    }
-  };
-
-  // Fetch agent runs and current execution details
-  const fetchAgentRuns = async () => {
-    try {
-      const runs = await agentService.getAgentRuns(agentId, 10);
-      setAgentRuns(runs);
-      
-      // Find the most recent running or completed run
-      const mostRecentRun = runs.find(run => run.status === 'running') || runs[0];
-      if (mostRecentRun) {
-        setCurrentRun(mostRecentRun);
+        // Show error state
+        setAgentStates({
+          research: 'error',
+          quality: 'idle',
+          trend: 'idle'
+        });
         
-        // Extract summary information for the run
-        if (mostRecentRun.results && mostRecentRun.status === 'completed') {
-          setRunSummary(mostRecentRun.results);
+        return;
+      }
+    }
+    
+    // Process successful results
+    const { data } = results;
+    
+    if (!data) {
+      setParsedContent({
+        executive_summary: ['No data received from agents'],
+        trending_topics: [],
+        organized_content: {
+          reddit_posts: [],
+          linkedin_posts: [],
+          telegram_messages: [],
+          news_articles: []
         }
-      }
-    } catch (error) {
-      console.error('Failed to fetch agent runs:', error);
-    }
-  };
-
-  // Poll for progress updates when dialog is open and agent is running
-  useEffect(() => {
-    if (isDialogOpen) {
-      fetchAgentRuns(); // Always fetch runs when opening dialog
-      
-      if (isRunning) {
-        fetchCrewProgress(); // Initial fetch for progress
-        intervalRef.current = setInterval(() => {
-          fetchCrewProgress();
-          fetchAgentRuns(); // Also update runs
-        }, 2000); // Poll every 2 seconds
-      }
-    } else if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+      });
+      return;
     }
 
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [isDialogOpen, isRunning]);
-
-  // Auto-scroll to bottom when new progress is added
-  useEffect(() => {
-    if (scrollAreaRef.current) {
-      const scrollElement = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollElement) {
-        scrollElement.scrollTop = scrollElement.scrollHeight;
-      }
-    }
-  }, [progressHistory]);
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case 'in_progress':
-        return <Activity className="w-4 h-4 text-blue-500 animate-pulse" />;
-      case 'failed':
-        return <AlertCircle className="w-4 h-4 text-red-500" />;
-      default:
-        return <Clock className="w-4 h-4 text-gray-400" />;
-    }
+    // ... rest of the function ...
   };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-50 dark:bg-green-950/20 border-l-green-500';
-      case 'in_progress':
-        return 'bg-blue-50 dark:bg-blue-950/20 border-l-blue-500';
-      case 'failed':
-        return 'bg-red-50 dark:bg-red-950/20 border-l-red-500';
-      default:
-        return 'bg-gray-50 dark:bg-gray-950/20 border-l-gray-400';
-    }
-  };
-
-  const getAgentIcon = (agentName: string) => {
-    const IconComponent = AGENT_ICONS[agentName as keyof typeof AGENT_ICONS] || Users;
-    return <IconComponent className="w-5 h-5" />;
-  };
-
-  const getAgentColors = (agentName: string) => {
-    return AGENT_COLORS[agentName as keyof typeof AGENT_COLORS] || AGENT_COLORS['Crew'];
-  };
-
-  const formatTimestamp = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString();
-  };
-
-  const completedSteps = progressHistory.filter(p => p.status === 'completed').length;
-  const totalSteps = crewProgress?.total_steps || 6;
-  const hasActiveProgress = Boolean(crewProgress && Object.keys(crewProgress).length > 0);
 
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -246,7 +376,7 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
         <Button size="sm" variant="outline" className="gap-2">
           <Users className="w-4 h-4" />
           Crew Dashboard
-          {isRunning && (
+          {isExecuting && (
             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
           )}
         </Button>
@@ -257,67 +387,20 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
           <div className="flex items-center gap-3">
             <Users className="w-5 h-5" />
             <DialogTitle>
-              {agentName} - Crew Execution Dashboard
-              {hasActiveProgress && (
-                <Badge variant="outline" className="ml-2">
-                  Step {crewProgress?.step || 0} of {totalSteps}
-                </Badge>
-              )}
+              AI News Research Crew
             </DialogTitle>
           </div>
           
           <div className="flex items-center gap-2">
             {/* Control Buttons */}
             <div className="flex gap-1">
-              {!isRunning && onExecuteAgent && (
-                <Button size="sm" variant="ghost" onClick={onExecuteAgent} className="h-8 w-8 p-0">
-                  <Play className="w-4 h-4 text-green-600" />
+              {error && onRetry && (
+                <Button size="sm" variant="outline" onClick={onRetry}>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Retry
                 </Button>
               )}
-              {isRunning && onPauseAgent && (
-                <Button size="sm" variant="ghost" onClick={onPauseAgent} className="h-8 w-8 p-0">
-                  <Pause className="w-4 h-4 text-orange-600" />
-                </Button>
-              )}
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                onClick={() => {
-                  setProgressHistory([]);
-                  setLastExecutionHistory([]);
-                  setCrewProgress(null);
-                  setOverallProgress(0);
-                  setExecutionStartTime(null);
-                }}
-                className="h-8 w-8 p-0"
-                title="Clear All History"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </Button>
             </div>
-            
-            {/* Status Badge */}
-            <Badge
-              variant={isRunning ? 'secondary' : hasActiveProgress ? 'default' : 'outline'}
-              className="gap-1"
-            >
-              {isRunning ? (
-                <>
-                  <Activity className="w-3 h-3 animate-pulse" />
-                  Executing
-                </>
-              ) : hasActiveProgress ? (
-                <>
-                  <CheckCircle className="w-3 h-3" />
-                  Ready
-                </>
-              ) : (
-                <>
-                  <Clock className="w-3 h-3" />
-                  Idle
-                </>
-              )}
-            </Badge>
             
             <Button
               size="sm"
@@ -340,145 +423,162 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
               <div className="flex items-center justify-between text-sm">
                 <span className="font-medium">Overall Progress</span>
                 <span className="text-muted-foreground">
-                  {completedSteps} of {totalSteps} steps completed
+                  {Math.round(animatedProgress)}%
                 </span>
               </div>
-              <Progress value={overallProgress} className="h-2" />
+              <Progress value={animatedProgress} className="h-2" />
             </div>
 
-            {/* Agent Status Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {Object.entries(AGENT_ICONS).map(([agentName, IconComponent]) => {
-                const agentProgress = progressHistory.find(p => p.agent === agentName);
-                const status = agentProgress?.status || 'pending';
-                const colors = getAgentColors(agentName);
-                
-                return (
-                  <Card key={agentName} className={`${colors} transition-all duration-200`}>
-                    <CardContent className="p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <IconComponent className="w-4 h-4" />
-                        <span className="text-xs font-medium truncate">{agentName}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {getStatusIcon(status)}
-                        <span className="text-xs capitalize">{status.replace('_', ' ')}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-
-            {/* Progress Timeline */}
-            <Card className="flex-1 min-h-0">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Zap className="w-5 h-5" />
-                  Execution Timeline
-                  {isRunning && (
-                    <Badge variant="secondary" className="text-xs">
-                      Live Updates
-                    </Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0 h-full">
-                <ScrollArea className="h-full max-h-[400px] px-4 pb-4" ref={scrollAreaRef}>
-                  {(progressHistory.length === 0 && lastExecutionHistory.length === 0) ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p>No crew execution data available</p>
-                      <p className="text-xs">Progress will appear here when crew starts executing</p>
+            {/* Error Alert */}
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-6"
+              >
+                <Card className="p-4 border-red-200 bg-red-50 dark:bg-red-900/20">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-red-500 mt-0.5" />
+                    <div>
+                      <h3 className="font-semibold text-red-900 dark:text-red-200">
+                        Execution Error
+                      </h3>
+                      <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                        {error}
+                      </p>
                     </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {/* Show execution start time */}
-                      {executionStartTime && (
-                        <div className="text-xs text-muted-foreground border-b pb-2 mb-3">
-                          🚀 Execution started: {new Date(executionStartTime).toLocaleString()}
-                        </div>
-                      )}
-                      
-                      {/* Show last execution if no current progress */}
-                      {progressHistory.length === 0 && lastExecutionHistory.length > 0 && (
-                        <div className="text-xs text-muted-foreground border-b pb-2 mb-3 flex items-center justify-between">
-                          <span>📋 Last Execution History</span>
+                  </div>
+                </Card>
+              </motion.div>
+            )}
+
+            {/* Main Content */}
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-4 mb-6">
+                <TabsTrigger value="overview">
+                  <Globe className="w-4 h-4 mr-2" />
+                  Overview
+                </TabsTrigger>
+                <TabsTrigger value="progress">
+                  <Zap className="w-4 h-4 mr-2" />
+                  Progress
+                </TabsTrigger>
+                <TabsTrigger value="content">
+                  <FileText className="w-4 h-4 mr-2" />
+                  Content
+                </TabsTrigger>
+                <TabsTrigger value="insights">
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Insights
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Overview Tab */}
+              <TabsContent value="overview">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  {/* Stats Cards */}
+                  <Card className="p-6">
+                    {/* Stats content */}
+                  </Card>
+                </div>
+              </TabsContent>
+
+              {/* Progress Tab */}
+              <TabsContent value="progress">
+                {/* Progress content */}
+              </TabsContent>
+
+              {/* Content Tab */}
+              <TabsContent value="content">
+                {/* Error State */}
+                {agentStates.research === 'error' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-8"
+                  >
+                    <Card className="p-6 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
+                      <div className="flex items-start gap-4">
+                        <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400 mt-1" />
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-red-900 dark:text-red-200 mb-2">
+                            Unable to Fetch Content
+                          </h3>
+                          {parsedContent.ai_insights?.error_message && (
+                            <p className="text-red-800 dark:text-red-300 mb-3">
+                              {parsedContent.ai_insights.error_message}
+                            </p>
+                          )}
+                          {parsedContent.ai_insights?.failed_sources && parsedContent.ai_insights.failed_sources.length > 0 && (
+                            <div className="mb-3">
+                              <p className="text-red-800 dark:text-red-300 font-medium mb-1">Failed Sources:</p>
+                              <ul className="list-disc list-inside text-red-700 dark:text-red-400 text-sm">
+                                {parsedContent.ai_insights.failed_sources.map((source: string, idx: number) => (
+                                  <li key={idx}>{source}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          <div className="mt-4">
+                            <p className="text-red-700 dark:text-red-400 text-sm font-medium mb-2">Suggestions:</p>
+                            <ul className="list-disc list-inside text-red-600 dark:text-red-500 text-sm">
+                              <li>Try different search topics</li>
+                              <li>Check your internet connection</li>
+                              <li>Verify API credentials are configured</li>
+                              <li>Try again in a few moments</li>
+                            </ul>
+                          </div>
                           <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => {
-                              setProgressHistory([]);
-                              setLastExecutionHistory([]);
-                              setCrewProgress(null);
-                              setOverallProgress(0);
-                            }}
+                            onClick={() => window.location.reload()} 
+                            className="mt-4 bg-red-600 hover:bg-red-700 text-white"
+                            size="sm"
                           >
-                            Clear
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Retry
                           </Button>
                         </div>
-                      )}
-                      
-                      {(progressHistory.length > 0 ? progressHistory : lastExecutionHistory).map((progress, index) => (
-                        <div
-                          key={`${progress.agent}-${progress.step}-${index}`}
-                          className={`p-3 rounded-lg border-l-4 ${getStatusColor(progress.status)} transition-all duration-200`}
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                {getAgentIcon(progress.agent)}
-                                <span className="text-sm font-medium text-foreground">
-                                  {progress.agent}
-                                </span>
-                                <Badge variant="outline" className="text-xs">
-                                  Step {progress.step}
-                                </Badge>
-                              </div>
-                              
-                              <p className="text-sm text-muted-foreground mb-1">
-                                {progress.description}
-                              </p>
-                              
-                              {progress.message && (
-                                <p className="text-xs text-muted-foreground bg-muted/30 p-2 rounded">
-                                  {progress.message}
-                                </p>
-                              )}
-                            </div>
-                            
-                            <div className="flex flex-col items-end gap-1 ml-3">
-                              {getStatusIcon(progress.status)}
-                              <span className="text-xs text-muted-foreground">
-                                {formatTimestamp(progress.timestamp)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </ScrollArea>
-              </CardContent>
-            </Card>
-
-            {/* Footer */}
-            <div className="flex items-center justify-between pt-2 border-t">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Activity className="w-4 h-4" />
-                {isRunning ? (
-                  <span className="text-blue-600">Crew is actively executing...</span>
-                ) : hasActiveProgress ? (
-                  <span>Last execution completed</span>
-                ) : (
-                  <span>Waiting for crew execution</span>
+                      </div>
+                    </Card>
+                  </motion.div>
                 )}
-              </div>
-              
-              <Button size="sm" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Close Dashboard
-              </Button>
-            </div>
+
+                {/* Content Sections - Only show if we have content */}
+                {agentStates.research !== 'error' && parsedContent && (
+                  <>
+                    {/* Executive Summary */}
+                    {parsedContent.executive_summary && parsedContent.executive_summary.length > 0 && (
+                      <ContentSection
+                        title="Executive Summary"
+                        icon={<FileText className="h-5 w-5" />}
+                        delay={0.3}
+                      >
+                        <div className="prose dark:prose-invert max-w-none">
+                          {parsedContent.executive_summary.map((point: string, idx: number) => (
+                            <p key={idx} className="mb-2 text-gray-700 dark:text-gray-300">
+                              • {point}
+                            </p>
+                          ))}
+                        </div>
+                      </ContentSection>
+                    )}
+
+                    {/* No Content Message for individual sections */}
+                    {content[contentType] && content[contentType].length === 0 && (
+                      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <AlertCircle className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                        <p className="text-lg font-medium">No {contentType.replace('_', ' ')} found</p>
+                        <p className="text-sm mt-1">Try adjusting your search criteria or checking back later</p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </TabsContent>
+
+              {/* Insights Tab */}
+              <TabsContent value="insights">
+                {/* Insights content */}
+              </TabsContent>
+            </Tabs>
           </div>
         )}
       </DialogContent>

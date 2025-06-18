@@ -86,89 +86,67 @@ class TelegramMonitorTool(BaseTool):
             # Return None for any missing attribute instead of raising AttributeError
             return None
     
-    def _run(self, topics: str = "technology,AI,startups") -> str:
-        """Monitor Telegram channels for posts on specified topics"""
+    def _run(self, topics: str = "AI,technology,news") -> str:
+        """Fetch Telegram messages from configured channels"""
         
-        try:
-            topics_list = [topic.strip() for topic in topics.split(',')]
-            logger.info(f"🔍 Telegram agent starting for topics: {topics_list}")
-            
-            # Enhanced diagnostics
-            logger.info(f"📊 Telegram Agent Status:")
-            logger.info(f"   Library Available: {'✅' if TELEGRAM_AVAILABLE else '❌'}")
-            logger.info(f"   Bot Token Set: {'✅' if self._bot_token else '❌'}")
-            logger.info(f"   Bot Instance: {'✅' if self._bot_instance else '❌'}")
-            
-            if not TELEGRAM_AVAILABLE:
-                logger.error("❌ Telegram library not available - check python-telegram-bot installation")
-                return self._generate_simulated_telegram_data(topics_list)
-                
-            if not self._bot_instance:
-                logger.error("❌ Telegram bot not initialized - check bot token or connection issues")
-                return self._generate_simulated_telegram_data(topics_list)
-            
-            # List of tech/business Telegram channels to monitor
-            # Note: These are public channels. For private channels, the bot needs to be added
-            channels_to_monitor = [
-                '@durov',  # Pavel Durov (Telegram founder)
-                '@techcrunch',  # TechCrunch
-                '@TheBlock__',  # The Block (crypto/tech news)
-                '@coindesk',  # CoinDesk
-                '@androiddev',  # Android Development
-                '@iOS_Developer_Community',  # iOS Development
-            ]
-            
-            logger.info(f"📡 Attempting to monitor {len(channels_to_monitor[:3])} channels: {channels_to_monitor[:3]}")
-            all_messages = []
-            
-            # Test bot connectivity first
-            try:
-                logger.info("🧪 Testing bot connectivity...")
-                bot_info = self._bot_instance.get_me()
-                logger.info(f"✅ Bot connected successfully: @{bot_info.username} ({bot_info.first_name})")
-            except Exception as e:
-                logger.error(f"❌ Bot connectivity test failed: {str(e)}")
-                logger.error("   This usually means the bot token is invalid or network issues")
-                return self._generate_simulated_telegram_data(topics_list)
-            
-            # Monitor each channel
-            for channel in channels_to_monitor[:3]:  # Limit to 3 channels
-                try:
-                    logger.info(f"🔄 Monitoring channel: {channel}")
-                    messages = self._get_channel_messages(channel, topics_list)
-                    logger.info(f"📊 Got {len(messages)} messages from {channel}")
-                    all_messages.extend(messages)
-                except Exception as e:
-                    logger.error(f"❌ Error monitoring channel {channel}: {str(e)}")
-                    logger.error(f"   Exception type: {type(e).__name__}")
-                    continue
-            
-            logger.info(f"🎯 Telegram monitoring completed:")
-            logger.info(f"   📊 Total messages found: {len(all_messages)}")
-            logger.info(f"   📝 Returning top {min(len(all_messages), 20)} messages")
-            
-            result = {
-                'success': True,
+        topics_list = [topic.strip() for topic in topics.split(',')]
+        
+        logger.info(f"🔍 Telegram Bot Status:")
+        logger.info(f"   Bot Token: {'✅ Set' if self.bot_token else '❌ Not Set'}")
+        logger.info(f"   Topics: {topics_list}")
+        
+        if not self.bot_token:
+            logger.warning("⚠️ No Telegram bot token configured")
+            return json.dumps({
+                'success': False,
                 'source': 'telegram',
                 'topics': topics_list,
-                'channels_monitored': channels_to_monitor[:3],
-                'messages_found': len(all_messages),
-                'messages': all_messages[:20],  # Return top 20 messages
+                'messages_found': 0,
+                'messages': [],
+                'error': 'Telegram bot token not configured. Set TELEGRAM_BOT_TOKEN environment variable.',
                 'timestamp': datetime.now().isoformat()
-            }
+            })
+        
+        try:
+            messages = []
             
-            logger.info(f"✅ Telegram agent returning {len(result['messages'])} messages successfully")
-            return json.dumps(result, indent=2)
+            # Note: The Telegram Bot API has limitations
+            # Bots can only receive messages in groups where they're admin
+            # or direct messages sent to them
+            logger.info("⚠️ Note: Telegram Bot API can only access:")
+            logger.info("   - Direct messages sent to the bot")
+            logger.info("   - Groups where the bot is an admin")
+            logger.info("   - Cannot read channel messages unless bot is admin")
             
+            # If we had a working implementation, it would go here
+            # For now, we acknowledge the limitation
+            
+            return json.dumps({
+                'success': False,
+                'source': 'telegram',
+                'topics': topics_list,
+                'messages_found': 0,
+                'messages': [],
+                'error': 'Telegram Bot API cannot read channel messages without admin access. Consider using a different data source.',
+                'limitations': [
+                    'Bot API can only read messages in groups where bot is admin',
+                    'Cannot access public channel history',
+                    'Requires manual channel subscription setup'
+                ],
+                'timestamp': datetime.now().isoformat()
+            })
+                
         except Exception as e:
-            error_result = {
+            logger.error(f"❌ Telegram fetch error: {str(e)}")
+            return json.dumps({
                 'success': False,
                 'source': 'telegram',
                 'error': str(e),
+                'topics': topics_list,
+                'messages_found': 0,
+                'messages': [],
                 'timestamp': datetime.now().isoformat()
-            }
-            logger.error(f"Telegram monitoring failed: {str(e)}")
-            return json.dumps(error_result, indent=2)
+            })
     
     def _get_channel_messages(self, channel_username: str, topics: List[str]) -> List[Dict[str, Any]]:
         """Get recent messages from a Telegram channel"""

@@ -167,16 +167,27 @@ class RedditScraperTool(BaseTool):
                 api_posts = self._fetch_authenticated_posts(reddit_instance, topics_list)
                 all_posts.extend(api_posts)
             
-            # If still no posts, use RSS fallback
-            if len(all_posts) == 0:
-                logger.warning("⚠️ No posts from any source, trying RSS feeds...")
-                rss_posts = self._get_alternative_reddit_data(topics_list)
-                all_posts.extend(rss_posts)
-            
             # Sort by score and return top posts
             all_posts.sort(key=lambda x: x.get('score', 0), reverse=True)
             
             logger.info(f"🎯 Reddit scraping completed: {len(all_posts)} total posts")
+            
+            # If no posts found, return clear message
+            if len(all_posts) == 0:
+                logger.warning("⚠️ No Reddit posts found for the given topics")
+                return json.dumps({
+                    'success': False,
+                    'source': 'reddit',
+                    'topics': topics_list,
+                    'posts_found': 0,
+                    'posts': [],
+                    'timestamp': datetime.now().isoformat(),
+                    'message': 'No Reddit posts found matching your topics. Try broader search terms or check Reddit availability.',
+                    'data_sources': {
+                        'json_endpoints': 0,
+                        'authenticated_api': 0
+                    }
+                })
             
             result = {
                 'success': True,
@@ -187,8 +198,7 @@ class RedditScraperTool(BaseTool):
                 'timestamp': datetime.now().isoformat(),
                 'data_sources': {
                     'json_endpoints': len(alternative_posts) if 'alternative_posts' in locals() else 0,
-                    'authenticated_api': len(api_posts) if 'api_posts' in locals() else 0,
-                    'rss_feeds': len(rss_posts) if 'rss_posts' in locals() else 0
+                    'authenticated_api': len(api_posts) if 'api_posts' in locals() else 0
                 }
             }
             
@@ -295,80 +305,6 @@ class RedditScraperTool(BaseTool):
         
         # (Move the existing authenticated fetching logic here from the main _run method)
         # This is the code that was originally in _run that uses reddit_instance
-        
-        return posts
-    
-    def _get_alternative_reddit_data(self, topics: List[str]) -> List[Dict[str, Any]]:
-        """Get Reddit data from alternative sources when API fails"""
-        posts = []
-        
-        try:
-            import requests
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-            
-            logger.info("🔄 Trying Reddit RSS feeds as alternative...")
-            
-            # Reddit RSS feeds for popular subreddits
-            reddit_rss_feeds = [
-                'https://www.reddit.com/r/technology/.rss',
-                'https://www.reddit.com/r/programming/.rss',
-                'https://www.reddit.com/r/artificial/.rss',
-                'https://www.reddit.com/r/startups/.rss',
-                'https://www.reddit.com/r/business/.rss'
-            ]
-            
-            for feed_url in reddit_rss_feeds[:3]:  # Try 3 feeds
-                try:
-                    logger.info(f"📡 Fetching Reddit RSS: {feed_url}")
-                    response = requests.get(feed_url, headers=headers, timeout=10)
-                    
-                    if response.status_code == 200:
-                        try:
-                            import feedparser
-                            FEEDPARSER_AVAILABLE = True
-                        except ImportError:
-                            logger.warning("⚠️ feedparser not available for Reddit RSS fallback")
-                            continue
-                        
-                        if FEEDPARSER_AVAILABLE:
-                            feed = feedparser.parse(response.content)
-                            logger.info(f"📊 RSS feed parsed: {len(feed.entries)} entries")
-                            
-                            for entry in feed.entries[:3]:  # Get 3 entries per feed
-                                title = entry.get('title', '').lower()
-                                summary = entry.get('summary', '').lower()
-                                
-                                # Check topic relevance
-                                is_relevant = any(topic.lower() in title or topic.lower() in summary for topic in topics)
-                                
-                                if is_relevant or len(posts) == 0:  # Include first post even if not perfectly relevant
-                                    posts.append({
-                                        'title': entry.get('title', 'Reddit Post'),
-                                        'content': entry.get('summary', '')[:300],
-                                        'url': entry.get('link', ''),
-                                        'subreddit': feed_url.split('/r/')[1].split('/')[0] if '/r/' in feed_url else 'unknown',
-                                        'score': 50,  # Estimated score
-                                        'num_comments': 10,  # Estimated comments
-                                        'created_utc': entry.get('published', datetime.now().isoformat()),
-                                        'author': 'reddit_user',
-                                        'upvote_ratio': 0.8,
-                                        'top_comments': [],
-                                        'flair': None,
-                                        'is_video': False,
-                                        'source': 'reddit_rss',
-                                        'source_type': 'rss_fallback'
-                                    })
-                                
-                except Exception as rss_error:
-                    logger.warning(f"❌ Reddit RSS failed for {feed_url}: {str(rss_error)}")
-                    continue
-            
-            logger.info(f"✅ Alternative Reddit sources found: {len(posts)} posts")
-            
-        except Exception as e:
-            logger.error(f"❌ Alternative Reddit data failed: {str(e)}")
         
         return posts
 
