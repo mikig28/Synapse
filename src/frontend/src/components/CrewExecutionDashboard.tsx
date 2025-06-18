@@ -147,6 +147,8 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
     statusReason: string;
   } | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
+  const [pollingProgress, setPollingProgress] = useState(false);
+  const progressPollingRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const completedSteps = progressSteps.filter(s => s.status === 'completed').length;
@@ -166,6 +168,56 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
       fetchAgentStatus();
     }
   }, [isDialogOpen, agentId]);
+
+  // Start progress polling when agent is running
+  useEffect(() => {
+    if (isDialogOpen && isRunning && agentId) {
+      startProgressPolling();
+    } else {
+      stopProgressPolling();
+    }
+
+    return () => stopProgressPolling();
+  }, [isDialogOpen, isRunning, agentId]);
+
+  const startProgressPolling = () => {
+    if (progressPollingRef.current) return; // Already polling
+
+    setPollingProgress(true);
+    console.log('🔄 Starting progress polling for agent:', agentId);
+
+    const pollProgress = async () => {
+      try {
+        const progressData = await agentService.getCrewProgress(agentId);
+        if (progressData?.progress) {
+          setProgressSteps(progressData.progress.steps || []);
+          
+          // Update parsed content if available
+          if (progressData.progress.results) {
+            processCrewAIResults(progressData.progress.results);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to poll progress:', error);
+        // Don't stop polling on error, just log it
+      }
+    };
+
+    // Initial fetch
+    pollProgress();
+
+    // Set up polling interval (every 2 seconds)
+    progressPollingRef.current = setInterval(pollProgress, 2000);
+  };
+
+  const stopProgressPolling = () => {
+    if (progressPollingRef.current) {
+      clearInterval(progressPollingRef.current);
+      progressPollingRef.current = null;
+      setPollingProgress(false);
+      console.log('⏹️ Stopped progress polling');
+    }
+  };
 
   const fetchAgentStatus = async () => {
     if (!agentId) return;
@@ -444,6 +496,9 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
                 {agentStatus.statusReason && (
                   <span className="text-muted-foreground">• {agentStatus.statusReason}</span>
                 )}
+                {pollingProgress && (
+                  <span className="text-blue-500 animate-pulse">• Live Updates</span>
+                )}
               </div>
             )}
 
@@ -587,7 +642,88 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
 
               {/* Progress Tab */}
               <TabsContent value="progress">
-                {/* Progress content */}
+                <div className="space-y-6">
+                  {/* Progress Status */}
+                  <Card className="p-6">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center gap-2">
+                        <Activity className="h-5 w-5" />
+                        Execution Progress
+                        {pollingProgress && (
+                          <Badge variant="secondary" className="text-xs animate-pulse">
+                            <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                            Live Updates
+                          </Badge>
+                        )}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {progressSteps.length > 0 ? (
+                        <div className="space-y-4">
+                          {progressSteps.map((step, index) => renderProgressStep(step, index))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                          <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                          <p className="text-lg font-medium">No Progress Information</p>
+                          <p className="text-sm mt-1">
+                            {isRunning 
+                              ? "Agent is starting... Progress will appear shortly."
+                              : "Execute the agent to see real-time progress updates."
+                            }
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Execution Stats */}
+                  {progressSteps.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <Card className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded">
+                            <CheckCircle className="h-5 w-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Completed Steps</p>
+                            <p className="text-2xl font-bold">
+                              {progressSteps.filter(s => s.status === 'completed').length}
+                            </p>
+                          </div>
+                        </div>
+                      </Card>
+
+                      <Card className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded">
+                            <RefreshCw className="h-5 w-5 text-orange-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">In Progress</p>
+                            <p className="text-2xl font-bold">
+                              {progressSteps.filter(s => s.status === 'in_progress').length}
+                            </p>
+                          </div>
+                        </div>
+                      </Card>
+
+                      <Card className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-red-100 dark:bg-red-900/20 rounded">
+                            <AlertCircle className="h-5 w-5 text-red-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Failed Steps</p>
+                            <p className="text-2xl font-bold">
+                              {progressSteps.filter(s => s.status === 'failed').length}
+                            </p>
+                          </div>
+                        </div>
+                      </Card>
+                    </div>
+                  )}
+                </div>
               </TabsContent>
 
               {/* Content Tab */}

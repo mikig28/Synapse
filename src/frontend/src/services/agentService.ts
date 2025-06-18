@@ -148,6 +148,24 @@ export const agentService = {
     return response.data.data;
   },
 
+  // Get crew execution progress for CrewAI agents
+  async getCrewProgress(agentId: string): Promise<{
+    success: boolean;
+    progress?: {
+      steps: any[];
+      results?: any;
+      hasActiveProgress: boolean;
+    };
+  }> {
+    try {
+      const response = await axiosInstance.get<{ success: boolean; progress: any }>(`/agents/${agentId}/crew-progress`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching crew progress:', error);
+      return { success: false };
+    }
+  },
+
   // Reset agent status
   async resetAgentStatus(agentId: string): Promise<Agent> {
     const response = await axiosInstance.post<AgentResponse>(`/agents/${agentId}/reset-status`);

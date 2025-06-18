@@ -21,6 +21,7 @@ import {
   getEnvironmentDebug,
   getAgentStatus,
   resetAgentStatus,
+  getCrewProgress,
 } from '../controllers/agentsController';
 
 const router = express.Router();
@@ -49,6 +50,7 @@ router.delete('/:agentId', deleteAgent);
 // Agent execution and control
 router.get('/:agentId/status', getAgentStatus);
 router.post('/:agentId/reset-status', resetAgentStatus);
+router.get('/:agentId/crew-progress', getCrewProgress);
 router.post('/:agentId/execute', executeAgent);
 router.post('/:agentId/pause', pauseAgent);
 router.post('/:agentId/resume', resumeAgent);

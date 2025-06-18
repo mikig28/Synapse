@@ -230,7 +230,7 @@ class RedditScraperTool(BaseTool):
                 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0'
             ]
             
-            # Direct JSON endpoints - expanded with better coverage
+            # Direct JSON endpoints - expanded with better coverage including sports
             subreddit_endpoints = {
                 'technology': ['https://www.reddit.com/r/technology/hot.json?limit=15', 'https://www.reddit.com/r/tech/hot.json?limit=10'],
                 'programming': ['https://www.reddit.com/r/programming/hot.json?limit=15', 'https://www.reddit.com/r/coding/hot.json?limit=10'],
@@ -239,10 +239,20 @@ class RedditScraperTool(BaseTool):
                 'startups': ['https://www.reddit.com/r/startups/hot.json?limit=15', 'https://www.reddit.com/r/entrepreneur/hot.json?limit=10'],
                 'business': ['https://www.reddit.com/r/business/hot.json?limit=15', 'https://www.reddit.com/r/investing/hot.json?limit=10'],
                 'crypto': ['https://www.reddit.com/r/cryptocurrency/hot.json?limit=15', 'https://www.reddit.com/r/bitcoin/hot.json?limit=10'],
-                'gaming': ['https://www.reddit.com/r/gaming/hot.json?limit=15', 'https://www.reddit.com/r/pcgaming/hot.json?limit=10']
+                'gaming': ['https://www.reddit.com/r/gaming/hot.json?limit=15', 'https://www.reddit.com/r/pcgaming/hot.json?limit=10'],
+                
+                # Sports subreddits
+                'sports': ['https://www.reddit.com/r/sports/hot.json?limit=15', 'https://www.reddit.com/r/nfl/hot.json?limit=10'],
+                'football': ['https://www.reddit.com/r/soccer/hot.json?limit=15', 'https://www.reddit.com/r/football/hot.json?limit=10'],
+                'soccer': ['https://www.reddit.com/r/soccer/hot.json?limit=15', 'https://www.reddit.com/r/football/hot.json?limit=10'],
+                'basketball': ['https://www.reddit.com/r/nba/hot.json?limit=15', 'https://www.reddit.com/r/basketball/hot.json?limit=10'],
+                'baseball': ['https://www.reddit.com/r/baseball/hot.json?limit=15', 'https://www.reddit.com/r/mlb/hot.json?limit=10'],
+                'hockey': ['https://www.reddit.com/r/hockey/hot.json?limit=15', 'https://www.reddit.com/r/nhl/hot.json?limit=10'],
+                'tennis': ['https://www.reddit.com/r/tennis/hot.json?limit=15'],
+                'golf': ['https://www.reddit.com/r/golf/hot.json?limit=15']
             }
             
-            # Enhanced topic mapping
+            # Enhanced topic mapping including sports
             topic_mapping = {
                 'tech': ['technology', 'programming'],
                 'technology': ['technology', 'programming'],
@@ -257,7 +267,18 @@ class RedditScraperTool(BaseTool):
                 'bitcoin': ['crypto'],
                 'blockchain': ['crypto'],
                 'gaming': ['gaming'],
-                'games': ['gaming']
+                'games': ['gaming'],
+                
+                # Sports mapping
+                'sport': ['sports'],
+                'sports': ['sports'],
+                'football': ['football', 'soccer'],
+                'soccer': ['soccer', 'football'],
+                'basketball': ['basketball'],
+                'baseball': ['baseball'],
+                'hockey': ['hockey'],
+                'tennis': ['tennis'],
+                'golf': ['golf']
             }
             
             logger.info(f"🔍 Starting Reddit JSON fetch for topics: {topics}")

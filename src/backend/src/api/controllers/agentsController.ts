@@ -1040,6 +1040,52 @@ export const getAgentStatus = async (req: AuthenticatedRequest, res: Response): 
   }
 };
 
+// Get crew execution progress for CrewAI agents
+export const getCrewProgress = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { agentId } = req.params;
+    const userId = req.user!.id;
+    
+    const agent = await agentService.getAgentById(agentId);
+    
+    if (!agent) {
+      res.status(404).json({
+        success: false,
+        error: 'Agent not found',
+      });
+      return;
+    }
+    
+    // Check if agent belongs to user
+    if (agent.userId.toString() !== userId) {
+      res.status(403).json({
+        success: false,
+        error: 'Access denied',
+      });
+      return;
+    }
+    
+    // Get progress from the agent service
+    const progress = await agentService.getCrewProgress(agentId);
+    
+    res.json({
+      success: true,
+      progress: progress || {
+        steps: [],
+        results: null,
+        hasActiveProgress: false,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error: any) {
+    console.error('[AgentsController] Error getting crew progress:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get crew progress'
+    });
+  }
+};
+
 // Reset agent status (for stuck agents)
 export const resetAgentStatus = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {

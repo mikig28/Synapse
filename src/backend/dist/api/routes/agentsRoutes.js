@@ -24,6 +24,8 @@ router.get('/:agentId', agentsController_1.getAgentById);
 router.put('/:agentId', agentsController_1.updateAgent);
 router.delete('/:agentId', agentsController_1.deleteAgent);
 // Agent execution and control
+router.get('/:agentId/status', agentsController_1.getAgentStatus);
+router.post('/:agentId/reset-status', agentsController_1.resetAgentStatus);
 router.post('/:agentId/execute', agentsController_1.executeAgent);
 router.post('/:agentId/pause', agentsController_1.pauseAgent);
 router.post('/:agentId/resume', agentsController_1.resumeAgent);

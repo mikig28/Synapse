@@ -76,9 +76,26 @@ class CrewAIAgentExecutor {
             console.error(`[CrewAIExecutor] Error executing agent ${agent.name}:`, error);
             await run.addLog('error', 'CrewAI execution failed', {
                 error: error.message,
-                stack: error.stack
+                stack: error.stack,
+                serviceUrl: this.crewaiServiceUrl
             });
-            throw error;
+            // Provide user-friendly error messages
+            let userMessage = error.message;
+            if (error.message.includes('ECONNREFUSED') || error.message.includes('service is unavailable')) {
+                userMessage = 'CrewAI service is currently unavailable. Please try again in a few minutes.';
+            }
+            else if (error.message.includes('timeout')) {
+                userMessage = 'CrewAI service timed out. The service may be busy or starting up.';
+            }
+            else if (error.message.includes('cold start')) {
+                userMessage = 'CrewAI service is starting up. Please try again in about a minute.';
+            }
+            // Create an enhanced error with user-friendly message
+            const enhancedError = new Error(userMessage);
+            enhancedError.name = error.name;
+            enhancedError.originalError = error;
+            enhancedError.code = error.code;
+            throw enhancedError;
         }
     }
     prepareRequestData(agent) {

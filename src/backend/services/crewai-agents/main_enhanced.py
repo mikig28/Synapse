@@ -8,13 +8,14 @@ import os
 import sys
 import json
 from typing import Dict, List, Any, Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 import logging
 import threading
 import time
+from collections import defaultdict
 
 # Add current directory to Python path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -44,6 +45,66 @@ CORS(app, origins=[
     "https://synapse-frontend.onrender.com",  # Production frontend
     "https://*.onrender.com"  # Any Render subdomain
 ])
+
+# Progress storage with expiration
+class ProgressStore:
+    def __init__(self, expiration_minutes=30):
+        self.store = defaultdict(dict)
+        self.expiration_minutes = expiration_minutes
+        self.lock = threading.Lock()
+        
+        # Start cleanup thread
+        self.cleanup_thread = threading.Thread(target=self._cleanup_expired, daemon=True)
+        self.cleanup_thread.start()
+    
+    def set_progress(self, key: str, progress_data: Dict[str, Any]):
+        """Store progress data with expiration timestamp"""
+        with self.lock:
+            self.store[key] = {
+                'data': progress_data,
+                'timestamp': datetime.now(),
+                'expires_at': datetime.now() + timedelta(minutes=self.expiration_minutes)
+            }
+    
+    def get_progress(self, key: str) -> Dict[str, Any]:
+        """Get progress data if not expired"""
+        with self.lock:
+            if key in self.store:
+                entry = self.store[key]
+                if datetime.now() < entry['expires_at']:
+                    return entry['data']
+                else:
+                    # Expired, remove it
+                    del self.store[key]
+            return {}
+    
+    def update_progress(self, key: str, updates: Dict[str, Any]):
+        """Update existing progress data"""
+        with self.lock:
+            if key in self.store:
+                entry = self.store[key]
+                entry['data'].update(updates)
+                entry['timestamp'] = datetime.now()
+                entry['expires_at'] = datetime.now() + timedelta(minutes=self.expiration_minutes)
+    
+    def _cleanup_expired(self):
+        """Background thread to clean up expired entries"""
+        while True:
+            time.sleep(60)  # Check every minute
+            with self.lock:
+                expired_keys = []
+                for key, entry in self.store.items():
+                    if datetime.now() >= entry['expires_at']:
+                        expired_keys.append(key)
+                
+                for key in expired_keys:
+                    del self.store[key]
+                
+                if expired_keys:
+                    logger.info(f"🧹 Cleaned up {len(expired_keys)} expired progress entries")
+
+# Initialize global progress store
+progress_store = ProgressStore(expiration_minutes=30)
 
 # Import the enhanced crew system
 try:
@@ -156,6 +217,9 @@ class EnhancedNewsGatherer:
                 "news_websites": True
             }
         
+        # Generate a unique session ID for progress tracking
+        session_id = f"news_{int(time.time() * 1000)}"
+        
         try:
             logger.info(f"Gathering news for topics: {topics} using {self.mode} mode")
             
@@ -173,11 +237,40 @@ class EnhancedNewsGatherer:
             # Try enhanced multi-agent system first
             if self.enhanced_crew and self.mode == "enhanced_multi_agent":
                 try:
-                    # Create progress callback
+                    # Create progress callback that stores to global progress store
                     def progress_callback(progress_data):
                         with self.progress_lock:
                             self.current_progress = progress_data
                             logger.info(f"📊 Progress Update: [{progress_data.get('agent', 'Unknown')}] {progress_data.get('description', '')} - {progress_data.get('status', '').upper()}")
+                            
+                            # Format step data for dashboard
+                            step_info = {
+                                'agent': progress_data.get('agent', 'Unknown'),
+                                'step': progress_data.get('description', ''),
+                                'status': progress_data.get('status', 'pending'),
+                                'message': progress_data.get('message', ''),
+                                'timestamp': progress_data.get('timestamp', datetime.now().isoformat())
+                            }
+                            
+                            # Get existing steps or initialize
+                            existing_progress = progress_store.get_progress(session_id)
+                            existing_steps = existing_progress.get('steps', [])
+                            
+                            # Update or add step
+                            step_index = progress_data.get('step', len(existing_steps)) - 1
+                            if step_index < len(existing_steps):
+                                existing_steps[step_index] = step_info
+                            else:
+                                existing_steps.append(step_info)
+                            
+                            # Store in global progress store
+                            progress_store.set_progress(session_id, {
+                                'steps': existing_steps,
+                                'current_step': step_info,
+                                'session_id': session_id,
+                                'timestamp': datetime.now().isoformat(),
+                                'hasActiveProgress': True
+                            })
                     
                     logger.info(f"🔄 Starting enhanced crew research with social media for topics: {topics}")
                     # Use the new enhanced method that combines news analysis with real social media scraping
@@ -186,6 +279,15 @@ class EnhancedNewsGatherer:
                     
                     if result.get('status') == 'success':
                         logger.info("✅ Enhanced multi-agent research completed successfully")
+                        
+                        # Store final results in progress store
+                        progress_store.update_progress(session_id, {
+                            'status': 'completed',
+                            'results': result,
+                            'session_id': session_id,
+                            'timestamp': datetime.now().isoformat()
+                        })
+                        
                         return self._format_enhanced_result(result, topics, sources)
                     else:
                         logger.warning(f"Enhanced crew returned error: {result.get('message', 'Unknown error')}")
@@ -322,16 +424,57 @@ class EnhancedNewsGatherer:
             try:
                 logger.info("🧪 Using simple test crew for dashboard testing")
                 
+                # Generate session ID for this test
+                session_id = f"test_{int(time.time() * 1000)}"
+                
                 # Create progress callback
                 def progress_callback(progress_data):
                     with self.progress_lock:
                         self.current_progress = progress_data
                         logger.info(f"📊 Test Progress: [{progress_data.get('agent', 'Unknown')}] {progress_data.get('description', '')} - {progress_data.get('status', '').upper()}")
+                        
+                        # Format step data for dashboard
+                        step_info = {
+                            'agent': progress_data.get('agent', 'Unknown'),
+                            'step': progress_data.get('description', ''),
+                            'status': progress_data.get('status', 'pending'),
+                            'message': progress_data.get('message', ''),
+                            'timestamp': progress_data.get('timestamp', datetime.now().isoformat())
+                        }
+                        
+                        # Get existing steps or initialize
+                        existing_progress = progress_store.get_progress(session_id)
+                        existing_steps = existing_progress.get('steps', [])
+                        
+                        # Update or add step
+                        step_index = progress_data.get('step', len(existing_steps)) - 1
+                        if step_index < len(existing_steps):
+                            existing_steps[step_index] = step_info
+                        else:
+                            existing_steps.append(step_info)
+                        
+                        # Store in global progress store
+                        progress_store.set_progress(session_id, {
+                            'steps': existing_steps,
+                            'current_step': step_info,
+                            'session_id': session_id,
+                            'timestamp': datetime.now().isoformat(),
+                            'hasActiveProgress': True
+                        })
                 
                 result = self.simple_test_crew.research_news_simple(topics, sources, progress_callback=progress_callback)
                 
                 if result.get('status') == 'success':
                     logger.info("✅ Simple test crew completed successfully")
+                    
+                    # Store final results in progress store
+                    progress_store.update_progress(session_id, {
+                        'status': 'completed',
+                        'results': result,
+                        'session_id': session_id,
+                        'timestamp': datetime.now().isoformat()
+                    })
+                    
                     return self._format_enhanced_result(result, topics, sources)
                 else:
                     logger.warning(f"Simple test crew returned error: {result.get('message', 'Unknown error')}")
@@ -753,13 +896,25 @@ def get_crew_progress():
                 "error": "News gatherer not initialized"
             }), 500
         
-        with news_gatherer.progress_lock:
-            return jsonify({
-                "success": True,
-                "progress": news_gatherer.current_progress,
-                "has_active_progress": bool(news_gatherer.current_progress),
-                "timestamp": datetime.now().isoformat()
-            })
+        # Get session ID from query params or use latest
+        session_id = request.args.get('session_id')
+        
+        if session_id:
+            # Get specific session progress
+            progress_data = progress_store.get_progress(session_id)
+            has_active = bool(progress_data)
+        else:
+            # Get latest progress from in-memory store
+            with news_gatherer.progress_lock:
+                progress_data = news_gatherer.current_progress
+                has_active = bool(progress_data)
+        
+        return jsonify({
+            "success": True,
+            "progress": progress_data,
+            "has_active_progress": has_active,
+            "timestamp": datetime.now().isoformat()
+        })
     except Exception as e:
         logger.error(f"Error getting progress: {str(e)}")
         return jsonify({

@@ -90,18 +90,79 @@ export class CrewAIAgentExecutor implements AgentExecutor {
       
       await run.addLog('error', 'CrewAI execution failed', {
         error: error.message,
-        stack: error.stack
+        stack: error.stack,
+        serviceUrl: this.crewaiServiceUrl
       });
 
-      throw error;
+      // Provide user-friendly error messages
+      let userMessage = error.message;
+      if (error.message.includes('ECONNREFUSED') || error.message.includes('service is unavailable')) {
+        userMessage = 'CrewAI service is currently unavailable. Please try again in a few minutes.';
+      } else if (error.message.includes('timeout')) {
+        userMessage = 'CrewAI service timed out. The service may be busy or starting up.';
+      } else if (error.message.includes('cold start')) {
+        userMessage = 'CrewAI service is starting up. Please try again in about a minute.';
+      }
+
+      // Create an enhanced error with user-friendly message
+      const enhancedError = new Error(userMessage);
+      enhancedError.name = error.name;
+      (enhancedError as any).originalError = error;
+      (enhancedError as any).code = error.code;
+
+      throw enhancedError;
     }
   }
 
   private prepareRequestData(agent: any): any {
     const config = agent.configuration;
     
-    // Extract topics from agent configuration
-    const topics = config.topics || ['technology', 'AI', 'startups'];
+    // Extract topics from agent configuration with proper handling
+    let topics = config.topics;
+    
+    // Handle various formats and ensure we have valid topics
+    if (!topics || (Array.isArray(topics) && topics.length === 0) || (typeof topics === 'string' && !topics.trim())) {
+      // Check if agent name gives us a hint about topics
+      const agentNameLower = agent.name.toLowerCase();
+      
+      if (agentNameLower.includes('sport') || agentNameLower.includes('sports')) {
+        console.warn(`[CrewAIExecutor] No topics configured for sports agent ${agent.name}, using sports defaults`);
+        topics = ['sports', 'football', 'basketball', 'soccer', 'tennis', 'baseball', 'athletics', 'olympics'];
+      } else if (agentNameLower.includes('tech') || agentNameLower.includes('technology')) {
+        topics = ['technology', 'AI', 'startups', 'software', 'innovation'];
+      } else if (agentNameLower.includes('business')) {
+        topics = ['business', 'finance', 'economy', 'markets', 'entrepreneurship'];
+      } else if (agentNameLower.includes('health')) {
+        topics = ['health', 'medicine', 'wellness', 'fitness', 'healthcare'];
+      } else {
+        console.warn(`[CrewAIExecutor] No topics configured for agent ${agent.name}, using defaults`);
+        topics = ['technology', 'AI', 'startups'];
+      }
+    } else if (typeof topics === 'string') {
+      // Handle comma-separated string topics
+      topics = topics.split(',').map(t => t.trim()).filter(t => t.length > 0);
+      if (topics.length === 0) {
+        const agentNameLower = agent.name.toLowerCase();
+        if (agentNameLower.includes('sport')) {
+          topics = ['sports', 'football', 'basketball', 'soccer'];
+        } else {
+          topics = ['technology', 'AI', 'startups'];
+        }
+      }
+    } else if (Array.isArray(topics)) {
+      // Filter out empty topics
+      topics = topics.filter(t => t && t.trim && t.trim().length > 0);
+      if (topics.length === 0) {
+        const agentNameLower = agent.name.toLowerCase();
+        if (agentNameLower.includes('sport')) {
+          topics = ['sports', 'football', 'basketball', 'soccer'];
+        } else {
+          topics = ['technology', 'AI', 'startups'];
+        }
+      }
+    }
+    
+    console.log(`[CrewAIExecutor] Using topics for agent ${agent.name}:`, topics);
     
     // Map CrewAI sources to the enhanced service format
     const sources: any = {};
@@ -131,25 +192,53 @@ export class CrewAIAgentExecutor implements AgentExecutor {
 
   private async processResults(result: any, agent: any, run: IAgentRun, userId: string): Promise<void> {
     const data = result.data;
-    const articles = data?.organized_content?.validated_articles || [];
     
-    console.log(`[CrewAIExecutor] Processing ${articles.length} articles`);
+    // Handle organized content from multiple sources
+    const organizedContent = data?.organized_content || {};
+    const validatedArticles = data?.validated_articles || [];
+    
+    // Combine all content sources
+    const allContent = [
+      ...(organizedContent.reddit_posts || []).map((item: any) => ({ ...item, source_type: 'reddit' })),
+      ...(organizedContent.linkedin_posts || []).map((item: any) => ({ ...item, source_type: 'linkedin' })),
+      ...(organizedContent.telegram_messages || []).map((item: any) => ({ ...item, source_type: 'telegram' })),
+      ...(organizedContent.news_articles || []).map((item: any) => ({ ...item, source_type: 'news_website' })),
+      ...validatedArticles.map((item: any) => ({ ...item, source_type: item.source_type || 'news_website' }))
+    ];
+    
+    console.log(`[CrewAIExecutor] Processing ${allContent.length} items from all sources`);
+    console.log(`[CrewAIExecutor] Source breakdown:`, {
+      reddit: organizedContent.reddit_posts?.length || 0,
+      linkedin: organizedContent.linkedin_posts?.length || 0,
+      telegram: organizedContent.telegram_messages?.length || 0,
+      news: organizedContent.news_articles?.length || 0,
+      validated: validatedArticles.length
+    });
 
     let savedCount = 0;
     let skippedCount = 0;
+    let sourceCounts: Record<string, number> = {};
 
-    for (const article of articles) {
+    for (const article of allContent) {
       try {
-        // Check if article already exists
+        // More lenient duplicate detection - only check exact URL matches in last 4 hours
+        const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000); // 4 hours ago
+        
         const existingItem = await NewsItem.findOne({
-          $or: [
-            { url: article.url },
-            { title: article.title }
+          $and: [
+            { url: article.url }, // Only check exact URL match
+            { createdAt: { $gte: fourHoursAgo } } // Only check recent duplicates
           ]
         });
 
         if (existingItem) {
           skippedCount++;
+          console.log(`[CrewAIExecutor] Skipping duplicate article: ${article.title} (same URL found within 4h)`);
+          await run.addLog('info', 'Skipped duplicate article', {
+            title: article.title,
+            reason: 'Same URL found within 4 hours',
+            existingDate: existingItem.createdAt
+          });
           continue;
         }
 
@@ -161,7 +250,7 @@ export class CrewAIAgentExecutor implements AgentExecutor {
           content: article.content || article.summary || '',
           summary: article.summary || article.content?.substring(0, 300) + '...' || '',
           url: article.url_cleaned || article.url || '',
-          source: article.source || 'Unknown',
+          source: article.source || article.source_type || 'Unknown',
           author: article.author || 'Unknown',
           publishedDate: article.published_date ? new Date(article.published_date) : new Date(),
           tags: article.tags || [],
@@ -170,17 +259,28 @@ export class CrewAIAgentExecutor implements AgentExecutor {
             qualityScore: article.quality_score || 0,
             relevanceScore: article.relevance_score || 0,
             matchedTopic: article.matched_topic || 'general',
-            sourceCategory: article.source_category || 'news',
-            urlValidated: article.url_validated || false,
+            sourceCategory: article.source_category || article.source_type || 'news',
+            sourceType: article.source_type || 'news_website',
+            urlValidated: article.url_validated || article.validated || false,
             scrapedAt: article.scraped_at || new Date().toISOString(),
+            
+            // Social media specific data
+            engagement: article.engagement || {
+              likes: article.likes || article.score || 0,
+              comments: article.comments || article.num_comments || 0,
+              shares: article.shares || 0,
+              views: article.views || 0
+            },
             
             // Original article data
             originalData: {
               score: article.score || 0,
-              comments: article.comments || 0,
+              comments: article.comments || article.num_comments || 0,
               stars: article.stars || 0,
               language: article.language || 'unknown',
-              subreddit: article.subreddit || null
+              subreddit: article.subreddit || null,
+              company: article.company || null,
+              messageId: article.messageId || null
             },
             
             // CrewAI execution metadata
@@ -192,12 +292,17 @@ export class CrewAIAgentExecutor implements AgentExecutor {
 
         await newsItem.save();
         savedCount++;
+        
+        // Track source counts
+        const sourceType = article.source_type || 'unknown';
+        sourceCounts[sourceType] = (sourceCounts[sourceType] || 0) + 1;
 
         await run.addLog('info', 'Saved news article', {
           title: article.title,
           source: article.source,
+          sourceType: article.source_type,
           qualityScore: article.quality_score,
-          urlValidated: article.url_validated
+          urlValidated: article.url_validated || article.validated
         });
 
       } catch (error: any) {
@@ -209,17 +314,25 @@ export class CrewAIAgentExecutor implements AgentExecutor {
       }
     }
 
-    // Log execution summary
+    // Log execution summary with source breakdown
     await run.addLog('info', 'CrewAI execution completed', {
-      totalArticles: articles.length,
+      totalArticles: allContent.length,
       savedArticles: savedCount,
       skippedArticles: skippedCount,
+      sourceBreakdown: sourceCounts,
+      sources: {
+        reddit: organizedContent.reddit_posts?.length || 0,
+        linkedin: organizedContent.linkedin_posts?.length || 0,
+        telegram: organizedContent.telegram_messages?.length || 0,
+        news: organizedContent.news_articles?.length || 0
+      },
       qualityMetrics: data?.ai_insights?.quality_metrics,
       urlValidationStats: data?.ai_insights?.url_validation_stats,
       recommendations: data?.recommendations
     });
 
     console.log(`[CrewAIExecutor] Saved ${savedCount} new articles, skipped ${skippedCount} duplicates`);
+    console.log(`[CrewAIExecutor] Source breakdown:`, sourceCounts);
   }
 
   private async updateAgentStatistics(agent: any, result: any): Promise<void> {
