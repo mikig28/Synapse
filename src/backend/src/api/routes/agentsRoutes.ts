@@ -19,6 +19,8 @@ import {
   getMCPRecommendations,
   testCrewAISources,
   getEnvironmentDebug,
+  getAgentStatus,
+  resetAgentStatus,
 } from '../controllers/agentsController';
 
 const router = express.Router();
@@ -45,6 +47,8 @@ router.put('/:agentId', updateAgent);
 router.delete('/:agentId', deleteAgent);
 
 // Agent execution and control
+router.get('/:agentId/status', getAgentStatus);
+router.post('/:agentId/reset-status', resetAgentStatus);
 router.post('/:agentId/execute', executeAgent);
 router.post('/:agentId/pause', pauseAgent);
 router.post('/:agentId/resume', resumeAgent);

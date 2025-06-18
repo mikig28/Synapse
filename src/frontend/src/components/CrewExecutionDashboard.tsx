@@ -43,7 +43,8 @@ import {
   ChevronUp,
   ThumbsUp,
   Share2,
-  Eye
+  Eye,
+  Loader2
 } from 'lucide-react';
 import { AgentRun } from '@/types/agent';
 import { agentService } from '@/services/agentService';
@@ -139,6 +140,13 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
   const [progressSteps, setProgressSteps] = useState<ProgressStep[]>([]);
   const [results, setResults] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [agentStatus, setAgentStatus] = useState<{
+    status: string;
+    canExecute: boolean;
+    isStuck: boolean;
+    statusReason: string;
+  } | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
 
   useEffect(() => {
     const completedSteps = progressSteps.filter(s => s.status === 'completed').length;
@@ -151,6 +159,40 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
 
     return () => clearTimeout(timer);
   }, [progressSteps]);
+
+  // Fetch agent status when dialog opens
+  useEffect(() => {
+    if (isDialogOpen && agentId) {
+      fetchAgentStatus();
+    }
+  }, [isDialogOpen, agentId]);
+
+  const fetchAgentStatus = async () => {
+    if (!agentId) return;
+    
+    setStatusLoading(true);
+    try {
+      const status = await agentService.getAgentStatus(agentId);
+      setAgentStatus(status);
+    } catch (error) {
+      console.error('Failed to fetch agent status:', error);
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
+  const handleResetStatus = async () => {
+    if (!agentId) return;
+    
+    try {
+      await agentService.resetAgentStatus(agentId);
+      await fetchAgentStatus(); // Refresh status after reset
+      setError(null); // Clear any existing errors
+    } catch (error: any) {
+      console.error('Failed to reset agent status:', error);
+      setError(error.message || 'Failed to reset agent status');
+    }
+  };
 
   const toggleCard = (id: string) => {
     setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
@@ -388,26 +430,78 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
           </div>
           
           <div className="flex items-center gap-2">
+            {/* Status Indicator */}
+            {agentStatus && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-muted/30 rounded-full text-xs">
+                {agentStatus.isStuck ? (
+                  <AlertCircle className="w-3 h-3 text-red-500" />
+                ) : agentStatus.canExecute ? (
+                  <CheckCircle className="w-3 h-3 text-green-500" />
+                ) : (
+                  <Clock className="w-3 h-3 text-yellow-500" />
+                )}
+                <span className="capitalize">{agentStatus.status}</span>
+                {agentStatus.statusReason && (
+                  <span className="text-muted-foreground">• {agentStatus.statusReason}</span>
+                )}
+              </div>
+            )}
+
             {/* Control Buttons */}
             <div className="flex gap-1">
+              {/* Reset button for stuck agents */}
+              {agentStatus?.isStuck && (
+                <Button size="sm" variant="outline" onClick={handleResetStatus}>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Reset
+                </Button>
+              )}
+              
               {error && onExecuteAgent && (
-                <Button size="sm" variant="outline" onClick={onExecuteAgent}>
+                <Button size="sm" variant="outline" onClick={() => onExecuteAgent?.()}>
                   <RefreshCw className="w-4 h-4 mr-2" />
                   Retry
                 </Button>
               )}
-              {onExecuteAgent && (
-                <Button size="sm" variant="outline" onClick={onExecuteAgent}>
+              
+              {onExecuteAgent && !isRunning && agentStatus?.canExecute && (
+                <Button size="sm" variant="outline" onClick={() => onExecuteAgent?.()}>
                   <Play className="w-4 h-4 mr-2" />
                   Execute
                 </Button>
               )}
+              
+              {onExecuteAgent && !agentStatus?.canExecute && !agentStatus?.isStuck && (
+                <Button size="sm" variant="outline" disabled title={agentStatus?.statusReason || 'Cannot execute'}>
+                  <Play className="w-4 h-4 mr-2" />
+                  Execute
+                </Button>
+              )}
+              
+              {(isRunning || agentStatus?.status === 'running') && (
+                <Button size="sm" variant="outline" disabled>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Running
+                </Button>
+              )}
+              
               {onPauseAgent && (
                 <Button size="sm" variant="outline" onClick={onPauseAgent}>
                   <Pause className="w-4 h-4 mr-2" />
                   Pause
                 </Button>
               )}
+              
+              {/* Refresh status button */}
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={fetchAgentStatus}
+                disabled={statusLoading}
+                title="Refresh status"
+              >
+                <RefreshCw className={`w-4 h-4 ${statusLoading ? 'animate-spin' : ''}`} />
+              </Button>
             </div>
             
             <Button

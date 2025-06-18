@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ import {
   Twitter,
   Newspaper,
   Zap,
+  RotateCcw,
 } from 'lucide-react';
 import {
   Dialog,
@@ -52,6 +53,9 @@ const AgentsPage: React.FC = () => {
   const [schedulerStatus, setSchedulerStatus] = useState<{ isRunning: boolean; scheduledAgentsCount: number } | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+  
+  // Debouncing for execution calls
+  const executionTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   // Form state for creating new agent
   const [newAgent, setNewAgent] = useState({
@@ -80,6 +84,14 @@ const AgentsPage: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+  }, []);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      executionTimeouts.current.forEach(timeout => clearTimeout(timeout));
+      executionTimeouts.current.clear();
+    };
   }, []);
 
   const fetchData = async () => {
@@ -164,10 +176,77 @@ const AgentsPage: React.FC = () => {
     }
   };
 
-  const handleExecuteAgent = async (agentId: string) => {
+  // Debounced execution function to prevent rapid multiple clicks
+  const debouncedExecuteAgent = useCallback((agentId: string, force: boolean = false) => {
+    // Clear any existing timeout for this agent
+    const existingTimeout = executionTimeouts.current.get(agentId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+    }
+
+    // Set a new timeout
+    const timeout = setTimeout(() => {
+      handleExecuteAgentInternal(agentId, force);
+      executionTimeouts.current.delete(agentId);
+    }, 300); // 300ms debounce
+
+    executionTimeouts.current.set(agentId, timeout);
+  }, []);
+
+  const handleExecuteAgent = (agentId: string, force: boolean = false) => {
+    debouncedExecuteAgent(agentId, force);
+  };
+
+  const handleExecuteAgentInternal = async (agentId: string, force: boolean = false) => {
+    // Prevent multiple executions
+    if (executingAgents.has(agentId)) {
+      console.log('Agent execution already in progress, ignoring duplicate request');
+      return;
+    }
+
     try {
       setExecutingAgents(prev => new Set(prev).add(agentId));
-      await agentService.executeAgent(agentId);
+
+      // Check agent status first
+      const status = await agentService.getAgentStatus(agentId);
+      
+      if (!status.canExecute && !force) {
+        if (status.isStuck) {
+          // Offer to reset stuck agent
+          toast({
+            title: 'Agent is stuck',
+            description: 'The agent appears to be stuck in running state. It will be reset automatically.',
+            variant: 'default',
+          });
+          
+          // Auto-reset stuck agent and try again
+          await agentService.resetAgentStatus(agentId);
+          await agentService.executeAgent(agentId, true);
+        } else if (status.status === 'running') {
+          toast({
+            title: 'Agent is already running',
+            description: 'Please wait for the current execution to complete.',
+            variant: 'default',
+          });
+          return;
+        } else if (!status.isActive) {
+          toast({
+            title: 'Agent is inactive',
+            description: 'Please activate the agent before executing.',
+            variant: 'destructive',
+          });
+          return;
+        } else if (!status.executorAvailable) {
+          toast({
+            title: 'Executor not available',
+            description: 'The executor for this agent type is not available.',
+            variant: 'destructive',
+          });
+          return;
+        }
+      } else {
+        await agentService.executeAgent(agentId, force);
+      }
       
       toast({
         title: 'Success',
@@ -185,16 +264,51 @@ const AgentsPage: React.FC = () => {
         component: 'AgentsPage'
       });
       
-      toast({
-        title: 'Agent Execution Failed',
-        description: errorInfo.message,
-        variant: 'destructive',
-      });
+      // Handle specific error types
+      if (error.response?.status === 409) {
+        const errorType = error.response?.data?.errorType;
+        if (errorType === 'agent_already_running') {
+          toast({
+            title: 'Agent Already Running',
+            description: 'This agent is currently executing. Please wait for it to complete or reset its status.',
+            variant: 'default',
+          });
+        } else {
+          toast({
+            title: 'Agent Execution Conflict',
+            description: errorInfo.message,
+            variant: 'destructive',
+          });
+        }
+      } else {
+        toast({
+          title: 'Agent Execution Failed',
+          description: errorInfo.message,
+          variant: 'destructive',
+        });
+      }
     } finally {
       setExecutingAgents(prev => {
         const newSet = new Set(prev);
         newSet.delete(agentId);
         return newSet;
+      });
+    }
+  };
+
+  const handleResetAgentStatus = async (agentId: string) => {
+    try {
+      await agentService.resetAgentStatus(agentId);
+      toast({
+        title: 'Success',
+        description: 'Agent status reset successfully',
+      });
+      fetchData();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to reset agent status',
+        variant: 'destructive',
       });
     }
   };
@@ -659,6 +773,13 @@ const AgentsPage: React.FC = () => {
                     </div>
                   )}
 
+                  {/* Error message */}
+                  {agent.status === 'error' && agent.errorMessage && (
+                    <div className="p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-300">
+                      {agent.errorMessage}
+                    </div>
+                  )}
+
                   {/* Actions */}
                   <div className="space-y-2">
                     <div className="flex gap-2">
@@ -676,6 +797,17 @@ const AgentsPage: React.FC = () => {
                         )}
                         Run
                       </Button>
+
+                      {agent.status === 'error' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleResetAgentStatus(agent._id)}
+                          title="Reset agent status"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </Button>
+                      )}
 
                       <Button
                         size="sm"

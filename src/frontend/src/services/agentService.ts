@@ -134,9 +134,29 @@ export const agentService = {
     await axiosInstance.delete(`/agents/${agentId}`);
   },
 
+  // Get agent status
+  async getAgentStatus(agentId: string): Promise<{
+    agentId: string;
+    status: string;
+    isActive: boolean;
+    lastRun?: Date;
+    isStuck: boolean;
+    canExecute: boolean;
+    executorAvailable: boolean;
+  }> {
+    const response = await axiosInstance.get<{ success: boolean; data: any }>(`/agents/${agentId}/status`);
+    return response.data.data;
+  },
+
+  // Reset agent status
+  async resetAgentStatus(agentId: string): Promise<Agent> {
+    const response = await axiosInstance.post<AgentResponse>(`/agents/${agentId}/reset-status`);
+    return response.data.data;
+  },
+
   // Execute an agent manually
-  async executeAgent(agentId: string): Promise<AgentRun> {
-    const response = await axiosInstance.post<{ success: boolean; data: AgentRun }>(`/agents/${agentId}/execute`);
+  async executeAgent(agentId: string, force: boolean = false): Promise<AgentRun> {
+    const response = await axiosInstance.post<{ success: boolean; data: AgentRun }>(`/agents/${agentId}/execute`, { force });
     return response.data.data;
   },
 
@@ -257,6 +277,41 @@ export const agentService = {
   }> {
     const response = await axiosInstance.get<MCPRecommendationsResponse>(`/agents/mcp-recommendations/${agentType}`);
     return response.data.data;
+  },
+
+  // Get agent execution status
+  async getAgentStatus(agentId: string): Promise<{
+    agentId: string;
+    status: string;
+    isActive: boolean;
+    canExecute: boolean;
+    isStuck: boolean;
+    statusReason: string;
+    lastRun: string | null;
+    lastRunStatus: string | null;
+  }> {
+    try {
+      const response = await axiosInstance.get(`/agents/${agentId}/status`);
+      return response.data.data;
+    } catch (error) {
+      console.error('Error fetching agent status:', error);
+      throw error;
+    }
+  },
+
+  // Reset agent status (for stuck agents)
+  async resetAgentStatus(agentId: string): Promise<{
+    agentId: string;
+    status: string;
+    resetAt: string;
+  }> {
+    try {
+      const response = await axiosInstance.post(`/agents/${agentId}/reset-status`);
+      return response.data.data;
+    } catch (error) {
+      console.error('Error resetting agent status:', error);
+      throw error;
+    }
   },
 
   // Helper function to get agent by ID (alias for getAgentById)

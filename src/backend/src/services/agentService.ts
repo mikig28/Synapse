@@ -119,13 +119,27 @@ export class AgentService {
       throw error;
     }
 
-    if (agent.status === 'running') {
+    // Check for stuck agents (running for more than 10 minutes)
+    const stuckThreshold = 10 * 60 * 1000; // 10 minutes
+    const isStuck = agent.status === 'running' && 
+                   agent.lastRun && 
+                   (Date.now() - agent.lastRun.getTime()) > stuckThreshold;
+
+    if (agent.status === 'running' && !isStuck) {
       console.error(`[AgentService] Agent already running: ${agent.name}`);
       const error = new Error(`Agent ${agent.name} is already running`) as any;
       error.agentExists = true;
       error.agentActive = agent.isActive;
       error.agentStatus = agent.status;
       throw error;
+    } else if (isStuck) {
+      console.warn(`[AgentService] Agent ${agent.name} appears stuck, resetting status before execution`);
+      await this.resetAgentStatus(agentId);
+      // Refetch the agent after reset
+      const resetAgent = await Agent.findById(agentId);
+      if (resetAgent) {
+        Object.assign(agent, resetAgent);
+      }
     }
 
     const executor = this.executors.get(agent.type);
@@ -231,8 +245,16 @@ export class AgentService {
       // Update statistics
       agent.statistics.totalRuns += 1;
       agent.statistics.failedRuns += 1;
-      agent.status = 'error';
-      agent.errorMessage = error.message;
+      
+      // Set appropriate status based on error type
+      if (error.message.includes('service is unavailable') || error.code === 'ECONNREFUSED') {
+        agent.status = 'idle'; // Don't leave agent stuck if service is down
+        agent.errorMessage = 'Service temporarily unavailable';
+      } else {
+        agent.status = 'error';
+        agent.errorMessage = error.message;
+      }
+      
       await agent.save();
       
       await agentRun.fail(error.message);
@@ -329,6 +351,30 @@ export class AgentService {
 
   async resumeAgent(agentId: string): Promise<IAgent | null> {
     return this.updateAgent(agentId, { status: 'idle', isActive: true });
+  }
+
+  async resetAgentStatus(agentId: string): Promise<IAgent | null> {
+    console.log(`[AgentService] Resetting status for agent: ${agentId}`);
+    
+    const agent = await Agent.findById(agentId);
+    if (!agent) {
+      throw new Error(`Agent with ID ${agentId} not found`);
+    }
+
+    // Reset agent to idle state and clear any error messages
+    const updates = {
+      status: 'idle' as const,
+      errorMessage: undefined,
+      // Don't change isActive - preserve user's active/inactive choice
+    };
+
+    const updatedAgent = await Agent.findByIdAndUpdate(agentId, updates, { new: true });
+    
+    if (updatedAgent) {
+      console.log(`[AgentService] Successfully reset agent ${updatedAgent.name} status to idle`);
+    }
+    
+    return updatedAgent;
   }
 
   async getAgentStatistics(agentId: string): Promise<any> {
