@@ -74,18 +74,11 @@ interface ContentItem {
 }
 
 interface CrewExecutionDashboardProps {
-  isExecuting: boolean;
-  progressSteps: ProgressStep[];
-  results?: {
-    reddit_posts?: ContentItem[];
-    linkedin_posts?: ContentItem[];
-    telegram_messages?: ContentItem[];
-    news_articles?: ContentItem[];
-    executive_summary?: string[];
-    trending_topics?: Array<{topic: string; mentions: number; trending_score: number}>;
-  };
-  error?: string;
-  onRetry?: () => void;
+  agentId: string;
+  agentName: string;
+  isRunning: boolean;
+  onExecuteAgent?: () => void;
+  onPauseAgent?: () => void;
 }
 
 const AGENT_ICONS = {
@@ -126,11 +119,11 @@ const statusIcons = {
 };
 
 export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
-  isExecuting,
-  progressSteps,
-  results,
-  error,
-  onRetry
+  agentId,
+  agentName,
+  isRunning,
+  onExecuteAgent,
+  onPauseAgent
 }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -143,6 +136,9 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
     quality: 'idle',
     trend: 'idle'
   });
+  const [progressSteps, setProgressSteps] = useState<ProgressStep[]>([]);
+  const [results, setResults] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const completedSteps = progressSteps.filter(s => s.status === 'completed').length;
@@ -273,7 +269,7 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
   };
 
   const renderProgressStep = (step: ProgressStep, index: number) => {
-    const icon = AGENT_ICONS[step.agent as keyof typeof AGENT_ICONS] || <Users className="w-5 h-5" />;
+    const IconComponent = AGENT_ICONS[step.agent as keyof typeof AGENT_ICONS] || Users;
     const statusIcon = statusIcons[step.status];
     const statusColor = statusColors[step.status];
 
@@ -287,7 +283,7 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
       >
         <div className="relative">
           <div className={`p-2 rounded-full bg-gray-100 dark:bg-gray-800 ${statusColor}`}>
-            {icon}
+            <IconComponent className="w-5 h-5" />
           </div>
           {index < progressSteps.length - 1 && (
             <div className="absolute top-10 left-1/2 transform -translate-x-1/2 w-0.5 h-12 bg-gray-200 dark:bg-gray-700" />
@@ -376,7 +372,7 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
         <Button size="sm" variant="outline" className="gap-2">
           <Users className="w-4 h-4" />
           Crew Dashboard
-          {isExecuting && (
+          {isRunning && (
             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
           )}
         </Button>
@@ -387,17 +383,29 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
           <div className="flex items-center gap-3">
             <Users className="w-5 h-5" />
             <DialogTitle>
-              AI News Research Crew
+              {agentName} - AI News Research Crew
             </DialogTitle>
           </div>
           
           <div className="flex items-center gap-2">
             {/* Control Buttons */}
             <div className="flex gap-1">
-              {error && onRetry && (
-                <Button size="sm" variant="outline" onClick={onRetry}>
+              {error && onExecuteAgent && (
+                <Button size="sm" variant="outline" onClick={onExecuteAgent}>
                   <RefreshCw className="w-4 h-4 mr-2" />
                   Retry
+                </Button>
+              )}
+              {onExecuteAgent && (
+                <Button size="sm" variant="outline" onClick={onExecuteAgent}>
+                  <Play className="w-4 h-4 mr-2" />
+                  Execute
+                </Button>
+              )}
+              {onPauseAgent && (
+                <Button size="sm" variant="outline" onClick={onPauseAgent}>
+                  <Pause className="w-4 h-4 mr-2" />
+                  Pause
                 </Button>
               )}
             </div>
@@ -547,27 +555,59 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
                   <>
                     {/* Executive Summary */}
                     {parsedContent.executive_summary && parsedContent.executive_summary.length > 0 && (
-                      <ContentSection
-                        title="Executive Summary"
-                        icon={<FileText className="h-5 w-5" />}
-                        delay={0.3}
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="mb-6"
                       >
-                        <div className="prose dark:prose-invert max-w-none">
-                          {parsedContent.executive_summary.map((point: string, idx: number) => (
-                            <p key={idx} className="mb-2 text-gray-700 dark:text-gray-300">
-                              • {point}
-                            </p>
-                          ))}
-                        </div>
-                      </ContentSection>
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <FileText className="h-5 w-5" />
+                              Executive Summary
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="prose dark:prose-invert max-w-none">
+                              {parsedContent.executive_summary.map((point: string, idx: number) => (
+                                <p key={idx} className="mb-2 text-gray-700 dark:text-gray-300">
+                                  • {point}
+                                </p>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
                     )}
 
-                    {/* No Content Message for individual sections */}
-                    {content[contentType] && content[contentType].length === 0 && (
-                      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                        <AlertCircle className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                        <p className="text-lg font-medium">No {contentType.replace('_', ' ')} found</p>
-                        <p className="text-sm mt-1">Try adjusting your search criteria or checking back later</p>
+                    {/* Content Sections */}
+                    {parsedContent?.organized_content && (
+                      <div className="space-y-6">
+                        {Object.entries(parsedContent.organized_content).map(([contentType, items]) => {
+                          const itemsArray = Array.isArray(items) ? items : [];
+                          return (
+                            <motion.div
+                              key={contentType}
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="space-y-4"
+                            >
+                              <h3 className="text-lg font-semibold capitalize">
+                                {contentType.replace('_', ' ')}
+                              </h3>
+                              {itemsArray && itemsArray.length > 0 ? (
+                                itemsArray.map((item: ContentItem) => renderContentCard(item, contentType))
+                              ) : (
+                                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                  <AlertCircle className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                                  <p className="text-lg font-medium">No {contentType.replace('_', ' ')} found</p>
+                                  <p className="text-sm mt-1">Try adjusting your search criteria or checking back later</p>
+                                </div>
+                              )}
+                            </motion.div>
+                          );
+                        })}
                       </div>
                     )}
                   </>
