@@ -206,6 +206,15 @@ class EnhancedNewsGatherer:
             # Use simple scraper as final fallback
             else:
                 return self._fallback_to_simple_scraper(topics, sources)
+                
+        except Exception as e:
+            logger.error(f"Error in enhanced news gathering: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "timestamp": datetime.now().isoformat(),
+                "mode": self.mode
+            }
     
     def _try_partial_real_data(self, topics: List[str], sources: Dict[str, Any], error_message: str) -> Dict[str, Any]:
         """Try to get some real data from available APIs instead of pure mock data"""
@@ -287,15 +296,6 @@ class EnhancedNewsGatherer:
             logger.error(f"❌ Partial real data collection also failed: {str(e)}")
             # As final fallback, use simple test crew but mark it clearly as mock data
             return self._try_simple_test_crew(topics, sources)
-                
-        except Exception as e:
-            logger.error(f"Error in enhanced news gathering: {str(e)}")
-            return {
-                "success": False,
-                "error": str(e),
-                "timestamp": datetime.now().isoformat(),
-                "mode": self.mode
-            }
     
     def _try_dynamic_crew(self, user_input: Dict[str, Any], topics: List[str], sources: Dict[str, Any]) -> Dict[str, Any]:
         """Try dynamic crew as fallback"""
