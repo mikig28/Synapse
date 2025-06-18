@@ -70,21 +70,27 @@ class RedditScraperTool(BaseTool):
         setattr(self, '_credentials_available', True)
         
         try:
+            logger.info("🔄 Attempting Reddit API connection...")
             reddit_instance = praw.Reddit(
                 client_id=reddit_client_id,
                 client_secret=reddit_client_secret,
                 user_agent=reddit_user_agent,
                 check_for_async=False
             )
+            
             # Test connection with a simple request
-            list(reddit_instance.subreddit('technology').hot(limit=1))
+            logger.info("🧪 Testing Reddit API with technology subreddit...")
+            test_posts = list(reddit_instance.subreddit('technology').hot(limit=1))
+            logger.info(f"🧪 Test successful - got {len(test_posts)} test posts")
             
             # Use setattr for compatibility
             setattr(self, 'reddit', reddit_instance)
             setattr(self, 'is_authenticated', True)
-            logger.info("✅ Reddit API connection successful")
+            logger.info("✅ Reddit API connection and authentication successful")
         except Exception as e:
             logger.error(f"❌ Reddit API connection failed: {str(e)}")
+            logger.error(f"   Exception type: {type(e).__name__}")
+            logger.error(f"   Error details: {str(e)}")
             setattr(self, 'reddit', None)
             setattr(self, 'is_authenticated', False)
     
@@ -147,20 +153,32 @@ class RedditScraperTool(BaseTool):
             logger.info(f"Scraping subreddits: {list(subreddits_to_check)}")
             
             # Scrape each subreddit
+            logger.info(f"🔍 Starting to scrape {len(list(subreddits_to_check)[:5])} subreddits: {list(subreddits_to_check)[:5]}")
             for subreddit_name in list(subreddits_to_check)[:5]:  # Limit to 5 subreddits
                 try:
+                    logger.info(f"📡 Connecting to subreddit: r/{subreddit_name}")
                     subreddit = reddit_instance.subreddit(subreddit_name)
                     
                     # Get hot posts from last 24 hours
+                    logger.info(f"🔄 Fetching hot posts from r/{subreddit_name} (limit=10)...")
+                    posts_processed = 0
+                    posts_added = 0
+                    
                     for post in subreddit.hot(limit=10):
                         try:
+                            posts_processed += 1
+                            
                             # Check if post is from last 24 hours
                             post_time = datetime.fromtimestamp(post.created_utc)
-                            if datetime.now() - post_time > timedelta(days=1):
+                            time_diff = datetime.now() - post_time
+                            
+                            if time_diff > timedelta(days=1):
+                                logger.debug(f"   ⏰ Skipping old post: {post.title[:50]}... (age: {time_diff})")
                                 continue
                             
                             # Filter for quality content
                             if post.score < 50:  # Minimum upvotes
+                                logger.debug(f"   📊 Skipping low-score post: {post.title[:50]}... (score: {post.score})")
                                 continue
                             
                             # Extract top comments
@@ -191,17 +209,28 @@ class RedditScraperTool(BaseTool):
                             }
                             
                             all_posts.append(post_data)
+                            posts_added += 1
+                            logger.info(f"   ✅ Added post: {post.title[:60]}... (score: {post.score}, comments: {post.num_comments})")
                             
                         except Exception as e:
-                            logger.error(f"Error processing post: {str(e)}")
+                            logger.error(f"   ❌ Error processing post: {str(e)}")
                             continue
                     
+                    logger.info(f"📊 r/{subreddit_name} results: {posts_added}/{posts_processed} posts added")
+                    
                 except Exception as e:
-                    logger.error(f"Error scraping subreddit {subreddit_name}: {str(e)}")
+                    logger.error(f"❌ Error scraping subreddit r/{subreddit_name}: {str(e)}")
+                    logger.error(f"   Exception type: {type(e).__name__}")
                     continue
             
             # Sort by score and return top posts
             all_posts.sort(key=lambda x: x['score'], reverse=True)
+            
+            logger.info(f"🎯 Reddit scraping completed:")
+            logger.info(f"   📊 Total posts found: {len(all_posts)}")
+            logger.info(f"   🏆 Top post score: {all_posts[0]['score'] if all_posts else 'N/A'}")
+            logger.info(f"   📝 Returning top {min(len(all_posts), 20)} posts")
+            
             result = {
                 'success': True,
                 'source': 'reddit',
@@ -212,6 +241,7 @@ class RedditScraperTool(BaseTool):
                 'timestamp': datetime.now().isoformat()
             }
             
+            logger.info(f"✅ Reddit agent returning {len(result['posts'])} posts successfully")
             return json.dumps(result, indent=2)
             
         except Exception as e:

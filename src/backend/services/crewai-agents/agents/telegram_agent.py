@@ -74,9 +74,20 @@ class TelegramMonitorTool(BaseTool):
         
         try:
             topics_list = [topic.strip() for topic in topics.split(',')]
+            logger.info(f"🔍 Telegram agent starting for topics: {topics_list}")
             
-            if not TELEGRAM_AVAILABLE or not self.bot:
-                # Return simulated data if bot is not available
+            # Enhanced diagnostics
+            logger.info(f"📊 Telegram Agent Status:")
+            logger.info(f"   Library Available: {'✅' if TELEGRAM_AVAILABLE else '❌'}")
+            logger.info(f"   Bot Token Set: {'✅' if self.bot_token else '❌'}")
+            logger.info(f"   Bot Instance: {'✅' if self.bot else '❌'}")
+            
+            if not TELEGRAM_AVAILABLE:
+                logger.error("❌ Telegram library not available - check python-telegram-bot installation")
+                return self._generate_simulated_telegram_data(topics_list)
+                
+            if not self.bot:
+                logger.error("❌ Telegram bot not initialized - check bot token or connection issues")
                 return self._generate_simulated_telegram_data(topics_list)
             
             # List of tech/business Telegram channels to monitor
@@ -90,16 +101,34 @@ class TelegramMonitorTool(BaseTool):
                 '@iOS_Developer_Community',  # iOS Development
             ]
             
+            logger.info(f"📡 Attempting to monitor {len(channels_to_monitor[:3])} channels: {channels_to_monitor[:3]}")
             all_messages = []
+            
+            # Test bot connectivity first
+            try:
+                logger.info("🧪 Testing bot connectivity...")
+                bot_info = self.bot.get_me()
+                logger.info(f"✅ Bot connected successfully: @{bot_info.username} ({bot_info.first_name})")
+            except Exception as e:
+                logger.error(f"❌ Bot connectivity test failed: {str(e)}")
+                logger.error("   This usually means the bot token is invalid or network issues")
+                return self._generate_simulated_telegram_data(topics_list)
             
             # Monitor each channel
             for channel in channels_to_monitor[:3]:  # Limit to 3 channels
                 try:
+                    logger.info(f"🔄 Monitoring channel: {channel}")
                     messages = self._get_channel_messages(channel, topics_list)
+                    logger.info(f"📊 Got {len(messages)} messages from {channel}")
                     all_messages.extend(messages)
                 except Exception as e:
-                    logger.error(f"Error monitoring channel {channel}: {str(e)}")
+                    logger.error(f"❌ Error monitoring channel {channel}: {str(e)}")
+                    logger.error(f"   Exception type: {type(e).__name__}")
                     continue
+            
+            logger.info(f"🎯 Telegram monitoring completed:")
+            logger.info(f"   📊 Total messages found: {len(all_messages)}")
+            logger.info(f"   📝 Returning top {min(len(all_messages), 20)} messages")
             
             result = {
                 'success': True,
@@ -111,6 +140,7 @@ class TelegramMonitorTool(BaseTool):
                 'timestamp': datetime.now().isoformat()
             }
             
+            logger.info(f"✅ Telegram agent returning {len(result['messages'])} messages successfully")
             return json.dumps(result, indent=2)
             
         except Exception as e:
@@ -129,21 +159,37 @@ class TelegramMonitorTool(BaseTool):
         messages = []
         
         try:
-            # Note: This requires the bot to have access to the channel
-            # For public channels, you might need to use different approaches
+            logger.info(f"🔍 Attempting to access channel: {channel_username}")
             
-            # For now, return simulated data
-            # In a real implementation, you would use:
-            # chat = await self.bot.get_chat(channel_username)
-            # Or use Telegram's API to get channel messages
+            # IMPORTANT: Telegram bots cannot read channel messages unless:
+            # 1. Bot is added as admin to the channel, OR
+            # 2. Channel forwards messages to a group where bot is member, OR  
+            # 3. Using Telegram API (not bot API) which requires phone number auth
             
+            logger.warning(f"⚠️ Telegram Bot API Limitation:")
+            logger.warning(f"   Bot cannot read messages from {channel_username}")
+            logger.warning(f"   Reason: Bots can only read messages where they are admins")
+            logger.warning(f"   Solution: Add bot as admin to channels OR use Telegram API instead of Bot API")
+            
+            # Try to get chat info to test access
+            try:
+                chat = self.bot.get_chat(channel_username)
+                logger.info(f"✅ Can access chat info for {channel_username}: {chat.title}")
+                logger.warning(f"   But cannot read message history due to bot limitations")
+            except Exception as e:
+                logger.error(f"❌ Cannot access {channel_username}: {str(e)}")
+                logger.error(f"   This channel may not exist or bot has no access")
+            
+            # Note: This is where real message fetching would happen if we had access
+            # For now, return simulated data with clear labeling
+            logger.info(f"🔄 Generating simulated data for {channel_username} due to API limitations")
             simulated_messages = self._generate_channel_messages(channel_username, topics)
             messages.extend(simulated_messages)
             
         except TelegramError as e:
-            logger.error(f"Telegram API error for channel {channel_username}: {e}")
+            logger.error(f"❌ Telegram API error for channel {channel_username}: {e}")
         except Exception as e:
-            logger.error(f"Error getting messages from {channel_username}: {e}")
+            logger.error(f"❌ Error getting messages from {channel_username}: {e}")
         
         return messages
     

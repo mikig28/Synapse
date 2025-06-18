@@ -1181,12 +1181,16 @@ class EnhancedNewsResearchCrew:
         posts = []
         
         logger.info(f"💼 Starting LinkedIn scraping for topics: {topics}")
+        logger.info(f"📊 LinkedIn Scraping Status:")
+        logger.info(f"   Target Topics: {topics}")
+        logger.info(f"   Method: RSS feed scraping + alternative sources")
         
         try:
             import requests
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
+            logger.info(f"✅ Requests library loaded, User-Agent set")
             
             # LinkedIn RSS feeds for companies and topics
             linkedin_rss_feeds = [
@@ -1196,24 +1200,43 @@ class EnhancedNewsResearchCrew:
                 'https://www.linkedin.com/pulse/topics/innovation/rss'
             ]
             
+            logger.info(f"🔄 Attempting to scrape {len(linkedin_rss_feeds)} LinkedIn RSS feeds")
+            logger.info(f"📋 RSS feeds to try: {linkedin_rss_feeds}")
+            
             for topic in topics[:2]:  # Limit to avoid rate limiting
+                logger.info(f"🎯 Processing topic: {topic}")
                 try:
                     # Try to get relevant RSS feed
+                    feeds_tried = 0
+                    feeds_successful = 0
+                    
                     for feed_url in linkedin_rss_feeds:
+                        feeds_tried += 1
                         if any(keyword in feed_url for keyword in [topic.lower(), 'artificial-intelligence', 'technology']):
                             try:
-                                logger.info(f"📡 Fetching LinkedIn RSS: {feed_url}")
+                                logger.info(f"📡 Attempting LinkedIn RSS: {feed_url}")
                                 response = requests.get(feed_url, headers=headers, timeout=10)
-                                logger.info(f"📊 LinkedIn RSS response: {response.status_code}")
+                                logger.info(f"📊 Response: {response.status_code} | Content-Length: {len(response.content)} bytes")
+                                logger.info(f"📄 Content-Type: {response.headers.get('content-type', 'unknown')}")
                                 
-                                if response.status_code == 200 and FEEDPARSER_AVAILABLE:
-                                    feed = feedparser.parse(response.content)
-                                    
-                                    for entry in feed.entries[:2]:  # Get 2 posts per feed
-                                        posts.append({
-                                            "id": f"linkedin_real_{len(posts)}_{int(datetime.now().timestamp())}",
-                                            "title": entry.get('title', f"LinkedIn post about {topic}"),
-                                            "content": entry.get('summary', entry.get('description', ''))[:300] + "...",
+                                if response.status_code == 200:
+                                    if FEEDPARSER_AVAILABLE:
+                                        logger.info(f"🗜️ Parsing RSS feed with feedparser...")
+                                        feed = feedparser.parse(response.content)
+                                        logger.info(f"📊 Feed parsed: {len(feed.entries)} entries found")
+                                        
+                                        if len(feed.entries) == 0:
+                                            logger.warning(f"⚠️ No entries in feed: {feed_url}")
+                                            logger.info(f"   Feed title: {feed.feed.get('title', 'Unknown')}")
+                                            logger.info(f"   Feed description: {feed.feed.get('description', 'Unknown')[:100]}")
+                                        
+                                        for entry in feed.entries[:2]:  # Get 2 posts per feed
+                                            logger.info(f"   ✅ Processing entry: {entry.get('title', 'No title')[:50]}...")
+                                            feeds_successful += 1
+                                            posts.append({
+                                                "id": f"linkedin_real_{len(posts)}_{int(datetime.now().timestamp())}",
+                                                "title": entry.get('title', f"LinkedIn post about {topic}"),
+                                                "content": entry.get('summary', entry.get('description', ''))[:300] + "...",
                                             "author": entry.get('author', 'LinkedIn Professional'),
                                             "company": "LinkedIn",
                                             "url": entry.get('link', f"https://linkedin.com/pulse/{topic.lower()}"),
@@ -1231,8 +1254,11 @@ class EnhancedNewsResearchCrew:
                                 logger.warning(f"⚠️ Failed to parse LinkedIn RSS feed {feed_url}: {str(feed_error)}")
                                 continue
                                     
+                    logger.info(f"📊 Topic '{topic}' results: {feeds_successful} feeds successful out of {feeds_tried} tried")
+                    
                 except Exception as topic_error:
                     logger.warning(f"⚠️ Failed to scrape LinkedIn for topic {topic}: {str(topic_error)}")
+                    logger.error(f"   Exception type: {type(topic_error).__name__}")
                     continue
             
             # If no real posts found, try alternative sources
@@ -1272,6 +1298,8 @@ class EnhancedNewsResearchCrew:
         """Get professional content from alternative sources when LinkedIn fails"""
         posts = []
         
+        logger.info(f"🔄 Trying alternative professional content sources for topics: {topics}")
+        
         try:
             import requests
             headers = {
@@ -1285,15 +1313,26 @@ class EnhancedNewsResearchCrew:
                 f"https://hbr.org/feed"
             ]
             
+            logger.info(f"🔄 Trying {len(professional_sources)} alternative professional sources")
+            logger.info(f"📋 Sources: {professional_sources}")
+            
             for i, topic in enumerate(topics[:2]):
+                logger.info(f"🎯 Processing topic '{topic}' with alternative sources")
                 for source_url in professional_sources[:1]:  # Try one source per topic
                     try:
+                        logger.info(f"📡 Fetching alternative source: {source_url}")
                         response = requests.get(source_url, headers=headers, timeout=10)
+                        logger.info(f"📊 Response: {response.status_code} | Content-Length: {len(response.content)} bytes")
+                        
                         if response.status_code == 200 and FEEDPARSER_AVAILABLE:
                             feed = feedparser.parse(response.content)
+                            logger.info(f"📊 Alternative feed parsed: {len(feed.entries)} entries found")
                             
+                            relevant_entries = 0
                             for entry in feed.entries[:2]:
                                 if topic.lower() in entry.get('title', '').lower() or topic.lower() in entry.get('summary', '').lower():
+                                    relevant_entries += 1
+                                    logger.info(f"   ✅ Relevant entry found: {entry.get('title', 'No title')[:50]}...")
                                     posts.append({
                                         "id": f"professional_{len(posts)}_{int(datetime.now().timestamp())}",
                                         "title": entry.get('title', f"Professional insights on {topic}"),
@@ -1311,15 +1350,24 @@ class EnhancedNewsResearchCrew:
                                         "simulated": False
                                     })
                                     
+                            logger.info(f"📊 Topic '{topic}' alternative results: {relevant_entries} relevant entries found")
+                            
                     except Exception as alt_error:
-                        logger.warning(f"Alternative source failed: {str(alt_error)}")
+                        logger.warning(f"❌ Alternative source failed: {str(alt_error)}")
+                        logger.error(f"   Exception type: {type(alt_error).__name__}")
                         continue
             
-            logger.info(f"✅ Collected {len(posts)} professional posts from alternative sources")
+            logger.info(f"🎯 Alternative professional content completed:")
+            logger.info(f"   📊 Total posts collected: {len(posts)}")
+            if posts:
+                logger.info(f"✅ Successfully collected {len(posts)} professional posts from alternative sources")
+            else:
+                logger.warning(f"⚠️ No alternative professional content found")
             return posts
             
         except Exception as e:
             logger.error(f"❌ Alternative professional content failed: {str(e)}")
+            logger.error(f"   Exception type: {type(e).__name__}")
             return []
     
     def _scrape_real_news_websites(self, topics: List[str]) -> List[Dict[str, Any]]:
