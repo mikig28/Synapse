@@ -57,7 +57,7 @@ try:
         research_news_with_user_input
     )
     DYNAMIC_CREW_AVAILABLE = True
-    logger.info("✅ Dynamic multi-agent crew system loaded as fallback")
+    logger.info("✅ Dynamic multi-agent crew system loaded (available as backup)")
 except ImportError as e:
     logger.error(f"❌ Failed to import dynamic crew system: {str(e)}")
     DYNAMIC_CREW_AVAILABLE = False
@@ -66,7 +66,7 @@ except ImportError as e:
 try:
     from agents.simple_news_scraper import SimpleNewsScraperAgent
     SIMPLE_SCRAPER_AVAILABLE = True
-    logger.info("✅ Simple news scraper loaded as fallback")
+    logger.info("✅ Simple news scraper loaded (available as backup)")
 except ImportError as e:
     logger.error(f"❌ Failed to import simple scraper: {str(e)}")
     SIMPLE_SCRAPER_AVAILABLE = False
@@ -103,7 +103,7 @@ class EnhancedNewsGatherer:
         try:
             from agents.simple_crew_test import SimpleTestCrew
             self.simple_test_crew = SimpleTestCrew()
-            logger.info("✅ Simple test crew initialized as fallback")
+            logger.info("✅ Simple test crew initialized (available as backup)")
         except Exception as e:
             logger.error(f"❌ Simple test crew initialization failed: {str(e)}")
             self.simple_test_crew = None
@@ -114,7 +114,7 @@ class EnhancedNewsGatherer:
                 self.dynamic_crew = create_dynamic_news_research_crew()
                 if self.mode == "fallback":  # Only change mode if not already set to enhanced
                     self.mode = "dynamic_multi_agent"
-                    logger.info("✅ Dynamic multi-agent crew initialized as fallback")
+                    logger.info("✅ Dynamic multi-agent crew initialized (available as backup)")
             except Exception as e:
                 logger.error(f"❌ Dynamic crew initialization failed: {str(e)}")
                 self.dynamic_crew = None
@@ -125,7 +125,7 @@ class EnhancedNewsGatherer:
         if SIMPLE_SCRAPER_AVAILABLE:
             try:
                 self.simple_scraper = SimpleNewsScraperAgent()
-                logger.info("✅ Simple scraper initialized as fallback")
+                logger.info("✅ Simple scraper initialized (available as backup)")
             except Exception as e:
                 logger.error(f"❌ Simple scraper initialization failed: {str(e)}")
                 self.simple_scraper = None
@@ -404,6 +404,23 @@ except Exception as e:
     news_gatherer = None
 
 # Flask API endpoints
+@app.route('/', methods=['GET'])
+def root():
+    """Root endpoint for health checks and service info"""
+    return jsonify({
+        'service': 'Enhanced Synapse CrewAI Multi-Agent News Service',
+        'status': 'running',
+        'mode': news_gatherer.mode if news_gatherer else 'initialization_failed',
+        'version': '1.0.0',
+        'timestamp': datetime.now().isoformat(),
+        'endpoints': {
+            '/health': 'Detailed health check',
+            '/gather-news': 'POST - Gather news with topics',
+            '/system-info': 'System status and capabilities',
+            '/progress': 'Real-time progress tracking'
+        }
+    })
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Enhanced health check endpoint with detailed diagnostics"""
