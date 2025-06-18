@@ -91,10 +91,14 @@ const AgentsPage: React.FC = () => {
         agentService.getSchedulerStatus(),
       ]);
       
-      setAgents(agentsData);
-      setRecentRuns(runsData);
+      setAgents(agentsData || []);
+      setRecentRuns(runsData || []);
       setSchedulerStatus(statusData);
     } catch (error: any) {
+      setAgents([]);
+      setRecentRuns([]);
+      setSchedulerStatus(null);
+      
       toast({
         title: 'Error',
         description: 'Failed to fetch agents data',
@@ -121,7 +125,7 @@ const AgentsPage: React.FC = () => {
       };
 
       const createdAgent = await agentService.createAgent(agentData);
-      setAgents(prev => [createdAgent, ...prev]);
+      setAgents(prev => [createdAgent, ...(prev || [])]);
       setShowCreateDialog(false);
       setNewAgent({
         name: '',
@@ -218,7 +222,7 @@ const AgentsPage: React.FC = () => {
   const handleDeleteAgent = async (agentId: string) => {
     try {
       await agentService.deleteAgent(agentId);
-      setAgents(prev => prev.filter(a => a._id !== agentId));
+      setAgents(prev => (prev || []).filter(a => a._id !== agentId));
       
       toast({
         title: 'Success',
@@ -603,7 +607,7 @@ const AgentsPage: React.FC = () => {
 
         {/* Agents Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {agents.map((agent) => (
+          {(agents || []).map((agent) => (
             <motion.div
               key={agent._id}
               initial={{ opacity: 0, y: 20 }}
@@ -725,7 +729,7 @@ const AgentsPage: React.FC = () => {
           ))}
         </div>
 
-        {agents.length === 0 && (
+        {(agents || []).length === 0 && (
           <Card className="text-center py-12">
             <CardContent>
               <Bot className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
@@ -743,7 +747,7 @@ const AgentsPage: React.FC = () => {
 
         {/* Agent Activity Dashboard */}
         <AgentActivityDashboard
-          agents={agents}
+          agents={agents || []}
           onAgentExecute={handleExecuteAgent}
           onAgentToggle={handleToggleAgent}
         />

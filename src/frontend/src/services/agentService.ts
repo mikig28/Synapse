@@ -102,8 +102,13 @@ export interface MCPRecommendationsResponse {
 export const agentService = {
   // Get all agents for the current user
   async getAgents(): Promise<Agent[]> {
-    const response = await axiosInstance.get<AgentsResponse>('/agents');
-    return response.data.data;
+    try {
+      const response = await axiosInstance.get<AgentsResponse>('/agents');
+      return response.data?.data || [];
+    } catch (error) {
+      console.error('Error fetching agents:', error);
+      return [];
+    }
   },
 
   // Get a specific agent by ID
@@ -149,14 +154,24 @@ export const agentService = {
 
   // Get agent runs
   async getAgentRuns(agentId: string, limit: number = 50): Promise<AgentRun[]> {
-    const response = await axiosInstance.get<AgentRunsResponse>(`/agents/${agentId}/runs?limit=${limit}`);
-    return response.data.data;
+    try {
+      const response = await axiosInstance.get<AgentRunsResponse>(`/agents/${agentId}/runs?limit=${limit}`);
+      return response.data?.data || [];
+    } catch (error) {
+      console.error('Error fetching agent runs:', error);
+      return [];
+    }
   },
 
   // Get all agent runs for the user
   async getUserAgentRuns(limit: number = 50): Promise<AgentRun[]> {
-    const response = await axiosInstance.get<AgentRunsResponse>(`/agents/runs?limit=${limit}`);
-    return response.data.data;
+    try {
+      const response = await axiosInstance.get<AgentRunsResponse>(`/agents/runs?limit=${limit}`);
+      return response.data?.data || [];
+    } catch (error) {
+      console.error('Error fetching user agent runs:', error);
+      return [];
+    }
   },
 
   // Get agent statistics
