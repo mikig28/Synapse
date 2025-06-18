@@ -255,13 +255,15 @@ export class CrewAIAgentExecutor implements AgentExecutor {
           ]
         });
 
-        if (existingItem && !refreshMode) {
+        if (existingItem) {
           skippedCount++;
           console.log(`[CrewAIExecutor] Skipping duplicate article: ${article.title} (found within ${duplicateWindow}h)`);
           await run.addLog('info', 'Skipped duplicate article', {
             title: article.title,
             reason: `Similar content found within ${duplicateWindow} hours`,
-            existingDate: existingItem.createdAt
+            existingDate: existingItem.createdAt,
+            refreshMode: refreshMode,
+            window: `${duplicateWindow}h`
           });
           continue;
         }

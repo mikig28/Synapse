@@ -24,6 +24,9 @@ export interface IAgent extends Document {
       telegram?: boolean;
       news_websites?: boolean;
     };
+    // Duplicate detection config
+    refreshMode?: boolean; // When true, ignores recent duplicates
+    duplicateWindow?: number; // Hours to check for duplicates (default 4)
     // MCP (Model Context Protocol) configuration
     mcpServers?: {
       name: string;
@@ -95,6 +98,10 @@ const AgentSchema: Schema<IAgent> = new Schema(
         telegram: { type: Boolean, default: true },
         news_websites: { type: Boolean, default: true },
       },
+      
+      // Duplicate detection configuration
+      refreshMode: { type: Boolean, default: false },
+      duplicateWindow: { type: Number, default: 4 },
       
       // MCP (Model Context Protocol) configuration
       mcpServers: {

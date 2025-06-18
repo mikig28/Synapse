@@ -1543,22 +1543,12 @@ class EnhancedNewsResearchCrew:
             # Sort by relevance score and recency
             articles.sort(key=lambda x: (x.get('relevance_score', 0), x.get('published_date', '')), reverse=True)
             
-            # If no articles found, create diagnostic entry
+            # If no articles found, log warning but don't create fake entries
             if not articles:
-                logger.warning("⚠️ No news articles found from any source, creating diagnostic entry")
-                articles = [{
-                    "id": f"news_diagnostic_{int(datetime.now().timestamp())}",
-                    "title": f"News Scraping Status for {', '.join(topics) if topics else 'General News'}",
-                    "content": "News RSS feeds are currently returning no articles. This may be due to feed changes, rate limiting, or content filtering issues.",
-                    "url": "#",
-                    "source": "System Diagnostic",
-                    "author": "Synapse News Monitor",
-                    "published_date": datetime.now().isoformat(),
-                    "summary": "Diagnostic message indicating news scraping issues",
-                    "simulated": True,
-                    "diagnostic": True,
-                    "relevance_score": 0.1
-                }]
+                logger.warning("⚠️ No news articles found from any source")
+                logger.info("💡 Possible causes: RSS feeds empty, rate limiting, or content filtering")
+                # Return empty list instead of diagnostic entry
+                return []
             
             if any(article.get('diagnostic') for article in articles):
                 logger.warning(f"⚠️ News scraping failed - returned {len(articles)} diagnostic entries")
@@ -1569,21 +1559,9 @@ class EnhancedNewsResearchCrew:
             
         except Exception as e:
             logger.error(f"❌ News website scraping failed: {str(e)}")
-            # Return diagnostic entry instead of empty list
-            return [{
-                "id": f"news_error_{int(datetime.now().timestamp())}",
-                "title": f"News Scraping Error for {', '.join(topics) if topics else 'General News'}",
-                "content": f"News scraping encountered a critical error: {str(e)}",
-                "url": "#",
-                "source": "Error Handler",
-                "author": "Synapse Error Reporter",
-                "published_date": datetime.now().isoformat(),
-                "summary": f"Critical error in news scraping: {str(e)[:100]}",
-                "simulated": True,
-                "diagnostic": True,
-                "error": True,
-                "relevance_score": 0.0
-            }]
+            logger.error(f"📋 Stack trace: {e.__class__.__name__}")
+            # Return empty list instead of diagnostic entry
+            return []
     
     def _extract_domain(self, url: str) -> str:
         """Extract clean domain name from URL"""
