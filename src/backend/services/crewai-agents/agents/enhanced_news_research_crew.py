@@ -1022,9 +1022,35 @@ class EnhancedNewsResearchCrew:
                     telegram_data = json.loads(telegram_result)
                     
                     if telegram_data.get('success') and telegram_data.get('messages'):
-                        organized_content['telegram_messages'] = telegram_data['messages']
-                        update_progress(2, 'completed', f"Found {len(telegram_data['messages'])} Telegram messages")
-                        logger.info(f"✅ Successfully scraped {len(telegram_data['messages'])} Telegram messages")
+                        # Enhance Telegram messages with card metadata
+                        enhanced_messages = []
+                        for msg in telegram_data['messages']:
+                            enhanced_msg = {
+                                **msg,
+                                'card_type': 'telegram',
+                                'display_type': 'telegram_card',
+                                'platform': 'telegram',
+                                'show_full_content': True,
+                                'channel_info': {
+                                    'name': msg.get('channel_name', msg.get('channel', '')),
+                                    'username': msg.get('channel', ''),
+                                    'verified': False  # Could be enhanced with real channel data
+                                },
+                                'message_info': {
+                                    'has_media': msg.get('media_type') not in [None, 'text'],
+                                    'is_forwarded': msg.get('is_forwarded', False),
+                                    'engagement_stats': {
+                                        'views': msg.get('views', 0),
+                                        'forwards': msg.get('forwards', 0),
+                                        'reactions_count': sum(msg.get('reactions', {}).values())
+                                    }
+                                }
+                            }
+                            enhanced_messages.append(enhanced_msg)
+                        
+                        organized_content['telegram_messages'] = enhanced_messages
+                        update_progress(2, 'completed', f"Found {len(enhanced_messages)} Telegram messages")
+                        logger.info(f"✅ Successfully scraped {len(enhanced_messages)} Telegram messages with rich metadata")
                     else:
                         update_progress(2, 'completed', 'No Telegram messages found')
                         logger.warning("Telegram scraping returned no messages")
