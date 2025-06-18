@@ -1306,19 +1306,24 @@ class EnhancedNewsResearchCrew:
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
             
-            # Alternative professional sources
+            # Enhanced alternative professional sources
             professional_sources = [
-                f"https://feeds.feedburner.com/TechCrunch/startups",
-                f"https://www.forbes.com/innovation/feed/",
-                f"https://hbr.org/feed"
+                "https://feeds.feedburner.com/TechCrunch/startups",
+                "https://www.forbes.com/innovation/feed/",
+                "https://hbr.org/feed",
+                "https://feeds.feedburner.com/venturebeat/SZYF",  # VentureBeat
+                "https://techcrunch.com/feed/",  # TechCrunch main feed
+                "https://feeds.feedburner.com/oreilly/radar",  # O'Reilly Radar
+                "https://www.wired.com/feed/category/business/",  # Wired Business
+                "https://feeds.feedburner.com/fastcompany/headlines"  # Fast Company
             ]
             
             logger.info(f"🔄 Trying {len(professional_sources)} alternative professional sources")
             logger.info(f"📋 Sources: {professional_sources}")
             
-            for i, topic in enumerate(topics[:2]):
+            for i, topic in enumerate(topics[:3]):  # Process more topics
                 logger.info(f"🎯 Processing topic '{topic}' with alternative sources")
-                for source_url in professional_sources[:1]:  # Try one source per topic
+                for source_url in professional_sources[:3]:  # Try 3 sources per topic
                     try:
                         logger.info(f"📡 Fetching alternative source: {source_url}")
                         response = requests.get(source_url, headers=headers, timeout=10)

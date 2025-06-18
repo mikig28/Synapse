@@ -129,13 +129,17 @@ class RedditScraperTool(BaseTool):
             topics_list = [topic.strip() for topic in topics.split(',')]
             all_posts = []
             
-            # Define relevant subreddits for each topic
+            # Define relevant subreddits for each topic - expanded list
             subreddit_mapping = {
-                'technology': ['technology', 'tech', 'gadgets', 'programming'],
-                'AI': ['artificial', 'MachineLearning', 'deeplearning', 'singularity'],
-                'startups': ['startups', 'entrepreneur', 'startup'],
-                'business': ['business', 'investing', 'finance', 'Economics'],
-                'innovation': ['Futurology', 'singularity', 'innovation']
+                'technology': ['technology', 'tech', 'gadgets', 'programming', 'coding', 'TechNews'],
+                'AI': ['artificial', 'MachineLearning', 'deeplearning', 'singularity', 'OpenAI', 'ChatGPT'],
+                'startups': ['startups', 'entrepreneur', 'startup', 'smallbusiness', 'Entrepreneur'],
+                'business': ['business', 'investing', 'finance', 'Economics', 'stocks', 'marketing'],
+                'innovation': ['Futurology', 'singularity', 'innovation', 'Inventions', 'startups'],
+                'ai': ['artificial', 'MachineLearning', 'deeplearning', 'singularity', 'OpenAI', 'ChatGPT'],
+                'tech': ['technology', 'tech', 'gadgets', 'programming', 'coding', 'TechNews'],
+                'vibe': ['programming', 'coding', 'webdev', 'learnprogramming'],
+                'n8n': ['automation', 'nocode', 'workflow', 'productivity', 'selfhosted']
             }
             
             # Collect subreddits based on topics
@@ -159,25 +163,25 @@ class RedditScraperTool(BaseTool):
                     logger.info(f"📡 Connecting to subreddit: r/{subreddit_name}")
                     subreddit = reddit_instance.subreddit(subreddit_name)
                     
-                    # Get hot posts from last 24 hours
-                    logger.info(f"🔄 Fetching hot posts from r/{subreddit_name} (limit=10)...")
+                    # Get hot posts - increased limit for better chances
+                    logger.info(f"🔄 Fetching hot posts from r/{subreddit_name} (limit=25)...")
                     posts_processed = 0
                     posts_added = 0
                     
-                    for post in subreddit.hot(limit=10):
+                    for post in subreddit.hot(limit=25):
                         try:
                             posts_processed += 1
                             
-                            # Check if post is from last 24 hours
+                            # Check if post is from last 3 days (more lenient)
                             post_time = datetime.fromtimestamp(post.created_utc)
                             time_diff = datetime.now() - post_time
                             
-                            if time_diff > timedelta(days=1):
+                            if time_diff > timedelta(days=3):
                                 logger.debug(f"   ⏰ Skipping old post: {post.title[:50]}... (age: {time_diff})")
                                 continue
                             
-                            # Filter for quality content
-                            if post.score < 50:  # Minimum upvotes
+                            # More lenient quality filter (reduced from 50 to 10)
+                            if post.score < 10:  # Minimum upvotes (reduced threshold)
                                 logger.debug(f"   📊 Skipping low-score post: {post.title[:50]}... (score: {post.score})")
                                 continue
                             
