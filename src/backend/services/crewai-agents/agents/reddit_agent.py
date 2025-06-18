@@ -75,13 +75,34 @@ class RedditScraperTool(BaseTool):
                 client_id=reddit_client_id,
                 client_secret=reddit_client_secret,
                 user_agent=reddit_user_agent,
-                check_for_async=False
+                check_for_async=False,
+                # Add rate limiting configuration
+                ratelimit_seconds=1,  # Wait 1 second between requests
+                timeout=30  # Increase timeout to 30 seconds
             )
             
-            # Test connection with a simple request
-            logger.info("🧪 Testing Reddit API with technology subreddit...")
-            test_posts = list(reddit_instance.subreddit('technology').hot(limit=1))
-            logger.info(f"🧪 Test successful - got {len(test_posts)} test posts")
+            # Test connection with a more robust approach
+            logger.info("🧪 Testing Reddit API connection...")
+            try:
+                # Test with read-only access first
+                reddit_instance.read_only = True
+                test_subreddit = reddit_instance.subreddit('technology')
+                
+                # Try to get subreddit info (lightweight test)
+                subreddit_info = test_subreddit.display_name
+                logger.info(f"🧪 Basic connection test successful: r/{subreddit_info}")
+                
+                # Try to fetch one post to verify API access
+                test_posts = list(test_subreddit.hot(limit=1))
+                logger.info(f"🧪 API access test successful - got {len(test_posts)} test posts")
+                
+                if test_posts:
+                    test_post = test_posts[0]
+                    logger.info(f"🧪 Sample post: {test_post.title[:50]}... (score: {test_post.score})")
+                
+            except Exception as test_error:
+                logger.error(f"❌ Reddit API test failed: {str(test_error)}")
+                raise test_error
             
             # Use direct assignment for CrewAI compatibility
             self.reddit = reddit_instance
@@ -160,75 +181,140 @@ class RedditScraperTool(BaseTool):
             
             logger.info(f"Scraping subreddits: {list(subreddits_to_check)}")
             
-            # Scrape each subreddit
-            logger.info(f"🔍 Starting to scrape {len(list(subreddits_to_check)[:5])} subreddits: {list(subreddits_to_check)[:5]}")
-            for subreddit_name in list(subreddits_to_check)[:5]:  # Limit to 5 subreddits
+            # Scrape each subreddit with improved error handling
+            subreddits_list = list(subreddits_to_check)[:3]  # Reduced to 3 for better reliability
+            logger.info(f"🔍 Starting to scrape {len(subreddits_list)} subreddits: {subreddits_list}")
+            
+            for subreddit_name in subreddits_list:
                 try:
                     logger.info(f"📡 Connecting to subreddit: r/{subreddit_name}")
                     subreddit = reddit_instance.subreddit(subreddit_name)
                     
-                    # Get hot posts - increased limit for better chances
-                    logger.info(f"🔄 Fetching hot posts from r/{subreddit_name} (limit=25)...")
+                    # Verify subreddit exists and is accessible
+                    try:
+                        subreddit_info = subreddit.display_name
+                        logger.info(f"✅ Subreddit verified: r/{subreddit_info}")
+                    except Exception as verify_error:
+                        logger.error(f"❌ Cannot access r/{subreddit_name}: {str(verify_error)}")
+                        continue
+                    
+                    # Get hot posts with multiple fallback strategies
+                    logger.info(f"🔄 Fetching posts from r/{subreddit_name}...")
                     posts_processed = 0
                     posts_added = 0
                     
-                    for post in subreddit.hot(limit=25):
+                    # Try different post types if hot posts fail
+                    post_sources = [
+                        ('hot', lambda: subreddit.hot(limit=15)),
+                        ('new', lambda: subreddit.new(limit=10)),
+                        ('top_week', lambda: subreddit.top(time_filter='week', limit=10))
+                    ]
+                    
+                    posts_fetched = False
+                    for source_name, post_getter in post_sources:
+                        if posts_fetched:
+                            break
+                            
                         try:
-                            posts_processed += 1
+                            logger.info(f"🔄 Trying {source_name} posts from r/{subreddit_name}...")
+                            posts_iterator = post_getter()
                             
-                            # Check if post is from last 3 days (more lenient)
-                            post_time = datetime.fromtimestamp(post.created_utc)
-                            time_diff = datetime.now() - post_time
+                            for post in posts_iterator:
+                                try:
+                                    posts_processed += 1
+                                    
+                                    # More lenient time filter - last 7 days
+                                    post_time = datetime.fromtimestamp(post.created_utc)
+                                    time_diff = datetime.now() - post_time
+                                    
+                                    if time_diff > timedelta(days=7):
+                                        logger.debug(f"   ⏰ Skipping old post: {post.title[:50]}... (age: {time_diff.days} days)")
+                                        continue
+                                    
+                                    # Very lenient quality filter - any post with positive score
+                                    if post.score < 1:
+                                        logger.debug(f"   📊 Skipping negative post: {post.title[:50]}... (score: {post.score})")
+                                        continue
+                                    
+                                    # Safe comment extraction with error handling
+                                    top_comments = []
+                                    try:
+                                        # Only fetch comments if post has some engagement
+                                        if post.num_comments > 0 and post.num_comments < 100:  # Avoid huge comment threads
+                                            post.comments.replace_more(limit=0)
+                                            for comment in post.comments[:2]:  # Just top 2 comments
+                                                try:
+                                                    if hasattr(comment, 'body') and len(str(comment.body)) > 10:
+                                                        top_comments.append({
+                                                            'body': str(comment.body)[:150],  # Shorter to avoid rate limits
+                                                            'score': getattr(comment, 'score', 0)
+                                                        })
+                                                except Exception as comment_error:
+                                                    logger.debug(f"   ⚠️ Comment error: {str(comment_error)}")
+                                                    continue
+                                    except Exception as comments_error:
+                                        logger.debug(f"   ⚠️ Comments loading error: {str(comments_error)}")
+                                        top_comments = []
                             
-                            if time_diff > timedelta(days=3):
-                                logger.debug(f"   ⏰ Skipping old post: {post.title[:50]}... (age: {time_diff})")
-                                continue
+                                    # Create post data with safe attribute access
+                                    try:
+                                        post_data = {
+                                            'title': str(post.title) if hasattr(post, 'title') else 'No title',
+                                            'content': str(post.selftext)[:400] if hasattr(post, 'selftext') and post.selftext else '',
+                                            'url': f"https://reddit.com{post.permalink}" if hasattr(post, 'permalink') else '',
+                                            'external_url': str(post.url) if hasattr(post, 'url') and post.url != f"https://reddit.com{post.permalink}" else None,
+                                            'subreddit': subreddit_name,
+                                            'score': getattr(post, 'score', 0),
+                                            'num_comments': getattr(post, 'num_comments', 0),
+                                            'created_utc': post_time.isoformat(),
+                                            'author': str(post.author) if hasattr(post, 'author') and post.author else '[deleted]',
+                                            'upvote_ratio': getattr(post, 'upvote_ratio', 0.5),
+                                            'top_comments': top_comments,
+                                            'flair': getattr(post, 'link_flair_text', None),
+                                            'is_video': getattr(post, 'is_video', False),
+                                            'source': 'reddit',
+                                            'source_type': source_name
+                                        }
+                                        
+                                        all_posts.append(post_data)
+                                        posts_added += 1
+                                        logger.info(f"   ✅ Added post: {post.title[:50]}... (score: {post.score}, comments: {post.num_comments})")
+                                        
+                                        # Stop if we have enough posts from this subreddit
+                                        if posts_added >= 5:
+                                            logger.info(f"   🎯 Got enough posts from r/{subreddit_name}, moving to next")
+                                            posts_fetched = True
+                                            break
+                                            
+                                    except Exception as post_data_error:
+                                        logger.error(f"   ❌ Error creating post data: {str(post_data_error)}")
+                                        continue
+                                        
+                                except Exception as post_processing_error:
+                                    logger.error(f"   ❌ Error processing post: {str(post_processing_error)}")
+                                    continue
+                                    
+                            # Add small delay to respect rate limits
+                            import time
+                            time.sleep(0.1)
                             
-                            # More lenient quality filter (reduced from 50 to 10)
-                            if post.score < 10:  # Minimum upvotes (reduced threshold)
-                                logger.debug(f"   📊 Skipping low-score post: {post.title[:50]}... (score: {post.score})")
-                                continue
-                            
-                            # Extract top comments
-                            post.comments.replace_more(limit=0)  # Remove "more comments"
-                            top_comments = []
-                            for comment in post.comments[:3]:  # Top 3 comments
-                                if hasattr(comment, 'body') and len(comment.body) > 20:
-                                    top_comments.append({
-                                        'body': comment.body[:200],
-                                        'score': getattr(comment, 'score', 0)
-                                    })
-                            
-                            post_data = {
-                                'title': post.title,
-                                'content': post.selftext[:500] if post.selftext else '',
-                                'url': f"https://reddit.com{post.permalink}",
-                                'external_url': post.url if post.url != f"https://reddit.com{post.permalink}" else None,
-                                'subreddit': subreddit_name,
-                                'score': post.score,
-                                'num_comments': post.num_comments,
-                                'created_utc': post_time.isoformat(),
-                                'author': str(post.author) if post.author else '[deleted]',
-                                'upvote_ratio': getattr(post, 'upvote_ratio', 0),
-                                'top_comments': top_comments,
-                                'flair': post.link_flair_text,
-                                'is_video': post.is_video,
-                                'source': 'reddit'
-                            }
-                            
-                            all_posts.append(post_data)
-                            posts_added += 1
-                            logger.info(f"   ✅ Added post: {post.title[:60]}... (score: {post.score}, comments: {post.num_comments})")
-                            
-                        except Exception as e:
-                            logger.error(f"   ❌ Error processing post: {str(e)}")
+                        except Exception as fetch_error:
+                            logger.error(f"   ❌ Error fetching {source_name} posts: {str(fetch_error)}")
                             continue
                     
                     logger.info(f"📊 r/{subreddit_name} results: {posts_added}/{posts_processed} posts added")
                     
+                    # Add delay between subreddits to respect rate limits
+                    if subreddit_name != subreddits_list[-1]:  # Don't sleep after last subreddit
+                        import time
+                        time.sleep(1)
+                    
                 except Exception as e:
                     logger.error(f"❌ Error scraping subreddit r/{subreddit_name}: {str(e)}")
                     logger.error(f"   Exception type: {type(e).__name__}")
+                    logger.error(f"   Error details: {str(e)[:200]}")
+                    
+                    # Continue with next subreddit instead of failing completely
                     continue
             
             # Sort by score and return top posts
@@ -237,6 +323,14 @@ class RedditScraperTool(BaseTool):
             logger.info(f"🎯 Reddit scraping completed:")
             logger.info(f"   📊 Total posts found: {len(all_posts)}")
             logger.info(f"   🏆 Top post score: {all_posts[0]['score'] if all_posts else 'N/A'}")
+            
+            # If no posts found, try alternative Reddit sources
+            if len(all_posts) == 0:
+                logger.warning("⚠️ No posts found via Reddit API, trying alternative Reddit sources...")
+                alternative_posts = self._get_alternative_reddit_data(topics_list)
+                all_posts.extend(alternative_posts)
+                logger.info(f"   📊 Alternative sources found: {len(alternative_posts)} posts")
+            
             logger.info(f"   📝 Returning top {min(len(all_posts), 20)} posts")
             
             result = {
@@ -246,7 +340,8 @@ class RedditScraperTool(BaseTool):
                 'subreddits_scraped': list(subreddits_to_check),
                 'posts_found': len(all_posts),
                 'posts': all_posts[:20],  # Return top 20 posts
-                'timestamp': datetime.now().isoformat()
+                'timestamp': datetime.now().isoformat(),
+                'fallback_used': len(alternative_posts) > 0 if 'alternative_posts' in locals() else False
             }
             
             logger.info(f"✅ Reddit agent returning {len(result['posts'])} posts successfully")
@@ -261,6 +356,80 @@ class RedditScraperTool(BaseTool):
             }
             logger.error(f"Reddit scraping failed: {str(e)}")
             return json.dumps(error_result, indent=2)
+    
+    def _get_alternative_reddit_data(self, topics: List[str]) -> List[Dict[str, Any]]:
+        """Get Reddit data from alternative sources when API fails"""
+        posts = []
+        
+        try:
+            import requests
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            logger.info("🔄 Trying Reddit RSS feeds as alternative...")
+            
+            # Reddit RSS feeds for popular subreddits
+            reddit_rss_feeds = [
+                'https://www.reddit.com/r/technology/.rss',
+                'https://www.reddit.com/r/programming/.rss',
+                'https://www.reddit.com/r/artificial/.rss',
+                'https://www.reddit.com/r/startups/.rss',
+                'https://www.reddit.com/r/business/.rss'
+            ]
+            
+            for feed_url in reddit_rss_feeds[:3]:  # Try 3 feeds
+                try:
+                    logger.info(f"📡 Fetching Reddit RSS: {feed_url}")
+                    response = requests.get(feed_url, headers=headers, timeout=10)
+                    
+                    if response.status_code == 200:
+                        try:
+                            import feedparser
+                            FEEDPARSER_AVAILABLE = True
+                        except ImportError:
+                            logger.warning("⚠️ feedparser not available for Reddit RSS fallback")
+                            continue
+                        
+                        if FEEDPARSER_AVAILABLE:
+                            feed = feedparser.parse(response.content)
+                            logger.info(f"📊 RSS feed parsed: {len(feed.entries)} entries")
+                            
+                            for entry in feed.entries[:3]:  # Get 3 entries per feed
+                                title = entry.get('title', '').lower()
+                                summary = entry.get('summary', '').lower()
+                                
+                                # Check topic relevance
+                                is_relevant = any(topic.lower() in title or topic.lower() in summary for topic in topics)
+                                
+                                if is_relevant or len(posts) == 0:  # Include first post even if not perfectly relevant
+                                    posts.append({
+                                        'title': entry.get('title', 'Reddit Post'),
+                                        'content': entry.get('summary', '')[:300],
+                                        'url': entry.get('link', ''),
+                                        'subreddit': feed_url.split('/r/')[1].split('/')[0] if '/r/' in feed_url else 'unknown',
+                                        'score': 50,  # Estimated score
+                                        'num_comments': 10,  # Estimated comments
+                                        'created_utc': entry.get('published', datetime.now().isoformat()),
+                                        'author': 'reddit_user',
+                                        'upvote_ratio': 0.8,
+                                        'top_comments': [],
+                                        'flair': None,
+                                        'is_video': False,
+                                        'source': 'reddit_rss',
+                                        'source_type': 'rss_fallback'
+                                    })
+                                
+                except Exception as rss_error:
+                    logger.warning(f"❌ Reddit RSS failed for {feed_url}: {str(rss_error)}")
+                    continue
+            
+            logger.info(f"✅ Alternative Reddit sources found: {len(posts)} posts")
+            
+        except Exception as e:
+            logger.error(f"❌ Alternative Reddit data failed: {str(e)}")
+        
+        return posts
 
 class RedditScraperAgent:
     """Reddit scraper agent for news gathering"""
