@@ -96,7 +96,51 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       }
 
       const config = agent.configuration;
-      const topics = config.topics || ['technology', 'AI', 'startups', 'business'];
+      
+      // Enhanced topic detection based on agent name if topics are empty
+      let topics = config.topics;
+      
+      // Handle various formats and ensure we have valid topics
+      if (!topics || (Array.isArray(topics) && topics.length === 0) || (typeof topics === 'string' && !topics.trim())) {
+        const agentNameLower = agent.name.toLowerCase();
+        
+        if (agentNameLower.includes('sport') || agentNameLower.includes('sports')) {
+          console.warn(`[CrewAI Agent] No topics configured for sports agent ${agent.name}, using sports defaults`);
+          topics = ['sports', 'football', 'basketball', 'soccer', 'tennis', 'baseball', 'athletics', 'olympics'];
+        } else if (agentNameLower.includes('tech') || agentNameLower.includes('technology')) {
+          topics = ['technology', 'AI', 'startups', 'software', 'innovation'];
+        } else if (agentNameLower.includes('business')) {
+          topics = ['business', 'finance', 'economy', 'markets', 'entrepreneurship'];
+        } else if (agentNameLower.includes('health')) {
+          topics = ['health', 'medicine', 'wellness', 'fitness', 'healthcare'];
+        } else {
+          console.warn(`[CrewAI Agent] No topics configured for agent ${agent.name}, using defaults`);
+          topics = ['technology', 'AI', 'startups'];
+        }
+      } else if (typeof topics === 'string') {
+        topics = topics.split(',').map(t => t.trim()).filter(t => t.length > 0);
+        if (topics.length === 0) {
+          const agentNameLower = agent.name.toLowerCase();
+          if (agentNameLower.includes('sport')) {
+            topics = ['sports', 'football', 'basketball', 'soccer'];
+          } else {
+            topics = ['technology', 'AI', 'startups'];
+          }
+        }
+      } else if (Array.isArray(topics)) {
+        topics = topics.filter(t => t && t.trim && t.trim().length > 0);
+        if (topics.length === 0) {
+          const agentNameLower = agent.name.toLowerCase();
+          if (agentNameLower.includes('sport')) {
+            topics = ['sports', 'football', 'basketball', 'soccer'];
+          } else {
+            topics = ['technology', 'AI', 'startups'];
+          }
+        }
+      }
+      
+      console.log(`[CrewAI Agent] Using topics for agent ${agent.name}:`, topics);
+      
       const sources = {
         reddit: config.crewaiSources?.reddit !== false,
         linkedin: config.crewaiSources?.linkedin !== false,

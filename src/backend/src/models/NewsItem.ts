@@ -26,6 +26,8 @@ export interface INewsItem extends Document {
   isRead: boolean;
   isFavorite: boolean;
   readAt?: Date;
+  contentHash?: string; // MD5 hash of title + url for duplicate detection
+  metadata?: any; // Additional metadata from agents
   createdAt: Date;
   updatedAt: Date;
   
@@ -68,6 +70,8 @@ const NewsItemSchema: Schema<INewsItem> = new Schema(
     isRead: { type: Boolean, default: false },
     isFavorite: { type: Boolean, default: false },
     readAt: { type: Date },
+    contentHash: { type: String, sparse: true }, // MD5 hash for duplicate detection
+    metadata: { type: Schema.Types.Mixed }, // Additional metadata storage
   },
   { timestamps: true }
 );
@@ -81,6 +85,7 @@ NewsItemSchema.index({ userId: 1, publishedAt: -1 });
 NewsItemSchema.index({ url: 1, userId: 1 }, { unique: true }); // Prevent duplicate news items per user
 NewsItemSchema.index({ agentId: 1, createdAt: -1 });
 NewsItemSchema.index({ runId: 1, createdAt: -1 });
+NewsItemSchema.index({ contentHash: 1, createdAt: -1 }); // Index for content-based duplicate detection
 
 // Method to mark as read
 NewsItemSchema.methods.markAsRead = function () {

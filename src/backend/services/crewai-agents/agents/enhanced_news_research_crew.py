@@ -1492,45 +1492,53 @@ class EnhancedNewsResearchCrew:
                     logger.warning(f"Failed to parse news feed {feed_url}: {str(feed_error)}")
                     continue
             
-            # Try Hacker News API for additional tech content
-            try:
-                hn_response = requests.get('https://hacker-news.firebaseio.com/v0/topstories.json', 
-                                         headers=headers, timeout=10)
-                if hn_response.status_code == 200:
-                    story_ids = hn_response.json()[:20]  # Get top 20 stories
-                    
-                    for story_id in story_ids[:5]:  # Process first 5
-                        try:
-                            story_response = requests.get(f'https://hacker-news.firebaseio.com/v0/item/{story_id}.json',
-                                                        headers=headers, timeout=5)
-                            if story_response.status_code == 200:
-                                story = story_response.json()
-                                
-                                if story and story.get('title'):
-                                    title = story.get('title', '').lower()
-                                    is_relevant = any(topic.lower() in title for topic in topics) if topics else True
+            # Try Hacker News API ONLY for tech-related topics
+            is_tech_topic = any(
+                any(keyword in topic.lower() for keyword in ['tech', 'ai', 'artificial', 'software', 'startup', 'programming', 'computer', 'crypto', 'blockchain'])
+                for topic in topics
+            )
+            
+            if is_tech_topic:
+                try:
+                    hn_response = requests.get('https://hacker-news.firebaseio.com/v0/topstories.json', 
+                                             headers=headers, timeout=10)
+                    if hn_response.status_code == 200:
+                        story_ids = hn_response.json()[:20]  # Get top 20 stories
+                        
+                        for story_id in story_ids[:5]:  # Process first 5
+                            try:
+                                story_response = requests.get(f'https://hacker-news.firebaseio.com/v0/item/{story_id}.json',
+                                                            headers=headers, timeout=5)
+                                if story_response.status_code == 200:
+                                    story = story_response.json()
                                     
-                                    if is_relevant:
-                                        articles.append({
-                                            "id": f"hn_real_{len(articles)}_{int(datetime.now().timestamp())}",
-                                            "title": story.get('title', 'Hacker News Story'),
-                                            "content": f"Hacker News discussion: {story.get('title', '')}",
-                                            "url": story.get('url', f"https://news.ycombinator.com/item?id={story_id}"),
-                                            "source": "Hacker News",
-                                            "author": story.get('by', 'HN User'),
-                                            "published_date": datetime.fromtimestamp(story.get('time', 0)).isoformat() if story.get('time') else datetime.now().isoformat(),
-                                            "score": story.get('score', 0),
-                                            "comments": story.get('descendants', 0),
-                                            "simulated": False,
-                                            "relevance_score": 0.8 if any(topic.lower() in story.get('title', '').lower() for topic in topics) else 0.5
-                                        })
+                                    if story and story.get('title'):
+                                        title = story.get('title', '').lower()
+                                        is_relevant = any(topic.lower() in title for topic in topics) if topics else True
                                         
-                        except Exception as story_error:
-                            logger.warning(f"Failed to fetch HN story {story_id}: {str(story_error)}")
-                            continue
-                            
-            except Exception as hn_error:
-                logger.warning(f"Failed to fetch Hacker News stories: {str(hn_error)}")
+                                        if is_relevant:
+                                            articles.append({
+                                                "id": f"hn_real_{len(articles)}_{int(datetime.now().timestamp())}",
+                                                "title": story.get('title', 'Hacker News Story'),
+                                                "content": f"Hacker News discussion: {story.get('title', '')}",
+                                                "url": story.get('url', f"https://news.ycombinator.com/item?id={story_id}"),
+                                                "source": "Hacker News",
+                                                "author": story.get('by', 'HN User'),
+                                                "published_date": datetime.fromtimestamp(story.get('time', 0)).isoformat() if story.get('time') else datetime.now().isoformat(),
+                                                "score": story.get('score', 0),
+                                                "comments": story.get('descendants', 0),
+                                                "simulated": False,
+                                                "relevance_score": 0.8 if any(topic.lower() in story.get('title', '').lower() for topic in topics) else 0.5
+                                            })
+                                            
+                            except Exception as story_error:
+                                logger.warning(f"Failed to fetch HN story {story_id}: {str(story_error)}")
+                                continue
+                                
+                except Exception as hn_error:
+                    logger.warning(f"Failed to fetch Hacker News stories: {str(hn_error)}")
+            else:
+                logger.info(f"⏭️ Skipping Hacker News (topics {topics} are not tech-related)")
             
             # Sort by relevance score and recency
             articles.sort(key=lambda x: (x.get('relevance_score', 0), x.get('published_date', '')), reverse=True)

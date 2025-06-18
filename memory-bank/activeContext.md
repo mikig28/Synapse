@@ -3,33 +3,130 @@
 ## Current Work Focus
 
 ### Primary Objective
-Implemented persistent progress storage for the CrewAI service and enhanced the agent execution system. The dashboard can now track real-time progress updates with session-based retrieval and automatic expiration.
+Implementing comprehensive agent enhancement plan to fix social media sources and enable dynamic, user-driven content discovery without hard-coded topics.
 
 ### Recently Completed Tasks ✅
-1. **Progress Storage System** - In-memory store with 30-minute expiration and session tracking
-2. **Enhanced Progress Callbacks** - Properly formatted step data for dashboard consumption
-3. **Session-Based Progress Tracking** - Unique session IDs for each agent execution
-4. **Backend Integration** - Agent service now passes session IDs for progress retrieval
-5. **Sports Agent Test Script** - Comprehensive test to verify topic detection works
+1. **Agent Enhancement Plan** - Created comprehensive 6-phase plan to transform agent system
+2. **Duplicate Detection Fix** - Implemented content hashing with MD5 for better duplicate detection
+3. **Refresh Mode** - Added configurable refresh mode to bypass recent duplicates
+4. **Enhanced Reddit Scraper** - Implemented dynamic subreddit discovery with authenticated API priority
+5. **Database Cleanup Tool** - Created script for managing old/duplicate news items
+
+## Current Implementation Status
+
+### Phase 1: Duplicate Detection (✅ COMPLETE)
+- Added `contentHash` field to NewsItem model
+- Implemented MD5 hashing of title + URL
+- Added unique ID generation with timestamps
+- Created refresh mode (1h window vs 4h normal)
+- Built database cleanup script with multiple strategies
+
+### Phase 2: Reddit Enhancement (🚧 IN PROGRESS)
+- ✅ Prioritized authenticated API over JSON endpoints
+- ✅ Implemented dynamic subreddit discovery (3 methods)
+- ✅ Added r/all search fallback for sparse topics
+- ✅ Better rate limiting between subreddit calls
+- ⏳ Need to test with sports topics
+
+### Phase 3: Telegram Enhancement (📋 PLANNED)
+- Need to evaluate Telethon for MTProto access
+- Implement channel search functionality
+- Keep existing web scraping as fallback
+
+### Phase 4: Dynamic Topics (📋 PLANNED)
+- Remove hard-coded topic mappings
+- Implement intent analysis service
+- Enable true user-driven searches
 
 ## Recent Changes
 
-### Progress Storage Implementation
-- ✅ **ProgressStore Class**: Thread-safe in-memory storage with automatic cleanup
-- ✅ **Session Tracking**: Each news gathering session gets unique ID for tracking
-- ✅ **Progress Callbacks**: Enhanced to store formatted step data in progress store
-- ✅ **GET /progress Endpoint**: Updated to support session-based retrieval
-- ✅ **Expiration Management**: 30-minute TTL with background cleanup thread
+### NewsItem Model Enhancement
+```typescript
+// Added fields:
+contentHash?: string; // MD5 hash for duplicate detection
+metadata?: any; // Flexible storage for agent data
+```
 
-### Agent Service Enhancements
-- ✅ **Session ID Generation**: Uses run ID as session identifier
-- ✅ **Progress Retrieval**: Fetches progress with session ID from CrewAI service
-- ✅ **Backward Compatibility**: Falls back to current progress if no session ID
+### CrewAI Executor Updates
+- Content-based duplicate detection
+- Unique ID generation per item
+- Refresh mode support
+- Enhanced metadata storage
 
-### Testing Infrastructure
-- ✅ **Sports Agent Test**: Comprehensive script to verify sports content retrieval
-- ✅ **Progress Monitoring**: Test includes real-time progress tracking
-- ✅ **Content Analysis**: Automated verification of sports vs tech content
+### Reddit Scraper Improvements
+- Dynamic subreddit discovery
+- Topic-based search across Reddit
+- r/all fallback for better coverage
+- Authenticated API prioritization
+
+## Key Code Changes
+
+### 1. Better Duplicate Detection
+- Check by content hash first, URL second
+- Configurable time windows
+- Unique IDs prevent any collision
+
+### 2. Dynamic Reddit Discovery
+- Search subreddits by name
+- Search by topic/description
+- Try common variations
+- Fall back to r/all search
+
+### 3. Database Management
+- Cleanup script for old items
+- Duplicate removal tool
+- Statistics reporting
+
+## Next Implementation Steps
+
+1. **Test Reddit Changes**
+   - Run sports agent to verify subreddit discovery
+   - Monitor for rate limiting issues
+   - Check content quality
+
+2. **Telegram Enhancement**
+   - Research Telethon integration
+   - Design channel discovery
+   - Implement search functionality
+
+3. **Dynamic Configuration**
+   - Build intent analyzer
+   - Remove topic hard-coding
+   - Enable flexible searches
+
+## Configuration Updates Needed
+
+```json
+{
+  "refreshMode": true, // Enable to bypass duplicates
+  "duplicateWindow": 3600, // 1 hour in seconds
+  "sources": {
+    "reddit": {
+      "useAuth": true,
+      "discover": true
+    }
+  }
+}
+```
+
+## Testing Commands
+
+```bash
+# Test cleanup script
+node scripts/cleanup-old-news.js --help
+
+# Remove duplicates
+node scripts/cleanup-old-news.js --remove-duplicates --execute
+
+# Test sports agent
+node test-sports-agent.js
+```
+
+## Active Issues
+- Reddit sports content still needs validation
+- Telegram bot permissions unclear
+- LinkedIn expected to use news as proxy
+- Need user intent analysis for true flexibility
 
 ## Current Status
 

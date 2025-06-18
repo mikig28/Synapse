@@ -5,8 +5,10 @@
  * This verifies that sports agents get sports content, not tech news
  */
 
-const axios = require('axios');
-require('dotenv').config();
+import axios from 'axios';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const API_URL = process.env.VITE_API_URL || 'http://localhost:5001/api';
 const CREWAI_URL = process.env.CREWAI_SERVICE_URL || 'http://localhost:5000';

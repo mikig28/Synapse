@@ -151,19 +151,25 @@ class RedditScraperTool(BaseTool):
             topics_list = [topic.strip() for topic in topics.split(',')]
             all_posts = []
             
-            # ALWAYS try alternative sources first before checking credentials
-            logger.info("🔄 Starting with Reddit JSON endpoints (no auth required)...")
-            alternative_posts = self._get_reddit_json_data(topics_list)
-            
-            if alternative_posts:
-                all_posts.extend(alternative_posts)
-                logger.info(f"✅ Got {len(alternative_posts)} posts from Reddit JSON endpoints")
-            
-            # Only try authenticated API if we have credentials AND didn't get enough posts
-            if credentials_available and reddit_instance and is_authenticated and len(all_posts) < 10:
-                logger.info("🔄 Trying authenticated Reddit API for more posts...")
+            # Prioritize authenticated API if available
+            if credentials_available and reddit_instance and is_authenticated:
+                logger.info("🔄 Starting with authenticated Reddit API (preferred method)...")
                 api_posts = self._fetch_authenticated_posts(reddit_instance, topics_list)
-                all_posts.extend(api_posts)
+                if api_posts:
+                    all_posts.extend(api_posts)
+                    logger.info(f"✅ Got {len(api_posts)} posts from authenticated Reddit API")
+            
+            # Fall back to JSON endpoints if we need more posts or auth failed
+            if len(all_posts) < 10:
+                logger.info("🔄 Trying Reddit JSON endpoints for additional posts...")
+                alternative_posts = self._get_reddit_json_data(topics_list)
+                
+                if alternative_posts:
+                    # Only add posts that aren't already in our list
+                    existing_ids = {post.get('id') for post in all_posts}
+                    new_posts = [p for p in alternative_posts if p.get('id') not in existing_ids]
+                    all_posts.extend(new_posts)
+                    logger.info(f"✅ Added {len(new_posts)} additional posts from Reddit JSON endpoints")
             
             # Sort by score and return top posts
             all_posts.sort(key=lambda x: x.get('score', 0), reverse=True)
@@ -446,13 +452,206 @@ class RedditScraperTool(BaseTool):
             return []
     
     def _fetch_authenticated_posts(self, reddit_instance, topics_list: List[str]) -> List[Dict[str, Any]]:
-        """Fetch posts using authenticated Reddit API"""
+        """Fetch posts using authenticated Reddit API with dynamic subreddit discovery"""
         posts = []
         
-        # (Move the existing authenticated fetching logic here from the main _run method)
-        # This is the code that was originally in _run that uses reddit_instance
+        if not reddit_instance:
+            logger.warning("❌ No authenticated Reddit instance available")
+            return posts
         
-        return posts
+        try:
+            logger.info(f"🔐 Using authenticated Reddit API for topics: {topics_list}")
+            
+            # Track which subreddits we've already processed
+            processed_subreddits = set()
+            
+            for topic in topics_list:
+                try:
+                    logger.info(f"🔍 Searching for subreddits related to: {topic}")
+                    
+                    # Method 1: Search for subreddits by name
+                    try:
+                        matching_subreddits = reddit_instance.subreddits.search_by_name(topic, include_nsfw=False)
+                        for subreddit in list(matching_subreddits)[:3]:  # Limit to 3 per topic
+                            if subreddit.display_name.lower() not in processed_subreddits:
+                                processed_subreddits.add(subreddit.display_name.lower())
+                                logger.info(f"📋 Found subreddit: r/{subreddit.display_name}")
+                    except Exception as e:
+                        logger.debug(f"Subreddit name search failed: {e}")
+                    
+                    # Method 2: Search for subreddits by topic/description
+                    try:
+                        search_results = reddit_instance.subreddits.search(topic, limit=5)
+                        for subreddit in search_results:
+                            if subreddit.display_name.lower() not in processed_subreddits:
+                                processed_subreddits.add(subreddit.display_name.lower())
+                                logger.info(f"📋 Found related subreddit: r/{subreddit.display_name}")
+                    except Exception as e:
+                        logger.debug(f"Subreddit topic search failed: {e}")
+                    
+                    # Method 3: Try direct subreddit access for common variations
+                    topic_variations = [
+                        topic.lower(),
+                        topic.lower().replace(' ', ''),
+                        topic.lower().replace(' ', '_'),
+                        topic.lower() + 's' if not topic.lower().endswith('s') else topic.lower()[:-1]
+                    ]
+                    
+                    for variation in topic_variations:
+                        if variation not in processed_subreddits:
+                            try:
+                                subreddit = reddit_instance.subreddit(variation)
+                                # Test if subreddit exists by accessing a property
+                                _ = subreddit.display_name
+                                processed_subreddits.add(variation)
+                                logger.info(f"📋 Found direct subreddit: r/{variation}")
+                            except Exception:
+                                continue
+                    
+                except Exception as e:
+                    logger.error(f"Topic search failed for {topic}: {e}")
+                    continue
+            
+            # Now fetch posts from all discovered subreddits
+            logger.info(f"📊 Processing {len(processed_subreddits)} discovered subreddits")
+            
+            for subreddit_name in processed_subreddits:
+                try:
+                    subreddit = reddit_instance.subreddit(subreddit_name)
+                    logger.info(f"🔄 Fetching posts from r/{subreddit_name}")
+                    
+                    # Get hot posts
+                    hot_posts = list(subreddit.hot(limit=10))
+                    
+                    for post in hot_posts:
+                        try:
+                            # Skip stickied posts (usually rules/announcements)
+                            if post.stickied:
+                                continue
+                            
+                            # Extract post data
+                            post_data = {
+                                'id': post.id,
+                                'title': post.title,
+                                'content': post.selftext[:1000] if post.selftext else '',
+                                'url': post.url,
+                                'reddit_url': f"https://reddit.com{post.permalink}",
+                                'author': str(post.author) if post.author else 'Unknown',
+                                'subreddit': subreddit_name,
+                                'score': post.score,
+                                'num_comments': post.num_comments,
+                                'upvote_ratio': post.upvote_ratio,
+                                'created_utc': datetime.fromtimestamp(post.created_utc).isoformat(),
+                                'domain': post.domain if hasattr(post, 'domain') else '',
+                                'flair': post.link_flair_text if hasattr(post, 'link_flair_text') else '',
+                                'source': 'reddit_api',
+                                'source_type': 'authenticated_api',
+                                'simulated': False,
+                                'is_video': post.is_video if hasattr(post, 'is_video') else False,
+                                'over_18': post.over_18 if hasattr(post, 'over_18') else False
+                            }
+                            
+                            # Quality filter
+                            if post_data['score'] >= 5 or post_data['num_comments'] >= 3:
+                                posts.append(post_data)
+                                logger.debug(f"✅ Added post: {post_data['title'][:50]}...")
+                            
+                        except Exception as e:
+                            logger.debug(f"Error processing post: {e}")
+                            continue
+                    
+                    # Also get top posts from the past week for more content
+                    try:
+                        top_posts = list(subreddit.top(time_filter='week', limit=5))
+                        for post in top_posts:
+                            if post.id not in [p['id'] for p in posts]:  # Avoid duplicates
+                                post_data = {
+                                    'id': post.id,
+                                    'title': post.title,
+                                    'content': post.selftext[:1000] if post.selftext else '',
+                                    'url': post.url,
+                                    'reddit_url': f"https://reddit.com{post.permalink}",
+                                    'author': str(post.author) if post.author else 'Unknown',
+                                    'subreddit': subreddit_name,
+                                    'score': post.score,
+                                    'num_comments': post.num_comments,
+                                    'created_utc': datetime.fromtimestamp(post.created_utc).isoformat(),
+                                    'source': 'reddit_api',
+                                    'source_type': 'authenticated_api',
+                                    'simulated': False
+                                }
+                                
+                                if post_data['score'] >= 10:  # Higher threshold for older posts
+                                    posts.append(post_data)
+                    except Exception as e:
+                        logger.debug(f"Error fetching top posts: {e}")
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to fetch from r/{subreddit_name}: {e}")
+                    continue
+                
+                # Rate limiting between subreddits
+                import time
+                time.sleep(1)
+            
+            # If we didn't find enough specific subreddits, search r/all
+            if len(posts) < 10 and len(processed_subreddits) < 3:
+                logger.info("📡 Searching r/all for topic-related posts")
+                try:
+                    all_subreddit = reddit_instance.subreddit('all')
+                    
+                    # Search r/all for each topic
+                    for topic in topics_list[:2]:  # Limit to avoid rate limits
+                        try:
+                            search_results = all_subreddit.search(topic, sort='hot', time_filter='week', limit=10)
+                            
+                            for post in search_results:
+                                post_data = {
+                                    'id': post.id,
+                                    'title': post.title,
+                                    'content': post.selftext[:1000] if post.selftext else '',
+                                    'url': post.url,
+                                    'reddit_url': f"https://reddit.com{post.permalink}",
+                                    'author': str(post.author) if post.author else 'Unknown',
+                                    'subreddit': str(post.subreddit),
+                                    'score': post.score,
+                                    'num_comments': post.num_comments,
+                                    'created_utc': datetime.fromtimestamp(post.created_utc).isoformat(),
+                                    'source': 'reddit_api',
+                                    'source_type': 'r_all_search',
+                                    'simulated': False,
+                                    'matched_topic': topic
+                                }
+                                
+                                if post_data['score'] >= 50:  # Higher threshold for r/all
+                                    posts.append(post_data)
+                                    logger.debug(f"✅ Added r/all post: {post_data['title'][:50]}...")
+                        
+                        except Exception as e:
+                            logger.debug(f"r/all search failed for {topic}: {e}")
+                
+                except Exception as e:
+                    logger.error(f"Failed to search r/all: {e}")
+            
+            # Remove duplicates based on ID
+            unique_posts = {}
+            for post in posts:
+                if post['id'] not in unique_posts:
+                    unique_posts[post['id']] = post
+            
+            final_posts = list(unique_posts.values())
+            
+            # Sort by score
+            final_posts.sort(key=lambda x: x.get('score', 0), reverse=True)
+            
+            logger.info(f"✅ Authenticated API fetch complete: {len(final_posts)} posts from {len(processed_subreddits)} subreddits")
+            
+            return final_posts[:30]  # Return top 30 posts
+            
+        except Exception as e:
+            logger.error(f"❌ Authenticated Reddit fetch failed: {e}")
+            logger.error(f"📋 Stack trace: {e.__class__.__name__}: {str(e)}")
+            return []
 
 class RedditScraperAgent:
     """Reddit scraper agent for news gathering"""

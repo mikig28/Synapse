@@ -2,6 +2,7 @@ import axios from 'axios';
 import { AgentExecutor, AgentExecutionContext } from '../agentService';
 import { IAgentRun } from '../../models/AgentRun';
 import NewsItem from '../../models/NewsItem';
+import mongoose from 'mongoose';
 
 export class CrewAIAgentExecutor implements AgentExecutor {
   private crewaiServiceUrl: string;
@@ -219,31 +220,55 @@ export class CrewAIAgentExecutor implements AgentExecutor {
     let skippedCount = 0;
     let sourceCounts: Record<string, number> = {};
 
+    // Check if refresh mode is enabled
+    const refreshMode = agent.configuration?.refreshMode || false;
+    const duplicateWindow = refreshMode ? 1 : 4; // 1 hour in refresh mode, 4 hours normally
+    
+    // Import crypto for hashing
+    const crypto = require('crypto');
+
     for (const article of allContent) {
       try {
-        // More lenient duplicate detection - only check exact URL matches in last 4 hours
-        const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000); // 4 hours ago
+        // Generate content hash for better duplicate detection
+        const contentHash = crypto.createHash('md5')
+          .update((article.title || '') + (article.url || ''))
+          .digest('hex');
+        
+        // Generate unique ID with timestamp to ensure uniqueness
+        const uniqueId = `${article.source_type || 'unknown'}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Check for duplicates based on content hash instead of just URL
+        const duplicateCheckDate = new Date(Date.now() - duplicateWindow * 60 * 60 * 1000);
         
         const existingItem = await NewsItem.findOne({
-          $and: [
-            { url: article.url }, // Only check exact URL match
-            { createdAt: { $gte: fourHoursAgo } } // Only check recent duplicates
+          $or: [
+            // Check by content hash (preferred)
+            { 
+              contentHash: contentHash,
+              createdAt: { $gte: duplicateCheckDate }
+            },
+            // Fallback to URL check for backward compatibility
+            { 
+              url: article.url,
+              createdAt: { $gte: duplicateCheckDate }
+            }
           ]
         });
 
-        if (existingItem) {
+        if (existingItem && !refreshMode) {
           skippedCount++;
-          console.log(`[CrewAIExecutor] Skipping duplicate article: ${article.title} (same URL found within 4h)`);
+          console.log(`[CrewAIExecutor] Skipping duplicate article: ${article.title} (found within ${duplicateWindow}h)`);
           await run.addLog('info', 'Skipped duplicate article', {
             title: article.title,
-            reason: 'Same URL found within 4 hours',
+            reason: `Similar content found within ${duplicateWindow} hours`,
             existingDate: existingItem.createdAt
           });
           continue;
         }
 
-        // Create new news item with enhanced data
+        // Create new news item with enhanced data and unique ID
         const newsItem = new NewsItem({
+          _id: new mongoose.Types.ObjectId(), // Ensure unique ObjectId
           userId,
           agentId: agent._id,
           title: article.title || 'Untitled',
@@ -254,7 +279,9 @@ export class CrewAIAgentExecutor implements AgentExecutor {
           author: article.author || 'Unknown',
           publishedDate: article.published_date ? new Date(article.published_date) : new Date(),
           tags: article.tags || [],
+          contentHash: contentHash, // Store content hash for future duplicate detection
           metadata: {
+            uniqueId: uniqueId, // Store unique ID
             // Enhanced metadata from CrewAI
             qualityScore: article.quality_score || 0,
             relevanceScore: article.relevance_score || 0,
@@ -286,7 +313,8 @@ export class CrewAIAgentExecutor implements AgentExecutor {
             // CrewAI execution metadata
             crewaiMode: result.mode,
             enhancedFeatures: result.enhanced_features,
-            executionTimestamp: result.timestamp
+            executionTimestamp: result.timestamp,
+            refreshMode: refreshMode
           }
         });
 
@@ -302,7 +330,8 @@ export class CrewAIAgentExecutor implements AgentExecutor {
           source: article.source,
           sourceType: article.source_type,
           qualityScore: article.quality_score,
-          urlValidated: article.url_validated || article.validated
+          urlValidated: article.url_validated || article.validated,
+          uniqueId: uniqueId
         });
 
       } catch (error: any) {
@@ -328,11 +357,14 @@ export class CrewAIAgentExecutor implements AgentExecutor {
       },
       qualityMetrics: data?.ai_insights?.quality_metrics,
       urlValidationStats: data?.ai_insights?.url_validation_stats,
-      recommendations: data?.recommendations
+      recommendations: data?.recommendations,
+      refreshMode: refreshMode,
+      duplicateWindow: `${duplicateWindow} hours`
     });
 
     console.log(`[CrewAIExecutor] Saved ${savedCount} new articles, skipped ${skippedCount} duplicates`);
     console.log(`[CrewAIExecutor] Source breakdown:`, sourceCounts);
+    console.log(`[CrewAIExecutor] Refresh mode: ${refreshMode}, Duplicate window: ${duplicateWindow}h`);
   }
 
   private async updateAgentStatistics(agent: any, result: any): Promise<void> {
