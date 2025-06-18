@@ -53,14 +53,17 @@ class RedditScraperTool(BaseTool):
         reddit_client_secret = os.getenv('REDDIT_CLIENT_SECRET')
         reddit_user_agent = os.getenv('REDDIT_USER_AGENT', 'SynapseAgent/1.0')
         
-        # Debug environment variables
-        logger.info(f"🔍 Reddit credentials check:")
+        # Debug environment variables for Render deployment
+        logger.info(f"🔍 Reddit credentials check (Render):")
         logger.info(f"   CLIENT_ID: {'✅ Set' if reddit_client_id else '❌ Missing'}")
         logger.info(f"   CLIENT_SECRET: {'✅ Set' if reddit_client_secret else '❌ Missing'}")
         logger.info(f"   USER_AGENT: {reddit_user_agent}")
         
         if not reddit_client_id or not reddit_client_secret:
-            logger.error("❌ Reddit API credentials not configured")
+            logger.error("❌ Reddit API credentials not configured in Render environment")
+            logger.error("   Please check Render dashboard environment variables:")
+            logger.error("   - REDDIT_CLIENT_ID should be set")
+            logger.error("   - REDDIT_CLIENT_SECRET should be set")
             setattr(self, '_credentials_available', False)
             return
         

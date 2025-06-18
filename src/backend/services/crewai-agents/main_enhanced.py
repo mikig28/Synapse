@@ -28,6 +28,14 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
+# Debug environment variables for Render deployment
+logger.info("🔍 Environment Variables Check (Render Deployment):")
+logger.info(f"   OPENAI_API_KEY: {'✅ Set' if os.getenv('OPENAI_API_KEY') else '❌ Missing'}")
+logger.info(f"   ANTHROPIC_API_KEY: {'✅ Set' if os.getenv('ANTHROPIC_API_KEY') else '❌ Missing'}")
+logger.info(f"   REDDIT_CLIENT_ID: {'✅ Set' if os.getenv('REDDIT_CLIENT_ID') else '❌ Missing'}")
+logger.info(f"   REDDIT_CLIENT_SECRET: {'✅ Set' if os.getenv('REDDIT_CLIENT_SECRET') else '❌ Missing'}")
+logger.info(f"   TELEGRAM_BOT_TOKEN: {'✅ Set' if os.getenv('TELEGRAM_BOT_TOKEN') else '❌ Missing'}")
+
 app = Flask(__name__)
 
 # Configure CORS to allow requests from your frontend
@@ -181,8 +189,10 @@ class EnhancedNewsGatherer:
                         return self._format_enhanced_result(result, topics, sources)
                     else:
                         logger.warning(f"Enhanced crew returned error: {result.get('message', 'Unknown error')}")
-                        # Fall back to simple test crew for reliable dashboard testing
-                        return self._try_simple_test_crew(topics, sources)
+                        logger.warning("🔧 Enhanced crew failed - this indicates missing API credentials in Render")
+                        logger.warning("   Check Render environment variables: REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, TELEGRAM_BOT_TOKEN")
+                        # Instead of mock data, try to get some real data with available APIs
+                        return self._try_partial_real_data(topics, sources, f"Enhanced crew failed: {result.get('message', 'Unknown error')}")
                         
                 except Exception as e:
                     logger.error(f"Enhanced crew execution failed: {str(e)}")
@@ -196,6 +206,87 @@ class EnhancedNewsGatherer:
             # Use simple scraper as final fallback
             else:
                 return self._fallback_to_simple_scraper(topics, sources)
+    
+    def _try_partial_real_data(self, topics: List[str], sources: Dict[str, Any], error_message: str) -> Dict[str, Any]:
+        """Try to get some real data from available APIs instead of pure mock data"""
+        logger.info("🔄 Attempting to get partial real data from available sources...")
+        
+        try:
+            # Import the enhanced crew to access the news scraper
+            from agents.enhanced_news_research_crew import EnhancedNewsScraperAgent, URLValidator, ContentValidator
+            
+            url_validator = URLValidator()
+            content_validator = ContentValidator(url_validator) 
+            news_scraper = EnhancedNewsScraperAgent(url_validator, content_validator)
+            
+            # Try to scrape real news websites (doesn't require special API keys)
+            real_articles = news_scraper._scrape_real_news_websites(topics)
+            logger.info(f"📰 Scraped {len(real_articles)} real news articles")
+            
+            # Check if we got real articles or just diagnostic entries
+            real_news_count = len([a for a in real_articles if not a.get('diagnostic', False)])
+            
+            organized_content = {
+                "news_articles": real_articles,
+                "reddit_posts": [],  # Empty due to missing credentials
+                "linkedin_posts": [],  # Empty due to scraping issues
+                "telegram_messages": []  # Empty due to missing credentials
+            }
+            
+            # Generate trending topics from the real articles we found
+            trending_topics = []
+            for i, topic in enumerate(topics[:5]):
+                mentions = len([a for a in real_articles 
+                              if topic.lower() in a.get('title', '').lower() or 
+                                 topic.lower() in a.get('content', '').lower()])
+                trending_topics.append({
+                    "topic": topic,
+                    "total_mentions": mentions,
+                    "trending_score": 0.5 + (mentions * 0.1),
+                    "source": "news_articles_only"
+                })
+            
+            executive_summary = [
+                f"⚠️ Partial data collection completed due to API credential issues",
+                f"📰 Successfully scraped {real_news_count} real news articles",
+                f"❌ Social media data unavailable (missing API credentials)",
+                f"Error: {error_message}",
+                f"Solution: Configure REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, TELEGRAM_BOT_TOKEN in Render"
+            ]
+            
+            return {
+                "status": "success",
+                "result": {
+                    "executive_summary": executive_summary,
+                    "trending_topics": trending_topics,
+                    "organized_content": organized_content,
+                    "ai_insights": {
+                        "data_quality": "Partial - news articles only",
+                        "social_media_status": "Unavailable due to missing API credentials",
+                        "recommendation": "Configure social media API credentials for complete data"
+                    },
+                    "recommendations": [
+                        "Configure Reddit API credentials in Render environment",
+                        "Add Telegram Bot Token for message monitoring", 
+                        "Verify all environment variables are properly set",
+                        f"Current real articles found: {real_news_count}"
+                    ]
+                },
+                "progress_steps": [
+                    {"agent": "System", "step": "Partial data collection", "status": "completed", 
+                     "message": f"Got {real_news_count} real articles, social media unavailable"}
+                ],
+                "total_steps_completed": 1,
+                "current_date": datetime.now().strftime('%Y-%m-%d'),
+                "execution_time": datetime.now().isoformat(),
+                "mode": "partial_real_data",
+                "warning": "Incomplete data due to missing API credentials"
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Partial real data collection also failed: {str(e)}")
+            # As final fallback, use simple test crew but mark it clearly as mock data
+            return self._try_simple_test_crew(topics, sources)
                 
         except Exception as e:
             logger.error(f"Error in enhanced news gathering: {str(e)}")

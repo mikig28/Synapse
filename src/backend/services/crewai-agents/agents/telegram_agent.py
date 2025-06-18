@@ -48,19 +48,26 @@ class TelegramMonitorTool(BaseTool):
         self.bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
         self.bot = None
         
+        # Debug environment variables for Render deployment
+        logger.info(f"🔍 Telegram credentials check (Render):")
+        logger.info(f"   BOT_TOKEN: {'✅ Set' if self.bot_token else '❌ Missing'}")
+        logger.info(f"   Telegram Library: {'✅ Available' if TELEGRAM_AVAILABLE else '❌ Missing'}")
+        
         if not TELEGRAM_AVAILABLE:
-            logger.warning("Telegram library not available")
+            logger.warning("❌ Telegram library not available - install python-telegram-bot")
             return
             
         if self.bot_token:
             try:
                 self.bot = Bot(token=self.bot_token)
-                logger.info("Telegram bot initialized successfully")
+                logger.info("✅ Telegram bot initialized successfully")
             except Exception as e:
-                logger.error(f"Failed to initialize Telegram bot: {e}")
+                logger.error(f"❌ Failed to initialize Telegram bot: {e}")
                 self.bot = None
         else:
-            logger.warning("TELEGRAM_BOT_TOKEN not provided")
+            logger.warning("❌ TELEGRAM_BOT_TOKEN not provided in Render environment")
+            logger.error("   Please check Render dashboard environment variables:")
+            logger.error("   - TELEGRAM_BOT_TOKEN should be set")
     
     def _run(self, topics: str = "technology,AI,startups") -> str:
         """Monitor Telegram channels for posts on specified topics"""
