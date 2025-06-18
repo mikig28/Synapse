@@ -43,7 +43,81 @@ class CrewAINewsAgentExecutor {
                 await run.addLog('info', 'Will attempt to use fallback crew if service is unavailable');
             }
             const config = agent.configuration;
-            const topics = config.topics || ['technology', 'AI', 'startups', 'business'];
+            // Enhanced topic detection based on agent name if topics are empty
+            let topics = [];
+            const configTopics = config.topics;
+            // Handle various formats and ensure we have valid topics
+            if (!configTopics) {
+                // No topics at all - use defaults based on agent name
+                const agentNameLower = agent.name.toLowerCase();
+                if (agentNameLower.includes('sport') || agentNameLower.includes('sports')) {
+                    console.warn(`[CrewAI Agent] No topics configured for sports agent ${agent.name}, using sports defaults`);
+                    topics = ['sports', 'football', 'basketball', 'soccer', 'tennis', 'baseball', 'athletics', 'olympics'];
+                }
+                else if (agentNameLower.includes('tech') || agentNameLower.includes('technology')) {
+                    topics = ['technology', 'AI', 'startups', 'software', 'innovation'];
+                }
+                else if (agentNameLower.includes('business')) {
+                    topics = ['business', 'finance', 'economy', 'markets', 'entrepreneurship'];
+                }
+                else if (agentNameLower.includes('health')) {
+                    topics = ['health', 'medicine', 'wellness', 'fitness', 'healthcare'];
+                }
+                else {
+                    console.warn(`[CrewAI Agent] No topics configured for agent ${agent.name}, using defaults`);
+                    topics = ['technology', 'AI', 'startups'];
+                }
+            }
+            else if (typeof configTopics === 'string') {
+                // Handle string topics
+                const trimmed = configTopics.trim();
+                if (trimmed.length === 0) {
+                    // Empty string - use defaults based on agent name
+                    const agentNameLower = agent.name.toLowerCase();
+                    if (agentNameLower.includes('sport')) {
+                        topics = ['sports', 'football', 'basketball', 'soccer'];
+                    }
+                    else {
+                        topics = ['technology', 'AI', 'startups'];
+                    }
+                }
+                else {
+                    // Parse comma-separated topics
+                    topics = trimmed.split(',')
+                        .map((t) => t.trim())
+                        .filter((t) => t.length > 0);
+                    if (topics.length === 0) {
+                        const agentNameLower = agent.name.toLowerCase();
+                        if (agentNameLower.includes('sport')) {
+                            topics = ['sports', 'football', 'basketball', 'soccer'];
+                        }
+                        else {
+                            topics = ['technology', 'AI', 'startups'];
+                        }
+                    }
+                }
+            }
+            else if (Array.isArray(configTopics)) {
+                // Handle array topics
+                topics = configTopics
+                    .filter((t) => typeof t === 'string' && t.trim().length > 0)
+                    .map((t) => t.trim());
+                if (topics.length === 0) {
+                    // Empty array - use defaults based on agent name
+                    const agentNameLower = agent.name.toLowerCase();
+                    if (agentNameLower.includes('sport')) {
+                        topics = ['sports', 'football', 'basketball', 'soccer'];
+                    }
+                    else {
+                        topics = ['technology', 'AI', 'startups'];
+                    }
+                }
+            }
+            // Ensure topics is always an array with at least default values
+            if (!topics || topics.length === 0) {
+                topics = ['technology', 'AI', 'startups'];
+            }
+            console.log(`[CrewAI Agent] Using topics for agent ${agent.name}:`, topics);
             const sources = {
                 reddit: config.crewaiSources?.reddit !== false,
                 linkedin: config.crewaiSources?.linkedin !== false,
@@ -80,7 +154,7 @@ class CrewAINewsAgentExecutor {
                 await run.addLog('warn', `⚠️ Health check failed: ${error.message}`);
             }
             await run.addLog('info', '🚀 Starting news gathering process...');
-            // Add detailed execution logging
+            // Add detailed execution logging      
             await run.addLog('info', '📋 Initializing multi-agent crew system...');
             await run.addLog('info', `🎯 Target topics: ${topics.join(', ')}`);
             const enabledSources = Object.entries(sources).filter(([_, enabled]) => enabled).map(([source]) => source);
@@ -92,8 +166,8 @@ class CrewAINewsAgentExecutor {
             await run.addLog('info', '⚡ Agents are now gathering and analyzing content...');
             await run.addLog('info', '🧠 AI agents are processing content and matching topics...');
             const crewaiResponse = await this.executeCrewAIGatheringWithFallback({
-                topics,
-                sources,
+                topics: topics,
+                sources: sources,
                 // Add enhanced configuration
                 tools: {
                     web_search: true,

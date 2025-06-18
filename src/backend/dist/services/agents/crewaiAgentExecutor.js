@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CrewAIAgentExecutor = void 0;
 const axios_1 = __importDefault(require("axios"));
 const NewsItem_1 = __importDefault(require("../../models/NewsItem"));
+const mongoose_1 = __importDefault(require("mongoose"));
 class CrewAIAgentExecutor {
     constructor() {
         // Standardized timeout configurations for Render deployment
@@ -100,8 +101,57 @@ class CrewAIAgentExecutor {
     }
     prepareRequestData(agent) {
         const config = agent.configuration;
-        // Extract topics from agent configuration
-        const topics = config.topics || ['technology', 'AI', 'startups'];
+        // Extract topics from agent configuration with proper handling
+        let topics = config.topics;
+        // Handle various formats and ensure we have valid topics
+        if (!topics || (Array.isArray(topics) && topics.length === 0) || (typeof topics === 'string' && !topics.trim())) {
+            // Check if agent name gives us a hint about topics
+            const agentNameLower = agent.name.toLowerCase();
+            if (agentNameLower.includes('sport') || agentNameLower.includes('sports')) {
+                console.warn(`[CrewAIExecutor] No topics configured for sports agent ${agent.name}, using sports defaults`);
+                topics = ['sports', 'football', 'basketball', 'soccer', 'tennis', 'baseball', 'athletics', 'olympics'];
+            }
+            else if (agentNameLower.includes('tech') || agentNameLower.includes('technology')) {
+                topics = ['technology', 'AI', 'startups', 'software', 'innovation'];
+            }
+            else if (agentNameLower.includes('business')) {
+                topics = ['business', 'finance', 'economy', 'markets', 'entrepreneurship'];
+            }
+            else if (agentNameLower.includes('health')) {
+                topics = ['health', 'medicine', 'wellness', 'fitness', 'healthcare'];
+            }
+            else {
+                console.warn(`[CrewAIExecutor] No topics configured for agent ${agent.name}, using defaults`);
+                topics = ['technology', 'AI', 'startups'];
+            }
+        }
+        else if (typeof topics === 'string') {
+            // Handle comma-separated string topics
+            topics = topics.split(',').map(t => t.trim()).filter(t => t.length > 0);
+            if (topics.length === 0) {
+                const agentNameLower = agent.name.toLowerCase();
+                if (agentNameLower.includes('sport')) {
+                    topics = ['sports', 'football', 'basketball', 'soccer'];
+                }
+                else {
+                    topics = ['technology', 'AI', 'startups'];
+                }
+            }
+        }
+        else if (Array.isArray(topics)) {
+            // Filter out empty topics
+            topics = topics.filter(t => t && t.trim && t.trim().length > 0);
+            if (topics.length === 0) {
+                const agentNameLower = agent.name.toLowerCase();
+                if (agentNameLower.includes('sport')) {
+                    topics = ['sports', 'football', 'basketball', 'soccer'];
+                }
+                else {
+                    topics = ['technology', 'AI', 'startups'];
+                }
+            }
+        }
+        console.log(`[CrewAIExecutor] Using topics for agent ${agent.name}:`, topics);
         // Map CrewAI sources to the enhanced service format
         const sources = {};
         if (config.crewaiSources) {
@@ -128,64 +178,127 @@ class CrewAIAgentExecutor {
     }
     async processResults(result, agent, run, userId) {
         const data = result.data;
-        const articles = data?.organized_content?.validated_articles || [];
-        console.log(`[CrewAIExecutor] Processing ${articles.length} articles`);
+        // Handle organized content from multiple sources
+        const organizedContent = data?.organized_content || {};
+        const validatedArticles = data?.validated_articles || [];
+        // Combine all content sources
+        const allContent = [
+            ...(organizedContent.reddit_posts || []).map((item) => ({ ...item, source_type: 'reddit' })),
+            ...(organizedContent.linkedin_posts || []).map((item) => ({ ...item, source_type: 'linkedin' })),
+            ...(organizedContent.telegram_messages || []).map((item) => ({ ...item, source_type: 'telegram' })),
+            ...(organizedContent.news_articles || []).map((item) => ({ ...item, source_type: 'news_website' })),
+            ...validatedArticles.map((item) => ({ ...item, source_type: item.source_type || 'news_website' }))
+        ];
+        console.log(`[CrewAIExecutor] Processing ${allContent.length} items from all sources`);
+        console.log(`[CrewAIExecutor] Source breakdown:`, {
+            reddit: organizedContent.reddit_posts?.length || 0,
+            linkedin: organizedContent.linkedin_posts?.length || 0,
+            telegram: organizedContent.telegram_messages?.length || 0,
+            news: organizedContent.news_articles?.length || 0,
+            validated: validatedArticles.length
+        });
         let savedCount = 0;
         let skippedCount = 0;
-        for (const article of articles) {
+        let sourceCounts = {};
+        // Check if refresh mode is enabled
+        const refreshMode = agent.configuration?.refreshMode || false;
+        const duplicateWindow = refreshMode ? 1 : 4; // 1 hour in refresh mode, 4 hours normally
+        // Import crypto for hashing
+        const crypto = require('crypto');
+        for (const article of allContent) {
             try {
-                // Check if article already exists
+                // Generate content hash for better duplicate detection
+                const contentHash = crypto.createHash('md5')
+                    .update((article.title || '') + (article.url || ''))
+                    .digest('hex');
+                // Generate unique ID with timestamp to ensure uniqueness
+                const uniqueId = `${article.source_type || 'unknown'}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                // Check for duplicates based on content hash instead of just URL
+                const duplicateCheckDate = new Date(Date.now() - duplicateWindow * 60 * 60 * 1000);
                 const existingItem = await NewsItem_1.default.findOne({
                     $or: [
-                        { url: article.url },
-                        { title: article.title }
+                        // Check by content hash (preferred)
+                        {
+                            contentHash: contentHash,
+                            createdAt: { $gte: duplicateCheckDate }
+                        },
+                        // Fallback to URL check for backward compatibility
+                        {
+                            url: article.url,
+                            createdAt: { $gte: duplicateCheckDate }
+                        }
                     ]
                 });
-                if (existingItem) {
+                if (existingItem && !refreshMode) {
                     skippedCount++;
+                    console.log(`[CrewAIExecutor] Skipping duplicate article: ${article.title} (found within ${duplicateWindow}h)`);
+                    await run.addLog('info', 'Skipped duplicate article', {
+                        title: article.title,
+                        reason: `Similar content found within ${duplicateWindow} hours`,
+                        existingDate: existingItem.createdAt
+                    });
                     continue;
                 }
-                // Create new news item with enhanced data
+                // Create new news item with enhanced data and unique ID
                 const newsItem = new NewsItem_1.default({
+                    _id: new mongoose_1.default.Types.ObjectId(), // Ensure unique ObjectId
                     userId,
                     agentId: agent._id,
                     title: article.title || 'Untitled',
                     content: article.content || article.summary || '',
                     summary: article.summary || article.content?.substring(0, 300) + '...' || '',
                     url: article.url_cleaned || article.url || '',
-                    source: article.source || 'Unknown',
+                    source: article.source || article.source_type || 'Unknown',
                     author: article.author || 'Unknown',
                     publishedDate: article.published_date ? new Date(article.published_date) : new Date(),
                     tags: article.tags || [],
+                    contentHash: contentHash, // Store content hash for future duplicate detection
                     metadata: {
+                        uniqueId: uniqueId, // Store unique ID
                         // Enhanced metadata from CrewAI
                         qualityScore: article.quality_score || 0,
                         relevanceScore: article.relevance_score || 0,
                         matchedTopic: article.matched_topic || 'general',
-                        sourceCategory: article.source_category || 'news',
-                        urlValidated: article.url_validated || false,
+                        sourceCategory: article.source_category || article.source_type || 'news',
+                        sourceType: article.source_type || 'news_website',
+                        urlValidated: article.url_validated || article.validated || false,
                         scrapedAt: article.scraped_at || new Date().toISOString(),
+                        // Social media specific data
+                        engagement: article.engagement || {
+                            likes: article.likes || article.score || 0,
+                            comments: article.comments || article.num_comments || 0,
+                            shares: article.shares || 0,
+                            views: article.views || 0
+                        },
                         // Original article data
                         originalData: {
                             score: article.score || 0,
-                            comments: article.comments || 0,
+                            comments: article.comments || article.num_comments || 0,
                             stars: article.stars || 0,
                             language: article.language || 'unknown',
-                            subreddit: article.subreddit || null
+                            subreddit: article.subreddit || null,
+                            company: article.company || null,
+                            messageId: article.messageId || null
                         },
                         // CrewAI execution metadata
                         crewaiMode: result.mode,
                         enhancedFeatures: result.enhanced_features,
-                        executionTimestamp: result.timestamp
+                        executionTimestamp: result.timestamp,
+                        refreshMode: refreshMode
                     }
                 });
                 await newsItem.save();
                 savedCount++;
+                // Track source counts
+                const sourceType = article.source_type || 'unknown';
+                sourceCounts[sourceType] = (sourceCounts[sourceType] || 0) + 1;
                 await run.addLog('info', 'Saved news article', {
                     title: article.title,
                     source: article.source,
+                    sourceType: article.source_type,
                     qualityScore: article.quality_score,
-                    urlValidated: article.url_validated
+                    urlValidated: article.url_validated || article.validated,
+                    uniqueId: uniqueId
                 });
             }
             catch (error) {
@@ -196,16 +309,27 @@ class CrewAIAgentExecutor {
                 });
             }
         }
-        // Log execution summary
+        // Log execution summary with source breakdown
         await run.addLog('info', 'CrewAI execution completed', {
-            totalArticles: articles.length,
+            totalArticles: allContent.length,
             savedArticles: savedCount,
             skippedArticles: skippedCount,
+            sourceBreakdown: sourceCounts,
+            sources: {
+                reddit: organizedContent.reddit_posts?.length || 0,
+                linkedin: organizedContent.linkedin_posts?.length || 0,
+                telegram: organizedContent.telegram_messages?.length || 0,
+                news: organizedContent.news_articles?.length || 0
+            },
             qualityMetrics: data?.ai_insights?.quality_metrics,
             urlValidationStats: data?.ai_insights?.url_validation_stats,
-            recommendations: data?.recommendations
+            recommendations: data?.recommendations,
+            refreshMode: refreshMode,
+            duplicateWindow: `${duplicateWindow} hours`
         });
         console.log(`[CrewAIExecutor] Saved ${savedCount} new articles, skipped ${skippedCount} duplicates`);
+        console.log(`[CrewAIExecutor] Source breakdown:`, sourceCounts);
+        console.log(`[CrewAIExecutor] Refresh mode: ${refreshMode}, Duplicate window: ${duplicateWindow}h`);
     }
     async updateAgentStatistics(agent, result) {
         try {

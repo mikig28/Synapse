@@ -308,6 +308,79 @@ class AgentService {
         }
         return updatedAgent;
     }
+    async getCrewProgress(agentId) {
+        console.log(`[AgentService] Getting crew progress for agent: ${agentId}`);
+        try {
+            // Get the agent to ensure it's a CrewAI agent
+            const agent = await Agent_1.default.findById(agentId);
+            if (!agent) {
+                throw new Error(`Agent with ID ${agentId} not found`);
+            }
+            if (agent.type !== 'crewai_news') {
+                throw new Error('Progress tracking is only available for CrewAI agents');
+            }
+            // Get the latest run to get session ID
+            const latestRun = await AgentRun_1.default.findOne({
+                agentId: agent._id,
+                status: 'running'
+            }).sort({ createdAt: -1 });
+            // Try to get progress from the CrewAI service
+            const crewaiServiceUrl = process.env.CREWAI_SERVICE_URL || 'http://localhost:5000';
+            try {
+                // Import axios here to avoid circular dependencies
+                const axios = require('axios');
+                // Include session ID if we have an active run
+                const params = {};
+                if (latestRun) {
+                    // Use run ID as session ID for tracking
+                    params.session_id = `news_${latestRun._id}`;
+                }
+                const response = await axios.get(`${crewaiServiceUrl}/progress`, {
+                    timeout: 10000, // 10 second timeout
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    params
+                });
+                if (response.data?.success) {
+                    console.log(`[AgentService] Retrieved progress data from CrewAI service`);
+                    // Extract progress data
+                    const progressData = response.data.progress || {};
+                    return {
+                        steps: progressData.steps || [],
+                        results: progressData.results || null,
+                        hasActiveProgress: progressData.hasActiveProgress || response.data.has_active_progress || false,
+                        timestamp: progressData.timestamp || response.data.timestamp || new Date().toISOString(),
+                        session_id: progressData.session_id || params.session_id
+                    };
+                }
+                else {
+                    console.log(`[AgentService] CrewAI service returned no progress data`);
+                    return {
+                        steps: [],
+                        results: null,
+                        hasActiveProgress: false,
+                        timestamp: new Date().toISOString()
+                    };
+                }
+            }
+            catch (crewaiError) {
+                console.warn(`[AgentService] Could not fetch progress from CrewAI service: ${crewaiError.message}`);
+                // Return empty progress instead of error for better UX
+                return {
+                    steps: [],
+                    results: null,
+                    hasActiveProgress: false,
+                    timestamp: new Date().toISOString(),
+                    message: 'CrewAI service unavailable'
+                };
+            }
+        }
+        catch (error) {
+            console.error(`[AgentService] Error getting crew progress: ${error.message}`);
+            throw error;
+        }
+    }
     async getAgentStatistics(agentId) {
         const agent = await Agent_1.default.findById(agentId);
         if (!agent) {

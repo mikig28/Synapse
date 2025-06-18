@@ -67,6 +67,8 @@ const NewsItemSchema = new mongoose_1.Schema({
     isRead: { type: Boolean, default: false },
     isFavorite: { type: Boolean, default: false },
     readAt: { type: Date },
+    contentHash: { type: String, sparse: true }, // MD5 hash for duplicate detection
+    metadata: { type: mongoose_1.Schema.Types.Mixed }, // Additional metadata storage
 }, { timestamps: true });
 // Index for efficient querying
 NewsItemSchema.index({ userId: 1, createdAt: -1 });
@@ -77,6 +79,7 @@ NewsItemSchema.index({ userId: 1, publishedAt: -1 });
 NewsItemSchema.index({ url: 1, userId: 1 }, { unique: true }); // Prevent duplicate news items per user
 NewsItemSchema.index({ agentId: 1, createdAt: -1 });
 NewsItemSchema.index({ runId: 1, createdAt: -1 });
+NewsItemSchema.index({ contentHash: 1, createdAt: -1 }); // Index for content-based duplicate detection
 // Method to mark as read
 NewsItemSchema.methods.markAsRead = function () {
     this.isRead = true;

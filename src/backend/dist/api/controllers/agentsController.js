@@ -36,8 +36,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getEnvironmentDebug = exports.testCrewAISources = exports.getAgentCapabilities = exports.getMCPRecommendations = exports.testMCPConnection = exports.getBuiltinTools = exports.getSchedulerStatus = exports.resumeAgent = exports.pauseAgent = exports.getAgentStatistics = exports.getUserAgentRuns = exports.getAgentRuns = exports.executeAgent = exports.resetAgentStatus = exports.getAgentStatus = exports.deleteAgent = exports.updateAgent = exports.createAgent = exports.getAgentById = exports.getAgents = exports.initializeAgentServices = void 0;
+exports.getEnvironmentDebug = exports.resetAgentStatus = exports.getCrewProgress = exports.getAgentStatus = exports.testCrewAISources = exports.getAgentCapabilities = exports.getMCPRecommendations = exports.testMCPConnection = exports.getBuiltinTools = exports.getSchedulerStatus = exports.resumeAgent = exports.pauseAgent = exports.getAgentStatistics = exports.getUserAgentRuns = exports.getAgentRuns = exports.executeAgent = exports.deleteAgent = exports.updateAgent = exports.createAgent = exports.getAgentById = exports.getAgents = exports.initializeAgentServices = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
+const Agent_1 = __importDefault(require("../../models/Agent"));
+const AgentRun_1 = __importDefault(require("../../models/AgentRun"));
 // Initialize services (these will be injected from server setup)
 let agentService;
 let agentScheduler;
@@ -255,94 +257,6 @@ const deleteAgent = async (req, res) => {
     }
 };
 exports.deleteAgent = deleteAgent;
-// Check agent status
-const getAgentStatus = async (req, res) => {
-    const { agentId } = req.params;
-    const userId = req.user.id;
-    try {
-        // Check if agent exists and belongs to user
-        const agent = await agentService.getAgentById(agentId);
-        if (!agent) {
-            res.status(404).json({
-                success: false,
-                error: 'Agent not found',
-            });
-            return;
-        }
-        if (agent.userId.toString() !== userId) {
-            res.status(403).json({
-                success: false,
-                error: 'Access denied',
-            });
-            return;
-        }
-        // Check for stuck agents (running for more than 10 minutes)
-        const stuckThreshold = 10 * 60 * 1000; // 10 minutes
-        const isStuck = agent.status === 'running' &&
-            agent.lastRun &&
-            (Date.now() - agent.lastRun.getTime()) > stuckThreshold;
-        res.json({
-            success: true,
-            data: {
-                agentId: agent._id,
-                status: agent.status,
-                isActive: agent.isActive,
-                lastRun: agent.lastRun,
-                isStuck,
-                canExecute: agent.status !== 'running' && agent.isActive,
-                executorAvailable: agentService.getAvailableExecutors().includes(agent.type),
-            },
-        });
-    }
-    catch (error) {
-        console.error('[AgentsController] Error getting agent status:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to get agent status',
-            message: error.message,
-        });
-    }
-};
-exports.getAgentStatus = getAgentStatus;
-// Reset agent status
-const resetAgentStatus = async (req, res) => {
-    const { agentId } = req.params;
-    const userId = req.user.id;
-    try {
-        // Check if agent exists and belongs to user
-        const agent = await agentService.getAgentById(agentId);
-        if (!agent) {
-            res.status(404).json({
-                success: false,
-                error: 'Agent not found',
-            });
-            return;
-        }
-        if (agent.userId.toString() !== userId) {
-            res.status(403).json({
-                success: false,
-                error: 'Access denied',
-            });
-            return;
-        }
-        // Reset agent status
-        const updatedAgent = await agentService.resetAgentStatus(agentId);
-        res.json({
-            success: true,
-            data: updatedAgent,
-            message: 'Agent status reset successfully',
-        });
-    }
-    catch (error) {
-        console.error('[AgentsController] Error resetting agent status:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to reset agent status',
-            message: error.message,
-        });
-    }
-};
-exports.resetAgentStatus = resetAgentStatus;
 // Execute an agent manually
 const executeAgent = async (req, res) => {
     const { agentId } = req.params;
@@ -1016,6 +930,175 @@ const testCrewAISources = async (req, res) => {
     }
 };
 exports.testCrewAISources = testCrewAISources;
+// Get agent execution status
+const getAgentStatus = async (req, res) => {
+    try {
+        const { agentId } = req.params;
+        const userId = req.user.id;
+        const agent = await agentService.getAgentById(agentId);
+        if (!agent) {
+            res.status(404).json({
+                success: false,
+                error: 'Agent not found',
+            });
+            return;
+        }
+        // Check if agent belongs to user
+        if (agent.userId.toString() !== userId) {
+            res.status(403).json({
+                success: false,
+                error: 'Access denied',
+            });
+            return;
+        }
+        // Get the most recent run to determine actual status
+        const recentRuns = await AgentRun_1.default.find({ agentId: new mongoose_1.default.Types.ObjectId(agentId) })
+            .sort({ createdAt: -1 })
+            .limit(1);
+        const now = new Date();
+        let actualStatus = agent.status;
+        let isStuck = false;
+        let canExecute = true;
+        let statusReason = '';
+        if (recentRuns.length > 0) {
+            const lastRun = recentRuns[0];
+            const timeSinceLastRun = now.getTime() - lastRun.createdAt.getTime();
+            const fiveMinutesInMs = 5 * 60 * 1000;
+            const tenMinutesInMs = 10 * 60 * 1000;
+            // Check if agent is stuck in running state
+            if (agent.status === 'running' && timeSinceLastRun > tenMinutesInMs) {
+                isStuck = true;
+                actualStatus = 'error';
+                canExecute = false;
+                statusReason = 'Agent has been running for more than 10 minutes and may be stuck';
+            }
+            else if (agent.status === 'running' && timeSinceLastRun > fiveMinutesInMs) {
+                statusReason = 'Agent has been running for more than 5 minutes';
+                canExecute = false;
+            }
+            else if (agent.status === 'running') {
+                canExecute = false;
+                statusReason = 'Agent is currently executing';
+            }
+        }
+        // Check if agent is paused
+        if (!agent.isActive) {
+            canExecute = false;
+            statusReason = 'Agent is paused';
+        }
+        res.json({
+            success: true,
+            data: {
+                agentId,
+                status: actualStatus,
+                isActive: agent.isActive,
+                canExecute,
+                isStuck,
+                statusReason,
+                lastRun: recentRuns.length > 0 ? recentRuns[0].createdAt : null,
+                lastRunStatus: recentRuns.length > 0 ? recentRuns[0].status : null,
+            },
+        });
+    }
+    catch (error) {
+        console.error('[AgentsController] Error getting agent status:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get agent status',
+            message: error.message,
+        });
+    }
+};
+exports.getAgentStatus = getAgentStatus;
+// Get crew execution progress for CrewAI agents
+const getCrewProgress = async (req, res) => {
+    try {
+        const { agentId } = req.params;
+        const userId = req.user.id;
+        const agent = await agentService.getAgentById(agentId);
+        if (!agent) {
+            res.status(404).json({
+                success: false,
+                error: 'Agent not found',
+            });
+            return;
+        }
+        // Check if agent belongs to user
+        if (agent.userId.toString() !== userId) {
+            res.status(403).json({
+                success: false,
+                error: 'Access denied',
+            });
+            return;
+        }
+        // Get progress from the agent service
+        const progress = await agentService.getCrewProgress(agentId);
+        res.json({
+            success: true,
+            progress: progress || {
+                steps: [],
+                results: null,
+                hasActiveProgress: false,
+                timestamp: new Date().toISOString()
+            }
+        });
+    }
+    catch (error) {
+        console.error('[AgentsController] Error getting crew progress:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message || 'Failed to get crew progress'
+        });
+    }
+};
+exports.getCrewProgress = getCrewProgress;
+// Reset agent status (for stuck agents)
+const resetAgentStatus = async (req, res) => {
+    try {
+        const { agentId } = req.params;
+        const userId = req.user.id;
+        const agent = await agentService.getAgentById(agentId);
+        if (!agent) {
+            res.status(404).json({
+                success: false,
+                error: 'Agent not found',
+            });
+            return;
+        }
+        // Check if agent belongs to user
+        if (agent.userId.toString() !== userId) {
+            res.status(403).json({
+                success: false,
+                error: 'Access denied',
+            });
+            return;
+        }
+        // Reset agent status to idle
+        await Agent_1.default.findByIdAndUpdate(agentId, {
+            status: 'idle',
+            lastRun: new Date(),
+        });
+        console.log(`[AgentsController] Reset status for agent ${agentId} by user ${userId}`);
+        res.json({
+            success: true,
+            message: 'Agent status reset successfully',
+            data: {
+                agentId,
+                status: 'idle',
+                resetAt: new Date(),
+            },
+        });
+    }
+    catch (error) {
+        console.error('[AgentsController] Error resetting agent status:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to reset agent status',
+            message: error.message,
+        });
+    }
+};
+exports.resetAgentStatus = resetAgentStatus;
 // Debug endpoint to check environment variables
 const getEnvironmentDebug = async (req, res) => {
     try {
