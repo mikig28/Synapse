@@ -454,15 +454,24 @@ def health_check():
         "task_delegation": "✅ Available" if DYNAMIC_CREW_AVAILABLE else "❌ Not Available"
     }
     
-    # Current mode
+    # Current mode and configuration
     current_mode = news_gatherer.mode if news_gatherer else "not_initialized"
+    is_enhanced_mode = current_mode == "enhanced_multi_agent"
+    
+    # Determine scraper type and real news status
+    scraper_type = "enhanced_multi_agent" if is_enhanced_mode else current_mode
+    real_news_enabled = is_enhanced_mode and ENHANCED_CREW_AVAILABLE
     
     return jsonify({
         "status": "healthy",
         "service": "synapse-enhanced-multi-agent-news",
         "timestamp": datetime.now().isoformat(),
         "initialized": news_gatherer is not None,
-        "current_mode": current_mode,
+        # Frontend expects these specific field names
+        "mode": current_mode,
+        "current_mode": current_mode,  # Keep for backward compatibility
+        "real_news_enabled": real_news_enabled,
+        "scraper_type": scraper_type,
         "capabilities": capabilities,
         "environment_variables": env_status,
         "dependencies": dependencies,
