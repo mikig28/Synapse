@@ -45,30 +45,46 @@ class TelegramMonitorTool(BaseTool):
     
     def __init__(self):
         super().__init__()
-        # Direct attribute assignment for CrewAI compatibility
-        self.bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
-        self.bot = None
+        # Use internal attributes for CrewAI compatibility
+        self._bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+        self._bot_instance = None
+        self._initialized = False
         
         # Debug environment variables for Render deployment
         logger.info(f"🔍 Telegram credentials check (Render):")
-        logger.info(f"   BOT_TOKEN: {'✅ Set' if self.bot_token else '❌ Missing'}")
+        logger.info(f"   BOT_TOKEN: {'✅ Set' if self._bot_token else '❌ Missing'}")
         logger.info(f"   Telegram Library: {'✅ Available' if TELEGRAM_AVAILABLE else '❌ Missing'}")
         
         if not TELEGRAM_AVAILABLE:
             logger.warning("❌ Telegram library not available - install python-telegram-bot")
             return
             
-        if self.bot_token:
+        if self._bot_token:
             try:
-                self.bot = Bot(token=self.bot_token)
+                self._bot_instance = Bot(token=self._bot_token)
                 logger.info("✅ Telegram bot initialized successfully")
+                self._initialized = True
             except Exception as e:
                 logger.error(f"❌ Failed to initialize Telegram bot: {e}")
-                self.bot = None
+                self._bot_instance = None
         else:
             logger.warning("❌ TELEGRAM_BOT_TOKEN not provided in Render environment")
             logger.error("   Please check Render dashboard environment variables:")
             logger.error("   - TELEGRAM_BOT_TOKEN should be set")
+        
+    def __setattr__(self, name, value):
+        # Override setattr to ensure compatibility with CrewAI's tool system
+        object.__setattr__(self, name, value)
+            
+    def __getattr__(self, name):
+        # Provide default values for missing attributes to prevent CrewAI errors
+        if name == 'bot_token':
+            return getattr(self, '_bot_token', None)
+        elif name == 'bot':
+            return getattr(self, '_bot_instance', None)
+        else:
+            # Return None for any missing attribute instead of raising AttributeError
+            return None
     
     def _run(self, topics: str = "technology,AI,startups") -> str:
         """Monitor Telegram channels for posts on specified topics"""
@@ -80,14 +96,14 @@ class TelegramMonitorTool(BaseTool):
             # Enhanced diagnostics
             logger.info(f"📊 Telegram Agent Status:")
             logger.info(f"   Library Available: {'✅' if TELEGRAM_AVAILABLE else '❌'}")
-            logger.info(f"   Bot Token Set: {'✅' if self.bot_token else '❌'}")
-            logger.info(f"   Bot Instance: {'✅' if self.bot else '❌'}")
+            logger.info(f"   Bot Token Set: {'✅' if self._bot_token else '❌'}")
+            logger.info(f"   Bot Instance: {'✅' if self._bot_instance else '❌'}")
             
             if not TELEGRAM_AVAILABLE:
                 logger.error("❌ Telegram library not available - check python-telegram-bot installation")
                 return self._generate_simulated_telegram_data(topics_list)
                 
-            if not self.bot:
+            if not self._bot_instance:
                 logger.error("❌ Telegram bot not initialized - check bot token or connection issues")
                 return self._generate_simulated_telegram_data(topics_list)
             
@@ -108,7 +124,7 @@ class TelegramMonitorTool(BaseTool):
             # Test bot connectivity first
             try:
                 logger.info("🧪 Testing bot connectivity...")
-                bot_info = self.bot.get_me()
+                bot_info = self._bot_instance.get_me()
                 logger.info(f"✅ Bot connected successfully: @{bot_info.username} ({bot_info.first_name})")
             except Exception as e:
                 logger.error(f"❌ Bot connectivity test failed: {str(e)}")
@@ -174,7 +190,7 @@ class TelegramMonitorTool(BaseTool):
             
             # Try to get chat info to test access
             try:
-                chat = self.bot.get_chat(channel_username)
+                chat = self._bot_instance.get_chat(channel_username)
                 logger.info(f"✅ Can access chat info for {channel_username}: {chat.title}")
                 logger.warning(f"   But cannot read message history due to bot limitations")
             except Exception as e:

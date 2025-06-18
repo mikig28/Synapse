@@ -41,12 +41,32 @@ class RedditScraperTool(BaseTool):
         # Initialize with defensive attribute setting
         self._init_attributes()
         
+    def __setattr__(self, name, value):
+        # Override setattr to ensure compatibility with CrewAI's tool system
+        if hasattr(self, '_initialized') and self._initialized:
+            object.__setattr__(self, name, value)
+        else:
+            object.__setattr__(self, name, value)
+            
+    def __getattr__(self, name):
+        # Provide default values for missing attributes to prevent CrewAI errors
+        if name == 'reddit':
+            return getattr(self, '_reddit_instance', None)
+        elif name == 'is_authenticated':
+            return getattr(self, '_is_authenticated', False)
+        elif name == '_credentials_available':
+            return getattr(self, '_creds_available', False)
+        else:
+            # Return None for any missing attribute instead of raising AttributeError
+            return None
+        
     def _init_attributes(self):
         """Initialize attributes with defensive programming"""
-        # Use direct assignment instead of setattr for CrewAI compatibility
-        self.reddit = None
-        self.is_authenticated = False
-        self._credentials_available = False
+        # Use internal names to avoid CrewAI conflicts
+        self._reddit_instance = None
+        self._is_authenticated = False
+        self._creds_available = False
+        self._initialized = False
         
         # Initialize Reddit API client with proper error handling
         reddit_client_id = os.getenv('REDDIT_CLIENT_ID')
@@ -64,10 +84,10 @@ class RedditScraperTool(BaseTool):
             logger.error("   Please check Render dashboard environment variables:")
             logger.error("   - REDDIT_CLIENT_ID should be set")
             logger.error("   - REDDIT_CLIENT_SECRET should be set")
-            self._credentials_available = False
+            self._creds_available = False
             return
         
-        self._credentials_available = True
+        self._creds_available = True
         
         try:
             logger.info("🔄 Attempting Reddit API connection...")
@@ -104,25 +124,26 @@ class RedditScraperTool(BaseTool):
                 logger.error(f"❌ Reddit API test failed: {str(test_error)}")
                 raise test_error
             
-            # Use direct assignment for CrewAI compatibility
-            self.reddit = reddit_instance
-            self.is_authenticated = True
+            # Use internal assignment for CrewAI compatibility
+            self._reddit_instance = reddit_instance
+            self._is_authenticated = True
+            self._initialized = True
             logger.info("✅ Reddit API connection and authentication successful")
         except Exception as e:
             logger.error(f"❌ Reddit API connection failed: {str(e)}")
             logger.error(f"   Exception type: {type(e).__name__}")
             logger.error(f"   Error details: {str(e)}")
-            self.reddit = None
-            self.is_authenticated = False
+            self._reddit_instance = None
+            self._is_authenticated = False
     
     def _run(self, topics: str = "technology,AI,startups") -> str:
         """Scrape Reddit for posts on specified topics"""
         
         try:
-            # Direct attribute access for CrewAI compatibility
-            reddit_instance = self.reddit
-            is_authenticated = self.is_authenticated
-            credentials_available = self._credentials_available
+            # Use internal attributes for CrewAI compatibility
+            reddit_instance = self._reddit_instance
+            is_authenticated = self._is_authenticated
+            credentials_available = self._creds_available
             
             logger.info(f"🔍 Reddit scraper status check:")
             logger.info(f"   Credentials available: {credentials_available}")

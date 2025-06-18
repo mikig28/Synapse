@@ -1344,10 +1344,45 @@ class EnhancedNewsResearchCrew:
                             logger.info(f"📊 Alternative feed parsed: {len(feed.entries)} entries found")
                             
                             relevant_entries = 0
-                            for entry in feed.entries[:2]:
-                                if topic.lower() in entry.get('title', '').lower() or topic.lower() in entry.get('summary', '').lower():
+                            for entry in feed.entries[:5]:  # Check more entries
+                                title = entry.get('title', '').lower()
+                                summary = entry.get('summary', '').lower()
+                                
+                                # DEBUG: Log what we're checking
+                                logger.info(f"   🔍 Checking: {entry.get('title', 'No title')[:60]}")
+                                
+                                # Much more lenient matching
+                                is_relevant = False
+                                
+                                # Direct topic match
+                                if topic.lower() in title or topic.lower() in summary:
+                                    is_relevant = True
+                                    logger.info(f"   ✅ DIRECT match for '{topic}': {entry.get('title', '')[:50]}")
+                                
+                                # Expanded keyword matching for each topic
+                                elif topic.lower() == 'news' and any(kw in title or kw in summary for kw in ['report', 'update', 'analysis', 'breaking', 'latest', 'announce']):
+                                    is_relevant = True
+                                    logger.info(f"   ✅ NEWS keywords match: {entry.get('title', '')[:50]}")
+                                    
+                                elif topic.lower() == 'economy' and any(kw in title or kw in summary for kw in ['business', 'market', 'finance', 'economic', 'industry', 'company', 'revenue', 'profit']):
+                                    is_relevant = True
+                                    logger.info(f"   ✅ ECONOMY keywords match: {entry.get('title', '')[:50]}")
+                                    
+                                elif topic.lower() == 'sport' and any(kw in title or kw in summary for kw in ['sport', 'team', 'player', 'game', 'competition', 'athlete']):
+                                    is_relevant = True
+                                    logger.info(f"   ✅ SPORT keywords match: {entry.get('title', '')[:50]}")
+                                    
+                                elif topic.lower() in ['conflict', 'war'] and any(kw in title or kw in summary for kw in ['conflict', 'war', 'military', 'defense', 'security', 'attack', 'battle', 'dispute']):
+                                    is_relevant = True
+                                    logger.info(f"   ✅ CONFLICT/WAR keywords match: {entry.get('title', '')[:50]}")
+                                
+                                # Fallback: if this is a tech/business feed and we haven't found anything, include ANY article
+                                elif relevant_entries == 0 and len(posts) == 0:
+                                    is_relevant = True
+                                    logger.info(f"   ✅ FALLBACK match (any content): {entry.get('title', '')[:50]}")
+                                
+                                if is_relevant:
                                     relevant_entries += 1
-                                    logger.info(f"   ✅ Relevant entry found: {entry.get('title', 'No title')[:50]}...")
                                     posts.append({
                                         "id": f"professional_{len(posts)}_{int(datetime.now().timestamp())}",
                                         "title": entry.get('title', f"Professional insights on {topic}"),
