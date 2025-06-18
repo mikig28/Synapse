@@ -1397,13 +1397,14 @@ class EnhancedNewsResearchCrew:
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
             
-            # Broader professional/business news sources
+            # Broader professional/business news sources + world news for Israel topics
             broader_sources = [
-                "https://feeds.reuters.com/reuters/businessNews",
-                "https://feeds.bloomberg.com/markets/news.rss", 
+                "https://feeds.reuters.com/Reuters/worldNews",  # World news instead of business for Israel
+                "https://rss.cnn.com/rss/edition.rss",  # CNN main feed 
+                "https://feeds.bbci.co.uk/news/world/rss.xml",  # BBC World News
                 "https://www.cnbc.com/id/10001147/device/rss/rss.html",
                 "https://feeds.feedburner.com/businessinsider",
-                "https://feeds.feedburner.com/time/business",
+                "https://feeds.npr.org/1001/rss.xml",  # NPR News
                 "https://rss.cnn.com/rss/money_latest.rss"
             ]
             
@@ -1424,14 +1425,34 @@ class EnhancedNewsResearchCrew:
                             title = entry.get('title', '').lower()
                             summary = entry.get('summary', '').lower()
                             
-                            # More lenient topic matching for broader sources
-                            is_relevant = any(
-                                topic.lower() in title or 
-                                topic.lower() in summary or
-                                any(keyword in title or keyword in summary 
-                                    for keyword in self._get_broader_topic_keywords(topic))
-                                for topic in topics
-                            )
+                            # VERY lenient topic matching - include almost everything for Israel
+                            is_relevant = False
+                            
+                            # Check direct topic match
+                            for topic in topics:
+                                topic_lower = topic.lower()
+                                if (topic_lower in title or topic_lower in summary):
+                                    is_relevant = True
+                                    break
+                                    
+                                # Check broader keywords
+                                broader_keywords = self._get_broader_topic_keywords(topic)
+                                if any(keyword in title or keyword in summary for keyword in broader_keywords):
+                                    is_relevant = True
+                                    break
+                            
+                            # For news topics like "Israel", be even more lenient
+                            if not is_relevant and any(topic.lower() in ['israel', 'news', 'politics', 'world'] for topic in topics):
+                                # Include any international/political/conflict content
+                                political_keywords = ['war', 'conflict', 'government', 'election', 'international', 'global', 'world', 'nation', 'country', 'military', 'peace', 'diplomatic']
+                                if any(keyword in title or keyword in summary for keyword in political_keywords):
+                                    is_relevant = True
+                            
+                            # Fallback: if still no relevant content found, include business/tech content anyway
+                            if not is_relevant and len(posts) == 0:
+                                tech_business_keywords = ['business', 'economy', 'market', 'technology', 'company', 'industry']
+                                if any(keyword in title or keyword in summary for keyword in tech_business_keywords):
+                                    is_relevant = True
                             
                             if is_relevant or len(topics) == 0:  # Include all if no specific topics
                                 relevant_entries += 1

@@ -45,6 +45,7 @@ class TelegramMonitorTool(BaseTool):
     
     def __init__(self):
         super().__init__()
+        # Direct attribute assignment for CrewAI compatibility
         self.bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
         self.bot = None
         
