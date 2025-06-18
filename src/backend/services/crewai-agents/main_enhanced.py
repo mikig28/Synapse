@@ -795,6 +795,83 @@ def test_simple_crew():
             "error": str(e)
         }), 500
 
+@app.route('/debug-agents', methods=['POST'])
+def debug_agents():
+    """Debug individual social media agents directly"""
+    try:
+        data = request.get_json() if request.is_json else {}
+        topics = data.get('topics', ['Israel'])
+        
+        debug_results = {}
+        
+        # Test Reddit agent directly
+        logger.info("🔍 Testing Reddit agent directly...")
+        try:
+            from agents.reddit_agent import RedditScraperTool
+            reddit_tool = RedditScraperTool()
+            reddit_result = reddit_tool._run(','.join(topics))
+            debug_results['reddit'] = {
+                'status': 'tested',
+                'result_length': len(reddit_result),
+                'result_preview': reddit_result[:500] + '...' if len(reddit_result) > 500 else reddit_result
+            }
+        except Exception as e:
+            debug_results['reddit'] = {
+                'status': 'failed',
+                'error': str(e),
+                'error_type': type(e).__name__
+            }
+        
+        # Test Telegram agent directly  
+        logger.info("🔍 Testing Telegram agent directly...")
+        try:
+            from agents.telegram_agent import TelegramMonitorTool
+            telegram_tool = TelegramMonitorTool()
+            telegram_result = telegram_tool._run(','.join(topics))
+            debug_results['telegram'] = {
+                'status': 'tested',
+                'result_length': len(telegram_result),
+                'result_preview': telegram_result[:500] + '...' if len(telegram_result) > 500 else telegram_result
+            }
+        except Exception as e:
+            debug_results['telegram'] = {
+                'status': 'failed',
+                'error': str(e),
+                'error_type': type(e).__name__
+            }
+        
+        # Test LinkedIn scraping directly
+        logger.info("🔍 Testing LinkedIn scraping directly...")
+        try:
+            from agents.enhanced_news_research_crew import EnhancedNewsResearchCrew
+            crew = EnhancedNewsResearchCrew()
+            linkedin_result = crew._scrape_real_linkedin_posts(topics)
+            debug_results['linkedin'] = {
+                'status': 'tested',
+                'posts_found': len(linkedin_result),
+                'posts_preview': linkedin_result[:2] if linkedin_result else []
+            }
+        except Exception as e:
+            debug_results['linkedin'] = {
+                'status': 'failed',
+                'error': str(e),
+                'error_type': type(e).__name__
+            }
+        
+        return jsonify({
+            "success": True,
+            "debug_results": debug_results,
+            "topics_tested": topics,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in debug-agents endpoint: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     logger.info(f"🚀 Starting ENHANCED CrewAI Multi-Agent service on port {port}")

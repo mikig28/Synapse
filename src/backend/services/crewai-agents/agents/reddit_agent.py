@@ -139,7 +139,11 @@ class RedditScraperTool(BaseTool):
                 'ai': ['artificial', 'MachineLearning', 'deeplearning', 'singularity', 'OpenAI', 'ChatGPT'],
                 'tech': ['technology', 'tech', 'gadgets', 'programming', 'coding', 'TechNews'],
                 'vibe': ['programming', 'coding', 'webdev', 'learnprogramming'],
-                'n8n': ['automation', 'nocode', 'workflow', 'productivity', 'selfhosted']
+                'n8n': ['automation', 'nocode', 'workflow', 'productivity', 'selfhosted'],
+                'israel': ['Israel', 'worldnews', 'geopolitics', 'news', 'MiddleEastNews', 'politics'],
+                'Israel': ['Israel', 'worldnews', 'geopolitics', 'news', 'MiddleEastNews', 'politics'],
+                'news': ['worldnews', 'news', 'politics', 'geopolitics', 'intlnews'],
+                'politics': ['politics', 'worldnews', 'geopolitics', 'news']
             }
             
             # Collect subreddits based on topics
