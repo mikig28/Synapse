@@ -11,6 +11,8 @@ import { AgentLogViewer } from '@/components/AgentLogViewer';
 import AgentActivityDashboard from '@/components/AgentActivityDashboard';
 import DebugPanel from '@/components/DebugPanel';
 import { CrewExecutionDashboard } from '@/components/CrewExecutionDashboard';
+import { DashboardHealthCheck } from '@/components/DashboardHealthCheck';
+import { DashboardEmptyState } from '@/components/DashboardEmptyState';
 import { useNavigate } from 'react-router-dom';
 import {
   Bot,
@@ -51,6 +53,7 @@ const AgentsPage: React.FC = () => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [schedulerStatus, setSchedulerStatus] = useState<{ isRunning: boolean; scheduledAgentsCount: number } | null>(null);
+  const [isDashboardHealthy, setIsDashboardHealthy] = useState(true);
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -404,6 +407,9 @@ const AgentsPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 relative overflow-hidden">
       <div className="relative z-10 container mx-auto p-4 md:p-8 space-y-6">
+        {/* Health Check - Always visible for system monitoring */}
+        <DashboardHealthCheck onHealthChange={setIsDashboardHealthy} />
+        
         {/* Header */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div className="flex items-center gap-3">
@@ -413,9 +419,15 @@ const AgentsPage: React.FC = () => {
             <div>
               <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-primary">
                 Multi AI Agents
+                {!isDashboardHealthy && (
+                  <span className="text-sm text-red-500 font-normal ml-2">• System Issues</span>
+                )}
               </h1>
               <p className="text-muted-foreground">
                 Automated content curation agents working 24/7
+                {!isDashboardHealthy && (
+                  <span className="text-red-500 ml-2">• Check system health above</span>
+                )}
               </p>
             </div>
           </div>
@@ -861,20 +873,10 @@ const AgentsPage: React.FC = () => {
           ))}
         </div>
 
-        {(agents || []).length === 0 && (
-          <Card className="text-center py-12">
-            <CardContent>
-              <Bot className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <h3 className="text-xl font-semibold mb-2">No Agents Yet</h3>
-              <p className="text-muted-foreground mb-6">
-                Create your first AI agent to start automating content curation.
-              </p>
-              <Button onClick={() => setShowCreateDialog(true)}>
-                <Plus className="w-5 h-5 mr-2" />
-                Create Your First Agent
-              </Button>
-            </CardContent>
-          </Card>
+        {(agents || []).length === 0 && !loading && (
+          <DashboardEmptyState 
+            onCreateAgent={() => setShowCreateDialog(true)}
+          />
         )}
 
         {/* Agent Activity Dashboard */}
