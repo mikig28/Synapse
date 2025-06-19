@@ -37,29 +37,52 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-class BaseTool:
-    """Base class for all custom tools"""
+from crewai.tools import BaseTool as CrewAIBaseTool
+from pydantic import BaseModel, Field
+from typing import Type
+
+class BaseTool(CrewAIBaseTool):
+    """Base class for all custom tools compatible with CrewAI"""
     
-    def __init__(self, name: str, description: str):
-        self.name = name
-        self.description = description
+    def __init__(self, name: str = None, description: str = None):
+        if name:
+            self.name = name
+        if description:
+            self.description = description
+        super().__init__()
+    
+    def _run(self, *args, **kwargs):
+        """Execute the tool - to be implemented by subclasses"""
+        return self.execute(*args, **kwargs)
     
     def execute(self, *args, **kwargs):
         """Execute the tool - to be implemented by subclasses"""
         raise NotImplementedError
 
+class WebSearchToolInput(BaseModel):
+    query: str = Field(..., description="The search query to execute")
+    max_results: int = Field(default=10, description="Maximum number of results to return")
+
 class WebSearchTool(BaseTool):
     """Custom web search tool using multiple search engines"""
     
+    name: str = "web_search"
+    description: str = "Search the web for information using multiple search engines and APIs. Provide a query and get relevant articles and information."
+    args_schema: Type[BaseModel] = WebSearchToolInput
+    
     def __init__(self):
-        super().__init__(
-            name="web_search",
-            description="Search the web for information using multiple search engines and APIs"
-        )
-        self.session = requests.Session()
-        self.session.headers.update({
+        super().__init__()
+        # Initialize session after super().__init__()
+        session = requests.Session()
+        session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         })
+        object.__setattr__(self, 'session', session)
+    
+    def _run(self, query: str, max_results: int = 10) -> str:
+        """Execute web search - returns JSON string for CrewAI compatibility"""
+        result = self.execute(query, max_results)
+        return json.dumps(result, indent=2)
     
     def execute(self, query: str, max_results: int = 10) -> Dict[str, Any]:
         """Execute web search using available APIs and sources"""
@@ -212,18 +235,30 @@ class WebSearchTool(BaseTool):
         
         return results
 
+class WebScrapeToolInput(BaseModel):
+    url: str = Field(..., description="The URL to scrape content from")
+    extract_type: str = Field(default="text", description="Type of content to extract: 'text', 'links', or 'metadata'")
+
 class WebScrapeTool(BaseTool):
     """Custom web scraping tool"""
     
+    name: str = "web_scrape"
+    description: str = "Scrape content from web pages with intelligent content extraction. Provide a URL and extraction type."
+    args_schema: Type[BaseModel] = WebScrapeToolInput
+    
     def __init__(self):
-        super().__init__(
-            name="web_scrape",
-            description="Scrape content from web pages with intelligent content extraction"
-        )
-        self.session = requests.Session()
-        self.session.headers.update({
+        super().__init__()
+        # Initialize session after super().__init__()
+        session = requests.Session()
+        session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         })
+        object.__setattr__(self, 'session', session)
+    
+    def _run(self, url: str, extract_type: str = "text") -> str:
+        """Execute web scraping - returns JSON string for CrewAI compatibility"""
+        result = self.execute(url, extract_type)
+        return json.dumps(result, indent=2)
     
     def execute(self, url: str, extract_type: str = "text") -> Dict[str, Any]:
         """Scrape content from a URL"""
@@ -343,29 +378,41 @@ class WebScrapeTool(BaseTool):
         
         return metadata
 
+class FirecrawlScrapeToolInput(BaseModel):
+    url: str = Field(..., description="The URL to scrape content from")
+    extract_options: Dict[str, Any] = Field(default={}, description="Extraction options for Firecrawl")
+
 class FirecrawlScrapeTool(BaseTool):
     """Advanced web scraping tool using Firecrawl for better content extraction"""
     
+    name: str = "firecrawl_scrape"
+    description: str = "Advanced web scraping with Firecrawl for clean, structured content extraction"
+    args_schema: Type[BaseModel] = FirecrawlScrapeToolInput
+    
     def __init__(self):
-        super().__init__(
-            name="firecrawl_scrape",
-            description="Advanced web scraping with Firecrawl for clean, structured content extraction"
-        )
-        self.api_key = os.getenv('FIRECRAWL_API_KEY')
-        self.firecrawl = None
+        super().__init__()
+        # Use object.__setattr__ to avoid Pydantic validation issues
+        object.__setattr__(self, 'api_key', os.getenv('FIRECRAWL_API_KEY'))
+        object.__setattr__(self, 'firecrawl', None)
         
         if FIRECRAWL_AVAILABLE and self.api_key:
             try:
-                self.firecrawl = FirecrawlApp(api_key=self.api_key)
+                firecrawl_app = FirecrawlApp(api_key=self.api_key)
+                object.__setattr__(self, 'firecrawl', firecrawl_app)
                 logger.info("✅ Firecrawl initialized successfully")
             except Exception as e:
                 logger.error(f"❌ Firecrawl initialization failed: {str(e)}")
-                self.firecrawl = None
+                object.__setattr__(self, 'firecrawl', None)
         else:
             if not FIRECRAWL_AVAILABLE:
                 logger.warning("⚠️ Firecrawl package not installed. Install with: pip install firecrawl-py")
             if not self.api_key:
                 logger.warning("⚠️ FIRECRAWL_API_KEY environment variable not set")
+    
+    def _run(self, url: str, extract_options: Dict[str, Any] = None) -> str:
+        """Execute Firecrawl scraping - returns JSON string for CrewAI compatibility"""
+        result = self.execute(url, extract_options)
+        return json.dumps(result, indent=2)
     
     def execute(self, url: str, extract_options: Dict[str, Any] = None) -> Dict[str, Any]:
         """Scrape content using Firecrawl with advanced options"""
@@ -547,14 +594,24 @@ class FirecrawlScrapeTool(BaseTool):
                 "url": url
             }
 
+class NewsAnalysisToolInput(BaseModel):
+    articles: List[Dict[str, Any]] = Field(..., description="List of articles to analyze")
+    analysis_type: str = Field(default="trends", description="Type of analysis: 'trends', 'sentiment', 'keywords', or 'comprehensive'")
+
 class NewsAnalysisTool(BaseTool):
     """Tool for analyzing news content and trends"""
     
+    name: str = "news_analysis"
+    description: str = "Analyze news content for trends, sentiment, and key insights. Provide articles and analysis type."
+    args_schema: Type[BaseModel] = NewsAnalysisToolInput
+    
     def __init__(self):
-        super().__init__(
-            name="news_analysis",
-            description="Analyze news content for trends, sentiment, and key insights"
-        )
+        super().__init__()
+    
+    def _run(self, articles: List[Dict[str, Any]], analysis_type: str = "trends") -> str:
+        """Execute news analysis - returns JSON string for CrewAI compatibility"""
+        result = self.execute(articles, analysis_type)
+        return json.dumps(result, indent=2)
     
     def execute(self, articles: List[Dict[str, Any]], analysis_type: str = "trends") -> Dict[str, Any]:
         """Analyze news articles"""
@@ -711,18 +768,30 @@ class NewsAnalysisTool(BaseTool):
             "timestamp": datetime.now().isoformat()
         }
 
+class URLValidatorToolInput(BaseModel):
+    urls: List[str] = Field(..., description="List of URLs to validate")
+    check_accessibility: bool = Field(default=True, description="Whether to check if URLs are accessible")
+
 class URLValidatorTool(BaseTool):
     """Tool for validating and cleaning URLs"""
     
+    name: str = "url_validator"
+    description: str = "Validate, clean, and check accessibility of URLs"
+    args_schema: Type[BaseModel] = URLValidatorToolInput
+    
     def __init__(self):
-        super().__init__(
-            name="url_validator",
-            description="Validate, clean, and check accessibility of URLs"
-        )
-        self.session = requests.Session()
-        self.session.headers.update({
+        super().__init__()
+        # Initialize session after super().__init__()
+        session = requests.Session()
+        session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         })
+        object.__setattr__(self, 'session', session)
+    
+    def _run(self, urls: List[str], check_accessibility: bool = True) -> str:
+        """Execute URL validation - returns JSON string for CrewAI compatibility"""
+        result = self.execute(urls, check_accessibility)
+        return json.dumps(result, indent=2)
     
     def execute(self, urls: List[str], check_accessibility: bool = True) -> Dict[str, Any]:
         """Validate and clean a list of URLs"""

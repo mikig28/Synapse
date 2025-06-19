@@ -739,47 +739,80 @@ class EnhancedNewsResearchCrew:
         self.agents = self._create_agents()
         
     def _create_agents(self) -> Dict[str, Agent]:
-        """Create specialized agents"""
+        """Create specialized agents with proper tools according to CrewAI best practices"""
         
         # Get current date context
         current_date = datetime.now().strftime('%Y-%m-%d')
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
         
-        # News Research Agent
+        # Initialize tools for agents
+        tools = []
+        
+        # Add available custom tools
+        if CUSTOM_TOOLS_AVAILABLE:
+            try:
+                from custom_tools import WebSearchTool, WebScrapeTool, NewsAnalysisTool, URLValidatorTool
+                web_search_tool = WebSearchTool()
+                web_scrape_tool = WebScrapeTool()
+                news_analysis_tool = NewsAnalysisTool()
+                url_validator_tool = URLValidatorTool()
+                tools = [web_search_tool, web_scrape_tool, news_analysis_tool, url_validator_tool]
+                logger.info("✅ Custom tools loaded for agents")
+            except ImportError as e:
+                logger.warning(f"⚠️ Custom tools not available: {str(e)}")
+        
+        # News Research Agent with proper tools
         news_researcher = Agent(
             role='News Research Specialist',
             goal=f'Find and validate high-quality, RECENT news articles from multiple sources. Current date: {current_date}. Focus on news from the last 24-48 hours.',
             backstory=f'You are an expert at finding relevant, high-quality news articles from various sources. Today is {current_time}. You validate URLs, check content quality, and ensure information accuracy. You prioritize recent news and current events, filtering out outdated content.',
+            tools=tools,  # Assign tools to agent
             verbose=True,
-            allow_delegation=False
+            allow_delegation=True,  # Enable delegation for better collaboration
+            max_iter=3,  # Limit iterations to prevent infinite loops
+            memory=True  # Enable memory for better context
         )
         
-        # Content Analyst Agent
+        # Content Analyst Agent with specific tools
+        analysis_tools = [tool for tool in tools if hasattr(tool, 'name') and 'analysis' in tool.name.lower()] if tools else []
         content_analyst = Agent(
             role='Content Quality Analyst',
             goal=f'Analyze and validate content quality, relevance, and authenticity for current news. Today is {current_date}. Prioritize recent, timely content.',
             backstory=f'You are a content quality expert who evaluates articles for relevance, accuracy, and overall quality. Current time: {current_time}. You filter out low-quality content, spam, and outdated news. You prefer articles published within the last 24-48 hours.',
+            tools=analysis_tools + [tools[0]] if tools else [],  # Include web search for verification
             verbose=True,
-            allow_delegation=False
+            allow_delegation=True,
+            max_iter=3,
+            memory=True
         )
         
-        # URL Validation Agent
+        # URL Validation Agent with URL-specific tools
+        url_tools = [tool for tool in tools if hasattr(tool, 'name') and ('url' in tool.name.lower() or 'scrape' in tool.name.lower())] if tools else []
         url_validator_agent = Agent(
             role='URL Validation Specialist',
             goal='Validate and clean URLs to ensure they are accessible and safe',
             backstory=f'You are a technical specialist focused on URL validation, cleaning, and accessibility checking. Current date: {current_date}. You ensure all links work properly and lead to current, active content.',
+            tools=url_tools,
             verbose=True,
-            allow_delegation=False
+            allow_delegation=False,  # URL validation is specialized task
+            max_iter=2,
+            memory=True
         )
         
-        # Trend Analysis Agent
+        # Trend Analysis Agent with analysis and search tools
+        trend_tools = [tool for tool in tools if hasattr(tool, 'name') and ('search' in tool.name.lower() or 'analysis' in tool.name.lower())] if tools else []
         trend_analyst = Agent(
             role='Trend Analysis Expert',
             goal=f'Identify emerging trends and patterns in CURRENT news content. Focus on trends happening now and recently. Today is {current_date}.',
             backstory=f'You are an expert at identifying trends, patterns, and emerging topics from current news content. Today is {current_time}. You provide insights on what topics are gaining momentum RIGHT NOW, focusing on recent developments and current events.',
+            tools=trend_tools,
             verbose=True,
-            allow_delegation=False
+            allow_delegation=True,
+            max_iter=3,
+            memory=True
         )
+        
+        logger.info(f"✅ Created 4 specialized agents with {len(tools)} tools each")
         
         return {
             'news_researcher': news_researcher,
@@ -845,43 +878,61 @@ class EnhancedNewsResearchCrew:
             update_progress(1, 'in_progress', f"Scraping recent news from {len([k for k, v in sources.items() if v])} sources")
             
             scraping_task = Task(
-                description=f"Scrape high-quality, RECENT news articles for topics: {', '.join(topics)}. "
+                description=f"Use your web search and scraping tools to find high-quality, RECENT news articles for topics: {', '.join(topics)}. "
                            f"Current date: {current_date}. Focus on articles published within the last 24-48 hours. "
                            f"Prioritize current events and breaking news. Filter out outdated content (older than 3 days). "
                            f"Search sources: {', '.join([k for k, v in sources.items() if v])}. "
+                           f"Use your URL validation tools to ensure all links are accessible. "
                            f"Provide detailed progress updates as you work through each source.",
                 agent=self.agents['news_researcher'],
-                expected_output="A list of validated and cleaned RECENT news articles as dictionaries, related to the topics and published within the last 48 hours."
+                expected_output="A JSON list of validated and cleaned RECENT news articles with the following structure: [{{'title': 'Article Title', 'url': 'https://...', 'content': 'Article content...', 'published_date': 'ISO date', 'source': 'Source name', 'quality_score': 0.8}}]",
+                tools=self.agents['news_researcher'].tools if hasattr(self.agents['news_researcher'], 'tools') else [],
+                async_execution=False
             )
 
             # Task 2: Analyze content quality, relevance, and recency
             analysis_task = Task(
-                description=f"Analyze the provided articles for quality, relevance, authenticity, and RECENCY. "
+                description=f"Using your content analysis tools, analyze the provided articles for quality, relevance, authenticity, and RECENCY. "
                            f"Current time: {current_time}. Filter out any low-quality content, ads, spam, or OUTDATED articles. "
                            f"Prioritize articles published within the last 24-48 hours. Assign quality and recency scores to each article. "
+                           f"Use your analysis tools to verify information accuracy and source credibility. "
                            f"Provide detailed analysis progress updates as you evaluate each article.",
                 agent=self.agents['content_analyst'],
                 context=[scraping_task],
-                expected_output="A curated list of high-quality, RECENT articles with analysis, quality scores, and publication timestamps."
+                expected_output="A JSON list of curated, high-quality, RECENT articles with enhanced metadata: [{{'title': 'Title', 'url': 'URL', 'quality_score': 0.9, 'relevance_score': 0.8, 'recency_score': 0.95, 'analysis_notes': 'High quality source, recent content', 'published_date': 'ISO date'}}]",
+                async_execution=False
             )
 
             # Task 3: Identify CURRENT trends from recent news
             trending_task = Task(
-                description=f"From the curated list of recent articles, identify CURRENT emerging trends, breaking news, and developing patterns. "
+                description=f"Using your trend analysis and search tools, analyze the curated articles to identify CURRENT emerging trends, breaking news, and developing patterns. "
                            f"Today is {current_date}. Focus on trends happening NOW and in the last 24-48 hours. "
+                           f"Use your search capabilities to cross-reference trending topics across multiple sources. "
                            f"Summarize the most important current trends and breaking developments. "
                            f"Provide progress updates as you analyze trending patterns and generate insights.",
                 agent=self.agents['trend_analyst'],
                 context=[analysis_task],
-                expected_output="A report summarizing the top 3-5 CURRENT news trends with supporting recent articles and timestamps."
+                expected_output="A JSON object with trend analysis: {{'top_trends': [{{topic: 'AI Development', 'mentions': 15, 'trend_score': 0.9, 'supporting_articles': ['url1', 'url2']}}], 'summary': 'Current trend analysis summary', 'trending_keywords': ['AI', 'technology'], 'timestamp': 'ISO date'}}",
+                async_execution=False
             )
             
-            # Create and run the crew with progress tracking
+            # Create and run the crew with enhanced features according to CrewAI best practices
             crew = Crew(
                 agents=list(self.agents.values()),
                 tasks=[scraping_task, analysis_task, trending_task],
                 process=Process.sequential,
-                verbose=True
+                verbose=True,
+                memory=True,  # Enable memory for better context retention
+                full_output=True,  # Get full detailed output
+                step_callback=lambda step: logger.info(f"🔄 Step completed: {step.description if hasattr(step, 'description') else 'Unknown step'}"),
+                task_callback=lambda task: logger.info(f"✅ Task completed: {task.description if hasattr(task, 'description') else 'Unknown task'}"),
+                planning=True,  # Enable planning for better task coordination
+                embedder={
+                    "provider": "openai",
+                    "config": {
+                        "model": "text-embedding-3-small"
+                    }
+                } if os.getenv('OPENAI_API_KEY') else None
             )
             
             logger.info("🚀 Crew kickoff initiated - agents are now working...")
