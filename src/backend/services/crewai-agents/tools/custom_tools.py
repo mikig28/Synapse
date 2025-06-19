@@ -7,10 +7,23 @@ import os
 import requests
 import json
 import re
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, TYPE_CHECKING
 from datetime import datetime
 from urllib.parse import urlparse, urljoin
-from bs4 import BeautifulSoup
+
+# Type checking imports
+if TYPE_CHECKING:
+    from bs4 import BeautifulSoup as BeautifulSoupType
+else:
+    BeautifulSoupType = Any
+
+try:
+    from bs4 import BeautifulSoup
+    BS4_AVAILABLE = True
+except ImportError:
+    BS4_AVAILABLE = False
+    BeautifulSoup = None
+    
 import feedparser
 import logging
 
@@ -267,7 +280,7 @@ class WebScrapeTool(BaseTool):
                 "url": url
             }
     
-    def _extract_text_content(self, soup: BeautifulSoup) -> str:
+    def _extract_text_content(self, soup: BeautifulSoupType) -> str:
         """Extract clean text content"""
         # Try to find main content areas
         main_content = soup.find('main') or soup.find('article') or soup.find('div', class_=re.compile(r'content|main|article'))
@@ -284,7 +297,7 @@ class WebScrapeTool(BaseTool):
         
         return text[:5000]  # Limit to 5000 characters
     
-    def _extract_links(self, soup: BeautifulSoup, base_url: str) -> List[Dict[str, str]]:
+    def _extract_links(self, soup: BeautifulSoupType, base_url: str) -> List[Dict[str, str]]:
         """Extract all links from the page"""
         links = []
         for link in soup.find_all('a', href=True):
@@ -303,7 +316,7 @@ class WebScrapeTool(BaseTool):
         
         return links[:50]  # Limit to 50 links
     
-    def _extract_metadata(self, soup: BeautifulSoup) -> Dict[str, str]:
+    def _extract_metadata(self, soup: BeautifulSoupType) -> Dict[str, str]:
         """Extract page metadata"""
         metadata = {}
         

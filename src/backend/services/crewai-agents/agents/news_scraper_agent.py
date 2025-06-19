@@ -1,9 +1,22 @@
 import os
 import json
 import requests
-from typing import List, Dict, Any
+from typing import List, Dict, Any, TYPE_CHECKING
 from datetime import datetime, timedelta
-from bs4 import BeautifulSoup
+
+# Type checking imports
+if TYPE_CHECKING:
+    from bs4 import BeautifulSoup as BeautifulSoupType
+else:
+    BeautifulSoupType = Any
+
+try:
+    from bs4 import BeautifulSoup
+    BS4_AVAILABLE = True
+except ImportError:
+    BS4_AVAILABLE = False
+    BeautifulSoup = None
+    
 import feedparser
 from newspaper import Article
 from crewai import Agent
@@ -211,7 +224,7 @@ class NewsScraperTool(BaseTool):
         
         return articles
     
-    def _extract_article_links(self, soup: BeautifulSoup, source_info: Dict[str, str]) -> List[str]:
+    def _extract_article_links(self, soup: BeautifulSoupType, source_info: Dict[str, str]) -> List[str]:
         """Extract article links from website homepage"""
         
         links = []

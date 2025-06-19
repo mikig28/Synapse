@@ -1,8 +1,15 @@
 import os
 import json
 import asyncio
-from typing import List, Dict, Any
+from typing import List, Dict, Any, TYPE_CHECKING
 from datetime import datetime, timedelta
+
+# Type checking imports
+if TYPE_CHECKING:
+    from bs4 import BeautifulSoup as BeautifulSoupType
+else:
+    BeautifulSoupType = Any
+
 try:
     from telegram import Bot
     from telegram.error import TelegramError
@@ -434,7 +441,7 @@ class TelegramMonitorTool(BaseTool):
             
         return messages
     
-    def _parse_telegram_html(self, soup: BeautifulSoup, channel_username: str, topics: List[str]) -> List[Dict[str, Any]]:
+    def _parse_telegram_html(self, soup: BeautifulSoupType, channel_username: str, topics: List[str]) -> List[Dict[str, Any]]:
         """Parse Telegram HTML content to extract messages"""
         messages = []
         
