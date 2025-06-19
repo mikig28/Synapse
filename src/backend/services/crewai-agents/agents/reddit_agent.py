@@ -236,97 +236,97 @@ class RedditScraperTool(BaseTool):
                 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0'
             ]
             
-            # Direct JSON endpoints - expanded with better coverage including sports
-            subreddit_endpoints = {
-                'technology': ['https://www.reddit.com/r/technology/hot.json?limit=15', 'https://www.reddit.com/r/tech/hot.json?limit=10'],
-                'programming': ['https://www.reddit.com/r/programming/hot.json?limit=15', 'https://www.reddit.com/r/coding/hot.json?limit=10'],
-                'artificial': ['https://www.reddit.com/r/artificial/hot.json?limit=15', 'https://www.reddit.com/r/MachineLearning/hot.json?limit=10'],
-                'MachineLearning': ['https://www.reddit.com/r/MachineLearning/hot.json?limit=15', 'https://www.reddit.com/r/artificial/hot.json?limit=10'],
-                'startups': ['https://www.reddit.com/r/startups/hot.json?limit=15', 'https://www.reddit.com/r/entrepreneur/hot.json?limit=10'],
-                'business': ['https://www.reddit.com/r/business/hot.json?limit=15', 'https://www.reddit.com/r/investing/hot.json?limit=10'],
-                'crypto': ['https://www.reddit.com/r/cryptocurrency/hot.json?limit=15', 'https://www.reddit.com/r/bitcoin/hot.json?limit=10'],
-                'gaming': ['https://www.reddit.com/r/gaming/hot.json?limit=15', 'https://www.reddit.com/r/pcgaming/hot.json?limit=10'],
+            # Dynamic subreddit endpoint generation - no hardcoded topics
+            def generate_subreddit_endpoints(topic):
+                """Generate potential subreddit endpoints for any topic dynamically"""
+                topic_clean = topic.lower().strip()
                 
-                # Sports subreddits
-                'sports': ['https://www.reddit.com/r/sports/hot.json?limit=15', 'https://www.reddit.com/r/nfl/hot.json?limit=10'],
-                'football': ['https://www.reddit.com/r/soccer/hot.json?limit=15', 'https://www.reddit.com/r/football/hot.json?limit=10'],
-                'soccer': ['https://www.reddit.com/r/soccer/hot.json?limit=15', 'https://www.reddit.com/r/football/hot.json?limit=10'],
-                'basketball': ['https://www.reddit.com/r/nba/hot.json?limit=15', 'https://www.reddit.com/r/basketball/hot.json?limit=10'],
-                'baseball': ['https://www.reddit.com/r/baseball/hot.json?limit=15', 'https://www.reddit.com/r/mlb/hot.json?limit=10'],
-                'hockey': ['https://www.reddit.com/r/hockey/hot.json?limit=15', 'https://www.reddit.com/r/nhl/hot.json?limit=10'],
-                'tennis': ['https://www.reddit.com/r/tennis/hot.json?limit=15'],
-                'golf': ['https://www.reddit.com/r/golf/hot.json?limit=15']
-            }
+                # Generate variations of the topic
+                variations = [
+                    topic_clean,
+                    topic_clean.replace(' ', ''),
+                    topic_clean.replace(' ', '_'),
+                    topic_clean.replace('-', ''),
+                    topic_clean.replace('_', ''),
+                ]
+                
+                # Add plurals/singulars
+                if topic_clean.endswith('s'):
+                    variations.append(topic_clean[:-1])
+                else:
+                    variations.append(topic_clean + 's')
+                
+                # Add common patterns
+                variations.extend([
+                    f"{topic_clean}news",
+                    f"{topic_clean}_news",
+                    f"the{topic_clean}",
+                    f"{topic_clean}community",
+                    f"{topic_clean}discussion",
+                    f"{topic_clean}fans",
+                    f"{topic_clean}hub"
+                ])
+                
+                # Generate endpoints for each variation
+                endpoints = {}
+                for variation in variations:
+                    endpoints[variation] = [f'https://www.reddit.com/r/{variation}/hot.json?limit=15']
+                
+                return endpoints
             
-            # Enhanced topic mapping including sports
-            topic_mapping = {
-                'tech': ['technology', 'programming'],
-                'technology': ['technology', 'programming'],
-                'ai': ['artificial', 'MachineLearning'],
-                'artificial': ['artificial', 'MachineLearning'],
-                'machine learning': ['MachineLearning', 'artificial'],
-                'startup': ['startups', 'business'],
-                'startups': ['startups', 'business'],
-                'business': ['business', 'startups'],
-                'crypto': ['crypto'],
-                'cryptocurrency': ['crypto'],
-                'bitcoin': ['crypto'],
-                'blockchain': ['crypto'],
-                'gaming': ['gaming'],
-                'games': ['gaming'],
+            # Generate dynamic endpoints based on actual topics
+            subreddit_endpoints = {}
+            for topic in topics:
+                topic_endpoints = generate_subreddit_endpoints(topic)
+                subreddit_endpoints.update(topic_endpoints)
+            
+            # No hardcoded topic mapping - discover dynamically
+            def find_related_subreddits(topic):
+                """Find related subreddits for any topic dynamically"""
+                topic_lower = topic.lower().strip()
                 
-                # Sports mapping
-                'sport': ['sports'],
-                'sports': ['sports'],
-                'football': ['football', 'soccer'],
-                'soccer': ['soccer', 'football'],
-                'basketball': ['basketball'],
-                'baseball': ['baseball'],
-                'hockey': ['hockey'],
-                'tennis': ['tennis'],
-                'golf': ['golf']
-            }
+                # Basic variations
+                variations = [
+                    topic_lower,
+                    topic_lower.replace(' ', ''),
+                    topic_lower.replace(' ', '_'),
+                ]
+                
+                # Add plurals/singulars
+                if topic_lower.endswith('s'):
+                    variations.append(topic_lower[:-1])
+                else:
+                    variations.append(topic_lower + 's')
+                
+                return variations
             
             logger.info(f"🔍 Starting Reddit JSON fetch for topics: {topics}")
             
-            for topic in topics[:4]:  # Increased topic limit
-                relevant_subreddits = []
-                topic_lower = topic.lower()
+            for topic in topics[:4]:  # Process up to 4 topics
+                logger.info(f"🔍 Dynamically discovering subreddits for topic: '{topic}'")
                 
-                # NEW: Dynamic subreddit discovery for ANY topic
-                # Instead of hardcoded mappings, try to find relevant subreddits
-                potential_subreddits = []
+                # Use dynamic subreddit discovery
+                relevant_subreddits = find_related_subreddits(topic)
+                logger.info(f"📊 Generated subreddit variations for '{topic}': {relevant_subreddits}")
                 
-                # Try exact topic match
-                if topic_lower in subreddit_endpoints:
-                    potential_subreddits.extend(subreddit_endpoints[topic_lower])
+                # Always include general subreddits as fallback for comprehensive coverage
+                general_subreddits = ['worldnews', 'news', 'politics', 'all']
+                all_subreddits = relevant_subreddits + general_subreddits
                 
-                # Try partial matches in hardcoded mapping
-                for keyword, subreddits in topic_mapping.items():
-                    if keyword in topic_lower or topic_lower in keyword:
-                        relevant_subreddits.extend(subreddits)
+                logger.info(f"📊 Final subreddit list for '{topic}': {all_subreddits}")
                 
-                # For topics not in our mapping, try world news and general subreddits
-                if not relevant_subreddits:
-                    # Try common subreddits that might have content about any topic
-                    general_subreddits = ['worldnews', 'news', 'politics', 'all']
-                    relevant_subreddits.extend(general_subreddits)
-                    logger.info(f"📊 Topic '{topic}' not in predefined mapping, using general subreddits: {general_subreddits}")
-                else:
-                    logger.info(f"📊 Topic '{topic}' mapped to subreddits: {relevant_subreddits}")
-                
-                # Add general subreddit endpoints for topics not in our list
+                # Add general subreddit endpoints for comprehensive coverage
                 general_endpoints = {
                     'worldnews': ['https://www.reddit.com/r/worldnews/hot.json?limit=20'],
-                    'news': ['https://www.reddit.com/r/news/hot.json?limit=20'],
+                    'news': ['https://www.reddit.com/r/news/hot.json?limit=20'], 
                     'politics': ['https://www.reddit.com/r/politics/hot.json?limit=15'],
                     'all': ['https://www.reddit.com/r/all/hot.json?limit=25']
                 }
                 
-                # Combine with existing endpoints
+                # Combine dynamic endpoints with general ones
                 all_endpoints = {**subreddit_endpoints, **general_endpoints}
                 
-                for subreddit in set(relevant_subreddits):
+                for subreddit in set(all_subreddits):
                     if subreddit in all_endpoints:
                         endpoints = all_endpoints[subreddit]
                         
@@ -493,7 +493,7 @@ class RedditScraperTool(BaseTool):
             return []
     
     def _fetch_authenticated_posts(self, reddit_instance, topics_list: List[str]) -> List[Dict[str, Any]]:
-        """Fetch posts using authenticated Reddit API with dynamic subreddit discovery for ANY topic"""
+        """Fetch posts using authenticated Reddit API with fully dynamic subreddit discovery for ANY topic"""
         posts = []
         
         if not reddit_instance:
@@ -501,156 +501,158 @@ class RedditScraperTool(BaseTool):
             return posts
         
         try:
-            logger.info(f"🔐 Using authenticated Reddit API for dynamic topics: {topics_list}")
-            logger.info("🔍 No hardcoded mappings - discovering subreddits dynamically")
+            logger.info(f"🔐 Using authenticated Reddit API for any topics: {topics_list}")
+            logger.info("🚀 100% Dynamic - will discover relevant subreddits for ANY topic")
             
             # Track which subreddits we've already processed
             processed_subreddits = set()
             
             for topic in topics_list:
                 try:
-                    logger.info(f"🔍 Dynamically searching for subreddits about: {topic}")
+                    logger.info(f"🔍 Discovering subreddits for: '{topic}' (no presets, fully dynamic)")
                     
-                    # Method 1: Search for subreddits by exact name match
-                    try:
-                        matching_subreddits = reddit_instance.subreddits.search_by_name(topic, include_nsfw=False)
-                        for subreddit in list(matching_subreddits)[:3]:  # Limit to 3 per topic
-                            if subreddit.display_name.lower() not in processed_subreddits:
-                                processed_subreddits.add(subreddit.display_name.lower())
-                                logger.info(f"📋 Found exact match: r/{subreddit.display_name}")
-                    except Exception as e:
-                        logger.debug(f"Exact name search for '{topic}' - no results")
-                    
-                    # Method 2: Search for subreddits by topic/description
-                    try:
-                        search_results = reddit_instance.subreddits.search(topic, limit=10)
-                        for subreddit in search_results:
-                            if subreddit.display_name.lower() not in processed_subreddits:
-                                # Check if subreddit is active (has recent posts)
-                                try:
-                                    recent_posts = list(subreddit.hot(limit=1))
-                                    if recent_posts:
-                                        processed_subreddits.add(subreddit.display_name.lower())
-                                        logger.info(f"📋 Found related active subreddit: r/{subreddit.display_name}")
-                                except:
-                                    pass
-                    except Exception as e:
-                        logger.debug(f"Topic search for '{topic}' failed: {e}")
-                    
-                    # Method 3: Try variations of the topic name
-                    topic_variations = [
-                        topic.lower(),
-                        topic.lower().replace(' ', ''),
-                        topic.lower().replace(' ', '_'),
-                        topic.lower().replace('-', ''),
-                        topic.lower().replace('_', ''),
+                    # Method 1: Direct subreddit name variations
+                    topic_clean = topic.lower().strip()
+                    direct_variations = [
+                        topic_clean,
+                        topic_clean.replace(' ', ''),
+                        topic_clean.replace(' ', '_'),
+                        topic_clean.replace('-', ''),
+                        topic_clean.replace('_', ''),
                     ]
                     
                     # Add plurals/singulars
-                    if topic.lower().endswith('s'):
-                        topic_variations.append(topic.lower()[:-1])
+                    if topic_clean.endswith('s'):
+                        direct_variations.append(topic_clean[:-1])
                     else:
-                        topic_variations.append(topic.lower() + 's')
+                        direct_variations.append(topic_clean + 's')
                     
-                    # Add common prefixes/suffixes
-                    topic_variations.extend([
-                        f"{topic.lower()}news",
-                        f"{topic.lower()}_news",
-                        f"the{topic.lower()}",
-                        f"{topic.lower()}community",
-                        f"{topic.lower()}discussion"
+                    # Add common subreddit patterns
+                    direct_variations.extend([
+                        f"{topic_clean}news",
+                        f"{topic_clean}_news", 
+                        f"the{topic_clean}",
+                        f"{topic_clean}community",
+                        f"{topic_clean}discussion",
+                        f"{topic_clean}fans",
+                        f"{topic_clean}hub",
+                        f"{topic_clean}talk"
                     ])
                     
-                    for variation in topic_variations:
-                        if variation not in processed_subreddits and len(processed_subreddits) < 10:
+                    # Test each variation to see if it's a real subreddit
+                    for variation in direct_variations:
+                        if variation not in processed_subreddits and len(processed_subreddits) < 15:
                             try:
                                 subreddit = reddit_instance.subreddit(variation)
                                 # Test if subreddit exists and is active
                                 _ = subreddit.display_name
                                 subscriber_count = subreddit.subscribers
-                                if subscriber_count and subscriber_count > 100:  # Active subreddit
+                                if subscriber_count and subscriber_count > 50:  # Lower threshold for broader discovery
                                     processed_subreddits.add(variation)
-                                    logger.info(f"📋 Found variation: r/{variation} ({subscriber_count:,} subscribers)")
+                                    logger.info(f"📋 Direct match: r/{variation} ({subscriber_count:,} subscribers)")
                             except Exception:
                                 continue
                     
-                    # Method 4: Search r/all for the topic to find where it's discussed
-                    if len(processed_subreddits) < 3:
-                        try:
-                            all_search = reddit_instance.subreddit('all').search(topic, limit=20)
-                            for post in all_search:
-                                subreddit_name = str(post.subreddit).lower()
-                                if subreddit_name not in processed_subreddits and len(processed_subreddits) < 10:
-                                    processed_subreddits.add(subreddit_name)
-                                    logger.info(f"📋 Found from r/all search: r/{subreddit_name}")
-                        except Exception as e:
-                            logger.debug(f"r/all search failed: {e}")
+                    # Method 2: Search Reddit's subreddit directory
+                    try:
+                        search_results = reddit_instance.subreddits.search(topic, limit=15)
+                        for subreddit in search_results:
+                            if subreddit.display_name.lower() not in processed_subreddits and len(processed_subreddits) < 15:
+                                # Check if subreddit is active
+                                try:
+                                    recent_posts = list(subreddit.hot(limit=1))
+                                    if recent_posts and subreddit.subscribers > 100:
+                                        processed_subreddits.add(subreddit.display_name.lower())
+                                        logger.info(f"📋 Search found: r/{subreddit.display_name} ({subreddit.subscribers:,} subs)")
+                                except:
+                                    pass
+                    except Exception as e:
+                        logger.debug(f"Subreddit search failed for '{topic}': {e}")
+                    
+                    # Method 3: Search r/all to find where this topic is discussed
+                    try:
+                        all_search = reddit_instance.subreddit('all').search(topic, limit=25, sort='hot')
+                        subreddit_frequency = {}
+                        
+                        for post in all_search:
+                            subreddit_name = str(post.subreddit).lower()
+                            subreddit_frequency[subreddit_name] = subreddit_frequency.get(subreddit_name, 0) + 1
+                        
+                        # Add subreddits where the topic appears frequently
+                        for subreddit_name, frequency in sorted(subreddit_frequency.items(), key=lambda x: x[1], reverse=True)[:8]:
+                            if subreddit_name not in processed_subreddits and len(processed_subreddits) < 15:
+                                processed_subreddits.add(subreddit_name)
+                                logger.info(f"📋 r/all discovery: r/{subreddit_name} ({frequency} posts about '{topic}')")
+                        
+                    except Exception as e:
+                        logger.debug(f"r/all search failed for '{topic}': {e}")
                     
                 except Exception as e:
                     logger.error(f"Topic discovery failed for '{topic}': {e}")
                     continue
             
-            # If no subreddits found, search r/all directly
+            # If still no subreddits found, use broad search approach
             if not processed_subreddits:
-                logger.info("🌐 No specific subreddits found - will search r/all")
+                logger.info("🌐 No specific subreddits found - using broad search on r/all")
                 processed_subreddits.add('all')
             
             # Now fetch posts from all discovered subreddits
-            logger.info(f"📊 Fetching from {len(processed_subreddits)} dynamically discovered subreddits")
+            logger.info(f"📊 Fetching from {len(processed_subreddits)} dynamically discovered subreddits: {list(processed_subreddits)}")
             
             for subreddit_name in processed_subreddits:
                 try:
-                    subreddit = reddit_instance.subreddit(subreddit_name)
-                    logger.info(f"🔄 Fetching posts from r/{subreddit_name}")
-                    
-                    # Get hot posts
-                    hot_posts = list(subreddit.hot(limit=10))
-                    
-                    for post in hot_posts:
-                        try:
-                            # Skip stickied posts (usually rules/announcements)
-                            if post.stickied:
-                                continue
-                            
-                            # Extract post data
-                            post_data = {
-                                'id': post.id,
-                                'title': post.title,
-                                'content': post.selftext[:1000] if post.selftext else '',
-                                'url': post.url,
-                                'reddit_url': f"https://reddit.com{post.permalink}",
-                                'author': str(post.author) if post.author else 'Unknown',
-                                'subreddit': subreddit_name,
-                                'score': post.score,
-                                'num_comments': post.num_comments,
-                                'upvote_ratio': post.upvote_ratio,
-                                'created_utc': datetime.fromtimestamp(post.created_utc).isoformat(),
-                                'domain': post.domain if hasattr(post, 'domain') else '',
-                                'flair': post.link_flair_text if hasattr(post, 'link_flair_text') else '',
-                                'source': 'reddit_api',
-                                'source_type': 'reddit_post',
-                                'simulated': False,
-                                'is_video': post.is_video if hasattr(post, 'is_video') else False,
-                                'over_18': post.over_18 if hasattr(post, 'over_18') else False,
-                                'reddit_post_info': f"Reddit post from r/{subreddit_name} linking to {post_data.get('domain', 'external site')}",
-                                'display_source': f"Reddit (r/{subreddit_name})",
-                                'external_link': post_data.get('url', '') != f"https://reddit.com{post.permalink}"
-                            }
-                            
-                            # Quality filter
-                            if post_data['score'] >= 5 or post_data['num_comments'] >= 3:
-                                posts.append(post_data)
-                                logger.debug(f"✅ Added post: {post_data['title'][:50]}...")
-                            
-                        except Exception as e:
-                            logger.debug(f"Error processing post: {e}")
-                            continue
-                    
-                    # Also get top posts from the past week for more content
-                    try:
-                        top_posts = list(subreddit.top(time_filter='week', limit=5))
-                        for post in top_posts:
-                            if post.id not in [p['id'] for p in posts]:  # Avoid duplicates
+                    if subreddit_name == 'all':
+                        # Special handling for r/all - search by topic
+                        all_subreddit = reddit_instance.subreddit('all')
+                        for topic in topics_list[:2]:
+                            try:
+                                search_results = all_subreddit.search(topic, sort='hot', time_filter='week', limit=15)
+                                for post in search_results:
+                                    # Add topic relevance filtering
+                                    title_lower = post.title.lower()
+                                    content_lower = (post.selftext or '').lower()
+                                    topic_lower = topic.lower()
+                                    
+                                    # Check if post is actually about the topic
+                                    if topic_lower in title_lower or any(word in title_lower for word in topic_lower.split()):
+                                        post_data = {
+                                            'id': post.id,
+                                            'title': post.title,
+                                            'content': post.selftext[:1000] if post.selftext else '',
+                                            'url': post.url,
+                                            'reddit_url': f"https://reddit.com{post.permalink}",
+                                            'author': str(post.author) if post.author else 'Unknown',
+                                            'subreddit': str(post.subreddit),
+                                            'score': post.score,
+                                            'num_comments': post.num_comments,
+                                            'created_utc': datetime.fromtimestamp(post.created_utc).isoformat(),
+                                            'source': 'reddit_api',
+                                            'source_type': 'reddit_post',
+                                            'simulated': False,
+                                            'matched_topic': topic,
+                                            'reddit_post_info': f"Reddit post from r/{str(post.subreddit)}",
+                                            'display_source': f"Reddit (r/{str(post.subreddit)})",
+                                            'external_link': post.url != f"https://reddit.com{post.permalink}"
+                                        }
+                                        
+                                        if post_data['score'] >= 20:  # Quality threshold for r/all
+                                            posts.append(post_data)
+                                            logger.debug(f"✅ r/all post: {post_data['title'][:50]}...")
+                            except Exception as e:
+                                logger.debug(f"r/all search failed for {topic}: {e}")
+                    else:
+                        # Regular subreddit fetching
+                        subreddit = reddit_instance.subreddit(subreddit_name)
+                        logger.info(f"🔄 Fetching from r/{subreddit_name}")
+                        
+                        # Get hot posts
+                        hot_posts = list(subreddit.hot(limit=12))
+                        
+                        for post in hot_posts:
+                            try:
+                                if post.stickied:
+                                    continue
+                                
                                 post_data = {
                                     'id': post.id,
                                     'title': post.title,
@@ -661,88 +663,52 @@ class RedditScraperTool(BaseTool):
                                     'subreddit': subreddit_name,
                                     'score': post.score,
                                     'num_comments': post.num_comments,
+                                    'upvote_ratio': post.upvote_ratio,
                                     'created_utc': datetime.fromtimestamp(post.created_utc).isoformat(),
+                                    'domain': post.domain if hasattr(post, 'domain') else '',
+                                    'flair': post.link_flair_text if hasattr(post, 'link_flair_text') else '',
                                     'source': 'reddit_api',
                                     'source_type': 'reddit_post',
                                     'simulated': False,
-                                    'reddit_post_info': f"Reddit post from r/{subreddit_name} linking to {post_data.get('domain', 'external site')}",
+                                    'is_video': post.is_video if hasattr(post, 'is_video') else False,
+                                    'over_18': post.over_18 if hasattr(post, 'over_18') else False,
+                                    'reddit_post_info': f"Reddit post from r/{subreddit_name}",
                                     'display_source': f"Reddit (r/{subreddit_name})",
-                                    'external_link': post_data.get('url', '') != f"https://reddit.com{post.permalink}"
+                                    'external_link': post.url != f"https://reddit.com{post.permalink}"
                                 }
                                 
-                                if post_data['score'] >= 10:  # Higher threshold for older posts
+                                # Quality filter
+                                if post_data['score'] >= 3 or post_data['num_comments'] >= 2:  # Lower threshold for better coverage
                                     posts.append(post_data)
-                    except Exception as e:
-                        logger.debug(f"Error fetching top posts: {e}")
+                                    logger.debug(f"✅ Added: {post_data['title'][:50]}...")
+                                
+                            except Exception as e:
+                                logger.debug(f"Error processing post: {e}")
+                                continue
                     
                 except Exception as e:
                     logger.warning(f"Failed to fetch from r/{subreddit_name}: {e}")
                     continue
                 
-                # Rate limiting between subreddits
+                # Rate limiting
                 import time
-                time.sleep(1)
+                time.sleep(0.5)
             
-            # If we didn't find enough specific subreddits, search r/all
-            if len(posts) < 10 and len(processed_subreddits) < 3:
-                logger.info("📡 Searching r/all for topic-related posts")
-                try:
-                    all_subreddit = reddit_instance.subreddit('all')
-                    
-                    # Search r/all for each topic
-                    for topic in topics_list[:2]:  # Limit to avoid rate limits
-                        try:
-                            search_results = all_subreddit.search(topic, sort='hot', time_filter='week', limit=10)
-                            
-                            for post in search_results:
-                                post_data = {
-                                    'id': post.id,
-                                    'title': post.title,
-                                    'content': post.selftext[:1000] if post.selftext else '',
-                                    'url': post.url,
-                                    'reddit_url': f"https://reddit.com{post.permalink}",
-                                    'author': str(post.author) if post.author else 'Unknown',
-                                    'subreddit': str(post.subreddit),
-                                    'score': post.score,
-                                    'num_comments': post.num_comments,
-                                    'created_utc': datetime.fromtimestamp(post.created_utc).isoformat(),
-                                    'source': 'reddit_api',
-                                    'source_type': 'reddit_post',
-                                    'simulated': False,
-                                    'matched_topic': topic,
-                                    'reddit_post_info': f"Reddit post from r/{str(post.subreddit)} linking to {post_data.get('domain', 'external site')}",
-                                    'display_source': f"Reddit (r/{str(post.subreddit)})",
-                                    'external_link': post_data.get('url', '') != f"https://reddit.com{post.permalink}"
-                                }
-                                
-                                if post_data['score'] >= 50:  # Higher threshold for r/all
-                                    posts.append(post_data)
-                                    logger.debug(f"✅ Added r/all post: {post_data['title'][:50]}...")
-                        
-                        except Exception as e:
-                            logger.debug(f"r/all search failed for {topic}: {e}")
-                
-                except Exception as e:
-                    logger.error(f"Failed to search r/all: {e}")
-            
-            # Remove duplicates based on ID
+            # Remove duplicates and sort
             unique_posts = {}
             for post in posts:
                 if post['id'] not in unique_posts:
                     unique_posts[post['id']] = post
             
             final_posts = list(unique_posts.values())
-            
-            # Sort by score
             final_posts.sort(key=lambda x: x.get('score', 0), reverse=True)
             
-            logger.info(f"✅ Authenticated API fetch complete: {len(final_posts)} posts from {len(processed_subreddits)} subreddits")
+            logger.info(f"✅ Dynamic API discovery complete: {len(final_posts)} posts from {len(processed_subreddits)} subreddits")
             
-            return final_posts[:30]  # Return top 30 posts
+            return final_posts[:25]  # Return top 25 posts
             
         except Exception as e:
             logger.error(f"❌ Authenticated Reddit fetch failed: {e}")
-            logger.error(f"📋 Stack trace: {e.__class__.__name__}: {str(e)}")
             return []
 
 class RedditScraperAgent:
