@@ -18,6 +18,8 @@ import {
   Info
 } from 'lucide-react';
 import { agentService } from '@/services/agentService';
+import { useToast } from '@/hooks/use-toast';
+import { BACKEND_ROOT_URL } from '@/services/axiosConfig';
 
 interface HealthStatus {
   database: 'connected' | 'disconnected' | 'checking';
@@ -43,6 +45,7 @@ export const DashboardHealthCheck: React.FC<DashboardHealthCheckProps> = ({
   });
   const [isChecking, setIsChecking] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     checkHealth();
@@ -68,29 +71,93 @@ export const DashboardHealthCheck: React.FC<DashboardHealthCheckProps> = ({
       lastChecked: new Date()
     };
 
+    // Check backend connection using the root endpoint
     try {
-      // Check backend connection
-      const response = await fetch('/api/v1/health', { 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const response = await fetch(`${BACKEND_ROOT_URL}/`, { 
         method: 'GET',
-        timeout: 5000 
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/json',
+        }
       });
-      newHealth.backend = response.ok ? 'connected' : 'disconnected';
+      
+      clearTimeout(timeoutId);
       
       if (response.ok) {
-        const healthData = await response.json();
-        newHealth.database = healthData.database ? 'connected' : 'disconnected';
-        newHealth.crewaiService = healthData.crewaiService ? 'connected' : 'disconnected';
+        newHealth.backend = 'connected';
+        
+        try {
+          const healthData = await response.json();
+          console.log('Health data received:', healthData);
+          
+          // Parse MongoDB connection status from the root endpoint
+          if (healthData && typeof healthData === 'object') {
+            // Check for database status in various possible formats
+            const dbStatus = (healthData as any).database || (healthData as any).mongo || (healthData as any).mongodb || '';
+            const dbStatusStr = typeof dbStatus === 'string' ? dbStatus.toLowerCase() : '';
+            
+            console.log('Database status string:', dbStatusStr);
+            
+            newHealth.database = (
+              dbStatusStr.includes('connected') || 
+              dbStatusStr.includes('ready') ||
+              dbStatusStr.includes('1') || // MongoDB readyState 1 = connected
+              (healthData as any).databaseConnected === true
+            ) ? 'connected' : 'disconnected';
+          } else {
+            newHealth.database = 'disconnected';
+          }
+        } catch (parseError) {
+          // If we can't parse JSON, check if it's an HTML response (could indicate server is up)
+          const contentType = response.headers.get('content-type') || '';
+          if (contentType.includes('text/html')) {
+            newHealth.backend = 'connected';
+            newHealth.database = 'disconnected'; // Unknown database status
+          } else {
+            newHealth.backend = 'connected';
+            newHealth.database = 'disconnected';
+          }
+        }
+      } else {
+        newHealth.backend = 'disconnected';
+        newHealth.database = 'disconnected';
       }
-    } catch (error) {
+    } catch (error: any) {
+      console.log('Backend health check failed:', error.message);
       newHealth.backend = 'disconnected';
       newHealth.database = 'disconnected';
+    }
+
+    // Check CrewAI service separately
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout for external service
+      
+      const crewAIResponse = await fetch('https://synapse-crewai.onrender.com/', {
+        method: 'GET',
+        signal: controller.signal,
+        mode: 'no-cors', // To avoid CORS issues when checking external service
+      });
+      
+      clearTimeout(timeoutId);
+      newHealth.crewaiService = 'connected';
+    } catch (error: any) {
+      console.log('CrewAI service check failed:', error.message);
+      // For external services on Render, they might be sleeping
       newHealth.crewaiService = 'disconnected';
     }
 
-    // Check Socket.IO connection
+    // Check Socket.IO connection if available
     try {
-      // This would need to be implemented based on your socket service
-      newHealth.socketio = 'connected'; // Placeholder
+      // Check if socket.io is connected (this requires socket.io client to be available)
+      if (typeof window !== 'undefined' && (window as any).io) {
+        newHealth.socketio = 'connected';
+      } else {
+        newHealth.socketio = 'disconnected';
+      }
     } catch (error) {
       newHealth.socketio = 'disconnected';
     }
@@ -281,15 +348,35 @@ export const DashboardHealthCheck: React.FC<DashboardHealthCheckProps> = ({
                     <h4 className="font-medium mb-3">Quick Fixes</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
                       {issues.includes('backend') && (
-                        <Button variant="outline" size="sm" asChild>
-                          <a href="#" onClick={() => window.open('/api/v1/health', '_blank')}>
-                            <ExternalLink className="w-4 h-4 mr-2" />
-                            Test Backend API
-                          </a>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => window.open(BACKEND_ROOT_URL, '_blank')}
+                        >
+                          <ExternalLink className="w-4 h-4 mr-2" />
+                          Test Backend API
                         </Button>
                       )}
                       {issues.includes('database') && (
-                        <Button variant="outline" size="sm">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              await checkHealth();
+                              toast({
+                                title: 'Health Check',
+                                description: 'Database connection check completed',
+                              });
+                            } catch (error) {
+                              toast({
+                                title: 'Health Check Failed',
+                                description: 'Unable to check database connection',
+                                variant: 'destructive',
+                              });
+                            }
+                          }}
+                        >
                           <Settings className="w-4 h-4 mr-2" />
                           Check MongoDB
                         </Button>
