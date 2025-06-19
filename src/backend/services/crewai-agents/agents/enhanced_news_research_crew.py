@@ -51,20 +51,40 @@ except ImportError as e:
 
 # Import social media scrapers with absolute imports
 try:
-    from reddit_agent import RedditScraperTool
+    from .reddit_agent import RedditScraperTool
     REDDIT_SCRAPER_AVAILABLE = True
     logger.info("✅ Reddit scraper available")
 except ImportError as e:
-    logger.warning(f"⚠️ Reddit scraper not available: {str(e)}")
-    REDDIT_SCRAPER_AVAILABLE = False
+    try:
+        # Fallback to direct import if in same directory
+        from reddit_agent import RedditScraperTool
+        REDDIT_SCRAPER_AVAILABLE = True
+        logger.info("✅ Reddit scraper available (direct import)")
+    except ImportError as e2:
+        logger.warning(f"⚠️ Reddit scraper not available - check dependencies")
+        logger.info("   To enable Reddit scraping, ensure 'praw' is installed:")
+        logger.info("   pip install praw>=7.0.0")
+        logger.debug(f"   Import error: {str(e)} / {str(e2)}")
+        REDDIT_SCRAPER_AVAILABLE = False
+        RedditScraperTool = None  # Define as None to prevent NameError
 
 try:
-    from telegram_agent import TelegramMonitorTool
+    from .telegram_agent import TelegramMonitorTool
     TELEGRAM_SCRAPER_AVAILABLE = True
     logger.info("✅ Telegram scraper available")
 except ImportError as e:
-    logger.warning(f"⚠️ Telegram scraper not available: {str(e)}")
-    TELEGRAM_SCRAPER_AVAILABLE = False
+    try:
+        # Fallback to direct import if in same directory
+        from telegram_agent import TelegramMonitorTool
+        TELEGRAM_SCRAPER_AVAILABLE = True
+        logger.info("✅ Telegram scraper available (direct import)")
+    except ImportError as e2:
+        logger.warning(f"⚠️ Telegram scraper not available - check dependencies")
+        logger.info("   To enable Telegram scraping, ensure 'python-telegram-bot' is installed:")
+        logger.info("   pip install python-telegram-bot>=20.0")
+        logger.debug(f"   Import error: {str(e)} / {str(e2)}")
+        TELEGRAM_SCRAPER_AVAILABLE = False
+        TelegramMonitorTool = None  # Define as None to prevent NameError
 
 # LinkedIn will use real web scraping instead of mock data
 LINKEDIN_SCRAPER_AVAILABLE = True  # Always available since we'll use web scraping
