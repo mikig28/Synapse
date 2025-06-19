@@ -401,13 +401,16 @@ class RedditScraperTool(BaseTool):
                                                                 ).isoformat() if post_data.get('created_utc') else '',
                                                                 'domain': post_data.get('domain', ''),
                                                                 'flair': post_data.get('link_flair_text', ''),
-                                                                'source': 'reddit_json',
-                                                                'source_type': 'direct_json',
-                                                                'simulated': False,
-                                                                'is_video': post_data.get('is_video', False),
-                                                                'post_hint': post_data.get('post_hint', ''),
-                                                                'matched_topic': topic,  # Track which topic matched
-                                                                'relevance_reason': f"Contains '{topic}' in {'title' if topic.lower() in title else 'content'}"
+                                                                                                                'source': 'reddit_json',
+                                                'source_type': 'reddit_post',
+                                                'simulated': False,
+                                                'is_video': post_data.get('is_video', False),
+                                                'post_hint': post_data.get('post_hint', ''),
+                                                'matched_topic': topic,  # Track which topic matched
+                                                'relevance_reason': f"Contains '{topic}' in {'title' if topic.lower() in title else 'content'}",
+                                                'reddit_post_info': f"Reddit post from r/{subreddit} linking to {post_data.get('domain', 'external site')}",
+                                                'display_source': f"Reddit (r/{subreddit})",
+                                                'external_link': post_data.get('url', '') != f"https://reddit.com{post_data.get('permalink', '')}"
                                                             }
                                                             
                                                             # Filter for quality content
@@ -625,10 +628,13 @@ class RedditScraperTool(BaseTool):
                                 'domain': post.domain if hasattr(post, 'domain') else '',
                                 'flair': post.link_flair_text if hasattr(post, 'link_flair_text') else '',
                                 'source': 'reddit_api',
-                                'source_type': 'authenticated_api',
+                                'source_type': 'reddit_post',
                                 'simulated': False,
                                 'is_video': post.is_video if hasattr(post, 'is_video') else False,
-                                'over_18': post.over_18 if hasattr(post, 'over_18') else False
+                                'over_18': post.over_18 if hasattr(post, 'over_18') else False,
+                                'reddit_post_info': f"Reddit post from r/{subreddit_name} linking to {post_data.get('domain', 'external site')}",
+                                'display_source': f"Reddit (r/{subreddit_name})",
+                                'external_link': post_data.get('url', '') != f"https://reddit.com{post.permalink}"
                             }
                             
                             # Quality filter
@@ -657,8 +663,11 @@ class RedditScraperTool(BaseTool):
                                     'num_comments': post.num_comments,
                                     'created_utc': datetime.fromtimestamp(post.created_utc).isoformat(),
                                     'source': 'reddit_api',
-                                    'source_type': 'authenticated_api',
-                                    'simulated': False
+                                    'source_type': 'reddit_post',
+                                    'simulated': False,
+                                    'reddit_post_info': f"Reddit post from r/{subreddit_name} linking to {post_data.get('domain', 'external site')}",
+                                    'display_source': f"Reddit (r/{subreddit_name})",
+                                    'external_link': post_data.get('url', '') != f"https://reddit.com{post.permalink}"
                                 }
                                 
                                 if post_data['score'] >= 10:  # Higher threshold for older posts
@@ -698,9 +707,12 @@ class RedditScraperTool(BaseTool):
                                     'num_comments': post.num_comments,
                                     'created_utc': datetime.fromtimestamp(post.created_utc).isoformat(),
                                     'source': 'reddit_api',
-                                    'source_type': 'r_all_search',
+                                    'source_type': 'reddit_post',
                                     'simulated': False,
-                                    'matched_topic': topic
+                                    'matched_topic': topic,
+                                    'reddit_post_info': f"Reddit post from r/{str(post.subreddit)} linking to {post_data.get('domain', 'external site')}",
+                                    'display_source': f"Reddit (r/{str(post.subreddit)})",
+                                    'external_link': post_data.get('url', '') != f"https://reddit.com{post.permalink}"
                                 }
                                 
                                 if post_data['score'] >= 50:  # Higher threshold for r/all

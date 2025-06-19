@@ -408,15 +408,15 @@ export class CrewAIAgentExecutor implements AgentExecutor {
     const url = item.url || item.external_url || '';
     const content = JSON.stringify(item).toLowerCase();
     
-    // Reddit validation
-    if (claimedSource === 'reddit') {
-      if (url.includes('reddit.com') || 
-          item.subreddit || 
+    // Reddit validation - handle both direct reddit links and reddit posts with external links
+    if (claimedSource === 'reddit' || item.source_type === 'reddit_post' || item.source_type === 'reddit_json' || item.source_type === 'reddit_api') {
+      if (item.subreddit || 
           item.reddit_url ||
           content.includes('subreddit') ||
           item.source_type === 'reddit_json' ||
-          item.source_type === 'reddit_api') {
-        return 'reddit';
+          item.source_type === 'reddit_api' ||
+          item.source_type === 'reddit_post') {
+        return 'reddit_post';
       }
       // If claimed as Reddit but doesn't have Reddit indicators, mark as misattributed
       return 'misattributed_reddit';
@@ -463,12 +463,23 @@ export class CrewAIAgentExecutor implements AgentExecutor {
       return `Misattributed (claimed ${sourceType.replace('misattributed_', '')} but appears to be news)`;
     }
     
-    if (item.source) {
-      return item.source;
+    // For Reddit posts, show that it's a Reddit post linking to an external source
+    if (sourceType === 'reddit_post' || sourceType === 'reddit') {
+      const domain = item.domain || (item.url ? new URL(item.url).hostname : '');
+      const subreddit = item.subreddit;
+      
+      if (item.external_link === true || (item.url && !item.url.includes('reddit.com'))) {
+        return subreddit ? `Reddit r/${subreddit} → ${domain}` : `Reddit → ${domain}`;
+      }
+      return subreddit ? `Reddit r/${subreddit}` : 'Reddit';
     }
     
-    if (sourceType === 'reddit') {
-      return item.subreddit ? `Reddit r/${item.subreddit}` : 'Reddit';
+    if (item.display_source) {
+      return item.display_source;
+    }
+    
+    if (item.source) {
+      return item.source;
     }
     
     if (sourceType === 'telegram') {
@@ -484,6 +495,7 @@ export class CrewAIAgentExecutor implements AgentExecutor {
 
   private extractSourceSpecificData(item: any, sourceType: string): any {
     switch (sourceType) {
+      case 'reddit_post':
       case 'reddit':
         return {
           subreddit: item.subreddit,
@@ -491,7 +503,10 @@ export class CrewAIAgentExecutor implements AgentExecutor {
           comments: item.num_comments,
           upvoteRatio: item.upvote_ratio,
           redditUrl: item.reddit_url,
-          flair: item.flair
+          flair: item.flair,
+          domain: item.domain,
+          externalLink: item.external_link,
+          redditPostInfo: item.reddit_post_info
         };
       
       case 'telegram':
