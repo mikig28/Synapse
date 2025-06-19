@@ -118,52 +118,36 @@ export class CrewAIAgentExecutor implements AgentExecutor {
   private prepareRequestData(agent: any): any {
     const config = agent.configuration;
     
-    // Extract topics from agent configuration with proper handling
+    // Dynamic topic handling - accept any topics without hardcoded mappings
     let topics = config.topics;
     
     // Handle various formats and ensure we have valid topics
     if (!topics || (Array.isArray(topics) && topics.length === 0) || (typeof topics === 'string' && !topics.trim())) {
-      // Check if agent name gives us a hint about topics
-      const agentNameLower = agent.name.toLowerCase();
-      
-      if (agentNameLower.includes('sport') || agentNameLower.includes('sports')) {
-        console.warn(`[CrewAIExecutor] No topics configured for sports agent ${agent.name}, using sports defaults`);
-        topics = ['sports', 'football', 'basketball', 'soccer', 'tennis', 'baseball', 'athletics', 'olympics'];
-      } else if (agentNameLower.includes('tech') || agentNameLower.includes('technology')) {
-        topics = ['technology', 'AI', 'startups', 'software', 'innovation'];
-      } else if (agentNameLower.includes('business')) {
-        topics = ['business', 'finance', 'economy', 'markets', 'entrepreneurship'];
-      } else if (agentNameLower.includes('health')) {
-        topics = ['health', 'medicine', 'wellness', 'fitness', 'healthcare'];
-      } else {
-        console.warn(`[CrewAIExecutor] No topics configured for agent ${agent.name}, using defaults`);
-        topics = ['technology', 'AI', 'startups'];
-      }
+      // No topics configured - use generic defaults
+      console.warn(`[CrewAIExecutor] No topics configured for agent ${agent.name}`);
+      topics = ['news', 'trending', 'latest'];
     } else if (typeof topics === 'string') {
-      // Handle comma-separated string topics
-      topics = topics.split(',').map(t => t.trim()).filter(t => t.length > 0);
-      if (topics.length === 0) {
-        const agentNameLower = agent.name.toLowerCase();
-        if (agentNameLower.includes('sport')) {
-          topics = ['sports', 'football', 'basketball', 'soccer'];
-        } else {
-          topics = ['technology', 'AI', 'startups'];
-        }
+      // Handle string topics - could be comma-separated or single topic
+      const trimmed = topics.trim();
+      if (trimmed) {
+        topics = trimmed.includes(',')
+          ? trimmed.split(',').map(t => t.trim()).filter(t => t.length > 0)
+          : [trimmed];
+      }
+      // If still empty after processing, use defaults
+      if (!topics || topics.length === 0) {
+        topics = ['news', 'trending', 'latest'];
       }
     } else if (Array.isArray(topics)) {
       // Filter out empty topics
       topics = topics.filter(t => t && t.trim && t.trim().length > 0);
       if (topics.length === 0) {
-        const agentNameLower = agent.name.toLowerCase();
-        if (agentNameLower.includes('sport')) {
-          topics = ['sports', 'football', 'basketball', 'soccer'];
-        } else {
-          topics = ['technology', 'AI', 'startups'];
-        }
+        topics = ['news', 'trending', 'latest'];
       }
     }
     
     console.log(`[CrewAIExecutor] Using topics for agent ${agent.name}:`, topics);
+    console.log(`[CrewAIExecutor] Topics are dynamically provided by user - no hardcoded mappings`);
     
     // Map CrewAI sources to the enhanced service format
     const sources: any = {};

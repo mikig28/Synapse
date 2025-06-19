@@ -1643,156 +1643,87 @@ class EnhancedNewsResearchCrew:
         return trending_topics
     
     def _get_relevant_news_feeds(self, topics: List[str]) -> List[str]:
-        """Get relevant RSS feeds based on topics"""
+        """Get relevant RSS feeds based on topics - dynamically handles any topic"""
         
-        # Base feeds that are generally useful
-        all_feeds = {
-            # Technology & AI
-            'technology': [
-                'https://techcrunch.com/feed/',
-                'https://www.theverge.com/rss/index.xml',
-                'https://feeds.arstechnica.com/arstechnica/index',
-                'https://www.wired.com/feed/rss',
-                'https://www.engadget.com/rss.xml'
-            ],
-            'ai': [
-                'https://techcrunch.com/feed/',
-                'https://www.wired.com/feed/rss',
-                'https://feeds.reuters.com/reuters/technologyNews'
-            ],
+        # Core general news feeds that cover diverse topics
+        general_feeds = [
+            'https://feeds.reuters.com/reuters/topNews',
+            'https://rss.cnn.com/rss/edition.rss',
+            'https://feeds.bbci.co.uk/news/rss.xml',
+            'https://feeds.npr.org/1001/rss.xml',
+            'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml'
+        ]
+        
+        # Specialized feeds by category (used as hints, not requirements)
+        specialized_feeds = {
+            # Technology
+            'https://techcrunch.com/feed/': ['tech', 'technology', 'ai', 'software', 'startup'],
+            'https://www.theverge.com/rss/index.xml': ['tech', 'gadget', 'device'],
+            'https://feeds.arstechnica.com/arstechnica/index': ['tech', 'science'],
+            'https://www.wired.com/feed/rss': ['tech', 'innovation', 'future'],
             
             # Sports
-            'sports': [
-                'https://feeds.skysports.com/feeds/11095',  # Sky Sports News
-                'https://www.espn.com/espn/rss/news',
-                'https://feeds.bbci.co.uk/sport/rss.xml',
-                'https://www.cbssports.com/rss/headlines/',
-                'https://rss.cnn.com/rss/edition_sport.rss'
-            ],
-            'sport': [
-                'https://feeds.skysports.com/feeds/11095',
-                'https://www.espn.com/espn/rss/news',
-                'https://feeds.bbci.co.uk/sport/rss.xml',
-                'https://www.cbssports.com/rss/headlines/'
-            ],
-            'football': [
-                'https://feeds.skysports.com/feeds/11095',
-                'https://www.espn.com/espn/rss/soccer/',
-                'https://feeds.bbci.co.uk/sport/football/rss.xml'
-            ],
-            'soccer': [
-                'https://feeds.skysports.com/feeds/11095',
-                'https://www.espn.com/espn/rss/soccer/',
-                'https://feeds.bbci.co.uk/sport/football/rss.xml'
-            ],
-            'basketball': [
-                'https://www.espn.com/espn/rss/nba/',
-                'https://feeds.bbci.co.uk/sport/basketball/rss.xml'
-            ],
-            'baseball': [
-                'https://www.espn.com/espn/rss/mlb/',
-                'https://feeds.bbci.co.uk/sport/baseball/rss.xml'
-            ],
+            'https://www.espn.com/espn/rss/news': ['sport', 'sports', 'game', 'match'],
+            'https://feeds.bbci.co.uk/sport/rss.xml': ['sport', 'sports'],
+            'https://www.cbssports.com/rss/headlines/': ['sport', 'sports'],
             
-            # Business & Finance
-            'business': [
-                'https://feeds.reuters.com/reuters/businessNews',
-                'https://rss.cnn.com/rss/money_latest.rss',
-                'https://feeds.bloomberg.com/markets/news.rss',
-                'https://www.ft.com/rss/home/us'
-            ],
-            'finance': [
-                'https://feeds.reuters.com/reuters/businessNews',
-                'https://feeds.bloomberg.com/markets/news.rss',
-                'https://rss.cnn.com/rss/money_latest.rss'
-            ],
-            'economy': [
-                'https://feeds.reuters.com/reuters/businessNews',
-                'https://feeds.bloomberg.com/markets/news.rss',
-                'https://www.ft.com/rss/home/us'
-            ],
+            # Business
+            'https://feeds.reuters.com/reuters/businessNews': ['business', 'finance', 'economy', 'market'],
+            'https://feeds.bloomberg.com/markets/news.rss': ['finance', 'market', 'stock'],
             
-            # Health & Medicine
-            'health': [
-                'https://feeds.reuters.com/reuters/health',
-                'https://rss.cnn.com/rss/cnn_health.rss',
-                'https://feeds.bbci.co.uk/news/health/rss.xml'
-            ],
-            'medicine': [
-                'https://feeds.reuters.com/reuters/health',
-                'https://rss.cnn.com/rss/cnn_health.rss'
-            ],
-            
-            # Politics
-            'politics': [
-                'https://feeds.reuters.com/reuters/politicsNews',
-                'https://rss.cnn.com/rss/cnn_allpolitics.rss',
-                'https://feeds.bbci.co.uk/news/politics/rss.xml'
-            ],
+            # Health
+            'https://feeds.reuters.com/reuters/health': ['health', 'medical', 'medicine'],
+            'https://rss.cnn.com/rss/cnn_health.rss': ['health', 'wellness'],
             
             # Science
-            'science': [
-                'https://feeds.reuters.com/reuters/scienceNews',
-                'https://rss.cnn.com/rss/cnn_tech.rss',
-                'https://feeds.bbci.co.uk/news/science_and_environment/rss.xml'
-            ],
+            'https://feeds.reuters.com/reuters/scienceNews': ['science', 'research', 'discovery'],
+            'https://feeds.bbci.co.uk/news/science_and_environment/rss.xml': ['science', 'environment'],
             
-            # Entertainment
-            'entertainment': [
-                'https://feeds.reuters.com/reuters/entertainment',
-                'https://rss.cnn.com/rss/cnn_showbiz.rss',
-                'https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml'
-            ],
-            
-            # World News (fallback)
-            'world': [
-                'https://feeds.reuters.com/reuters/worldNews',
-                'https://rss.cnn.com/rss/cnn_world.rss',
-                'https://feeds.bbci.co.uk/news/world/rss.xml'
-            ]
+            # World News
+            'https://feeds.reuters.com/reuters/worldNews': ['world', 'international', 'global'],
+            'https://feeds.bbci.co.uk/news/world/rss.xml': ['world', 'international']
         }
         
-        # Collect relevant feeds based on topics
-        relevant_feeds = set()
+        # Start with general feeds
+        relevant_feeds = set(general_feeds[:3])  # Always include top 3 general feeds
         
+        # Dynamically match feeds based on topic keywords
         for topic in topics:
             topic_lower = topic.lower().strip()
+            topic_words = topic_lower.split()
             
-            # Direct match
-            if topic_lower in all_feeds:
-                relevant_feeds.update(all_feeds[topic_lower])
-            else:
-                # Partial matches and synonyms
-                if any(keyword in topic_lower for keyword in ['sport', 'football', 'soccer', 'basketball', 'baseball', 'tennis', 'golf', 'hockey']):
-                    relevant_feeds.update(all_feeds['sports'])
-                elif any(keyword in topic_lower for keyword in ['tech', 'ai', 'artificial intelligence', 'machine learning', 'startup']):
-                    relevant_feeds.update(all_feeds['technology'])
-                elif any(keyword in topic_lower for keyword in ['business', 'finance', 'economic', 'market', 'stock']):
-                    relevant_feeds.update(all_feeds['business'])
-                elif any(keyword in topic_lower for keyword in ['health', 'medical', 'medicine', 'doctor', 'hospital']):
-                    relevant_feeds.update(all_feeds['health'])
-                elif any(keyword in topic_lower for keyword in ['politic', 'government', 'election', 'senate', 'congress']):
-                    relevant_feeds.update(all_feeds['politics'])
-                elif any(keyword in topic_lower for keyword in ['science', 'research', 'study', 'discovery']):
-                    relevant_feeds.update(all_feeds['science'])
-                elif any(keyword in topic_lower for keyword in ['entertainment', 'movie', 'music', 'celebrity', 'hollywood']):
-                    relevant_feeds.update(all_feeds['entertainment'])
+            # Check each specialized feed for relevance
+            matches_found = 0
+            for feed_url, keywords in specialized_feeds.items():
+                # Check if any keyword matches the topic or its words
+                if any(keyword in topic_lower or 
+                       any(keyword in word for word in topic_words) or
+                       any(word in keyword for word in topic_words if len(word) > 3)
+                       for keyword in keywords):
+                    relevant_feeds.add(feed_url)
+                    matches_found += 1
+                    if matches_found >= 2:  # Limit matches per topic
+                        break
+            
+            # If no specialized matches, ensure we have general coverage
+            if matches_found == 0:
+                # Add more general feeds for unknown topics
+                relevant_feeds.update(general_feeds[:5])
         
-        # If no specific feeds found or topics are too generic, use a diverse mix
-        if not relevant_feeds or len(relevant_feeds) < 2:
-            logger.info(f"🔄 No specific feeds found for topics {topics}, using diverse mix")
-            relevant_feeds.update(all_feeds['technology'][:2])  # Tech baseline
-            relevant_feeds.update(all_feeds['world'][:2])      # World news
-            
-            # Add topic-specific if available
-            for topic in topics:
-                topic_lower = topic.lower().strip()
-                if topic_lower in all_feeds:
-                    relevant_feeds.update(all_feeds[topic_lower][:2])
+        # If still not enough feeds, add diverse mix
+        if len(relevant_feeds) < 5:
+            # Add some specialized feeds for diversity
+            additional_feeds = [
+                'https://techcrunch.com/feed/',  # Tech coverage
+                'https://feeds.reuters.com/reuters/businessNews',  # Business
+                'https://feeds.bbci.co.uk/news/world/rss.xml'  # World news
+            ]
+            relevant_feeds.update(additional_feeds[:5 - len(relevant_feeds)])
         
         feeds_list = list(relevant_feeds)
-        logger.info(f"📡 Selected {len(feeds_list)} RSS feeds for topics {topics}")
-        logger.info(f"🔗 Feeds: {[feed.split('/')[-2] if len(feed.split('/')) > 2 else feed for feed in feeds_list[:5]]}")
+        logger.info(f"📡 Selected {len(feeds_list)} RSS feeds for dynamic topics: {topics}")
+        logger.info(f"🔍 Using intelligent feed matching - no hardcoded topic requirements")
+        logger.info(f"🔗 Selected feeds cover general news + topic-relevant sources")
         
         return feeds_list
 

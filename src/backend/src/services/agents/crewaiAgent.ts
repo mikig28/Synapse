@@ -97,77 +97,49 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
 
       const config = agent.configuration;
       
-      // Enhanced topic detection based on agent name if topics are empty
+      // Dynamic topic handling - accept any topics without hardcoded mappings
       let topics: string[] = [];
       const configTopics = config.topics as string | string[] | undefined | null;
       
       // Handle various formats and ensure we have valid topics
       if (!configTopics) {
-        // No topics at all - use defaults based on agent name
-        const agentNameLower = agent.name.toLowerCase();
-        
-        if (agentNameLower.includes('sport') || agentNameLower.includes('sports')) {
-          console.warn(`[CrewAI Agent] No topics configured for sports agent ${agent.name}, using sports defaults`);
-          topics = ['sports', 'football', 'basketball', 'soccer', 'tennis', 'baseball', 'athletics', 'olympics'];
-        } else if (agentNameLower.includes('tech') || agentNameLower.includes('technology')) {
-          topics = ['technology', 'AI', 'startups', 'software', 'innovation'];
-        } else if (agentNameLower.includes('business')) {
-          topics = ['business', 'finance', 'economy', 'markets', 'entrepreneurship'];
-        } else if (agentNameLower.includes('health')) {
-          topics = ['health', 'medicine', 'wellness', 'fitness', 'healthcare'];
-        } else {
-          console.warn(`[CrewAI Agent] No topics configured for agent ${agent.name}, using defaults`);
-          topics = ['technology', 'AI', 'startups'];
-        }
+        // No topics configured - use a generic default
+        console.warn(`[CrewAI Agent] No topics configured for agent ${agent.name}`);
+        topics = ['news', 'trending', 'latest'];
+        await run.addLog('warn', `No topics configured, using generic defaults: ${topics.join(', ')}`);
       } else if (typeof configTopics === 'string') {
-        // Handle string topics
+        // Handle string topics - could be comma-separated or single topic
         const trimmed = configTopics.trim();
         if (trimmed.length === 0) {
-          // Empty string - use defaults based on agent name
-          const agentNameLower = agent.name.toLowerCase();
-          if (agentNameLower.includes('sport')) {
-            topics = ['sports', 'football', 'basketball', 'soccer'];
-          } else {
-            topics = ['technology', 'AI', 'startups'];
-          }
+          // Empty string - use generic defaults
+          topics = ['news', 'trending', 'latest'];
+          await run.addLog('warn', `Empty topics string, using defaults: ${topics.join(', ')}`);
         } else {
-          // Parse comma-separated topics
-          topics = trimmed.split(',')
-            .map((t: string) => t.trim())
-            .filter((t: string) => t.length > 0);
+          // Parse comma-separated topics or use as single topic
+          topics = trimmed.includes(',') 
+            ? trimmed.split(',').map((t: string) => t.trim()).filter((t: string) => t.length > 0)
+            : [trimmed];
           
           if (topics.length === 0) {
-            const agentNameLower = agent.name.toLowerCase();
-            if (agentNameLower.includes('sport')) {
-              topics = ['sports', 'football', 'basketball', 'soccer'];
-            } else {
-              topics = ['technology', 'AI', 'startups'];
-            }
+            topics = ['news', 'trending', 'latest'];
           }
         }
       } else if (Array.isArray(configTopics)) {
-        // Handle array topics
+        // Handle array topics - filter valid strings
         topics = configTopics
           .filter((t: any): t is string => typeof t === 'string' && t.trim().length > 0)
           .map((t: string) => t.trim());
         
         if (topics.length === 0) {
-          // Empty array - use defaults based on agent name
-          const agentNameLower = agent.name.toLowerCase();
-          if (agentNameLower.includes('sport')) {
-            topics = ['sports', 'football', 'basketball', 'soccer'];
-          } else {
-            topics = ['technology', 'AI', 'startups'];
-          }
+          // Empty array after filtering - use generic defaults
+          topics = ['news', 'trending', 'latest'];
+          await run.addLog('warn', `No valid topics in array, using defaults: ${topics.join(', ')}`);
         }
       }
       
-      // Ensure topics is always an array with at least default values
-      if (!topics || topics.length === 0) {
-        topics = ['technology', 'AI', 'startups'];
-      }
-      
+      // Log the actual topics being used
       console.log(`[CrewAI Agent] Using topics for agent ${agent.name}:`, topics);
+      await run.addLog('info', `Processing user-defined topics: ${topics.join(', ')}`);
       
       const sources = {
         reddit: config.crewaiSources?.reddit !== false,

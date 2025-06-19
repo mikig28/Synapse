@@ -452,7 +452,7 @@ class RedditScraperTool(BaseTool):
             return []
     
     def _fetch_authenticated_posts(self, reddit_instance, topics_list: List[str]) -> List[Dict[str, Any]]:
-        """Fetch posts using authenticated Reddit API with dynamic subreddit discovery"""
+        """Fetch posts using authenticated Reddit API with dynamic subreddit discovery for ANY topic"""
         posts = []
         
         if not reddit_instance:
@@ -460,60 +460,102 @@ class RedditScraperTool(BaseTool):
             return posts
         
         try:
-            logger.info(f"🔐 Using authenticated Reddit API for topics: {topics_list}")
+            logger.info(f"🔐 Using authenticated Reddit API for dynamic topics: {topics_list}")
+            logger.info("🔍 No hardcoded mappings - discovering subreddits dynamically")
             
             # Track which subreddits we've already processed
             processed_subreddits = set()
             
             for topic in topics_list:
                 try:
-                    logger.info(f"🔍 Searching for subreddits related to: {topic}")
+                    logger.info(f"🔍 Dynamically searching for subreddits about: {topic}")
                     
-                    # Method 1: Search for subreddits by name
+                    # Method 1: Search for subreddits by exact name match
                     try:
                         matching_subreddits = reddit_instance.subreddits.search_by_name(topic, include_nsfw=False)
                         for subreddit in list(matching_subreddits)[:3]:  # Limit to 3 per topic
                             if subreddit.display_name.lower() not in processed_subreddits:
                                 processed_subreddits.add(subreddit.display_name.lower())
-                                logger.info(f"📋 Found subreddit: r/{subreddit.display_name}")
+                                logger.info(f"📋 Found exact match: r/{subreddit.display_name}")
                     except Exception as e:
-                        logger.debug(f"Subreddit name search failed: {e}")
+                        logger.debug(f"Exact name search for '{topic}' - no results")
                     
                     # Method 2: Search for subreddits by topic/description
                     try:
-                        search_results = reddit_instance.subreddits.search(topic, limit=5)
+                        search_results = reddit_instance.subreddits.search(topic, limit=10)
                         for subreddit in search_results:
                             if subreddit.display_name.lower() not in processed_subreddits:
-                                processed_subreddits.add(subreddit.display_name.lower())
-                                logger.info(f"📋 Found related subreddit: r/{subreddit.display_name}")
+                                # Check if subreddit is active (has recent posts)
+                                try:
+                                    recent_posts = list(subreddit.hot(limit=1))
+                                    if recent_posts:
+                                        processed_subreddits.add(subreddit.display_name.lower())
+                                        logger.info(f"📋 Found related active subreddit: r/{subreddit.display_name}")
+                                except:
+                                    pass
                     except Exception as e:
-                        logger.debug(f"Subreddit topic search failed: {e}")
+                        logger.debug(f"Topic search for '{topic}' failed: {e}")
                     
-                    # Method 3: Try direct subreddit access for common variations
+                    # Method 3: Try variations of the topic name
                     topic_variations = [
                         topic.lower(),
                         topic.lower().replace(' ', ''),
                         topic.lower().replace(' ', '_'),
-                        topic.lower() + 's' if not topic.lower().endswith('s') else topic.lower()[:-1]
+                        topic.lower().replace('-', ''),
+                        topic.lower().replace('_', ''),
                     ]
                     
+                    # Add plurals/singulars
+                    if topic.lower().endswith('s'):
+                        topic_variations.append(topic.lower()[:-1])
+                    else:
+                        topic_variations.append(topic.lower() + 's')
+                    
+                    # Add common prefixes/suffixes
+                    topic_variations.extend([
+                        f"{topic.lower()}news",
+                        f"{topic.lower()}_news",
+                        f"the{topic.lower()}",
+                        f"{topic.lower()}community",
+                        f"{topic.lower()}discussion"
+                    ])
+                    
                     for variation in topic_variations:
-                        if variation not in processed_subreddits:
+                        if variation not in processed_subreddits and len(processed_subreddits) < 10:
                             try:
                                 subreddit = reddit_instance.subreddit(variation)
-                                # Test if subreddit exists by accessing a property
+                                # Test if subreddit exists and is active
                                 _ = subreddit.display_name
-                                processed_subreddits.add(variation)
-                                logger.info(f"📋 Found direct subreddit: r/{variation}")
+                                subscriber_count = subreddit.subscribers
+                                if subscriber_count and subscriber_count > 100:  # Active subreddit
+                                    processed_subreddits.add(variation)
+                                    logger.info(f"📋 Found variation: r/{variation} ({subscriber_count:,} subscribers)")
                             except Exception:
                                 continue
                     
+                    # Method 4: Search r/all for the topic to find where it's discussed
+                    if len(processed_subreddits) < 3:
+                        try:
+                            all_search = reddit_instance.subreddit('all').search(topic, limit=20)
+                            for post in all_search:
+                                subreddit_name = str(post.subreddit).lower()
+                                if subreddit_name not in processed_subreddits and len(processed_subreddits) < 10:
+                                    processed_subreddits.add(subreddit_name)
+                                    logger.info(f"📋 Found from r/all search: r/{subreddit_name}")
+                        except Exception as e:
+                            logger.debug(f"r/all search failed: {e}")
+                    
                 except Exception as e:
-                    logger.error(f"Topic search failed for {topic}: {e}")
+                    logger.error(f"Topic discovery failed for '{topic}': {e}")
                     continue
             
+            # If no subreddits found, search r/all directly
+            if not processed_subreddits:
+                logger.info("🌐 No specific subreddits found - will search r/all")
+                processed_subreddits.add('all')
+            
             # Now fetch posts from all discovered subreddits
-            logger.info(f"📊 Processing {len(processed_subreddits)} discovered subreddits")
+            logger.info(f"📊 Fetching from {len(processed_subreddits)} dynamically discovered subreddits")
             
             for subreddit_name in processed_subreddits:
                 try:
