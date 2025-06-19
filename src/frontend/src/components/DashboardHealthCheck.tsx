@@ -89,37 +89,48 @@ export const DashboardHealthCheck: React.FC<DashboardHealthCheckProps> = ({
       if (response.ok) {
         newHealth.backend = 'connected';
         
+        // Check content type to determine how to parse response
+        const contentType = response.headers.get('content-type') || '';
+        
         try {
-          const healthData = await response.json();
-          console.log('Health data received:', healthData);
-          
-          // Parse MongoDB connection status from the root endpoint
-          if (healthData && typeof healthData === 'object') {
-            // Check for database status in various possible formats
-            const dbStatus = (healthData as any).database || (healthData as any).mongo || (healthData as any).mongodb || '';
-            const dbStatusStr = typeof dbStatus === 'string' ? dbStatus.toLowerCase() : '';
+          if (contentType.includes('application/json')) {
+            // Parse as JSON
+            const healthData = await response.json();
+            console.log('Health data received (JSON):', healthData);
             
-            console.log('Database status string:', dbStatusStr);
-            
-            newHealth.database = (
-              dbStatusStr.includes('connected') || 
-              dbStatusStr.includes('ready') ||
-              dbStatusStr.includes('1') || // MongoDB readyState 1 = connected
-              (healthData as any).databaseConnected === true
-            ) ? 'connected' : 'disconnected';
+            if (healthData && typeof healthData === 'object') {
+              const dbStatus = (healthData as any).database || (healthData as any).mongo || (healthData as any).mongodb || '';
+              const dbStatusStr = typeof dbStatus === 'string' ? dbStatus.toLowerCase() : '';
+              
+              newHealth.database = (
+                dbStatusStr.includes('connected') || 
+                dbStatusStr.includes('ready') ||
+                dbStatusStr.includes('1') || 
+                (healthData as any).databaseConnected === true
+              ) ? 'connected' : 'disconnected';
+            } else {
+              newHealth.database = 'disconnected';
+            }
           } else {
-            newHealth.database = 'disconnected';
+            // Parse as text (default for backend root endpoint)
+            const textResponse = await response.text();
+            console.log('Health data received (text):', textResponse);
+            
+            // Parse MongoDB status from text response like "MongoDB (Mongoose) status: Connected"
+            const dbStatusMatch = textResponse.match(/MongoDB.*status:\s*(\w+)/i);
+            if (dbStatusMatch) {
+              const dbStatus = dbStatusMatch[1].toLowerCase();
+              console.log('Extracted database status:', dbStatus);
+              
+              newHealth.database = (dbStatus === 'connected') ? 'connected' : 'disconnected';
+            } else {
+              // Fallback: check for "connected" keywords in the response
+              newHealth.database = textResponse.toLowerCase().includes('connected') ? 'connected' : 'disconnected';
+            }
           }
         } catch (parseError) {
-          // If we can't parse JSON, check if it's an HTML response (could indicate server is up)
-          const contentType = response.headers.get('content-type') || '';
-          if (contentType.includes('text/html')) {
-            newHealth.backend = 'connected';
-            newHealth.database = 'disconnected'; // Unknown database status
-          } else {
-            newHealth.backend = 'connected';
-            newHealth.database = 'disconnected';
-          }
+          console.log('Failed to parse response:', parseError);
+          newHealth.database = 'disconnected';
         }
       } else {
         newHealth.backend = 'disconnected';
@@ -150,15 +161,24 @@ export const DashboardHealthCheck: React.FC<DashboardHealthCheckProps> = ({
       newHealth.crewaiService = 'disconnected';
     }
 
-    // Check Socket.IO connection if available
+    // Check Socket.IO connection
     try {
-      // Check if socket.io is connected (this requires socket.io client to be available)
-      if (typeof window !== 'undefined' && (window as any).io) {
-        newHealth.socketio = 'connected';
-      } else {
-        newHealth.socketio = 'disconnected';
-      }
-    } catch (error) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      // Try to connect to Socket.IO endpoint
+      const socketResponse = await fetch(`${BACKEND_ROOT_URL}/socket.io/`, {
+        method: 'GET',
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      // Socket.IO typically returns a JSON response with upgrade info or 400 for invalid request
+      // If we get any response (even 400), it means the Socket.IO server is running
+      newHealth.socketio = (socketResponse.status === 400 || socketResponse.ok) ? 'connected' : 'disconnected';
+    } catch (error: any) {
+      console.log('Socket.IO check failed:', error.message);
       newHealth.socketio = 'disconnected';
     }
 
@@ -361,20 +381,27 @@ export const DashboardHealthCheck: React.FC<DashboardHealthCheckProps> = ({
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={async () => {
-                            try {
-                              await checkHealth();
+                          onClick={() => {
+                            console.log('MongoDB check button clicked');
+                            toast({
+                              title: 'Checking Database',
+                              description: 'Refreshing database connection status...',
+                            });
+                            
+                            // Trigger a health check
+                            checkHealth().then(() => {
                               toast({
-                                title: 'Health Check',
-                                description: 'Database connection check completed',
+                                title: 'Health Check Complete',
+                                description: `Database status: ${health.database}`,
                               });
-                            } catch (error) {
+                            }).catch((error) => {
+                              console.error('Health check error:', error);
                               toast({
                                 title: 'Health Check Failed',
                                 description: 'Unable to check database connection',
                                 variant: 'destructive',
                               });
-                            }
+                            });
                           }}
                         >
                           <Settings className="w-4 h-4 mr-2" />
