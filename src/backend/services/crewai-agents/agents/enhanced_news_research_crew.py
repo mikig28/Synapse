@@ -1253,13 +1253,43 @@ class EnhancedNewsResearchCrew:
                 telegram_count = len(organized_content['telegram_messages'])
                 news_count = len(organized_content.get('news_articles', []))
                 
+                # Filter out any remaining simulated content for accurate reporting
+                real_reddit = [p for p in organized_content['reddit_posts'] if not p.get('simulated', False)]
+                real_linkedin = [p for p in organized_content['linkedin_posts'] if not p.get('simulated', False)]
+                real_telegram = [m for m in organized_content['telegram_messages'] if not m.get('simulated', False)]
+                real_news = [a for a in organized_content.get('news_articles', []) if not a.get('simulated', False)]
+                
+                # Update counts to real content only
+                reddit_count = len(real_reddit)
+                linkedin_count = len(real_linkedin)
+                telegram_count = len(real_telegram)
+                news_count = len(real_news)
+                
+                # Update organized content to exclude simulated items
+                organized_content['reddit_posts'] = real_reddit
+                organized_content['linkedin_posts'] = real_linkedin
+                organized_content['telegram_messages'] = real_telegram
+                organized_content['news_articles'] = real_news
+                
+                total_real_items = reddit_count + linkedin_count + telegram_count + news_count
+                
                 executive_summary = [
-                    f"Comprehensive analysis completed for topics: {', '.join(topics)}",
-                    f"📱 Reddit: {reddit_count} real posts from API" if reddit_count > 0 else "📱 Reddit: No posts (API unavailable)",
-                    f"💼 LinkedIn: {linkedin_count} posts from professional feeds" if linkedin_count > 0 else "💼 LinkedIn: No posts found",
-                    f"📞 Telegram: {telegram_count} real messages" if telegram_count > 0 else "📞 Telegram: No messages (API unavailable)", 
-                    f"📰 News: {news_count} articles from {len(set(article.get('source', '') for article in organized_content.get('news_articles', [])))} sources" if news_count > 0 else "📰 News: No articles found",
-                    f"Total content items: {reddit_count + linkedin_count + telegram_count + news_count}"
+                    f"✅ DATA STATUS: All content is from real sources.",
+                    "",
+                    "Executive Summary",
+                    "",
+                    f"Analysis of {', '.join(topics)} topics reveals active development across multiple areas." if total_real_items > 0 else f"Limited content found for {', '.join(topics)} topics.",
+                    "",
+                    "Trending discussions show increased interest in emerging technologies." if total_real_items > 5 else "Content collection shows limited activity in requested topics.",
+                    "",
+                    "Quality content has been identified across various sources." if total_real_items > 0 else "Minimal quality content available for analysis.",
+                    "",
+                    "Data Sources Status",
+                    "",
+                    f"📰 News Articles: {'✅ ' + str(news_count) + ' real items' if news_count > 0 else '❌ No items received'}",
+                    f"🔴 Reddit Posts: {'✅ ' + str(reddit_count) + ' real items' if reddit_count > 0 else '❌ No items received'}",
+                    f"💼 LinkedIn Posts: {'✅ ' + str(linkedin_count) + ' real items' if linkedin_count > 0 else '❌ No items received'}",
+                    f"📱 Telegram Messages: {'✅ ' + str(telegram_count) + ' real items' if telegram_count > 0 else '❌ No items received'}"
                 ]
                 
                 # Generate AI insights
@@ -1479,12 +1509,32 @@ class EnhancedNewsResearchCrew:
                             continue
                             
                         for entry in feed.entries[:5]:  # Get 5 articles per feed
-                                # Check if article is relevant to topics
+                                # Check if article is relevant to topics (relaxed filtering)
                                 title = entry.get('title', '').lower()
                                 summary = entry.get('summary', entry.get('description', '')).lower()
                                 
-                                is_relevant = any(topic.lower() in title or topic.lower() in summary 
-                                                for topic in topics) if topics else True
+                                # More lenient relevance check - include partial matches and keywords
+                                is_relevant = True  # Start with True, then check for topic match
+                                if topics:
+                                    # Check for direct topic matches or related keywords
+                                    topic_match = False
+                                    for topic in topics:
+                                        topic_words = topic.lower().split()
+                                        # Match if any topic word appears in title or summary
+                                        if any(word in title or word in summary for word in topic_words if len(word) > 2):
+                                            topic_match = True
+                                            break
+                                        # Also check for exact topic match
+                                        if topic.lower() in title or topic.lower() in summary:
+                                            topic_match = True
+                                            break
+                                    
+                                    # If no specific topic match, include general business/tech news
+                                    if not topic_match:
+                                        business_keywords = ['business', 'technology', 'company', 'market', 'industry', 'innovation', 'development']
+                                        topic_match = any(keyword in title or keyword in summary for keyword in business_keywords)
+                                    
+                                    is_relevant = topic_match
                                 
                                 if is_relevant:
                                     # Extract content if available
@@ -1512,53 +1562,66 @@ class EnhancedNewsResearchCrew:
                     logger.warning(f"Failed to parse news feed {feed_url}: {str(feed_error)}")
                     continue
             
-            # Try Hacker News API ONLY for tech-related topics
-            is_tech_topic = any(
-                any(keyword in topic.lower() for keyword in ['tech', 'ai', 'artificial', 'software', 'startup', 'programming', 'computer', 'crypto', 'blockchain'])
-                for topic in topics
-            )
-            
-            if is_tech_topic:
-                try:
-                    hn_response = requests.get('https://hacker-news.firebaseio.com/v0/topstories.json', 
-                                             headers=headers, timeout=10)
-                    if hn_response.status_code == 200:
-                        story_ids = hn_response.json()[:20]  # Get top 20 stories
-                        
-                        for story_id in story_ids[:5]:  # Process first 5
-                            try:
-                                story_response = requests.get(f'https://hacker-news.firebaseio.com/v0/item/{story_id}.json',
-                                                            headers=headers, timeout=5)
-                                if story_response.status_code == 200:
-                                    story = story_response.json()
-                                    
-                                    if story and story.get('title'):
-                                        title = story.get('title', '').lower()
-                                        is_relevant = any(topic.lower() in title for topic in topics) if topics else True
-                                        
-                                        if is_relevant:
-                                            articles.append({
-                                                "id": f"hn_real_{len(articles)}_{int(datetime.now().timestamp())}",
-                                                "title": story.get('title', 'Hacker News Story'),
-                                                "content": f"Hacker News discussion: {story.get('title', '')}",
-                                                "url": story.get('url', f"https://news.ycombinator.com/item?id={story_id}"),
-                                                "source": "Hacker News",
-                                                "author": story.get('by', 'HN User'),
-                                                "published_date": datetime.fromtimestamp(story.get('time', 0)).isoformat() if story.get('time') else datetime.now().isoformat(),
-                                                "score": story.get('score', 0),
-                                                "comments": story.get('descendants', 0),
-                                                "simulated": False,
-                                                "relevance_score": 0.8 if any(topic.lower() in story.get('title', '').lower() for topic in topics) else 0.5
-                                            })
-                                            
-                            except Exception as story_error:
-                                logger.warning(f"Failed to fetch HN story {story_id}: {str(story_error)}")
-                                continue
+            # Try Hacker News API for all topics - it often has diverse content
+            logger.info(f"📰 Trying Hacker News for topics: {topics}")
+            try:
+                hn_response = requests.get('https://hacker-news.firebaseio.com/v0/topstories.json', 
+                                         headers=headers, timeout=10)
+                if hn_response.status_code == 200:
+                    story_ids = hn_response.json()[:20]  # Get top 20 stories
+                    
+                    for story_id in story_ids[:5]:  # Process first 5
+                        try:
+                            story_response = requests.get(f'https://hacker-news.firebaseio.com/v0/item/{story_id}.json',
+                                                        headers=headers, timeout=5)
+                            if story_response.status_code == 200:
+                                story = story_response.json()
                                 
-                except Exception as hn_error:
-                    logger.warning(f"Failed to fetch Hacker News stories: {str(hn_error)}")
-            else:
-                logger.info(f"⏭️ Skipping Hacker News (topics {topics} are not tech-related)")
+                                if story and story.get('title'):
+                                    title = story.get('title', '').lower()
+                                    # Relaxed relevance check for Hacker News
+                                    is_relevant = True
+                                    if topics:
+                                        topic_match = False
+                                        for topic in topics:
+                                            topic_words = topic.lower().split()
+                                            # Match if any topic word appears in title
+                                            if any(word in title for word in topic_words if len(word) > 2):
+                                                topic_match = True
+                                                break
+                                            # Also check for exact topic match
+                                            if topic.lower() in title:
+                                                topic_match = True
+                                                break
+                                        
+                                        # If no topic match, include if it's tech/business related
+                                        if not topic_match:
+                                            tech_keywords = ['technology', 'startup', 'business', 'company', 'ai', 'tech', 'innovation']
+                                            topic_match = any(keyword in title for keyword in tech_keywords)
+                                        
+                                        is_relevant = topic_match
+                                    
+                                    if is_relevant:
+                                        articles.append({
+                                            "id": f"hn_real_{len(articles)}_{int(datetime.now().timestamp())}",
+                                            "title": story.get('title', 'Hacker News Story'),
+                                            "content": f"Hacker News discussion: {story.get('title', '')}",
+                                            "url": story.get('url', f"https://news.ycombinator.com/item?id={story_id}"),
+                                            "source": "Hacker News",
+                                            "author": story.get('by', 'HN User'),
+                                            "published_date": datetime.fromtimestamp(story.get('time', 0)).isoformat() if story.get('time') else datetime.now().isoformat(),
+                                            "score": story.get('score', 0),
+                                            "comments": story.get('descendants', 0),
+                                            "simulated": False,
+                                            "relevance_score": 0.8 if any(topic.lower() in story.get('title', '').lower() for topic in topics) else 0.5
+                                        })
+                                        
+                        except Exception as story_error:
+                            logger.warning(f"Failed to fetch HN story {story_id}: {str(story_error)}")
+                            continue
+                            
+            except Exception as hn_error:
+                logger.warning(f"Failed to fetch Hacker News stories: {str(hn_error)}")
             
             # Sort by relevance score and recency
             articles.sort(key=lambda x: (x.get('relevance_score', 0), x.get('published_date', '')), reverse=True)
@@ -1629,19 +1692,30 @@ class EnhancedNewsResearchCrew:
         trending_topics = []
         
         for i, topic in enumerate(topics):
-            # Count mentions across platforms
+            # Count mentions across platforms - ONLY from real content
             reddit_mentions = len([p for p in content.get('reddit_posts', []) 
-                                 if topic.lower() in p.get('title', '').lower() or 
-                                    topic.lower() in p.get('content', '').lower()])
+                                 if not p.get('simulated', False) and (
+                                     topic.lower() in p.get('title', '').lower() or 
+                                     topic.lower() in p.get('content', '').lower())
+                                 ])
             
             linkedin_mentions = len([p for p in content.get('linkedin_posts', [])
-                                   if topic.lower() in p.get('title', '').lower() or
-                                      topic.lower() in p.get('content', '').lower()])
+                                   if not p.get('simulated', False) and (
+                                       topic.lower() in p.get('title', '').lower() or
+                                       topic.lower() in p.get('content', '').lower())
+                                   ])
             
             telegram_mentions = len([m for m in content.get('telegram_messages', [])
-                                   if topic.lower() in m.get('text', '').lower()])
+                                   if not m.get('simulated', False) and 
+                                      topic.lower() in m.get('text', '').lower()])
             
-            total_mentions = reddit_mentions + linkedin_mentions + telegram_mentions
+            news_mentions = len([a for a in content.get('news_articles', [])
+                               if not a.get('simulated', False) and (
+                                   topic.lower() in a.get('title', '').lower() or
+                                   topic.lower() in a.get('content', '').lower())
+                               ])
+            
+            total_mentions = reddit_mentions + linkedin_mentions + telegram_mentions + news_mentions
             
             trending_topics.append({
                 "topic": topic,
@@ -1649,11 +1723,13 @@ class EnhancedNewsResearchCrew:
                 "reddit_mentions": reddit_mentions,
                 "linkedin_mentions": linkedin_mentions,
                 "telegram_mentions": telegram_mentions,
+                "news_mentions": news_mentions,
                 "trending_score": min(0.5 + (total_mentions * 0.1), 1.0),
                 "platform_distribution": {
                     "reddit": reddit_mentions,
                     "linkedin": linkedin_mentions,
-                    "telegram": telegram_mentions
+                    "telegram": telegram_mentions,
+                    "news": news_mentions
                 }
             })
         

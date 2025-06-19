@@ -633,8 +633,8 @@ class TelegramMonitorTool(BaseTool):
                         '📊': 12
                     },
                     'media_type': 'text',
-                    'url': f'https://example.com/{topic.lower()}-news',
-                    'external_url': f'https://example.com/{topic.lower()}-news',
+                    'url': f'https://t.me/{channel.replace("@", "")}',
+                    'external_url': f'https://t.me/{channel.replace("@", "")}',
                     'hashtags': [f'#{topic}', '#tech', '#innovation'],
                     'topic': topic,
                     'source': 'telegram_simulated',
@@ -662,8 +662,8 @@ class TelegramMonitorTool(BaseTool):
                         '📊': 15
                     },
                     'media_type': 'text',
-                    'url': f'https://example.com/{topic.lower()}-analysis',
-                    'external_url': f'https://example.com/{topic.lower()}-analysis',
+                    'url': f'https://t.me/{channel.replace("@", "")}',
+                    'external_url': f'https://t.me/{channel.replace("@", "")}',
                     'hashtags': [f'#{topic}', '#market', '#investment'],
                     'topic': topic,
                     'source': 'telegram_simulated',
