@@ -182,23 +182,58 @@ export class CrewAIAgentExecutor implements AgentExecutor {
     const organizedContent = data?.organized_content || {};
     const validatedArticles = data?.validated_articles || [];
     
-    // Combine all content sources
-    const allContent = [
-      ...(organizedContent.reddit_posts || []).map((item: any) => ({ ...item, source_type: 'reddit' })),
-      ...(organizedContent.linkedin_posts || []).map((item: any) => ({ ...item, source_type: 'linkedin' })),
-      ...(organizedContent.telegram_messages || []).map((item: any) => ({ ...item, source_type: 'telegram' })),
-      ...(organizedContent.news_articles || []).map((item: any) => ({ ...item, source_type: 'news_website' })),
-      ...validatedArticles.map((item: any) => ({ ...item, source_type: item.source_type || 'news_website' }))
-    ];
+    // Process each source separately to maintain accurate attribution
+    const sourceData = {
+      reddit: organizedContent.reddit_posts || [],
+      linkedin: organizedContent.linkedin_posts || [],
+      telegram: organizedContent.telegram_messages || [],
+      news_website: organizedContent.news_articles || [],
+      validated: validatedArticles || []
+    };
+    
+    // Combine all content sources with explicit source labeling
+    const allContent: any[] = [];
+    
+    // Process each source type separately
+    for (const [sourceType, items] of Object.entries(sourceData)) {
+      if (Array.isArray(items)) {
+        items.forEach(item => {
+          // Validate source attribution
+          const actualSource = this.validateSourceType(item, sourceType);
+          allContent.push({
+            ...item,
+            source_type: actualSource,
+            original_source_claim: sourceType,
+            source_validated: actualSource === sourceType
+          });
+        });
+      }
+    }
     
     console.log(`[CrewAIExecutor] Processing ${allContent.length} items from all sources`);
     console.log(`[CrewAIExecutor] Source breakdown:`, {
-      reddit: organizedContent.reddit_posts?.length || 0,
-      linkedin: organizedContent.linkedin_posts?.length || 0,
-      telegram: organizedContent.telegram_messages?.length || 0,
-      news: organizedContent.news_articles?.length || 0,
-      validated: validatedArticles.length
+      reddit: sourceData.reddit.length,
+      linkedin: sourceData.linkedin.length,
+      telegram: sourceData.telegram.length,
+      news: sourceData.news_website.length,
+      validated: sourceData.validated.length
     });
+
+    // Log source validation summary
+    const sourceValidation = allContent.reduce((acc, item) => {
+      const key = item.original_source_claim;
+      if (!acc[key]) acc[key] = { total: 0, valid: 0, invalid: 0 };
+      acc[key].total++;
+      if (item.source_validated) {
+        acc[key].valid++;
+      } else {
+        acc[key].invalid++;
+        console.warn(`[CrewAIExecutor] Source mismatch: Item claimed as ${item.original_source_claim} but appears to be ${item.source_type}`);
+      }
+      return acc;
+    }, {} as Record<string, any>);
+    
+    console.log(`[CrewAIExecutor] Source validation summary:`, sourceValidation);
 
     let savedCount = 0;
     let skippedCount = 0;
@@ -211,122 +246,142 @@ export class CrewAIAgentExecutor implements AgentExecutor {
     // Import crypto for hashing
     const crypto = require('crypto');
 
-    for (const article of allContent) {
-      try {
-        // Generate content hash for better duplicate detection
-        const contentHash = crypto.createHash('md5')
-          .update((article.title || '') + (article.url || ''))
-          .digest('hex');
-        
-        // Generate unique ID with timestamp to ensure uniqueness
-        const uniqueId = `${article.source_type || 'unknown'}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
-        // Check for duplicates based on content hash instead of just URL
-        const duplicateCheckDate = new Date(Date.now() - duplicateWindow * 60 * 60 * 1000);
-        
-        const existingItem = await NewsItem.findOne({
-          $or: [
-            // Check by content hash (preferred)
-            { 
-              contentHash: contentHash,
-              createdAt: { $gte: duplicateCheckDate }
-            },
-            // Fallback to URL check for backward compatibility
-            { 
-              url: article.url,
-              createdAt: { $gte: duplicateCheckDate }
-            }
-          ]
-        });
+    // Group processing by verified source type
+    const processingGroups = allContent.reduce((groups, item) => {
+      const sourceType = item.source_type;
+      if (!groups[sourceType]) groups[sourceType] = [];
+      groups[sourceType].push(item);
+      return groups;
+    }, {} as Record<string, any[]>);
 
-        if (existingItem) {
-          skippedCount++;
-          console.log(`[CrewAIExecutor] Skipping duplicate article: ${article.title} (found within ${duplicateWindow}h)`);
-          await run.addLog('info', 'Skipped duplicate article', {
-            title: article.title,
-            reason: `Similar content found within ${duplicateWindow} hours`,
-            existingDate: existingItem.createdAt,
-            refreshMode: refreshMode,
-            window: `${duplicateWindow}h`
+    console.log(`[CrewAIExecutor] Processing groups:`, Object.keys(processingGroups).map(k => `${k}: ${processingGroups[k].length}`));
+
+    for (const [sourceType, articles] of Object.entries(processingGroups)) {
+      console.log(`[CrewAIExecutor] 📝 Processing ${(articles as any[]).length} items from ${sourceType}`);
+      
+      for (let i = 0; i < (articles as any[]).length; i++) {
+        const article = (articles as any[])[i];
+        
+        try {
+          console.log(`[CrewAIExecutor] Processing ${sourceType} item ${i+1}/${(articles as any[]).length}: ${article.title?.substring(0, 80)}...`);
+          
+          // Generate content hash for better duplicate detection
+          const contentHash = crypto.createHash('md5')
+            .update((article.title || '') + (article.url || ''))
+            .digest('hex');
+          
+          // Generate unique ID with timestamp to ensure uniqueness
+          const uniqueId = `${sourceType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          
+          // Check for duplicates based on content hash instead of just URL
+          const duplicateCheckDate = new Date(Date.now() - duplicateWindow * 60 * 60 * 1000);
+          
+          const existingItem = await NewsItem.findOne({
+            $or: [
+              // Check by content hash (preferred)
+              { 
+                contentHash: contentHash,
+                createdAt: { $gte: duplicateCheckDate }
+              },
+              // Fallback to URL check for backward compatibility
+              { 
+                url: article.url,
+                createdAt: { $gte: duplicateCheckDate }
+              }
+            ]
           });
-          continue;
-        }
 
-        // Create new news item with enhanced data and unique ID
-        const newsItem = new NewsItem({
-          _id: new mongoose.Types.ObjectId(), // Ensure unique ObjectId
-          userId,
-          agentId: agent._id,
-          title: article.title || 'Untitled',
-          content: article.content || article.summary || '',
-          summary: article.summary || article.content?.substring(0, 300) + '...' || '',
-          url: article.url_cleaned || article.url || '',
-          source: article.source || article.source_type || 'Unknown',
-          author: article.author || 'Unknown',
-          publishedDate: article.published_date ? new Date(article.published_date) : new Date(),
-          tags: article.tags || [],
-          contentHash: contentHash, // Store content hash for future duplicate detection
-          metadata: {
-            uniqueId: uniqueId, // Store unique ID
-            // Enhanced metadata from CrewAI
-            qualityScore: article.quality_score || 0,
-            relevanceScore: article.relevance_score || 0,
-            matchedTopic: article.matched_topic || 'general',
-            sourceCategory: article.source_category || article.source_type || 'news',
-            sourceType: article.source_type || 'news_website',
-            urlValidated: article.url_validated || article.validated || false,
-            scrapedAt: article.scraped_at || new Date().toISOString(),
-            
-            // Social media specific data
-            engagement: article.engagement || {
-              likes: article.likes || article.score || 0,
-              comments: article.comments || article.num_comments || 0,
-              shares: article.shares || 0,
-              views: article.views || 0
-            },
-            
-            // Original article data
-            originalData: {
-              score: article.score || 0,
-              comments: article.comments || article.num_comments || 0,
-              stars: article.stars || 0,
-              language: article.language || 'unknown',
-              subreddit: article.subreddit || null,
-              company: article.company || null,
-              messageId: article.messageId || null
-            },
-            
-            // CrewAI execution metadata
-            crewaiMode: result.mode,
-            enhancedFeatures: result.enhanced_features,
-            executionTimestamp: result.timestamp,
-            refreshMode: refreshMode
+          if (existingItem) {
+            skippedCount++;
+            console.log(`[CrewAIExecutor] ⏭️ Skipped ${sourceType} item ${i+1} (already exists)`);
+            await run.addLog('info', 'Skipped duplicate article', {
+              title: article.title,
+              reason: `Similar content found within ${duplicateWindow} hours`,
+              existingDate: existingItem.createdAt,
+              refreshMode: refreshMode,
+              window: `${duplicateWindow}h`,
+              sourceType: sourceType
+            });
+            continue;
           }
-        });
 
-        await newsItem.save();
-        savedCount++;
-        
-        // Track source counts
-        const sourceType = article.source_type || 'unknown';
-        sourceCounts[sourceType] = (sourceCounts[sourceType] || 0) + 1;
+          // Create new news item with enhanced data and unique ID
+          const newsItem = new NewsItem({
+            _id: new mongoose.Types.ObjectId(), // Ensure unique ObjectId
+            userId,
+            agentId: agent._id,
+            title: article.title || 'Untitled',
+            content: article.content || article.summary || article.text || '',
+            summary: article.summary || article.content?.substring(0, 300) + '...' || article.text?.substring(0, 300) + '...' || '',
+            url: article.url_cleaned || article.url || article.external_url || '',
+            source: this.determineActualSource(article, sourceType),
+            author: article.author || 'Unknown',
+            publishedDate: article.published_date ? new Date(article.published_date) : 
+                          article.timestamp ? new Date(article.timestamp) :
+                          article.date ? new Date(article.date) : new Date(),
+            tags: article.tags || [],
+            contentHash: contentHash, // Store content hash for future duplicate detection
+            metadata: {
+              uniqueId: uniqueId, // Store unique ID
+              // Enhanced metadata from CrewAI
+              qualityScore: article.quality_score || 0,
+              relevanceScore: article.relevance_score || 0,
+              matchedTopic: article.matched_topic || 'general',
+              sourceCategory: article.source_category || sourceType,
+              sourceType: sourceType, // Use validated source type
+              originalSourceClaim: article.original_source_claim,
+              sourceValidated: article.source_validated,
+              urlValidated: article.url_validated || article.validated || false,
+              scrapedAt: article.scraped_at || new Date().toISOString(),
+              
+              // Social media specific data
+              engagement: article.engagement || {
+                likes: article.likes || article.score || 0,
+                comments: article.comments || article.num_comments || 0,
+                shares: article.shares || article.forwards || 0,
+                views: article.views || 0,
+                reactions: article.reactions || {}
+              },
+              
+              // Source-specific data
+              sourceSpecific: this.extractSourceSpecificData(article, sourceType),
+              
+              // CrewAI execution metadata
+              crewaiMode: result.mode,
+              enhancedFeatures: result.enhanced_features,
+              executionTimestamp: result.timestamp,
+              refreshMode: refreshMode
+            }
+          });
 
-        await run.addLog('info', 'Saved news article', {
-          title: article.title,
-          source: article.source,
-          sourceType: article.source_type,
-          qualityScore: article.quality_score,
-          urlValidated: article.url_validated || article.validated,
-          uniqueId: uniqueId
-        });
+          await newsItem.save();
+          savedCount++;
+          
+          // Track source counts by verified type
+          sourceCounts[sourceType] = (sourceCounts[sourceType] || 0) + 1;
 
-      } catch (error: any) {
-        console.error(`[CrewAIExecutor] Error saving article:`, error);
-        await run.addLog('warn', 'Failed to save article', {
-          title: article.title,
-          error: error.message
-        });
+          console.log(`[CrewAIExecutor] ✅ Successfully stored ${sourceType} item ${i+1}`);
+          await run.addLog('info', 'Saved news article', {
+            title: article.title,
+            source: newsItem.source,
+            sourceType: sourceType,
+            qualityScore: article.quality_score,
+            urlValidated: article.url_validated || article.validated,
+            uniqueId: uniqueId,
+            sourceValidated: article.source_validated
+          });
+
+        } catch (error: any) {
+          console.error(`[CrewAIExecutor] Error saving ${sourceType} article:`, error);
+          await run.addLog('warn', 'Failed to save article', {
+            title: article.title,
+            sourceType: sourceType,
+            error: error.message
+          });
+        }
       }
+      
+      console.log(`[CrewAIExecutor] 📊 ${sourceType}: Stored ${sourceCounts[sourceType] || 0}/${(articles as any[]).length} items`);
     }
 
     // Log execution summary with source breakdown
@@ -335,12 +390,7 @@ export class CrewAIAgentExecutor implements AgentExecutor {
       savedArticles: savedCount,
       skippedArticles: skippedCount,
       sourceBreakdown: sourceCounts,
-      sources: {
-        reddit: organizedContent.reddit_posts?.length || 0,
-        linkedin: organizedContent.linkedin_posts?.length || 0,
-        telegram: organizedContent.telegram_messages?.length || 0,
-        news: organizedContent.news_articles?.length || 0
-      },
+      sourceValidation: sourceValidation,
       qualityMetrics: data?.ai_insights?.quality_metrics,
       urlValidationStats: data?.ai_insights?.url_validation_stats,
       recommendations: data?.recommendations,
@@ -348,9 +398,121 @@ export class CrewAIAgentExecutor implements AgentExecutor {
       duplicateWindow: `${duplicateWindow} hours`
     });
 
-    console.log(`[CrewAIExecutor] Saved ${savedCount} new articles, skipped ${skippedCount} duplicates`);
-    console.log(`[CrewAIExecutor] Source breakdown:`, sourceCounts);
+    console.log(`[CrewAIExecutor] Successfully stored ${savedCount} items from CrewAI agents`);
+    console.log(`[CrewAIExecutor] Source breakdown (verified):`, sourceCounts);
     console.log(`[CrewAIExecutor] Refresh mode: ${refreshMode}, Duplicate window: ${duplicateWindow}h`);
+  }
+
+  private validateSourceType(item: any, claimedSource: string): string {
+    // Validate source based on URL patterns and content structure
+    const url = item.url || item.external_url || '';
+    const content = JSON.stringify(item).toLowerCase();
+    
+    // Reddit validation
+    if (claimedSource === 'reddit') {
+      if (url.includes('reddit.com') || 
+          item.subreddit || 
+          item.reddit_url ||
+          content.includes('subreddit') ||
+          item.source_type === 'reddit_json' ||
+          item.source_type === 'reddit_api') {
+        return 'reddit';
+      }
+      // If claimed as Reddit but doesn't have Reddit indicators, mark as misattributed
+      return 'misattributed_reddit';
+    }
+    
+    // Telegram validation
+    if (claimedSource === 'telegram') {
+      if (url.includes('t.me') || 
+          item.channel ||
+          item.channel_name ||
+          item.message_id ||
+          content.includes('telegram') ||
+          item.source_type === 'telegram_web' ||
+          item.source_type === 'telegram_rss') {
+        return 'telegram';
+      }
+      return 'misattributed_telegram';
+    }
+    
+    // LinkedIn validation  
+    if (claimedSource === 'linkedin') {
+      if (url.includes('linkedin.com') ||
+          item.company ||
+          content.includes('linkedin') ||
+          item.source_type === 'linkedin_professional') {
+        return 'linkedin';
+      }
+      return 'misattributed_linkedin';
+    }
+    
+    // News website validation
+    if (claimedSource === 'news_website' || claimedSource === 'validated') {
+      // Most legitimate news sources
+      return 'news_website';
+    }
+    
+    // Default to claimed source if no validation fails
+    return claimedSource;
+  }
+
+  private determineActualSource(item: any, sourceType: string): string {
+    // Return the most accurate source description
+    if (sourceType.startsWith('misattributed_')) {
+      return `Misattributed (claimed ${sourceType.replace('misattributed_', '')} but appears to be news)`;
+    }
+    
+    if (item.source) {
+      return item.source;
+    }
+    
+    if (sourceType === 'reddit') {
+      return item.subreddit ? `Reddit r/${item.subreddit}` : 'Reddit';
+    }
+    
+    if (sourceType === 'telegram') {
+      return item.channel_name || item.channel || 'Telegram';
+    }
+    
+    if (sourceType === 'linkedin') {
+      return 'LinkedIn Professional';
+    }
+    
+    return sourceType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }
+
+  private extractSourceSpecificData(item: any, sourceType: string): any {
+    switch (sourceType) {
+      case 'reddit':
+        return {
+          subreddit: item.subreddit,
+          score: item.score,
+          comments: item.num_comments,
+          upvoteRatio: item.upvote_ratio,
+          redditUrl: item.reddit_url,
+          flair: item.flair
+        };
+      
+      case 'telegram':
+        return {
+          channel: item.channel,
+          channelName: item.channel_name,
+          messageId: item.message_id,
+          views: item.views,
+          forwards: item.forwards,
+          reactions: item.reactions
+        };
+      
+      case 'linkedin':
+        return {
+          company: item.company,
+          engagement: item.engagement
+        };
+      
+      default:
+        return {};
+    }
   }
 
   private async updateAgentStatistics(agent: any, result: any): Promise<void> {

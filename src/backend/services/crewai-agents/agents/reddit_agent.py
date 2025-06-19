@@ -293,21 +293,42 @@ class RedditScraperTool(BaseTool):
                 relevant_subreddits = []
                 topic_lower = topic.lower()
                 
-                # Enhanced topic mapping
+                # NEW: Dynamic subreddit discovery for ANY topic
+                # Instead of hardcoded mappings, try to find relevant subreddits
+                potential_subreddits = []
+                
+                # Try exact topic match
+                if topic_lower in subreddit_endpoints:
+                    potential_subreddits.extend(subreddit_endpoints[topic_lower])
+                
+                # Try partial matches in hardcoded mapping
                 for keyword, subreddits in topic_mapping.items():
-                    if keyword in topic_lower:
+                    if keyword in topic_lower or topic_lower in keyword:
                         relevant_subreddits.extend(subreddits)
-                        break
                 
-                # Fallback to technology if no match
+                # For topics not in our mapping, try world news and general subreddits
                 if not relevant_subreddits:
-                    relevant_subreddits.append('technology')
+                    # Try common subreddits that might have content about any topic
+                    general_subreddits = ['worldnews', 'news', 'politics', 'all']
+                    relevant_subreddits.extend(general_subreddits)
+                    logger.info(f"📊 Topic '{topic}' not in predefined mapping, using general subreddits: {general_subreddits}")
+                else:
+                    logger.info(f"📊 Topic '{topic}' mapped to subreddits: {relevant_subreddits}")
                 
-                logger.info(f"📊 Topic '{topic}' mapped to subreddits: {relevant_subreddits}")
+                # Add general subreddit endpoints for topics not in our list
+                general_endpoints = {
+                    'worldnews': ['https://www.reddit.com/r/worldnews/hot.json?limit=20'],
+                    'news': ['https://www.reddit.com/r/news/hot.json?limit=20'],
+                    'politics': ['https://www.reddit.com/r/politics/hot.json?limit=15'],
+                    'all': ['https://www.reddit.com/r/all/hot.json?limit=25']
+                }
+                
+                # Combine with existing endpoints
+                all_endpoints = {**subreddit_endpoints, **general_endpoints}
                 
                 for subreddit in set(relevant_subreddits):
-                    if subreddit in subreddit_endpoints:
-                        endpoints = subreddit_endpoints[subreddit]
+                    if subreddit in all_endpoints:
+                        endpoints = all_endpoints[subreddit]
                         
                         for endpoint_url in endpoints:
                             success = False
@@ -342,7 +363,9 @@ class RedditScraperTool(BaseTool):
                                                 children = data['data']['children']
                                                 logger.info(f"📋 Found {len(children)} posts in r/{subreddit}")
                                                 
-                                                for post in children[:8]:  # Increased posts per subreddit
+                                                # NEW: Filter posts for topic relevance BEFORE adding them
+                                                relevant_posts = 0
+                                                for post in children:
                                                     try:
                                                         post_data = post['data']
                                                         
@@ -350,39 +373,54 @@ class RedditScraperTool(BaseTool):
                                                         if post_data.get('removed_by_category') or post_data.get('title') == '[deleted]':
                                                             continue
                                                         
-                                                        # Enhanced post data extraction
-                                                        reddit_post = {
-                                                            'id': post_data.get('id', ''),
-                                                            'title': post_data.get('title', ''),
-                                                            'content': post_data.get('selftext', '')[:800],  # Increased content length
-                                                            'url': post_data.get('url', ''),
-                                                            'reddit_url': f"https://reddit.com{post_data.get('permalink', '')}",
-                                                            'author': post_data.get('author', 'Unknown'),
-                                                            'subreddit': subreddit,
-                                                            'score': post_data.get('score', 0),
-                                                            'num_comments': post_data.get('num_comments', 0),
-                                                            'upvote_ratio': post_data.get('upvote_ratio', 0),
-                                                            'created_utc': datetime.fromtimestamp(
-                                                                post_data.get('created_utc', 0)
-                                                            ).isoformat() if post_data.get('created_utc') else '',
-                                                            'domain': post_data.get('domain', ''),
-                                                            'flair': post_data.get('link_flair_text', ''),
-                                                            'source': 'reddit_json',
-                                                            'source_type': 'direct_json',
-                                                            'simulated': False,
-                                                            'is_video': post_data.get('is_video', False),
-                                                            'post_hint': post_data.get('post_hint', '')
-                                                        }
+                                                        title = post_data.get('title', '').lower()
+                                                        content = post_data.get('selftext', '').lower()
                                                         
-                                                        # Filter for quality content
-                                                        if reddit_post['score'] >= 10 or reddit_post['num_comments'] >= 5:
-                                                            posts.append(reddit_post)
-                                                            logger.debug(f"✅ Added post: {reddit_post['title'][:50]}...")
+                                                        # CHECK RELEVANCE: Post must contain the topic
+                                                        is_relevant = any(
+                                                            topic_word in title or topic_word in content
+                                                            for topic_word in topic.lower().split()
+                                                        ) or topic.lower() in title or topic.lower() in content
+                                                        
+                                                        # Only include relevant posts
+                                                        if is_relevant:
+                                                            # Enhanced post data extraction
+                                                            reddit_post = {
+                                                                'id': post_data.get('id', ''),
+                                                                'title': post_data.get('title', ''),
+                                                                'content': post_data.get('selftext', '')[:800],  # Increased content length
+                                                                'url': post_data.get('url', ''),
+                                                                'reddit_url': f"https://reddit.com{post_data.get('permalink', '')}",
+                                                                'author': post_data.get('author', 'Unknown'),
+                                                                'subreddit': subreddit,
+                                                                'score': post_data.get('score', 0),
+                                                                'num_comments': post_data.get('num_comments', 0),
+                                                                'upvote_ratio': post_data.get('upvote_ratio', 0),
+                                                                'created_utc': datetime.fromtimestamp(
+                                                                    post_data.get('created_utc', 0)
+                                                                ).isoformat() if post_data.get('created_utc') else '',
+                                                                'domain': post_data.get('domain', ''),
+                                                                'flair': post_data.get('link_flair_text', ''),
+                                                                'source': 'reddit_json',
+                                                                'source_type': 'direct_json',
+                                                                'simulated': False,
+                                                                'is_video': post_data.get('is_video', False),
+                                                                'post_hint': post_data.get('post_hint', ''),
+                                                                'matched_topic': topic,  # Track which topic matched
+                                                                'relevance_reason': f"Contains '{topic}' in {'title' if topic.lower() in title else 'content'}"
+                                                            }
+                                                            
+                                                            # Filter for quality content
+                                                            if reddit_post['score'] >= 5 or reddit_post['num_comments'] >= 3:
+                                                                posts.append(reddit_post)
+                                                                relevant_posts += 1
+                                                                logger.debug(f"✅ Added relevant post: {reddit_post['title'][:50]}...")
                                                         
                                                     except Exception as e:
                                                         logger.debug(f"Error parsing individual post: {e}")
                                                         continue
                                                 
+                                                logger.info(f"📊 Found {relevant_posts} relevant posts about '{topic}' from r/{subreddit}")
                                                 success = True
                                                 break  # Success, no need to retry
                                             else:
