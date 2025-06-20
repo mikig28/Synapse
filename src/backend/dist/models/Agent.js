@@ -62,6 +62,9 @@ const AgentSchema = new mongoose_1.Schema({
             telegram: { type: Boolean, default: true },
             news_websites: { type: Boolean, default: true },
         },
+        // Duplicate detection configuration
+        refreshMode: { type: Boolean, default: false },
+        duplicateWindow: { type: Number, default: 4 },
         // MCP (Model Context Protocol) configuration
         mcpServers: {
             type: [{
