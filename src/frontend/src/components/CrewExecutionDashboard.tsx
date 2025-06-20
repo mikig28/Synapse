@@ -148,6 +148,8 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
   } | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const [pollingProgress, setPollingProgress] = useState(false);
+  const [lastRunResults, setLastRunResults] = useState<any>(null);
+  const [agentRuns, setAgentRuns] = useState<any[]>([]);
   const progressPollingRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -162,10 +164,11 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
     return () => clearTimeout(timer);
   }, [progressSteps]);
 
-  // Fetch agent status when dialog opens
+  // Fetch agent status and recent runs when dialog opens
   useEffect(() => {
     if (isDialogOpen && agentId) {
       fetchAgentStatus();
+      fetchRecentRuns();
     }
   }, [isDialogOpen, agentId]);
 
@@ -230,6 +233,30 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
       console.error('Failed to fetch agent status:', error);
     } finally {
       setStatusLoading(false);
+    }
+  };
+
+  const fetchRecentRuns = async () => {
+    if (!agentId) return;
+    
+    try {
+      console.log('🔍 Fetching recent runs for agent:', agentId);
+      const runs = await agentService.getAgentRuns(agentId, 5); // Get last 5 runs
+      setAgentRuns(runs);
+      
+      // If we have recent runs, try to get the most recent completed run's results
+      const completedRun = runs.find(run => run.status === 'completed' && run.results?.details);
+      if (completedRun && completedRun.results?.details) {
+        console.log('📊 Found recent completed run with results:', completedRun._id);
+        setLastRunResults(completedRun.results.details);
+        
+        // Process the results for display
+        if (completedRun.results.details) {
+          processCrewAIResults(completedRun.results.details);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch recent runs:', error);
     }
   };
 
@@ -632,11 +659,129 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
 
               {/* Overview Tab */}
               <TabsContent value="overview">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                  {/* Stats Cards */}
-                  <Card className="p-6">
-                    {/* Stats content */}
-                  </Card>
+                <div className="space-y-6">
+                  {/* Agent Status Overview */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Current Status */}
+                    <Card className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded ${agentStatus?.canExecute ? 'bg-green-100 dark:bg-green-900/20' : 'bg-yellow-100 dark:bg-yellow-900/20'}`}>
+                          {agentStatus?.canExecute ? (
+                            <CheckCircle className="h-5 w-5 text-green-600" />
+                          ) : (
+                            <Clock className="h-5 w-5 text-yellow-600" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Status</p>
+                          <p className="text-lg font-semibold capitalize">{agentStatus?.status || 'Unknown'}</p>
+                        </div>
+                      </div>
+                    </Card>
+
+                    {/* Total Runs */}
+                    <Card className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded">
+                          <Activity className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Total Runs</p>
+                          <p className="text-lg font-semibold">{agentRuns.length}</p>
+                        </div>
+                      </div>
+                    </Card>
+
+                    {/* Recent Activity */}
+                    <Card className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded">
+                          <Clock className="h-5 w-5 text-purple-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Last Run</p>
+                          <p className="text-lg font-semibold">
+                            {agentRuns.length > 0 
+                              ? new Date(agentRuns[0].createdAt).toLocaleDateString()
+                              : 'Never'
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    </Card>
+
+                    {/* Progress Indicator */}
+                    <Card className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded">
+                          {pollingProgress ? (
+                            <RefreshCw className="h-5 w-5 text-orange-600 animate-spin" />
+                          ) : (
+                            <Zap className="h-5 w-5 text-orange-600" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Live Updates</p>
+                          <p className="text-lg font-semibold">
+                            {pollingProgress ? 'Active' : 'Idle'}
+                          </p>
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* Recent Runs Table */}
+                  {agentRuns.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Activity className="h-5 w-5" />
+                          Recent Executions
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {agentRuns.slice(0, 5).map((run, idx) => (
+                            <div key={run._id || idx} className="flex items-center justify-between p-3 border rounded-lg">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-3 h-3 rounded-full ${
+                                  run.status === 'completed' ? 'bg-green-500' :
+                                  run.status === 'failed' ? 'bg-red-500' :
+                                  run.status === 'running' ? 'bg-blue-500 animate-pulse' :
+                                  'bg-gray-400'
+                                }`} />
+                                <div>
+                                  <p className="font-medium capitalize">{run.status}</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {new Date(run.createdAt).toLocaleString()}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-medium">{run.itemsAdded || 0} items</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {run.duration ? `${Math.round(run.duration / 1000)}s` : 'N/A'}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Empty State for Overview */}
+                  {agentRuns.length === 0 && (
+                    <Card className="p-8">
+                      <div className="text-center text-gray-500 dark:text-gray-400">
+                        <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                        <h3 className="text-lg font-semibold mb-2">No Execution History</h3>
+                        <p className="text-sm">
+                          This agent hasn't been executed yet. Start your first multi-agent crew run to see progress and results here.
+                        </p>
+                      </div>
+                    </Card>
+                  )}
                 </div>
               </TabsContent>
 
@@ -665,13 +810,27 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
                       ) : (
                         <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                           <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                          <p className="text-lg font-medium">No Progress Information</p>
+                          <p className="text-lg font-medium">No Active Progress</p>
                           <p className="text-sm mt-1">
                             {isRunning 
-                              ? "Agent is starting... Progress will appear shortly."
-                              : "Execute the agent to see real-time progress updates."
+                              ? "Agent is starting up... Progress will appear shortly."
+                              : agentRuns.length > 0
+                                ? `Last run: ${agentRuns[0]?.status || 'unknown'} • ${new Date(agentRuns[0]?.createdAt || Date.now()).toLocaleString()}`
+                                : "Execute the agent to see real-time progress updates."
                             }
                           </p>
+                          {agentRuns.length > 0 && (
+                            <div className="mt-4 space-y-2">
+                              <p className="text-xs font-medium">Recent Activity:</p>
+                              {agentRuns.slice(0, 3).map((run, idx) => (
+                                <div key={run._id || idx} className="flex items-center justify-between text-xs p-2 bg-muted/30 rounded">
+                                  <span className="capitalize">{run.status}</span>
+                                  <span>{new Date(run.createdAt).toLocaleString()}</span>
+                                  <span>{run.itemsAdded || 0} items</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </CardContent>
@@ -728,6 +887,25 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
 
               {/* Content Tab */}
               <TabsContent value="content">
+                {/* Show content from recent run if no active progress */}
+                {!parsedContent && lastRunResults && (
+                  <div className="mb-6">
+                    <Card className="p-4 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+                      <div className="flex items-center gap-3">
+                        <FileText className="w-5 h-5 text-blue-600" />
+                        <div>
+                          <h3 className="font-semibold text-blue-900 dark:text-blue-200">
+                            Showing Results from Recent Run
+                          </h3>
+                          <p className="text-sm text-blue-700 dark:text-blue-300">
+                            No active execution in progress. Displaying content from the most recent completed run.
+                          </p>
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+                )}
+
                 {/* Error State */}
                 {agentStates.research === 'error' && (
                   <motion.div
@@ -780,8 +958,27 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
                   </motion.div>
                 )}
 
+                {/* Empty state when no content and no recent runs */}
+                {!parsedContent && !lastRunResults && agentStates.research !== 'error' && (
+                  <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                    <Sparkles className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                    <h3 className="text-xl font-semibold mb-2">No Content Available</h3>
+                    <p className="text-sm mb-4">
+                      This CrewAI agent hasn't run yet or no results were generated.
+                    </p>
+                    <div className="bg-muted/30 rounded-lg p-4 max-w-md mx-auto">
+                      <p className="text-xs font-medium mb-2">To see content:</p>
+                      <ol className="text-xs text-left space-y-1">
+                        <li>1. Execute the agent using the button above</li>
+                        <li>2. Wait for the multi-agent crew to gather content</li>
+                        <li>3. Return here to view organized results</li>
+                      </ol>
+                    </div>
+                  </div>
+                )}
+
                 {/* Content Sections - Only show if we have content */}
-                {agentStates.research !== 'error' && parsedContent && (
+                {agentStates.research !== 'error' && (parsedContent || lastRunResults) && (
                   <>
                     {/* Executive Summary */}
                     {parsedContent.executive_summary && parsedContent.executive_summary.length > 0 && (
