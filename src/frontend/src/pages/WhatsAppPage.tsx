@@ -594,24 +594,65 @@ const WhatsAppPage: React.FC = () => {
                 <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Settings className="h-5 w-5" />
-                      WhatsApp Configuration
+                      <Globe className="h-5 w-5" />
+                      WhatsApp Web.js Service
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div>
-                      <label className="text-sm font-medium">Business Phone Number</label>
-                      <Input placeholder="+1234567890" className="mt-1" />
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Service Information</h4>
+                      <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
+                        Using WhatsApp Web.js service for real WhatsApp integration
+                      </p>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span>Service URL:</span>
+                          <code className="text-xs bg-blue-100 dark:bg-blue-800 px-2 py-1 rounded">
+                            whatsapp-webhook-hhub.onrender.com
+                          </code>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Status:</span>
+                          <Badge variant={connectionStatus?.connected ? "default" : "destructive"}>
+                            {connectionStatus?.connected ? "Connected" : "Disconnected"}
+                          </Badge>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-sm font-medium">Webhook URL</label>
-                      <Input placeholder="https://your-domain.com/api/v1/whatsapp/webhook" className="mt-1" />
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => window.open('https://whatsapp-webhook-hhub.onrender.com/', '_blank')}
+                        className="flex items-center gap-2"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Service Dashboard
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          // Trigger service restart
+                          console.log('Restarting WhatsApp service...');
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        Restart Service
+                      </Button>
                     </div>
+                    
                     <div>
-                      <label className="text-sm font-medium">Verify Token</label>
-                      <Input type="password" placeholder="Enter verification token" className="mt-1" />
+                      <h5 className="font-medium mb-2">Setup Instructions</h5>
+                      <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+                        <li>Visit the service dashboard</li>
+                        <li>Scan the QR code with your phone</li>
+                        <li>WhatsApp Web will connect automatically</li>
+                        <li>Messages will appear in this interface</li>
+                      </ol>
                     </div>
-                    <Button className="w-full">Save Configuration</Button>
                   </CardContent>
                 </Card>
 
@@ -642,6 +683,16 @@ const WhatsAppPage: React.FC = () => {
                         className="mt-1"
                         rows={3}
                       />
+                    </div>
+                    
+                    <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-lg border border-amber-200 dark:border-amber-800">
+                      <h5 className="font-medium text-amber-900 dark:text-amber-100 mb-2">
+                        📱 WhatsApp Web Integration
+                      </h5>
+                      <p className="text-sm text-amber-800 dark:text-amber-200">
+                        This integration uses WhatsApp Web.js to provide real WhatsApp messaging capabilities. 
+                        Your phone must be connected to the internet for the service to work.
+                      </p>
                     </div>
                   </CardContent>
                 </Card>

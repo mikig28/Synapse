@@ -1,16 +1,16 @@
-# WhatsApp Business Integration Setup Guide
+# WhatsApp Web.js Integration Setup Guide
 
-This guide explains how to complete the WhatsApp Business integration for the Synapse platform.
+This guide explains how to use the WhatsApp Web.js integration for the Synapse platform.
 
 ## Overview
 
-The WhatsApp integration includes:
+The WhatsApp integration uses your existing WhatsApp Web.js service and includes:
 - Complete frontend interface with modern UI/UX matching Synapse design system
-- Backend API endpoints for webhook handling and message management
-- Real-time messaging capabilities
+- Integration with your WhatsApp Web.js service running on Render
+- Real-time messaging capabilities through WhatsApp Web
 - Contact management system
 - Analytics and statistics
-- Configuration management
+- Direct connection to your phone's WhatsApp
 
 ## What's Been Implemented
 
@@ -57,40 +57,33 @@ The WhatsApp integration includes:
 
 ## Setup Requirements
 
-To complete the WhatsApp integration, you need:
+To use the WhatsApp Web.js integration:
 
-### 1. WhatsApp Business API Account
-- Register for WhatsApp Business API through Meta Business
-- Get your Business Account ID and Phone Number ID
-- Generate Access Token for API authentication
+### 1. WhatsApp Web.js Service (Already Done ✅)
+Your service is already running at: `https://whatsapp-webhook-hhub.onrender.com`
 
 ### 2. Environment Variables
-Add these to your `.env` file:
+Add this to your backend `.env` file:
 
 ```bash
-# WhatsApp Business API Configuration
-WHATSAPP_ACCESS_TOKEN=your_access_token_here
-WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
-WHATSAPP_BUSINESS_ACCOUNT_ID=your_business_account_id
-WHATSAPP_VERIFY_TOKEN=your_custom_verify_token
-WHATSAPP_WEBHOOK_URL=https://your-domain.com/api/v1/whatsapp/webhook
+# WhatsApp Web.js Service Configuration
+WHATSAPP_SERVICE_URL=https://whatsapp-webhook-hhub.onrender.com
 
 # Optional Settings
 WHATSAPP_AUTO_REPLY_ENABLED=true
-WHATSAPP_BUSINESS_PHONE=+1234567890
 ```
 
-### 3. Meta Webhook Configuration
-In your Meta App Dashboard:
-1. Go to WhatsApp > Configuration
-2. Set Webhook URL to: `https://your-domain.com/api/v1/whatsapp/webhook`
-3. Set Verify Token to match `WHATSAPP_VERIFY_TOKEN`
-4. Subscribe to webhook fields: `messages`, `message_deliveries`, `message_reads`
+### 3. Phone Setup
+1. Visit your service dashboard: https://whatsapp-webhook-hhub.onrender.com/
+2. Scan the QR code with your phone's WhatsApp
+3. Keep your phone connected to the internet
+4. Messages will flow through WhatsApp Web
 
-### 4. Required Permissions
-Ensure your WhatsApp Business API app has these permissions:
-- `whatsapp_business_messaging`
-- `whatsapp_business_management`
+### 4. No Special Permissions Required
+- Uses your personal/business WhatsApp account
+- No Meta Business account needed
+- No API tokens required
+- Works with any WhatsApp account
 
 ## Integration with External WhatsApp Service
 
