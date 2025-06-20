@@ -3,107 +3,98 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getConnectionStatus = exports.updateWhatsAppConfig = exports.getWhatsAppStats = exports.sendWhatsAppMessage = exports.getContactMessages = exports.getWhatsAppContacts = exports.handleWhatsAppWebhook = void 0;
+exports.restartWhatsAppService = exports.getQRCode = exports.getConnectionStatus = exports.updateWhatsAppConfig = exports.getWhatsAppStats = exports.sendWhatsAppMessage = exports.getContactMessages = exports.getWhatsAppContacts = exports.handleWhatsAppWebhook = void 0;
 const WhatsAppMessage_1 = __importDefault(require("../../models/WhatsAppMessage"));
 const WhatsAppContact_1 = __importDefault(require("../../models/WhatsAppContact"));
+const axios_1 = __importDefault(require("axios"));
+// WhatsApp Web.js service configuration
+const WHATSAPP_SERVICE_URL = process.env.WHATSAPP_SERVICE_URL || 'https://whatsapp-webhook-hhub.onrender.com';
 const handleWhatsAppWebhook = async (req, res) => {
-    console.log("[WhatsApp Webhook] Received webhook:");
-    console.log("[WhatsApp Webhook] Headers:", JSON.stringify(req.headers, null, 2));
+    console.log("[WhatsApp Webhook] Received webhook from WhatsApp Web.js service:");
     console.log("[WhatsApp Webhook] Body:", JSON.stringify(req.body, null, 2));
-    // WhatsApp webhook verification
-    const mode = req.query['hub.mode'];
-    const token = req.query['hub.verify_token'];
-    const challenge = req.query['hub.challenge'];
-    // Webhook verification for Meta WhatsApp Business API
-    if (mode && token) {
-        const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || 'your_verify_token_here';
-        if (mode === 'subscribe' && token === verifyToken) {
-            console.log('[WhatsApp Webhook] WEBHOOK_VERIFIED');
-            res.status(200).send(challenge);
-            return;
-        }
-        else {
-            console.error('[WhatsApp Webhook] Failed validation. Token mismatch.');
-            res.sendStatus(403);
-            return;
-        }
-    }
-    // Process incoming webhook payload
     try {
-        const payload = req.body;
-        if (payload.object === 'whatsapp_business_account') {
-            for (const entry of payload.entry) {
-                for (const change of entry.changes) {
-                    if (change.field === 'messages') {
-                        await processIncomingMessages(change.value);
-                    }
-                }
-            }
-        }
-        res.status(200).send('EVENT_RECEIVED');
+        const messageData = req.body;
+        // Process the message from WhatsApp Web.js service
+        await processWhatsAppWebMessage(messageData);
+        res.status(200).json({ success: true, message: 'Message processed' });
     }
     catch (error) {
         console.error('[WhatsApp Webhook] Error processing webhook:', error);
-        res.status(500).send('Internal Server Error');
+        res.status(500).json({ success: false, error: 'Internal Server Error' });
     }
 };
 exports.handleWhatsAppWebhook = handleWhatsAppWebhook;
-async function processIncomingMessages(messageData) {
-    const { messages, contacts, metadata } = messageData;
-    if (messages) {
-        for (const message of messages) {
-            try {
-                // Process contact information
-                let contact = await WhatsAppContact_1.default.findOne({ phoneNumber: message.from });
-                if (!contact) {
-                    // Find contact name from the contacts array if available
-                    const contactInfo = contacts?.find((c) => c.wa_id === message.from);
-                    contact = new WhatsAppContact_1.default({
-                        phoneNumber: message.from,
-                        name: contactInfo?.profile?.name || `Contact ${message.from}`,
-                        isOnline: true,
-                        lastSeen: new Date(),
-                        unreadCount: 1
-                    });
-                    await contact.save();
-                    console.log(`[WhatsApp] Created new contact: ${contact.name} (${contact.phoneNumber})`);
-                }
-                else {
-                    // Update existing contact
-                    contact.lastSeen = new Date();
-                    contact.unreadCount += 1;
-                    contact.isOnline = true;
-                    await contact.save();
-                }
-                // Save the message
-                const whatsappMessage = new WhatsAppMessage_1.default({
-                    messageId: message.id,
-                    from: message.from,
-                    to: metadata.phone_number_id,
-                    message: message.text?.body || '',
-                    timestamp: new Date(parseInt(message.timestamp) * 1000),
-                    type: message.type,
-                    status: 'received',
-                    isIncoming: true,
-                    contactId: contact._id
-                });
-                await whatsappMessage.save();
-                console.log(`[WhatsApp] Saved message from ${contact.name}: ${message.text?.body}`);
-                // Emit real-time update to frontend
-                const io_instance = global.io;
-                if (io_instance) {
-                    io_instance.emit('whatsapp:message', {
-                        message: whatsappMessage,
-                        contact: contact
-                    });
-                }
-                // Auto-reply logic (if enabled)
-                await handleAutoReply(message, contact);
-            }
-            catch (error) {
-                console.error('[WhatsApp] Error processing message:', error);
-            }
+async function processWhatsAppWebMessage(messageData) {
+    try {
+        // Skip messages sent by us
+        if (messageData.fromMe) {
+            console.log('[WhatsApp] Skipping outgoing message');
+            return;
         }
+        // Extract phone number from 'from' field (format: number@c.us)
+        const phoneNumber = messageData.from.split('@')[0];
+        // Process contact information
+        let contact = await WhatsAppContact_1.default.findOne({ phoneNumber });
+        if (!contact) {
+            contact = new WhatsAppContact_1.default({
+                phoneNumber,
+                name: messageData.contactName || `Contact ${phoneNumber}`,
+                isOnline: true,
+                lastSeen: new Date(),
+                unreadCount: 1,
+                isBusinessContact: messageData.isGroup || false,
+                totalMessages: 1,
+                totalIncomingMessages: 1,
+                totalOutgoingMessages: 0
+            });
+            await contact.save();
+            console.log(`[WhatsApp] Created new contact: ${contact.name} (${contact.phoneNumber})`);
+        }
+        else {
+            // Update existing contact
+            contact.lastSeen = new Date();
+            contact.unreadCount += 1;
+            contact.isOnline = true;
+            contact.lastMessage = messageData.body || '[Media]';
+            contact.lastMessageTimestamp = new Date();
+            // Update contact statistics manually
+            contact.totalMessages += 1;
+            contact.totalIncomingMessages += 1;
+            await contact.save();
+            console.log(`[WhatsApp] Updated existing contact: ${contact.name}`);
+        }
+        // Save the message
+        const whatsappMessage = new WhatsAppMessage_1.default({
+            messageId: messageData.id,
+            from: phoneNumber,
+            to: 'business', // Our business number
+            message: messageData.body || '',
+            timestamp: new Date(messageData.timestamp * 1000),
+            type: messageData.type,
+            status: 'received',
+            isIncoming: true,
+            contactId: contact._id,
+            metadata: {
+                isGroup: messageData.isGroup,
+                groupName: messageData.groupName,
+                contactName: messageData.contactName
+            }
+        });
+        await whatsappMessage.save();
+        console.log(`[WhatsApp] Saved message from ${contact.name}: ${messageData.body || '[Media]'}`);
+        // Emit real-time update to frontend
+        const io_instance = global.io;
+        if (io_instance) {
+            io_instance.emit('whatsapp:message', {
+                message: whatsappMessage,
+                contact: contact
+            });
+        }
+        // Auto-reply logic (if enabled)
+        await handleAutoReply(messageData, contact);
+    }
+    catch (error) {
+        console.error('[WhatsApp] Error processing message:', error);
     }
 }
 async function handleAutoReply(incomingMessage, contact) {
@@ -119,9 +110,14 @@ async function handleAutoReply(incomingMessage, contact) {
     else {
         replyMessage = "Thank you for your message. We're currently closed but will respond during business hours.";
     }
-    // Here you would integrate with WhatsApp Business API to send the reply
-    // For now, we'll just log it
-    console.log(`[WhatsApp Auto-Reply] Would send to ${contact.name}: ${replyMessage}`);
+    // Send auto-reply through WhatsApp Web.js service
+    try {
+        await sendMessageViaService(incomingMessage.from, replyMessage);
+        console.log(`[WhatsApp Auto-Reply] Sent to ${contact.name}: ${replyMessage}`);
+    }
+    catch (error) {
+        console.error('[WhatsApp Auto-Reply] Failed to send:', error.message);
+    }
 }
 function isBusinessHours() {
     const now = new Date();
@@ -174,22 +170,55 @@ const getContactMessages = async (req, res) => {
     }
 };
 exports.getContactMessages = getContactMessages;
+// Helper function to send message via WhatsApp Web.js service
+async function sendMessageViaService(to, message) {
+    try {
+        const response = await axios_1.default.post(`${WHATSAPP_SERVICE_URL}/api/send`, {
+            to,
+            message
+        }, {
+            timeout: 10000,
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        return response.data;
+    }
+    catch (error) {
+        console.error('[WhatsApp Service] Error sending message:', error.message);
+        throw error;
+    }
+}
 // Send a WhatsApp message
 const sendWhatsAppMessage = async (req, res) => {
     try {
         const { to, message, type = 'text' } = req.body;
-        // Here you would integrate with WhatsApp Business API
-        // For now, we'll simulate sending and save to database
-        const contact = await WhatsAppContact_1.default.findOne({ phoneNumber: to });
+        // Find or create contact
+        let contact = await WhatsAppContact_1.default.findOne({ phoneNumber: to });
         if (!contact) {
-            return res.status(404).json({
-                success: false,
-                error: 'Contact not found'
+            contact = new WhatsAppContact_1.default({
+                phoneNumber: to,
+                name: `Contact ${to}`,
+                isOnline: false,
+                lastSeen: new Date(),
+                unreadCount: 0,
+                totalMessages: 0,
+                totalIncomingMessages: 0,
+                totalOutgoingMessages: 0,
+                isBusinessContact: false,
+                isBlocked: false,
+                isMuted: false
             });
+            await contact.save();
         }
+        // Format the 'to' field for WhatsApp Web.js (add @c.us if not present)
+        const whatsappTo = to.includes('@') ? to : `${to}@c.us`;
+        // Send message via WhatsApp Web.js service
+        const serviceResponse = await sendMessageViaService(whatsappTo, message);
+        // Save the message to our database
         const whatsappMessage = new WhatsAppMessage_1.default({
             messageId: `msg_${Date.now()}`,
-            from: process.env.WHATSAPP_BUSINESS_PHONE || 'business',
+            from: 'business',
             to: to,
             message: message,
             timestamp: new Date(),
@@ -199,8 +228,13 @@ const sendWhatsAppMessage = async (req, res) => {
             contactId: contact._id
         });
         await whatsappMessage.save();
-        // Reset unread count for this contact
-        contact.unreadCount = 0;
+        // Update contact statistics
+        contact.unreadCount = 0; // Reset since we're responding
+        contact.lastMessage = message;
+        contact.lastMessageTimestamp = new Date();
+        // Update contact statistics manually
+        contact.totalMessages += 1;
+        contact.totalOutgoingMessages += 1;
         await contact.save();
         // Emit real-time update
         const io_instance = global.io;
@@ -213,14 +247,15 @@ const sendWhatsAppMessage = async (req, res) => {
         console.log(`[WhatsApp] Message sent to ${contact.name}: ${message}`);
         res.json({
             success: true,
-            data: whatsappMessage
+            data: whatsappMessage,
+            serviceResponse
         });
     }
     catch (error) {
         console.error('[WhatsApp] Error sending message:', error);
         res.status(500).json({
             success: false,
-            error: 'Failed to send message'
+            error: 'Failed to send message: ' + error.message
         });
     }
 };
@@ -285,15 +320,26 @@ const updateWhatsAppConfig = async (req, res) => {
     }
 };
 exports.updateWhatsAppConfig = updateWhatsAppConfig;
-// Get WhatsApp connection status
+// Get WhatsApp connection status from WhatsApp Web.js service
 const getConnectionStatus = async (req, res) => {
     try {
-        // Here you would check the actual connection status with WhatsApp Business API
+        // Check status from WhatsApp Web.js service
+        const response = await axios_1.default.get(`${WHATSAPP_SERVICE_URL}/api/status`, {
+            timeout: 5000
+        });
+        const serviceStatus = response.data;
         const status = {
-            connected: true, // This would be determined by actual API health check
+            connected: serviceStatus.isReady && serviceStatus.isClientReady,
             lastHeartbeat: new Date(),
-            webhookConfigured: true,
-            businessPhoneVerified: true
+            serviceStatus: serviceStatus.status,
+            isReady: serviceStatus.isReady,
+            isClientReady: serviceStatus.isClientReady,
+            groupsCount: serviceStatus.groupsCount || 0,
+            privateChatsCount: serviceStatus.privateChatsCount || 0,
+            messagesCount: serviceStatus.messagesCount || 0,
+            qrAvailable: serviceStatus.qrAvailable || false,
+            serviceUrl: WHATSAPP_SERVICE_URL,
+            serviceTimestamp: serviceStatus.timestamp
         };
         res.json({
             success: true,
@@ -302,10 +348,61 @@ const getConnectionStatus = async (req, res) => {
     }
     catch (error) {
         console.error('[WhatsApp] Error checking connection status:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to check connection status'
+        // Return disconnected status if service is unreachable
+        res.json({
+            success: true,
+            data: {
+                connected: false,
+                lastHeartbeat: new Date(),
+                serviceStatus: 'unreachable',
+                isReady: false,
+                isClientReady: false,
+                error: error.message,
+                serviceUrl: WHATSAPP_SERVICE_URL
+            }
         });
     }
 };
 exports.getConnectionStatus = getConnectionStatus;
+// Get QR Code for WhatsApp Web authentication
+const getQRCode = async (req, res) => {
+    try {
+        // The QR code would be handled by your WhatsApp Web.js service
+        // This endpoint can be used to trigger QR generation or get current QR
+        res.json({
+            success: true,
+            message: 'QR code is handled by WhatsApp Web.js service',
+            serviceUrl: WHATSAPP_SERVICE_URL,
+            dashboardUrl: `${WHATSAPP_SERVICE_URL}/`
+        });
+    }
+    catch (error) {
+        console.error('[WhatsApp] Error getting QR code:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get QR code'
+        });
+    }
+};
+exports.getQRCode = getQRCode;
+// Restart WhatsApp Web.js service
+const restartWhatsAppService = async (req, res) => {
+    try {
+        const response = await axios_1.default.post(`${WHATSAPP_SERVICE_URL}/api/restart`, {}, {
+            timeout: 10000
+        });
+        res.json({
+            success: true,
+            message: 'WhatsApp service restart initiated',
+            serviceResponse: response.data
+        });
+    }
+    catch (error) {
+        console.error('[WhatsApp] Error restarting service:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to restart WhatsApp service: ' + error.message
+        });
+    }
+};
+exports.restartWhatsAppService = restartWhatsAppService;

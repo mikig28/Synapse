@@ -6,7 +6,9 @@ import {
   sendWhatsAppMessage,
   getWhatsAppStats,
   updateWhatsAppConfig,
-  getConnectionStatus
+  getConnectionStatus,
+  getQRCode,
+  restartWhatsAppService
 } from '../controllers/whatsappController';
 import { authMiddleware } from '../middleware/authMiddleware';
 
@@ -32,5 +34,9 @@ router.get('/stats', getWhatsAppStats);
 // Configuration
 router.post('/config', updateWhatsAppConfig);
 router.get('/status', getConnectionStatus);
+
+// WhatsApp Web.js service management
+router.get('/qr', getQRCode);
+router.post('/restart', restartWhatsAppService);
 
 export default router; 

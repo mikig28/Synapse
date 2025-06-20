@@ -22,4 +22,7 @@ router.get('/stats', whatsappController_1.getWhatsAppStats);
 // Configuration
 router.post('/config', whatsappController_1.updateWhatsAppConfig);
 router.get('/status', whatsappController_1.getConnectionStatus);
+// WhatsApp Web.js service management
+router.get('/qr', whatsappController_1.getQRCode);
+router.post('/restart', whatsappController_1.restartWhatsAppService);
 exports.default = router;
