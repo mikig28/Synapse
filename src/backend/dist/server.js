@@ -18,6 +18,7 @@ const agentService_1 = require("./services/agentService"); // Import agent servi
 const agentScheduler_1 = require("./services/agentScheduler"); // Import agent scheduler
 const agentsController_1 = require("./api/controllers/agentsController"); // Import agent services initializer
 const agents_1 = require("./services/agents"); // Import agent executors registry
+const whatsappService_1 = __importDefault(require("./services/whatsappService")); // Import WhatsApp service
 const captureRoutes_1 = __importDefault(require("./api/routes/captureRoutes")); // Import capture routes
 const path_1 = __importDefault(require("path")); // <-- Import path module
 const fs_1 = __importDefault(require("fs")); // <-- Import fs module
@@ -210,6 +211,10 @@ const startServer = async () => {
         await mongoose_1.default.connect(mongoUri);
         await (0, database_1.connectToDatabase)(); // Calls the Mongoose connection logic
         (0, telegramService_1.initializeTelegramBot)(); // Initialize and start the Telegram bot polling
+        // Initialize WhatsApp service
+        const whatsappService = whatsappService_1.default.getInstance();
+        await whatsappService.initialize();
+        console.log('[Server] WhatsApp service initialized successfully');
         // Initialize agent services
         const agentService = new agentService_1.AgentService();
         const agentScheduler = new agentScheduler_1.AgentScheduler(agentService);

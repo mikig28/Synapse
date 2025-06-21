@@ -23,6 +23,7 @@
     "@types/node-cron": "^3.0.11",
     "@types/node-telegram-bot-api": "^0.64.8",
     "@types/qrcode": "^1.5.5",
+    "@types/fs-extra": "^11.0.4",
     "axios": "^1.9.0",
     "bcryptjs": "^3.0.2",
     "cheerio": "^1.0.0",
@@ -47,7 +48,6 @@
     "whatsapp-web.js": "^1.30.0"
   },
   "devDependencies": {
-    "@types/fs-extra": "^11.0.4",
     "nodemon": "^2.0.22",
     "rimraf": "^6.0.1",
     "ts-node": "^10.9.1"

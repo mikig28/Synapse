@@ -25,4 +25,15 @@ router.get('/status', whatsappController_1.getConnectionStatus);
 // WhatsApp Web.js service management
 router.get('/qr', whatsappController_1.getQRCode);
 router.post('/restart', whatsappController_1.restartWhatsAppService);
+// Groups and chats
+router.get('/groups', whatsappController_1.getWhatsAppGroups);
+router.get('/private-chats', whatsappController_1.getWhatsAppPrivateChats);
+router.get('/messages', whatsappController_1.getWhatsAppMessages);
+router.post('/refresh-chats', whatsappController_1.refreshWhatsAppChats);
+// Monitoring
+router.get('/monitored-keywords', whatsappController_1.getMonitoredKeywords);
+router.post('/monitored-keywords', whatsappController_1.addMonitoredKeyword);
+router.delete('/monitored-keywords/:keyword', whatsappController_1.removeMonitoredKeyword);
+// Authentication management
+router.post('/clear-auth', whatsappController_1.clearWhatsAppAuth);
 exports.default = router;

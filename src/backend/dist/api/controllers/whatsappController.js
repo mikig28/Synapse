@@ -3,12 +3,49 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.restartWhatsAppService = exports.getQRCode = exports.getConnectionStatus = exports.updateWhatsAppConfig = exports.getWhatsAppStats = exports.sendWhatsAppMessage = exports.getContactMessages = exports.getWhatsAppContacts = exports.handleWhatsAppWebhook = void 0;
+exports.clearWhatsAppAuth = exports.getMonitoredKeywords = exports.removeMonitoredKeyword = exports.addMonitoredKeyword = exports.refreshWhatsAppChats = exports.getWhatsAppMessages = exports.getWhatsAppPrivateChats = exports.getWhatsAppGroups = exports.restartWhatsAppService = exports.getQRCode = exports.getConnectionStatus = exports.updateWhatsAppConfig = exports.getWhatsAppStats = exports.sendWhatsAppMessage = exports.getContactMessages = exports.getWhatsAppContacts = exports.handleWhatsAppWebhook = void 0;
 const WhatsAppMessage_1 = __importDefault(require("../../models/WhatsAppMessage"));
 const WhatsAppContact_1 = __importDefault(require("../../models/WhatsAppContact"));
-const axios_1 = __importDefault(require("axios"));
-// WhatsApp Web.js service configuration
-const WHATSAPP_SERVICE_URL = process.env.WHATSAPP_SERVICE_URL || 'https://whatsapp-webhook-hhub.onrender.com';
+const whatsappService_1 = __importDefault(require("../../services/whatsappService"));
+// Get WhatsApp service singleton instance (lazy initialization)
+const getWhatsAppService = () => {
+    return whatsappService_1.default.getInstance();
+};
+// Initialize WhatsApp service listeners when needed
+let serviceInitialized = false;
+const initializeWhatsAppService = () => {
+    if (serviceInitialized)
+        return;
+    const whatsappService = getWhatsAppService();
+    // Set up event listeners for WhatsApp service
+    whatsappService.on('newMessage', async (messageData) => {
+        await processWhatsAppWebMessage(messageData);
+        // Emit to Socket.io clients
+        const io_instance = global.io;
+        if (io_instance) {
+            io_instance.emit('whatsapp:message', messageData);
+        }
+    });
+    whatsappService.on('qr', (qrData) => {
+        const io_instance = global.io;
+        if (io_instance) {
+            io_instance.emit('whatsapp:qr', qrData);
+        }
+    });
+    whatsappService.on('status', (statusData) => {
+        const io_instance = global.io;
+        if (io_instance) {
+            io_instance.emit('whatsapp:status', statusData);
+        }
+    });
+    whatsappService.on('chats_updated', (chatsData) => {
+        const io_instance = global.io;
+        if (io_instance) {
+            io_instance.emit('whatsapp:chats_updated', chatsData);
+        }
+    });
+    serviceInitialized = true;
+};
 const handleWhatsAppWebhook = async (req, res) => {
     console.log("[WhatsApp Webhook] Received webhook from WhatsApp Web.js service:");
     console.log("[WhatsApp Webhook] Body:", JSON.stringify(req.body, null, 2));
@@ -170,19 +207,12 @@ const getContactMessages = async (req, res) => {
     }
 };
 exports.getContactMessages = getContactMessages;
-// Helper function to send message via WhatsApp Web.js service
+// Helper function to send message via WhatsApp service
 async function sendMessageViaService(to, message) {
     try {
-        const response = await axios_1.default.post(`${WHATSAPP_SERVICE_URL}/api/send`, {
-            to,
-            message
-        }, {
-            timeout: 10000,
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-        return response.data;
+        const whatsappService = getWhatsAppService();
+        await whatsappService.sendMessage(to, message);
+        return { success: true };
     }
     catch (error) {
         console.error('[WhatsApp Service] Error sending message:', error.message);
@@ -320,14 +350,11 @@ const updateWhatsAppConfig = async (req, res) => {
     }
 };
 exports.updateWhatsAppConfig = updateWhatsAppConfig;
-// Get WhatsApp connection status from WhatsApp Web.js service
+// Get WhatsApp connection status from WhatsApp service
 const getConnectionStatus = async (req, res) => {
     try {
-        // Check status from WhatsApp Web.js service
-        const response = await axios_1.default.get(`${WHATSAPP_SERVICE_URL}/api/status`, {
-            timeout: 5000
-        });
-        const serviceStatus = response.data;
+        const whatsappService = getWhatsAppService();
+        const serviceStatus = whatsappService.getStatus();
         const status = {
             connected: serviceStatus.isReady && serviceStatus.isClientReady,
             lastHeartbeat: new Date(),
@@ -338,8 +365,8 @@ const getConnectionStatus = async (req, res) => {
             privateChatsCount: serviceStatus.privateChatsCount || 0,
             messagesCount: serviceStatus.messagesCount || 0,
             qrAvailable: serviceStatus.qrAvailable || false,
-            serviceUrl: WHATSAPP_SERVICE_URL,
-            serviceTimestamp: serviceStatus.timestamp
+            timestamp: serviceStatus.timestamp,
+            monitoredKeywords: serviceStatus.monitoredKeywords
         };
         res.json({
             success: true,
@@ -348,17 +375,15 @@ const getConnectionStatus = async (req, res) => {
     }
     catch (error) {
         console.error('[WhatsApp] Error checking connection status:', error);
-        // Return disconnected status if service is unreachable
         res.json({
             success: true,
             data: {
                 connected: false,
                 lastHeartbeat: new Date(),
-                serviceStatus: 'unreachable',
+                serviceStatus: 'error',
                 isReady: false,
                 isClientReady: false,
-                error: error.message,
-                serviceUrl: WHATSAPP_SERVICE_URL
+                error: error.message
             }
         });
     }
@@ -367,14 +392,26 @@ exports.getConnectionStatus = getConnectionStatus;
 // Get QR Code for WhatsApp Web authentication
 const getQRCode = async (req, res) => {
     try {
-        // The QR code would be handled by your WhatsApp Web.js service
-        // This endpoint can be used to trigger QR generation or get current QR
-        res.json({
-            success: true,
-            message: 'QR code is handled by WhatsApp Web.js service',
-            serviceUrl: WHATSAPP_SERVICE_URL,
-            dashboardUrl: `${WHATSAPP_SERVICE_URL}/`
-        });
+        const whatsappService = getWhatsAppService();
+        const qrCode = whatsappService.getQRCode();
+        if (qrCode) {
+            res.json({
+                success: true,
+                data: {
+                    qrCode: qrCode,
+                    message: 'QR code available for scanning'
+                }
+            });
+        }
+        else {
+            res.json({
+                success: true,
+                data: {
+                    qrCode: null,
+                    message: 'WhatsApp is already connected or QR code not yet generated'
+                }
+            });
+        }
     }
     catch (error) {
         console.error('[WhatsApp] Error getting QR code:', error);
@@ -385,16 +422,15 @@ const getQRCode = async (req, res) => {
     }
 };
 exports.getQRCode = getQRCode;
-// Restart WhatsApp Web.js service
+// Restart WhatsApp service
 const restartWhatsAppService = async (req, res) => {
     try {
-        const response = await axios_1.default.post(`${WHATSAPP_SERVICE_URL}/api/restart`, {}, {
-            timeout: 10000
-        });
+        const whatsappService = getWhatsAppService();
+        initializeWhatsAppService();
+        await whatsappService.restart();
         res.json({
             success: true,
-            message: 'WhatsApp service restart initiated',
-            serviceResponse: response.data
+            message: 'WhatsApp service restart initiated'
         });
     }
     catch (error) {
@@ -406,3 +442,174 @@ const restartWhatsAppService = async (req, res) => {
     }
 };
 exports.restartWhatsAppService = restartWhatsAppService;
+// Get WhatsApp groups
+const getWhatsAppGroups = async (req, res) => {
+    try {
+        const whatsappService = getWhatsAppService();
+        const groups = whatsappService.getGroups();
+        res.json({
+            success: true,
+            data: groups
+        });
+    }
+    catch (error) {
+        console.error('[WhatsApp] Error getting groups:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get WhatsApp groups: ' + error.message
+        });
+    }
+};
+exports.getWhatsAppGroups = getWhatsAppGroups;
+// Get WhatsApp private chats
+const getWhatsAppPrivateChats = async (req, res) => {
+    try {
+        const whatsappService = getWhatsAppService();
+        const privateChats = whatsappService.getPrivateChats();
+        res.json({
+            success: true,
+            data: privateChats
+        });
+    }
+    catch (error) {
+        console.error('[WhatsApp] Error getting private chats:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get WhatsApp private chats: ' + error.message
+        });
+    }
+};
+exports.getWhatsAppPrivateChats = getWhatsAppPrivateChats;
+// Get WhatsApp messages
+const getWhatsAppMessages = async (req, res) => {
+    try {
+        const whatsappService = getWhatsAppService();
+        const { limit = 50, groupId } = req.query;
+        const messages = whatsappService.getMessages(Number(limit), groupId);
+        res.json({
+            success: true,
+            data: messages
+        });
+    }
+    catch (error) {
+        console.error('[WhatsApp] Error getting messages:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get WhatsApp messages: ' + error.message
+        });
+    }
+};
+exports.getWhatsAppMessages = getWhatsAppMessages;
+// Refresh WhatsApp chats
+const refreshWhatsAppChats = async (req, res) => {
+    try {
+        const whatsappService = getWhatsAppService();
+        await whatsappService.refreshChats();
+        res.json({
+            success: true,
+            message: 'WhatsApp chats refreshed successfully'
+        });
+    }
+    catch (error) {
+        console.error('[WhatsApp] Error refreshing chats:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to refresh WhatsApp chats: ' + error.message
+        });
+    }
+};
+exports.refreshWhatsAppChats = refreshWhatsAppChats;
+// Add monitored keyword
+const addMonitoredKeyword = async (req, res) => {
+    try {
+        const { keyword } = req.body;
+        if (!keyword || typeof keyword !== 'string') {
+            return res.status(400).json({
+                success: false,
+                error: 'Keyword is required and must be a string'
+            });
+        }
+        const whatsappService = getWhatsAppService();
+        whatsappService.addMonitoredKeyword(keyword);
+        res.json({
+            success: true,
+            message: `Keyword "${keyword}" added to monitoring`,
+            monitoredKeywords: whatsappService.getMonitoredKeywords()
+        });
+    }
+    catch (error) {
+        console.error('[WhatsApp] Error adding monitored keyword:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to add monitored keyword: ' + error.message
+        });
+    }
+};
+exports.addMonitoredKeyword = addMonitoredKeyword;
+// Remove monitored keyword
+const removeMonitoredKeyword = async (req, res) => {
+    try {
+        const { keyword } = req.params;
+        const whatsappService = getWhatsAppService();
+        const removed = whatsappService.removeMonitoredKeyword(keyword);
+        if (removed) {
+            res.json({
+                success: true,
+                message: `Keyword "${keyword}" removed from monitoring`,
+                monitoredKeywords: whatsappService.getMonitoredKeywords()
+            });
+        }
+        else {
+            res.status(404).json({
+                success: false,
+                error: 'Keyword not found in monitored list'
+            });
+        }
+    }
+    catch (error) {
+        console.error('[WhatsApp] Error removing monitored keyword:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to remove monitored keyword: ' + error.message
+        });
+    }
+};
+exports.removeMonitoredKeyword = removeMonitoredKeyword;
+// Get monitored keywords
+const getMonitoredKeywords = async (req, res) => {
+    try {
+        const whatsappService = getWhatsAppService();
+        const keywords = whatsappService.getMonitoredKeywords();
+        res.json({
+            success: true,
+            data: keywords
+        });
+    }
+    catch (error) {
+        console.error('[WhatsApp] Error getting monitored keywords:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get monitored keywords: ' + error.message
+        });
+    }
+};
+exports.getMonitoredKeywords = getMonitoredKeywords;
+// Clear authentication data
+const clearWhatsAppAuth = async (req, res) => {
+    try {
+        const whatsappService = getWhatsAppService();
+        await whatsappService.clearAuth();
+        res.json({
+            success: true,
+            message: 'WhatsApp authentication data cleared successfully'
+        });
+    }
+    catch (error) {
+        console.error('[WhatsApp] Error clearing auth data:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to clear WhatsApp auth data: ' + error.message
+        });
+    }
+};
+exports.clearWhatsAppAuth = clearWhatsAppAuth;
