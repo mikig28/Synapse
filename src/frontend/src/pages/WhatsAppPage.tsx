@@ -1,705 +1,874 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import whatsappService, { 
-  WhatsAppContact, 
-  WhatsAppMessage, 
-  WhatsAppStats, 
-  WhatsAppConnectionStatus 
-} from '@/services/whatsappService';
+import { Button } from '@/components/ui/button';
 import { 
-  MessageSquare, 
-  Phone, 
+  MessageCircle, 
   Send, 
-  Settings,
-  Users,
-  Bot,
-  Zap,
-  CheckCircle,
-  Clock,
-  AlertCircle,
-  Smartphone,
-  Globe,
-  Shield,
-  Activity,
-  BarChart3,
-  RefreshCw,
-  Download,
-  Upload,
-  Search,
-  Filter,
-  Plus,
-  X,
-  Paperclip,
-  Smile,
-  MoreVertical
+  Phone, 
+  Search, 
+  QrCode, 
+  RefreshCw, 
+  Settings, 
+  Users, 
+  Eye,
+  EyeOff,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
+import { toast } from '@/components/ui/use-toast';
+import { io, Socket } from 'socket.io-client';
+import useAuthStore from '@/store/authStore';
 
+interface WhatsAppMessage {
+  id: string;
+  body: string;
+  from: string;
+  fromMe: boolean;
+  timestamp: number;
+  type: string;
+  isGroup: boolean;
+  groupName?: string;
+  contactName: string;
+  chatId: string;
+  time: string;
+  isMedia: boolean;
+}
+
+interface WhatsAppChat {
+  id: string;
+  name: string;
+  lastMessage?: string;
+  timestamp?: number;
+  isGroup: boolean;
+  participantCount?: number;
+  description?: string;
+}
+
+interface WhatsAppStatus {
+  connected: boolean;
+  isReady: boolean;
+  isClientReady: boolean;
+  groupsCount: number;
+  privateChatsCount: number;
+  messagesCount: number;
+  qrAvailable: boolean;
+  timestamp: string;
+  monitoredKeywords: string[];
+}
 
 const WhatsAppPage: React.FC = () => {
+  const [status, setStatus] = useState<WhatsAppStatus | null>(null);
+  const [groups, setGroups] = useState<WhatsAppChat[]>([]);
+  const [privateChats, setPrivateChats] = useState<WhatsAppChat[]>([]);
   const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
-  const [contacts, setContacts] = useState<WhatsAppContact[]>([]);
-  const [selectedContact, setSelectedContact] = useState<WhatsAppContact | null>(null);
+  const [selectedChat, setSelectedChat] = useState<WhatsAppChat | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<WhatsAppConnectionStatus | null>(null);
-  const [stats, setStats] = useState<WhatsAppStats>({
-    totalMessages: 0,
-    totalContacts: 0,
-    messagesThisWeek: 0,
-    responseRate: 0,
-    avgResponseTime: 0
-  });
-  
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [showQR, setShowQR] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [monitoredKeywords, setMonitoredKeywords] = useState<string[]>([]);
+  const [newKeyword, setNewKeyword] = useState('');
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [isSocketConnected, setIsSocketConnected] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState('chat');
+  
+  const { isAuthenticated, token } = useAuthStore();
 
-  // Load data from service
+  // Socket.io setup
+  const SOCKET_SERVER_URL = import.meta.env.VITE_SOCKET_IO_URL || 
+    (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001');
+
   useEffect(() => {
-    loadInitialData();
+    fetchStatus();
+    fetchGroups();
+    fetchPrivateChats();
+    fetchMessages();
+    fetchMonitoredKeywords();
+    
+    const statusInterval = setInterval(fetchStatus, 5000);
+    
+    return () => {
+      clearInterval(statusInterval);
+    };
   }, []);
 
-  const loadInitialData = async () => {
-    setIsLoading(true);
-    try {
-      // Load contacts, stats, and connection status
-      const [contactsData, statsData, statusData] = await Promise.all([
-        whatsappService.getContacts(),
-        whatsappService.getStats(),
-        whatsappService.getConnectionStatus()
-      ]);
-
-      setContacts(contactsData);
-      setStats(statsData);
-      setConnectionStatus(statusData);
-    } catch (error) {
-      console.error('Failed to load WhatsApp data:', error);
-      // Set default mock data on error
-      setContacts([
-        {
-          id: '1',
-          name: 'Demo Contact',
-          phoneNumber: '+1234567890',
-          isOnline: false,
-          unreadCount: 0,
-          lastMessage: 'Welcome to WhatsApp integration!',
-          lastSeen: new Date(),
-          totalMessages: 1,
-          totalIncomingMessages: 0,
-          totalOutgoingMessages: 1,
-          isBusinessContact: false,
-          isBlocked: false,
-          isMuted: false
-        }
-      ]);
-      setStats({
-        totalMessages: 0,
-        totalContacts: 0,
-        messagesThisWeek: 0,
-        responseRate: 0,
-        avgResponseTime: 0
-      });
-      setConnectionStatus({
-        connected: false,
-        lastHeartbeat: new Date(),
-        webhookConfigured: false,
-        businessPhoneVerified: false
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Load messages when a contact is selected
+  // Socket.io connection setup
   useEffect(() => {
-    if (selectedContact) {
-      loadContactMessages(selectedContact.id);
+    if (!isAuthenticated || !token) {
+      if (socket) {
+        socket.disconnect();
+        setSocket(null);
+        setIsSocketConnected(false);
+      }
+      return;
     }
-  }, [selectedContact]);
 
-  const loadContactMessages = async (contactId: string) => {
-    try {
-      const messagesData = await whatsappService.getContactMessages(contactId);
-      setMessages(messagesData);
-    } catch (error) {
-      console.error('Failed to load contact messages:', error);
-      setMessages([]);
-    }
-  };
+    const newSocket = io(SOCKET_SERVER_URL, {
+      auth: { token },
+      autoConnect: false,
+    });
 
-  const filteredContacts = contacts.filter(contact => 
-    contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contact.phoneNumber.includes(searchTerm)
-  );
+    setSocket(newSocket);
+    newSocket.connect();
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+    // Connection events
+    newSocket.on('connect', () => {
+      console.log('[WhatsApp Socket.IO] Connected to server');
+      setIsSocketConnected(true);
+    });
+
+    newSocket.on('disconnect', () => {
+      console.log('[WhatsApp Socket.IO] Disconnected from server');
+      setIsSocketConnected(false);
+    });
+
+    // WhatsApp-specific events
+    newSocket.on('whatsapp:message', (messageData: WhatsAppMessage) => {
+      console.log('[WhatsApp Socket.IO] Received new message:', messageData);
+      
+      // Add new message to the list
+      setMessages(prevMessages => {
+        const exists = prevMessages.find(m => m.id === messageData.id);
+        if (exists) return prevMessages;
+        return [messageData, ...prevMessages].slice(0, 100);
+      });
+
+      // Show toast notification for monitored messages
+      if (messageData.isGroup && monitoredKeywords.some(keyword => 
+        messageData.groupName?.toLowerCase().includes(keyword.toLowerCase())
+      )) {
+        toast({
+          title: "🎯 Monitored Message",
+          description: `${messageData.contactName} in ${messageData.groupName}: ${messageData.body?.substring(0, 50)}...`,
+        });
+      }
+    });
+
+    newSocket.on('whatsapp:qr', (qrData: { qr: string; status: string }) => {
+      console.log('[WhatsApp Socket.IO] QR Code updated');
+      setQrCode(qrData.qr);
+      if (qrData.status === 'qr_ready') {
+        setShowQR(true);
+        toast({
+          title: "QR Code Ready",
+          description: "New QR code available for WhatsApp authentication",
+        });
+      }
+    });
+
+    newSocket.on('whatsapp:status', (statusData: any) => {
+      console.log('[WhatsApp Socket.IO] Status updated:', statusData);
+      setStatus(prevStatus => ({ ...prevStatus, ...statusData }));
+    });
+
+    newSocket.on('whatsapp:chats_updated', (chatsData: any) => {
+      console.log('[WhatsApp Socket.IO] Chats updated:', chatsData);
+      if (chatsData.groups) {
+        setGroups(chatsData.groups);
+      }
+      if (chatsData.privateChats) {
+        setPrivateChats(chatsData.privateChats);
+      }
+      
+      // Show notification for new groups/chats
+      if (chatsData.newGroup) {
+        toast({
+          title: "New Group Discovered",
+          description: `Found new WhatsApp group: ${chatsData.newGroup.name}`,
+        });
+      }
+    });
+
+    return () => {
+      console.log('[WhatsApp Socket.IO] Cleaning up socket connection');
+      newSocket.off('connect');
+      newSocket.off('disconnect');
+      newSocket.off('whatsapp:message');
+      newSocket.off('whatsapp:qr');
+      newSocket.off('whatsapp:status');
+      newSocket.off('whatsapp:chats_updated');
+      if (newSocket.connected) {
+        newSocket.close();
+      }
+      setSocket(null);
+      setIsSocketConnected(false);
+    };
+  }, [isAuthenticated, token, monitoredKeywords]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedContact || isSending) return;
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
-    setIsSending(true);
-    
+  const fetchStatus = async () => {
     try {
-      const message = await whatsappService.sendMessage(
-        selectedContact.phoneNumber,
-        newMessage,
-        'text'
-      );
-      
-      // Add the sent message to the local state
-      setMessages(prev => [...prev, message]);
-      setNewMessage('');
-      
-      // Update the contact's unread count (reset to 0 since we sent a message)
-      setContacts(prev => prev.map(contact => 
-        contact.id === selectedContact.id 
-          ? { ...contact, unreadCount: 0, lastMessage: newMessage, lastMessageTimestamp: new Date() }
-          : contact
-      ));
-      
+      const response = await fetch('/api/v1/whatsapp/status');
+      const data = await response.json();
+      if (data.success) {
+        setStatus(data.data);
+      }
     } catch (error) {
-      console.error('Failed to send message:', error);
-      // You could show a toast notification here
+      console.error('Error fetching WhatsApp status:', error);
     } finally {
-      setIsSending(false);
+      setLoading(false);
     }
   };
 
-  const getStatusIcon = (status: boolean | undefined) => {
-    if (status === true) return <CheckCircle className="h-4 w-4 text-green-500" />;
-    if (status === false) return <AlertCircle className="h-4 w-4 text-red-500" />;
-    return <Clock className="h-4 w-4 text-yellow-500 animate-spin" />;
+  const fetchGroups = async () => {
+    try {
+      const response = await fetch('/api/v1/whatsapp/groups');
+      const data = await response.json();
+      if (data.success) {
+        setGroups(data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching WhatsApp groups:', error);
+    }
   };
 
-  const getConnectionStatusText = (connected: boolean | undefined) => {
-    if (connected === true) return 'Connected';
-    if (connected === false) return 'Disconnected';
-    return 'Connecting...';
+  const fetchPrivateChats = async () => {
+    try {
+      const response = await fetch('/api/v1/whatsapp/private-chats');
+      const data = await response.json();
+      if (data.success) {
+        setPrivateChats(data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching WhatsApp private chats:', error);
+    }
   };
 
-  const formatTime = (date: Date) => {
-    return whatsappService.formatMessageTime(date);
+  const fetchMessages = async (chatId?: string) => {
+    try {
+      const url = chatId 
+        ? `/api/v1/whatsapp/messages?groupId=${chatId}`
+        : '/api/v1/whatsapp/messages';
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data.success) {
+        setMessages(data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching WhatsApp messages:', error);
+    }
   };
+
+  const fetchMonitoredKeywords = async () => {
+    try {
+      const response = await fetch('/api/v1/whatsapp/monitored-keywords');
+      const data = await response.json();
+      if (data.success) {
+        setMonitoredKeywords(data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching monitored keywords:', error);
+    }
+  };
+
+  const fetchQRCode = async () => {
+    try {
+      setShowQR(true);
+      const response = await fetch('/api/v1/whatsapp/qr');
+      const data = await response.json();
+      if (data.success && data.data.qrCode) {
+        setQrCode(data.data.qrCode);
+      } else {
+        toast({
+          title: "QR Code",
+          description: data.data.message || "WhatsApp is already connected",
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching QR code:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch QR code",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const refreshChats = async () => {
+    try {
+      const response = await fetch('/api/v1/whatsapp/refresh-chats', {
+        method: 'POST'
+      });
+      const data = await response.json();
+      if (data.success) {
+        await fetchGroups();
+        await fetchPrivateChats();
+        toast({
+          title: "Success",
+          description: "Chats refreshed successfully",
+        });
+      }
+    } catch (error) {
+      console.error('Error refreshing chats:', error);
+      toast({
+        title: "Error",
+        description: "Failed to refresh chats",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const restartService = async () => {
+    try {
+      const response = await fetch('/api/v1/whatsapp/restart', {
+        method: 'POST'
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast({
+          title: "Success",
+          description: "WhatsApp service restart initiated",
+        });
+        setTimeout(fetchStatus, 3000);
+      }
+    } catch (error) {
+      console.error('Error restarting service:', error);
+      toast({
+        title: "Error",
+        description: "Failed to restart WhatsApp service",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !selectedChat || sendingMessage) return;
+
+    setSendingMessage(true);
+    try {
+      const response = await fetch('/api/v1/whatsapp/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: selectedChat.id,
+          message: newMessage,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setNewMessage('');
+        await fetchMessages(selectedChat.id);
+        toast({
+          title: "Success",
+          description: "Message sent successfully",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to send message",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast({
+        title: "Error",
+        description: "Failed to send message",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  const addKeyword = async () => {
+    if (!newKeyword.trim()) return;
+
+    try {
+      const response = await fetch('/api/v1/whatsapp/monitored-keywords', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          keyword: newKeyword,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setNewKeyword('');
+        await fetchMonitoredKeywords();
+        toast({
+          title: "Success",
+          description: `Keyword "${newKeyword}" added to monitoring`,
+        });
+      }
+    } catch (error) {
+      console.error('Error adding keyword:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add keyword",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const removeKeyword = async (keyword: string) => {
+    try {
+      const response = await fetch(`/api/v1/whatsapp/monitored-keywords/${keyword}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        await fetchMonitoredKeywords();
+        toast({
+          title: "Success",
+          description: `Keyword "${keyword}" removed from monitoring`,
+        });
+      }
+    } catch (error) {
+      console.error('Error removing keyword:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove keyword",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const filteredGroups = groups.filter(group =>
+    group.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredPrivateChats = privateChats.filter(chat =>
+    chat.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const getStatusColor = () => {
+    if (!status) return 'text-gray-500';
+    if (status.connected && status.isReady && status.isClientReady) return 'text-green-400';
+    if (status.qrAvailable) return 'text-yellow-400';
+    return 'text-red-400';
+  };
+
+  const getStatusIcon = () => {
+    if (!status) return WifiOff;
+    if (status.connected && status.isReady && status.isClientReady) return Wifi;
+    if (status.qrAvailable) return QrCode;
+    return WifiOff;
+  };
+
+  const StatusIcon = getStatusIcon();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 p-6">
+        <div className="flex items-center justify-center min-h-full">
+          <GlassCard className="p-8 text-center">
+            <RefreshCw className="w-8 h-8 text-violet-300 animate-spin mx-auto mb-4" />
+            <p className="text-white">Loading WhatsApp...</p>
+          </GlassCard>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <motion.div 
+    <div className="min-h-screen bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 p-6">
+      <div className="max-w-7xl mx-auto">
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between"
+          className="mb-8"
         >
-          <div className="flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-gradient-to-r from-green-500/10 to-green-600/10 border border-green-500/20">
-              <MessageSquare className="h-8 w-8 text-green-500" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                <MessageCircle className="w-8 h-8 text-green-400" />
+                <h1 className="text-3xl font-bold text-white">WhatsApp</h1>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <StatusIcon className={`w-5 h-5 ${getStatusColor()}`} />
+                  <span className={`text-sm ${getStatusColor()}`}>
+                    {status?.connected && status?.isReady && status?.isClientReady 
+                      ? 'Connected' 
+                      : status?.qrAvailable 
+                      ? 'QR Available' 
+                      : 'Disconnected'
+                    }
+                  </span>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${isSocketConnected ? 'bg-green-400' : 'bg-red-400'}`} />
+                  <span className="text-xs text-blue-200/70">
+                    {isSocketConnected ? 'Real-time' : 'Offline'}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold gradient-text">WhatsApp Business</h1>
-              <p className="text-muted-foreground">Manage your WhatsApp communications</p>
+            
+            <div className="flex items-center gap-3">
+              {status?.qrAvailable && (
+                <AnimatedButton
+                  onClick={fetchQRCode}
+                  variant="outline"
+                  size="sm"
+                  className="border-yellow-400/30 text-yellow-200 hover:bg-yellow-500/10"
+                >
+                  <QrCode className="w-4 h-4 mr-2" />
+                  Show QR
+                </AnimatedButton>
+              )}
+              
+              <AnimatedButton
+                onClick={refreshChats}
+                variant="outline"
+                size="sm"
+                className="border-blue-400/30 text-blue-200 hover:bg-blue-500/10"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
+              </AnimatedButton>
+              
+              <AnimatedButton
+                onClick={restartService}
+                variant="outline"
+                size="sm"
+                className="border-red-400/30 text-red-200 hover:bg-red-500/10"
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Restart
+              </AnimatedButton>
             </div>
           </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8"
+        >
+          <GlassCard className="p-6">
+            <div className="flex items-center gap-3">
+              <Users className="w-8 h-8 text-green-400" />
+              <div>
+                <p className="text-sm text-blue-100/70">Groups</p>
+                <p className="text-2xl font-bold text-white">{status?.groupsCount || 0}</p>
+              </div>
+            </div>
+          </GlassCard>
           
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="flex items-center gap-2">
-              {getStatusIcon(connectionStatus?.connected)}
-              <span>{getConnectionStatusText(connectionStatus?.connected)}</span>
-            </Badge>
-            <Button variant="outline" size="icon">
-              <Settings className="h-4 w-4" />
-            </Button>
+          <GlassCard className="p-6">
+            <div className="flex items-center gap-3">
+              <Phone className="w-8 h-8 text-violet-400" />
+              <div>
+                <p className="text-sm text-blue-100/70">Private Chats</p>
+                <p className="text-2xl font-bold text-white">{status?.privateChatsCount || 0}</p>
+              </div>
+            </div>
+          </GlassCard>
+          
+          <GlassCard className="p-6">
+            <div className="flex items-center gap-3">
+              <MessageCircle className="w-8 h-8 text-blue-400" />
+              <div>
+                <p className="text-sm text-blue-100/70">Messages</p>
+                <p className="text-2xl font-bold text-white">{status?.messagesCount || 0}</p>
+              </div>
+            </div>
+          </GlassCard>
+          
+          <GlassCard className="p-6">
+            <div className="flex items-center gap-3">
+              <Eye className="w-8 h-8 text-amber-400" />
+              <div>
+                <p className="text-sm text-blue-100/70">Monitored</p>
+                <p className="text-2xl font-bold text-white">{monitoredKeywords.length}</p>
+              </div>
+            </div>
+          </GlassCard>
+        </motion.div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="lg:col-span-1">
+            <GlassCard className="p-6 h-[600px] flex flex-col">
+              <div className="mb-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 w-4 h-4 text-blue-300" />
+                  <Input
+                    placeholder="Search chats..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-blue-300"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto space-y-2">
+                {filteredGroups.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-blue-200 mb-2">Groups</h3>
+                    {filteredGroups.map((group) => (
+                      <motion.div
+                        key={group.id}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          setSelectedChat(group);
+                          fetchMessages(group.id);
+                        }}
+                        className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                          selectedChat?.id === group.id
+                            ? 'bg-violet-500/30 border border-violet-400/50'
+                            : 'bg-white/5 hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4 text-green-400" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-white truncate">
+                              {group.name}
+                            </p>
+                            <p className="text-xs text-blue-200/70">
+                              {group.participantCount} members
+                            </p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+                
+                {filteredPrivateChats.length > 0 && (
+                  <div className="pt-4">
+                    <h3 className="text-sm font-semibold text-blue-200 mb-2">Private Chats</h3>
+                    {filteredPrivateChats.map((chat) => (
+                      <motion.div
+                        key={chat.id}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          setSelectedChat(chat);
+                          fetchMessages(chat.id);
+                        }}
+                        className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                          selectedChat?.id === chat.id
+                            ? 'bg-violet-500/30 border border-violet-400/50'
+                            : 'bg-white/5 hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Phone className="w-4 h-4 text-violet-400" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-white truncate">
+                              {chat.name}
+                            </p>
+                            <p className="text-xs text-blue-200/70">Private chat</p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </GlassCard>
           </div>
-        </motion.div>
 
-        {/* Stats Cards */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
-        >
-          <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-500/10">
-                  <MessageSquare className="h-5 w-5 text-blue-500" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Messages</p>
-                  <p className="text-2xl font-bold">{stats.totalMessages}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-green-500/10">
-                  <Users className="h-5 w-5 text-green-500" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Contacts</p>
-                  <p className="text-2xl font-bold">{stats.totalContacts}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-purple-500/10">
-                  <BarChart3 className="h-5 w-5 text-purple-500" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Response Rate</p>
-                  <p className="text-2xl font-bold">{stats.responseRate}%</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-orange-500/10">
-                  <Clock className="h-5 w-5 text-orange-500" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Avg Response</p>
-                  <p className="text-2xl font-bold">{Math.floor(stats.avgResponseTime / 60)}m</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Main Interface */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="chat" className="flex items-center gap-2">
-                <MessageSquare className="h-4 w-4" />
-                Chat
-              </TabsTrigger>
-              <TabsTrigger value="contacts" className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Contacts
-              </TabsTrigger>
-              <TabsTrigger value="analytics" className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" />
-                Analytics
-              </TabsTrigger>
-              <TabsTrigger value="settings" className="flex items-center gap-2">
-                <Settings className="h-4 w-4" />
-                Settings
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="chat" className="space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
-                {/* Contacts Sidebar */}
-                <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">Conversations</CardTitle>
-                      <Button size="icon" variant="ghost">
-                        <Plus className="h-4 w-4" />
-                      </Button>
+          <div className="lg:col-span-2">
+            <GlassCard className="p-6 h-[600px] flex flex-col">
+              {selectedChat ? (
+                <>
+                  <div className="flex items-center gap-3 pb-4 border-b border-white/20">
+                    {selectedChat.isGroup ? (
+                      <Users className="w-6 h-6 text-green-400" />
+                    ) : (
+                      <Phone className="w-6 h-6 text-violet-400" />
+                    )}
+                    <div>
+                      <h3 className="font-semibold text-white">{selectedChat.name}</h3>
+                      <p className="text-sm text-blue-200/70">
+                        {selectedChat.isGroup 
+                          ? `${selectedChat.participantCount} members`
+                          : 'Private chat'
+                        }
+                      </p>
                     </div>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search contacts..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <ScrollArea className="h-[500px]">
-                      <div className="space-y-1 p-3">
-                        {filteredContacts.map((contact) => (
-                          <motion.div
-                            key={contact.id}
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                              selectedContact?.id === contact.id 
-                                ? 'bg-primary/10 border border-primary/20' 
-                                : 'hover:bg-muted/50'
-                            }`}
-                            onClick={() => setSelectedContact(contact)}
-                          >
-                            <div className="relative">
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-green-400 to-green-600 flex items-center justify-center text-white font-semibold">
-                                {whatsappService.getContactAvatar(contact).value}
-                              </div>
-                              {contact.isOnline && (
-                                <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-card rounded-full"></div>
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between">
-                                <p className="font-medium truncate">{contact.name}</p>
-                                {contact.unreadCount > 0 && (
-                                  <Badge className="bg-primary text-primary-foreground text-xs">
-                                    {contact.unreadCount}
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-sm text-muted-foreground truncate">
-                                {contact.lastMessage || contact.phoneNumber}
-                              </p>
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  </CardContent>
-                </Card>
-
-                {/* Chat Area */}
-                <Card className="lg:col-span-2 border-border/50 bg-card/50 backdrop-blur-sm">
-                  {selectedContact ? (
-                    <>
-                      <CardHeader className="border-b border-border/50">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="relative">
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-green-400 to-green-600 flex items-center justify-center text-white font-semibold">
-                                {whatsappService.getContactAvatar(selectedContact).value}
-                              </div>
-                              {selectedContact.isOnline && (
-                                <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-card rounded-full"></div>
-                              )}
-                            </div>
-                            <div>
-                              <h3 className="font-semibold">{selectedContact.name}</h3>
-                              <p className="text-sm text-muted-foreground">
-                                {selectedContact.isOnline ? 'Online' : `Last seen ${formatTime(selectedContact.lastSeen || new Date())}`}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button size="icon" variant="ghost">
-                              <Phone className="h-4 w-4" />
-                            </Button>
-                            <Button size="icon" variant="ghost">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </div>
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto my-4 space-y-3">
+                    {messages.map((message) => (
+                      <motion.div
+                        key={message.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`flex ${message.fromMe ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div
+                          className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                            message.fromMe
+                              ? 'bg-violet-500/70 text-white'
+                              : 'bg-white/20 text-white'
+                          }`}
+                        >
+                          {!message.fromMe && message.isGroup && (
+                            <p className="text-xs text-blue-200 mb-1">{message.contactName}</p>
+                          )}
+                          <p className="text-sm">{message.body || '[Media]'}</p>
+                          <p className="text-xs opacity-70 mt-1">{message.time}</p>
                         </div>
-                      </CardHeader>
-                      <CardContent className="p-0">
-                        <ScrollArea className="h-[400px]">
-                          <div className="p-4 space-y-4">
-                            {messages.map((message) => (
-                                <motion.div
-                                  key={message.id}
-                                  initial={{ opacity: 0, y: 10 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  className={`flex ${message.isIncoming ? 'justify-start' : 'justify-end'}`}
-                                >
-                                  <div className={`max-w-[80%] rounded-lg p-3 ${
-                                    message.isIncoming 
-                                      ? 'bg-muted text-foreground' 
-                                      : 'bg-primary text-primary-foreground'
-                                  }`}>
-                                    <p className="text-sm">{message.message}</p>
-                                    <div className="flex items-center justify-between mt-2 gap-2">
-                                      <span className="text-xs opacity-70">
-                                        {formatTime(message.timestamp)}
-                                      </span>
-                                      {!message.isIncoming && (
-                                        <div className="flex items-center">
-                                          {message.status === 'read' && <CheckCircle className="h-3 w-3" />}
-                                          {message.status === 'delivered' && <CheckCircle className="h-3 w-3 opacity-50" />}
-                                          {message.status === 'sent' && <Clock className="h-3 w-3 opacity-50" />}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </motion.div>
-                              ))}
-                            <div ref={messagesEndRef} />
-                          </div>
-                        </ScrollArea>
-                        <div className="border-t border-border/50 p-4">
-                          <div className="flex items-center gap-2">
-                            <Button size="icon" variant="ghost">
-                              <Paperclip className="h-4 w-4" />
-                            </Button>
-                            <Input
-                              placeholder="Type a message..."
-                              value={newMessage}
-                              onChange={(e) => setNewMessage(e.target.value)}
-                              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                              className="flex-1"
-                            />
-                            <Button size="icon" variant="ghost">
-                              <Smile className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              onClick={handleSendMessage}
-                              disabled={!newMessage.trim() || isSending}
-                              className="bg-green-600 hover:bg-green-700"
-                            >
-                              {isSending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </>
-                  ) : (
-                    <div className="h-full flex items-center justify-center">
-                      <div className="text-center space-y-4">
-                        <MessageSquare className="h-16 w-16 text-muted-foreground mx-auto" />
-                        <div>
-                          <h3 className="text-lg font-semibold">Select a conversation</h3>
-                          <p className="text-muted-foreground">Choose a contact to start messaging</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </Card>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="contacts" className="space-y-4">
-              <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Contact Management</CardTitle>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Contact
+                      </motion.div>
+                    ))}
+                    <div ref={messagesEndRef} />
+                  </div>
+                  
+                  <div className="flex gap-3">
+                    <Input
+                      placeholder="Type a message..."
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                      className="flex-1 bg-white/10 border-white/20 text-white placeholder:text-blue-300"
+                      disabled={sendingMessage}
+                    />
+                    <Button
+                      onClick={sendMessage}
+                      disabled={!newMessage.trim() || sendingMessage}
+                      className="bg-green-500 hover:bg-green-600"
+                    >
+                      {sendingMessage ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
                     </Button>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input placeholder="Search contacts..." className="pl-10" />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {contacts.map((contact) => (
-                        <Card key={contact.id} className="p-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-r from-green-400 to-green-600 flex items-center justify-center text-white font-semibold">
-                              {whatsappService.getContactAvatar(contact).value}
-                            </div>
-                            <div className="flex-1">
-                              <h4 className="font-semibold">{contact.name}</h4>
-                              <p className="text-sm text-muted-foreground">{contact.phoneNumber}</p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <Badge variant={contact.isOnline ? 'default' : 'secondary'} className="text-xs">
-                                  {contact.isOnline ? 'Online' : 'Offline'}
-                                </Badge>
-                                {contact.unreadCount > 0 && (
-                                  <Badge variant="destructive" className="text-xs">
-                                    {contact.unreadCount} unread
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </Card>
-                      ))}
-                    </div>
+                </>
+              ) : (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center">
+                    <MessageCircle className="w-16 h-16 text-blue-300/50 mx-auto mb-4" />
+                    <p className="text-blue-200/70">Select a chat to start messaging</p>
                   </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+                </div>
+              )}
+            </GlassCard>
+          </div>
 
-            <TabsContent value="analytics" className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <BarChart3 className="h-5 w-5" />
-                      Message Analytics
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <span>Messages This Week</span>
-                        <span className="font-semibold">{stats.messagesThisWeek}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Response Rate</span>
-                        <span className="font-semibold text-green-600">{stats.responseRate}%</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Avg Response Time</span>
-                        <span className="font-semibold">{Math.floor(stats.avgResponseTime / 60)}m {stats.avgResponseTime % 60}s</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Activity className="h-5 w-5" />
-                      Connection Status
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <span>WhatsApp Status</span>
-                        <Badge variant={connectionStatus === 'connected' ? 'default' : 'destructive'}>
-                          {connectionStatus}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Webhook URL</span>
-                        <Badge variant="outline">Configured</Badge>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>API Version</span>
-                        <span className="font-semibold">v17.0</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+          <div className="lg:col-span-1">
+            <GlassCard className="p-6 h-[600px] flex flex-col">
+              <h3 className="text-lg font-semibold text-white mb-4">Monitoring</h3>
+              
+              <div className="mb-4">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Add keyword..."
+                    value={newKeyword}
+                    onChange={(e) => setNewKeyword(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && addKeyword()}
+                    className="flex-1 bg-white/10 border-white/20 text-white placeholder:text-blue-300"
+                  />
+                  <Button
+                    onClick={addKeyword}
+                    disabled={!newKeyword.trim()}
+                    size="sm"
+                    className="bg-green-500 hover:bg-green-600"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
-            </TabsContent>
+              
+              <div className="flex-1 overflow-y-auto space-y-2">
+                <h4 className="text-sm font-medium text-blue-200">Monitored Keywords</h4>
+                {monitoredKeywords.map((keyword) => (
+                  <motion.div
+                    key={keyword}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="flex items-center justify-between p-2 bg-white/10 rounded-lg"
+                  >
+                    <span className="text-sm text-white">{keyword}</span>
+                    <Button
+                      onClick={() => removeKeyword(keyword)}
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                    >
+                      <EyeOff className="w-3 h-3" />
+                    </Button>
+                  </motion.div>
+                ))}
+                
+                {monitoredKeywords.length === 0 && (
+                  <div className="text-center py-8">
+                    <Eye className="w-8 h-8 text-blue-300/50 mx-auto mb-2" />
+                    <p className="text-sm text-blue-200/70">No keywords monitored</p>
+                  </div>
+                )}
+              </div>
+            </GlassCard>
+          </div>
+        </div>
 
-            <TabsContent value="settings" className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Globe className="h-5 w-5" />
-                      WhatsApp Web.js Service
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
-                      <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Service Information</h4>
-                      <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
-                        Using WhatsApp Web.js service for real WhatsApp integration
-                      </p>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span>Service URL:</span>
-                          <code className="text-xs bg-blue-100 dark:bg-blue-800 px-2 py-1 rounded">
-                            whatsapp-webhook-hhub.onrender.com
-                          </code>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Status:</span>
-                          <Badge variant={connectionStatus?.connected ? "default" : "destructive"}>
-                            {connectionStatus?.connected ? "Connected" : "Disconnected"}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-3">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => window.open('https://whatsapp-webhook-hhub.onrender.com/', '_blank')}
-                        className="flex items-center gap-2"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                        Service Dashboard
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => {
-                          // Trigger service restart
-                          console.log('Restarting WhatsApp service...');
-                        }}
-                        className="flex items-center gap-2"
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                        Restart Service
-                      </Button>
-                    </div>
-                    
-                    <div>
-                      <h5 className="font-medium mb-2">Setup Instructions</h5>
-                      <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-                        <li>Visit the service dashboard</li>
-                        <li>Scan the QR code with your phone</li>
-                        <li>WhatsApp Web will connect automatically</li>
-                        <li>Messages will appear in this interface</li>
-                      </ol>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Bot className="h-5 w-5" />
-                      Automation Settings
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span>Auto-reply enabled</span>
-                      <Button variant="outline" size="sm">Configure</Button>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Business hours</span>
-                      <Button variant="outline" size="sm">Set Hours</Button>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Welcome message</span>
-                      <Button variant="outline" size="sm">Edit</Button>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium">Away Message</label>
-                      <Textarea 
-                        placeholder="Enter your away message..." 
-                        className="mt-1"
-                        rows={3}
+        <AnimatePresence>
+          {showQR && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              onClick={() => setShowQR(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="max-w-md w-full"
+              >
+                <GlassCard className="p-8 text-center">
+                  <QrCode className="w-8 h-8 text-yellow-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-white mb-4">WhatsApp QR Code</h3>
+                  
+                  {qrCode ? (
+                    <div className="mb-4">
+                      <img 
+                        src={qrCode} 
+                        alt="WhatsApp QR Code" 
+                        className="mx-auto rounded-lg bg-white p-2"
                       />
-                    </div>
-                    
-                    <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-lg border border-amber-200 dark:border-amber-800">
-                      <h5 className="font-medium text-amber-900 dark:text-amber-100 mb-2">
-                        📱 WhatsApp Web Integration
-                      </h5>
-                      <p className="text-sm text-amber-800 dark:text-amber-200">
-                        This integration uses WhatsApp Web.js to provide real WhatsApp messaging capabilities. 
-                        Your phone must be connected to the internet for the service to work.
+                      <p className="text-sm text-blue-200/70 mt-2">
+                        Scan this QR code with your WhatsApp mobile app
                       </p>
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </motion.div>
+                  ) : (
+                    <div className="mb-4">
+                      <RefreshCw className="w-8 h-8 text-blue-300 animate-spin mx-auto mb-2" />
+                      <p className="text-blue-200/70">Loading QR code...</p>
+                    </div>
+                  )}
+                  
+                  <Button 
+                    onClick={() => setShowQR(false)}
+                    variant="outline"
+                    className="border-white/30 text-white hover:bg-white/10"
+                  >
+                    Close
+                  </Button>
+                </GlassCard>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

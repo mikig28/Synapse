@@ -8,7 +8,15 @@ import {
   updateWhatsAppConfig,
   getConnectionStatus,
   getQRCode,
-  restartWhatsAppService
+  restartWhatsAppService,
+  getWhatsAppGroups,
+  getWhatsAppPrivateChats,
+  getWhatsAppMessages,
+  refreshWhatsAppChats,
+  addMonitoredKeyword,
+  removeMonitoredKeyword,
+  getMonitoredKeywords,
+  clearWhatsAppAuth
 } from '../controllers/whatsappController';
 import { authMiddleware } from '../middleware/authMiddleware';
 
@@ -38,5 +46,19 @@ router.get('/status', getConnectionStatus);
 // WhatsApp Web.js service management
 router.get('/qr', getQRCode);
 router.post('/restart', restartWhatsAppService);
+
+// Groups and chats
+router.get('/groups', getWhatsAppGroups);
+router.get('/private-chats', getWhatsAppPrivateChats);
+router.get('/messages', getWhatsAppMessages);
+router.post('/refresh-chats', refreshWhatsAppChats);
+
+// Monitoring
+router.get('/monitored-keywords', getMonitoredKeywords);
+router.post('/monitored-keywords', addMonitoredKeyword);
+router.delete('/monitored-keywords/:keyword', removeMonitoredKeyword);
+
+// Authentication management
+router.post('/clear-auth', clearWhatsAppAuth);
 
 export default router; 

@@ -12,6 +12,7 @@ import { AgentService } from './services/agentService'; // Import agent service
 import { AgentScheduler } from './services/agentScheduler'; // Import agent scheduler
 import { initializeAgentServices } from './api/controllers/agentsController'; // Import agent services initializer
 import { registerAgentExecutors } from './services/agents'; // Import agent executors registry
+// import WhatsAppService from './services/whatsappService'; // Import WhatsApp service
 import captureRoutes from './api/routes/captureRoutes'; // Import capture routes
 import path from 'path'; // <-- Import path module
 import fs from 'fs'; // <-- Import fs module
@@ -214,6 +215,11 @@ const startServer = async () => {
     await mongoose.connect(mongoUri);
     await connectToDatabase(); // Calls the Mongoose connection logic
     initializeTelegramBot(); // Initialize and start the Telegram bot polling
+
+    // Initialize WhatsApp service (temporarily disabled for startup)
+    // const whatsappService = WhatsAppService.getInstance();
+    // await whatsappService.initialize();
+    console.log('[Server] WhatsApp service initialization skipped for now');
 
     // Initialize agent services
     const agentService = new AgentService();
