@@ -120,38 +120,20 @@ class WhatsAppService extends EventEmitter {
         }
       }
 
-      // Configure Puppeteer for Render environment
+      // Configure Puppeteer - let it handle Chrome automatically
       let executablePath: string | undefined;
       
-      // Check if we're on Render (production) or local development
-      if (process.env.RENDER) {
-        // On Render, try to use the Chrome binary installed via buildpack
-        const possiblePaths = [
-          '/usr/bin/google-chrome-stable',
-          '/usr/bin/google-chrome',
-          '/usr/bin/chromium-browser',
-          '/usr/bin/chromium',
-          process.env.PUPPETEER_EXECUTABLE_PATH
-        ].filter(Boolean);
-        
-        for (const path of possiblePaths) {
-          if (path && require('fs').existsSync(path)) {
-            executablePath = path;
-            console.log('🔧 Found Chrome at:', executablePath);
-            break;
-          }
-        }
-        
-        if (!executablePath) {
-          console.log('⚠️ Chrome not found in standard locations, using Puppeteer default');
-          executablePath = puppeteer.executablePath();
-        }
+      // Only use custom path if explicitly set and exists
+      if (process.env.PUPPETEER_EXECUTABLE_PATH && require('fs').existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
+        executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+        console.log('🔧 Using custom Chrome path:', executablePath);
       } else {
-        // Local development - use Puppeteer's bundled Chrome
-        executablePath = puppeteer.executablePath();
+        // Let Puppeteer use its bundled Chrome
+        executablePath = undefined; // undefined = use Puppeteer's default
+        console.log('🔧 Using Puppeteer bundled Chrome');
       }
       
-      console.log('🔧 Using Chromium executable:', executablePath);
+      console.log('🔧 Chromium configuration:', executablePath || 'Puppeteer default');
 
       const puppeteerConfig = {
         headless: true,
