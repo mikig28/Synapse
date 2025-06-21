@@ -3,6 +3,7 @@ import qrcode from 'qrcode';
 import { EventEmitter } from 'events';
 import fs from 'fs-extra';
 import path from 'path';
+import puppeteer from 'puppeteer';
 
 export interface WhatsAppMessage {
   id: string;
@@ -119,8 +120,13 @@ class WhatsAppService extends EventEmitter {
         }
       }
 
+      // Get the bundled Chromium executable path from Puppeteer
+      const executablePath = puppeteer.executablePath();
+      console.log('🔧 Using Chromium executable:', executablePath);
+
       const puppeteerConfig = {
         headless: true,
+        executablePath: executablePath, // Use bundled Chromium
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
