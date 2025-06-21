@@ -223,6 +223,8 @@ const startServer = async () => {
       FRONTEND_URL: process.env.FRONTEND_URL,
       CREWAI_SERVICE_URL: process.env.CREWAI_SERVICE_URL
     });
+    
+    // Force redeploy with Puppeteer fix - v2
 
     if (!mongoUri) {
       console.error('FATAL ERROR: MONGODB_URI is not defined.');
