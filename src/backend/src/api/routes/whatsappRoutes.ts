@@ -17,7 +17,8 @@ import {
   removeMonitoredKeyword,
   getMonitoredKeywords,
   clearWhatsAppAuth,
-  getDiagnostics
+  getDiagnostics,
+  forceRestart
 } from '../controllers/whatsappController';
 import { authMiddleware } from '../middleware/authMiddleware';
 
@@ -64,5 +65,8 @@ router.post('/clear-auth', clearWhatsAppAuth);
 
 // Diagnostics
 router.get('/diagnostics', getDiagnostics);
+
+// Force restart (clears auth and restarts)
+router.post('/force-restart', forceRestart);
 
 export default router; 

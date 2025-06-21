@@ -390,6 +390,41 @@ const WhatsAppPage: React.FC = () => {
     }
   };
 
+  const forceRestart = async () => {
+    if (!confirm('This will clear all WhatsApp authentication data and restart from scratch. Continue?')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/force-restart`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast({
+          title: "Force Restart Initiated",
+          description: "WhatsApp service is restarting with clean state. Please wait and scan QR code when it appears.",
+        });
+        
+        // Wait a bit then refresh status
+        setTimeout(() => {
+          fetchStatus();
+        }, 5000);
+      } else {
+        throw new Error(data.error || 'Failed to force restart');
+      }
+    } catch (error: any) {
+      console.error('Force restart error:', error);
+      toast({
+        title: "Error",
+        description: error.message || 'Failed to force restart WhatsApp service',
+        variant: "destructive",
+      });
+    }
+  };
+
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedChat || sendingMessage) return;
 
@@ -590,6 +625,16 @@ const WhatsAppPage: React.FC = () => {
               >
                 <Settings className="w-4 h-4 mr-2" />
                 Restart
+              </AnimatedButton>
+              
+              <AnimatedButton
+                onClick={forceRestart}
+                variant="outline"
+                size="sm"
+                className="border-red-600/30 text-red-300 hover:bg-red-600/10"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Force Restart
               </AnimatedButton>
             </div>
           </div>

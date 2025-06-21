@@ -716,4 +716,24 @@ export const getDiagnostics = async (req: Request, res: Response) => {
       error: 'Failed to get diagnostics: ' + error.message
     });
   }
+};
+
+export const forceRestart = async (req: Request, res: Response) => {
+  try {
+    console.log('[WhatsApp] Force restart requested');
+    
+    // Clear auth and restart completely
+    await getWhatsAppService().clearAuth();
+    
+    res.json({
+      success: true,
+      message: 'WhatsApp service force restart initiated. This will clear all authentication data and restart from scratch.'
+    });
+  } catch (error: any) {
+    console.error('[WhatsApp] Error during force restart:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to force restart WhatsApp service: ' + error.message
+    });
+  }
 }; 
