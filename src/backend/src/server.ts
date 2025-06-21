@@ -89,6 +89,7 @@ const io = new SocketIOServer(httpServer, {
 // Middleware - Enhanced CORS configuration
 app.use(cors({
   origin: function (requestOrigin, callback) {
+    console.log(`[CORS] Request from origin: ${requestOrigin}`);
     // Allow requests with no origin (mobile apps, etc.)
     if (!requestOrigin) return callback(null, true);
     
@@ -100,17 +101,33 @@ app.use(cors({
     ];
     
     if (allowedOrigins.includes(requestOrigin)) {
+      console.log(`[CORS] Origin ${requestOrigin} allowed`);
       return callback(null, true);
     } else {
-      console.log(`[CORS] Blocked origin: ${requestOrigin}`);
+      console.log(`[CORS] Origin ${requestOrigin} not in allowed list, but allowing for debugging`);
       return callback(null, true); // Allow all for now to debug
     }
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Access-Control-Allow-Origin"],
   credentials: true,
-  optionsSuccessStatus: 200 // For legacy browser support
+  optionsSuccessStatus: 200, // For legacy browser support
+  preflightContinue: false
 }));
+
+// Add explicit CORS headers for Socket.IO
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
+});
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -216,10 +233,16 @@ const startServer = async () => {
     await connectToDatabase(); // Calls the Mongoose connection logic
     initializeTelegramBot(); // Initialize and start the Telegram bot polling
 
-    // Initialize WhatsApp service
-    const whatsappService = WhatsAppService.getInstance();
-    await whatsappService.initialize();
-    console.log('[Server] WhatsApp service initialized successfully');
+    // Initialize WhatsApp service with error handling
+    try {
+      const whatsappService = WhatsAppService.getInstance();
+      await whatsappService.initialize();
+      console.log('[Server] WhatsApp service initialized successfully');
+    } catch (whatsappError) {
+      console.error('[Server] WhatsApp service failed to initialize:', whatsappError);
+      console.log('[Server] Continuing without WhatsApp service...');
+      // Don't crash the server if WhatsApp fails
+    }
 
     // Initialize agent services
     const agentService = new AgentService();
