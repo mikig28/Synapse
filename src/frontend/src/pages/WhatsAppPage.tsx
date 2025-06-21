@@ -79,6 +79,11 @@ const WhatsAppPage: React.FC = () => {
   
   const { isAuthenticated, token } = useAuthStore();
 
+  // Helper function to get the correct backend URL
+  const getBackendUrl = () => {
+    return import.meta.env.VITE_BACKEND_ROOT_URL || 'https://synapse-pxad.onrender.com';
+  };
+
   // Socket.io setup
   const SOCKET_SERVER_URL = import.meta.env.VITE_SOCKET_IO_URL || 
     (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001');
@@ -210,7 +215,7 @@ const WhatsAppPage: React.FC = () => {
 
   const fetchStatus = async () => {
     try {
-      const response = await fetch('/api/v1/whatsapp/status');
+      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/status`);
       const data = await response.json();
       if (data.success) {
         setStatus(data.data);
@@ -224,7 +229,7 @@ const WhatsAppPage: React.FC = () => {
 
   const fetchGroups = async () => {
     try {
-      const response = await fetch('/api/v1/whatsapp/groups');
+      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/groups`);
       const data = await response.json();
       if (data.success) {
         setGroups(data.data);
@@ -236,7 +241,7 @@ const WhatsAppPage: React.FC = () => {
 
   const fetchPrivateChats = async () => {
     try {
-      const response = await fetch('/api/v1/whatsapp/private-chats');
+      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/private-chats`);
       const data = await response.json();
       if (data.success) {
         setPrivateChats(data.data);
@@ -248,10 +253,10 @@ const WhatsAppPage: React.FC = () => {
 
   const fetchMessages = async (chatId?: string) => {
     try {
-      const url = chatId 
+      const endpoint = chatId 
         ? `/api/v1/whatsapp/messages?groupId=${chatId}`
         : '/api/v1/whatsapp/messages';
-      const response = await fetch(url);
+      const response = await fetch(`${getBackendUrl()}${endpoint}`);
       const data = await response.json();
       if (data.success) {
         setMessages(data.data);
@@ -263,7 +268,7 @@ const WhatsAppPage: React.FC = () => {
 
   const fetchMonitoredKeywords = async () => {
     try {
-      const response = await fetch('/api/v1/whatsapp/monitored-keywords');
+      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/monitored-keywords`);
       const data = await response.json();
       if (data.success) {
         setMonitoredKeywords(data.data);
@@ -276,7 +281,7 @@ const WhatsAppPage: React.FC = () => {
   const fetchQRCode = async () => {
     try {
       setShowQR(true);
-      const response = await fetch('/api/v1/whatsapp/qr');
+      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/qr`);
       const data = await response.json();
       if (data.success && data.data.qrCode) {
         setQrCode(data.data.qrCode);
@@ -298,7 +303,7 @@ const WhatsAppPage: React.FC = () => {
 
   const refreshChats = async () => {
     try {
-      const response = await fetch('/api/v1/whatsapp/refresh-chats', {
+      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/refresh-chats`, {
         method: 'POST'
       });
       const data = await response.json();
@@ -322,7 +327,7 @@ const WhatsAppPage: React.FC = () => {
 
   const restartService = async () => {
     try {
-      const response = await fetch('/api/v1/whatsapp/restart', {
+      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/restart`, {
         method: 'POST'
       });
       const data = await response.json();
@@ -348,7 +353,7 @@ const WhatsAppPage: React.FC = () => {
 
     setSendingMessage(true);
     try {
-      const response = await fetch('/api/v1/whatsapp/send', {
+      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -390,7 +395,7 @@ const WhatsAppPage: React.FC = () => {
     if (!newKeyword.trim()) return;
 
     try {
-      const response = await fetch('/api/v1/whatsapp/monitored-keywords', {
+      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/monitored-keywords`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -421,7 +426,7 @@ const WhatsAppPage: React.FC = () => {
 
   const removeKeyword = async (keyword: string) => {
     try {
-      const response = await fetch(`/api/v1/whatsapp/monitored-keywords/${keyword}`, {
+      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/monitored-keywords/${keyword}`, {
         method: 'DELETE',
       });
 
