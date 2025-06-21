@@ -1,47 +1,52 @@
 import { Request, Response } from 'express';
 import WhatsAppMessage from '../../models/WhatsAppMessage';
 import WhatsAppContact from '../../models/WhatsAppContact';
-// import WhatsAppService from '../../services/whatsappService';
-
-// Mock WhatsApp service for initial implementation
-class MockWhatsAppService {
-  getStatus() {
-    return {
-      status: 'disconnected',
-      isReady: false,
-      isClientReady: false,
-      groupsCount: 0,
-      privateChatsCount: 0,
-      messagesCount: 0,
-      monitoredKeywords: [],
-      qrAvailable: false,
-      timestamp: new Date().toISOString()
-    };
-  }
-  
-  getGroups() { return []; }
-  getPrivateChats() { return []; }
-  getMessages(limit?: number, groupId?: string) { return []; }
-  getMonitoredKeywords() { return []; }
-  getQRCode() { return null; }
-  
-  async sendMessage(to: string, message: string) { throw new Error('WhatsApp service not initialized'); }
-  async refreshChats() { throw new Error('WhatsApp service not initialized'); }
-  async restart() { throw new Error('WhatsApp service not initialized'); }
-  async clearAuth() { throw new Error('WhatsApp service not initialized'); }
-  
-  addMonitoredKeyword(keyword: string) { }
-  removeMonitoredKeyword(keyword: string) { return false; }
-}
+import WhatsAppService from '../../services/whatsappService';
 
 // Get WhatsApp service singleton instance (lazy initialization)
 const getWhatsAppService = () => {
-  return new MockWhatsAppService();
+  return WhatsAppService.getInstance();
 };
 
 // Initialize WhatsApp service listeners when needed
 let serviceInitialized = false;
 const initializeWhatsAppService = () => {
+  if (serviceInitialized) return;
+  
+  const whatsappService = getWhatsAppService();
+  
+  // Set up event listeners for WhatsApp service
+  whatsappService.on('newMessage', async (messageData) => {
+    await processWhatsAppWebMessage(messageData);
+    
+    // Emit to Socket.io clients
+    const io_instance = (global as any).io;
+    if (io_instance) {
+      io_instance.emit('whatsapp:message', messageData);
+    }
+  });
+
+  whatsappService.on('qr', (qrData) => {
+    const io_instance = (global as any).io;
+    if (io_instance) {
+      io_instance.emit('whatsapp:qr', qrData);
+    }
+  });
+
+  whatsappService.on('status', (statusData) => {
+    const io_instance = (global as any).io;
+    if (io_instance) {
+      io_instance.emit('whatsapp:status', statusData);
+    }
+  });
+
+  whatsappService.on('chats_updated', (chatsData) => {
+    const io_instance = (global as any).io;
+    if (io_instance) {
+      io_instance.emit('whatsapp:chats_updated', chatsData);
+    }
+  });
+  
   serviceInitialized = true;
 };
 
