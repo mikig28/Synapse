@@ -120,32 +120,55 @@ class WhatsAppService extends EventEmitter {
         }
       }
 
-      // Get the bundled Chromium executable path from Puppeteer
-      const executablePath = puppeteer.executablePath();
+      // Configure Puppeteer for Render environment
+      let executablePath: string | undefined;
+      
+      // Check if we're on Render (production) or local development
+      if (process.env.RENDER) {
+        // On Render, try to use the Chrome binary installed via buildpack
+        const possiblePaths = [
+          '/usr/bin/google-chrome-stable',
+          '/usr/bin/google-chrome',
+          '/usr/bin/chromium-browser',
+          '/usr/bin/chromium',
+          process.env.PUPPETEER_EXECUTABLE_PATH
+        ].filter(Boolean);
+        
+        for (const path of possiblePaths) {
+          if (path && require('fs').existsSync(path)) {
+            executablePath = path;
+            console.log('🔧 Found Chrome at:', executablePath);
+            break;
+          }
+        }
+        
+        if (!executablePath) {
+          console.log('⚠️ Chrome not found in standard locations, using Puppeteer default');
+          executablePath = puppeteer.executablePath();
+        }
+      } else {
+        // Local development - use Puppeteer's bundled Chrome
+        executablePath = puppeteer.executablePath();
+      }
+      
       console.log('🔧 Using Chromium executable:', executablePath);
 
       const puppeteerConfig = {
         headless: true,
-        executablePath: executablePath, // Use bundled Chromium
+        executablePath: executablePath,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
-          '--disable-web-security',
-          '--disable-features=VizDisplayCompositor',
+          '--disable-accelerated-2d-canvas',
           '--no-first-run',
           '--no-zygote',
-          '--disable-gpu',
-          '--disable-extensions',
-          '--disable-default-apps',
-          '--disable-sync',
-          '--disable-translate',
-          '--hide-scrollbars',
-          '--mute-audio'
+          '--single-process', // Important for Render
+          '--disable-gpu'
         ],
         timeout: 120000,
         defaultViewport: null,
-        ignoreDefaultArgs: ['--disable-extensions', '--enable-automation'],
+        ignoreDefaultArgs: ['--disable-extensions'],
         handleSIGINT: false,
         handleSIGTERM: false,
         handleSIGHUP: false,
