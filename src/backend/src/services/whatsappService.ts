@@ -49,6 +49,7 @@ class WhatsAppService extends EventEmitter {
   private isClientReady = false;
   private connectionStatus = 'disconnected';
   private qrString: string | null = null;
+  private qrDataUrl: string | null = null;
   private groups: WhatsAppChat[] = [];
   private privateChats: WhatsAppChat[] = [];
   private messages: WhatsAppMessage[] = [];
@@ -207,9 +208,11 @@ class WhatsAppService extends EventEmitter {
       qrcode.toDataURL(qr, (err, url) => {
         if (!err) {
           console.log('📱 WhatsApp QR Code generated');
+          this.qrDataUrl = url;
           this.emit('qr', { qr: url, status: 'qr_ready' });
         } else {
           console.error('❌ Error generating WhatsApp QR code:', err);
+          this.qrDataUrl = null;
           this.emit('qr', { qr: qr, status: 'qr_ready' });
         }
       });
@@ -242,6 +245,7 @@ class WhatsAppService extends EventEmitter {
       this.isReady = true;
       this.connectionStatus = 'connected';
       this.qrString = null;
+      this.qrDataUrl = null;
       
       this.emit('status', { ready: true, message: 'WhatsApp connected successfully!' });
       this.emit('ready', { status: 'connected' });
@@ -588,7 +592,7 @@ class WhatsAppService extends EventEmitter {
   }
 
   getQRCode(): string | null {
-    return this.qrString;
+    return this.qrDataUrl;
   }
 
   async restart(): Promise<void> {
@@ -604,6 +608,7 @@ class WhatsAppService extends EventEmitter {
     }
     
     this.qrString = null;
+    this.qrDataUrl = null;
     this.isReady = false;
     this.isClientReady = false;
     this.connectionStatus = 'disconnected';
@@ -649,6 +654,7 @@ class WhatsAppService extends EventEmitter {
     }
     
     this.qrString = null;
+    this.qrDataUrl = null;
     this.isReady = false;
     this.isClientReady = false;
     this.connectionStatus = 'disconnected';
