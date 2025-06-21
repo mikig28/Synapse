@@ -16,7 +16,8 @@ import {
   addMonitoredKeyword,
   removeMonitoredKeyword,
   getMonitoredKeywords,
-  clearWhatsAppAuth
+  clearWhatsAppAuth,
+  getDiagnostics
 } from '../controllers/whatsappController';
 import { authMiddleware } from '../middleware/authMiddleware';
 
@@ -60,5 +61,8 @@ router.delete('/monitored-keywords/:keyword', removeMonitoredKeyword);
 
 // Authentication management
 router.post('/clear-auth', clearWhatsAppAuth);
+
+// Diagnostics
+router.get('/diagnostics', getDiagnostics);
 
 export default router; 

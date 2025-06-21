@@ -659,4 +659,35 @@ export const clearWhatsAppAuth = async (req: Request, res: Response) => {
       error: 'Failed to clear WhatsApp auth data: ' + error.message
     });
   }
+};
+
+// Diagnostic endpoint to check Puppeteer configuration
+export const getDiagnostics = async (req: Request, res: Response) => {
+  try {
+    const diagnostics = {
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV,
+      renderEnvironment: !!process.env.RENDER,
+      puppeteerExecutablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+      puppeteerSkipDownload: process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD,
+      hasWhatsAppService: !!getWhatsAppService(),
+      whatsappServiceStatus: getWhatsAppService().getStatus(),
+      systemInfo: {
+        platform: process.platform,
+        arch: process.arch,
+        nodeVersion: process.version
+      }
+    };
+
+    res.json({
+      success: true,
+      data: diagnostics
+    });
+  } catch (error: any) {
+    console.error('[WhatsApp] Error getting diagnostics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get diagnostics: ' + error.message
+    });
+  }
 }; 
