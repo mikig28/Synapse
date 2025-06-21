@@ -265,6 +265,9 @@ const startServer = async () => {
 
     httpServer.listen(PORT, '0.0.0.0', () => {
       console.log(`Server is running on port ${PORT}`);
+      console.log(`Server is binding to 0.0.0.0:${PORT}`);
+      console.log(`Environment PORT: ${process.env.PORT || 'not set'}`);
+      console.log(`NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
       // The "[mongoose]: Mongoose connected to DB" log from database.ts confirms success
     });
   } catch (error) {

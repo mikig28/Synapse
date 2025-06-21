@@ -68,8 +68,8 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Expose the port
-EXPOSE 3001
+# Expose common ports (Render will set PORT env var)
+EXPOSE 3001 10000
 
 # Start the application
 CMD ["npm", "start"] 
