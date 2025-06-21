@@ -333,6 +333,7 @@ const WhatsAppPage: React.FC = () => {
         headers: getAuthHeaders(),
       });
       const data = await response.json();
+      
       if (data.success) {
         await fetchGroups();
         await fetchPrivateChats();
@@ -340,12 +341,26 @@ const WhatsAppPage: React.FC = () => {
           title: "Success",
           description: "Chats refreshed successfully",
         });
+      } else {
+        // Handle specific error cases from the backend
+        let title = "WhatsApp Not Ready";
+        let description = data.error || "Failed to refresh chats";
+        
+        if (data.details?.suggestion) {
+          description += `. ${data.details.suggestion}`;
+        }
+        
+        toast({
+          title,
+          description,
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error('Error refreshing chats:', error);
       toast({
-        title: "Error",
-        description: "Failed to refresh chats",
+        title: "Connection Error",
+        description: "Failed to connect to WhatsApp service",
         variant: "destructive",
       });
     }
