@@ -517,17 +517,16 @@ const WhatsAppPage: React.FC = () => {
             </div>
             
             <div className="flex items-center gap-3">
-              {status?.qrAvailable && (
-                <AnimatedButton
-                  onClick={fetchQRCode}
-                  variant="outline"
-                  size="sm"
-                  className="border-yellow-400/30 text-yellow-200 hover:bg-yellow-500/10"
-                >
-                  <QrCode className="w-4 h-4 mr-2" />
-                  Show QR
-                </AnimatedButton>
-              )}
+              {/* Temporarily always show QR button for testing */}
+              <AnimatedButton
+                onClick={fetchQRCode}
+                variant="outline"
+                size="sm"
+                className="border-yellow-400/30 text-yellow-200 hover:bg-yellow-500/10"
+              >
+                <QrCode className="w-4 h-4 mr-2" />
+                Show QR
+              </AnimatedButton>
               
               <AnimatedButton
                 onClick={refreshChats}
