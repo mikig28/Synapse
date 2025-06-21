@@ -7,7 +7,8 @@
     "build": "tsc",
     "prebuild": "node -e \"const fs = require('fs'); if (fs.existsSync('./dist')) { fs.rmSync('./dist', { recursive: true, force: true }); }\"",
     "start": "node dist/server.js",
-    "dev": "nodemon src/server.ts"
+    "dev": "nodemon src/server.ts",
+    "postinstall": "npx puppeteer browsers install chrome"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
