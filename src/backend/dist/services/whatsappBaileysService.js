@@ -4,6 +4,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const baileys_1 = require("@whiskeysockets/baileys");
+// Import store functionality
+const baileys = require('@whiskeysockets/baileys');
+const makeInMemoryStore = baileys.makeInMemoryStore;
 const qrcode_1 = __importDefault(require("qrcode"));
 const qrcode_terminal_1 = __importDefault(require("qrcode-terminal"));
 const events_1 = require("events");
@@ -14,6 +17,7 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
     constructor() {
         super();
         this.socket = null;
+        this.store = null;
         this.isReady = false;
         this.isClientReady = false;
         this.connectionStatus = 'disconnected';
@@ -26,6 +30,7 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
         this.reconnectAttempts = 0;
         this.MAX_RECONNECT_ATTEMPTS = 10;
         this.authDir = './baileys_auth_info';
+        this.storeFile = './baileys_store.json';
         this.loadSession();
     }
     static getInstance() {
@@ -76,6 +81,20 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
             this.emit('status', { ready: false, message: 'Initializing WhatsApp with Baileys...' });
             // Ensure auth directory exists
             await fs_extra_1.default.ensureDir(this.authDir);
+            // Setup store for persistent chat data
+            if (!this.store) {
+                console.log('📦 Setting up Baileys store for chat persistence...');
+                this.store = makeInMemoryStore({});
+                // Load existing store data if available
+                if (fs_extra_1.default.existsSync(this.storeFile)) {
+                    this.store.readFromFile(this.storeFile);
+                    console.log('📥 Loaded existing store data');
+                }
+                // Save store periodically
+                setInterval(() => {
+                    this.store.writeToFile(this.storeFile);
+                }, 30000); // Save every 30 seconds
+            }
             // Use multi-file auth state for persistent sessions
             const { state, saveCreds } = await (0, baileys_1.useMultiFileAuthState)(this.authDir);
             // Create WhatsApp socket
@@ -86,10 +105,13 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
                 logger: (0, pino_1.default)({ level: 'silent' }),
                 browser: ['Synapse Bot', 'Chrome', '120.0.0'],
                 generateHighQualityLinkPreview: false,
-                syncFullHistory: false,
+                syncFullHistory: true, // Enable history sync to get existing chats
                 markOnlineOnConnect: true,
-                defaultQueryTimeoutMs: 60000
+                defaultQueryTimeoutMs: 60000,
+                shouldSyncHistoryMessage: () => true // Enable message history sync
             });
+            // Bind store to socket events
+            this.store.bind(this.socket.ev);
             // Set up event handlers
             this.setupEventHandlers(saveCreds);
             console.log('✅ WhatsApp Baileys client initialized successfully');
@@ -191,6 +213,110 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
         });
         // Credentials update handler
         this.socket.ev.on('creds.update', saveCreds);
+        // Handle initial history sync - this is where existing chats come from!
+        this.socket.ev.on('messaging-history.set', async ({ chats, contacts, messages, isLatest }) => {
+            console.log(`🔄 Received messaging history: ${chats.length} chats, ${contacts.length} contacts, ${messages.length} messages`);
+            try {
+                // Process chats from history
+                for (const chat of chats) {
+                    const isGroup = chat.id.endsWith('@g.us');
+                    const chatInfo = {
+                        id: chat.id,
+                        name: chat.name || (isGroup ? 'Unknown Group' : 'Unknown Contact'),
+                        lastMessage: chat.lastMessage?.message || '',
+                        timestamp: chat.lastMessage?.messageTimestamp || Date.now(),
+                        isGroup,
+                        participantCount: isGroup ? chat.participantCount : undefined,
+                        description: chat.description || undefined
+                    };
+                    if (isGroup) {
+                        // Get additional group metadata
+                        try {
+                            const groupMetadata = await this.socket.groupMetadata(chat.id);
+                            chatInfo.name = groupMetadata.subject || chatInfo.name;
+                            chatInfo.participantCount = groupMetadata.participants?.length || 0;
+                            chatInfo.description = groupMetadata.desc || '';
+                            const existingIndex = this.groups.findIndex(g => g.id === chat.id);
+                            if (existingIndex >= 0) {
+                                this.groups[existingIndex] = chatInfo;
+                            }
+                            else {
+                                this.groups.push(chatInfo);
+                            }
+                            console.log(`👥 Added group: "${chatInfo.name}" (${chatInfo.participantCount} members)`);
+                        }
+                        catch (groupError) {
+                            console.log(`⚠️ Could not get metadata for group ${chat.id}:`, groupError.message);
+                            // Still add the group without full metadata
+                            const existingIndex = this.groups.findIndex(g => g.id === chat.id);
+                            if (existingIndex >= 0) {
+                                this.groups[existingIndex] = chatInfo;
+                            }
+                            else {
+                                this.groups.push(chatInfo);
+                            }
+                        }
+                    }
+                    else {
+                        const existingIndex = this.privateChats.findIndex(c => c.id === chat.id);
+                        if (existingIndex >= 0) {
+                            this.privateChats[existingIndex] = chatInfo;
+                        }
+                        else {
+                            this.privateChats.push(chatInfo);
+                        }
+                        console.log(`👤 Added private chat: "${chatInfo.name}"`);
+                    }
+                }
+                // Process messages from history
+                for (const message of messages) {
+                    try {
+                        const messageText = this.extractMessageText(message);
+                        if (!messageText)
+                            continue;
+                        const chatId = message.key.remoteJid;
+                        const isGroup = chatId?.endsWith('@g.us') || false;
+                        const timestamp = typeof message.messageTimestamp === 'number'
+                            ? message.messageTimestamp
+                            : typeof message.messageTimestamp === 'object' && message.messageTimestamp
+                                ? message.messageTimestamp.toNumber()
+                                : Date.now();
+                        const whatsappMessage = {
+                            id: message.key.id || '',
+                            body: messageText,
+                            from: message.key.participant || message.key.remoteJid || '',
+                            fromMe: message.key.fromMe || false,
+                            timestamp: timestamp,
+                            type: Object.keys(message.message || {})[0] || 'text',
+                            isGroup,
+                            groupName: isGroup ? await this.getGroupName(chatId || '') : undefined,
+                            contactName: await this.getContactName(message.key.participant || message.key.remoteJid || ''),
+                            chatId: chatId || '',
+                            time: new Date(timestamp * 1000).toLocaleTimeString(),
+                            isMedia: this.isMediaMessage(message.message)
+                        };
+                        this.messages.unshift(whatsappMessage);
+                    }
+                    catch (msgError) {
+                        console.log('⚠️ Error processing historical message:', msgError.message);
+                    }
+                }
+                // Limit messages array size
+                if (this.messages.length > 1000) {
+                    this.messages = this.messages.slice(0, 1000);
+                }
+                console.log(`📊 History processed: ${this.groups.length} groups, ${this.privateChats.length} private chats, ${this.messages.length} messages`);
+                // Emit update with the new chat data
+                this.emitChatsUpdate();
+                this.saveSession();
+                if (isLatest) {
+                    console.log('✅ History sync completed - all chats loaded!');
+                }
+            }
+            catch (error) {
+                console.error('❌ Error processing messaging history:', error.message);
+            }
+        });
         // Messages handler
         this.socket.ev.on('messages.upsert', async (m) => {
             try {
@@ -405,19 +531,54 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
         }
         try {
             console.log('🔄 Refreshing WhatsApp chats...');
-            // Request chat list from WhatsApp
-            // This will trigger chats.set and chats.upsert events
-            console.log('📡 Requesting chat list from WhatsApp...');
+            // Get chats from the store if available
+            if (this.store) {
+                console.log('📦 Loading chats from store...');
+                const storeChats = this.store.chats.all();
+                this.groups = [];
+                this.privateChats = [];
+                for (const chat of storeChats) {
+                    const isGroup = chat.id.endsWith('@g.us');
+                    const chatInfo = {
+                        id: chat.id,
+                        name: chat.name || (isGroup ? 'Unknown Group' : 'Unknown Contact'),
+                        lastMessage: chat.lastMessage?.message || '',
+                        timestamp: chat.lastMessage?.messageTimestamp || Date.now(),
+                        isGroup,
+                        participantCount: isGroup ? chat.participantCount : undefined,
+                        description: chat.description || undefined
+                    };
+                    if (isGroup) {
+                        // Try to get fresh group metadata
+                        try {
+                            const groupMetadata = await this.socket.groupMetadata(chat.id);
+                            chatInfo.name = groupMetadata.subject || chatInfo.name;
+                            chatInfo.participantCount = groupMetadata.participants?.length || 0;
+                            chatInfo.description = groupMetadata.desc || '';
+                        }
+                        catch (groupError) {
+                            console.log(`⚠️ Could not refresh metadata for group ${chat.id}`);
+                        }
+                        this.groups.push(chatInfo);
+                        console.log(`👥 Refreshed group: "${chatInfo.name}" (${chatInfo.participantCount} members)`);
+                    }
+                    else {
+                        this.privateChats.push(chatInfo);
+                        console.log(`👤 Refreshed private chat: "${chatInfo.name}"`);
+                    }
+                }
+                console.log(`📦 Loaded from store: ${this.groups.length} groups, ${this.privateChats.length} private chats`);
+            }
             // Force a chat list sync by sending a presence update
+            console.log('📡 Requesting fresh chat list from WhatsApp...');
             await this.socket.sendPresenceUpdate('available');
             // Wait a moment for events to be processed
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await new Promise(resolve => setTimeout(resolve, 3000));
             console.log(`📊 Current chats after refresh: ${this.groups.length} groups, ${this.privateChats.length} private chats`);
-            // If we still have no chats, try to get recent conversations
+            // If we still have no chats, inform about the discovery mode
             if (this.groups.length === 0 && this.privateChats.length === 0) {
-                console.log('📞 No chats found via events, trying to fetch recent conversations...');
-                // In baileys, chats are typically populated through events as messages come in
-                // or when the app syncs with WhatsApp servers
+                console.log('📞 No chats found. Chats will be discovered as messages arrive or during history sync.');
+                console.log('💡 To see existing chats, try disconnecting and reconnecting to trigger history sync');
             }
             this.emitChatsUpdate();
             this.saveSession();
@@ -512,13 +673,23 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
             if (fs_extra_1.default.existsSync(this.authDir)) {
                 await fs_extra_1.default.remove(this.authDir);
             }
+            // Clear store file
+            if (fs_extra_1.default.existsSync(this.storeFile)) {
+                await fs_extra_1.default.remove(this.storeFile);
+                console.log('🗑️ Store file cleared');
+            }
+            // Reset store
+            this.store = null;
             this.isReady = false;
             this.isClientReady = false;
             this.connectionStatus = 'disconnected';
             this.qrString = null;
             this.qrDataUrl = null;
             this.reconnectAttempts = 0;
-            console.log('✅ WhatsApp authentication data cleared');
+            this.groups = [];
+            this.privateChats = [];
+            this.messages = [];
+            console.log('✅ WhatsApp authentication data and store cleared');
         }
         catch (error) {
             console.error('❌ Error clearing WhatsApp auth data:', error.message);
