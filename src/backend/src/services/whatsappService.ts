@@ -565,12 +565,15 @@ class WhatsAppService extends EventEmitter {
         restartOnAuthFail: true
       };
 
-      // For high protocol error counts, disable user agent handling entirely
-      if (this.protocolErrorCount >= 5) {
+      // For ANY protocol error, disable user agent handling entirely in Render environment
+      if (this.protocolErrorCount >= 1 || process.env.RENDER) {
         console.log('🔧 Disabling user agent override for protocol error prevention');
         clientConfig.userAgent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
         // Also disable web version cache for ultra-minimal approach
         clientConfig.webVersionCache = { type: 'local' };
+        // Add additional options to prevent CDP issues
+        clientConfig.sessionTimeout = timeouts.initialization;
+        clientConfig.restartOnAuthFail = false; // Prevent restart loops
       }
 
       this.client = new Client(clientConfig);
@@ -1589,7 +1592,7 @@ class WhatsAppService extends EventEmitter {
     // Render.com logic is now handled at the main level via useMinimalConfig parameter
     
     // Ultra-minimal config for extreme environments (containers with severe limitations)
-    if (this.protocolErrorCount >= 8) {
+    if (this.protocolErrorCount >= 3) {
       console.log('🔧 Using ULTRA-MINIMAL browser configuration for maximum compatibility');
       return {
         headless: true,
@@ -1628,7 +1631,7 @@ class WhatsAppService extends EventEmitter {
           '--disable-logging',
           '--no-first-run',
           // Radical anti-automation detection flags for Network.setUserAgentOverride errors
-          '--disable-features=NetworkService,NetworkServiceLogging,VizHitTestSurfaceLayer,AutomationControlled,UserAgentClientHint,VizDisplayCompositor',
+          '--disable-features=NetworkService,NetworkServiceLogging,VizHitTestSurfaceLayer,AutomationControlled,UserAgentClientHint,VizDisplayCompositor,Network',
           '--disable-automation',
           '--exclude-switches=enable-automation',
           '--disable-blink-features=AutomationControlled',
@@ -1666,7 +1669,13 @@ class WhatsAppService extends EventEmitter {
         handleSIGINT: false,
         handleSIGTERM: false,
         handleSIGHUP: false,
-        devtools: false
+        devtools: false,
+        // Custom browser launch options to avoid CDP issues
+        env: {
+          ...process.env,
+          CHROME_DEVEL_SANDBOX: '/usr/bin/google-chrome-stable',
+          DISPLAY: ':99'
+        }
       };
     }
     
@@ -1718,7 +1727,7 @@ class WhatsAppService extends EventEmitter {
           '--disable-renderer-backgrounding',
           '--disable-backgrounding-occluded-windows',
           // Aggressive anti-automation detection for Network.setUserAgentOverride errors  
-          '--disable-features=NetworkService,NetworkServiceLogging,UserAgentClientHint,AutomationControlled',
+          '--disable-features=NetworkService,NetworkServiceLogging,UserAgentClientHint,AutomationControlled,Network',
           '--disable-automation',
           '--exclude-switches=enable-automation',
           '--disable-field-trial-config',
