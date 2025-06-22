@@ -1,7 +1,4 @@
 import { makeWASocket, DisconnectReason, useMultiFileAuthState, WASocket, MessageUpsertType, BaileysEventMap } from '@whiskeysockets/baileys';
-// Import store functionality
-const baileys = require('@whiskeysockets/baileys');
-const makeInMemoryStore = baileys.makeInMemoryStore;
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode';
 import qrTerminal from 'qrcode-terminal';
@@ -55,7 +52,6 @@ export interface WhatsAppStatus {
 class WhatsAppBaileysService extends EventEmitter {
   private static instance: WhatsAppBaileysService | null = null;
   private socket: WASocket | null = null;
-  private store: any = null;
   private isReady = false;
   private isClientReady = false;
   private connectionStatus = 'disconnected';
@@ -68,7 +64,7 @@ class WhatsAppBaileysService extends EventEmitter {
   private reconnectAttempts = 0;
   private readonly MAX_RECONNECT_ATTEMPTS = 10;
   private authDir = './baileys_auth_info';
-  private storeFile = './baileys_store.json';
+  private chatDataFile = './baileys_chat_data.json';
 
   private constructor() {
     super();
@@ -114,6 +110,36 @@ class WhatsAppBaileysService extends EventEmitter {
     }
   }
 
+  private loadChatData(): void {
+    try {
+      if (fs.existsSync(this.chatDataFile)) {
+        const chatData = JSON.parse(fs.readFileSync(this.chatDataFile, 'utf8'));
+        this.groups = chatData.groups || [];
+        this.privateChats = chatData.privateChats || [];
+        this.messages = chatData.messages || [];
+        console.log(`📥 Loaded chat data: ${this.groups.length} groups, ${this.privateChats.length} chats, ${this.messages.length} messages`);
+      }
+    } catch (error) {
+      console.log('⚠️ Failed to load chat data:', (error as Error).message);
+    }
+  }
+
+  private saveChatData(): void {
+    try {
+      const chatData = {
+        groups: this.groups,
+        privateChats: this.privateChats,
+        messages: this.messages.slice(0, 1000), // Save only last 1000 messages
+        timestamp: new Date().toISOString()
+      };
+      
+      fs.writeFileSync(this.chatDataFile, JSON.stringify(chatData, null, 2));
+      console.log('💾 Chat data saved successfully');
+    } catch (error) {
+      console.log('❌ Failed to save chat data:', (error as Error).message);
+    }
+  }
+
   async initialize(): Promise<void> {
     try {
       console.log('🔄 Initializing WhatsApp with Baileys...');
@@ -129,22 +155,8 @@ class WhatsAppBaileysService extends EventEmitter {
       // Ensure auth directory exists
       await fs.ensureDir(this.authDir);
       
-      // Setup store for persistent chat data
-      if (!this.store) {
-        console.log('📦 Setting up Baileys store for chat persistence...');
-        this.store = makeInMemoryStore({});
-        
-        // Load existing store data if available
-        if (fs.existsSync(this.storeFile)) {
-          this.store.readFromFile(this.storeFile);
-          console.log('📥 Loaded existing store data');
-        }
-        
-        // Save store periodically
-        setInterval(() => {
-          this.store.writeToFile(this.storeFile);
-        }, 30000); // Save every 30 seconds
-      }
+      // Load existing chat data if available
+      this.loadChatData();
       
       // Use multi-file auth state for persistent sessions
       const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
@@ -162,9 +174,6 @@ class WhatsAppBaileysService extends EventEmitter {
         defaultQueryTimeoutMs: 60000,
         shouldSyncHistoryMessage: () => true // Enable message history sync
       });
-
-      // Bind store to socket events
-      this.store.bind(this.socket.ev);
       
       // Set up event handlers
       this.setupEventHandlers(saveCreds);
@@ -383,6 +392,7 @@ class WhatsAppBaileysService extends EventEmitter {
         // Emit update with the new chat data
         this.emitChatsUpdate();
         this.saveSession();
+        this.saveChatData();
         
         if (isLatest) {
           console.log('✅ History sync completed - all chats loaded!');
@@ -630,47 +640,20 @@ class WhatsAppBaileysService extends EventEmitter {
     try {
       console.log('🔄 Refreshing WhatsApp chats...');
       
-      // Get chats from the store if available
-      if (this.store) {
-        console.log('📦 Loading chats from store...');
-        const storeChats = this.store.chats.all();
-        
-        this.groups = [];
-        this.privateChats = [];
-        
-        for (const chat of storeChats) {
-          const isGroup = chat.id.endsWith('@g.us');
-          
-          const chatInfo: WhatsAppChat = {
-            id: chat.id,
-            name: chat.name || (isGroup ? 'Unknown Group' : 'Unknown Contact'),
-            lastMessage: (chat as any).lastMessage?.message || '',
-            timestamp: (chat as any).lastMessage?.messageTimestamp || Date.now(),
-            isGroup,
-            participantCount: isGroup ? (chat as any).participantCount : undefined,
-            description: (chat as any).description || undefined
-          };
-          
-          if (isGroup) {
-            // Try to get fresh group metadata
-            try {
-              const groupMetadata = await this.socket.groupMetadata(chat.id);
-              chatInfo.name = groupMetadata.subject || chatInfo.name;
-              chatInfo.participantCount = groupMetadata.participants?.length || 0;
-              chatInfo.description = groupMetadata.desc || '';
-            } catch (groupError) {
-              console.log(`⚠️ Could not refresh metadata for group ${chat.id}`);
-            }
-            
-            this.groups.push(chatInfo);
-            console.log(`👥 Refreshed group: "${chatInfo.name}" (${chatInfo.participantCount} members)`);
-          } else {
-            this.privateChats.push(chatInfo);
-            console.log(`👤 Refreshed private chat: "${chatInfo.name}"`);
-          }
+      // Reload chat data from our stored file
+      this.loadChatData();
+      
+      // If we have existing groups, try to refresh their metadata
+      for (const group of this.groups) {
+        try {
+          const groupMetadata = await this.socket.groupMetadata(group.id);
+          group.name = groupMetadata.subject || group.name;
+          group.participantCount = groupMetadata.participants?.length || 0;
+          group.description = groupMetadata.desc || '';
+          console.log(`👥 Refreshed group: "${group.name}" (${group.participantCount} members)`);
+        } catch (groupError) {
+          console.log(`⚠️ Could not refresh metadata for group ${group.id}`);
         }
-        
-        console.log(`📦 Loaded from store: ${this.groups.length} groups, ${this.privateChats.length} private chats`);
       }
       
       // Force a chat list sync by sending a presence update
@@ -685,11 +668,12 @@ class WhatsAppBaileysService extends EventEmitter {
       // If we still have no chats, inform about the discovery mode
       if (this.groups.length === 0 && this.privateChats.length === 0) {
         console.log('📞 No chats found. Chats will be discovered as messages arrive or during history sync.');
-        console.log('💡 To see existing chats, try disconnecting and reconnecting to trigger history sync');
+        console.log('💡 To see existing chats, try Force Restart to trigger history sync');
       }
       
       this.emitChatsUpdate();
       this.saveSession();
+      this.saveChatData();
       
       console.log(`✅ WhatsApp chats refreshed: ${this.groups.length} groups, ${this.privateChats.length} private chats`);
       
@@ -801,14 +785,11 @@ class WhatsAppBaileysService extends EventEmitter {
         await fs.remove(this.authDir);
       }
       
-      // Clear store file
-      if (fs.existsSync(this.storeFile)) {
-        await fs.remove(this.storeFile);
-        console.log('🗑️ Store file cleared');
+      // Clear chat data file
+      if (fs.existsSync(this.chatDataFile)) {
+        await fs.remove(this.chatDataFile);
+        console.log('🗑️ Chat data file cleared');
       }
-      
-      // Reset store
-      this.store = null;
       
       this.isReady = false;
       this.isClientReady = false;
