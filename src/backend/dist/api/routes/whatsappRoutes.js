@@ -36,4 +36,8 @@ router.post('/monitored-keywords', whatsappController_1.addMonitoredKeyword);
 router.delete('/monitored-keywords/:keyword', whatsappController_1.removeMonitoredKeyword);
 // Authentication management
 router.post('/clear-auth', whatsappController_1.clearWhatsAppAuth);
+// Diagnostics
+router.get('/diagnostics', whatsappController_1.getDiagnostics);
+// Force restart (clears auth and restarts)
+router.post('/force-restart', whatsappController_1.forceRestart);
 exports.default = router;

@@ -1,66 +1,31 @@
-FROM node:18-slim
+FROM node:18
 
-# Install dependencies for Puppeteer/Chrome
-RUN apt-get update && apt-get install -y \
-    wget \
-    ca-certificates \
-    fonts-liberation \
-    libappindicator3-1 \
-    libasound2 \
-    libatk-bridge2.0-0 \
-    libatk1.0-0 \
-    libc6 \
-    libcairo2 \
-    libcups2 \
-    libdbus-1-3 \
-    libexpat1 \
-    libfontconfig1 \
-    libgbm1 \
-    libgcc1 \
-    libglib2.0-0 \
-    libgtk-3-0 \
-    libnspr4 \
-    libnss3 \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libstdc++6 \
-    libx11-6 \
-    libx11-xcb1 \
-    libxcb1 \
-    libxcomposite1 \
-    libxcursor1 \
-    libxdamage1 \
-    libxext6 \
-    libxfixes3 \
-    libxi6 \
-    libxrandr2 \
-    libxrender1 \
-    libxss1 \
-    libxtst6 \
-    lsb-release \
-    xdg-utils \
-    && rm -rf /var/lib/apt/lists/*
+# Skip Puppeteer's Chromium download (use system Chrome instead)
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
-# Install Google Chrome using direct download method
-RUN wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+# Install Google Chrome Stable using best practice method
+RUN apt-get update && apt-get install -y curl gnupg \
+    && curl --location --silent https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
     && apt-get update \
-    && apt-get install -y --no-install-recommends /tmp/chrome.deb \
-    && apt-get install -y -f \
-    && rm /tmp/chrome.deb \
+    && apt-get install -y google-chrome-stable --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && google-chrome --version
 
+# Create non-root user for security
+RUN groupadd -r nodeuser && useradd -r -g nodeuser nodeuser
+
 WORKDIR /app
 
-# Set environment variables
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
+# Set environment variables for Puppeteer
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 
 # Copy package files from backend directory
 COPY src/backend/package*.json ./
 
-# Install dependencies and Chrome
-RUN npm ci && npx puppeteer browsers install chrome
+# Install dependencies (no Puppeteer Chrome download)
+RUN npm ci
 
 # Copy source code and config files from backend directory
 COPY src/backend/src/ ./src/
@@ -83,6 +48,12 @@ EXPOSE 3001 10000
 
 # Set resource limits and memory management for Puppeteer stability
 ENV NODE_OPTIONS="--max-old-space-size=4096"
+
+# Change ownership to non-root user
+RUN chown -R nodeuser:nodeuser /app
+
+# Switch to non-root user for security
+USER nodeuser
 
 # Start the application with explicit Node.js and memory optimizations
 CMD ["node", "--max-old-space-size=4096", "dist/server.js"] 

@@ -87,6 +87,7 @@ exports.io = io;
 // Middleware - Enhanced CORS configuration
 app.use((0, cors_1.default)({
     origin: function (requestOrigin, callback) {
+        console.log(`[CORS] Request from origin: ${requestOrigin}`);
         // Allow requests with no origin (mobile apps, etc.)
         if (!requestOrigin)
             return callback(null, true);
@@ -97,18 +98,33 @@ app.use((0, cors_1.default)({
             "http://localhost:3000" // Alternative local port
         ];
         if (allowedOrigins.includes(requestOrigin)) {
+            console.log(`[CORS] Origin ${requestOrigin} allowed`);
             return callback(null, true);
         }
         else {
-            console.log(`[CORS] Blocked origin: ${requestOrigin}`);
+            console.log(`[CORS] Origin ${requestOrigin} not in allowed list, but allowing for debugging`);
             return callback(null, true); // Allow all for now to debug
         }
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Access-Control-Allow-Origin"],
     credentials: true,
-    optionsSuccessStatus: 200 // For legacy browser support
+    optionsSuccessStatus: 200, // For legacy browser support
+    preflightContinue: false
 }));
+// Add explicit CORS headers for Socket.IO
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    if (req.method === 'OPTIONS') {
+        res.sendStatus(200);
+    }
+    else {
+        next();
+    }
+});
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
 // Global request logger for API v1 routes
@@ -158,6 +174,14 @@ app.use('/api/v1/users', userRoutes_1.default); // <-- USE USER ROUTES
 app.use('/api/v1/agents', agentsRoutes_1.default); // Use agents routes
 app.use('/api/v1/news', newsRoutes_1.default); // Use news routes
 app.use('/api/v1/tts', ttsRoutes_1.default); // Use TTS proxy route
+// Health check endpoint for Render
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
+});
 // Basic route for testing
 app.get('/', (req, res) => {
     const readyState = mongoose_1.default.connection.readyState;
@@ -204,6 +228,7 @@ const startServer = async () => {
             FRONTEND_URL: process.env.FRONTEND_URL,
             CREWAI_SERVICE_URL: process.env.CREWAI_SERVICE_URL
         });
+        // Force redeploy with Puppeteer fix - v2
         if (!mongoUri) {
             console.error('FATAL ERROR: MONGODB_URI is not defined.');
             process.exit(1);
@@ -211,10 +236,17 @@ const startServer = async () => {
         await mongoose_1.default.connect(mongoUri);
         await (0, database_1.connectToDatabase)(); // Calls the Mongoose connection logic
         (0, telegramService_1.initializeTelegramBot)(); // Initialize and start the Telegram bot polling
-        // Initialize WhatsApp service
-        const whatsappService = whatsappService_1.default.getInstance();
-        await whatsappService.initialize();
-        console.log('[Server] WhatsApp service initialized successfully');
+        // Initialize WhatsApp service with error handling
+        try {
+            const whatsappService = whatsappService_1.default.getInstance();
+            await whatsappService.initialize();
+            console.log('[Server] WhatsApp service initialized successfully');
+        }
+        catch (whatsappError) {
+            console.error('[Server] WhatsApp service failed to initialize:', whatsappError);
+            console.log('[Server] Continuing without WhatsApp service...');
+            // Don't crash the server if WhatsApp fails
+        }
         // Initialize agent services
         const agentService = new agentService_1.AgentService();
         const agentScheduler = new agentScheduler_1.AgentScheduler(agentService);
@@ -228,7 +260,12 @@ const startServer = async () => {
         // Make io available globally for real-time updates
         global.io = io;
         httpServer.listen(PORT, '0.0.0.0', () => {
-            console.log(`Server is running on port ${PORT}`);
+            console.log(`🚀 Server is running on port ${PORT}`);
+            console.log(`🌐 Server is binding to 0.0.0.0:${PORT}`);
+            console.log(`📦 Environment PORT: ${process.env.PORT || 'not set'}`);
+            console.log(`🔧 NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+            console.log(`✅ Health check available at: http://0.0.0.0:${PORT}/health`);
+            console.log(`🎯 RENDER DEPLOYMENT READY - Service is accessible!`);
             // The "[mongoose]: Mongoose connected to DB" log from database.ts confirms success
         });
     }

@@ -1572,6 +1572,37 @@ class WhatsAppService extends EventEmitter {
       protocol: 120000,
       browser: 60000
     };
+    
+    // Special Render.com optimized config (force minimal from start for Render)
+    const isRenderEnvironment = !!process.env.RENDER;
+    if (isRenderEnvironment && this.protocolErrorCount === 0) {
+      console.log('🌐 Render.com detected - using optimized minimal config from start');
+      return {
+        headless: true,
+        executablePath: executablePath,
+        args: [
+          // Research-based optimal flags for Render.com
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--no-first-run',
+          '--no-zygote',
+          '--single-process',
+          '--disable-background-timer-throttling',
+          '--disable-renderer-backgrounding',
+          '--disable-backgrounding-occluded-windows'
+        ],
+        timeout: adaptiveTimeouts.browser,
+        defaultViewport: { width: 800, height: 600 },
+        protocolTimeout: adaptiveTimeouts.protocol,
+        slowMo: 100,
+        pipe: true,
+        ignoreHTTPSErrors: true,
+        dumpio: false
+      };
+    }
+    
     // Ultra-minimal config for extreme environments (containers with severe limitations)
     if (this.protocolErrorCount >= 8) {
       console.log('🔧 Using ULTRA-MINIMAL browser configuration for maximum compatibility');
@@ -1579,12 +1610,12 @@ class WhatsAppService extends EventEmitter {
         headless: true,
         executablePath: executablePath,
         args: [
-          // Essential container flags only
+          // Essential container flags based on research
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
           '--disable-gpu',
-          '--disable-gpu-sandbox',
+          '--no-first-run',
           '--no-zygote',
           '--single-process',
           // Memory management for containers

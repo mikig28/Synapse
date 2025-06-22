@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.clearWhatsAppAuth = exports.getMonitoredKeywords = exports.removeMonitoredKeyword = exports.addMonitoredKeyword = exports.refreshWhatsAppChats = exports.getWhatsAppMessages = exports.getWhatsAppPrivateChats = exports.getWhatsAppGroups = exports.restartWhatsAppService = exports.getQRCode = exports.getConnectionStatus = exports.updateWhatsAppConfig = exports.getWhatsAppStats = exports.sendWhatsAppMessage = exports.getContactMessages = exports.getWhatsAppContacts = exports.handleWhatsAppWebhook = void 0;
+exports.forceRestart = exports.getDiagnostics = exports.clearWhatsAppAuth = exports.getMonitoredKeywords = exports.removeMonitoredKeyword = exports.addMonitoredKeyword = exports.refreshWhatsAppChats = exports.getWhatsAppMessages = exports.getWhatsAppPrivateChats = exports.getWhatsAppGroups = exports.restartWhatsAppService = exports.getQRCode = exports.getConnectionStatus = exports.updateWhatsAppConfig = exports.getWhatsAppStats = exports.sendWhatsAppMessage = exports.getContactMessages = exports.getWhatsAppContacts = exports.handleWhatsAppWebhook = void 0;
 const WhatsAppMessage_1 = __importDefault(require("../../models/WhatsAppMessage"));
 const WhatsAppContact_1 = __importDefault(require("../../models/WhatsAppContact"));
 const whatsappService_1 = __importDefault(require("../../services/whatsappService"));
@@ -393,7 +393,34 @@ exports.getConnectionStatus = getConnectionStatus;
 const getQRCode = async (req, res) => {
     try {
         const whatsappService = getWhatsAppService();
+        const { force } = req.query;
+        // Check if we should force generate a new QR code
+        if (force === 'true') {
+            console.log('[WhatsApp] Force QR generation requested');
+            const result = await whatsappService.forceQRGeneration();
+            if (result.success) {
+                res.json({
+                    success: true,
+                    data: {
+                        qrCode: result.qrCode,
+                        message: result.message
+                    }
+                });
+            }
+            else {
+                res.json({
+                    success: false,
+                    data: {
+                        qrCode: null,
+                        message: result.message
+                    }
+                });
+            }
+            return;
+        }
+        // Normal QR code retrieval
         const qrCode = whatsappService.getQRCode();
+        const status = whatsappService.getStatus();
         if (qrCode) {
             res.json({
                 success: true,
@@ -404,11 +431,17 @@ const getQRCode = async (req, res) => {
             });
         }
         else {
+            // If no QR code and service is having issues, suggest force generation
+            const hasConnectionIssues = !status.isReady && !status.isClientReady &&
+                (status.status === 'error' || status.status === 'disconnected');
             res.json({
                 success: true,
                 data: {
                     qrCode: null,
-                    message: 'WhatsApp is already connected or QR code not yet generated'
+                    message: hasConnectionIssues
+                        ? 'WhatsApp service has connection issues. Try force generating QR code.'
+                        : 'WhatsApp is already connected or QR code not yet generated',
+                    canForceGenerate: hasConnectionIssues
                 }
             });
         }
@@ -504,6 +537,20 @@ exports.getWhatsAppMessages = getWhatsAppMessages;
 const refreshWhatsAppChats = async (req, res) => {
     try {
         const whatsappService = getWhatsAppService();
+        const status = whatsappService.getStatus();
+        // Check if WhatsApp is ready before attempting to refresh
+        if (!status.isReady || !status.isClientReady) {
+            return res.json({
+                success: false,
+                error: 'WhatsApp client is not ready. Please ensure WhatsApp is connected and try again.',
+                details: {
+                    isReady: status.isReady,
+                    isClientReady: status.isClientReady,
+                    status: status.status,
+                    suggestion: status.qrAvailable ? 'Please scan the QR code first' : 'Please restart the WhatsApp service'
+                }
+            });
+        }
         await whatsappService.refreshChats();
         res.json({
             success: true,
@@ -512,9 +559,18 @@ const refreshWhatsAppChats = async (req, res) => {
     }
     catch (error) {
         console.error('[WhatsApp] Error refreshing chats:', error);
+        // Provide more helpful error messages
+        let userFriendlyMessage = 'Failed to refresh WhatsApp chats';
+        if (error.message.includes('not ready')) {
+            userFriendlyMessage = 'WhatsApp is not connected. Please scan the QR code first.';
+        }
+        else if (error.message.includes('browser')) {
+            userFriendlyMessage = 'WhatsApp service is having technical difficulties. Please try restarting the service.';
+        }
         res.status(500).json({
             success: false,
-            error: 'Failed to refresh WhatsApp chats: ' + error.message
+            error: userFriendlyMessage,
+            technicalError: error.message
         });
     }
 };
@@ -613,3 +669,61 @@ const clearWhatsAppAuth = async (req, res) => {
     }
 };
 exports.clearWhatsAppAuth = clearWhatsAppAuth;
+// Diagnostic endpoint to check Puppeteer configuration
+const getDiagnostics = async (req, res) => {
+    try {
+        const whatsappService = getWhatsAppService();
+        const { testBrowser } = req.query;
+        const diagnostics = {
+            timestamp: new Date().toISOString(),
+            environment: process.env.NODE_ENV,
+            renderEnvironment: !!process.env.RENDER,
+            puppeteerExecutablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+            puppeteerSkipDownload: process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD,
+            hasWhatsAppService: !!whatsappService,
+            whatsappServiceStatus: whatsappService.getStatus(),
+            systemInfo: {
+                platform: process.platform,
+                arch: process.arch,
+                nodeVersion: process.version
+            }
+        };
+        // Run browser environment test if requested
+        if (testBrowser === 'true') {
+            console.log('[WhatsApp Diagnostics] Running browser environment test...');
+            const browserTest = await whatsappService.testBrowserEnvironment();
+            diagnostics.browserTest = browserTest;
+        }
+        res.json({
+            success: true,
+            data: diagnostics
+        });
+    }
+    catch (error) {
+        console.error('[WhatsApp] Error getting diagnostics:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get diagnostics: ' + error.message
+        });
+    }
+};
+exports.getDiagnostics = getDiagnostics;
+const forceRestart = async (req, res) => {
+    try {
+        console.log('[WhatsApp] Force restart requested');
+        // Clear auth and restart completely
+        await getWhatsAppService().clearAuth();
+        res.json({
+            success: true,
+            message: 'WhatsApp service force restart initiated. This will clear all authentication data and restart from scratch.'
+        });
+    }
+    catch (error) {
+        console.error('[WhatsApp] Error during force restart:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to force restart WhatsApp service: ' + error.message
+        });
+    }
+};
+exports.forceRestart = forceRestart;
