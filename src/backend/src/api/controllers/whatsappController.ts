@@ -726,20 +726,30 @@ export const clearWhatsAppAuth = async (req: Request, res: Response) => {
 // Diagnostic endpoint to check Puppeteer configuration
 export const getDiagnostics = async (req: Request, res: Response) => {
   try {
+    const whatsappService = getWhatsAppService();
+    const { testBrowser } = req.query;
+    
     const diagnostics = {
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV,
       renderEnvironment: !!process.env.RENDER,
       puppeteerExecutablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
       puppeteerSkipDownload: process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD,
-      hasWhatsAppService: !!getWhatsAppService(),
-      whatsappServiceStatus: getWhatsAppService().getStatus(),
+      hasWhatsAppService: !!whatsappService,
+      whatsappServiceStatus: whatsappService.getStatus(),
       systemInfo: {
         platform: process.platform,
         arch: process.arch,
         nodeVersion: process.version
       }
     };
+
+    // Run browser environment test if requested
+    if (testBrowser === 'true') {
+      console.log('[WhatsApp Diagnostics] Running browser environment test...');
+      const browserTest = await whatsappService.testBrowserEnvironment();
+      (diagnostics as any).browserTest = browserTest;
+    }
 
     res.json({
       success: true,

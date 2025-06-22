@@ -55,9 +55,9 @@ class WhatsAppService extends EventEmitter {
   private messages: WhatsAppMessage[] = [];
   private monitoredKeywords: string[] = ['פתק 2', 'פתק2', 'petak 2', 'petak2', 'פתק'];
   private reconnectAttempts = 0;
-  private readonly MAX_RECONNECT_ATTEMPTS = 5;
+  private readonly MAX_RECONNECT_ATTEMPTS = 10; // Increased from 5 to 10
   private protocolErrorCount = 0;
-  private readonly MAX_PROTOCOL_ERRORS = 3;
+  private readonly MAX_PROTOCOL_ERRORS = 10; // Increased from 3 to 10
 
   private constructor() {
     super();
@@ -102,9 +102,149 @@ class WhatsAppService extends EventEmitter {
     }
   }
 
+  async testBrowserEnvironment(): Promise<{ success: boolean; error?: string; details?: any }> {
+    try {
+      console.log('🧪 Testing browser environment for WhatsApp compatibility...');
+      
+      const startTime = Date.now();
+      const puppeteer = require('puppeteer');
+      const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome-stable';
+      
+      // Test 1: Check if Chrome binary exists and is executable
+      try {
+        const fs = require('fs');
+        const chromeStats = fs.statSync(executablePath);
+        console.log(`✅ Chrome binary found: ${executablePath} (size: ${chromeStats.size} bytes)`);
+      } catch (chromeError) {
+        console.log(`❌ Chrome binary check failed: ${(chromeError as Error).message}`);
+        return { 
+          success: false, 
+          error: `Chrome binary not found at ${executablePath}`,
+          details: { executablePath, chromeError: (chromeError as Error).message }
+        };
+      }
+      
+      // Test 2: Basic browser launch with minimal flags
+      console.log('🧪 Testing basic browser launch...');
+      let browser;
+      try {
+        browser = await puppeteer.launch({
+          headless: true,
+          executablePath: executablePath,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage'
+          ],
+          timeout: 30000
+        });
+        console.log('✅ Basic browser launch successful');
+      } catch (launchError) {
+        console.log(`❌ Basic browser launch failed: ${(launchError as Error).message}`);
+        return { 
+          success: false, 
+          error: 'Browser launch failed',
+          details: { 
+            executablePath,
+            launchError: (launchError as Error).message,
+            stack: (launchError as Error).stack
+          }
+        };
+      }
+      
+      // Test 3: Page creation and navigation
+      console.log('🧪 Testing page creation and navigation...');
+      let page;
+      try {
+        page = await browser.newPage();
+        await page.goto('data:text/html,<html><body><h1>Test Page</h1></body></html>');
+        const title = await page.evaluate(() => document.querySelector('h1')?.textContent);
+        console.log(`✅ Page navigation successful, content: "${title}"`);
+      } catch (pageError) {
+        await browser.close();
+        console.log(`❌ Page navigation failed: ${(pageError as Error).message}`);
+        return { 
+          success: false, 
+          error: 'Page navigation failed',
+          details: { 
+            executablePath,
+            pageError: (pageError as Error).message
+          }
+        };
+      }
+      
+      // Test 4: WhatsApp Web URL access (without login)
+      console.log('🧪 Testing WhatsApp Web URL access...');
+      try {
+        await page.goto('https://web.whatsapp.com', { 
+          waitUntil: 'domcontentloaded',
+          timeout: 30000 
+        });
+        const pageTitle = await page.title();
+        console.log(`✅ WhatsApp Web accessible, title: "${pageTitle}"`);
+      } catch (whatsappError) {
+        await browser.close();
+        console.log(`❌ WhatsApp Web access failed: ${(whatsappError as Error).message}`);
+        return { 
+          success: false, 
+          error: 'WhatsApp Web access failed',
+          details: { 
+            executablePath,
+            whatsappError: (whatsappError as Error).message
+          }
+        };
+      }
+      
+      // Cleanup
+      await page.close();
+      await browser.close();
+      
+      const endTime = Date.now();
+      const testDuration = endTime - startTime;
+      
+      console.log(`✅ Browser environment test completed successfully in ${testDuration}ms`);
+      return { 
+        success: true, 
+        details: { 
+          executablePath,
+          testDuration,
+          chromeVersion: await this.getChromeVersion(executablePath),
+          environment: {
+            platform: process.platform,
+            arch: process.arch,
+            nodeVersion: process.version,
+            puppeteerVersion: require('puppeteer/package.json').version
+          }
+        }
+      };
+      
+    } catch (error) {
+      console.error('❌ Browser environment test failed:', (error as Error).message);
+      return { 
+        success: false, 
+        error: (error as Error).message,
+        details: { 
+          executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+          stack: (error as Error).stack
+        }
+      };
+    }
+  }
+
+  private async getChromeVersion(executablePath: string): Promise<string> {
+    try {
+      const { execSync } = require('child_process');
+      const version = execSync(`${executablePath} --version`, { encoding: 'utf8' });
+      return version.trim();
+    } catch (error) {
+      return 'Unknown';
+    }
+  }
+
   async initialize(): Promise<void> {
     try {
       console.log('🔄 Initializing WhatsApp client...');
+      console.log(`📊 Current state: attempts=${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS}, protocolErrors=${this.protocolErrorCount}/${this.MAX_PROTOCOL_ERRORS}`);
       
       this.isClientReady = false;
       this.isReady = false;
@@ -170,12 +310,22 @@ class WhatsAppService extends EventEmitter {
 
       // Use fallback configuration for repeated protocol errors
       const useMinimalConfig = this.protocolErrorCount >= this.MAX_PROTOCOL_ERRORS;
-      if (useMinimalConfig) {
-        console.log('🔧 Using minimal browser configuration due to repeated protocol errors');
-      }
-
+      
+      console.log('🔧 Browser configuration selection:');
+      console.log(`   - Protocol errors: ${this.protocolErrorCount}/${this.MAX_PROTOCOL_ERRORS}`);
+      console.log(`   - Using minimal config: ${useMinimalConfig}`);
+      console.log(`   - Will use ultra-minimal: ${this.protocolErrorCount >= 8}`);
+      
       const puppeteerConfig = this.getBrowserConfig(executablePath, useMinimalConfig);
+      console.log('🔧 Browser config applied:', {
+        timeout: puppeteerConfig.timeout,
+        args: puppeteerConfig.args?.length || 0,
+        viewport: puppeteerConfig.defaultViewport,
+        pipe: puppeteerConfig.pipe
+      });
 
+      console.log('📦 Creating WhatsApp client with configuration...');
+      
       this.client = new Client({
         authStrategy: new LocalAuth({
           dataPath: './whatsapp_auth_data',
@@ -192,10 +342,17 @@ class WhatsAppService extends EventEmitter {
         restartOnAuthFail: true
       });
       
+      console.log('✅ WhatsApp client created, setting up handlers...');
       this.setupClientHandlers();
+      
+      console.log('🚀 Starting WhatsApp client initialization...');
+      const startTime = Date.now();
       
       // Add timeout wrapper for initialization with better error handling
       const initPromise = this.client.initialize().catch((initError) => {
+        const duration = Date.now() - startTime;
+        console.log(`❌ Client initialization failed after ${duration}ms: ${initError.message}`);
+        
         // Handle specific protocol errors
         if (initError.message.includes('Protocol error') || initError.message.includes('Target closed')) {
           console.log('🔧 Detected protocol error, implementing recovery strategy...');
@@ -205,10 +362,17 @@ class WhatsAppService extends EventEmitter {
       });
       
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('WhatsApp initialization timeout after 5 minutes')), 300000);
+        setTimeout(() => {
+          const duration = Date.now() - startTime;
+          console.log(`⏰ WhatsApp initialization timeout after ${duration}ms`);
+          reject(new Error('WhatsApp initialization timeout after 5 minutes'));
+        }, 300000);
       });
       
       await Promise.race([initPromise, timeoutPromise]);
+      
+      const successDuration = Date.now() - startTime;
+      console.log(`✅ WhatsApp client initialization completed in ${successDuration}ms`);
       
       this.reconnectAttempts = 0;
       this.protocolErrorCount = 0; // Reset protocol error count on success
@@ -868,8 +1032,22 @@ class WhatsAppService extends EventEmitter {
     }
   }
 
+  private resetErrorCounters(): void {
+    console.log('🔄 Resetting error counters...');
+    const oldReconnectAttempts = this.reconnectAttempts;
+    const oldProtocolErrors = this.protocolErrorCount;
+    
+    this.reconnectAttempts = 0;
+    this.protocolErrorCount = 0;
+    
+    console.log(`📊 Error counters reset: reconnectAttempts ${oldReconnectAttempts}→0, protocolErrors ${oldProtocolErrors}→0`);
+  }
+
   async restart(): Promise<void> {
     console.log('🔄 Restarting WhatsApp client...');
+    
+    // Reset error counters on restart
+    this.resetErrorCounters();
     
     if (this.client) {
       try {
@@ -885,7 +1063,6 @@ class WhatsAppService extends EventEmitter {
     this.isReady = false;
     this.isClientReady = false;
     this.connectionStatus = 'disconnected';
-    this.reconnectAttempts = 0;
     this.groups = [];
     this.privateChats = [];
     this.messages = [];
@@ -899,6 +1076,9 @@ class WhatsAppService extends EventEmitter {
 
   async clearAuth(): Promise<void> {
     console.log('🗑️ Clearing WhatsApp authentication data...');
+    
+    // Reset error counters when clearing auth
+    this.resetErrorCounters();
     
     if (this.client) {
       try {
@@ -957,25 +1137,61 @@ class WhatsAppService extends EventEmitter {
       // Safely destroy client if it exists
       if (this.client) {
         try {
-          // Check if client has a browser instance
+          // Check if client has a browser instance with defensive checks
           const clientWithPuppeteer = this.client as any;
-          if (clientWithPuppeteer.pupBrowser) {
+          if (clientWithPuppeteer && clientWithPuppeteer.pupBrowser) {
             console.log('🧹 Closing Puppeteer browser...');
             try {
-              await clientWithPuppeteer.pupBrowser.close();
+              // Additional null checks for browser methods
+              if (typeof clientWithPuppeteer.pupBrowser.close === 'function') {
+                await clientWithPuppeteer.pupBrowser.close();
+              } else {
+                console.log('⚠️ Browser close method not available');
+              }
             } catch (browserError) {
               console.log('⚠️ Browser close warning:', (browserError as Error).message);
             }
           }
           
-          // Destroy the client
+          // Try multiple destroy strategies
           console.log('🧹 Destroying WhatsApp client...');
-          await this.client.destroy();
+          
+          // Strategy 1: Standard destroy
+          try {
+            if (typeof this.client.destroy === 'function') {
+              await this.client.destroy();
+              console.log('✅ Client destroyed successfully');
+            } else {
+              console.log('⚠️ Client destroy method not available');
+            }
+          } catch (destroyError) {
+            console.log('⚠️ Standard destroy failed:', (destroyError as Error).message);
+            
+            // Strategy 2: Try to access and close browser directly
+            try {
+              const client = this.client as any;
+              if (client && client.pupPage && typeof client.pupPage.close === 'function') {
+                await client.pupPage.close();
+                console.log('✅ Closed browser page directly');
+              }
+              if (client && client.pupBrowser && typeof client.pupBrowser.close === 'function') {
+                await client.pupBrowser.close();
+                console.log('✅ Closed browser directly');
+              }
+            } catch (directCloseError) {
+              console.log('⚠️ Direct browser close failed:', (directCloseError as Error).message);
+            }
+          }
+          
         } catch (destroyError) {
-          console.log('⚠️ Client destroy warning:', (destroyError as Error).message);
+          console.log('⚠️ Client cleanup error:', (destroyError as Error).message);
         } finally {
+          // Force null the client regardless of cleanup success
           this.client = null;
+          console.log('🔄 Client reference cleared');
         }
+      } else {
+        console.log('🔄 No client to cleanup');
       }
       
       // Force garbage collection if available
@@ -998,6 +1214,30 @@ class WhatsAppService extends EventEmitter {
   }
 
   private getBrowserConfig(executablePath: string | undefined, useMinimalConfig: boolean): any {
+    // Ultra-minimal config for extreme environments (containers with severe limitations)
+    if (this.protocolErrorCount >= 8) {
+      console.log('🔧 Using ULTRA-MINIMAL browser configuration for maximum compatibility');
+      return {
+        headless: true,
+        executablePath: executablePath,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox'
+        ],
+        timeout: 600000, // 10 minutes for ultra-minimal
+        defaultViewport: { width: 400, height: 300 },
+        protocolTimeout: 600000,
+        slowMo: 500, // Very slow for stability
+        pipe: false, // Use websockets instead of pipes
+        ignoreHTTPSErrors: true,
+        dumpio: false,
+        ignoreDefaultArgs: ['--disable-dev-shm-usage'], // Allow system to handle shm
+        handleSIGINT: false,
+        handleSIGTERM: false,
+        handleSIGHUP: false
+      };
+    }
+    
     if (useMinimalConfig) {
       console.log('🔧 Using minimal browser configuration for maximum stability');
       return {
