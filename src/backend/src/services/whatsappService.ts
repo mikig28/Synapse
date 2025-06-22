@@ -121,23 +121,53 @@ class WhatsAppService extends EventEmitter {
         }
       }
 
-      // Configure Puppeteer - let it handle Chrome automatically
+      // Configure Puppeteer for containerized environment
       let executablePath: string | undefined;
       
-      // Only use custom path if explicitly set and exists
-      if (process.env.PUPPETEER_EXECUTABLE_PATH && require('fs').existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
-        executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-        console.log('🔧 Using custom Chrome path:', executablePath);
-      } else {
-        // Let Puppeteer use its bundled Chrome
-        executablePath = undefined; // undefined = use Puppeteer's default
+      // Try different Chrome paths in order of preference
+      const chromePaths = [
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/google-chrome',
+        '/usr/bin/chromium-browser',
+        '/usr/bin/chromium'
+      ];
+      
+      // Check if environment variable is set and file exists
+      if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+        try {
+          if (require('fs').existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
+            executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+            console.log('🔧 Using environment Chrome path:', executablePath);
+          }
+        } catch (e) {
+          console.log('⚠️ Environment Chrome path check failed, trying alternatives');
+        }
+      }
+      
+      // If no environment path, try system paths
+      if (!executablePath) {
+        for (const chromePath of chromePaths) {
+          try {
+            if (require('fs').existsSync(chromePath)) {
+              executablePath = chromePath;
+              console.log('🔧 Using system Chrome path:', executablePath);
+              break;
+            }
+          } catch (e) {
+            continue;
+          }
+        }
+      }
+      
+      // If still no path found, let Puppeteer use its bundled Chrome
+      if (!executablePath) {
         console.log('🔧 Using Puppeteer bundled Chrome');
       }
       
-      console.log('🔧 Chromium configuration:', executablePath || 'Puppeteer default');
+      console.log('🔧 Final Chromium configuration:', executablePath || 'Puppeteer default');
 
       const puppeteerConfig = {
-        headless: true,
+        headless: 'new' as const,
         executablePath: executablePath,
         args: [
           '--no-sandbox',
@@ -146,16 +176,38 @@ class WhatsAppService extends EventEmitter {
           '--disable-accelerated-2d-canvas',
           '--no-first-run',
           '--no-zygote',
-          '--single-process', // Important for Render
-          '--disable-gpu'
+          '--disable-gpu',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+          '--disable-features=TranslateUI',
+          '--disable-ipc-flooding-protection',
+          '--enable-features=NetworkService,NetworkServiceLogging',
+          '--force-color-profile=srgb',
+          '--metrics-recording-only',
+          '--no-default-browser-check',
+          '--no-experiments',
+          '--disable-extensions-except=',
+          '--disable-extensions',
+          '--disable-component-extensions-with-background-pages',
+          '--disable-default-apps',
+          '--mute-audio',
+          '--disable-background-networking',
+          '--disable-sync',
+          '--disable-translate',
+          '--hide-scrollbars',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor'
         ],
-        timeout: 120000,
-        defaultViewport: null,
-        ignoreDefaultArgs: ['--disable-extensions'],
+        timeout: 180000,
+        defaultViewport: { width: 1366, height: 768 },
+        ignoreDefaultArgs: false,
         handleSIGINT: false,
         handleSIGTERM: false,
         handleSIGHUP: false,
-        protocolTimeout: 180000
+        protocolTimeout: 240000,
+        slowMo: 0,
+        devtools: false
       };
 
       this.client = new Client({
@@ -168,13 +220,22 @@ class WhatsAppService extends EventEmitter {
           type: 'remote',
           remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
         },
-        qrMaxRetries: 5,
-        authTimeoutMs: 0,
-        takeoverOnConflict: false
+        qrMaxRetries: 3,
+        authTimeoutMs: 300000, // 5 minutes
+        takeoverOnConflict: false,
+        restartOnAuthFail: true,
+        session: null
       });
       
       this.setupClientHandlers();
-      await this.client.initialize();
+      
+      // Add timeout wrapper for initialization
+      const initPromise = this.client.initialize();
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('WhatsApp initialization timeout after 5 minutes')), 300000);
+      });
+      
+      await Promise.race([initPromise, timeoutPromise]);
       
       this.reconnectAttempts = 0;
       console.log('✅ WhatsApp Client initialized successfully');
@@ -230,13 +291,21 @@ class WhatsAppService extends EventEmitter {
       this.isReady = false;
       this.connectionStatus = 'auth_failed';
       this.qrString = null;
+      this.qrDataUrl = null;
       this.emit('status', { ready: false, message: 'WhatsApp authentication failed. Please scan QR code again.' });
       this.emit('auth_failure', { status: 'auth_failed' });
       
-      setTimeout(() => {
-        console.log('🔄 Re-initializing WhatsApp after auth failure...');
-        this.initialize();
-      }, 5000);
+      // Clear auth data and retry
+      setTimeout(async () => {
+        console.log('🔄 Clearing auth and re-initializing WhatsApp after auth failure...');
+        try {
+          await this.clearAuth();
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          this.initialize();
+        } catch (error) {
+          console.error('❌ Error during auth failure recovery:', (error as Error).message);
+        }
+      }, 10000);
     });
 
     this.client.on('ready', async () => {
