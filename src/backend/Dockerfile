@@ -62,9 +62,9 @@ COPY package*.json ./
 # Install dependencies and Chrome
 RUN npm ci && npx puppeteer browsers install chrome
 
-# Copy source code and config files only (avoid copying frontend)
-COPY src/ ./src/
-COPY tsconfig.json ./
+# Copy source code and config files from backend directory
+COPY src/backend/src/ ./src/
+COPY src/backend/tsconfig.json ./
 
 # Build the application
 RUN echo "Starting TypeScript build..." && \
