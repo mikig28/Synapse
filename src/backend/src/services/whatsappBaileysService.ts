@@ -5,6 +5,7 @@ import qrTerminal from 'qrcode-terminal';
 import { EventEmitter } from 'events';
 import fs from 'fs-extra';
 import path from 'path';
+import pino from 'pino';
 
 export interface WhatsAppMessage {
   id: string;
@@ -130,10 +131,8 @@ class WhatsAppBaileysService extends EventEmitter {
       this.socket = makeWASocket({
         auth: state,
         printQRInTerminal: false, // We'll handle QR code generation ourselves
-        logger: {
-          level: 'silent', // Reduce logging noise
-          child: () => ({ level: 'silent' } as any)
-        } as any,
+        // Use pino logger with silent level to reduce noise
+        logger: pino({ level: 'silent' }),
         browser: ['Synapse Bot', 'Chrome', '120.0.0'],
         generateHighQualityLinkPreview: false,
         syncFullHistory: false,

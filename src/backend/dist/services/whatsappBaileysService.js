@@ -9,6 +9,7 @@ const qrcode_terminal_1 = __importDefault(require("qrcode-terminal"));
 const events_1 = require("events");
 const fs_extra_1 = __importDefault(require("fs-extra"));
 const path_1 = __importDefault(require("path"));
+const pino_1 = __importDefault(require("pino"));
 class WhatsAppBaileysService extends events_1.EventEmitter {
     constructor() {
         super();
@@ -81,10 +82,8 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
             this.socket = (0, baileys_1.makeWASocket)({
                 auth: state,
                 printQRInTerminal: false, // We'll handle QR code generation ourselves
-                logger: {
-                    level: 'silent', // Reduce logging noise
-                    child: () => ({ level: 'silent' })
-                },
+                // Use pino logger with silent level to reduce noise
+                logger: (0, pino_1.default)({ level: 'silent' }),
                 browser: ['Synapse Bot', 'Chrome', '120.0.0'],
                 generateHighQualityLinkPreview: false,
                 syncFullHistory: false,
