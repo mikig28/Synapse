@@ -170,44 +170,93 @@ class WhatsAppService extends EventEmitter {
         headless: true,
         executablePath: executablePath,
         args: [
+          // Core stability flags
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
           '--disable-gpu',
+          '--disable-gpu-sandbox',
+          '--disable-software-rasterizer',
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
           '--disable-renderer-backgrounding',
-          '--disable-features=TranslateUI',
+          '--disable-features=TranslateUI,VizDisplayCompositor,BlinkGenPropertyTrees',
           '--disable-ipc-flooding-protection',
-          '--enable-features=NetworkService,NetworkServiceLogging',
-          '--force-color-profile=srgb',
-          '--metrics-recording-only',
-          '--no-default-browser-check',
-          '--no-experiments',
-          '--disable-extensions-except=',
+          '--disable-component-update',
+          '--disable-client-side-phishing-detection',
+          '--disable-sync',
+          '--disable-default-apps',
           '--disable-extensions',
           '--disable-component-extensions-with-background-pages',
-          '--disable-default-apps',
-          '--mute-audio',
           '--disable-background-networking',
-          '--disable-sync',
+          '--disable-breakpad',
+          '--disable-print-preview',
+          '--disable-permissions-api',
+          '--disable-prompt-on-repost',
+          '--disable-hang-monitor',
+          '--disable-background-mode',
+          '--disable-plugins-discovery',
           '--disable-translate',
-          '--hide-scrollbars',
+          '--disable-notifications',
+          
+          // Memory and resource management
+          '--memory-pressure-off',
+          '--max_old_space_size=4096',
+          '--js-flags="--max-old-space-size=4096"',
+          '--aggressive-cache-discard',
+          '--disable-histogram-customizer',
+          '--disable-logging',
           '--disable-web-security',
-          '--disable-features=VizDisplayCompositor'
+          '--disable-features=VizDisplayCompositor',
+          
+          // Network and stability
+          '--no-zygote',
+          '--no-first-run',
+          '--no-default-browser-check',
+          '--no-experiments',
+          '--single-process',
+          '--disable-accelerated-2d-canvas',
+          '--disable-accelerated-jpeg-decoding',
+          '--disable-accelerated-mjpeg-decode',
+          '--disable-accelerated-video-decode',
+          '--disable-accelerated-video-encode',
+          '--disable-gpu-memory-buffer-compositor-resources',
+          '--disable-gpu-memory-buffer-video-frames',
+          '--disable-partial-raster',
+          '--disable-skia-runtime-opts',
+          '--disable-system-font-check',
+          '--disable-threaded-animation',
+          '--disable-threaded-scrolling',
+          '--disable-in-process-stack-traces',
+          '--disable-histogram-customizer',
+          '--disable-gl-extensions',
+          '--disable-composited-antialiasing',
+          '--disable-canvas-aa',
+          '--disable-3d-apis',
+          '--disable-accelerated-2d-canvas',
+          '--disable-accelerated-jpeg-decoding',
+          '--disable-accelerated-mjpeg-decode',
+          '--disable-app-list-dismiss-on-blur',
+          '--disable-accelerated-video-decode',
+          '--force-color-profile=srgb',
+          '--hide-scrollbars',
+          '--mute-audio',
+          '--disable-logging',
+          '--disable-dev-shm-usage',
+          '--shm-size=3gb'
         ],
-        timeout: 180000,
-        defaultViewport: { width: 1366, height: 768 },
+        timeout: 300000, // Increased timeout to 5 minutes
+        defaultViewport: { width: 1280, height: 720 }, // Smaller viewport to reduce memory usage
         ignoreDefaultArgs: false,
         handleSIGINT: false,
         handleSIGTERM: false,
         handleSIGHUP: false,
-        protocolTimeout: 240000,
-        slowMo: 0,
-        devtools: false
+        protocolTimeout: 300000, // Increased protocol timeout
+        slowMo: 100, // Add slight delay to reduce protocol pressure
+        devtools: false,
+        ignoreHTTPSErrors: true,
+        dumpio: false, // Disable dumping stdio to reduce overhead
+        pipe: true // Use pipes instead of websockets for better stability
       };
 
       this.client = new Client({
@@ -228,8 +277,16 @@ class WhatsAppService extends EventEmitter {
       
       this.setupClientHandlers();
       
-      // Add timeout wrapper for initialization
-      const initPromise = this.client.initialize();
+      // Add timeout wrapper for initialization with better error handling
+      const initPromise = this.client.initialize().catch((initError) => {
+        // Handle specific protocol errors
+        if (initError.message.includes('Protocol error') || initError.message.includes('Target closed')) {
+          console.log('🔧 Detected protocol error, implementing recovery strategy...');
+          throw new Error('Browser protocol error - will retry with clean state');
+        }
+        throw initError;
+      });
+      
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('WhatsApp initialization timeout after 5 minutes')), 300000);
       });
@@ -244,9 +301,29 @@ class WhatsAppService extends EventEmitter {
       this.connectionStatus = 'error';
       this.emit('status', { ready: false, message: `Initialization failed: ${(error as Error).message}` });
       
+      // Handle protocol errors with more aggressive cleanup
+      if ((error as Error).message.includes('Protocol error') || 
+          (error as Error).message.includes('Target closed') ||
+          (error as Error).message.includes('Browser protocol error')) {
+        console.log('🧹 Protocol error detected - performing deep cleanup...');
+        
+        try {
+          if (this.client) {
+            await this.client.destroy();
+            this.client = null;
+          }
+          // Wait longer before retry for protocol errors
+          await new Promise(resolve => setTimeout(resolve, 5000));
+        } catch (cleanupError) {
+          console.log('⚠️ Cleanup warning:', (cleanupError as Error).message);
+        }
+      }
+      
       if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
         this.reconnectAttempts++;
-        const delay = 10000 + (this.reconnectAttempts * 5000);
+        // Exponential backoff with longer delays for protocol errors
+        const baseDelay = (error as Error).message.includes('Protocol error') ? 20000 : 10000;
+        const delay = baseDelay + (this.reconnectAttempts * 10000);
         console.log(`🔄 Retrying WhatsApp initialization in ${delay/1000}s... Attempt ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS}`);
         setTimeout(() => this.initialize(), delay);
       } else {
@@ -360,12 +437,43 @@ class WhatsAppService extends EventEmitter {
       this.connectionStatus = 'disconnected';
       this.emit('status', { ready: false, message: `WhatsApp disconnected: ${reason}` });
       
+      // Handle protocol-related disconnections with extended delay
+      const isProtocolError = reason && (
+        reason.includes('Protocol error') || 
+        reason.includes('Target closed') ||
+        reason.includes('Connection terminated')
+      );
+      
       if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
         this.reconnectAttempts++;
+        const delay = isProtocolError ? 20000 + (this.reconnectAttempts * 15000) : 10000;
         console.log(`🔄 Attempting to reconnect WhatsApp... (${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS})`);
-        setTimeout(() => {
-          this.initialize();
-        }, 10000);
+        console.log(`⏱️ Using ${delay/1000}s delay ${isProtocolError ? '(protocol error detected)' : ''}`);
+        
+        setTimeout(async () => {
+          try {
+            // Clean up client instance before reinitializing
+            if (this.client) {
+              try {
+                await this.client.destroy();
+              } catch (destroyError) {
+                console.log('⚠️ Client destroy warning:', (destroyError as Error).message);
+              }
+              this.client = null;
+            }
+            // Add extra delay for protocol errors
+            if (isProtocolError) {
+              await new Promise(resolve => setTimeout(resolve, 5000));
+            }
+            this.initialize();
+          } catch (reconnectError) {
+            console.error('❌ Error during reconnection:', (reconnectError as Error).message);
+          }
+        }, delay);
+      } else {
+        console.error('❌ Max WhatsApp reconnection attempts reached');
+        this.connectionStatus = 'failed';
+        this.emit('status', { ready: false, message: 'WhatsApp connection failed after maximum retries. Please restart the service.' });
       }
     });
   }

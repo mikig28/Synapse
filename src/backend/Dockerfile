@@ -81,5 +81,8 @@ RUN echo "Starting TypeScript build..." && \
 # Expose common ports (Render will set PORT env var)
 EXPOSE 3001 10000
 
-# Start the application with explicit Node.js
-CMD ["node", "dist/server.js"] 
+# Set resource limits and memory management for Puppeteer stability
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
+# Start the application with explicit Node.js and memory optimizations
+CMD ["node", "--max-old-space-size=4096", "dist/server.js"] 
