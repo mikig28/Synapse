@@ -7,9 +7,7 @@
     "build": "tsc",
     "prebuild": "node -e \"const fs = require('fs'); if (fs.existsSync('./dist')) { fs.rmSync('./dist', { recursive: true, force: true }); }\"",
     "start": "node dist/server.js",
-    "dev": "nodemon src/server.ts",
-    "postinstall": "npm run install-chrome",
-    "install-chrome": "node -e \"console.log('Installing Chrome...'); try { require('child_process').execSync('npx puppeteer browsers install chrome', {stdio: 'inherit'}); } catch(e) { console.log('Chrome installation failed, will use system Chrome'); }\""
+    "dev": "nodemon src/server.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
