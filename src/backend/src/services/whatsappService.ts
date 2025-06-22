@@ -931,7 +931,7 @@ class WhatsAppService extends EventEmitter {
         let timeoutId: NodeJS.Timeout;
 
         // Set up QR handler
-        tempClient.on('qr', (qr) => {
+        tempClient.on('qr', (qr: string) => {
           if (qrReceived) return;
           qrReceived = true;
           
@@ -1009,7 +1009,7 @@ class WhatsAppService extends EventEmitter {
         }, 120000); // 2 minutes timeout
 
         // Initialize temp client
-        tempClient.initialize().catch((initError) => {
+        tempClient.initialize().catch((initError: Error) => {
           clearTimeout(timeoutId);
           tempClient.destroy().catch(() => {});
           
