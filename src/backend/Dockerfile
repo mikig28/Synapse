@@ -62,14 +62,20 @@ COPY package*.json ./
 # Install dependencies and Chrome
 RUN npm ci && npx puppeteer browsers install chrome
 
-# Copy the rest of the application
-COPY . .
+# Copy source code and config files only (avoid copying frontend)
+COPY src/ ./src/
+COPY tsconfig.json ./
 
 # Build the application
 RUN echo "Starting TypeScript build..." && \
+    echo "Current directory: $(pwd)" && \
+    echo "Package.json check:" && \
+    grep -A 5 '"build"' package.json && \
     npm run build && \
     echo "Build completed, checking dist directory..." && \
     ls -la dist/ && \
+    echo "Checking for server.js:" && \
+    ls -la dist/server.js && \
     echo "Build verification complete"
 
 # Expose common ports (Render will set PORT env var)
