@@ -528,11 +528,13 @@ class WhatsAppService extends EventEmitter {
       
       console.log('🔧 Final Chromium configuration:', executablePath || 'Puppeteer default');
 
-      // Use fallback configuration for repeated protocol errors
-      const useMinimalConfig = this.protocolErrorCount >= 3;
+      // Use fallback configuration for repeated protocol errors OR Render.com environment
+      const isRenderEnvironment = !!process.env.RENDER;
+      const useMinimalConfig = this.protocolErrorCount >= 3 || isRenderEnvironment;
       
       console.log('🔧 Browser configuration selection:');
       console.log(`   - Protocol errors: ${this.protocolErrorCount}/${this.MAX_PROTOCOL_ERRORS}`);
+      console.log(`   - Render.com environment: ${isRenderEnvironment}`);
       console.log(`   - Using minimal config: ${useMinimalConfig}`);
       console.log(`   - Will use ultra-minimal: ${this.protocolErrorCount >= 8}`);
       
@@ -1573,35 +1575,7 @@ class WhatsAppService extends EventEmitter {
       browser: 60000
     };
     
-    // Special Render.com optimized config (force minimal from start for Render)
-    const isRenderEnvironment = !!process.env.RENDER;
-    if (isRenderEnvironment && this.protocolErrorCount === 0) {
-      console.log('🌐 Render.com detected - using optimized minimal config from start');
-      return {
-        headless: true,
-        executablePath: executablePath,
-        args: [
-          // Research-based optimal flags for Render.com
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process',
-          '--disable-background-timer-throttling',
-          '--disable-renderer-backgrounding',
-          '--disable-backgrounding-occluded-windows'
-        ],
-        timeout: adaptiveTimeouts.browser,
-        defaultViewport: { width: 800, height: 600 },
-        protocolTimeout: adaptiveTimeouts.protocol,
-        slowMo: 100,
-        pipe: true,
-        ignoreHTTPSErrors: true,
-        dumpio: false
-      };
-    }
+    // Render.com logic is now handled at the main level via useMinimalConfig parameter
     
     // Ultra-minimal config for extreme environments (containers with severe limitations)
     if (this.protocolErrorCount >= 8) {
@@ -1659,26 +1633,33 @@ class WhatsAppService extends EventEmitter {
     }
     
     if (useMinimalConfig) {
-      console.log('🔧 Using minimal browser configuration for maximum stability');
+      console.log('🔧 Using minimal browser configuration for container environments');
       return {
         headless: true,
         executablePath: executablePath,
         args: [
+          // Essential container stability flags
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
           '--disable-gpu',
-          '--single-process',
+          '--no-first-run',
           '--no-zygote',
-          '--disable-extensions',
+          '--single-process',
+          // Target.setAutoAttach fixes
+          '--disable-features=VizDisplayCompositor',
+          '--disable-web-security',
+          '--disable-features=TranslateUI',
+          // Background process management
           '--disable-background-timer-throttling',
           '--disable-renderer-backgrounding',
-          '--disable-backgrounding-occluded-windows'
+          '--disable-backgrounding-occluded-windows',
+          '--disable-extensions'
         ],
-        timeout: adaptiveTimeouts.browser, // Use adaptive timeout for minimal config
+        timeout: adaptiveTimeouts.browser,
         defaultViewport: { width: 800, height: 600 },
         protocolTimeout: adaptiveTimeouts.protocol,
-        slowMo: 200, // Even slower for stability
+        slowMo: 100, // Slower for container stability
         pipe: true,
         ignoreHTTPSErrors: true,
         dumpio: false
