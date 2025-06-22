@@ -323,15 +323,24 @@ class WhatsAppService extends EventEmitter {
       console.log('⏳ Waiting for WhatsApp to stabilize...');
       await new Promise(resolve => setTimeout(resolve, 10000));
       
-      this.emit('chats_updated', { 
-        groups: this.groups, 
-        privateChats: this.privateChats,
-        groupsCount: this.groups.length,
-        privateChatsCount: this.privateChats.length,
-        timestamp: new Date().toISOString(),
-        discoveryMode: true,
-        message: 'Ready - discovering chats from incoming messages'
-      });
+      // Automatically fetch all chats and groups when ready
+      try {
+        console.log('🔄 Auto-fetching WhatsApp chats and groups...');
+        await this.refreshChats();
+        console.log('✅ Successfully auto-fetched chats on ready');
+      } catch (autoFetchError) {
+        console.log('⚠️ Auto-fetch failed, will rely on message discovery:', (autoFetchError as Error).message);
+        // Emit with empty groups as fallback
+        this.emit('chats_updated', { 
+          groups: this.groups, 
+          privateChats: this.privateChats,
+          groupsCount: this.groups.length,
+          privateChatsCount: this.privateChats.length,
+          timestamp: new Date().toISOString(),
+          discoveryMode: true,
+          message: 'Ready - discovering chats from incoming messages'
+        });
+      }
       
       this.saveSession();
     });
