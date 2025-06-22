@@ -56,8 +56,8 @@ WORKDIR /app
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 
-# Copy package files
-COPY package*.json ./
+# Copy package files from backend directory
+COPY src/backend/package*.json ./
 
 # Install dependencies and Chrome
 RUN npm ci && npx puppeteer browsers install chrome
