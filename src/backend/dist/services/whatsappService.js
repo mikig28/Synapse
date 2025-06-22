@@ -493,6 +493,10 @@ class WhatsAppService extends events_1.EventEmitter {
                 // Add additional options to prevent CDP issues
                 clientConfig.sessionTimeout = timeouts.initialization;
                 clientConfig.restartOnAuthFail = false; // Prevent restart loops
+                // Add custom page handler to intercept CDP calls
+                if (!clientConfig.puppeteer.handlePageCreation) {
+                    clientConfig.puppeteer.handlePageCreation = true;
+                }
             }
             this.client = new whatsapp_web_js_1.Client(clientConfig);
             console.log('✅ WhatsApp client created, setting up handlers...');
@@ -1393,78 +1397,46 @@ class WhatsAppService extends events_1.EventEmitter {
             browser: 60000
         };
         // Render.com logic is now handled at the main level via useMinimalConfig parameter
-        // Ultra-minimal config for extreme environments (containers with severe limitations)
-        if (this.protocolErrorCount >= 3) {
-            console.log('🔧 Using ULTRA-MINIMAL browser configuration for maximum compatibility');
+        // Fallback mode for persistent protocol errors - use non-headless mode
+        if (this.protocolErrorCount >= 5) {
+            console.log('🔧 Using FALLBACK non-headless mode for persistent protocol errors');
             return {
-                headless: true,
+                headless: false, // Try non-headless as last resort
                 executablePath: executablePath,
                 args: [
-                    // Essential container flags based on research
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
                     '--disable-dev-shm-usage',
                     '--disable-gpu',
                     '--no-first-run',
-                    '--no-zygote',
-                    '--single-process',
-                    // Memory management for containers
-                    '--memory-pressure-off',
-                    '--disable-background-timer-throttling',
-                    '--disable-renderer-backgrounding',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-features=VizDisplayCompositor',
-                    '--disable-ipc-flooding-protection',
-                    // Network and performance optimizations
-                    '--disable-web-security',
-                    '--disable-extensions',
-                    '--disable-plugins',
-                    '--disable-default-apps',
-                    '--disable-sync',
-                    '--disable-translate',
-                    '--disable-background-networking',
-                    '--disable-background-mode',
-                    '--disable-client-side-phishing-detection',
-                    '--disable-component-update',
-                    '--disable-hang-monitor',
-                    '--disable-prompt-on-repost',
-                    '--disable-domain-reliability',
-                    '--disable-component-extensions-with-background-pages',
-                    '--disable-logging',
+                    '--disable-automation',
+                    '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                ],
+                timeout: adaptiveTimeouts.browser * 2,
+                defaultViewport: { width: 1280, height: 720 },
+                protocolTimeout: adaptiveTimeouts.protocol * 2,
+                slowMo: 500,
+                ignoreHTTPSErrors: true,
+                userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            };
+        }
+        // Ultra-minimal config for extreme environments (containers with severe limitations)
+        if (this.protocolErrorCount >= 1) {
+            console.log('🔧 Using ULTRA-MINIMAL browser configuration for maximum compatibility');
+            return {
+                headless: true,
+                executablePath: executablePath,
+                args: [
+                    // Absolute minimum flags only
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
                     '--no-first-run',
-                    // Radical anti-automation detection flags for Network.setUserAgentOverride errors
-                    '--disable-features=NetworkService,NetworkServiceLogging,VizHitTestSurfaceLayer,AutomationControlled,UserAgentClientHint,VizDisplayCompositor,Network',
+                    '--single-process',
                     '--disable-automation',
                     '--exclude-switches=enable-automation',
-                    '--disable-blink-features=AutomationControlled',
-                    '--disable-field-trial-config',
-                    '--disable-back-forward-cache',
-                    '--disable-site-isolation-trials',
-                    '--disable-features=TranslateUI',
-                    '--disable-component-extensions-with-background-pages',
-                    '--disable-default-apps',
-                    '--disable-extensions-except=',
-                    '--disable-plugins-discovery',
-                    '--disable-preconnect',
-                    '--disable-hang-monitor',
-                    '--disable-prompt-on-repost',
-                    '--disable-component-update',
-                    '--disable-background-networking',
-                    '--no-experiments',
-                    '--no-default-browser-check',
-                    '--no-pings',
-                    '--no-service-autorun',
-                    '--media-cache-size=1',
-                    '--disk-cache-size=1',
-                    '--aggressive-cache-discard',
-                    '--disable-renderer-accessibility',
-                    '--disable-permissions-api',
-                    '--disable-web-security',
-                    '--allow-running-insecure-content',
-                    '--disable-features=NetworkTimeAPI',
-                    '--disable-network-service-logging',
-                    '--disable-sync-preferences',
-                    '--disable-features=BlockInsecurePrivateNetworkRequests'
+                    '--disable-features=NetworkService,UserAgentClientHint,DevTools,Network'
                 ],
                 timeout: adaptiveTimeouts.browser * 1.5, // Extra time for ultra-minimal
                 defaultViewport: { width: 320, height: 240 }, // Tiny viewport
@@ -1536,7 +1508,7 @@ class WhatsAppService extends events_1.EventEmitter {
                     '--disable-renderer-backgrounding',
                     '--disable-backgrounding-occluded-windows',
                     // Aggressive anti-automation detection for Network.setUserAgentOverride errors  
-                    '--disable-features=NetworkService,NetworkServiceLogging,UserAgentClientHint,AutomationControlled,Network',
+                    '--disable-features=NetworkService,NetworkServiceLogging,UserAgentClientHint,AutomationControlled,Network,DevTools',
                     '--disable-automation',
                     '--exclude-switches=enable-automation',
                     '--disable-field-trial-config',
