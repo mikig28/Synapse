@@ -1646,15 +1646,25 @@ class WhatsAppService extends EventEmitter {
           '--no-first-run',
           '--no-zygote',
           '--single-process',
-          // Target.setAutoAttach fixes
+          // Target.setAutoAttach and Chrome DevTools Protocol fixes
           '--disable-features=VizDisplayCompositor',
           '--disable-web-security',
           '--disable-features=TranslateUI',
+          '--disable-dev-tools',
+          '--disable-extensions',
+          '--disable-plugins',
+          '--disable-default-apps',
+          '--disable-background-networking',
+          '--disable-sync',
+          '--disable-translate',
+          '--disable-ipc-flooding-protection',
+          '--remote-debugging-port=0',
+          '--disable-remote-fonts',
+          '--disable-features=AudioServiceOutOfProcess',
           // Background process management
           '--disable-background-timer-throttling',
           '--disable-renderer-backgrounding',
-          '--disable-backgrounding-occluded-windows',
-          '--disable-extensions'
+          '--disable-backgrounding-occluded-windows'
         ],
         timeout: adaptiveTimeouts.browser,
         defaultViewport: { width: 800, height: 600 },
