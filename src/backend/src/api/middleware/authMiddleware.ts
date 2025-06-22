@@ -22,12 +22,20 @@ export const protect = async (req: AuthenticatedRequest, res: Response, next: Ne
       next();
     } catch (error) {
       console.error('Token verification failed', error);
+      // Ensure CORS headers are set before sending 401
+      res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+      res.header('Access-Control-Allow-Credentials', 'true');
       res.status(401).json({ message: 'Not authorized, token failed' });
+      return;
     }
   }
 
   if (!token) {
+    // Ensure CORS headers are set before sending 401
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
     res.status(401).json({ message: 'Not authorized, no token' });
+    return;
   }
 };
 
