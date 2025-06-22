@@ -309,7 +309,7 @@ class WhatsAppService extends EventEmitter {
       console.log('🔧 Final Chromium configuration:', executablePath || 'Puppeteer default');
 
       // Use fallback configuration for repeated protocol errors
-      const useMinimalConfig = this.protocolErrorCount >= this.MAX_PROTOCOL_ERRORS;
+      const useMinimalConfig = this.protocolErrorCount >= 3;
       
       console.log('🔧 Browser configuration selection:');
       console.log(`   - Protocol errors: ${this.protocolErrorCount}/${this.MAX_PROTOCOL_ERRORS}`);
