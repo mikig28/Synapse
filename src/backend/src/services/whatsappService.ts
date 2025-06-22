@@ -41,7 +41,7 @@ export interface WhatsAppStatus {
   qrAvailable: boolean;
   timestamp: string;
   fallbackMode?: boolean;
-  fallbackReason?: string;
+  fallbackReason?: string | null;
   lastSuccessfulConnection?: string | null;
   protocolErrors?: number;
   reconnectAttempts?: number;
