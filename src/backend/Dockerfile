@@ -66,7 +66,11 @@ RUN npm ci && npx puppeteer browsers install chrome
 COPY . .
 
 # Build the application
-RUN npm run build
+RUN echo "Starting TypeScript build..." && \
+    npm run build && \
+    echo "Build completed, checking dist directory..." && \
+    ls -la dist/ && \
+    echo "Build verification complete"
 
 # Expose common ports (Render will set PORT env var)
 EXPOSE 3001 10000
