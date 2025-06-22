@@ -548,7 +548,8 @@ class WhatsAppService extends EventEmitter {
 
       console.log('📦 Creating WhatsApp client with configuration...');
       
-      this.client = new Client({
+      // Add user agent override to prevent Protocol errors during initialization
+      const clientConfig: any = {
         authStrategy: new LocalAuth({
           dataPath: './whatsapp_auth_data',
           clientId: 'synapse-whatsapp'
@@ -559,10 +560,20 @@ class WhatsAppService extends EventEmitter {
           remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
         },
         qrMaxRetries: 3,
-        authTimeoutMs: 300000, // 5 minutes
+        authTimeoutMs: timeouts.initialization, // Use adaptive timeout
         takeoverOnConflict: false,
         restartOnAuthFail: true
-      });
+      };
+
+      // For high protocol error counts, disable user agent handling entirely
+      if (this.protocolErrorCount >= 5) {
+        console.log('🔧 Disabling user agent override for protocol error prevention');
+        clientConfig.userAgent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+        // Also disable web version cache for ultra-minimal approach
+        clientConfig.webVersionCache = { type: 'local' };
+      }
+
+      this.client = new Client(clientConfig);
       
       console.log('✅ WhatsApp client created, setting up handlers...');
       this.setupClientHandlers();
@@ -1616,23 +1627,33 @@ class WhatsAppService extends EventEmitter {
           '--disable-component-extensions-with-background-pages',
           '--disable-logging',
           '--no-first-run',
-          // Anti-automation detection flags specifically for Network.setUserAgentOverride errors
-          '--disable-features=NetworkService',
-          '--disable-features=NetworkServiceLogging',
-          '--disable-features=VizHitTestSurfaceLayer',
-          '--disable-features=AutomationControlled',
+          // Radical anti-automation detection flags for Network.setUserAgentOverride errors
+          '--disable-features=NetworkService,NetworkServiceLogging,VizHitTestSurfaceLayer,AutomationControlled,UserAgentClientHint,VizDisplayCompositor',
           '--disable-automation',
           '--exclude-switches=enable-automation',
           '--disable-blink-features=AutomationControlled',
-          '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          '--disable-features=UserAgentClientHint',
-          '--force-device-scale-factor=1',
           '--disable-field-trial-config',
           '--disable-back-forward-cache',
-          '--disable-backgrounding-occluded-windows',
-          '--disable-renderer-backgrounding',
-          '--disable-background-timer-throttling',
-          '--disable-site-isolation-trials'
+          '--disable-site-isolation-trials',
+          '--disable-features=TranslateUI',
+          '--disable-component-extensions-with-background-pages',
+          '--disable-default-apps',
+          '--disable-extensions-except=',
+          '--disable-plugins-discovery',
+          '--disable-preconnect',
+          '--disable-hang-monitor',
+          '--disable-prompt-on-repost',
+          '--disable-component-update',
+          '--disable-background-networking',
+          '--no-experiments',
+          '--no-default-browser-check',
+          '--no-pings',
+          '--no-service-autorun',
+          '--media-cache-size=1',
+          '--disk-cache-size=1',
+          '--aggressive-cache-discard',
+          '--disable-renderer-accessibility',
+          '--disable-permissions-api'
         ],
         timeout: adaptiveTimeouts.browser * 1.5, // Extra time for ultra-minimal
         defaultViewport: { width: 320, height: 240 }, // Tiny viewport
@@ -1641,7 +1662,7 @@ class WhatsAppService extends EventEmitter {
         pipe: false, // Use websockets instead of pipes
         ignoreHTTPSErrors: true,
         dumpio: false,
-        ignoreDefaultArgs: true, // Ignore all default args
+        ignoreDefaultArgs: ['--enable-automation', '--enable-blink-features=IdleDetection'], // Only ignore automation args
         handleSIGINT: false,
         handleSIGTERM: false,
         handleSIGHUP: false,
@@ -1696,17 +1717,18 @@ class WhatsAppService extends EventEmitter {
           '--disable-background-timer-throttling',
           '--disable-renderer-backgrounding',
           '--disable-backgrounding-occluded-windows',
-          // Anti-automation detection for Network.setUserAgentOverride errors  
-          '--disable-features=NetworkService',
-          '--disable-features=NetworkServiceLogging',
+          // Aggressive anti-automation detection for Network.setUserAgentOverride errors  
+          '--disable-features=NetworkService,NetworkServiceLogging,UserAgentClientHint,AutomationControlled',
           '--disable-automation',
           '--exclude-switches=enable-automation',
-          '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          '--disable-features=UserAgentClientHint',
-          '--force-device-scale-factor=1',
           '--disable-field-trial-config',
           '--disable-back-forward-cache',
-          '--disable-site-isolation-trials'
+          '--disable-site-isolation-trials',
+          '--no-experiments',
+          '--no-pings',
+          '--media-cache-size=1',
+          '--disk-cache-size=1',
+          '--aggressive-cache-discard'
         ],
         timeout: adaptiveTimeouts.browser,
         defaultViewport: { width: 800, height: 600 },
