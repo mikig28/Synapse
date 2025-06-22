@@ -441,7 +441,36 @@ export const getConnectionStatus = async (req: Request, res: Response) => {
 export const getQRCode = async (req: Request, res: Response) => {
   try {
     const whatsappService = getWhatsAppService();
+    const { force } = req.query;
+    
+    // Check if we should force generate a new QR code
+    if (force === 'true') {
+      console.log('[WhatsApp] Force QR generation requested');
+      const result = await whatsappService.forceQRGeneration();
+      
+      if (result.success) {
+        res.json({
+          success: true,
+          data: {
+            qrCode: result.qrCode,
+            message: result.message
+          }
+        });
+      } else {
+        res.json({
+          success: false,
+          data: {
+            qrCode: null,
+            message: result.message
+          }
+        });
+      }
+      return;
+    }
+    
+    // Normal QR code retrieval
     const qrCode = whatsappService.getQRCode();
+    const status = whatsappService.getStatus();
     
     if (qrCode) {
       res.json({
@@ -452,11 +481,18 @@ export const getQRCode = async (req: Request, res: Response) => {
         }
       });
     } else {
+      // If no QR code and service is having issues, suggest force generation
+      const hasConnectionIssues = !status.isReady && !status.isClientReady && 
+                                  (status.status === 'error' || status.status === 'disconnected');
+      
       res.json({
         success: true,
         data: {
           qrCode: null,
-          message: 'WhatsApp is already connected or QR code not yet generated'
+          message: hasConnectionIssues 
+            ? 'WhatsApp service has connection issues. Try force generating QR code.'
+            : 'WhatsApp is already connected or QR code not yet generated',
+          canForceGenerate: hasConnectionIssues
         }
       });
     }

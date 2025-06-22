@@ -301,26 +301,53 @@ const WhatsAppPage: React.FC = () => {
     }
   };
 
-  const fetchQRCode = async () => {
+  const fetchQRCode = async (force = false) => {
     try {
       setShowQR(true);
-      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/qr`, {
+      
+      if (force) {
+        toast({
+          title: "Generating QR Code",
+          description: "Force generating new QR code, this may take a moment...",
+        });
+      }
+      
+      const url = force 
+        ? `${getBackendUrl()}/api/v1/whatsapp/qr?force=true`
+        : `${getBackendUrl()}/api/v1/whatsapp/qr`;
+        
+      const response = await fetch(url, {
         headers: getAuthHeaders(),
       });
       const data = await response.json();
+      
       if (data.success && data.data.qrCode) {
         setQrCode(data.data.qrCode);
-      } else {
         toast({
-          title: "QR Code",
-          description: data.data.message || "WhatsApp is already connected",
+          title: "QR Code Ready",
+          description: data.data.message || "QR code available for scanning",
         });
+      } else {
+        // Check if we can force generate
+        if (!force && data.data?.canForceGenerate) {
+          toast({
+            title: "Connection Issues Detected",
+            description: data.data.message + " Click 'Force Generate QR' to try anyway.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: force ? "QR Generation Failed" : "QR Code",
+            description: data.data?.message || data.message || "WhatsApp is already connected",
+            variant: force ? "destructive" : "default",
+          });
+        }
       }
     } catch (error) {
       console.error('Error fetching QR code:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch QR code",
+        description: force ? "Failed to force generate QR code" : "Failed to fetch QR code",
         variant: "destructive",
       });
     }
@@ -596,9 +623,8 @@ const WhatsAppPage: React.FC = () => {
             </div>
             
             <div className="flex items-center gap-3">
-              {/* Temporarily always show QR button for testing */}
               <AnimatedButton
-                onClick={fetchQRCode}
+                onClick={() => fetchQRCode(false)}
                 variant="outline"
                 size="sm"
                 className="border-yellow-400/30 text-yellow-200 hover:bg-yellow-500/10"
@@ -606,6 +632,19 @@ const WhatsAppPage: React.FC = () => {
                 <QrCode className="w-4 h-4 mr-2" />
                 Show QR
               </AnimatedButton>
+              
+              {/* Show Force QR button when there are connection issues */}
+              {(!status?.connected || !status?.isReady) && (
+                <AnimatedButton
+                  onClick={() => fetchQRCode(true)}
+                  variant="outline"
+                  size="sm"
+                  className="border-orange-400/30 text-orange-200 hover:bg-orange-500/10"
+                >
+                  <QrCode className="w-4 h-4 mr-2" />
+                  Force QR
+                </AnimatedButton>
+              )}
               
               <AnimatedButton
                 onClick={refreshChats}

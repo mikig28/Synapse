@@ -691,6 +691,183 @@ class WhatsAppService extends EventEmitter {
     return this.qrDataUrl;
   }
 
+  async forceQRGeneration(): Promise<{ success: boolean; qrCode?: string; message: string }> {
+    try {
+      console.log('🔄 Force generating QR code for WhatsApp authentication...');
+      
+      // If already connected, don't generate QR
+      if (this.isReady && this.isClientReady) {
+        return {
+          success: false,
+          message: 'WhatsApp is already connected. No QR code needed.'
+        };
+      }
+
+      // If we have a recent QR code, return it
+      if (this.qrDataUrl) {
+        console.log('📱 Returning existing QR code');
+        return {
+          success: true,
+          qrCode: this.qrDataUrl,
+          message: 'Existing QR code available for scanning'
+        };
+      }
+
+      // Clear any existing failed client
+      if (this.client) {
+        try {
+          await this.performDeepCleanup();
+        } catch (cleanupError) {
+          console.log('⚠️ Cleanup warning during force QR generation:', (cleanupError as Error).message);
+        }
+      }
+
+      // Force a fresh initialization with QR focus
+      console.log('🔄 Starting fresh initialization for QR generation...');
+      this.connectionStatus = 'initializing';
+      this.isReady = false;
+      this.isClientReady = false;
+      
+      // Use minimal config for QR generation to avoid protocol errors
+      const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome-stable';
+      const qrPuppeteerConfig = {
+        headless: true,
+        executablePath: executablePath,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--single-process',
+          '--no-zygote',
+          '--disable-extensions',
+          '--disable-web-security'
+        ],
+        timeout: 120000, // 2 minutes for QR generation
+        defaultViewport: { width: 800, height: 600 },
+        protocolTimeout: 120000,
+        slowMo: 100,
+        pipe: true,
+        ignoreHTTPSErrors: true
+      };
+
+      // Create a temporary client just for QR generation
+      const tempClient = new (require('whatsapp-web.js').Client)({
+        authStrategy: new (require('whatsapp-web.js').LocalAuth)({
+          dataPath: './whatsapp_auth_data',
+          clientId: 'synapse-whatsapp-qr'
+        }),
+        puppeteer: qrPuppeteerConfig,
+        qrMaxRetries: 1,
+        authTimeoutMs: 120000
+      });
+
+      return new Promise((resolve) => {
+        let qrReceived = false;
+        let timeoutId: NodeJS.Timeout;
+
+        // Set up QR handler
+        tempClient.on('qr', (qr) => {
+          if (qrReceived) return;
+          qrReceived = true;
+          
+          console.log('📱 QR Code generated for force request');
+          this.qrString = qr;
+          this.connectionStatus = 'qr_ready';
+          
+          const qrcode = require('qrcode');
+          qrcode.toDataURL(qr, (err: any, url: string) => {
+            clearTimeout(timeoutId);
+            
+            // Clean up temp client
+            tempClient.destroy().catch(() => {});
+            
+            if (!err && url) {
+              this.qrDataUrl = url;
+              this.emit('qr', { qr: url, status: 'qr_ready' });
+              
+              resolve({
+                success: true,
+                qrCode: url,
+                message: 'QR code generated successfully for authentication'
+              });
+            } else {
+              resolve({
+                success: false,
+                message: 'Failed to generate QR code image'
+              });
+            }
+          });
+        });
+
+        // Handle auth success - user scanned QR
+        tempClient.on('authenticated', () => {
+          console.log('✅ QR Code scanned successfully!');
+          clearTimeout(timeoutId);
+          tempClient.destroy().catch(() => {});
+          
+          // Start normal initialization
+          setTimeout(() => {
+            this.initialize();
+          }, 2000);
+          
+          if (!qrReceived) {
+            resolve({
+              success: true,
+              message: 'QR code scanned successfully! WhatsApp is connecting...'
+            });
+          }
+        });
+
+        // Handle failures
+        tempClient.on('auth_failure', () => {
+          clearTimeout(timeoutId);
+          tempClient.destroy().catch(() => {});
+          
+          if (!qrReceived) {
+            resolve({
+              success: false,
+              message: 'QR code authentication failed. Please try again.'
+            });
+          }
+        });
+
+        // Set timeout
+        timeoutId = setTimeout(() => {
+          tempClient.destroy().catch(() => {});
+          
+          if (!qrReceived) {
+            resolve({
+              success: false,
+              message: 'QR code generation timed out. Please try restarting the service.'
+            });
+          }
+        }, 120000); // 2 minutes timeout
+
+        // Initialize temp client
+        tempClient.initialize().catch((initError) => {
+          clearTimeout(timeoutId);
+          tempClient.destroy().catch(() => {});
+          
+          if (!qrReceived) {
+            console.error('❌ Temp client initialization failed:', initError.message);
+            resolve({
+              success: false,
+              message: 'Failed to initialize QR generation client: ' + initError.message
+            });
+          }
+        });
+      });
+
+    } catch (error) {
+      console.error('❌ Error in force QR generation:', (error as Error).message);
+      return {
+        success: false,
+        message: 'Force QR generation failed: ' + (error as Error).message
+      };
+    }
+  }
+
   async restart(): Promise<void> {
     console.log('🔄 Restarting WhatsApp client...');
     
