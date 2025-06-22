@@ -167,7 +167,7 @@ class WhatsAppService extends EventEmitter {
       console.log('🔧 Final Chromium configuration:', executablePath || 'Puppeteer default');
 
       const puppeteerConfig = {
-        headless: 'new' as const,
+        headless: true,
         executablePath: executablePath,
         args: [
           '--no-sandbox',
@@ -223,8 +223,7 @@ class WhatsAppService extends EventEmitter {
         qrMaxRetries: 3,
         authTimeoutMs: 300000, // 5 minutes
         takeoverOnConflict: false,
-        restartOnAuthFail: true,
-        session: null
+        restartOnAuthFail: true
       });
       
       this.setupClientHandlers();
