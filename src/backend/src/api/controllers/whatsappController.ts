@@ -1,11 +1,11 @@
 import { Request, Response } from 'express';
 import WhatsAppMessage from '../../models/WhatsAppMessage';
 import WhatsAppContact from '../../models/WhatsAppContact';
-import WhatsAppService from '../../services/whatsappService';
+import WhatsAppBaileysService from '../../services/whatsappBaileysService';
 
 // Get WhatsApp service singleton instance (lazy initialization)
 const getWhatsAppService = () => {
-  return WhatsAppService.getInstance();
+  return WhatsAppBaileysService.getInstance();
 };
 
 // Initialize WhatsApp service listeners when needed

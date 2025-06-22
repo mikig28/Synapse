@@ -18,7 +18,7 @@ const agentService_1 = require("./services/agentService"); // Import agent servi
 const agentScheduler_1 = require("./services/agentScheduler"); // Import agent scheduler
 const agentsController_1 = require("./api/controllers/agentsController"); // Import agent services initializer
 const agents_1 = require("./services/agents"); // Import agent executors registry
-const whatsappService_1 = __importDefault(require("./services/whatsappService")); // Import WhatsApp service
+const whatsappBaileysService_1 = __importDefault(require("./services/whatsappBaileysService")); // Import WhatsApp Baileys service
 const captureRoutes_1 = __importDefault(require("./api/routes/captureRoutes")); // Import capture routes
 const path_1 = __importDefault(require("path")); // <-- Import path module
 const fs_1 = __importDefault(require("fs")); // <-- Import fs module
@@ -236,14 +236,14 @@ const startServer = async () => {
         await mongoose_1.default.connect(mongoUri);
         await (0, database_1.connectToDatabase)(); // Calls the Mongoose connection logic
         (0, telegramService_1.initializeTelegramBot)(); // Initialize and start the Telegram bot polling
-        // Initialize WhatsApp service with error handling
+        // Initialize WhatsApp Baileys service with error handling
         try {
-            const whatsappService = whatsappService_1.default.getInstance();
+            const whatsappService = whatsappBaileysService_1.default.getInstance();
             whatsappService.initialize(); // Note: This is async and doesn't wait for actual connection
-            console.log('[Server] WhatsApp service initialization started (connection attempt in progress...)');
+            console.log('[Server] WhatsApp Baileys service initialization started (no browser required!)');
         }
         catch (whatsappError) {
-            console.error('[Server] WhatsApp service failed to start initialization:', whatsappError);
+            console.error('[Server] WhatsApp Baileys service failed to start initialization:', whatsappError);
             console.log('[Server] Continuing without WhatsApp service...');
             // Don't crash the server if WhatsApp fails
         }

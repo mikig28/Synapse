@@ -12,7 +12,7 @@ import { AgentService } from './services/agentService'; // Import agent service
 import { AgentScheduler } from './services/agentScheduler'; // Import agent scheduler
 import { initializeAgentServices } from './api/controllers/agentsController'; // Import agent services initializer
 import { registerAgentExecutors } from './services/agents'; // Import agent executors registry
-import WhatsAppService from './services/whatsappService'; // Import WhatsApp service
+import WhatsAppBaileysService from './services/whatsappBaileysService'; // Import WhatsApp Baileys service
 import captureRoutes from './api/routes/captureRoutes'; // Import capture routes
 import path from 'path'; // <-- Import path module
 import fs from 'fs'; // <-- Import fs module
@@ -244,13 +244,13 @@ const startServer = async () => {
     await connectToDatabase(); // Calls the Mongoose connection logic
     initializeTelegramBot(); // Initialize and start the Telegram bot polling
 
-    // Initialize WhatsApp service with error handling
+    // Initialize WhatsApp Baileys service with error handling
     try {
-    const whatsappService = WhatsAppService.getInstance();
+    const whatsappService = WhatsAppBaileysService.getInstance();
     whatsappService.initialize(); // Note: This is async and doesn't wait for actual connection
-    console.log('[Server] WhatsApp service initialization started (connection attempt in progress...)');
+    console.log('[Server] WhatsApp Baileys service initialization started (no browser required!)');
     } catch (whatsappError) {
-      console.error('[Server] WhatsApp service failed to start initialization:', whatsappError);
+      console.error('[Server] WhatsApp Baileys service failed to start initialization:', whatsappError);
       console.log('[Server] Continuing without WhatsApp service...');
       // Don't crash the server if WhatsApp fails
     }

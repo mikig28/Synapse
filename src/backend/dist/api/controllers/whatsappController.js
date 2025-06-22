@@ -6,10 +6,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.forceRestart = exports.getDiagnostics = exports.clearWhatsAppAuth = exports.getMonitoredKeywords = exports.removeMonitoredKeyword = exports.addMonitoredKeyword = exports.refreshWhatsAppChats = exports.getWhatsAppMessages = exports.getWhatsAppPrivateChats = exports.getWhatsAppGroups = exports.restartWhatsAppService = exports.getQRCode = exports.getConnectionStatus = exports.updateWhatsAppConfig = exports.getWhatsAppStats = exports.sendWhatsAppMessage = exports.getContactMessages = exports.getWhatsAppContacts = exports.handleWhatsAppWebhook = void 0;
 const WhatsAppMessage_1 = __importDefault(require("../../models/WhatsAppMessage"));
 const WhatsAppContact_1 = __importDefault(require("../../models/WhatsAppContact"));
-const whatsappService_1 = __importDefault(require("../../services/whatsappService"));
+const whatsappBaileysService_1 = __importDefault(require("../../services/whatsappBaileysService"));
 // Get WhatsApp service singleton instance (lazy initialization)
 const getWhatsAppService = () => {
-    return whatsappService_1.default.getInstance();
+    return whatsappBaileysService_1.default.getInstance();
 };
 // Initialize WhatsApp service listeners when needed
 let serviceInitialized = false;
