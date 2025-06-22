@@ -452,10 +452,12 @@ class WhatsAppService extends events_1.EventEmitter {
                 console.log('🔧 Using Puppeteer bundled Chrome');
             }
             console.log('🔧 Final Chromium configuration:', executablePath || 'Puppeteer default');
-            // Use fallback configuration for repeated protocol errors
-            const useMinimalConfig = this.protocolErrorCount >= 3;
+            // Use fallback configuration for repeated protocol errors OR Render.com environment
+            const isRenderEnvironment = !!process.env.RENDER;
+            const useMinimalConfig = this.protocolErrorCount >= 3 || isRenderEnvironment;
             console.log('🔧 Browser configuration selection:');
             console.log(`   - Protocol errors: ${this.protocolErrorCount}/${this.MAX_PROTOCOL_ERRORS}`);
+            console.log(`   - Render.com environment: ${isRenderEnvironment}`);
             console.log(`   - Using minimal config: ${useMinimalConfig}`);
             console.log(`   - Will use ultra-minimal: ${this.protocolErrorCount >= 8}`);
             const puppeteerConfig = this.getBrowserConfig(executablePath, useMinimalConfig, timeouts);
@@ -466,7 +468,8 @@ class WhatsAppService extends events_1.EventEmitter {
                 pipe: puppeteerConfig.pipe
             });
             console.log('📦 Creating WhatsApp client with configuration...');
-            this.client = new whatsapp_web_js_1.Client({
+            // Add user agent override to prevent Protocol errors during initialization
+            const clientConfig = {
                 authStrategy: new whatsapp_web_js_1.LocalAuth({
                     dataPath: './whatsapp_auth_data',
                     clientId: 'synapse-whatsapp'
@@ -477,10 +480,21 @@ class WhatsAppService extends events_1.EventEmitter {
                     remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
                 },
                 qrMaxRetries: 3,
-                authTimeoutMs: 300000, // 5 minutes
+                authTimeoutMs: timeouts.initialization, // Use adaptive timeout
                 takeoverOnConflict: false,
                 restartOnAuthFail: true
-            });
+            };
+            // For ANY protocol error, disable user agent handling entirely in Render environment
+            if (this.protocolErrorCount >= 1 || process.env.RENDER) {
+                console.log('🔧 Disabling user agent override for protocol error prevention');
+                clientConfig.userAgent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+                // Also disable web version cache for ultra-minimal approach
+                clientConfig.webVersionCache = { type: 'local' };
+                // Add additional options to prevent CDP issues
+                clientConfig.sessionTimeout = timeouts.initialization;
+                clientConfig.restartOnAuthFail = false; // Prevent restart loops
+            }
+            this.client = new whatsapp_web_js_1.Client(clientConfig);
             console.log('✅ WhatsApp client created, setting up handlers...');
             this.setupClientHandlers();
             console.log('🚀 Starting WhatsApp client initialization...');
@@ -1378,19 +1392,20 @@ class WhatsAppService extends events_1.EventEmitter {
             protocol: 120000,
             browser: 60000
         };
+        // Render.com logic is now handled at the main level via useMinimalConfig parameter
         // Ultra-minimal config for extreme environments (containers with severe limitations)
-        if (this.protocolErrorCount >= 8) {
+        if (this.protocolErrorCount >= 3) {
             console.log('🔧 Using ULTRA-MINIMAL browser configuration for maximum compatibility');
             return {
                 headless: true,
                 executablePath: executablePath,
                 args: [
-                    // Essential container flags only
+                    // Essential container flags based on research
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
                     '--disable-dev-shm-usage',
                     '--disable-gpu',
-                    '--disable-gpu-sandbox',
+                    '--no-first-run',
                     '--no-zygote',
                     '--single-process',
                     // Memory management for containers
@@ -1416,7 +1431,40 @@ class WhatsAppService extends events_1.EventEmitter {
                     '--disable-domain-reliability',
                     '--disable-component-extensions-with-background-pages',
                     '--disable-logging',
-                    '--no-first-run'
+                    '--no-first-run',
+                    // Radical anti-automation detection flags for Network.setUserAgentOverride errors
+                    '--disable-features=NetworkService,NetworkServiceLogging,VizHitTestSurfaceLayer,AutomationControlled,UserAgentClientHint,VizDisplayCompositor,Network',
+                    '--disable-automation',
+                    '--exclude-switches=enable-automation',
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-field-trial-config',
+                    '--disable-back-forward-cache',
+                    '--disable-site-isolation-trials',
+                    '--disable-features=TranslateUI',
+                    '--disable-component-extensions-with-background-pages',
+                    '--disable-default-apps',
+                    '--disable-extensions-except=',
+                    '--disable-plugins-discovery',
+                    '--disable-preconnect',
+                    '--disable-hang-monitor',
+                    '--disable-prompt-on-repost',
+                    '--disable-component-update',
+                    '--disable-background-networking',
+                    '--no-experiments',
+                    '--no-default-browser-check',
+                    '--no-pings',
+                    '--no-service-autorun',
+                    '--media-cache-size=1',
+                    '--disk-cache-size=1',
+                    '--aggressive-cache-discard',
+                    '--disable-renderer-accessibility',
+                    '--disable-permissions-api',
+                    '--disable-web-security',
+                    '--allow-running-insecure-content',
+                    '--disable-features=NetworkTimeAPI',
+                    '--disable-network-service-logging',
+                    '--disable-sync-preferences',
+                    '--disable-features=BlockInsecurePrivateNetworkRequests'
                 ],
                 timeout: adaptiveTimeouts.browser * 1.5, // Extra time for ultra-minimal
                 defaultViewport: { width: 320, height: 240 }, // Tiny viewport
@@ -1425,37 +1473,90 @@ class WhatsAppService extends events_1.EventEmitter {
                 pipe: false, // Use websockets instead of pipes
                 ignoreHTTPSErrors: true,
                 dumpio: false,
-                ignoreDefaultArgs: true, // Ignore all default args
+                ignoreDefaultArgs: ['--enable-automation', '--enable-blink-features=IdleDetection'], // Only ignore automation args
                 handleSIGINT: false,
                 handleSIGTERM: false,
                 handleSIGHUP: false,
-                devtools: false
+                devtools: false,
+                // Custom browser launch options to avoid CDP issues
+                env: {
+                    ...process.env,
+                    CHROME_DEVEL_SANDBOX: '/usr/bin/google-chrome-stable',
+                    DISPLAY: ':99'
+                },
+                // Custom page creation to intercept user agent setting
+                userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             };
         }
         if (useMinimalConfig) {
-            console.log('🔧 Using minimal browser configuration for maximum stability');
+            console.log('🔧 Using minimal browser configuration for container environments');
             return {
                 headless: true,
                 executablePath: executablePath,
                 args: [
+                    // Essential container stability flags
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
                     '--disable-dev-shm-usage',
                     '--disable-gpu',
-                    '--single-process',
+                    '--no-first-run',
                     '--no-zygote',
+                    '--single-process',
+                    // Target.setAutoAttach and Chrome DevTools Protocol fixes
+                    '--disable-features=VizDisplayCompositor',
+                    '--disable-web-security',
+                    '--disable-features=TranslateUI',
+                    '--disable-dev-tools',
                     '--disable-extensions',
+                    '--disable-plugins',
+                    '--disable-default-apps',
+                    '--disable-background-networking',
+                    '--disable-sync',
+                    '--disable-translate',
+                    '--disable-ipc-flooding-protection',
+                    '--disable-remote-fonts',
+                    '--disable-features=AudioServiceOutOfProcess',
+                    '--disable-crash-reporter',
+                    '--disable-breakpad',
+                    '--no-crash-upload',
+                    '--disable-gpu-crashpad',
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-features=VizDisplayCompositor,VizHitTestSurfaceLayer',
+                    '--disable-client-side-phishing-detection',
+                    '--disable-component-update',
+                    '--disable-domain-reliability',
+                    '--disable-features=AudioServiceOutOfProcess,VizDisplayCompositor',
+                    '--disable-print-preview',
+                    '--disable-speech-api',
+                    '--hide-scrollbars',
+                    '--mute-audio',
+                    '--no-default-browser-check',
+                    // Background process management
                     '--disable-background-timer-throttling',
                     '--disable-renderer-backgrounding',
-                    '--disable-backgrounding-occluded-windows'
+                    '--disable-backgrounding-occluded-windows',
+                    // Aggressive anti-automation detection for Network.setUserAgentOverride errors  
+                    '--disable-features=NetworkService,NetworkServiceLogging,UserAgentClientHint,AutomationControlled,Network',
+                    '--disable-automation',
+                    '--exclude-switches=enable-automation',
+                    '--disable-field-trial-config',
+                    '--disable-back-forward-cache',
+                    '--disable-site-isolation-trials',
+                    '--no-experiments',
+                    '--no-pings',
+                    '--media-cache-size=1',
+                    '--disk-cache-size=1',
+                    '--aggressive-cache-discard'
                 ],
-                timeout: adaptiveTimeouts.browser, // Use adaptive timeout for minimal config
+                timeout: adaptiveTimeouts.browser,
                 defaultViewport: { width: 800, height: 600 },
                 protocolTimeout: adaptiveTimeouts.protocol,
-                slowMo: 200, // Even slower for stability
+                slowMo: 100, // Slower for container stability
                 pipe: true,
                 ignoreHTTPSErrors: true,
-                dumpio: false
+                dumpio: false,
+                // Set user agent at browser level to prevent page-level overrides
+                userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             };
         }
         // Full configuration

@@ -247,10 +247,10 @@ const startServer = async () => {
     // Initialize WhatsApp service with error handling
     try {
     const whatsappService = WhatsAppService.getInstance();
-    await whatsappService.initialize();
-    console.log('[Server] WhatsApp service initialized successfully');
+    whatsappService.initialize(); // Note: This is async and doesn't wait for actual connection
+    console.log('[Server] WhatsApp service initialization started (connection attempt in progress...)');
     } catch (whatsappError) {
-      console.error('[Server] WhatsApp service failed to initialize:', whatsappError);
+      console.error('[Server] WhatsApp service failed to start initialization:', whatsappError);
       console.log('[Server] Continuing without WhatsApp service...');
       // Don't crash the server if WhatsApp fails
     }

@@ -1656,7 +1656,13 @@ class WhatsAppService extends EventEmitter {
           '--disk-cache-size=1',
           '--aggressive-cache-discard',
           '--disable-renderer-accessibility',
-          '--disable-permissions-api'
+          '--disable-permissions-api',
+          '--disable-web-security',
+          '--allow-running-insecure-content',
+          '--disable-features=NetworkTimeAPI',
+          '--disable-network-service-logging',
+          '--disable-sync-preferences',
+          '--disable-features=BlockInsecurePrivateNetworkRequests'
         ],
         timeout: adaptiveTimeouts.browser * 1.5, // Extra time for ultra-minimal
         defaultViewport: { width: 320, height: 240 }, // Tiny viewport
@@ -1675,7 +1681,9 @@ class WhatsAppService extends EventEmitter {
           ...process.env,
           CHROME_DEVEL_SANDBOX: '/usr/bin/google-chrome-stable',
           DISPLAY: ':99'
-        }
+        },
+        // Custom page creation to intercept user agent setting
+        userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       };
     }
     
@@ -1745,7 +1753,9 @@ class WhatsAppService extends EventEmitter {
         slowMo: 100, // Slower for container stability
         pipe: true,
         ignoreHTTPSErrors: true,
-        dumpio: false
+        dumpio: false,
+        // Set user agent at browser level to prevent page-level overrides
+        userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       };
     }
 
