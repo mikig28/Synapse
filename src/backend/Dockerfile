@@ -71,5 +71,5 @@ RUN npm run build
 # Expose common ports (Render will set PORT env var)
 EXPOSE 3001 10000
 
-# Start the application
-CMD ["npm", "start"] 
+# Start the application with explicit Node.js
+CMD ["node", "dist/server.js"] 

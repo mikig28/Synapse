@@ -179,6 +179,15 @@ app.use('/api/v1/agents', agentsRoutes); // Use agents routes
 app.use('/api/v1/news', newsRoutes); // Use news routes
 app.use('/api/v1/tts', ttsRoutes); // Use TTS proxy route
 
+// Health check endpoint for Render
+app.get('/health', (req: Request, res: Response) => {
+  res.status(200).json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 // Basic route for testing
 app.get('/', (req: Request, res: Response) => {
   const readyState = mongoose.connection.readyState;
@@ -264,10 +273,12 @@ const startServer = async () => {
     (global as any).io = io;
 
     httpServer.listen(PORT, '0.0.0.0', () => {
-      console.log(`Server is running on port ${PORT}`);
-      console.log(`Server is binding to 0.0.0.0:${PORT}`);
-      console.log(`Environment PORT: ${process.env.PORT || 'not set'}`);
-      console.log(`NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+      console.log(`🚀 Server is running on port ${PORT}`);
+      console.log(`🌐 Server is binding to 0.0.0.0:${PORT}`);
+      console.log(`📦 Environment PORT: ${process.env.PORT || 'not set'}`);
+      console.log(`🔧 NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+      console.log(`✅ Health check available at: http://0.0.0.0:${PORT}/health`);
+      console.log(`🎯 RENDER DEPLOYMENT READY - Service is accessible!`);
       // The "[mongoose]: Mongoose connected to DB" log from database.ts confirms success
     });
   } catch (error) {
