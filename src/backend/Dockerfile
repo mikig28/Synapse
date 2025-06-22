@@ -12,14 +12,19 @@ RUN apt-get update && apt-get install -y curl gnupg \
     && rm -rf /var/lib/apt/lists/* \
     && google-chrome --version
 
-# Create non-root user for security
-RUN groupadd -r nodeuser && useradd -r -g nodeuser nodeuser
+# Create non-root user with home directory and proper permissions
+RUN groupadd -r nodeuser && useradd -r -g nodeuser -m -d /home/nodeuser nodeuser \
+    && mkdir -p /home/nodeuser/.local/share/applications \
+    && chown -R nodeuser:nodeuser /home/nodeuser
 
 WORKDIR /app
 
-# Set environment variables for Puppeteer
+# Set environment variables for Puppeteer and Chrome
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+ENV HOME=/home/nodeuser
+ENV XDG_CONFIG_HOME=/home/nodeuser/.config
+ENV XDG_DATA_HOME=/home/nodeuser/.local/share
 
 # Copy package files from backend directory
 COPY src/backend/package*.json ./
@@ -48,6 +53,13 @@ EXPOSE 3001 10000
 
 # Set resource limits and memory management for Puppeteer stability
 ENV NODE_OPTIONS="--max-old-space-size=4096"
+
+# Create Chrome data directories and set permissions
+RUN mkdir -p /home/nodeuser/.config/google-chrome \
+    && mkdir -p /home/nodeuser/.cache/google-chrome \
+    && mkdir -p /tmp/.X11-unix \
+    && chmod 1777 /tmp/.X11-unix \
+    && chown -R nodeuser:nodeuser /home/nodeuser
 
 # Change ownership to non-root user
 RUN chown -R nodeuser:nodeuser /app

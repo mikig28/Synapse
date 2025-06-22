@@ -1658,9 +1658,12 @@ class WhatsAppService extends EventEmitter {
           '--disable-sync',
           '--disable-translate',
           '--disable-ipc-flooding-protection',
-          '--remote-debugging-port=0',
           '--disable-remote-fonts',
           '--disable-features=AudioServiceOutOfProcess',
+          '--disable-crash-reporter',
+          '--disable-breakpad',
+          '--no-crash-upload',
+          '--disable-gpu-crashpad',
           // Background process management
           '--disable-background-timer-throttling',
           '--disable-renderer-backgrounding',
