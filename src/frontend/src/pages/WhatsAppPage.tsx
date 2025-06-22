@@ -137,11 +137,18 @@ const WhatsAppPage: React.FC = () => {
     newSocket.on('whatsapp:message', (messageData: WhatsAppMessage) => {
       console.log('[WhatsApp Socket.IO] Received new message:', messageData);
       
-      // Add new message to the list
+      // Add new message to the list only if it's for the currently selected chat or no chat is selected
       setMessages(prevMessages => {
         const exists = prevMessages.find(m => m.id === messageData.id);
         if (exists) return prevMessages;
-        return [messageData, ...prevMessages].slice(0, 100);
+        
+        // If no chat is selected, show all messages
+        // If a chat is selected, only show messages for that chat
+        if (!selectedChat || messageData.chatId === selectedChat.id) {
+          return [messageData, ...prevMessages].slice(0, 100);
+        }
+        
+        return prevMessages;
       });
 
       // Show toast notification for monitored messages
@@ -204,11 +211,22 @@ const WhatsAppPage: React.FC = () => {
       setSocket(null);
       setIsSocketConnected(false);
     };
-  }, [isAuthenticated, token, monitoredKeywords]);
+  }, [isAuthenticated, token, monitoredKeywords, selectedChat]);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [displayedMessages]);
+
+  // Load messages for selected chat if we don't have any yet
+  useEffect(() => {
+    if (selectedChat) {
+      const chatMessages = messages.filter(msg => msg.chatId === selectedChat.id);
+      if (chatMessages.length === 0) {
+        // Only fetch if we have no messages for this chat
+        fetchMessages(selectedChat.id);
+      }
+    }
+  }, [selectedChat]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -427,7 +445,25 @@ const WhatsAppPage: React.FC = () => {
       const data = response.data;
       if (data.success) {
         setNewMessage('');
-        await fetchMessages(selectedChat.id);
+        
+        // Add the sent message to the local state immediately
+        const sentMessage: WhatsAppMessage = {
+          id: data.data?.messageId || `sent_${Date.now()}`,
+          body: newMessage,
+          from: 'me',
+          fromMe: true,
+          timestamp: Date.now(),
+          type: 'text',
+          isGroup: selectedChat.isGroup,
+          groupName: selectedChat.isGroup ? selectedChat.name : undefined,
+          contactName: 'You',
+          chatId: selectedChat.id,
+          time: new Date().toLocaleTimeString(),
+          isMedia: false
+        };
+        
+        setMessages(prevMessages => [sentMessage, ...prevMessages]);
+        
         toast({
           title: "Success",
           description: "Message sent successfully",
@@ -507,6 +543,11 @@ const WhatsAppPage: React.FC = () => {
   const filteredPrivateChats = privateChats.filter(chat =>
     chat.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Filter messages for the selected chat
+  const displayedMessages = selectedChat 
+    ? messages.filter(msg => msg.chatId === selectedChat.id)
+    : messages.slice(0, 50); // Show recent messages if no chat selected
 
   const getStatusColor = () => {
     if (!status) return 'text-gray-500';
@@ -702,7 +743,7 @@ const WhatsAppPage: React.FC = () => {
                         whileTap={{ scale: 0.98 }}
                         onClick={() => {
                           setSelectedChat(group);
-                          fetchMessages(group.id);
+                          // Don't fetch messages immediately, let them load from cache or real-time
                         }}
                         className={`p-3 rounded-lg cursor-pointer transition-colors ${
                           selectedChat?.id === group.id
@@ -736,7 +777,7 @@ const WhatsAppPage: React.FC = () => {
                         whileTap={{ scale: 0.98 }}
                         onClick={() => {
                           setSelectedChat(chat);
-                          fetchMessages(chat.id);
+                          // Don't fetch messages immediately, let them load from cache or real-time
                         }}
                         className={`p-3 rounded-lg cursor-pointer transition-colors ${
                           selectedChat?.id === chat.id
@@ -783,7 +824,7 @@ const WhatsAppPage: React.FC = () => {
                   </div>
                   
                   <div className="flex-1 overflow-y-auto my-4 space-y-3">
-                    {messages.map((message) => (
+                    {displayedMessages.map((message) => (
                       <motion.div
                         key={message.id}
                         initial={{ opacity: 0, y: 10 }}
