@@ -21,6 +21,7 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { io, Socket } from 'socket.io-client';
 import useAuthStore from '@/store/authStore';
+import api from '@/services/axiosConfig';
 
 interface WhatsAppMessage {
   id: string;
@@ -79,22 +80,9 @@ const WhatsAppPage: React.FC = () => {
   
   const { isAuthenticated, token } = useAuthStore();
 
-  // Helper function to get the correct backend URL
+  // Backend URL for Socket.io (non-API endpoints)
   const getBackendUrl = () => {
     return import.meta.env.VITE_BACKEND_ROOT_URL || 'https://synapse-pxad.onrender.com';
-  };
-
-  // Helper function to create authenticated fetch options
-  const getAuthHeaders = () => {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
-    return headers;
   };
 
   // Socket.io setup
@@ -228,12 +216,9 @@ const WhatsAppPage: React.FC = () => {
 
   const fetchStatus = async () => {
     try {
-      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/status`, {
-        headers: getAuthHeaders(),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setStatus(data.data);
+      const response = await api.get('/whatsapp/status');
+      if (response.data.success) {
+        setStatus(response.data.data);
       }
     } catch (error) {
       console.error('Error fetching WhatsApp status:', error);
@@ -244,12 +229,9 @@ const WhatsAppPage: React.FC = () => {
 
   const fetchGroups = async () => {
     try {
-      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/groups`, {
-        headers: getAuthHeaders(),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setGroups(data.data);
+      const response = await api.get('/whatsapp/groups');
+      if (response.data.success) {
+        setGroups(response.data.data);
       }
     } catch (error) {
       console.error('Error fetching WhatsApp groups:', error);
@@ -258,12 +240,9 @@ const WhatsAppPage: React.FC = () => {
 
   const fetchPrivateChats = async () => {
     try {
-      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/private-chats`, {
-        headers: getAuthHeaders(),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setPrivateChats(data.data);
+      const response = await api.get('/whatsapp/private-chats');
+      if (response.data.success) {
+        setPrivateChats(response.data.data);
       }
     } catch (error) {
       console.error('Error fetching WhatsApp private chats:', error);
@@ -273,14 +252,11 @@ const WhatsAppPage: React.FC = () => {
   const fetchMessages = async (chatId?: string) => {
     try {
       const endpoint = chatId 
-        ? `/api/v1/whatsapp/messages?groupId=${chatId}`
-        : '/api/v1/whatsapp/messages';
-      const response = await fetch(`${getBackendUrl()}${endpoint}`, {
-        headers: getAuthHeaders(),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setMessages(data.data);
+        ? `/whatsapp/messages?groupId=${chatId}`
+        : '/whatsapp/messages';
+      const response = await api.get(endpoint);
+      if (response.data.success) {
+        setMessages(response.data.data);
       }
     } catch (error) {
       console.error('Error fetching WhatsApp messages:', error);
@@ -289,12 +265,9 @@ const WhatsAppPage: React.FC = () => {
 
   const fetchMonitoredKeywords = async () => {
     try {
-      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/monitored-keywords`, {
-        headers: getAuthHeaders(),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setMonitoredKeywords(data.data);
+      const response = await api.get('/whatsapp/monitored-keywords');
+      if (response.data.success) {
+        setMonitoredKeywords(response.data.data);
       }
     } catch (error) {
       console.error('Error fetching monitored keywords:', error);
@@ -312,14 +285,12 @@ const WhatsAppPage: React.FC = () => {
         });
       }
       
-      const url = force 
-        ? `${getBackendUrl()}/api/v1/whatsapp/qr?force=true`
-        : `${getBackendUrl()}/api/v1/whatsapp/qr`;
+      const endpoint = force 
+        ? '/whatsapp/qr?force=true'
+        : '/whatsapp/qr';
         
-      const response = await fetch(url, {
-        headers: getAuthHeaders(),
-      });
-      const data = await response.json();
+      const response = await api.get(endpoint);
+      const data = response.data;
       
       if (data.success && data.data.qrCode) {
         setQrCode(data.data.qrCode);
@@ -355,11 +326,8 @@ const WhatsAppPage: React.FC = () => {
 
   const refreshChats = async () => {
     try {
-      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/refresh-chats`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
-      const data = await response.json();
+      const response = await api.post('/whatsapp/refresh-chats');
+      const data = response.data;
       
       if (data.success) {
         await fetchGroups();
@@ -395,11 +363,8 @@ const WhatsAppPage: React.FC = () => {
 
   const restartService = async () => {
     try {
-      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/restart`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
-      const data = await response.json();
+      const response = await api.post('/whatsapp/restart');
+      const data = response.data;
       if (data.success) {
         toast({
           title: "Success",
@@ -423,12 +388,9 @@ const WhatsAppPage: React.FC = () => {
     }
     
     try {
-      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/force-restart`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
-
-      const data = await response.json();
+      const response = await api.post('/whatsapp/force-restart');
+      const data = response.data;
+      
       if (data.success) {
         toast({
           title: "Force Restart Initiated",
@@ -446,7 +408,7 @@ const WhatsAppPage: React.FC = () => {
       console.error('Force restart error:', error);
       toast({
         title: "Error",
-        description: error.message || 'Failed to force restart WhatsApp service',
+        description: error.response?.data?.error || error.message || 'Failed to force restart WhatsApp service',
         variant: "destructive",
       });
     }
@@ -457,16 +419,12 @@ const WhatsAppPage: React.FC = () => {
 
     setSendingMessage(true);
     try {
-      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/send`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          to: selectedChat.id,
-          message: newMessage,
-        }),
+      const response = await api.post('/whatsapp/send', {
+        to: selectedChat.id,
+        message: newMessage,
       });
 
-      const data = await response.json();
+      const data = response.data;
       if (data.success) {
         setNewMessage('');
         await fetchMessages(selectedChat.id);
@@ -481,11 +439,11 @@ const WhatsAppPage: React.FC = () => {
           variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error);
       toast({
         title: "Error",
-        description: "Failed to send message",
+        description: error.response?.data?.error || "Failed to send message",
         variant: "destructive",
       });
     } finally {
@@ -497,15 +455,11 @@ const WhatsAppPage: React.FC = () => {
     if (!newKeyword.trim()) return;
 
     try {
-      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/monitored-keywords`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          keyword: newKeyword,
-        }),
+      const response = await api.post('/whatsapp/monitored-keywords', {
+        keyword: newKeyword,
       });
 
-      const data = await response.json();
+      const data = response.data;
       if (data.success) {
         setNewKeyword('');
         await fetchMonitoredKeywords();
@@ -514,11 +468,11 @@ const WhatsAppPage: React.FC = () => {
           description: `Keyword "${newKeyword}" added to monitoring`,
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding keyword:', error);
       toast({
         title: "Error",
-        description: "Failed to add keyword",
+        description: error.response?.data?.error || "Failed to add keyword",
         variant: "destructive",
       });
     }
@@ -526,12 +480,9 @@ const WhatsAppPage: React.FC = () => {
 
   const removeKeyword = async (keyword: string) => {
     try {
-      const response = await fetch(`${getBackendUrl()}/api/v1/whatsapp/monitored-keywords/${keyword}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders(),
-      });
-
-      const data = await response.json();
+      const response = await api.delete(`/whatsapp/monitored-keywords/${keyword}`);
+      const data = response.data;
+      
       if (data.success) {
         await fetchMonitoredKeywords();
         toast({
@@ -539,11 +490,11 @@ const WhatsAppPage: React.FC = () => {
           description: `Keyword "${keyword}" removed from monitoring`,
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error removing keyword:', error);
       toast({
         title: "Error",
-        description: "Failed to remove keyword",
+        description: error.response?.data?.error || "Failed to remove keyword",
         variant: "destructive",
       });
     }

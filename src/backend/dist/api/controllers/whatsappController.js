@@ -354,6 +354,7 @@ exports.updateWhatsAppConfig = updateWhatsAppConfig;
 const getConnectionStatus = async (req, res) => {
     try {
         const whatsappService = getWhatsAppService();
+        initializeWhatsAppService(); // Ensure listeners are set up
         const serviceStatus = whatsappService.getStatus();
         const status = {
             connected: serviceStatus.isReady && serviceStatus.isClientReady,

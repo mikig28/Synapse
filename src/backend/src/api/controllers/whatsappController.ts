@@ -400,6 +400,7 @@ export const updateWhatsAppConfig = async (req: Request, res: Response) => {
 export const getConnectionStatus = async (req: Request, res: Response) => {
   try {
     const whatsappService = getWhatsAppService();
+    initializeWhatsAppService(); // Ensure listeners are set up
     const serviceStatus = whatsappService.getStatus();
     
     const status = {
