@@ -56,6 +56,8 @@ class WhatsAppService extends EventEmitter {
   private monitoredKeywords: string[] = ['פתק 2', 'פתק2', 'petak 2', 'petak2', 'פתק'];
   private reconnectAttempts = 0;
   private readonly MAX_RECONNECT_ATTEMPTS = 5;
+  private protocolErrorCount = 0;
+  private readonly MAX_PROTOCOL_ERRORS = 3;
 
   private constructor() {
     super();
@@ -166,98 +168,13 @@ class WhatsAppService extends EventEmitter {
       
       console.log('🔧 Final Chromium configuration:', executablePath || 'Puppeteer default');
 
-      const puppeteerConfig = {
-        headless: true,
-        executablePath: executablePath,
-        args: [
-          // Core stability flags
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--disable-gpu-sandbox',
-          '--disable-software-rasterizer',
-          '--disable-background-timer-throttling',
-          '--disable-backgrounding-occluded-windows',
-          '--disable-renderer-backgrounding',
-          '--disable-features=TranslateUI,VizDisplayCompositor,BlinkGenPropertyTrees',
-          '--disable-ipc-flooding-protection',
-          '--disable-component-update',
-          '--disable-client-side-phishing-detection',
-          '--disable-sync',
-          '--disable-default-apps',
-          '--disable-extensions',
-          '--disable-component-extensions-with-background-pages',
-          '--disable-background-networking',
-          '--disable-breakpad',
-          '--disable-print-preview',
-          '--disable-permissions-api',
-          '--disable-prompt-on-repost',
-          '--disable-hang-monitor',
-          '--disable-background-mode',
-          '--disable-plugins-discovery',
-          '--disable-translate',
-          '--disable-notifications',
-          
-          // Memory and resource management
-          '--memory-pressure-off',
-          '--max_old_space_size=4096',
-          '--js-flags="--max-old-space-size=4096"',
-          '--aggressive-cache-discard',
-          '--disable-histogram-customizer',
-          '--disable-logging',
-          '--disable-web-security',
-          '--disable-features=VizDisplayCompositor',
-          
-          // Network and stability
-          '--no-zygote',
-          '--no-first-run',
-          '--no-default-browser-check',
-          '--no-experiments',
-          '--single-process',
-          '--disable-accelerated-2d-canvas',
-          '--disable-accelerated-jpeg-decoding',
-          '--disable-accelerated-mjpeg-decode',
-          '--disable-accelerated-video-decode',
-          '--disable-accelerated-video-encode',
-          '--disable-gpu-memory-buffer-compositor-resources',
-          '--disable-gpu-memory-buffer-video-frames',
-          '--disable-partial-raster',
-          '--disable-skia-runtime-opts',
-          '--disable-system-font-check',
-          '--disable-threaded-animation',
-          '--disable-threaded-scrolling',
-          '--disable-in-process-stack-traces',
-          '--disable-histogram-customizer',
-          '--disable-gl-extensions',
-          '--disable-composited-antialiasing',
-          '--disable-canvas-aa',
-          '--disable-3d-apis',
-          '--disable-accelerated-2d-canvas',
-          '--disable-accelerated-jpeg-decoding',
-          '--disable-accelerated-mjpeg-decode',
-          '--disable-app-list-dismiss-on-blur',
-          '--disable-accelerated-video-decode',
-          '--force-color-profile=srgb',
-          '--hide-scrollbars',
-          '--mute-audio',
-          '--disable-logging',
-          '--disable-dev-shm-usage',
-          '--shm-size=3gb'
-        ],
-        timeout: 300000, // Increased timeout to 5 minutes
-        defaultViewport: { width: 1280, height: 720 }, // Smaller viewport to reduce memory usage
-        ignoreDefaultArgs: false,
-        handleSIGINT: false,
-        handleSIGTERM: false,
-        handleSIGHUP: false,
-        protocolTimeout: 300000, // Increased protocol timeout
-        slowMo: 100, // Add slight delay to reduce protocol pressure
-        devtools: false,
-        ignoreHTTPSErrors: true,
-        dumpio: false, // Disable dumping stdio to reduce overhead
-        pipe: true // Use pipes instead of websockets for better stability
-      };
+      // Use fallback configuration for repeated protocol errors
+      const useMinimalConfig = this.protocolErrorCount >= this.MAX_PROTOCOL_ERRORS;
+      if (useMinimalConfig) {
+        console.log('🔧 Using minimal browser configuration due to repeated protocol errors');
+      }
+
+      const puppeteerConfig = this.getBrowserConfig(executablePath, useMinimalConfig);
 
       this.client = new Client({
         authStrategy: new LocalAuth({
@@ -294,6 +211,7 @@ class WhatsAppService extends EventEmitter {
       await Promise.race([initPromise, timeoutPromise]);
       
       this.reconnectAttempts = 0;
+      this.protocolErrorCount = 0; // Reset protocol error count on success
       console.log('✅ WhatsApp Client initialized successfully');
       
     } catch (error) {
@@ -302,29 +220,22 @@ class WhatsAppService extends EventEmitter {
       this.emit('status', { ready: false, message: `Initialization failed: ${(error as Error).message}` });
       
       // Handle protocol errors with more aggressive cleanup
-      if ((error as Error).message.includes('Protocol error') || 
-          (error as Error).message.includes('Target closed') ||
-          (error as Error).message.includes('Browser protocol error')) {
+      const isProtocolError = (error as Error).message.includes('Protocol error') || 
+                              (error as Error).message.includes('Target closed') ||
+                              (error as Error).message.includes('Browser protocol error');
+      
+      if (isProtocolError) {
         console.log('🧹 Protocol error detected - performing deep cleanup...');
-        
-        try {
-          if (this.client) {
-            await this.client.destroy();
-            this.client = null;
-          }
-          // Wait longer before retry for protocol errors
-          await new Promise(resolve => setTimeout(resolve, 5000));
-        } catch (cleanupError) {
-          console.log('⚠️ Cleanup warning:', (cleanupError as Error).message);
-        }
+        await this.performDeepCleanup();
       }
       
       if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
         this.reconnectAttempts++;
         // Exponential backoff with longer delays for protocol errors
-        const baseDelay = (error as Error).message.includes('Protocol error') ? 20000 : 10000;
-        const delay = baseDelay + (this.reconnectAttempts * 10000);
+        const baseDelay = isProtocolError ? 30000 : 10000; // 30 seconds for protocol errors
+        const delay = baseDelay + (this.reconnectAttempts * (isProtocolError ? 20000 : 5000));
         console.log(`🔄 Retrying WhatsApp initialization in ${delay/1000}s... Attempt ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS}`);
+        console.log(`🔧 ${isProtocolError ? 'Protocol error detected - using extended delay' : 'Standard retry'}`);
         setTimeout(() => this.initialize(), delay);
       } else {
         console.error('❌ Max WhatsApp reconnection attempts reached');
@@ -854,6 +765,175 @@ class WhatsAppService extends EventEmitter {
       console.log('🔄 Restarting WhatsApp with clean state...');
       this.initialize();
     }, 2000);
+  }
+
+  private async performDeepCleanup(): Promise<void> {
+    console.log('🧹 Starting deep cleanup process...');
+    
+    try {
+      // Reset client state
+      this.isReady = false;
+      this.isClientReady = false;
+      this.qrString = null;
+      this.qrDataUrl = null;
+      
+      // Safely destroy client if it exists
+      if (this.client) {
+        try {
+          // Check if client has a browser instance
+          const clientWithPuppeteer = this.client as any;
+          if (clientWithPuppeteer.pupBrowser) {
+            console.log('🧹 Closing Puppeteer browser...');
+            try {
+              await clientWithPuppeteer.pupBrowser.close();
+            } catch (browserError) {
+              console.log('⚠️ Browser close warning:', (browserError as Error).message);
+            }
+          }
+          
+          // Destroy the client
+          console.log('🧹 Destroying WhatsApp client...');
+          await this.client.destroy();
+        } catch (destroyError) {
+          console.log('⚠️ Client destroy warning:', (destroyError as Error).message);
+        } finally {
+          this.client = null;
+        }
+      }
+      
+      // Force garbage collection if available
+      if (global.gc) {
+        console.log('🧹 Running garbage collection...');
+        global.gc();
+      }
+      
+      // Increment protocol error count for fallback config
+      this.protocolErrorCount++;
+      console.log(`🔧 Protocol error count: ${this.protocolErrorCount}/${this.MAX_PROTOCOL_ERRORS}`);
+      
+      // Wait before allowing next initialization
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      console.log('✅ Deep cleanup completed');
+    } catch (cleanupError) {
+      console.error('❌ Error during deep cleanup:', (cleanupError as Error).message);
+    }
+  }
+
+  private getBrowserConfig(executablePath: string | undefined, useMinimalConfig: boolean): any {
+    if (useMinimalConfig) {
+      console.log('🔧 Using minimal browser configuration for maximum stability');
+      return {
+        headless: true,
+        executablePath: executablePath,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--single-process',
+          '--no-zygote',
+          '--disable-extensions',
+          '--disable-background-timer-throttling',
+          '--disable-renderer-backgrounding',
+          '--disable-backgrounding-occluded-windows'
+        ],
+        timeout: 360000, // 6 minutes for minimal config
+        defaultViewport: { width: 800, height: 600 },
+        protocolTimeout: 360000,
+        slowMo: 200, // Even slower for stability
+        pipe: true,
+        ignoreHTTPSErrors: true,
+        dumpio: false
+      };
+    }
+
+    // Full configuration
+    return {
+      headless: true,
+      executablePath: executablePath,
+      args: [
+        // Core stability flags
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-gpu-sandbox',
+        '--disable-software-rasterizer',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--disable-features=TranslateUI,VizDisplayCompositor,BlinkGenPropertyTrees',
+        '--disable-ipc-flooding-protection',
+        '--disable-component-update',
+        '--disable-client-side-phishing-detection',
+        '--disable-sync',
+        '--disable-default-apps',
+        '--disable-extensions',
+        '--disable-component-extensions-with-background-pages',
+        '--disable-background-networking',
+        '--disable-breakpad',
+        '--disable-print-preview',
+        '--disable-permissions-api',
+        '--disable-prompt-on-repost',
+        '--disable-hang-monitor',
+        '--disable-background-mode',
+        '--disable-plugins-discovery',
+        '--disable-translate',
+        '--disable-notifications',
+        
+        // Memory and resource management
+        '--memory-pressure-off',
+        '--max_old_space_size=4096',
+        '--js-flags="--max-old-space-size=4096"',
+        '--aggressive-cache-discard',
+        '--disable-histogram-customizer',
+        '--disable-logging',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor',
+        
+        // Network and stability
+        '--no-zygote',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--no-experiments',
+        '--single-process',
+        '--disable-accelerated-2d-canvas',
+        '--disable-accelerated-jpeg-decoding',
+        '--disable-accelerated-mjpeg-decode',
+        '--disable-accelerated-video-decode',
+        '--disable-accelerated-video-encode',
+        '--disable-gpu-memory-buffer-compositor-resources',
+        '--disable-gpu-memory-buffer-video-frames',
+        '--disable-partial-raster',
+        '--disable-skia-runtime-opts',
+        '--disable-system-font-check',
+        '--disable-threaded-animation',
+        '--disable-threaded-scrolling',
+        '--disable-in-process-stack-traces',
+        '--disable-gl-extensions',
+        '--disable-composited-antialiasing',
+        '--disable-canvas-aa',
+        '--disable-3d-apis',
+        '--disable-app-list-dismiss-on-blur',
+        '--force-color-profile=srgb',
+        '--hide-scrollbars',
+        '--mute-audio',
+        '--shm-size=3gb'
+      ],
+      timeout: 300000, // 5 minutes
+      defaultViewport: { width: 1280, height: 720 },
+      ignoreDefaultArgs: false,
+      handleSIGINT: false,
+      handleSIGTERM: false,
+      handleSIGHUP: false,
+      protocolTimeout: 300000,
+      slowMo: 100,
+      devtools: false,
+      ignoreHTTPSErrors: true,
+      dumpio: false,
+      pipe: true
+    };
   }
 }
 
