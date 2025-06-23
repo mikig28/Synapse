@@ -88,38 +88,59 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
   const calendarEventsLocalStorageKey = "calendarEvents";
 
-  // Function to load events from localStorage
-  const loadEventsFromStorage = () => {
+  // Function to load events from both localStorage and backend API
+  const loadEventsFromStorage = async () => {
     try {
+      // First, try to fetch events from backend API (includes Google Calendar synced events)
+      const response = await axiosInstance.get('/api/calendar-events');
+      const backendEvents = response.data.map((event: any) => ({
+        ...event,
+        startTime: new Date(event.startTime),
+        endTime: new Date(event.endTime),
+      }));
+      
+      // Also load local events from localStorage
       const storedEventsString = localStorage.getItem(calendarEventsLocalStorageKey);
+      let localEvents: CalendarEvent[] = [];
+      
       if (storedEventsString) {
         const parsedEvents = JSON.parse(storedEventsString) as Array<Omit<CalendarEvent, 'startTime' | 'endTime'> & { startTime: string; endTime: string }>;
-        const eventsWithDateObjects: CalendarEvent[] = parsedEvents.map(event => ({
+        localEvents = parsedEvents.map(event => ({
           ...event,
           startTime: new Date(event.startTime),
           endTime: new Date(event.endTime),
         }));
-        setEvents(eventsWithDateObjects);
-      } else {
-        // No events in localStorage, save initialEvents
-        const eventsToStore = initialEvents.map(event => ({
-          ...event,
-          startTime: event.startTime.toISOString(),
-          endTime: event.endTime.toISOString(),
-        }));
-        localStorage.setItem(calendarEventsLocalStorageKey, JSON.stringify(eventsToStore));
-        setEvents(initialEvents); // Set state with the original initialEvents that have Date objects
       }
+      
+      // Combine backend and local events, removing duplicates
+      const allEvents = [...backendEvents, ...localEvents];
+      const uniqueEvents = allEvents.filter((event, index, self) => 
+        index === self.findIndex(e => e.id === event.id)
+      );
+      
+      setEvents(uniqueEvents);
     } catch (error) {
-      console.error("Error handling calendar events from localStorage:", error);
-      // Fallback to initialEvents if any error occurs
-      const eventsToStore = initialEvents.map(event => ({
-        ...event,
-        startTime: event.startTime.toISOString(),
-        endTime: event.endTime.toISOString(),
-      }));
-      localStorage.setItem(calendarEventsLocalStorageKey, JSON.stringify(eventsToStore));
-      setEvents(initialEvents);
+      console.error("Error loading events from backend, falling back to localStorage:", error);
+      
+      // Fallback to localStorage only
+      try {
+        const storedEventsString = localStorage.getItem(calendarEventsLocalStorageKey);
+        if (storedEventsString) {
+          const parsedEvents = JSON.parse(storedEventsString) as Array<Omit<CalendarEvent, 'startTime' | 'endTime'> & { startTime: string; endTime: string }>;
+          const eventsWithDateObjects: CalendarEvent[] = parsedEvents.map(event => ({
+            ...event,
+            startTime: new Date(event.startTime),
+            endTime: new Date(event.endTime),
+          }));
+          setEvents(eventsWithDateObjects);
+        } else {
+          // No events anywhere, use initial events
+          setEvents(initialEvents);
+        }
+      } catch (localError) {
+        console.error("Error handling calendar events from localStorage:", localError);
+        setEvents(initialEvents);
+      }
     }
   };
 
@@ -664,7 +685,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
       }
 
       // Refresh events and sync status
-      loadEventsFromStorage();
+      await loadEventsFromStorage();
       fetchSyncStatus();
     } catch (error: any) {
       console.error('Sync error:', error);
