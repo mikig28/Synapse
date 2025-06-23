@@ -27,7 +27,8 @@ import {
   AlertCircle,
   Search,
   Filter,
-  TrendingUp
+  TrendingUp,
+  CalendarPlus // Added for the new button
 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast"; // Added useToast
 import {
