@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import useAuthStore from '@/store/authStore'; // To get the auth token
 import EditTaskModal from '../components/tasks/EditTaskModal'; // Import the modal using relative path
 import AddTaskModal from '../components/tasks/AddTaskModal'; // Corrected path using relative path
+import AddToCalendarModal from '../components/tasks/AddToCalendarModal';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { SkeletonText, Skeleton } from '@/components/ui/Skeleton';
@@ -54,6 +55,8 @@ const TasksPage: React.FC = () => {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [showEditModal, setShowEditModal] = useState<boolean>(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState<boolean>(false);
+  const [showAddToCalendarModal, setShowAddToCalendarModal] = useState<boolean>(false);
+  const [taskForCalendar, setTaskForCalendar] = useState<Task | null>(null);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -170,6 +173,22 @@ const TasksPage: React.FC = () => {
       console.error("Error creating task:", errMsg);
       toast({ title: "Creation Failed", description: `Error: ${errMsg}`, variant: "destructive" });
     }
+  };
+
+  const handleOpenAddToCalendarModal = (task: Task) => {
+    setTaskForCalendar(task);
+    setShowAddToCalendarModal(true);
+  };
+
+  const handleCloseAddToCalendarModal = () => {
+    setTaskForCalendar(null);
+    setShowAddToCalendarModal(false);
+  };
+
+  const handleEventAddedToCalendar = () => {
+    toast({ title: "Success", description: "Task has been scheduled in the calendar." });
+    // Optionally, refresh tasks or perform other actions if needed.
+    // fetchTasks(); // Example if you want to re-fetch tasks
   };
 
   const filteredTasks = tasks.filter(task => {
@@ -458,11 +477,7 @@ const TasksPage: React.FC = () => {
                     <AnimatedButton
                       size="sm"
                       variant="outline"
-                      onClick={() => {
-                        // Placeholder for Add to Calendar modal - will be implemented next
-                        console.log("Add to calendar clicked for task:", task.title);
-                        toast({ title: "Feature Info", description: "Add to Calendar functionality pending modal implementation." });
-                      }}
+                      onClick={() => handleOpenAddToCalendarModal(task)}
                       className="border-purple-500/50 text-purple-300 hover:bg-purple-500/20 hover:border-purple-500 glow-purple-sm"
                     >
                       <CalendarPlus size={14} className="mr-1" /> Calendar
@@ -525,6 +540,14 @@ const TasksPage: React.FC = () => {
     isOpen={showAddTaskModal}
             onClose={handleCloseAddTaskModal} 
             onSave={handleSaveNewTask} 
+          />
+        )}
+        {showAddToCalendarModal && taskForCalendar && (
+          <AddToCalendarModal
+            isOpen={showAddToCalendarModal}
+            onClose={handleCloseAddToCalendarModal}
+            task={taskForCalendar}
+            onEventAdded={handleEventAddedToCalendar}
           />
         )}
       </motion.div>
