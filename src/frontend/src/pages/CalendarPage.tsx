@@ -837,38 +837,25 @@ export default function CalendarPage() { // Renamed from Home for clarity
                               <div className="opacity-80 text-[10px] mt-1">{`${format(event.startTime, "h:mm")} - ${format(event.endTime, "h:mm")}`}</div>
                               
                               {/* Delete Button */}
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="absolute top-1 right-1 w-6 h-6 p-0 text-white/70 hover:text-white hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    onMouseDown={(e) => e.stopPropagation()}
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <Trash2 size={12} />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent className="bg-slate-900 text-white border-slate-700">
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Delete Event</AlertDialogTitle>
-                                    <AlertDialogDescription className="text-slate-300">
-                                      Are you sure you want to delete "{event.title}"? This action cannot be undone.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-slate-600">
-                                      Cancel
-                                    </AlertDialogCancel>
-                                    <AlertDialogAction
-                                      onClick={() => handleDeleteEvent(event)}
-                                      className="bg-red-600 hover:bg-red-700 text-white"
-                                    >
-                                      Delete
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="absolute top-1 right-1 w-6 h-6 p-0 text-white/70 hover:text-white hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  
+                                  if (window.confirm(`Are you sure you want to delete "${event.title}"? This action cannot be undone.`)) {
+                                    handleDeleteEvent(event);
+                                  }
+                                }}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                }}
+                              >
+                                <Trash2 size={12} />
+                              </Button>
                               
                               {/* Resize Handles */}
                               {!draggedEvent && (
@@ -1060,38 +1047,25 @@ export default function CalendarPage() { // Renamed from Home for clarity
                             <div className="opacity-80 text-[10px] mt-1">{`${format(event.startTime, "h:mm aa")} - ${format(event.endTime, "h:mm aa")}`}</div>
                             
                             {/* Delete Button */}
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="absolute top-1 right-1 w-6 h-6 p-0 text-white/70 hover:text-white hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onMouseDown={(e) => e.stopPropagation()}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <Trash2 size={12} />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent className="bg-slate-900 text-white border-slate-700">
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete Event</AlertDialogTitle>
-                                  <AlertDialogDescription className="text-slate-300">
-                                    Are you sure you want to delete "{event.title}"? This action cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-slate-600">
-                                    Cancel
-                                  </AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleDeleteEvent(event)}
-                                    className="bg-red-600 hover:bg-red-700 text-white"
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="absolute top-1 right-1 w-6 h-6 p-0 text-white/70 hover:text-white hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                
+                                if (window.confirm(`Are you sure you want to delete "${event.title}"? This action cannot be undone.`)) {
+                                  handleDeleteEvent(event);
+                                }
+                              }}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                            >
+                              <Trash2 size={12} />
+                            </Button>
                             
                             {/* Resize Handles */}
                             {!draggedEvent && (
@@ -1244,36 +1218,23 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                 onClick={(e) => { e.stopPropagation(); handleEventClick(event); }}
                               >
                                 <span className="truncate">{event.title}</span>
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <button
-                                      className="absolute top-0 right-0 w-4 h-4 text-white/70 hover:text-white hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-sm"
-                                      onMouseDown={(e) => e.stopPropagation()}
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <Trash2 size={8} />
-                                    </button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent className="bg-slate-900 text-white border-slate-700">
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Delete Event</AlertDialogTitle>
-                                      <AlertDialogDescription className="text-slate-300">
-                                        Are you sure you want to delete "{event.title}"? This action cannot be undone.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-slate-600">
-                                        Cancel
-                                      </AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() => handleDeleteEvent(event)}
-                                        className="bg-red-600 hover:bg-red-700 text-white"
-                                      >
-                                        Delete
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
+                                <button
+                                  className="absolute top-0 right-0 w-4 h-4 text-white/70 hover:text-white hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-sm z-10"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    
+                                    if (window.confirm(`Are you sure you want to delete "${event.title}"? This action cannot be undone.`)) {
+                                      handleDeleteEvent(event);
+                                    }
+                                  }}
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                  }}
+                                >
+                                  <Trash2 size={8} />
+                                </button>
                               </div>
                             ))}
                           {events.filter(event => isSameDay(event.startTime, day)).length > 2 && (
