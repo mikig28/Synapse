@@ -62,7 +62,16 @@ const WhatsAppMessageSchema = new mongoose_1.Schema({
     },
     type: {
         type: String,
-        enum: ['text', 'image', 'document', 'audio', 'video', 'location', 'contact'],
+        enum: [
+            'text', 'image', 'document', 'audio', 'video', 'location', 'contact',
+            'extendedTextMessage', 'senderKeyDistributionMessage', 'conversation',
+            'imageMessage', 'videoMessage', 'audioMessage', 'documentMessage',
+            'stickerMessage', 'reactionMessage', 'groupInviteMessage',
+            'pollCreationMessage', 'pollUpdateMessage', 'liveLocationMessage',
+            'templateMessage', 'buttonsMessage', 'listMessage', 'protocolMessage',
+            'orderMessage', 'paymentMessage', 'viewOnceMessage', 'highlyStructuredMessage',
+            'fastRatchetKeySenderKeyDistributionMessage', 'sendPaymentMessage', 'requestPaymentMessage'
+        ],
         required: true,
         default: 'text'
     },

@@ -166,11 +166,16 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
             }
             if (connection === 'close') {
                 const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== baileys_1.DisconnectReason.loggedOut;
+                const errorMessage = lastDisconnect?.error?.message || 'Unknown reason';
+                const isConflictError = errorMessage.includes('Stream Errored (conflict)');
                 console.log('❌ WhatsApp connection closed due to ', lastDisconnect?.error, ', reconnecting ', shouldReconnect);
+                if (isConflictError) {
+                    console.log('🔄 Detected conflict error - WhatsApp session may be open elsewhere');
+                }
                 this.isClientReady = false;
                 this.isReady = false;
                 this.connectionStatus = 'disconnected';
-                this.emit('status', { ready: false, message: `WhatsApp disconnected: ${lastDisconnect?.error?.message || 'Unknown reason'}` });
+                this.emit('status', { ready: false, message: `WhatsApp disconnected: ${errorMessage}` });
                 if (shouldReconnect && this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
                     this.reconnectAttempts++;
                     const delay = 10000 + (this.reconnectAttempts * 5000);
@@ -392,47 +397,52 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
         // Note: Removing contacts.set handler as it's not available in current Baileys version
     }
     async handleIncomingMessages(messageUpdate) {
-        const { messages } = messageUpdate;
-        for (const message of messages) {
-            if (!message.message || message.key.fromMe)
-                continue; // Skip our own messages
-            try {
-                const messageText = this.extractMessageText(message);
-                if (!messageText)
-                    continue;
-                const chatId = message.key.remoteJid;
-                const isGroup = chatId?.endsWith('@g.us') || false;
-                // Create message object
-                const whatsappMessage = {
-                    id: message.key.id || '',
-                    body: messageText,
-                    from: message.key.participant || message.key.remoteJid || '',
-                    fromMe: false,
-                    timestamp: message.messageTimestamp || Date.now(),
-                    type: Object.keys(message.message)[0] || 'text',
-                    isGroup,
-                    groupName: isGroup ? await this.getGroupName(chatId) : undefined,
-                    contactName: await this.getContactName(message.key.participant || message.key.remoteJid),
-                    chatId: chatId || '',
-                    time: new Date().toLocaleTimeString(),
-                    isMedia: this.isMediaMessage(message.message)
-                };
-                this.messages.unshift(whatsappMessage);
-                if (this.messages.length > 1000) {
-                    this.messages = this.messages.slice(0, 1000); // Keep last 1000 messages
+        try {
+            const { messages } = messageUpdate;
+            for (const message of messages) {
+                if (!message.message || message.key.fromMe)
+                    continue; // Skip our own messages
+                try {
+                    const messageText = this.extractMessageText(message);
+                    if (!messageText)
+                        continue;
+                    const chatId = message.key.remoteJid;
+                    const isGroup = chatId?.endsWith('@g.us') || false;
+                    // Create message object
+                    const whatsappMessage = {
+                        id: message.key.id || '',
+                        body: messageText,
+                        from: message.key.participant || message.key.remoteJid || '',
+                        fromMe: false,
+                        timestamp: message.messageTimestamp || Date.now(),
+                        type: Object.keys(message.message)[0] || 'text',
+                        isGroup,
+                        groupName: isGroup ? await this.getGroupName(chatId) : undefined,
+                        contactName: await this.getContactName(message.key.participant || message.key.remoteJid),
+                        chatId: chatId || '',
+                        time: new Date().toLocaleTimeString(),
+                        isMedia: this.isMediaMessage(message.message)
+                    };
+                    this.messages.unshift(whatsappMessage);
+                    if (this.messages.length > 1000) {
+                        this.messages = this.messages.slice(0, 1000); // Keep last 1000 messages
+                    }
+                    // Check for monitored keywords
+                    const hasKeyword = this.monitoredKeywords.some(keyword => messageText.toLowerCase().includes(keyword.toLowerCase()));
+                    if (hasKeyword) {
+                        console.log(`🎯 Monitored keyword found in message: ${messageText.substring(0, 50)}...`);
+                    }
+                    console.log(`📨 New WhatsApp message from ${whatsappMessage.contactName}: ${messageText.substring(0, 100)}...`);
+                    // Emit new message event
+                    this.emit('newMessage', whatsappMessage);
                 }
-                // Check for monitored keywords
-                const hasKeyword = this.monitoredKeywords.some(keyword => messageText.toLowerCase().includes(keyword.toLowerCase()));
-                if (hasKeyword) {
-                    console.log(`🎯 Monitored keyword found in message: ${messageText.substring(0, 50)}...`);
+                catch (error) {
+                    console.error('❌ Error processing individual WhatsApp message:', error.message);
                 }
-                console.log(`📨 New WhatsApp message from ${whatsappMessage.contactName}: ${messageText.substring(0, 100)}...`);
-                // Emit new message event
-                this.emit('newMessage', whatsappMessage);
             }
-            catch (error) {
-                console.error('❌ Error processing WhatsApp message:', error.message);
-            }
+        }
+        catch (error) {
+            console.error('❌ Error in handleIncomingMessages batch:', error.message);
         }
     }
     extractMessageText(message) {

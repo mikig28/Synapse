@@ -33,6 +33,7 @@ const media_1 = __importDefault(require("./api/routes/media")); // Import media 
 const agentsRoutes_1 = __importDefault(require("./api/routes/agentsRoutes")); // Import agents routes
 const newsRoutes_1 = __importDefault(require("./api/routes/newsRoutes")); // Import news routes
 const ttsRoutes_1 = __importDefault(require("./api/routes/ttsRoutes")); // Import text-to-speech routes
+const calendarEventsRoutes_1 = __importDefault(require("./api/routes/calendarEventsRoutes")); // Import calendar event routes
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const rawPort = process.env.PORT || '3001'; // Read as string
@@ -174,13 +175,55 @@ app.use('/api/v1/users', userRoutes_1.default); // <-- USE USER ROUTES
 app.use('/api/v1/agents', agentsRoutes_1.default); // Use agents routes
 app.use('/api/v1/news', newsRoutes_1.default); // Use news routes
 app.use('/api/v1/tts', ttsRoutes_1.default); // Use TTS proxy route
+app.use('/api/v1/calendar-events', calendarEventsRoutes_1.default); // Use calendar event routes
 // Health check endpoint for Render
 app.get('/health', (req, res) => {
-    res.status(200).json({
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime()
-    });
+    try {
+        const readyState = mongoose_1.default.connection.readyState;
+        let dbStatus = 'Unknown';
+        let isHealthy = true;
+        // Check database connection status
+        switch (readyState) {
+            case 0:
+                dbStatus = 'Disconnected';
+                isHealthy = false;
+                break;
+            case 1:
+                dbStatus = 'Connected';
+                break;
+            case 2:
+                dbStatus = 'Connecting';
+                break;
+            case 3:
+                dbStatus = 'Disconnecting';
+                isHealthy = false;
+                break;
+            default:
+                dbStatus = `Unknown state: ${readyState}`;
+                isHealthy = false;
+        }
+        const healthStatus = {
+            status: isHealthy ? 'healthy' : 'degraded',
+            timestamp: new Date().toISOString(),
+            uptime: process.uptime(),
+            database: {
+                status: dbStatus,
+                readyState: readyState
+            },
+            memory: process.memoryUsage(),
+            version: process.version
+        };
+        // Return 200 even if degraded to prevent restart loops
+        res.status(200).json(healthStatus);
+    }
+    catch (error) {
+        // Even if health check fails, return 200 to prevent restart
+        res.status(200).json({
+            status: 'error',
+            timestamp: new Date().toISOString(),
+            error: error.message
+        });
+    }
 });
 // Basic route for testing
 app.get('/', (req, res) => {
@@ -218,6 +261,24 @@ io.on('connection', (socket) => {
     });
     // You can add more event listeners for this socket here
     // e.g., socket.on('join_room', (room) => { socket.join(room); });
+});
+// Global error handlers to prevent server crashes
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    // Don't exit the process, just log the error
+});
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    // Don't exit the process for WhatsApp-related errors
+    if (error.message && (error.message.includes('WhatsApp') ||
+        error.message.includes('baileys') ||
+        error.message.includes('Connection Closed') ||
+        error.message.includes('Stream Errored'))) {
+        console.log('📱 WhatsApp-related error caught, continuing server operation...');
+        return;
+    }
+    // For other critical errors, exit gracefully
+    process.exit(1);
 });
 const startServer = async () => {
     try {

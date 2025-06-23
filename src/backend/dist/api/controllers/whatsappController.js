@@ -46,6 +46,56 @@ const initializeWhatsAppService = () => {
     });
     serviceInitialized = true;
 };
+// Function to normalize Baileys message types to our schema-supported types
+function normalizeMessageType(messageType) {
+    const typeMapping = {
+        'conversation': 'text',
+        'extendedTextMessage': 'text',
+        'imageMessage': 'image',
+        'videoMessage': 'video',
+        'audioMessage': 'audio',
+        'documentMessage': 'document',
+        'stickerMessage': 'image',
+        'reactionMessage': 'text',
+        'groupInviteMessage': 'text',
+        'pollCreationMessage': 'text',
+        'pollUpdateMessage': 'text',
+        'liveLocationMessage': 'location',
+        'templateMessage': 'text',
+        'buttonsMessage': 'text',
+        'listMessage': 'text',
+        'protocolMessage': 'text',
+        'orderMessage': 'text',
+        'paymentMessage': 'text',
+        'viewOnceMessage': 'text',
+        'highlyStructuredMessage': 'text',
+        'senderKeyDistributionMessage': 'text',
+        'fastRatchetKeySenderKeyDistributionMessage': 'text',
+        'sendPaymentMessage': 'text',
+        'requestPaymentMessage': 'text'
+    };
+    // If we have a mapping, use the normalized type, otherwise keep the original
+    const allowedTypes = [
+        'text', 'image', 'document', 'audio', 'video', 'location', 'contact',
+        'extendedTextMessage', 'senderKeyDistributionMessage', 'conversation',
+        'imageMessage', 'videoMessage', 'audioMessage', 'documentMessage',
+        'stickerMessage', 'reactionMessage', 'groupInviteMessage',
+        'pollCreationMessage', 'pollUpdateMessage', 'liveLocationMessage',
+        'templateMessage', 'buttonsMessage', 'listMessage', 'protocolMessage',
+        'orderMessage', 'paymentMessage', 'viewOnceMessage', 'highlyStructuredMessage',
+        'fastRatchetKeySenderKeyDistributionMessage', 'sendPaymentMessage', 'requestPaymentMessage'
+    ];
+    // If the type is already in our allowed list, return it as-is
+    if (allowedTypes.includes(messageType)) {
+        return messageType;
+    }
+    // If we have a mapping, use it
+    if (typeMapping[messageType]) {
+        return typeMapping[messageType];
+    }
+    // Default fallback for unknown types
+    return 'text';
+}
 const handleWhatsAppWebhook = async (req, res) => {
     console.log("[WhatsApp Webhook] Received webhook from WhatsApp Web.js service:");
     console.log("[WhatsApp Webhook] Body:", JSON.stringify(req.body, null, 2));
@@ -100,6 +150,8 @@ async function processWhatsAppWebMessage(messageData) {
             await contact.save();
             console.log(`[WhatsApp] Updated existing contact: ${contact.name}`);
         }
+        // Normalize message type for database storage
+        const normalizedType = normalizeMessageType(messageData.type);
         // Save the message
         const whatsappMessage = new WhatsAppMessage_1.default({
             messageId: messageData.id,
@@ -107,14 +159,15 @@ async function processWhatsAppWebMessage(messageData) {
             to: 'business', // Our business number
             message: messageData.body || '',
             timestamp: new Date(messageData.timestamp * 1000),
-            type: messageData.type,
+            type: normalizedType,
             status: 'received',
             isIncoming: true,
             contactId: contact._id,
             metadata: {
                 isGroup: messageData.isGroup,
                 groupName: messageData.groupName,
-                contactName: messageData.contactName
+                contactName: messageData.contactName,
+                originalType: messageData.type // Store original type for debugging
             }
         });
         await whatsappMessage.save();

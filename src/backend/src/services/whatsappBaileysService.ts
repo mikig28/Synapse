@@ -224,12 +224,19 @@ class WhatsAppBaileysService extends EventEmitter {
       
       if (connection === 'close') {
         const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+        const errorMessage = lastDisconnect?.error?.message || 'Unknown reason';
+        const isConflictError = errorMessage.includes('Stream Errored (conflict)');
+        
         console.log('❌ WhatsApp connection closed due to ', lastDisconnect?.error, ', reconnecting ', shouldReconnect);
+        
+        if (isConflictError) {
+          console.log('🔄 Detected conflict error - WhatsApp session may be open elsewhere');
+        }
         
         this.isClientReady = false;
         this.isReady = false;
         this.connectionStatus = 'disconnected';
-        this.emit('status', { ready: false, message: `WhatsApp disconnected: ${lastDisconnect?.error?.message || 'Unknown reason'}` });
+        this.emit('status', { ready: false, message: `WhatsApp disconnected: ${errorMessage}` });
         
         if (shouldReconnect && this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
           this.reconnectAttempts++;
@@ -469,14 +476,15 @@ class WhatsAppBaileysService extends EventEmitter {
   }
 
   private async handleIncomingMessages(messageUpdate: { messages: any[]; type: MessageUpsertType }): Promise<void> {
-    const { messages } = messageUpdate;
-    
-    for (const message of messages) {
-      if (!message.message || message.key.fromMe) continue; // Skip our own messages
+    try {
+      const { messages } = messageUpdate;
       
-      try {
-        const messageText = this.extractMessageText(message);
-        if (!messageText) continue;
+      for (const message of messages) {
+        if (!message.message || message.key.fromMe) continue; // Skip our own messages
+        
+        try {
+          const messageText = this.extractMessageText(message);
+          if (!messageText) continue;
         
         const chatId = message.key.remoteJid;
         const isGroup = chatId?.endsWith('@g.us') || false;
@@ -513,12 +521,15 @@ class WhatsAppBaileysService extends EventEmitter {
         
         console.log(`📨 New WhatsApp message from ${whatsappMessage.contactName}: ${messageText.substring(0, 100)}...`);
         
-        // Emit new message event
-        this.emit('newMessage', whatsappMessage);
-        
-      } catch (error) {
-        console.error('❌ Error processing WhatsApp message:', (error as Error).message);
+          // Emit new message event
+          this.emit('newMessage', whatsappMessage);
+          
+        } catch (error) {
+          console.error('❌ Error processing individual WhatsApp message:', (error as Error).message);
+        }
       }
+    } catch (error) {
+      console.error('❌ Error in handleIncomingMessages batch:', (error as Error).message);
     }
   }
 

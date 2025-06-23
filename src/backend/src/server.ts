@@ -183,11 +183,42 @@ app.use('/api/v1/calendar-events', calendarEventsRoutes); // Use calendar event 
 
 // Health check endpoint for Render
 app.get('/health', (req: Request, res: Response) => {
-  res.status(200).json({ 
-    status: 'healthy', 
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  });
+  try {
+    const readyState = mongoose.connection.readyState;
+    let dbStatus = 'Unknown';
+    let isHealthy = true;
+    
+    // Check database connection status
+    switch (readyState) {
+      case 0: dbStatus = 'Disconnected'; isHealthy = false; break;
+      case 1: dbStatus = 'Connected'; break;
+      case 2: dbStatus = 'Connecting'; break;
+      case 3: dbStatus = 'Disconnecting'; isHealthy = false; break;
+      default: dbStatus = `Unknown state: ${readyState}`; isHealthy = false;
+    }
+    
+    const healthStatus = {
+      status: isHealthy ? 'healthy' : 'degraded',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      database: {
+        status: dbStatus,
+        readyState: readyState
+      },
+      memory: process.memoryUsage(),
+      version: process.version
+    };
+    
+    // Return 200 even if degraded to prevent restart loops
+    res.status(200).json(healthStatus);
+  } catch (error) {
+    // Even if health check fails, return 200 to prevent restart
+    res.status(200).json({
+      status: 'error',
+      timestamp: new Date().toISOString(),
+      error: (error as Error).message
+    });
+  }
 });
 
 // Basic route for testing
@@ -222,6 +253,28 @@ io.on('connection', (socket) => {
 
   // You can add more event listeners for this socket here
   // e.g., socket.on('join_room', (room) => { socket.join(room); });
+});
+
+// Global error handlers to prevent server crashes
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit the process, just log the error
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  // Don't exit the process for WhatsApp-related errors
+  if (error.message && (
+    error.message.includes('WhatsApp') || 
+    error.message.includes('baileys') ||
+    error.message.includes('Connection Closed') ||
+    error.message.includes('Stream Errored')
+  )) {
+    console.log('📱 WhatsApp-related error caught, continuing server operation...');
+    return;
+  }
+  // For other critical errors, exit gracefully
+  process.exit(1);
 });
 
 const startServer = async () => {

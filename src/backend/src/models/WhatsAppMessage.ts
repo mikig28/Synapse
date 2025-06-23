@@ -6,7 +6,7 @@ export interface IWhatsAppMessage extends Document {
   to: string;
   message: string;
   timestamp: Date;
-  type: 'text' | 'image' | 'document' | 'audio' | 'video' | 'location' | 'contact';
+  type: 'text' | 'image' | 'document' | 'audio' | 'video' | 'location' | 'contact' | 'extendedTextMessage' | 'senderKeyDistributionMessage' | 'conversation' | 'imageMessage' | 'videoMessage' | 'audioMessage' | 'documentMessage' | 'stickerMessage' | 'reactionMessage' | 'groupInviteMessage' | 'pollCreationMessage' | 'pollUpdateMessage' | 'liveLocationMessage' | 'templateMessage' | 'buttonsMessage' | 'listMessage' | 'protocolMessage' | 'orderMessage' | 'paymentMessage' | 'viewOnceMessage' | 'highlyStructuredMessage' | 'fastRatchetKeySenderKeyDistributionMessage' | 'sendPaymentMessage' | 'requestPaymentMessage';
   status: 'sent' | 'delivered' | 'read' | 'failed' | 'received';
   isIncoming: boolean;
   contactId: mongoose.Types.ObjectId;
@@ -69,7 +69,16 @@ const WhatsAppMessageSchema: Schema<IWhatsAppMessage> = new Schema(
     },
     type: {
       type: String,
-      enum: ['text', 'image', 'document', 'audio', 'video', 'location', 'contact'],
+      enum: [
+        'text', 'image', 'document', 'audio', 'video', 'location', 'contact',
+        'extendedTextMessage', 'senderKeyDistributionMessage', 'conversation',
+        'imageMessage', 'videoMessage', 'audioMessage', 'documentMessage',
+        'stickerMessage', 'reactionMessage', 'groupInviteMessage',
+        'pollCreationMessage', 'pollUpdateMessage', 'liveLocationMessage',
+        'templateMessage', 'buttonsMessage', 'listMessage', 'protocolMessage',
+        'orderMessage', 'paymentMessage', 'viewOnceMessage', 'highlyStructuredMessage',
+        'fastRatchetKeySenderKeyDistributionMessage', 'sendPaymentMessage', 'requestPaymentMessage'
+      ],
       required: true,
       default: 'text'
     },
