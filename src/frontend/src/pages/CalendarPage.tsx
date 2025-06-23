@@ -843,9 +843,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                     size="sm"
                                     variant="ghost"
                                     className="absolute top-1 right-1 w-6 h-6 p-0 text-white/70 hover:text-white hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    onClick={(e) => {
-                                      e.stopPropagation(); // Prevent event click handler
-                                    }}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    onClick={(e) => e.stopPropagation()}
                                   >
                                     <Trash2 size={12} />
                                   </Button>
@@ -1067,9 +1066,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                   size="sm"
                                   variant="ghost"
                                   className="absolute top-1 right-1 w-6 h-6 p-0 text-white/70 hover:text-white hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={(e) => {
-                                    e.stopPropagation(); // Prevent event click handler
-                                  }}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  onClick={(e) => e.stopPropagation()}
                                 >
                                   <Trash2 size={12} />
                                 </Button>
@@ -1250,9 +1248,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                   <AlertDialogTrigger asChild>
                                     <button
                                       className="absolute top-0 right-0 w-4 h-4 text-white/70 hover:text-white hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-sm"
-                                      onClick={(e) => {
-                                        e.stopPropagation(); // Prevent event click handler
-                                      }}
+                                      onMouseDown={(e) => e.stopPropagation()}
+                                      onClick={(e) => e.stopPropagation()}
                                     >
                                       <Trash2 size={8} />
                                     </button>
