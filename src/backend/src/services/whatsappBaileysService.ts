@@ -674,13 +674,17 @@ class WhatsAppBaileysService extends EventEmitter {
     try {
       // Check if we have contact info in our store
       const contactInfo = await this.socket.onWhatsApp(jid);
-      if (contactInfo && contactInfo.length > 0 && contactInfo[0].notify) {
-        return contactInfo[0].notify;
+      if (contactInfo && contactInfo.length > 0) {
+        const contact = contactInfo[0] as any;
+        if (contact.notify) {
+          return contact.notify;
+        }
       }
       
-      // Try to get contact from store
-      if (this.socket.authState?.creds?.contacts?.[jid]) {
-        const contact = this.socket.authState.creds.contacts[jid];
+      // Try to get contact from auth state store
+      const authState = this.socket.authState as any;
+      if (authState?.creds?.contacts?.[jid]) {
+        const contact = authState.creds.contacts[jid];
         if (contact.notify || contact.name) {
           return contact.notify || contact.name || contact.vname || 'Unknown';
         }

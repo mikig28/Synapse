@@ -580,8 +580,10 @@ exports.getWhatsAppPrivateChats = getWhatsAppPrivateChats;
 const getWhatsAppMessages = async (req, res) => {
     try {
         const whatsappService = getWhatsAppService();
-        const { limit = 50, groupId } = req.query;
-        const messages = whatsappService.getMessages(Number(limit), groupId);
+        const { limit = 50, groupId, chatId } = req.query;
+        // Support both groupId (legacy) and chatId (new) parameters
+        const targetChatId = chatId || groupId;
+        const messages = whatsappService.getMessages(Number(limit), targetChatId);
         res.json({
             success: true,
             data: messages

@@ -351,6 +351,10 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
                             isMedia: this.isMediaMessage(message.message)
                         };
                         this.messages.unshift(whatsappMessage);
+                        // If this is a private chat, ensure we add it to our private chats list
+                        if (!isGroup && chatId) {
+                            await this.ensurePrivateChatExists(chatId, whatsappMessage.contactName, whatsappMessage.body, whatsappMessage.timestamp);
+                        }
                     }
                     catch (msgError) {
                         console.log('⚠️ Error processing historical message:', msgError.message);
@@ -383,20 +387,20 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
             }
         });
         // Chats handler
-        this.socket.ev.on('chats.upsert', (chats) => {
+        this.socket.ev.on('chats.upsert', async (chats) => {
             try {
                 console.log(`📝 Received ${chats.length} chat updates`);
-                this.processChatUpdates(chats);
+                await this.processChatUpdates(chats);
             }
             catch (error) {
                 console.error('❌ Error processing chat updates:', error.message);
             }
         });
         // Add comprehensive chat event handlers
-        this.socket.ev.on('chats.update', (chats) => {
+        this.socket.ev.on('chats.update', async (chats) => {
             try {
                 console.log(`🔄 Received ${chats.length} chat update events`);
-                this.processChatUpdates(chats);
+                await this.processChatUpdates(chats);
             }
             catch (error) {
                 console.error('❌ Error processing chat update events:', error.message);
@@ -482,6 +486,10 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
                         console.log(`🎯 Monitored keyword found in message: ${messageText.substring(0, 50)}...`);
                     }
                     console.log(`📨 New WhatsApp message from ${whatsappMessage.contactName}: ${messageText.substring(0, 100)}...`);
+                    // If this is a private chat, ensure we add it to our private chats list
+                    if (!isGroup && chatId) {
+                        await this.ensurePrivateChatExists(chatId, whatsappMessage.contactName, messageText, whatsappMessage.timestamp);
+                    }
                     // Emit new message event
                     this.emit('newMessage', whatsappMessage);
                 }
@@ -556,14 +564,36 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
         if (!jid || !this.socket)
             return 'Unknown';
         try {
-            // Try to get contact info from store or use jid
-            // Baileys doesn't have notify field, just use the jid
-            return jid.split('@')[0] || 'Unknown';
+            // Check if we have contact info in our store
+            const contactInfo = await this.socket.onWhatsApp(jid);
+            if (contactInfo && contactInfo.length > 0) {
+                const contact = contactInfo[0];
+                if (contact.notify) {
+                    return contact.notify;
+                }
+            }
+            // Try to get contact from auth state store
+            const authState = this.socket.authState;
+            if (authState?.creds?.contacts?.[jid]) {
+                const contact = authState.creds.contacts[jid];
+                if (contact.notify || contact.name) {
+                    return contact.notify || contact.name || contact.vname || 'Unknown';
+                }
+            }
+            // Try to extract name from previous messages
+            const existingContact = this.privateChats.find(chat => chat.id === jid);
+            if (existingContact && existingContact.name && existingContact.name !== 'Unknown Contact') {
+                return existingContact.name;
+            }
+            // Fallback to formatted phone number
+            const phoneNumber = jid.split('@')[0];
+            return phoneNumber || 'Unknown';
         }
         catch (error) {
             // Ignore errors, fallback to phone number
+            const phoneNumber = jid.split('@')[0];
+            return phoneNumber || 'Unknown';
         }
-        return jid.split('@')[0] || 'Unknown';
     }
     async getGroupName(jid) {
         if (!jid || !this.socket)
@@ -588,12 +618,48 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
             return `Group ${jidParts.substring(0, 8)}...`;
         }
     }
-    processChatUpdates(chats) {
+    async ensurePrivateChatExists(chatId, contactName, lastMessage, timestamp) {
+        try {
+            const existingIndex = this.privateChats.findIndex(c => c.id === chatId);
+            const chatInfo = {
+                id: chatId,
+                name: contactName && contactName !== 'Unknown' ? contactName : await this.getContactName(chatId),
+                lastMessage: lastMessage || '',
+                timestamp: timestamp || Date.now(),
+                isGroup: false
+            };
+            if (existingIndex >= 0) {
+                // Update existing chat with latest message
+                this.privateChats[existingIndex] = {
+                    ...this.privateChats[existingIndex],
+                    lastMessage: lastMessage || this.privateChats[existingIndex].lastMessage,
+                    timestamp: timestamp || this.privateChats[existingIndex].timestamp,
+                    name: chatInfo.name // Update name in case we got a better one
+                };
+            }
+            else {
+                // Add new private chat
+                this.privateChats.push(chatInfo);
+                console.log(`👤 Discovered private chat: "${chatInfo.name}" (${chatId})`);
+            }
+            this.emitChatsUpdate();
+            this.saveChatData();
+        }
+        catch (error) {
+            console.error('❌ Error ensuring private chat exists:', error.message);
+        }
+    }
+    async processChatUpdates(chats) {
         for (const chat of chats) {
             const isGroup = chat.id.endsWith('@g.us');
+            // Get better name for private chats
+            let chatName = chat.name;
+            if (!isGroup && (!chatName || chatName === 'Unknown Contact')) {
+                chatName = await this.getContactName(chat.id);
+            }
             const chatInfo = {
                 id: chat.id,
-                name: chat.name || (isGroup ? 'Unknown Group' : 'Unknown Contact'),
+                name: chatName || (isGroup ? 'Unknown Group' : 'Unknown Contact'),
                 lastMessage: chat.lastMessage?.message || '',
                 timestamp: chat.lastMessage?.messageTimestamp || Date.now(),
                 isGroup,
@@ -607,6 +673,7 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
                 }
                 else {
                     this.groups.push(chatInfo);
+                    console.log(`👥 Added group: "${chatInfo.name}" (${chatInfo.participantCount} members)`);
                 }
             }
             else {
@@ -616,6 +683,7 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
                 }
                 else {
                     this.privateChats.push(chatInfo);
+                    console.log(`👤 Added private chat: "${chatInfo.name}" (${chat.id})`);
                 }
             }
         }
@@ -630,6 +698,13 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
         });
         if (this.groups.length > 3) {
             console.log(`     ... and ${this.groups.length - 3} more groups`);
+        }
+        console.log(`   Private Chats (${this.privateChats.length}):`);
+        this.privateChats.slice(0, 3).forEach((chat, index) => {
+            console.log(`     ${index + 1}. "${chat.name}" - ${chat.id}`);
+        });
+        if (this.privateChats.length > 3) {
+            console.log(`     ... and ${this.privateChats.length - 3} more private chats`);
         }
         // Emit chats updated event
         this.emit('chats_updated', {
@@ -779,10 +854,10 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
     getPrivateChats() {
         return this.privateChats;
     }
-    getMessages(limit = 50, groupId) {
+    getMessages(limit = 50, chatId) {
         let filteredMessages = this.messages;
-        if (groupId) {
-            filteredMessages = this.messages.filter(msg => msg.chatId === groupId);
+        if (chatId) {
+            filteredMessages = this.messages.filter(msg => msg.chatId === chatId);
         }
         return filteredMessages.slice(0, limit);
     }
@@ -894,36 +969,74 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
             throw new Error('WhatsApp client is not ready');
         }
         try {
-            console.log('🔄 Forcing history sync...');
-            // Request chat history explicitly
-            await this.socket.query({
-                tag: 'iq',
-                attrs: {
-                    to: '@s.whatsapp.net',
-                    type: 'get',
-                    xmlns: 'w:sync:app:state',
-                    id: this.socket.generateMessageTag()
-                },
-                content: [
-                    {
-                        tag: 'sync',
-                        attrs: {},
-                        content: [
-                            {
-                                tag: 'collection',
-                                attrs: {
-                                    name: 'regular_high',
-                                    version: '1'
-                                }
-                            }
-                        ]
-                    }
-                ]
-            });
-            console.log('✅ History sync request sent');
+            console.log('🔄 Forcing comprehensive history sync to discover all chats...');
+            // Force sync by requesting messaging history
+            await this.socket.sendPresenceUpdate('available');
+            // Try to request chat list explicitly
+            try {
+                console.log('📡 Requesting chat list...');
+                await this.socket.query({
+                    tag: 'iq',
+                    attrs: {
+                        to: '@s.whatsapp.net',
+                        type: 'get',
+                        xmlns: 'w:chat',
+                        id: this.socket.generateMessageTag()
+                    },
+                    content: [{ tag: 'query', attrs: {} }]
+                });
+            }
+            catch (queryError) {
+                console.log('⚠️ Chat list query failed, continuing with other methods');
+            }
+            // Try to query for groups specifically
+            try {
+                console.log('👥 Requesting group list...');
+                await this.socket.query({
+                    tag: 'iq',
+                    attrs: {
+                        to: '@g.us',
+                        type: 'get',
+                        xmlns: 'w:g2',
+                        id: this.socket.generateMessageTag()
+                    },
+                    content: [
+                        {
+                            tag: 'participating',
+                            attrs: {}
+                        }
+                    ]
+                });
+            }
+            catch (groupQueryError) {
+                console.log('⚠️ Group query failed, continuing with other methods');
+            }
+            // Extract private chats from existing messages
+            console.log('🔍 Analyzing existing messages for private chats...');
+            const uniquePrivateChats = new Set();
+            for (const message of this.messages) {
+                if (!message.isGroup && message.chatId && !message.chatId.endsWith('@g.us')) {
+                    uniquePrivateChats.add(message.chatId);
+                }
+            }
+            console.log(`📊 Found ${uniquePrivateChats.size} unique private chats in message history`);
+            // Ensure all discovered private chats are in our list
+            for (const chatId of uniquePrivateChats) {
+                const existingChat = this.privateChats.find(c => c.id === chatId);
+                if (!existingChat) {
+                    const contactName = await this.getContactName(chatId);
+                    await this.ensurePrivateChatExists(chatId, contactName);
+                }
+            }
+            // Wait for any pending events
+            await new Promise(resolve => setTimeout(resolve, 8000));
+            this.emitChatsUpdate();
+            this.saveChatData();
+            console.log(`✅ History sync completed: ${this.groups.length} groups, ${this.privateChats.length} private chats discovered`);
         }
         catch (error) {
-            console.log('⚠️ History sync failed:', error.message);
+            console.error('❌ Error during force history sync:', error.message);
+            throw error;
         }
     }
 }
