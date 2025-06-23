@@ -12,6 +12,8 @@ import AddNoteModal from '@/components/notes/AddNoteModal';
 import useAuthStore from '@/store/authStore';
 import { BACKEND_ROOT_URL } from "@/services/axiosConfig";
 import { AnimatedDashboardCard, DashboardGrid } from '@/components/animations/AnimatedDashboardCard';
+import UpcomingEvents from '@/components/Dashboard/UpcomingEvents';
+import RecentVideo from '@/components/Dashboard/RecentVideo';
 
 const API_BASE_URL = `${BACKEND_ROOT_URL}/api/v1`;
 
@@ -334,6 +336,16 @@ const DashboardPage: React.FC = () => {
               </div>
             </GlassCard>
           ) : null}
+        </motion.div>
+
+        {/* Upcoming Tasks & Recent Video */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+        >
+          <UpcomingEvents />
+          <RecentVideo />
         </motion.div>
 
         {/* Welcome Section */}
