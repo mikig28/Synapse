@@ -17,9 +17,14 @@ import {
   Sparkles, // For AI popup (currently disabled)
   X, // For AI popup & selected event modal (currently disabled for AI popup)
   Trash2, // For delete button
+  RefreshCw, // For sync button
+  CheckCircle, // For sync status
+  AlertCircle, // For sync errors
 } from "lucide-react"
 import axiosInstance from '@/services/axiosConfig';
 import { useToast } from "@/hooks/use-toast";
+import googleCalendarService from '@/services/googleCalendarService';
+import { useGoogleLogin } from '@react-oauth/google';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -159,6 +164,18 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
   // State for resizing events
   const [resizingEvent, setResizingEvent] = useState<{ event: CalendarEvent; handle: 'top' | 'bottom'; initialY: number; originalStartTime: Date; originalEndTime: Date; } | null>(null);
+
+  // Google Calendar sync state
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<{
+    totalEvents: number;
+    syncedEvents: number;
+    pendingEvents: number;
+    errorEvents: number;
+    localOnlyEvents: number;
+    lastSyncAt?: string;
+  } | null>(null);
+  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
 
   // Initial events data - this will be moved into state
   const initialEvents: CalendarEvent[] = [
@@ -593,6 +610,101 @@ export default function CalendarPage() { // Renamed from Home for clarity
     return format(currentDisplayDate, "MMMM d, yyyy"); // Default
   }
 
+  // Google Calendar sync functions
+  const fetchSyncStatus = async () => {
+    try {
+      const status = await googleCalendarService.getSyncStatus();
+      setSyncStatus(status);
+    } catch (error) {
+      console.error('Error fetching sync status:', error);
+    }
+  };
+
+  const handleGoogleLogin = useGoogleLogin({
+    scope: 'https://www.googleapis.com/auth/calendar.events',
+    onSuccess: (tokenResponse) => {
+      setGoogleAccessToken(tokenResponse.access_token);
+      toast({
+        title: "Google Calendar Connected",
+        description: "You can now sync your calendar with Google Calendar.",
+      });
+    },
+    onError: (error) => {
+      console.error('Google login error:', error);
+      toast({
+        title: "Connection Failed",
+        description: "Failed to connect to Google Calendar. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSyncWithGoogle = async () => {
+    if (!googleAccessToken) {
+      handleGoogleLogin();
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const result = await googleCalendarService.syncWithGoogle(googleAccessToken);
+      
+      toast({
+        title: "Sync Completed",
+        description: `Imported ${result.eventsImported} events, exported ${result.eventsExported} events.`,
+      });
+
+      if (result.errors.length > 0) {
+        console.warn('Sync completed with errors:', result.errors);
+        toast({
+          title: "Sync Completed with Warnings",
+          description: `Some events had issues: ${result.errors.length} errors occurred.`,
+          variant: "destructive",
+        });
+      }
+
+      // Refresh events and sync status
+      loadEventsFromStorage();
+      fetchSyncStatus();
+    } catch (error: any) {
+      console.error('Sync error:', error);
+      toast({
+        title: "Sync Failed",
+        description: error.message || "Failed to sync with Google Calendar.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const getSyncStatusIcon = () => {
+    if (!syncStatus) return <RefreshCw className="h-4 w-4" />;
+    
+    if (syncStatus.errorEvents > 0) {
+      return <AlertCircle className="h-4 w-4 text-red-400" />;
+    }
+    
+    if (syncStatus.syncedEvents === syncStatus.totalEvents && syncStatus.totalEvents > 0) {
+      return <CheckCircle className="h-4 w-4 text-green-400" />;
+    }
+    
+    return <RefreshCw className="h-4 w-4 text-blue-400" />;
+  };
+
+  const getSyncStatusText = () => {
+    if (!syncStatus) return "Sync with Google";
+    
+    if (syncStatus.totalEvents === 0) return "No events to sync";
+    
+    return `${syncStatus.syncedEvents}/${syncStatus.totalEvents} synced`;
+  };
+
+  // Load sync status on component mount
+  useEffect(() => {
+    fetchSyncStatus();
+  }, []);
+
   return (
     <div className="relative min-h-screen w-full overflow-hidden"> {/* Removed temp bg-red-500 */}
       {/* Background Image - Restored */}
@@ -719,6 +831,25 @@ export default function CalendarPage() { // Renamed from Home for clarity
                 </button>
               </div>
               <h2 className="text-xl font-semibold text-white">{formatHeaderDate()}</h2>
+              
+              {/* Google Calendar Sync Button */}
+              <button
+                onClick={handleSyncWithGoogle}
+                disabled={isSyncing}
+                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+                  isSyncing 
+                    ? 'bg-white/5 text-white/50 cursor-not-allowed' 
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                }`}
+                title={getSyncStatusText()}
+              >
+                <div className={`${isSyncing ? 'animate-spin' : ''}`}>
+                  {getSyncStatusIcon()}
+                </div>
+                <span className="hidden sm:inline">
+                  {isSyncing ? 'Syncing...' : 'Sync Google'}
+                </span>
+              </button>
             </div>
             <div className="flex items-center gap-2 rounded-md p-1">
               <button

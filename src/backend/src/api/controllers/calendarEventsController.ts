@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import CalendarEvent, { ICalendarEvent } from '../../models/CalendarEvent';
+import GoogleCalendarService from '../../services/googleCalendarService';
 import mongoose from 'mongoose';
 
 // Get all calendar events for the authenticated user
@@ -157,6 +158,162 @@ export const deleteCalendarEvent = async (req: Request, res: Response) => {
       res.status(500).json({ message: 'Error deleting calendar event', error: error.message });
     } else {
       res.status(500).json({ message: 'An unknown error occurred' });
+    }
+  }
+};
+
+// Initialize Google Calendar Service
+const initializeGoogleCalendarService = () => {
+  return new GoogleCalendarService({
+    clientId: process.env.GOOGLE_CLIENT_ID || '',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+    redirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000',
+  });
+};
+
+// Sync calendar with Google Calendar
+export const syncWithGoogleCalendar = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { accessToken, timeRange } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    if (!accessToken) {
+      return res.status(400).json({ message: 'Google access token is required' });
+    }
+
+    const googleCalendarService = initializeGoogleCalendarService();
+    googleCalendarService.setAccessToken(accessToken);
+
+    // Parse time range if provided
+    let parsedTimeRange;
+    if (timeRange && timeRange.start && timeRange.end) {
+      parsedTimeRange = {
+        start: new Date(timeRange.start),
+        end: new Date(timeRange.end),
+      };
+    }
+
+    const syncResult = await googleCalendarService.syncWithGoogle(
+      new mongoose.Types.ObjectId(userId),
+      parsedTimeRange
+    );
+
+    if (syncResult.success) {
+      res.status(200).json({
+        message: 'Sync completed successfully',
+        result: syncResult,
+      });
+    } else {
+      res.status(500).json({
+        message: 'Sync completed with errors',
+        result: syncResult,
+      });
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      res.status(500).json({ message: 'Error syncing with Google Calendar', error: error.message });
+    } else {
+      res.status(500).json({ message: 'An unknown error occurred during sync' });
+    }
+  }
+};
+
+// Get sync status
+export const getSyncStatus = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    const googleCalendarService = initializeGoogleCalendarService();
+    const syncStatus = await googleCalendarService.getSyncStatus(
+      new mongoose.Types.ObjectId(userId)
+    );
+
+    res.status(200).json(syncStatus);
+  } catch (error) {
+    if (error instanceof Error) {
+      res.status(500).json({ message: 'Error getting sync status', error: error.message });
+    } else {
+      res.status(500).json({ message: 'An unknown error occurred' });
+    }
+  }
+};
+
+// Import events from Google Calendar
+export const importFromGoogleCalendar = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { accessToken, timeMin, timeMax } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    if (!accessToken) {
+      return res.status(400).json({ message: 'Google access token is required' });
+    }
+
+    const googleCalendarService = initializeGoogleCalendarService();
+    googleCalendarService.setAccessToken(accessToken);
+
+    const result = await googleCalendarService.importEventsFromGoogle(
+      new mongoose.Types.ObjectId(userId),
+      timeMin ? new Date(timeMin) : undefined,
+      timeMax ? new Date(timeMax) : undefined
+    );
+
+    res.status(200).json({
+      message: 'Import completed',
+      imported: result.imported,
+      errors: result.errors,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      res.status(500).json({ message: 'Error importing from Google Calendar', error: error.message });
+    } else {
+      res.status(500).json({ message: 'An unknown error occurred during import' });
+    }
+  }
+};
+
+// Export events to Google Calendar
+export const exportToGoogleCalendar = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { accessToken } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    if (!accessToken) {
+      return res.status(400).json({ message: 'Google access token is required' });
+    }
+
+    const googleCalendarService = initializeGoogleCalendarService();
+    googleCalendarService.setAccessToken(accessToken);
+
+    const result = await googleCalendarService.exportEventsToGoogle(
+      new mongoose.Types.ObjectId(userId)
+    );
+
+    res.status(200).json({
+      message: 'Export completed',
+      exported: result.exported,
+      errors: result.errors,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      res.status(500).json({ message: 'Error exporting to Google Calendar', error: error.message });
+    } else {
+      res.status(500).json({ message: 'An unknown error occurred during export' });
     }
   }
 };

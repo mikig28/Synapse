@@ -18,7 +18,8 @@ import {
   getMonitoredKeywords,
   clearWhatsAppAuth,
   getDiagnostics,
-  forceRestart
+  forceRestart,
+  forceHistorySync
 } from '../controllers/whatsappController';
 import { authMiddleware } from '../middleware/authMiddleware';
 
@@ -68,5 +69,8 @@ router.get('/diagnostics', getDiagnostics);
 
 // Force restart (clears auth and restarts)
 router.post('/force-restart', forceRestart);
+
+// Force history sync (requests chat history explicitly)
+router.post('/force-history-sync', forceHistorySync);
 
 export default router; 

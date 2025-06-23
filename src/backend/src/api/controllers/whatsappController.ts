@@ -851,4 +851,24 @@ export const forceRestart = async (req: Request, res: Response) => {
       error: 'Failed to force restart WhatsApp service: ' + error.message
     });
   }
+};
+
+export const forceHistorySync = async (req: Request, res: Response) => {
+  try {
+    initializeWhatsAppService();
+    const whatsappService = getWhatsAppService();
+    
+    await whatsappService.forceHistorySync();
+    
+    res.json({
+      success: true,
+      message: 'WhatsApp history sync initiated - check logs for chat discovery'
+    });
+  } catch (error: any) {
+    console.error('[WhatsApp Controller] Error during history sync:', error);
+    res.status(500).json({
+      success: false,
+      error: (error as Error).message
+    });
+  }
 }; 

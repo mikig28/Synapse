@@ -172,7 +172,13 @@ class WhatsAppBaileysService extends EventEmitter {
         syncFullHistory: true, // Enable history sync to get existing chats
         markOnlineOnConnect: true,
         defaultQueryTimeoutMs: 60000,
-        shouldSyncHistoryMessage: () => true // Enable message history sync
+        shouldSyncHistoryMessage: () => true, // Enable message history sync
+        // Additional connection options to handle conflicts
+        connectTimeoutMs: 60000,
+        keepAliveIntervalMs: 30000,
+        receivedPendingNotifications: false,
+        // Request full chat sync
+        syncFullHistory: true
       });
       
       // Set up event handlers
@@ -231,6 +237,11 @@ class WhatsAppBaileysService extends EventEmitter {
         
         if (isConflictError) {
           console.log('🔄 Detected conflict error - WhatsApp session may be open elsewhere');
+          console.log('💡 Waiting longer before reconnect to allow other sessions to close...');
+          // For conflict errors, wait longer to allow other sessions to close
+          const delay = 30000 + (this.reconnectAttempts * 10000);
+          setTimeout(() => this.initialize(), delay);
+          return;
         }
         
         this.isClientReady = false;
@@ -265,32 +276,48 @@ class WhatsAppBaileysService extends EventEmitter {
         
         console.log('🎯 WhatsApp monitoring keywords:', this.monitoredKeywords.join(', '));
         
-        // Automatically fetch chats and groups
+        // Enhanced auto-fetch with active chat list request
         setTimeout(async () => {
           try {
-            console.log('🔄 Auto-fetching WhatsApp chats and groups...');
+            console.log('🔄 Enhanced auto-fetching WhatsApp chats and groups...');
             
-            // Try multiple methods to get chat data
-            console.log('📡 Step 1: Requesting presence update...');
+            // Step 1: Set presence
+            console.log('📡 Step 1: Setting presence as available...');
             await this.socket!.sendPresenceUpdate('available');
             
-            console.log('📡 Step 2: Waiting for initial sync...');
-            await new Promise(resolve => setTimeout(resolve, 3000));
+            // Step 2: Request chat list explicitly
+            console.log('📡 Step 2: Requesting chat list from WhatsApp...');
+            try {
+              // Force request for chat list - this should trigger chats.set event
+              await this.socket!.query({
+                tag: 'iq',
+                attrs: {
+                  to: '@s.whatsapp.net',
+                  type: 'get',
+                  xmlns: 'w:chat',
+                  id: this.socket!.generateMessageTag()
+                },
+                content: [{ tag: 'query', attrs: {} }]
+              });
+            } catch (queryError) {
+              console.log('⚠️ Direct chat query failed, using alternative method');
+            }
             
-            console.log('📡 Step 3: Fetching groups manually...');
-            await this.fetchGroupsManually();
+            // Step 3: Wait for events to process
+            console.log('📡 Step 3: Waiting for sync events...');
+            await new Promise(resolve => setTimeout(resolve, 5000));
             
-            console.log('📡 Step 4: Standard refresh...');
+            // Step 4: Fallback refresh
+            console.log('📡 Step 4: Fallback refresh...');
             await this.refreshChats();
             
-            console.log('✅ Successfully auto-fetched chats on ready');
+            console.log('✅ Enhanced auto-fetch completed');
           } catch (autoFetchError) {
-            console.log('⚠️ Auto-fetch failed, will rely on message discovery:', (autoFetchError as Error).message);
-            // Emit current state even if fetch failed
+            console.log('⚠️ Enhanced auto-fetch failed, using discovery mode:', (autoFetchError as Error).message);
             this.emitChatsUpdate();
           }
           this.saveSession();
-        }, 5000);
+        }, 3000);
       }
     });
 
@@ -445,7 +472,25 @@ class WhatsAppBaileysService extends EventEmitter {
       }
     });
 
-    // Note: Removing chats.set handler as it's not available in current Baileys version
+    // Add comprehensive chat event handlers
+    this.socket.ev.on('chats.update', (chats) => {
+      try {
+        console.log(`🔄 Received ${chats.length} chat update events`);
+        this.processChatUpdates(chats);
+      } catch (error) {
+        console.error('❌ Error processing chat update events:', (error as Error).message);
+      }
+    });
+
+    this.socket.ev.on('chats.set', ({ chats, isLatest }) => {
+      try {
+        console.log(`📋 Received full chat set: ${chats.length} chats (isLatest: ${isLatest})`);
+        this.processChatUpdates(chats);
+        this.saveChatData();
+      } catch (error) {
+        console.error('❌ Error processing full chat set:', (error as Error).message);
+      }
+    });
 
     // Groups handler
     this.socket.ev.on('groups.upsert', (groups) => {
@@ -726,11 +771,27 @@ class WhatsAppBaileysService extends EventEmitter {
     try {
       console.log('👥 Attempting to fetch groups manually...');
       
-      // Try to get groups by querying known group patterns
-      // This is a workaround since Baileys doesn't have a direct "getGroups" method
-      
-      // Check if we can access any existing group metadata
-      // Groups will be populated through events when messages arrive or when syncing occurs
+      // Try to query for groups specifically
+      try {
+        await this.socket.query({
+          tag: 'iq',
+          attrs: {
+            to: '@g.us',
+            type: 'get',
+            xmlns: 'w:g2',
+            id: this.socket.generateMessageTag()
+          },
+          content: [
+            {
+              tag: 'participating',
+              attrs: {}
+            }
+          ]
+        });
+        console.log('👥 Group query sent, waiting for response...');
+      } catch (groupQueryError) {
+        console.log('⚠️ Group query failed, using alternative discovery');
+      }
       
       console.log('👥 Manual group fetch completed - relying on event-based discovery');
     } catch (error) {
@@ -766,8 +827,25 @@ class WhatsAppBaileysService extends EventEmitter {
       console.log('📡 Requesting fresh chat list from WhatsApp...');
       await this.socket.sendPresenceUpdate('available');
       
-      // Wait a moment for events to be processed
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Try multiple approaches to get chat data
+      try {
+        console.log('📡 Attempting direct chat list query...');
+        await this.socket.query({
+          tag: 'iq',
+          attrs: {
+            to: '@s.whatsapp.net',
+            type: 'get',
+            xmlns: 'w:chat',
+            id: this.socket.generateMessageTag()
+          },
+          content: [{ tag: 'query', attrs: {} }]
+        });
+      } catch (queryError) {
+        console.log('⚠️ Direct query failed, continuing with presence method');
+      }
+      
+      // Wait longer for events to be processed
+      await new Promise(resolve => setTimeout(resolve, 8000));
       
       console.log(`📊 Current chats after refresh: ${this.groups.length} groups, ${this.privateChats.length} private chats`);
       
@@ -972,6 +1050,47 @@ class WhatsAppBaileysService extends EventEmitter {
       implementation: 'baileys',
       browserRequired: false
     };
+  }
+
+  // New method to force history sync
+  async forceHistorySync(): Promise<void> {
+    if (!this.socket || !this.isReady) {
+      throw new Error('WhatsApp client is not ready');
+    }
+
+    try {
+      console.log('🔄 Forcing history sync...');
+      
+      // Request chat history explicitly
+      await this.socket.query({
+        tag: 'iq',
+        attrs: {
+          to: '@s.whatsapp.net',
+          type: 'get',
+          xmlns: 'w:sync:app:state',
+          id: this.socket.generateMessageTag()
+        },
+        content: [
+          {
+            tag: 'sync',
+            attrs: {},
+            content: [
+              {
+                tag: 'collection',
+                attrs: {
+                  name: 'regular_high',
+                  version: '1'
+                }
+              }
+            ]
+          }
+        ]
+      });
+
+      console.log('✅ History sync request sent');
+    } catch (error) {
+      console.log('⚠️ History sync failed:', (error as Error).message);
+    }
   }
 }
 
