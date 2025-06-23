@@ -175,10 +175,7 @@ class WhatsAppBaileysService extends EventEmitter {
         shouldSyncHistoryMessage: () => true, // Enable message history sync
         // Additional connection options to handle conflicts
         connectTimeoutMs: 60000,
-        keepAliveIntervalMs: 30000,
-        receivedPendingNotifications: false,
-        // Request full chat sync
-        syncFullHistory: true
+        keepAliveIntervalMs: 30000
       });
       
       // Set up event handlers
@@ -482,15 +479,7 @@ class WhatsAppBaileysService extends EventEmitter {
       }
     });
 
-    this.socket.ev.on('chats.set', ({ chats, isLatest }) => {
-      try {
-        console.log(`📋 Received full chat set: ${chats.length} chats (isLatest: ${isLatest})`);
-        this.processChatUpdates(chats);
-        this.saveChatData();
-      } catch (error) {
-        console.error('❌ Error processing full chat set:', (error as Error).message);
-      }
-    });
+    // Note: chats.set removed as messaging-history.set already handles full chat sets
 
     // Groups handler
     this.socket.ev.on('groups.upsert', (groups) => {
