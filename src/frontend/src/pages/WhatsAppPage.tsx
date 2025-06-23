@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
@@ -137,18 +137,11 @@ const WhatsAppPage: React.FC = () => {
     newSocket.on('whatsapp:message', (messageData: WhatsAppMessage) => {
       console.log('[WhatsApp Socket.IO] Received new message:', messageData);
       
-      // Add new message to the list only if it's for the currently selected chat or no chat is selected
+      // Add new message to the list 
       setMessages(prevMessages => {
         const exists = prevMessages.find(m => m.id === messageData.id);
         if (exists) return prevMessages;
-        
-        // If no chat is selected, show all messages
-        // If a chat is selected, only show messages for that chat
-        if (!selectedChat || messageData.chatId === selectedChat.id) {
-          return [messageData, ...prevMessages].slice(0, 100);
-        }
-        
-        return prevMessages;
+        return [messageData, ...prevMessages].slice(0, 100);
       });
 
       // Show toast notification for monitored messages
@@ -211,7 +204,7 @@ const WhatsAppPage: React.FC = () => {
       setSocket(null);
       setIsSocketConnected(false);
     };
-  }, [isAuthenticated, token, monitoredKeywords, selectedChat]);
+  }, [isAuthenticated, token, monitoredKeywords]);
 
   useEffect(() => {
     scrollToBottom();
@@ -226,7 +219,7 @@ const WhatsAppPage: React.FC = () => {
         fetchMessages(selectedChat.id);
       }
     }
-  }, [selectedChat]);
+  }, [selectedChat?.id]); // Only depend on the ID to avoid circular dependencies
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -545,9 +538,11 @@ const WhatsAppPage: React.FC = () => {
   );
 
   // Filter messages for the selected chat
-  const displayedMessages = selectedChat 
-    ? messages.filter(msg => msg.chatId === selectedChat.id)
-    : messages.slice(0, 50); // Show recent messages if no chat selected
+  const displayedMessages = useMemo(() => {
+    return selectedChat 
+      ? messages.filter(msg => msg.chatId === selectedChat.id)
+      : messages.slice(0, 50); // Show recent messages if no chat selected
+  }, [messages, selectedChat?.id]);
 
   const getStatusColor = () => {
     if (!status) return 'text-gray-500';
