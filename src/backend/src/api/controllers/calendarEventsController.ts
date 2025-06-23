@@ -198,7 +198,7 @@ export const syncWithGoogleCalendar = async (req: Request, res: Response) => {
     }
 
     const syncResult = await googleCalendarService.syncWithGoogle(
-      new mongoose.Types.ObjectId(userId),
+      userId as unknown as mongoose.Schema.Types.ObjectId,
       parsedTimeRange
     );
 
@@ -233,7 +233,7 @@ export const getSyncStatus = async (req: Request, res: Response) => {
 
     const googleCalendarService = initializeGoogleCalendarService();
     const syncStatus = await googleCalendarService.getSyncStatus(
-      new mongoose.Types.ObjectId(userId)
+      userId as unknown as mongoose.Schema.Types.ObjectId
     );
 
     res.status(200).json(syncStatus);
@@ -264,7 +264,7 @@ export const importFromGoogleCalendar = async (req: Request, res: Response) => {
     googleCalendarService.setAccessToken(accessToken);
 
     const result = await googleCalendarService.importEventsFromGoogle(
-      new mongoose.Types.ObjectId(userId),
+      userId as unknown as mongoose.Schema.Types.ObjectId,
       timeMin ? new Date(timeMin) : undefined,
       timeMax ? new Date(timeMax) : undefined
     );
@@ -301,7 +301,7 @@ export const exportToGoogleCalendar = async (req: Request, res: Response) => {
     googleCalendarService.setAccessToken(accessToken);
 
     const result = await googleCalendarService.exportEventsToGoogle(
-      new mongoose.Types.ObjectId(userId)
+      userId as unknown as mongoose.Schema.Types.ObjectId
     );
 
     res.status(200).json({

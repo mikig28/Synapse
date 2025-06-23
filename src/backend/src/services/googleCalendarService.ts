@@ -136,13 +136,15 @@ export class GoogleCalendarService {
             imported.push(googleEvent.id);
           }
         } catch (error) {
-          errors.push(`Failed to import event ${googleEvent.id}: ${error.message}`);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          errors.push(`Failed to import event ${googleEvent.id}: ${errorMessage}`);
         }
       }
 
       return { imported: imported.length, errors };
     } catch (error) {
-      throw new Error(`Failed to import from Google Calendar: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to import from Google Calendar: ${errorMessage}`);
     }
   }
 
@@ -201,7 +203,8 @@ export class GoogleCalendarService {
             }
           }
         } catch (error) {
-          errors.push(`Failed to export event ${localEvent.title}: ${error.message}`);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          errors.push(`Failed to export event ${localEvent.title}: ${errorMessage}`);
           localEvent.syncStatus = 'error';
           await localEvent.save();
         }
@@ -209,7 +212,8 @@ export class GoogleCalendarService {
 
       return { exported: exported.length, errors };
     } catch (error) {
-      throw new Error(`Failed to export to Google Calendar: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to export to Google Calendar: ${errorMessage}`);
     }
   }
 
@@ -238,11 +242,12 @@ export class GoogleCalendarService {
         errors: [...importResult.errors, ...exportResult.errors],
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return {
         success: false,
         eventsImported: 0,
         eventsExported: 0,
-        errors: [error.message],
+        errors: [errorMessage],
       };
     }
   }
@@ -258,7 +263,8 @@ export class GoogleCalendarService {
       });
       return true;
     } catch (error) {
-      console.error(`Failed to delete event from Google Calendar: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`Failed to delete event from Google Calendar: ${errorMessage}`);
       return false;
     }
   }
