@@ -67,7 +67,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
   const calendarEventsLocalStorageKey = "calendarEvents";
 
-  useEffect(() => {
+  // Function to load events from localStorage
+  const loadEventsFromStorage = () => {
     try {
       const storedEventsString = localStorage.getItem(calendarEventsLocalStorageKey);
       if (storedEventsString) {
@@ -99,7 +100,35 @@ export default function CalendarPage() { // Renamed from Home for clarity
       localStorage.setItem(calendarEventsLocalStorageKey, JSON.stringify(eventsToStore));
       setEvents(initialEvents);
     }
+  };
+
+  // Load events on component mount
+  useEffect(() => {
+    loadEventsFromStorage();
   }, []); // Empty dependency array ensures this runs only once on mount
+
+  // Listen for storage changes from other tabs/components
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === calendarEventsLocalStorageKey) {
+        loadEventsFromStorage();
+      }
+    };
+
+    // Listen for storage events (cross-tab changes)
+    window.addEventListener('storage', handleStorageChange);
+
+    // Custom event for same-tab changes (since storage event doesn't fire in same tab)
+    const handleCustomStorageChange = () => {
+      loadEventsFromStorage();
+    };
+    window.addEventListener('calendarEventsUpdated', handleCustomStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('calendarEventsUpdated', handleCustomStorageChange);
+    };
+  }, []);
 
   const [currentView, setCurrentView] = useState("week")
   const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date()) // Date object for current view
