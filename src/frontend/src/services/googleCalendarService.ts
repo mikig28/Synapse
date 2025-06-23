@@ -22,7 +22,7 @@ export interface TimeRange {
 }
 
 class GoogleCalendarService {
-  private baseUrl = '/api/calendar-events';
+  private baseUrl = '/api/v1/calendar-events';
 
   /**
    * Perform bidirectional sync with Google Calendar
