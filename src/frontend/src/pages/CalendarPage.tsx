@@ -55,7 +55,7 @@ import {
 // Assuming you have a way to define your event types, or we can define a basic one.
 // For now, I'll use \'any\' for selectedEvent to avoid blocking, but this should be typed.
 interface CalendarEvent {
-  _id: string; // Changed from id to _id
+  id: number | string; // Support both number and string IDs for flexibility
   title: string;
   startTime: Date;
   endTime: Date;
@@ -433,6 +433,20 @@ export default function CalendarPage() { // Renamed from Home for clarity
       );
     }
     closeEventModal();
+  };
+
+  // Delete event function
+  const handleDeleteEvent = (eventToDelete: CalendarEvent) => {
+    setEvents(prevEvents => prevEvents.filter(event => event.id !== eventToDelete.id));
+    
+    // Dispatch custom event to notify other components
+    window.dispatchEvent(new CustomEvent('calendarEventsUpdated'));
+    
+    toast({
+      title: "Event Deleted",
+      description: `"${eventToDelete.title}" has been removed from your calendar.`,
+      variant: "default"
+    });
   };
 
   // Sample calendar days for the week view
@@ -822,6 +836,41 @@ export default function CalendarPage() { // Renamed from Home for clarity
                               <div className="font-medium">{event.title}</div>
                               <div className="opacity-80 text-[10px] mt-1">{`${format(event.startTime, "h:mm")} - ${format(event.endTime, "h:mm")}`}</div>
                               
+                              {/* Delete Button */}
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="absolute top-1 right-1 w-6 h-6 p-0 text-white/70 hover:text-white hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    onClick={(e) => {
+                                      e.stopPropagation(); // Prevent event click handler
+                                    }}
+                                  >
+                                    <Trash2 size={12} />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent className="bg-slate-900 text-white border-slate-700">
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete Event</AlertDialogTitle>
+                                    <AlertDialogDescription className="text-slate-300">
+                                      Are you sure you want to delete "{event.title}"? This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-slate-600">
+                                      Cancel
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDeleteEvent(event)}
+                                      className="bg-red-600 hover:bg-red-700 text-white"
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                              
                               {/* Resize Handles */}
                               {!draggedEvent && (
                                 <>
@@ -1011,6 +1060,41 @@ export default function CalendarPage() { // Renamed from Home for clarity
                             <div className="font-medium">{event.title}</div>
                             <div className="opacity-80 text-[10px] mt-1">{`${format(event.startTime, "h:mm aa")} - ${format(event.endTime, "h:mm aa")}`}</div>
                             
+                            {/* Delete Button */}
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="absolute top-1 right-1 w-6 h-6 p-0 text-white/70 hover:text-white hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={(e) => {
+                                    e.stopPropagation(); // Prevent event click handler
+                                  }}
+                                >
+                                  <Trash2 size={12} />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent className="bg-slate-900 text-white border-slate-700">
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Event</AlertDialogTitle>
+                                  <AlertDialogDescription className="text-slate-300">
+                                    Are you sure you want to delete "{event.title}"? This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-slate-600">
+                                    Cancel
+                                  </AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleDeleteEvent(event)}
+                                    className="bg-red-600 hover:bg-red-700 text-white"
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                            
                             {/* Resize Handles */}
                             {!draggedEvent && (
                               <>
@@ -1158,10 +1242,41 @@ export default function CalendarPage() { // Renamed from Home for clarity
                             .map(event => (
                               <div 
                                 key={event.id} 
-                                className={`${event.color} rounded px-1 py-0.5 text-white truncate cursor-pointer hover:opacity-80`}
+                                className={`${event.color} rounded px-1 py-0.5 text-white truncate cursor-pointer hover:opacity-80 group relative`}
                                 onClick={(e) => { e.stopPropagation(); handleEventClick(event); }}
                               >
-                                {event.title}
+                                <span className="truncate">{event.title}</span>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <button
+                                      className="absolute top-0 right-0 w-4 h-4 text-white/70 hover:text-white hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation(); // Prevent event click handler
+                                      }}
+                                    >
+                                      <Trash2 size={8} />
+                                    </button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent className="bg-slate-900 text-white border-slate-700">
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete Event</AlertDialogTitle>
+                                      <AlertDialogDescription className="text-slate-300">
+                                        Are you sure you want to delete "{event.title}"? This action cannot be undone.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-slate-600">
+                                        Cancel
+                                      </AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDeleteEvent(event)}
+                                        className="bg-red-600 hover:bg-red-700 text-white"
+                                      >
+                                        Delete
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
                               </div>
                             ))}
                           {events.filter(event => isSameDay(event.startTime, day)).length > 2 && (

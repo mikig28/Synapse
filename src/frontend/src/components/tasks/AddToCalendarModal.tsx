@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Task } from '../../../types/task';
 
 interface CalendarEvent {
-  id: number;
+  id: number | string; // Support both number and string IDs for flexibility
   title: string;
   startTime: Date;
   endTime: Date;
