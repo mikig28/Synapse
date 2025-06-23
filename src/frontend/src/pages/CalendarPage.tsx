@@ -92,7 +92,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
   const loadEventsFromStorage = async () => {
     try {
       // First, try to fetch events from backend API (includes Google Calendar synced events)
-      const response = await axiosInstance.get('/api/v1/calendar-events');
+      const response = await axiosInstance.get('/calendar-events');
       const backendEvents = response.data.map((event: any) => ({
         ...event,
         startTime: new Date(event.startTime),
