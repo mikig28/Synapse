@@ -16,7 +16,9 @@ import {
   Eye,
   EyeOff,
   Wifi,
-  WifiOff
+  WifiOff,
+  History,
+  Download
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { io, Socket } from 'socket.io-client';
@@ -76,6 +78,7 @@ const WhatsAppPage: React.FC = () => {
   const [newKeyword, setNewKeyword] = useState('');
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isSocketConnected, setIsSocketConnected] = useState(false);
+  const [fetchingHistory, setFetchingHistory] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const { isAuthenticated, token } = useAuthStore();
@@ -422,6 +425,70 @@ const WhatsAppPage: React.FC = () => {
     }
   };
 
+  const forceHistorySync = async () => {
+    try {
+      setFetchingHistory(true);
+      
+      const response = await api.post('/whatsapp/force-history-sync');
+      
+      if (response.data.success) {
+        toast({
+          title: "History Sync Initiated",
+          description: "Requesting chat history from WhatsApp. New chats should appear shortly.",
+        });
+        
+        // Refresh data after a delay to see results
+        setTimeout(() => {
+          fetchGroups();
+          fetchPrivateChats();
+          fetchMessages();
+        }, 5000);
+      }
+    } catch (error: any) {
+      console.error('Error forcing history sync:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to sync chat history",
+        variant: "destructive",
+      });
+    } finally {
+      setFetchingHistory(false);
+    }
+  };
+
+  const fetchChatHistory = async (chatId: string, limit: number = 10) => {
+    try {
+      setFetchingHistory(true);
+      
+      const response = await api.get(`/whatsapp/messages?chatId=${chatId}&limit=${limit}`);
+      
+      if (response.data.success && response.data.data) {
+        const historicalMessages = response.data.data;
+        
+        // Merge with existing messages, avoiding duplicates
+        setMessages(prevMessages => {
+          const existingIds = new Set(prevMessages.map(m => m.id));
+          const newMessages = historicalMessages.filter((msg: WhatsAppMessage) => !existingIds.has(msg.id));
+          return [...prevMessages, ...newMessages];
+        });
+        
+        toast({
+          title: "Chat History Loaded",
+          description: `Loaded ${historicalMessages.length} historical messages`,
+        });
+      }
+    } catch (error: any) {
+      console.error('Error fetching chat history:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to fetch chat history",
+        variant: "destructive",
+      });
+    } finally {
+      setFetchingHistory(false);
+    }
+  };
+
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedChat || sendingMessage) return;
 
@@ -646,6 +713,21 @@ const WhatsAppPage: React.FC = () => {
               </AnimatedButton>
               
               <AnimatedButton
+                onClick={forceHistorySync}
+                variant="outline"
+                size="sm"
+                disabled={fetchingHistory}
+                className="border-purple-400/30 text-purple-200 hover:bg-purple-500/10"
+              >
+                {fetchingHistory ? (
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <History className="w-4 h-4 mr-2" />
+                )}
+                Sync History
+              </AnimatedButton>
+              
+              <AnimatedButton
                 onClick={restartService}
                 variant="outline"
                 size="sm"
@@ -732,11 +814,11 @@ const WhatsAppPage: React.FC = () => {
                 </div>
               </div>
               
-              <div className="flex-1 overflow-y-auto space-y-3 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+              <div className="flex-1 overflow-y-auto space-y-3 scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-white/10 hover:scrollbar-thumb-white/50">
                 {filteredGroups.length > 0 && (
                   <div>
                     <h3 className="text-sm font-semibold text-blue-200 mb-2">Groups</h3>
-                    <div className="space-y-1 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                    <div className="space-y-1 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-white/10 hover:scrollbar-thumb-white/30">
                       {filteredGroups.map((group) => (
                         <motion.div
                           key={group.id}
@@ -787,7 +869,7 @@ const WhatsAppPage: React.FC = () => {
                       <Phone className="w-4 h-4" />
                       Private Contacts
                     </h3>
-                    <div className="space-y-1 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                    <div className="space-y-1 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-white/10 hover:scrollbar-thumb-white/30">
                       {filteredPrivateChats.map((chat) => (
                         <motion.div
                           key={chat.id}
@@ -853,24 +935,41 @@ const WhatsAppPage: React.FC = () => {
             <GlassCard className="p-6 h-[600px] flex flex-col">
               {selectedChat ? (
                 <>
-                  <div className="flex items-center gap-3 pb-4 border-b border-white/20">
-                    {selectedChat.isGroup ? (
-                      <Users className="w-6 h-6 text-green-400" />
-                    ) : (
-                      <Phone className="w-6 h-6 text-violet-400" />
-                    )}
-                    <div>
-                      <h3 className="font-semibold text-white">{selectedChat.name}</h3>
-                      <p className="text-sm text-blue-200/70">
-                        {selectedChat.isGroup 
-                          ? `${selectedChat.participantCount} members`
-                          : 'Private chat'
-                        }
-                      </p>
+                  <div className="flex items-center justify-between pb-4 border-b border-white/20">
+                    <div className="flex items-center gap-3">
+                      {selectedChat.isGroup ? (
+                        <Users className="w-6 h-6 text-green-400" />
+                      ) : (
+                        <Phone className="w-6 h-6 text-violet-400" />
+                      )}
+                      <div>
+                        <h3 className="font-semibold text-white">{selectedChat.name}</h3>
+                        <p className="text-sm text-blue-200/70">
+                          {selectedChat.isGroup 
+                            ? `${selectedChat.participantCount} members`
+                            : 'Private chat'
+                          }
+                        </p>
+                      </div>
                     </div>
+                    
+                    <AnimatedButton
+                      onClick={() => fetchChatHistory(selectedChat.id, 10)}
+                      variant="outline"
+                      size="sm"
+                      disabled={fetchingHistory}
+                      className="border-orange-400/30 text-orange-200 hover:bg-orange-500/10"
+                    >
+                      {fetchingHistory ? (
+                        <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4 mr-1" />
+                      )}
+                      Load History
+                    </AnimatedButton>
                   </div>
                   
-                  <div className="flex-1 overflow-y-auto my-4 space-y-3">
+                  <div className="flex-1 overflow-y-auto my-4 space-y-3 scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-white/10 hover:scrollbar-thumb-white/50">
                     {displayedMessages.map((message) => (
                       <motion.div
                         key={message.id}
@@ -953,7 +1052,7 @@ const WhatsAppPage: React.FC = () => {
                 </div>
               </div>
               
-              <div className="flex-1 overflow-y-auto space-y-2">
+              <div className="flex-1 overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-white/10 hover:scrollbar-thumb-white/50">
                 <h4 className="text-sm font-medium text-blue-200">Monitored Keywords</h4>
                 {monitoredKeywords.map((keyword) => (
                   <motion.div

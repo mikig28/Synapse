@@ -9,6 +9,9 @@ import { DigestProvider } from './context/DigestContext';
 import { TelegramProvider } from './contexts/TelegramContext';
 import { useLocation } from 'react-router-dom';
 import { PWAProvider } from './components/pwa/PWAPrompts';
+import { StagewiseToolbar } from '@stagewise/toolbar-react';
+import { ReactPlugin } from '@stagewise-plugins/react';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 
 // Lazy load all pages for better performance
 const DashboardPage = React.lazy(() => import('@/pages/DashboardPage'));
@@ -93,13 +96,20 @@ function AppContent() {
 
 function App() {
   return (
-    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-      <Router>
-        <PWAProvider>
-          <AppContent />
-        </PWAProvider>
-      </Router>
-    </ThemeProvider>
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ""}>
+      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+        <Router>
+          <PWAProvider>
+            <AppContent />
+            <StagewiseToolbar
+              config={{
+                plugins: [ReactPlugin]
+              }}
+            />
+          </PWAProvider>
+        </Router>
+      </ThemeProvider>
+    </GoogleOAuthProvider>
   );
 }
 

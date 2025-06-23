@@ -44,6 +44,22 @@
   background: transparent;
 }
 
+.scrollbar-thumb-white\/30::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.scrollbar-track-white\/10::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.hover\:scrollbar-thumb-white\/30:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.hover\:scrollbar-thumb-white\/50:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.5);
+}
+
 /* Remove the global body styles that manually set background-color and color, as Tailwind will handle this via @layer base */
 /*
 body {

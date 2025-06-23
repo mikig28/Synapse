@@ -911,11 +911,11 @@ class WhatsAppBaileysService extends EventEmitter {
     return this.privateChats;
   }
 
-  getMessages(limit: number = 50, groupId?: string): WhatsAppMessage[] {
+  getMessages(limit: number = 50, chatId?: string): WhatsAppMessage[] {
     let filteredMessages = this.messages;
     
-    if (groupId) {
-      filteredMessages = this.messages.filter(msg => msg.chatId === groupId);
+    if (chatId) {
+      filteredMessages = this.messages.filter(msg => msg.chatId === chatId);
     }
     
     return filteredMessages.slice(0, limit);

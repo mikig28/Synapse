@@ -36,6 +36,8 @@
     "zustand": "^5.0.4"
   },
   "devDependencies": {
+    "@stagewise/toolbar-react": "^0.4.8",
+    "@stagewise-plugins/react": "^0.4.8",
     "@tailwindcss/typography": "^0.5.16",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
