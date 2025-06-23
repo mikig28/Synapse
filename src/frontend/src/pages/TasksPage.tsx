@@ -19,6 +19,7 @@ import {
   Edit, 
   Trash2, 
   Calendar, 
+  CalendarPlus,
   Clock, 
   Target,
   Sparkles,
@@ -454,6 +455,19 @@ const TasksPage: React.FC = () => {
                   </div>
 
                   <div className="flex justify-end gap-2 mt-auto pt-3 border-t border-white/10">
+                    <AnimatedButton
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        // Placeholder for Add to Calendar modal - will be implemented next
+                        console.log("Add to calendar clicked for task:", task.title);
+                        toast({ title: "Feature Info", description: "Add to Calendar functionality pending modal implementation." });
+                      }}
+                      className="border-purple-500/50 text-purple-300 hover:bg-purple-500/20 hover:border-purple-500 glow-purple-sm"
+                    >
+                      <CalendarPlus size={14} className="mr-1" /> Calendar
+                    </AnimatedButton>
+
                     <AnimatedButton 
                       size="sm" 
                       variant="outline"

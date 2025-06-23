@@ -80,14 +80,14 @@ const WhatsAppPage: React.FC = () => {
   
   const { isAuthenticated, token } = useAuthStore();
 
+  // Socket.io setup - declare early to avoid hoisting issues
+  const SOCKET_SERVER_URL = import.meta.env.VITE_SOCKET_IO_URL || 
+    (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001');
+
   // Backend URL for Socket.io (non-API endpoints)
   const getBackendUrl = () => {
     return import.meta.env.VITE_BACKEND_ROOT_URL || 'https://synapse-pxad.onrender.com';
   };
-
-  // Socket.io setup
-  const SOCKET_SERVER_URL = import.meta.env.VITE_SOCKET_IO_URL || 
-    (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001');
 
   useEffect(() => {
     fetchStatus();
@@ -206,9 +206,10 @@ const WhatsAppPage: React.FC = () => {
     };
   }, [isAuthenticated, token, monitoredKeywords]);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [displayedMessages]);
+  // Define scrollToBottom function early
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   // Load messages for selected chat if we don't have any yet
   useEffect(() => {
@@ -220,10 +221,6 @@ const WhatsAppPage: React.FC = () => {
       }
     }
   }, [selectedChat?.id]); // Only depend on the ID to avoid circular dependencies
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
 
   const fetchStatus = async () => {
     try {
@@ -543,6 +540,11 @@ const WhatsAppPage: React.FC = () => {
       ? messages.filter(msg => msg.chatId === selectedChat.id)
       : messages.slice(0, 50); // Show recent messages if no chat selected
   }, [messages, selectedChat?.id]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [displayedMessages]);
 
   const getStatusColor = () => {
     if (!status) return 'text-gray-500';
