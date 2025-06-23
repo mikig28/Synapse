@@ -437,7 +437,18 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
   // Delete event function
   const handleDeleteEvent = (eventToDelete: CalendarEvent) => {
-    setEvents(prevEvents => prevEvents.filter(event => event.id !== eventToDelete.id));
+    const updatedEvents = events.filter(event => event.id !== eventToDelete.id);
+    
+    // Update React state
+    setEvents(updatedEvents);
+    
+    // Update localStorage
+    const eventsToStore = updatedEvents.map(event => ({
+      ...event,
+      startTime: event.startTime.toISOString(),
+      endTime: event.endTime.toISOString(),
+    }));
+    localStorage.setItem(calendarEventsLocalStorageKey, JSON.stringify(eventsToStore));
     
     // Dispatch custom event to notify other components
     window.dispatchEvent(new CustomEvent('calendarEventsUpdated'));
