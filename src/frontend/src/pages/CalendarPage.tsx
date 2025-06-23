@@ -16,7 +16,22 @@ import {
   Pause, // For AI popup (currently disabled)
   Sparkles, // For AI popup (currently disabled)
   X, // For AI popup & selected event modal (currently disabled for AI popup)
+  Trash2, // For delete button
 } from "lucide-react"
+import axiosInstance from '@/services/axiosConfig';
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import {
   format,
   addMonths,
@@ -40,7 +55,7 @@ import {
 // Assuming you have a way to define your event types, or we can define a basic one.
 // For now, I'll use \'any\' for selectedEvent to avoid blocking, but this should be typed.
 interface CalendarEvent {
-  id: number;
+  _id: string; // Changed from id to _id
   title: string;
   startTime: Date;
   endTime: Date;
@@ -53,7 +68,8 @@ interface CalendarEvent {
 
 
 export default function CalendarPage() { // Renamed from Home for clarity
-  const [isLoaded, setIsLoaded] = useState(false)
+  const [isLoaded, setIsLoaded] = useState(false);
+  const { toast } = useToast();
   // const [showAIPopup, setShowAIPopup] = useState(false) // AI Popup logic remains commented out
   // const [typedText, setTypedText] = useState("")
   // const [isPlaying, setIsPlaying] = useState(false)
