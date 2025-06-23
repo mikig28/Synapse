@@ -39,9 +39,18 @@ const initializeWhatsAppService = () => {
         }
     });
     whatsappService.on('chats_updated', (chatsData) => {
+        console.log('[WhatsApp Controller] Received chats_updated event:', {
+            groupsCount: chatsData.groupsCount,
+            privateChatsCount: chatsData.privateChatsCount,
+            firstGroupName: chatsData.groups?.[0]?.name || 'None'
+        });
         const io_instance = global.io;
         if (io_instance) {
+            console.log('[WhatsApp Controller] Emitting whatsapp:chats_updated to Socket.io clients');
             io_instance.emit('whatsapp:chats_updated', chatsData);
+        }
+        else {
+            console.log('[WhatsApp Controller] No Socket.io instance available');
         }
     });
     serviceInitialized = true;

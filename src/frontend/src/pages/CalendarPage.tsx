@@ -787,34 +787,12 @@ export default function CalendarPage() { // Renamed from Home for clarity
                             className={`h-20 border-b border-white/10 transition-colors duration-150 ease-in-out ${isHighlighted ? 'bg-blue-500/30' : ''}`}
                             onDragOver={(e) => {
                               e.preventDefault(); 
-                                                            if (resizingEvent) {
-                                const pixelToMinuteRatio = 80 / 60; // 80px per hour 
-                                const deltaY = e.clientY - resizingEvent.initialY;
-                                const deltaMinutes = Math.round(deltaY / pixelToMinuteRatio);
-
-                                let newStartTime = new Date(resizingEvent.originalStartTime);
-                                let newEndTime = new Date(resizingEvent.originalEndTime);
-
-                                if (resizingEvent.handle === 'top') {
-                                  // Adjust start time
-                                  newStartTime = new Date(resizingEvent.originalStartTime.getTime() + (deltaMinutes * 60000));
-                                  // Don't apply constraints during drag - let it flow naturally
-                                } else { // bottom handle
-                                  // Adjust end time
-                                  newEndTime = new Date(resizingEvent.originalEndTime.getTime() + (deltaMinutes * 60000));
-                                  // Don't apply constraints during drag - let it flow naturally
-                                }
-                                
-                                // Only update visual state during drag, constraints will be applied on drop
-                                setEvents(prevEvents => prevEvents.map(ev => 
-                                  ev.id === resizingEvent.event.id ? { ...ev, startTime: newStartTime, endTime: newEndTime } : ev
-                                ));
-                              } else {
-                                // Existing logic for event relocation drag over
+                              // Only handle regular event dragging, not resizing
+                              if (!resizingEvent && draggedEvent) {
                                 setDragOverDate(currentSlotDate);
                                 setDragOverTimeSlot(currentSlotHour);
+                                setIsDragOver(true);
                               }
-                              setIsDragOver(true); // Keep highlighting the slot being dragged over
                             }}
                             onDragLeave={() => {
                               setIsDragOver(false);
@@ -907,6 +885,23 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                       });
                                       // Do not set draggedEvent here to avoid conflict
                                     }}
+                                    onDrag={(e) => {
+                                      e.stopPropagation();
+                                      if (resizingEvent && e.clientY !== 0) { // e.clientY is 0 on drag end
+                                        const pixelToMinuteRatio = 80 / 60; // 80px per hour 
+                                        const deltaY = e.clientY - resizingEvent.initialY;
+                                        const deltaMinutes = Math.round(deltaY / pixelToMinuteRatio);
+
+                                        // Adjust start time
+                                        const newStartTime = new Date(resizingEvent.originalStartTime.getTime() + (deltaMinutes * 60000));
+                                        const newEndTime = new Date(resizingEvent.originalEndTime);
+                                        
+                                        // Only update visual state during drag
+                                        setEvents(prevEvents => prevEvents.map(ev => 
+                                          ev.id === resizingEvent.event.id ? { ...ev, startTime: newStartTime, endTime: newEndTime } : ev
+                                        ));
+                                      }
+                                    }}
                                                                       onDragEnd={(e) => {
                                     e.stopPropagation();
                                     if (resizingEvent) {
@@ -933,6 +928,23 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                         originalStartTime: event.startTime,
                                         originalEndTime: event.endTime
                                       });
+                                    }}
+                                    onDrag={(e) => {
+                                      e.stopPropagation();
+                                      if (resizingEvent && e.clientY !== 0) { // e.clientY is 0 on drag end
+                                        const pixelToMinuteRatio = 80 / 60; // 80px per hour 
+                                        const deltaY = e.clientY - resizingEvent.initialY;
+                                        const deltaMinutes = Math.round(deltaY / pixelToMinuteRatio);
+
+                                        // Adjust end time
+                                        const newStartTime = new Date(resizingEvent.originalStartTime);
+                                        const newEndTime = new Date(resizingEvent.originalEndTime.getTime() + (deltaMinutes * 60000));
+                                        
+                                        // Only update visual state during drag
+                                        setEvents(prevEvents => prevEvents.map(ev => 
+                                          ev.id === resizingEvent.event.id ? { ...ev, startTime: newStartTime, endTime: newEndTime } : ev
+                                        ));
+                                      }
                                     }}
                                     onDragEnd={(e) => {
                                       e.stopPropagation();
@@ -998,33 +1010,12 @@ export default function CalendarPage() { // Renamed from Home for clarity
                           className={`h-20 border-b border-white/10 transition-colors duration-150 ease-in-out ${isHighlighted ? 'bg-blue-500/30' : ''}`}
                           onDragOver={(e) => {
                             e.preventDefault();
-                                                          if (resizingEvent) {
-                              const pixelToMinuteRatio = 80 / 60; // 80px per hour
-                              const deltaY = e.clientY - resizingEvent.initialY;
-                              const deltaMinutes = Math.round(deltaY / pixelToMinuteRatio);
-
-                              let newStartTime = new Date(resizingEvent.originalStartTime);
-                              let newEndTime = new Date(resizingEvent.originalEndTime);
-
-                              if (resizingEvent.handle === 'top') {
-                                // Adjust start time
-                                newStartTime = new Date(resizingEvent.originalStartTime.getTime() + (deltaMinutes * 60000));
-                                // Don't apply constraints during drag - let it flow naturally
-                              } else { // bottom handle
-                                // Adjust end time
-                                newEndTime = new Date(resizingEvent.originalEndTime.getTime() + (deltaMinutes * 60000));
-                                // Don't apply constraints during drag - let it flow naturally
-                              }
-
-                              // Only update visual state during drag, constraints will be applied on drop
-                              setEvents(prevEvents => prevEvents.map(ev => 
-                                ev.id === resizingEvent.event.id ? { ...ev, startTime: newStartTime, endTime: newEndTime } : ev
-                              ));
-                            } else {
+                            // Only handle regular event dragging, not resizing
+                            if (!resizingEvent && draggedEvent) {
                               setDragOverDate(currentSlotDate);
                               setDragOverTimeSlot(currentSlotHour);
+                              setIsDragOver(true);
                             }
-                            setIsDragOver(true);
                           }}
                           onDragLeave={() => {
                             setIsDragOver(false);
@@ -1115,6 +1106,23 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                       originalEndTime: event.endTime
                                     });
                                   }}
+                                  onDrag={(e) => {
+                                    e.stopPropagation();
+                                    if (resizingEvent && e.clientY !== 0) { // e.clientY is 0 on drag end
+                                      const pixelToMinuteRatio = 80 / 60; // 80px per hour 
+                                      const deltaY = e.clientY - resizingEvent.initialY;
+                                      const deltaMinutes = Math.round(deltaY / pixelToMinuteRatio);
+
+                                      // Adjust start time
+                                      const newStartTime = new Date(resizingEvent.originalStartTime.getTime() + (deltaMinutes * 60000));
+                                      const newEndTime = new Date(resizingEvent.originalEndTime);
+                                      
+                                      // Only update visual state during drag
+                                      setEvents(prevEvents => prevEvents.map(ev => 
+                                        ev.id === resizingEvent.event.id ? { ...ev, startTime: newStartTime, endTime: newEndTime } : ev
+                                      ));
+                                    }
+                                  }}
                                   onDragEnd={(e) => {
                                     e.stopPropagation();
                                     if (resizingEvent) {
@@ -1141,6 +1149,23 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                       originalStartTime: event.startTime,
                                       originalEndTime: event.endTime
                                     });
+                                  }}
+                                  onDrag={(e) => {
+                                    e.stopPropagation();
+                                    if (resizingEvent && e.clientY !== 0) { // e.clientY is 0 on drag end
+                                      const pixelToMinuteRatio = 80 / 60; // 80px per hour 
+                                      const deltaY = e.clientY - resizingEvent.initialY;
+                                      const deltaMinutes = Math.round(deltaY / pixelToMinuteRatio);
+
+                                      // Adjust end time
+                                      const newStartTime = new Date(resizingEvent.originalStartTime);
+                                      const newEndTime = new Date(resizingEvent.originalEndTime.getTime() + (deltaMinutes * 60000));
+                                      
+                                      // Only update visual state during drag
+                                      setEvents(prevEvents => prevEvents.map(ev => 
+                                        ev.id === resizingEvent.event.id ? { ...ev, startTime: newStartTime, endTime: newEndTime } : ev
+                                      ));
+                                    }
                                   }}
                                   onDragEnd={(e) => {
                                     e.stopPropagation();

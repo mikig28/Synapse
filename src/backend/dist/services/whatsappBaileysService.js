@@ -235,61 +235,75 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
             try {
                 // Process chats from history
                 for (const chat of chats) {
-                    const isGroup = chat.id.endsWith('@g.us');
-                    const chatInfo = {
-                        id: chat.id,
-                        name: chat.name || (isGroup ? 'Unknown Group' : 'Unknown Contact'),
-                        lastMessage: chat.lastMessage?.message || '',
-                        timestamp: chat.lastMessage?.messageTimestamp || Date.now(),
-                        isGroup,
-                        participantCount: isGroup ? chat.participantCount : undefined,
-                        description: chat.description || undefined
-                    };
-                    if (isGroup) {
-                        // Get additional group metadata
-                        try {
-                            const groupMetadata = await this.socket.groupMetadata(chat.id);
-                            chatInfo.name = groupMetadata.subject || chatInfo.name;
-                            chatInfo.participantCount = groupMetadata.participants?.length || 0;
-                            chatInfo.description = groupMetadata.desc || '';
-                            const existingIndex = this.groups.findIndex(g => g.id === chat.id);
-                            if (existingIndex >= 0) {
-                                this.groups[existingIndex] = chatInfo;
-                            }
-                            else {
-                                this.groups.push(chatInfo);
-                            }
-                            console.log(`👥 Added group: "${chatInfo.name}" (${chatInfo.participantCount} members)`);
+                    try {
+                        if (!chat || !chat.id) {
+                            continue;
                         }
-                        catch (groupError) {
-                            console.log(`⚠️ Could not get metadata for group ${chat.id}:`, groupError.message);
-                            // Still add the group without full metadata
-                            const existingIndex = this.groups.findIndex(g => g.id === chat.id);
-                            if (existingIndex >= 0) {
-                                this.groups[existingIndex] = chatInfo;
+                        const isGroup = chat.id.endsWith('@g.us');
+                        const chatInfo = {
+                            id: chat.id,
+                            name: chat.name || chat.subject || (isGroup ? 'Unknown Group' : 'Unknown Contact'),
+                            lastMessage: chat.lastMessage?.message || '',
+                            timestamp: chat.lastMessage?.messageTimestamp || Date.now(),
+                            isGroup,
+                            participantCount: isGroup ? chat.participantCount : undefined,
+                            description: chat.description || undefined
+                        };
+                        if (isGroup) {
+                            // Get additional group metadata
+                            try {
+                                const groupMetadata = await this.socket.groupMetadata(chat.id);
+                                chatInfo.name = groupMetadata.subject || chatInfo.name;
+                                chatInfo.participantCount = groupMetadata.participants?.length || 0;
+                                chatInfo.description = groupMetadata.desc || '';
+                                const existingIndex = this.groups.findIndex(g => g.id === chat.id);
+                                if (existingIndex >= 0) {
+                                    this.groups[existingIndex] = chatInfo;
+                                }
+                                else {
+                                    this.groups.push(chatInfo);
+                                }
+                                console.log(`👥 Added group: "${chatInfo.name}" (${chatInfo.participantCount} members) - ID: ${chatInfo.id}`);
                             }
-                            else {
-                                this.groups.push(chatInfo);
+                            catch (groupError) {
+                                console.log(`⚠️ Could not get metadata for group ${chat.id}:`, groupError.message);
+                                // Still add the group without full metadata
+                                const existingIndex = this.groups.findIndex(g => g.id === chat.id);
+                                if (existingIndex >= 0) {
+                                    this.groups[existingIndex] = chatInfo;
+                                }
+                                else {
+                                    this.groups.push(chatInfo);
+                                }
                             }
-                        }
-                    }
-                    else {
-                        const existingIndex = this.privateChats.findIndex(c => c.id === chat.id);
-                        if (existingIndex >= 0) {
-                            this.privateChats[existingIndex] = chatInfo;
                         }
                         else {
-                            this.privateChats.push(chatInfo);
+                            const existingIndex = this.privateChats.findIndex(c => c.id === chat.id);
+                            if (existingIndex >= 0) {
+                                this.privateChats[existingIndex] = chatInfo;
+                            }
+                            else {
+                                this.privateChats.push(chatInfo);
+                            }
+                            console.log(`👤 Added private chat: "${chatInfo.name}"`);
                         }
-                        console.log(`👤 Added private chat: "${chatInfo.name}"`);
+                    }
+                    catch (chatError) {
+                        console.log(`⚠️ Error processing chat ${chat?.id}:`, chatError.message);
                     }
                 }
                 // Process messages from history
                 for (const message of messages) {
                     try {
-                        const messageText = this.extractMessageText(message);
-                        if (!messageText)
+                        // Skip messages without proper structure
+                        if (!message || !message.key || !message.key.remoteJid) {
                             continue;
+                        }
+                        const messageText = this.extractMessageText(message);
+                        // Allow empty messages if they're media messages
+                        if (!messageText && !this.isMediaMessage(message.message)) {
+                            continue;
+                        }
                         const chatId = message.key.remoteJid;
                         const isGroup = chatId?.endsWith('@g.us') || false;
                         const timestamp = typeof message.messageTimestamp === 'number'
@@ -446,18 +460,57 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
         }
     }
     extractMessageText(message) {
-        const msgContent = message.message;
-        if (msgContent.conversation) {
-            return msgContent.conversation;
+        try {
+            if (!message || !message.message) {
+                return '';
+            }
+            const msgContent = message.message;
+            // Handle different message types
+            if (msgContent.conversation) {
+                return msgContent.conversation;
+            }
+            if (msgContent.extendedTextMessage?.text) {
+                return msgContent.extendedTextMessage.text;
+            }
+            if (msgContent.imageMessage?.caption) {
+                return msgContent.imageMessage.caption;
+            }
+            if (msgContent.videoMessage?.caption) {
+                return msgContent.videoMessage.caption;
+            }
+            if (msgContent.documentMessage?.caption) {
+                return msgContent.documentMessage.caption;
+            }
+            // For messages without text content, return a placeholder
+            if (msgContent.imageMessage) {
+                return '[Image]';
+            }
+            if (msgContent.videoMessage) {
+                return '[Video]';
+            }
+            if (msgContent.audioMessage) {
+                return '[Audio]';
+            }
+            if (msgContent.documentMessage) {
+                return '[Document]';
+            }
+            if (msgContent.stickerMessage) {
+                return '[Sticker]';
+            }
+            if (msgContent.locationMessage) {
+                return '[Location]';
+            }
+            if (msgContent.contactMessage) {
+                return '[Contact]';
+            }
+            // For system messages or unknown types
+            const messageType = Object.keys(msgContent)[0];
+            if (messageType) {
+                return `[${messageType}]`;
+            }
         }
-        else if (msgContent.extendedTextMessage?.text) {
-            return msgContent.extendedTextMessage.text;
-        }
-        else if (msgContent.imageMessage?.caption) {
-            return msgContent.imageMessage.caption;
-        }
-        else if (msgContent.videoMessage?.caption) {
-            return msgContent.videoMessage.caption;
+        catch (error) {
+            console.log('⚠️ Error extracting message text:', error.message);
         }
         return '';
     }
@@ -481,11 +534,23 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
         if (!jid || !this.socket)
             return 'Unknown Group';
         try {
+            // First check if we already have this group in our cache
+            const existingGroup = this.groups.find(g => g.id === jid);
+            if (existingGroup && existingGroup.name && existingGroup.name !== 'Unknown Group') {
+                return existingGroup.name;
+            }
             const groupMetadata = await this.socket.groupMetadata(jid);
-            return groupMetadata.subject || 'Unknown Group';
+            if (groupMetadata && groupMetadata.subject) {
+                return groupMetadata.subject;
+            }
+            // If no subject, try to extract from jid
+            const jidParts = jid.split('@')[0];
+            return `Group ${jidParts.substring(0, 8)}...`;
         }
         catch (error) {
-            return 'Unknown Group';
+            // If metadata fetch fails, try to extract from jid
+            const jidParts = jid.split('@')[0];
+            return `Group ${jidParts.substring(0, 8)}...`;
         }
     }
     processChatUpdates(chats) {
@@ -522,6 +587,15 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
         this.emitChatsUpdate();
     }
     emitChatsUpdate() {
+        // Log the actual group data being emitted
+        console.log(`📊 Emitting chats update:`);
+        console.log(`   Groups (${this.groups.length}):`);
+        this.groups.slice(0, 3).forEach((group, index) => {
+            console.log(`     ${index + 1}. "${group.name}" (${group.participantCount} members) - ${group.id}`);
+        });
+        if (this.groups.length > 3) {
+            console.log(`     ... and ${this.groups.length - 3} more groups`);
+        }
         // Emit chats updated event
         this.emit('chats_updated', {
             groups: this.groups,

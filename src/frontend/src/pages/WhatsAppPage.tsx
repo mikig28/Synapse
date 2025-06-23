@@ -721,78 +721,128 @@ const WhatsAppPage: React.FC = () => {
                 <div className="relative">
                   <Search className="absolute left-3 top-3 w-4 h-4 text-blue-300" />
                   <Input
-                    placeholder="Search chats..."
+                    placeholder="Search groups and contacts..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-blue-300"
                   />
                 </div>
+                <div className="mt-2 text-xs text-blue-200/60">
+                  {filteredGroups.length + filteredPrivateChats.length} chats ({filteredGroups.length} groups, {filteredPrivateChats.length} contacts)
+                </div>
               </div>
               
-              <div className="flex-1 overflow-y-auto space-y-2">
+              <div className="flex-1 overflow-y-auto space-y-3 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
                 {filteredGroups.length > 0 && (
                   <div>
                     <h3 className="text-sm font-semibold text-blue-200 mb-2">Groups</h3>
-                    {filteredGroups.map((group) => (
-                      <motion.div
-                        key={group.id}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => {
-                          setSelectedChat(group);
-                          // Don't fetch messages immediately, let them load from cache or real-time
-                        }}
-                        className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                          selectedChat?.id === group.id
-                            ? 'bg-violet-500/30 border border-violet-400/50'
-                            : 'bg-white/5 hover:bg-white/10'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Users className="w-4 h-4 text-green-400" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-white truncate">
-                              {group.name}
-                            </p>
-                            <p className="text-xs text-blue-200/70">
-                              {group.participantCount} members
-                            </p>
+                    <div className="space-y-1 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                      {filteredGroups.map((group) => (
+                        <motion.div
+                          key={group.id}
+                          whileHover={{ scale: 1.01 }}
+                          whileTap={{ scale: 0.99 }}
+                          onClick={() => {
+                            setSelectedChat(group);
+                            // Don't fetch messages immediately, let them load from cache or real-time
+                          }}
+                          className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                            selectedChat?.id === group.id
+                              ? 'bg-violet-500/30 border border-violet-400/50 shadow-lg'
+                              : 'bg-white/5 hover:bg-white/10 border border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex-shrink-0">
+                              <Users className="w-5 h-5 text-green-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-white truncate" title={group.name}>
+                                {group.name}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <p className="text-xs text-blue-200/70">
+                                  {group.participantCount || 0} members
+                                </p>
+                                {group.lastMessage && (
+                                  <>
+                                    <span className="text-xs text-blue-200/40">•</span>
+                                    <p className="text-xs text-blue-200/50 truncate max-w-[100px]">
+                                      {group.lastMessage}
+                                    </p>
+                                  </>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </motion.div>
-                    ))}
+                        </motion.div>
+                      ))}
+                    </div>
                   </div>
                 )}
                 
                 {filteredPrivateChats.length > 0 && (
-                  <div className="pt-4">
-                    <h3 className="text-sm font-semibold text-blue-200 mb-2">Private Chats</h3>
-                    {filteredPrivateChats.map((chat) => (
-                      <motion.div
-                        key={chat.id}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => {
-                          setSelectedChat(chat);
-                          // Don't fetch messages immediately, let them load from cache or real-time
-                        }}
-                        className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                          selectedChat?.id === chat.id
-                            ? 'bg-violet-500/30 border border-violet-400/50'
-                            : 'bg-white/5 hover:bg-white/10'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Phone className="w-4 h-4 text-violet-400" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-white truncate">
-                              {chat.name}
-                            </p>
-                            <p className="text-xs text-blue-200/70">Private chat</p>
+                  <div className={filteredGroups.length > 0 ? "pt-4" : ""}>
+                    <h3 className="text-sm font-semibold text-blue-200 mb-2 flex items-center gap-2">
+                      <Phone className="w-4 h-4" />
+                      Private Contacts
+                    </h3>
+                    <div className="space-y-1 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                      {filteredPrivateChats.map((chat) => (
+                        <motion.div
+                          key={chat.id}
+                          whileHover={{ scale: 1.01 }}
+                          whileTap={{ scale: 0.99 }}
+                          onClick={() => {
+                            setSelectedChat(chat);
+                            // Don't fetch messages immediately, let them load from cache or real-time
+                          }}
+                          className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                            selectedChat?.id === chat.id
+                              ? 'bg-violet-500/30 border border-violet-400/50 shadow-lg'
+                              : 'bg-white/5 hover:bg-white/10 border border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex-shrink-0">
+                              <Phone className="w-5 h-5 text-violet-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-white truncate" title={chat.name}>
+                                {chat.name}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <p className="text-xs text-violet-200/70">
+                                  Private contact
+                                </p>
+                                {chat.lastMessage && (
+                                  <>
+                                    <span className="text-xs text-blue-200/40">•</span>
+                                    <p className="text-xs text-blue-200/50 truncate max-w-[100px]">
+                                      {chat.lastMessage}
+                                    </p>
+                                  </>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </motion.div>
-                    ))}
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {filteredGroups.length === 0 && filteredPrivateChats.length === 0 && (
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="text-center">
+                      <Search className="w-12 h-12 text-blue-300/50 mx-auto mb-3" />
+                      <p className="text-blue-200/70 text-sm">
+                        {searchTerm ? 'No chats match your search' : 'No chats available'}
+                      </p>
+                      <p className="text-blue-200/50 text-xs mt-1">
+                        {searchTerm ? 'Try a different search term' : 'Chats will appear as they are discovered'}
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
