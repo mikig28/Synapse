@@ -260,6 +260,17 @@ export default function CalendarPage() { // Renamed from Home for clarity
       organizer: "Alice Brown",
     },
     {
+      id: 100,
+      title: "TEST TODAY EVENT",
+      startTime: new Date(currentYear, currentMonth, today.getDate(), 14, 0),
+      endTime: new Date(currentYear, currentMonth, today.getDate(), 15, 0),
+      color: "bg-red-500",
+      description: "Test event for today to verify visibility",
+      location: "Test Location",
+      attendees: ["Test User"],
+      organizer: "System",
+    },
+    {
       id: 2,
       title: "Lunch with Sarah",
       startTime: new Date(currentYear, currentMonth, today.getDate() + 1, 12, 30),
@@ -910,7 +921,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
     start: startOfWeek(currentDisplayDate, { weekStartsOn: 0 }), // Sunday as start of week
     end: endOfWeek(currentDisplayDate, { weekStartsOn: 0 }),
   })
-  const timeSlots = Array.from({ length: 9 }, (_, i) => i + 8) // 8 AM to 4 PM (exclusive of 5 PM)
+  const timeSlots = Array.from({ length: 12 }, (_, i) => i + 7) // 7 AM to 6 PM (exclusive of 7 PM)
 
   // Helper function to calculate event position and height
   const calculateEventStyle = (startTime: Date, endTime: Date, isDragging: boolean = false) => {
@@ -922,13 +933,40 @@ export default function CalendarPage() { // Renamed from Home for clarity
     const start = startHour + startMinute / 60;
     const end = endHour + endMinute / 60;
     
-    const top = (start - 8) * 80 // 80px per hour, assuming 8 AM is the start of the grid
-    const height = (end - start) * 80
+    console.log('[Frontend] calculateEventStyle for event:', {
+      startTime: startTime.toLocaleString(),
+      endTime: endTime.toLocaleString(),
+      start,
+      end,
+      startHour,
+      endHour
+    });
+    
+    // Clamp the start time to be within the visible grid (7 AM - 7 PM)
+    const clampedStart = Math.max(7, Math.min(19, start));
+    const clampedEnd = Math.max(7, Math.min(19, end));
+    
+    const top = (clampedStart - 7) * 80; // 80px per hour, assuming 7 AM is the start of the grid
+    const height = Math.max(20, (clampedEnd - clampedStart) * 80); // Minimum 20px height
+    
+    // Detect if event is outside visible range
+    const isClipped = start < 7 || end > 19;
+    
+    console.log('[Frontend] Event positioning:', {
+      top: `${top}px`,
+      height: `${height}px`,
+      isClipped,
+      clampedStart,
+      clampedEnd
+    });
+    
     return {
       top: `${top}px`,
       height: `${height}px`,
       opacity: isDragging ? 0.5 : 1,
       cursor: isDragging ? 'grabbing' : 'pointer',
+      zIndex: isDragging ? 1000 : 10,
+      border: isClipped ? '2px dashed rgba(255,255,255,0.5)' : undefined, // Visual indicator for clipped events
     };
   }
 
