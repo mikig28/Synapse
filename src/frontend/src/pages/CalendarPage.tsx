@@ -438,7 +438,18 @@ export default function CalendarPage() { // Renamed from Home for clarity
   };
 
   const handleSubmitEvent = async () => {
+    console.log('[Frontend] handleSubmitEvent called');
+    console.log('[Frontend] modalMode:', modalMode);
+    console.log('[Frontend] eventToEdit:', eventToEdit);
+    
     if (!newEventTitle || !newEventStartDate || !newEventStartTime || !newEventEndDate || !newEventEndTime) {
+      console.log('[Frontend] Missing required fields:', {
+        title: newEventTitle,
+        startDate: newEventStartDate,
+        startTime: newEventStartTime,
+        endDate: newEventEndDate,
+        endTime: newEventEndTime
+      });
       alert("Please fill in all required fields: Title, Start Date/Time, End Date/Time.");
       return;
     }
@@ -476,9 +487,19 @@ export default function CalendarPage() { // Renamed from Home for clarity
           description: `"${newEventTitle}" has been added to your calendar.`,
         });
       } else if (modalMode === "edit" && eventToEdit) {
+        console.log('[Frontend] Edit mode - eventToEdit:', eventToEdit);
+        
         // Check if this is a local event (timestamp ID) or backend event (MongoDB ObjectId)
         const isBackendEvent = typeof eventToEdit.id === 'string' && eventToEdit.id.length === 24;
         const isLocalEvent = typeof eventToEdit.id === 'number' || (typeof eventToEdit.id === 'string' && eventToEdit.id.length !== 24);
+        
+        console.log('[Frontend] Event type detection:', {
+          eventId: eventToEdit.id,
+          eventIdType: typeof eventToEdit.id,
+          eventIdLength: typeof eventToEdit.id === 'string' ? eventToEdit.id.length : 'N/A',
+          isBackendEvent,
+          isLocalEvent
+        });
         
         const eventData = {
           title: newEventTitle,
@@ -528,12 +549,33 @@ export default function CalendarPage() { // Renamed from Home for clarity
           title: "Event Updated",
           description: `"${newEventTitle}" has been updated.`,
         });
+      } else if (modalMode === "edit" && !eventToEdit) {
+        console.error('[Frontend] Edit mode but eventToEdit is null');
+        toast({
+          title: "Error",
+          description: "Cannot update event: event data is missing.",
+          variant: "destructive",
+        });
+        return;
+      } else {
+        console.error('[Frontend] Unknown modal mode:', modalMode);
+        toast({
+          title: "Error",
+          description: "Unknown operation mode.",
+          variant: "destructive",
+        });
+        return;
       }
     } catch (error: any) {
-      console.error('Error saving event:', error);
+      console.error('[Frontend] Error saving event:', error);
+      console.error('[Frontend] Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
       toast({
         title: "Error",
-        description: error.response?.data?.message || "Failed to save event.",
+        description: error.response?.data?.message || error.message || "Failed to save event.",
         variant: "destructive",
       });
       return;
@@ -1902,7 +1944,12 @@ export default function CalendarPage() { // Renamed from Home for clarity
                   Cancel
                 </button>
                 <button 
-                  onClick={handleSubmitEvent}
+                  onClick={(e) => {
+                    console.log('[Frontend] Update Event button clicked');
+                    console.log('[Frontend] Event object:', e);
+                    console.log('[Frontend] Current modalMode:', modalMode);
+                    handleSubmitEvent();
+                  }}
                   className="px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800"
                 >
                   {modalMode === "create" ? "Save Event" : "Update Event"}
