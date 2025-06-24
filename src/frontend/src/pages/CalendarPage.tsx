@@ -1407,7 +1407,13 @@ export default function CalendarPage() { // Renamed from Home for clarity
                             onDragLeave={() => {
                               setIsDragOver(false);
                             }}
-                            onDrop={() => {
+                            onDrop={async () => {
+                              console.log('[Frontend] Drop event triggered', {
+                                draggedEvent: draggedEvent?.title,
+                                dragOverDate,
+                                dragOverTimeSlot
+                              });
+                              
                               if (draggedEvent && dragOverDate && dragOverTimeSlot !== null) {
                                 const duration = draggedEvent.endTime.getTime() - draggedEvent.startTime.getTime();
                                 const newStartTime = new Date(dragOverDate);
@@ -1415,21 +1421,34 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                 
                                 const newEndTime = new Date(newStartTime.getTime() + duration);
 
-                                setEvents(prevEvents => 
-                                  prevEvents.map(e => 
-                                    e.id === draggedEvent.id ? { ...e, startTime: newStartTime, endTime: newEndTime } : e
-                                  )
-                                );
+                                console.log('[Frontend] Attempting to move event:', {
+                                  eventTitle: draggedEvent.title,
+                                  from: `${draggedEvent.startTime} - ${draggedEvent.endTime}`,
+                                  to: `${newStartTime} - ${newEndTime}`
+                                });
+
+                                // Use our safe update function instead of direct state manipulation
+                                const success = await updateEventSafely(draggedEvent, newStartTime, newEndTime);
+                                
+                                if (success) {
+                                  toast({
+                                    title: "Event Moved",
+                                    description: `"${draggedEvent.title}" has been moved successfully.`,
+                                  });
+                                }
+                                
+                                // Clear drag states
                                 setDraggedEvent(null);
                                 setDragOverDate(null);
                                 setDragOverTimeSlot(null);
                                 setIsDragOver(false);
+                                setIsDraggingEvent(false);
                               }
                             }}
                           ></div>
                         )
                       })}
-                      {events
+                      {getSafeEvents(events)
                         .filter((event) => isSameDay(event.startTime, weekDates[dayIndex]))
                         .map((event) => {
                           const eventStyle = calculateEventStyle(event.startTime, event.endTime, draggedEvent?.id === event.id)
@@ -1437,9 +1456,15 @@ export default function CalendarPage() { // Renamed from Home for clarity
                             <div
                               key={event.id}
                               draggable // Make the event draggable
-                              onDragStart={() => setDraggedEvent(event)}
+                              onDragStart={() => {
+                                console.log('[Frontend] Drag start for event:', event.title);
+                                setDraggedEvent(event);
+                                setIsDraggingEvent(true);
+                              }}
                               onDragEnd={() => {
+                                console.log('[Frontend] Drag end for event');
                                 setDraggedEvent(null); // Clean up after drag ends
+                                setIsDraggingEvent(false);
                                 // Only clear dragOverDate and dragOverTimeSlot if not actively resizing
                                 if (!resizingEvent) {
                                   setDragOverDate(null);
@@ -1644,7 +1669,13 @@ export default function CalendarPage() { // Renamed from Home for clarity
                           onDragLeave={() => {
                             setIsDragOver(false);
                           }}
-                          onDrop={() => {
+                          onDrop={async () => {
+                            console.log('[Frontend] Day view drop event triggered', {
+                              draggedEvent: draggedEvent?.title,
+                              dragOverDate,
+                              dragOverTimeSlot
+                            });
+                            
                             if (draggedEvent && dragOverDate && dragOverTimeSlot !== null) {
                               const duration = draggedEvent.endTime.getTime() - draggedEvent.startTime.getTime();
                               const newStartTime = new Date(dragOverDate);
@@ -1652,21 +1683,34 @@ export default function CalendarPage() { // Renamed from Home for clarity
                               
                               const newEndTime = new Date(newStartTime.getTime() + duration);
 
-                              setEvents(prevEvents => 
-                                prevEvents.map(e => 
-                                  e.id === draggedEvent.id ? { ...e, startTime: newStartTime, endTime: newEndTime } : e
-                                )
-                              );
+                              console.log('[Frontend] Day view attempting to move event:', {
+                                eventTitle: draggedEvent.title,
+                                from: `${draggedEvent.startTime} - ${draggedEvent.endTime}`,
+                                to: `${newStartTime} - ${newEndTime}`
+                              });
+
+                              // Use our safe update function instead of direct state manipulation
+                              const success = await updateEventSafely(draggedEvent, newStartTime, newEndTime);
+                              
+                              if (success) {
+                                toast({
+                                  title: "Event Moved",
+                                  description: `"${draggedEvent.title}" has been moved successfully.`,
+                                });
+                              }
+                              
+                              // Clear drag states
                               setDraggedEvent(null);
                               setDragOverDate(null);
                               setDragOverTimeSlot(null);
                               setIsDragOver(false);
+                              setIsDraggingEvent(false);
                             }
                           }}
                         ></div>
                       );
                     })}
-                    {events
+                    {getSafeEvents(events)
                       .filter((event) => isSameDay(event.startTime, currentDisplayDate))
                       .map((event) => {
                         const eventStyle = calculateEventStyle(event.startTime, event.endTime, draggedEvent?.id === event.id);
@@ -1674,9 +1718,15 @@ export default function CalendarPage() { // Renamed from Home for clarity
                           <div
                             key={event.id}
                             draggable
-                            onDragStart={() => setDraggedEvent(event)}
+                            onDragStart={() => {
+                              console.log('[Frontend] Day view drag start for event:', event.title);
+                              setDraggedEvent(event);
+                              setIsDraggingEvent(true);
+                            }}
                             onDragEnd={() => {
+                              console.log('[Frontend] Day view drag end for event');
                               setDraggedEvent(null);
+                              setIsDraggingEvent(false);
                               if (!resizingEvent) {
                                 setDragOverDate(null);
                                 setDragOverTimeSlot(null);

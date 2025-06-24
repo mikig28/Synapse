@@ -131,11 +131,22 @@ async function cacheFirstStrategy(request) {
   }
   
   try {
+    // Skip caching for unsupported schemes
+    if (request.url.startsWith('chrome-extension://') || 
+        request.url.startsWith('moz-extension://') || 
+        request.url.startsWith('safari-extension://')) {
+      console.log('[SW] Skipping cache for extension URL:', request.url);
+      return fetch(request);
+    }
+    
     const networkResponse = await fetch(request);
     
     if (networkResponse.ok) {
       const cache = await caches.open(STATIC_CACHE);
-      cache.put(request, networkResponse.clone());
+      // Additional safety check before caching
+      if (!request.url.startsWith('chrome-extension://')) {
+        cache.put(request, networkResponse.clone());
+      }
     }
     
     return networkResponse;
