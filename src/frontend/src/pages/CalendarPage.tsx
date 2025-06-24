@@ -924,7 +924,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
     start: startOfWeek(currentDisplayDate, { weekStartsOn: 0 }), // Sunday as start of week
     end: endOfWeek(currentDisplayDate, { weekStartsOn: 0 }),
   })
-  const timeSlots = Array.from({ length: 12 }, (_, i) => i + 7) // 7 AM to 6 PM (exclusive of 7 PM)
+  const timeSlots = Array.from({ length: 13 }, (_, i) => i + 7) // 7 AM to 7 PM (inclusive)
 
   // Helper function to calculate event position and height
   const calculateEventStyle = (startTime: Date, endTime: Date, isDragging: boolean = false) => {
@@ -1194,15 +1194,30 @@ export default function CalendarPage() { // Renamed from Home for clarity
   // Debug function to create a test local event
   const createTestLocalEvent = async () => {
     try {
+      // Create a test event during normal business hours today
+      const now = new Date();
+      const testStartTime = new Date(now);
+      testStartTime.setHours(14, 0, 0, 0); // 2 PM today
+      const testEndTime = new Date(now);
+      testEndTime.setHours(15, 0, 0, 0); // 3 PM today
+
       const testEvent = {
-        title: `Test Local Event ${new Date().getTime()}`,
-        startTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour from now
-        endTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours from now
-        description: 'This is a test event created to test sync functionality',
-        color: 'bg-blue-500',
+        title: `Test Event ${now.getTime()}`,
+        startTime: testStartTime.toISOString(),
+        endTime: testEndTime.toISOString(),
+        description: 'This is a test event created to verify calendar display',
+        color: 'bg-red-500',
       };
 
       console.log('[Debug] Creating test local event...');
+      console.log('[Debug] Event details:', {
+        title: testEvent.title,
+        startTime: testStartTime.toString(),
+        endTime: testEndTime.toString(),
+        startHour: testStartTime.getHours(),
+        endHour: testEndTime.getHours()
+      });
+      
       const response = await axiosInstance.post('/calendar-events', testEvent);
       console.log('[Debug] Test event created:', response.data);
       
@@ -1210,7 +1225,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
       
       toast({
         title: "Test Event Created",
-        description: "Created a test local event. Try syncing now to see if it exports to Google Calendar.",
+        description: `Created test event at 2-3 PM today. Check if it appears in the calendar.`,
         variant: "default",
       });
     } catch (error: any) {
@@ -1441,10 +1456,45 @@ export default function CalendarPage() { // Renamed from Home for clarity
                 {/* Debug Test Button (temporary) */}
                 <button
                   onClick={createTestLocalEvent}
-                  className="hidden xl:flex items-center gap-1 px-2 py-1 bg-orange-500/10 rounded-md text-xs text-orange-400 hover:bg-orange-500/20"
+                  className="flex items-center gap-1 px-2 py-1 bg-orange-500/10 rounded-md text-xs text-orange-400 hover:bg-orange-500/20"
                 >
                   <span>🧪</span>
                   <span>Test Event</span>
+                </button>
+                
+                {/* Debug Log Events Button */}
+                <button
+                  onClick={() => {
+                    console.log('=== CURRENT EVENTS DEBUG ===');
+                    console.log('Total events:', events.length);
+                    console.log('Current view:', currentView);
+                    console.log('Current date:', currentDisplayDate.toString());
+                    console.log('Week dates:', weekDates.map(d => d.toDateString()));
+                    
+                    events.forEach((event, idx) => {
+                      console.log(`Event ${idx + 1}:`, {
+                        id: event.id,
+                        title: event.title,
+                        startTime: event.startTime.toString(),
+                        endTime: event.endTime.toString(),
+                        startHour: event.startTime.getHours(),
+                        endHour: event.endTime.getHours(),
+                        color: event.color,
+                        isToday: isSameDay(event.startTime, new Date()),
+                        isThisWeek: weekDates.some(d => isSameDay(event.startTime, d))
+                      });
+                    });
+                    
+                    const todayEvents = events.filter(e => isSameDay(e.startTime, new Date()));
+                    console.log(`Events for today (${new Date().toDateString()}):`, todayEvents.length);
+                    
+                    const weekEvents = events.filter(e => weekDates.some(d => isSameDay(e.startTime, d)));
+                    console.log('Events for this week:', weekEvents.length);
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 bg-purple-500/10 rounded-md text-xs text-purple-400 hover:bg-purple-500/20"
+                >
+                  <span>📋</span>
+                  <span>Log Events</span>
                 </button>
               </div>
             </div>
