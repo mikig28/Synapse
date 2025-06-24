@@ -661,22 +661,33 @@ export default function CalendarPage() { // Renamed from Home for clarity
   });
 
   const handleSyncWithGoogle = async () => {
+    console.log('[Frontend] Starting Google Calendar sync...');
+    console.log('[Frontend] Access token present:', !!googleAccessToken);
+    console.log('[Frontend] Access token length:', googleAccessToken?.length || 0);
+
     if (!googleAccessToken) {
+      console.log('[Frontend] No access token, triggering Google login...');
       handleGoogleLogin();
       return;
     }
 
     setIsSyncing(true);
     try {
+      console.log('[Frontend] Calling sync API...');
       const result = await googleCalendarService.syncWithGoogle(googleAccessToken);
       
+      console.log('[Frontend] Sync API response:', result);
+      console.log('[Frontend] Events imported:', result.eventsImported);
+      console.log('[Frontend] Events exported:', result.eventsExported);
+      console.log('[Frontend] Errors:', result.errors);
+
       toast({
         title: "Sync Completed",
         description: `Imported ${result.eventsImported} events, exported ${result.eventsExported} events.`,
       });
 
       if (result.errors.length > 0) {
-        console.warn('Sync completed with errors:', result.errors);
+        console.warn('[Frontend] Sync completed with errors:', result.errors);
         toast({
           title: "Sync Completed with Warnings",
           description: `Some events had issues: ${result.errors.length} errors occurred.`,
@@ -685,10 +696,13 @@ export default function CalendarPage() { // Renamed from Home for clarity
       }
 
       // Refresh events and sync status
+      console.log('[Frontend] Refreshing events from backend...');
       await loadEventsFromStorage();
       fetchSyncStatus();
+      console.log('[Frontend] Events refreshed');
     } catch (error: any) {
-      console.error('Sync error:', error);
+      console.error('[Frontend] Sync error:', error);
+      console.error('[Frontend] Error response:', error.response?.data);
       toast({
         title: "Sync Failed",
         description: error.message || "Failed to sync with Google Calendar.",

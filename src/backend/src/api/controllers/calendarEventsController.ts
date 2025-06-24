@@ -177,16 +177,33 @@ export const syncWithGoogleCalendar = async (req: Request, res: Response) => {
     const userId = req.user?.id;
     const { accessToken, timeRange } = req.body;
 
+    console.log('[GoogleCalendarSync] Starting sync process...');
+    console.log('[GoogleCalendarSync] User ID:', userId);
+    console.log('[GoogleCalendarSync] Access token present:', !!accessToken);
+    console.log('[GoogleCalendarSync] Access token length:', accessToken?.length || 0);
+    console.log('[GoogleCalendarSync] Time range:', timeRange);
+
     if (!userId) {
+      console.log('[GoogleCalendarSync] ERROR: User not authenticated');
       return res.status(401).json({ message: 'User not authenticated' });
     }
 
     if (!accessToken) {
+      console.log('[GoogleCalendarSync] ERROR: No access token provided');
       return res.status(400).json({ message: 'Google access token is required' });
     }
 
+    // Check environment variables
+    console.log('[GoogleCalendarSync] Environment check:');
+    console.log('  GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? 'Present' : 'Missing');
+    console.log('  GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? 'Present' : 'Missing');
+    console.log('  GOOGLE_REDIRECT_URI:', process.env.GOOGLE_REDIRECT_URI || 'Default will be used');
+
     const googleCalendarService = initializeGoogleCalendarService();
+    console.log('[GoogleCalendarSync] Google Calendar service initialized');
+    
     googleCalendarService.setAccessToken(accessToken);
+    console.log('[GoogleCalendarSync] Access token set on service');
 
     // Parse time range if provided
     let parsedTimeRange;
@@ -195,12 +212,22 @@ export const syncWithGoogleCalendar = async (req: Request, res: Response) => {
         start: new Date(timeRange.start),
         end: new Date(timeRange.end),
       };
+      console.log('[GoogleCalendarSync] Using custom time range:', parsedTimeRange);
+    } else {
+      console.log('[GoogleCalendarSync] No time range provided, using default (from now onwards)');
     }
 
+    console.log('[GoogleCalendarSync] Starting bidirectional sync...');
     const syncResult = await googleCalendarService.syncWithGoogle(
       userId as unknown as mongoose.Schema.Types.ObjectId,
       parsedTimeRange
     );
+
+    console.log('[GoogleCalendarSync] Sync completed:');
+    console.log('  Success:', syncResult.success);
+    console.log('  Events imported:', syncResult.eventsImported);
+    console.log('  Events exported:', syncResult.eventsExported);
+    console.log('  Errors:', syncResult.errors);
 
     if (syncResult.success) {
       res.status(200).json({
@@ -208,13 +235,17 @@ export const syncWithGoogleCalendar = async (req: Request, res: Response) => {
         result: syncResult,
       });
     } else {
+      console.log('[GoogleCalendarSync] Sync completed with errors');
       res.status(500).json({
         message: 'Sync completed with errors',
         result: syncResult,
       });
     }
   } catch (error) {
+    console.error('[GoogleCalendarSync] FATAL ERROR:', error);
     if (error instanceof Error) {
+      console.error('[GoogleCalendarSync] Error message:', error.message);
+      console.error('[GoogleCalendarSync] Error stack:', error.stack);
       res.status(500).json({ message: 'Error syncing with Google Calendar', error: error.message });
     } else {
       res.status(500).json({ message: 'An unknown error occurred during sync' });
@@ -314,6 +345,57 @@ export const exportToGoogleCalendar = async (req: Request, res: Response) => {
       res.status(500).json({ message: 'Error exporting to Google Calendar', error: error.message });
     } else {
       res.status(500).json({ message: 'An unknown error occurred during export' });
+    }
+  }
+};
+
+// Debug endpoint to check database state
+export const debugCalendarEvents = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    console.log('[CalendarDebug] Checking database state for user:', userId);
+
+    // Get all events for this user
+    const allEvents = await CalendarEvent.find({ userId }).sort({ createdAt: -1 });
+    
+    console.log('[CalendarDebug] Total events in DB:', allEvents.length);
+
+    const eventSummary = allEvents.map(event => ({
+      id: event._id,
+      title: event.title,
+      startTime: event.startTime,
+      syncStatus: event.syncStatus,
+      googleEventId: event.googleEventId,
+      lastSyncAt: event.lastSyncAt,
+      createdAt: event.createdAt
+    }));
+
+    const statusCounts = {
+      synced: allEvents.filter(e => e.syncStatus === 'synced').length,
+      pending: allEvents.filter(e => e.syncStatus === 'pending').length,
+      error: allEvents.filter(e => e.syncStatus === 'error').length,
+      local_only: allEvents.filter(e => e.syncStatus === 'local_only').length,
+      undefined: allEvents.filter(e => !e.syncStatus).length,
+    };
+
+    console.log('[CalendarDebug] Status counts:', statusCounts);
+
+    res.status(200).json({
+      totalEvents: allEvents.length,
+      statusCounts,
+      events: eventSummary,
+      userId
+    });
+  } catch (error) {
+    console.error('[CalendarDebug] Error:', error);
+    if (error instanceof Error) {
+      res.status(500).json({ message: 'Debug error', error: error.message });
+    } else {
+      res.status(500).json({ message: 'Unknown debug error' });
     }
   }
 };

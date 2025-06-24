@@ -8,6 +8,7 @@ import {
   getSyncStatus,
   importFromGoogleCalendar,
   exportToGoogleCalendar,
+  debugCalendarEvents,
 } from '../controllers/calendarEventsController';
 import { protect } from '../middleware/authMiddleware'; // Assuming you have this middleware
 
@@ -29,5 +30,8 @@ router.post('/sync', syncWithGoogleCalendar);
 router.get('/sync/status', getSyncStatus);
 router.post('/sync/import', importFromGoogleCalendar);
 router.post('/sync/export', exportToGoogleCalendar);
+
+// Debug route
+router.get('/debug', debugCalendarEvents);
 
 export default router;

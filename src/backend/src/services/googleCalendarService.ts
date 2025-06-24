@@ -99,6 +99,10 @@ export class GoogleCalendarService {
     timeMax?: Date
   ): Promise<{ imported: number; errors: string[] }> {
     try {
+      console.log('[GoogleCalendarService] Starting import from Google Calendar...');
+      console.log('[GoogleCalendarService] User ID:', userId);
+      console.log('[GoogleCalendarService] Time range:', { timeMin, timeMax });
+
       const response = await this.calendar.events.list({
         calendarId: 'primary',
         timeMin: timeMin?.toISOString() || new Date().toISOString(),
@@ -108,12 +112,22 @@ export class GoogleCalendarService {
         maxResults: 100,
       });
 
+      console.log('[GoogleCalendarService] Google API response status:', response.status);
       const googleEvents = response.data.items || [];
+      console.log('[GoogleCalendarService] Found', googleEvents.length, 'events in Google Calendar');
+
+      if (googleEvents.length > 0) {
+        console.log('[GoogleCalendarService] Sample event titles:', 
+          googleEvents.slice(0, 3).map(e => e.summary || 'No title'));
+      }
+
       const imported: string[] = [];
       const errors: string[] = [];
 
       for (const googleEvent of googleEvents) {
         try {
+          console.log('[GoogleCalendarService] Processing event:', googleEvent.summary, 'ID:', googleEvent.id);
+          
           if (!googleEvent.id) {
             errors.push('Google event missing ID');
             continue;
@@ -126,24 +140,30 @@ export class GoogleCalendarService {
           });
 
           if (existingEvent) {
+            console.log('[GoogleCalendarService] Updating existing event:', googleEvent.summary);
             // Update existing event
             const updatedData = this.convertGoogleEventToInternal(googleEvent, userId);
             await CalendarEvent.findByIdAndUpdate(existingEvent._id, updatedData);
           } else {
+            console.log('[GoogleCalendarService] Creating new event:', googleEvent.summary);
             // Create new event
             const eventData = this.convertGoogleEventToInternal(googleEvent, userId);
-            await CalendarEvent.create(eventData);
+            const newEvent = await CalendarEvent.create(eventData);
+            console.log('[GoogleCalendarService] Created event with DB ID:', newEvent._id);
             imported.push(googleEvent.id);
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error('[GoogleCalendarService] Error processing event:', googleEvent.summary, errorMessage);
           errors.push(`Failed to import event ${googleEvent.id}: ${errorMessage}`);
         }
       }
 
+      console.log('[GoogleCalendarService] Import completed. Imported:', imported.length, 'Errors:', errors.length);
       return { imported: imported.length, errors };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[GoogleCalendarService] FATAL import error:', errorMessage);
       throw new Error(`Failed to import from Google Calendar: ${errorMessage}`);
     }
   }
@@ -155,6 +175,9 @@ export class GoogleCalendarService {
     userId: mongoose.Schema.Types.ObjectId
   ): Promise<{ exported: number; errors: string[] }> {
     try {
+      console.log('[GoogleCalendarService] Starting export to Google Calendar...');
+      console.log('[GoogleCalendarService] User ID:', userId);
+
       // Get local events that haven't been synced to Google
       const localEvents = await CalendarEvent.find({
         userId,
@@ -166,14 +189,23 @@ export class GoogleCalendarService {
         ]
       });
 
+      console.log('[GoogleCalendarService] Found', localEvents.length, 'local events to export');
+      if (localEvents.length > 0) {
+        console.log('[GoogleCalendarService] Sample local event titles:', 
+          localEvents.slice(0, 3).map(e => e.title));
+      }
+
       const exported: string[] = [];
       const errors: string[] = [];
 
       for (const localEvent of localEvents) {
         try {
+          console.log('[GoogleCalendarService] Exporting event:', localEvent.title, 'Status:', localEvent.syncStatus);
+          
           const googleEventData = this.convertInternalEventToGoogle(localEvent);
 
           if (localEvent.googleEventId) {
+            console.log('[GoogleCalendarService] Updating existing Google event:', localEvent.googleEventId);
             // Update existing Google event
             const response = await this.calendar.events.update({
               calendarId: 'primary',
@@ -186,8 +218,10 @@ export class GoogleCalendarService {
               localEvent.syncStatus = 'synced';
               localEvent.lastSyncAt = new Date();
               await localEvent.save();
+              console.log('[GoogleCalendarService] Updated Google event successfully');
             }
           } else {
+            console.log('[GoogleCalendarService] Creating new Google event');
             // Create new Google event
             const response = await this.calendar.events.insert({
               calendarId: 'primary',
@@ -200,19 +234,23 @@ export class GoogleCalendarService {
               localEvent.syncStatus = 'synced';
               localEvent.lastSyncAt = new Date();
               await localEvent.save();
+              console.log('[GoogleCalendarService] Created Google event with ID:', response.data.id);
             }
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error('[GoogleCalendarService] Error exporting event:', localEvent.title, errorMessage);
           errors.push(`Failed to export event ${localEvent.title}: ${errorMessage}`);
           localEvent.syncStatus = 'error';
           await localEvent.save();
         }
       }
 
+      console.log('[GoogleCalendarService] Export completed. Exported:', exported.length, 'Errors:', errors.length);
       return { exported: exported.length, errors };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[GoogleCalendarService] FATAL export error:', errorMessage);
       throw new Error(`Failed to export to Google Calendar: ${errorMessage}`);
     }
   }
