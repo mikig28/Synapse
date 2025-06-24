@@ -196,6 +196,18 @@ export class GoogleCalendarService {
       console.log('[GoogleCalendarService] Starting export to Google Calendar...');
       console.log('[GoogleCalendarService] User ID:', userId);
 
+      // Debug: Check all events for this user first
+      const allUserEvents = await CalendarEvent.find({ userId });
+      console.log('[GoogleCalendarService] Total events for user:', allUserEvents.length);
+      if (allUserEvents.length > 0) {
+        console.log('[GoogleCalendarService] Sample events:', allUserEvents.slice(0, 3).map(e => ({
+          title: e.title,
+          syncStatus: e.syncStatus,
+          googleEventId: e.googleEventId ? 'Present' : 'None',
+          color: e.color
+        })));
+      }
+
       // Get local events that haven't been synced to Google
       const localEvents = await CalendarEvent.find({
         userId,

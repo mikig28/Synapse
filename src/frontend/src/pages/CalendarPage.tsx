@@ -89,10 +89,10 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
   const calendarEventsLocalStorageKey = "calendarEvents";
 
-  // Function to load events from both localStorage and backend API
-  const loadEventsFromStorage = async () => {
+  // Function to load events from backend API (primary source)
+  const loadEventsFromBackend = async () => {
     try {
-      // First, try to fetch events from backend API (includes Google Calendar synced events)
+      console.log('[Frontend] Loading events from backend API...');
       const response = await axiosInstance.get('/calendar-events');
       const backendEvents = response.data.map((event: any) => ({
         ...event,
@@ -100,26 +100,31 @@ export default function CalendarPage() { // Renamed from Home for clarity
         endTime: new Date(event.endTime),
       }));
       
-      // Also load local events from localStorage
-      const storedEventsString = localStorage.getItem(calendarEventsLocalStorageKey);
-      let localEvents: CalendarEvent[] = [];
+      console.log('[Frontend] Loaded', backendEvents.length, 'events from backend');
+      console.log('[Frontend] Sample events:', backendEvents.slice(0, 3).map(e => ({ title: e.title, color: e.color, syncStatus: e.syncStatus })));
       
-      if (storedEventsString) {
-        const parsedEvents = JSON.parse(storedEventsString) as Array<Omit<CalendarEvent, 'startTime' | 'endTime'> & { startTime: string; endTime: string }>;
-        localEvents = parsedEvents.map(event => ({
-          ...event,
-          startTime: new Date(event.startTime),
-          endTime: new Date(event.endTime),
-        }));
-      }
+      setEvents(backendEvents);
       
-      // Combine backend and local events, removing duplicates
-      const allEvents = [...backendEvents, ...localEvents];
-      const uniqueEvents = allEvents.filter((event, index, self) => 
-        index === self.findIndex(e => e.id === event.id)
-      );
+      // Update localStorage to match backend state
+      const eventsToStore = backendEvents.map(event => ({
+        ...event,
+        startTime: event.startTime.toISOString(),
+        endTime: event.endTime.toISOString(),
+      }));
+      localStorage.setItem(calendarEventsLocalStorageKey, JSON.stringify(eventsToStore));
       
-      setEvents(uniqueEvents);
+      return backendEvents;
+    } catch (error) {
+      console.error("Error loading events from backend:", error);
+      throw error;
+    }
+  };
+
+  // Function to load events from both localStorage and backend API (with fallback)
+  const loadEventsFromStorage = async () => {
+    try {
+      // Try to load from backend first (includes Google Calendar synced events)
+      await loadEventsFromBackend();
     } catch (error) {
       console.error("Error loading events from backend, falling back to localStorage:", error);
       
@@ -776,9 +781,31 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
       // Refresh events and sync status
       console.log('[Frontend] Refreshing events from backend...');
-      await loadEventsFromStorage();
-      fetchSyncStatus();
-      console.log('[Frontend] Events refreshed');
+      try {
+        const refreshedEvents = await loadEventsFromBackend(); // Force reload from backend to get new Google Calendar events
+        console.log('[Frontend] Refreshed events count:', refreshedEvents.length);
+        console.log('[Frontend] Google Calendar events (emerald):', refreshedEvents.filter(e => e.color === 'bg-emerald-600').length);
+        console.log('[Frontend] Local events (blue):', refreshedEvents.filter(e => e.color === 'bg-blue-500').length);
+        
+        await fetchSyncStatus();
+        console.log('[Frontend] Events and sync status refreshed successfully');
+        
+        // Show success message with details
+        toast({
+          title: "Calendar Refreshed",
+          description: `Loaded ${refreshedEvents.length} events from server.`,
+          variant: "default",
+        });
+      } catch (refreshError) {
+        console.error('[Frontend] Error refreshing events:', refreshError);
+        toast({
+          title: "Refresh Warning", 
+          description: "Using cached events. Some recent changes may not be visible.",
+          variant: "default",
+        });
+        // Still try fallback method
+        await loadEventsFromStorage();
+      }
     } catch (error: any) {
       console.error('[Frontend] Sync error:', error);
       console.error('[Frontend] Error response:', error.response?.data);
@@ -812,6 +839,38 @@ export default function CalendarPage() { // Renamed from Home for clarity
     if (syncStatus.totalEvents === 0) return "No events to sync";
     
     return `${syncStatus.syncedEvents}/${syncStatus.totalEvents} synced`;
+  };
+
+  // Debug function to create a test local event
+  const createTestLocalEvent = async () => {
+    try {
+      const testEvent = {
+        title: `Test Local Event ${new Date().getTime()}`,
+        startTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour from now
+        endTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours from now
+        description: 'This is a test event created to test sync functionality',
+        color: 'bg-blue-500',
+      };
+
+      console.log('[Debug] Creating test local event...');
+      const response = await axiosInstance.post('/calendar-events', testEvent);
+      console.log('[Debug] Test event created:', response.data);
+      
+      await loadEventsFromBackend();
+      
+      toast({
+        title: "Test Event Created",
+        description: "Created a test local event. Try syncing now to see if it exports to Google Calendar.",
+        variant: "default",
+      });
+    } catch (error: any) {
+      console.error('[Debug] Error creating test event:', error);
+      toast({
+        title: "Test Event Failed",
+        description: error.response?.data?.message || "Failed to create test event.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Initialize Google auth state on component mount
@@ -1028,6 +1087,15 @@ export default function CalendarPage() { // Renamed from Home for clarity
                     <span>Connected</span>
                   </div>
                 )}
+
+                {/* Debug Test Button (temporary) */}
+                <button
+                  onClick={createTestLocalEvent}
+                  className="hidden xl:flex items-center gap-1 px-2 py-1 bg-orange-500/10 rounded-md text-xs text-orange-400 hover:bg-orange-500/20"
+                >
+                  <span>🧪</span>
+                  <span>Test Event</span>
+                </button>
               </div>
             </div>
             <div className="flex items-center gap-2 rounded-md p-1">
