@@ -476,7 +476,10 @@ export default function CalendarPage() { // Renamed from Home for clarity
           description: `"${newEventTitle}" has been added to your calendar.`,
         });
       } else if (modalMode === "edit" && eventToEdit) {
-        // Update existing event in backend
+        // Check if this is a local event (timestamp ID) or backend event (MongoDB ObjectId)
+        const isBackendEvent = typeof eventToEdit.id === 'string' && eventToEdit.id.length === 24;
+        const isLocalEvent = typeof eventToEdit.id === 'number' || (typeof eventToEdit.id === 'string' && eventToEdit.id.length !== 24);
+        
         const eventData = {
           title: newEventTitle,
           startTime: startDateTime.toISOString(),
@@ -485,16 +488,41 @@ export default function CalendarPage() { // Renamed from Home for clarity
           color: newEventColor,
         };
 
-        const response = await axiosInstance.put(`/calendar-events/${eventToEdit.id}`, eventData);
-        const updatedEvent = {
-          ...response.data,
-          startTime: new Date(response.data.startTime),
-          endTime: new Date(response.data.endTime),
-        };
+        let updatedEvent;
+        
+        if (isBackendEvent) {
+          // Update existing backend event
+          console.log('[Frontend] Updating backend event with ID:', eventToEdit.id);
+          const response = await axiosInstance.put(`/calendar-events/${eventToEdit.id}`, eventData);
+          updatedEvent = {
+            ...response.data,
+            startTime: new Date(response.data.startTime),
+            endTime: new Date(response.data.endTime),
+          };
+        } else if (isLocalEvent) {
+          // Convert local event to backend event by creating it first
+          console.log('[Frontend] Converting local event to backend event, local ID:', eventToEdit.id);
+          const response = await axiosInstance.post('/calendar-events', eventData);
+          updatedEvent = {
+            ...response.data,
+            startTime: new Date(response.data.startTime),
+            endTime: new Date(response.data.endTime),
+          };
+          
+          // Remove the old local event from state
+          setEvents(prevEvents => prevEvents.filter(e => e.id !== eventToEdit.id));
+        } else {
+          throw new Error('Unable to determine event type for update');
+        }
 
-        setEvents(prevEvents => 
-          prevEvents.map(e => (e.id === eventToEdit.id ? updatedEvent : e))
-        );
+        // Add or update the event in state
+        if (isBackendEvent) {
+          setEvents(prevEvents => 
+            prevEvents.map(e => (e.id === eventToEdit.id ? updatedEvent : e))
+          );
+        } else {
+          setEvents(prevEvents => [...prevEvents, updatedEvent]);
+        }
 
         toast({
           title: "Event Updated",
@@ -517,9 +545,15 @@ export default function CalendarPage() { // Renamed from Home for clarity
   // Delete event function
   const handleDeleteEvent = async (eventToDelete: CalendarEvent) => {
     try {
-      // Delete from backend if it's a backend event (has database ID format)
-      if (eventToDelete.id && typeof eventToDelete.id === 'string' && eventToDelete.id.length === 24) {
+      // Delete from backend if it's a backend event (MongoDB ObjectId format)
+      const isBackendEvent = typeof eventToDelete.id === 'string' && eventToDelete.id.length === 24;
+      
+      if (isBackendEvent) {
+        console.log('[Frontend] Deleting backend event with ID:', eventToDelete.id);
         await axiosInstance.delete(`/calendar-events/${eventToDelete.id}`);
+      } else {
+        console.log('[Frontend] Deleting local event with ID:', eventToDelete.id);
+        // Local events don't need backend deletion
       }
 
       // Update React state

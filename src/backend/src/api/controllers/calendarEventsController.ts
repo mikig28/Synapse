@@ -81,7 +81,11 @@ export const updateCalendarEvent = async (req: Request, res: Response) => {
     }
 
     if (!mongoose.Types.ObjectId.isValid(eventId)) {
-      return res.status(400).json({ message: 'Invalid event ID format' });
+      return res.status(400).json({ 
+        message: 'Invalid event ID format. Expected MongoDB ObjectId (24 character hex string).',
+        received: eventId,
+        expectedFormat: 'MongoDB ObjectId (e.g., 507f1f77bcf86cd799439011)'
+      });
     }
 
     const event = await CalendarEvent.findById(eventId);
@@ -144,7 +148,11 @@ export const deleteCalendarEvent = async (req: Request, res: Response) => {
     }
 
     if (!mongoose.Types.ObjectId.isValid(eventId)) {
-      return res.status(400).json({ message: 'Invalid event ID format' });
+      return res.status(400).json({ 
+        message: 'Invalid event ID format. Expected MongoDB ObjectId (24 character hex string).',
+        received: eventId,
+        expectedFormat: 'MongoDB ObjectId (e.g., 507f1f77bcf86cd799439011)'
+      });
     }
 
     const event = await CalendarEvent.findById(eventId);
