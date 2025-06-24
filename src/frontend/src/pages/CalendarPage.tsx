@@ -148,12 +148,12 @@ export default function CalendarPage() { // Renamed from Home for clarity
         } else {
           // No events anywhere, use initial events
           console.log('[Frontend] 🆕 No stored events found, using initial events');
-          setEvents(initialEvents);
+          setEvents(getInitialEvents());
         }
       } catch (localError) {
         console.error("❌ Error handling calendar events from localStorage:", localError);
         console.log('[Frontend] 🆕 Fallback to initial events');
-        setEvents(initialEvents);
+        setEvents(getInitialEvents());
       }
     }
   };
@@ -238,12 +238,13 @@ export default function CalendarPage() { // Renamed from Home for clarity
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
 
-  // Initial events data - this will be moved into state (updated to current month)
-  const today = new Date();
-  const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
-  
-  const initialEvents: CalendarEvent[] = [
+  // Function to generate initial events with current dates
+  const getInitialEvents = (): CalendarEvent[] => {
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    
+    return [
     {
       id: 1,
       title: "Team Meeting",
@@ -379,15 +380,17 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 15,
       title: "Product Planning",
-      startTime: new Date(2025, 2, 5, 14, 0),
-      endTime: new Date(2025, 2, 5, 15, 30),
+      startTime: new Date(currentYear, currentMonth, today.getDate() + 4, 14, 0),
+      endTime: new Date(currentYear, currentMonth, today.getDate() + 4, 15, 30),
       color: "bg-pink-400",
       description: "Roadmap discussion for Q3",
       location: "Strategy Room",
       attendees: ["Product Team", "Engineering Leads"],
       organizer: "Product Manager",
     },
-  ]
+    ];
+  };
+
   const [events, setEvents] = useState<CalendarEvent[]>([]); // Initialize with empty array, will be populated by useEffect
 
   // useEffect to save events to localStorage whenever the events state changes
