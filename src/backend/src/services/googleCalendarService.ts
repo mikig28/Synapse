@@ -66,7 +66,7 @@ export class GoogleCalendarService {
       lastSyncAt: new Date(),
       syncStatus: 'synced',
       userId,
-      color: '#3174ad', // Default color
+      color: 'bg-green-500', // Distinct green color for Google Calendar events
     };
   }
 
@@ -103,10 +103,19 @@ export class GoogleCalendarService {
       console.log('[GoogleCalendarService] User ID:', userId);
       console.log('[GoogleCalendarService] Time range:', { timeMin, timeMax });
 
+      // Default time range: 6 months in the past to 2 years in the future
+      const defaultTimeMin = timeMin || new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000); // 6 months ago
+      const defaultTimeMax = timeMax || new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000); // 2 years from now
+
+      console.log('[GoogleCalendarService] Using time range:', { 
+        timeMin: defaultTimeMin.toISOString(), 
+        timeMax: defaultTimeMax.toISOString() 
+      });
+
       const response = await this.calendar.events.list({
         calendarId: 'primary',
-        timeMin: timeMin?.toISOString() || new Date().toISOString(),
-        timeMax: timeMax?.toISOString(),
+        timeMin: defaultTimeMin.toISOString(),
+        timeMax: defaultTimeMax.toISOString(),
         singleEvents: true,
         orderBy: 'startTime',
         maxResults: 100,
@@ -122,6 +131,7 @@ export class GoogleCalendarService {
       }
 
       const imported: string[] = [];
+      const updated: string[] = [];
       const errors: string[] = [];
 
       for (const googleEvent of googleEvents) {
@@ -144,6 +154,7 @@ export class GoogleCalendarService {
             // Update existing event
             const updatedData = this.convertGoogleEventToInternal(googleEvent, userId);
             await CalendarEvent.findByIdAndUpdate(existingEvent._id, updatedData);
+            updated.push(googleEvent.id);
           } else {
             console.log('[GoogleCalendarService] Creating new event:', googleEvent.summary);
             // Create new event
@@ -159,8 +170,8 @@ export class GoogleCalendarService {
         }
       }
 
-      console.log('[GoogleCalendarService] Import completed. Imported:', imported.length, 'Errors:', errors.length);
-      return { imported: imported.length, errors };
+      console.log('[GoogleCalendarService] Import completed. New:', imported.length, 'Updated:', updated.length, 'Errors:', errors.length);
+      return { imported: imported.length + updated.length, errors }; // Count both new and updated as "imported"
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[GoogleCalendarService] FATAL import error:', errorMessage);

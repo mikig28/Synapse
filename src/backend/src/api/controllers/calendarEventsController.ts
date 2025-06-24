@@ -205,7 +205,7 @@ export const syncWithGoogleCalendar = async (req: Request, res: Response) => {
     googleCalendarService.setAccessToken(accessToken);
     console.log('[GoogleCalendarSync] Access token set on service');
 
-    // Parse time range if provided
+    // Parse time range if provided, otherwise use a sensible default
     let parsedTimeRange;
     if (timeRange && timeRange.start && timeRange.end) {
       parsedTimeRange = {
@@ -214,7 +214,12 @@ export const syncWithGoogleCalendar = async (req: Request, res: Response) => {
       };
       console.log('[GoogleCalendarSync] Using custom time range:', parsedTimeRange);
     } else {
-      console.log('[GoogleCalendarSync] No time range provided, using default (from now onwards)');
+      // Default: 6 months ago to 2 years in the future to catch most events
+      parsedTimeRange = {
+        start: new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000), // 6 months ago
+        end: new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000)   // 2 years from now
+      };
+      console.log('[GoogleCalendarSync] Using default wide time range:', parsedTimeRange);
     }
 
     console.log('[GoogleCalendarSync] Starting bidirectional sync...');
