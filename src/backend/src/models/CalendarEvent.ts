@@ -37,7 +37,7 @@ const CalendarEventSchema: Schema = new Schema(
     },
     color: {
       type: String,
-      default: '#3174ad', // Default blue color
+      default: 'bg-blue-500', // Default blue color for local events
     },
     userId: {
       type: mongoose.Schema.Types.ObjectId,

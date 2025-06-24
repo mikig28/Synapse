@@ -66,7 +66,7 @@ export class GoogleCalendarService {
       lastSyncAt: new Date(),
       syncStatus: 'synced',
       userId,
-      color: 'bg-green-500', // Distinct green color for Google Calendar events
+      color: 'bg-emerald-600', // Distinct emerald color for Google Calendar events
     };
   }
 

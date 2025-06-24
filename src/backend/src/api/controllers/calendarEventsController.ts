@@ -164,10 +164,18 @@ export const deleteCalendarEvent = async (req: Request, res: Response) => {
 
 // Initialize Google Calendar Service
 const initializeGoogleCalendarService = () => {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000';
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Google Calendar credentials not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in environment variables.');
+  }
+
   return new GoogleCalendarService({
-    clientId: process.env.GOOGLE_CLIENT_ID || '',
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-    redirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3000',
+    clientId,
+    clientSecret,
+    redirectUri,
   });
 };
 
@@ -199,8 +207,17 @@ export const syncWithGoogleCalendar = async (req: Request, res: Response) => {
     console.log('  GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? 'Present' : 'Missing');
     console.log('  GOOGLE_REDIRECT_URI:', process.env.GOOGLE_REDIRECT_URI || 'Default will be used');
 
-    const googleCalendarService = initializeGoogleCalendarService();
-    console.log('[GoogleCalendarSync] Google Calendar service initialized');
+    let googleCalendarService;
+    try {
+      googleCalendarService = initializeGoogleCalendarService();
+      console.log('[GoogleCalendarSync] Google Calendar service initialized');
+    } catch (error) {
+      console.log('[GoogleCalendarSync] ERROR: Failed to initialize Google Calendar service:', error);
+      return res.status(500).json({ 
+        message: 'Google Calendar service not configured properly. Please check server configuration.',
+        error: error instanceof Error ? error.message : 'Configuration error'
+      });
+    }
     
     googleCalendarService.setAccessToken(accessToken);
     console.log('[GoogleCalendarSync] Access token set on service');

@@ -430,7 +430,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
     // Optionally reset fields here if not reset on open for create mode
   };
 
-  const handleSubmitEvent = () => {
+  const handleSubmitEvent = async () => {
     if (!newEventTitle || !newEventStartDate || !newEventStartTime || !newEventEndDate || !newEventEndTime) {
       alert("Please fill in all required fields: Title, Start Date/Time, End Date/Time.");
       return;
@@ -444,58 +444,105 @@ export default function CalendarPage() { // Renamed from Home for clarity
       return;
     }
 
-    if (modalMode === "create") {
-      const newEventToAdd: CalendarEvent = {
-        id: Date.now(), // Simple unique ID
-        title: newEventTitle,
-        startTime: startDateTime,
-        endTime: endDateTime,
-        description: newEventDescription,
-        color: newEventColor,
-        location: "", 
-        attendees: [], 
-        organizer: "You", 
-      };
-      setEvents(prevEvents => [...prevEvents, newEventToAdd]);
-    } else if (modalMode === "edit" && eventToEdit) {
-      const updatedEvent: CalendarEvent = {
-        ...eventToEdit,
-        title: newEventTitle,
-        startTime: startDateTime,
-        endTime: endDateTime,
-        description: newEventDescription,
-        color: newEventColor,
-      };
-      setEvents(prevEvents => 
-        prevEvents.map(e => (e.id === eventToEdit.id ? updatedEvent : e))
-      );
+    try {
+      if (modalMode === "create") {
+        // Create new event in backend
+        const eventData = {
+          title: newEventTitle,
+          startTime: startDateTime.toISOString(),
+          endTime: endDateTime.toISOString(),
+          description: newEventDescription,
+          color: newEventColor,
+        };
+
+        const response = await axiosInstance.post('/calendar-events', eventData);
+        const backendEvent = {
+          ...response.data,
+          startTime: new Date(response.data.startTime),
+          endTime: new Date(response.data.endTime),
+        };
+
+        setEvents(prevEvents => [...prevEvents, backendEvent]);
+        
+        toast({
+          title: "Event Created",
+          description: `"${newEventTitle}" has been added to your calendar.`,
+        });
+      } else if (modalMode === "edit" && eventToEdit) {
+        // Update existing event in backend
+        const eventData = {
+          title: newEventTitle,
+          startTime: startDateTime.toISOString(),
+          endTime: endDateTime.toISOString(),
+          description: newEventDescription,
+          color: newEventColor,
+        };
+
+        const response = await axiosInstance.put(`/calendar-events/${eventToEdit.id}`, eventData);
+        const updatedEvent = {
+          ...response.data,
+          startTime: new Date(response.data.startTime),
+          endTime: new Date(response.data.endTime),
+        };
+
+        setEvents(prevEvents => 
+          prevEvents.map(e => (e.id === eventToEdit.id ? updatedEvent : e))
+        );
+
+        toast({
+          title: "Event Updated",
+          description: `"${newEventTitle}" has been updated.`,
+        });
+      }
+    } catch (error: any) {
+      console.error('Error saving event:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to save event.",
+        variant: "destructive",
+      });
+      return;
     }
+
     closeEventModal();
   };
 
   // Delete event function
-  const handleDeleteEvent = (eventToDelete: CalendarEvent) => {
-    const updatedEvents = events.filter(event => event.id !== eventToDelete.id);
-    
-    // Update React state
-    setEvents(updatedEvents);
-    
-    // Update localStorage
-    const eventsToStore = updatedEvents.map(event => ({
-      ...event,
-      startTime: event.startTime.toISOString(),
-      endTime: event.endTime.toISOString(),
-    }));
-    localStorage.setItem(calendarEventsLocalStorageKey, JSON.stringify(eventsToStore));
-    
-    // Dispatch custom event to notify other components
-    window.dispatchEvent(new CustomEvent('calendarEventsUpdated'));
-    
-    toast({
-      title: "Event Deleted",
-      description: `"${eventToDelete.title}" has been removed from your calendar.`,
-      variant: "default"
-    });
+  const handleDeleteEvent = async (eventToDelete: CalendarEvent) => {
+    try {
+      // Delete from backend if it's a backend event (has database ID format)
+      if (eventToDelete.id && typeof eventToDelete.id === 'string' && eventToDelete.id.length === 24) {
+        await axiosInstance.delete(`/calendar-events/${eventToDelete.id}`);
+      }
+
+      // Update React state
+      const updatedEvents = events.filter(event => event.id !== eventToDelete.id);
+      setEvents(updatedEvents);
+      
+      // Update localStorage
+      const eventsToStore = updatedEvents.map(event => ({
+        ...event,
+        startTime: event.startTime.toISOString(),
+        endTime: event.endTime.toISOString(),
+      }));
+      localStorage.setItem(calendarEventsLocalStorageKey, JSON.stringify(eventsToStore));
+      
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new CustomEvent('calendarEventsUpdated'));
+      
+      toast({
+        title: "Event Deleted",
+        description: `"${eventToDelete.title}" has been removed from your calendar.`,
+        variant: "default"
+      });
+    } catch (error: any) {
+      console.error('Error deleting event:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to delete event.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleResizeEnd = (resizedEvent: CalendarEvent, newStartTime: Date, newEndTime: Date) => {
@@ -868,23 +915,34 @@ export default function CalendarPage() { // Renamed from Home for clarity
               <h2 className="text-xl font-semibold text-white">{formatHeaderDate()}</h2>
               
               {/* Google Calendar Sync Button */}
-              <button
-                onClick={handleSyncWithGoogle}
-                disabled={isSyncing}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
-                  isSyncing 
-                    ? 'bg-white/5 text-white/50 cursor-not-allowed' 
-                    : 'bg-white/10 text-white hover:bg-white/20'
-                }`}
-                title={getSyncStatusText()}
-              >
-                <div className={`${isSyncing ? 'animate-spin' : ''}`}>
-                  {getSyncStatusIcon()}
-                </div>
-                <span className="hidden sm:inline">
-                  {isSyncing ? 'Syncing...' : 'Sync Google'}
-                </span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSyncWithGoogle}
+                  disabled={isSyncing}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+                    isSyncing 
+                      ? 'bg-white/5 text-white/50 cursor-not-allowed' 
+                      : 'bg-white/10 text-white hover:bg-white/20'
+                  }`}
+                  title={getSyncStatusText()}
+                >
+                  <div className={`${isSyncing ? 'animate-spin' : ''}`}>
+                    {getSyncStatusIcon()}
+                  </div>
+                  <span className="hidden sm:inline">
+                    {isSyncing ? 'Syncing...' : 'Sync Google'}
+                  </span>
+                </button>
+                
+                {/* Sync Status Indicator */}
+                {syncStatus && (
+                  <div className="hidden md:flex items-center gap-1 px-2 py-1 bg-white/5 rounded-md text-xs text-white/70">
+                    <span>📅</span>
+                    <span>{syncStatus.syncedEvents}/{syncStatus.totalEvents}</span>
+                    <span className="text-emerald-400">🔗</span>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2 rounded-md p-1">
               <button
