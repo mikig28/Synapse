@@ -123,29 +123,36 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
   // Function to load events from both localStorage and backend API (with fallback)
   const loadEventsFromStorage = async () => {
+    console.log('[Frontend] 🔄 loadEventsFromStorage called');
+    
     try {
       // Try to load from backend first (includes Google Calendar synced events)
       await loadEventsFromBackend();
+      console.log('[Frontend] ✅ Backend events loaded successfully');
     } catch (error) {
-      console.error("Error loading events from backend, falling back to localStorage:", error);
+      console.error("❌ Error loading events from backend, falling back to localStorage:", error);
       
       // Fallback to localStorage only
       try {
         const storedEventsString = localStorage.getItem(calendarEventsLocalStorageKey);
         if (storedEventsString) {
+          console.log('[Frontend] 📦 Loading events from localStorage');
           const parsedEvents = JSON.parse(storedEventsString) as Array<Omit<CalendarEvent, 'startTime' | 'endTime'> & { startTime: string; endTime: string }>;
           const eventsWithDateObjects: CalendarEvent[] = parsedEvents.map(event => ({
             ...event,
             startTime: new Date(event.startTime),
             endTime: new Date(event.endTime),
           }));
+          console.log('[Frontend] 📦 Loaded', eventsWithDateObjects.length, 'events from localStorage');
           setEvents(eventsWithDateObjects);
         } else {
           // No events anywhere, use initial events
+          console.log('[Frontend] 🆕 No stored events found, using initial events');
           setEvents(initialEvents);
         }
       } catch (localError) {
-        console.error("Error handling calendar events from localStorage:", localError);
+        console.error("❌ Error handling calendar events from localStorage:", localError);
+        console.log('[Frontend] 🆕 Fallback to initial events');
         setEvents(initialEvents);
       }
     }
@@ -153,8 +160,22 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
   // Load events on component mount
   useEffect(() => {
+    console.log('[Frontend] 🎯 Calendar component mounted, loading events...');
     loadEventsFromStorage();
   }, []); // Empty dependency array ensures this runs only once on mount
+
+  // Debug useEffect to track events state changes
+  useEffect(() => {
+    console.log('[Frontend] 📊 Events state updated:', {
+      totalEvents: events.length,
+      eventTitles: events.map(e => e.title),
+      eventDates: events.map(e => ({
+        title: e.title,
+        start: e.startTime.toISOString(),
+        end: e.endTime.toISOString()
+      }))
+    });
+  }, [events]);
 
   // Listen for storage changes from other tabs/components
   useEffect(() => {
@@ -217,13 +238,17 @@ export default function CalendarPage() { // Renamed from Home for clarity
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
 
-  // Initial events data - this will be moved into state
+  // Initial events data - this will be moved into state (updated to current month)
+  const today = new Date();
+  const currentMonth = today.getMonth();
+  const currentYear = today.getFullYear();
+  
   const initialEvents: CalendarEvent[] = [
     {
       id: 1,
       title: "Team Meeting",
-      startTime: new Date(2025, 2, 3, 9, 0),
-      endTime: new Date(2025, 2, 3, 10, 0),
+      startTime: new Date(currentYear, currentMonth, today.getDate(), 9, 0),
+      endTime: new Date(currentYear, currentMonth, today.getDate(), 10, 0),
       color: "bg-blue-500",
       description: "Weekly team sync-up",
       location: "Conference Room A",
@@ -233,8 +258,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 2,
       title: "Lunch with Sarah",
-      startTime: new Date(2025, 2, 3, 12, 30),
-      endTime: new Date(2025, 2, 3, 13, 30),
+      startTime: new Date(currentYear, currentMonth, today.getDate() + 1, 12, 30),
+      endTime: new Date(currentYear, currentMonth, today.getDate() + 1, 13, 30),
       color: "bg-green-500",
       description: "Discuss project timeline",
       location: "Cafe Nero",
@@ -244,8 +269,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 3,
       title: "Project Review",
-      startTime: new Date(2025, 2, 5, 14, 0),
-      endTime: new Date(2025, 2, 5, 15, 30),
+      startTime: new Date(currentYear, currentMonth, today.getDate() + 2, 14, 0),
+      endTime: new Date(currentYear, currentMonth, today.getDate() + 2, 15, 30),
       color: "bg-purple-500",
       description: "Q2 project progress review",
       location: "Meeting Room 3",
@@ -255,8 +280,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 4,
       title: "Client Call",
-      startTime: new Date(2025, 2, 4, 10, 0),
-      endTime: new Date(2025, 2, 4, 11, 0),
+      startTime: new Date(currentYear, currentMonth, today.getDate() + 1, 10, 0),
+      endTime: new Date(currentYear, currentMonth, today.getDate() + 1, 11, 0),
       color: "bg-yellow-500",
       description: "Quarterly review with major client",
       location: "Zoom Meeting",
@@ -266,8 +291,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 5,
       title: "Team Brainstorm",
-      startTime: new Date(2025, 2, 6, 13, 0),
-      endTime: new Date(2025, 2, 6, 14, 30),
+      startTime: new Date(currentYear, currentMonth, today.getDate() + 3, 13, 0),
+      endTime: new Date(currentYear, currentMonth, today.getDate() + 3, 14, 30),
       color: "bg-indigo-500",
       description: "Ideation session for new product features",
       location: "Creative Space",
@@ -277,8 +302,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 6,
       title: "Future Planning",
-      startTime: new Date(2025, 2, 10, 11, 0),
-      endTime: new Date(2025, 2, 10, 12, 0),
+      startTime: new Date(currentYear, currentMonth, today.getDate() + 4, 11, 0),
+      endTime: new Date(currentYear, currentMonth, today.getDate() + 4, 12, 0),
       color: "bg-pink-500",
       description: "Planning for Q3",
       location: "Strategy Room",
@@ -288,8 +313,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 9,
       title: "Morning Standup",
-      startTime: new Date(2025, 2, 4, 8, 30),
-      endTime: new Date(2025, 2, 4, 9, 30),
+      startTime: new Date(currentYear, currentMonth, today.getDate() + 1, 8, 30),
+      endTime: new Date(currentYear, currentMonth, today.getDate() + 1, 9, 30),
       color: "bg-blue-400",
       description: "Daily team standup",
       location: "Slack Huddle",
@@ -299,8 +324,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 10,
       title: "Design Review",
-      startTime: new Date(2025, 2, 7, 14, 30),
-      endTime: new Date(2025, 2, 7, 15, 45),
+      startTime: new Date(currentYear, currentMonth, today.getDate() + 5, 14, 30),
+      endTime: new Date(currentYear, currentMonth, today.getDate() + 5, 15, 45),
       color: "bg-purple-400",
       description: "Review new UI designs",
       location: "Design Lab",
@@ -310,8 +335,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 11,
       title: "Investor Meeting",
-      startTime: new Date(2025, 2, 7, 10, 30),
-      endTime: new Date(2025, 2, 7, 12, 0),
+      startTime: new Date(currentYear, currentMonth, today.getDate() + 5, 10, 30),
+      endTime: new Date(currentYear, currentMonth, today.getDate() + 5, 12, 0),
       color: "bg-red-400",
       description: "Quarterly investor update",
       location: "Board Room",
@@ -321,8 +346,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 12,
       title: "Team Training",
-      startTime: new Date(2025, 2, 5, 9, 30),
-      endTime: new Date(2025, 2, 5, 11, 30),
+      startTime: new Date(currentYear, currentMonth, today.getDate() + 2, 9, 30),
+      endTime: new Date(currentYear, currentMonth, today.getDate() + 2, 11, 30),
       color: "bg-green-400",
       description: "New tool onboarding session",
       location: "Training Room",
@@ -332,8 +357,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 13,
       title: "Budget Review",
-      startTime: new Date(2025, 2, 5, 13, 30),
-      endTime: new Date(2025, 2, 5, 15, 0),
+      startTime: new Date(currentYear, currentMonth, today.getDate() + 2, 13, 30),
+      endTime: new Date(currentYear, currentMonth, today.getDate() + 2, 15, 0),
       color: "bg-yellow-400",
       description: "Quarterly budget analysis",
       location: "Finance Office",
@@ -343,8 +368,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
     {
       id: 14,
       title: "Client Presentation",
-      startTime: new Date(2025, 2, 6, 11, 0),
-      endTime: new Date(2025, 2, 6, 12, 30),
+      startTime: new Date(currentYear, currentMonth, today.getDate() + 3, 11, 0),
+      endTime: new Date(currentYear, currentMonth, today.getDate() + 3, 12, 30),
       color: "bg-orange-400",
       description: "Present new project proposal",
       location: "Client Office",
