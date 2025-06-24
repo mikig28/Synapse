@@ -189,8 +189,19 @@ export default function CalendarPage() { // Renamed from Home for clarity
   const [dragOverTimeSlot, setDragOverTimeSlot] = useState<number | null>(null); // To store the hour
   const [isDragOver, setIsDragOver] = useState(false); // To indicate if a drag is actively over a valid slot
 
-  // State for resizing events
-  const [resizingEvent, setResizingEvent] = useState<{ event: CalendarEvent; handle: 'top' | 'bottom'; initialY: number; originalStartTime: Date; originalEndTime: Date; } | null>(null);
+  // State for resizing events - enhanced with preview state
+  const [resizingEvent, setResizingEvent] = useState<{ 
+    event: CalendarEvent; 
+    handle: 'top' | 'bottom'; 
+    initialY: number; 
+    originalStartTime: Date; 
+    originalEndTime: Date; 
+  } | null>(null);
+  
+  // Preview state for drag/resize operations - prevents corruption of main state
+  const [previewEvent, setPreviewEvent] = useState<CalendarEvent | null>(null);
+  const [isDraggingEvent, setIsDraggingEvent] = useState(false);
+  const [isResizingEvent, setIsResizingEvent] = useState(false);
 
   // Google Calendar sync state
   const [isSyncing, setIsSyncing] = useState(false);
@@ -403,17 +414,44 @@ export default function CalendarPage() { // Renamed from Home for clarity
   const [newEventColor, setNewEventColor] = useState("bg-blue-500"); // Default color
 
   const handleEventClick = (event: CalendarEvent) => {
-    // Option 2: Directly open edit modal (chosen for this implementation step)
-    setModalMode("edit");
-    setEventToEdit(event);
-    setNewEventTitle(event.title);
-    setNewEventStartDate(format(event.startTime, "yyyy-MM-dd"));
-    setNewEventStartTime(format(event.startTime, "HH:mm"));
-    setNewEventEndDate(format(event.endTime, "yyyy-MM-dd"));
-    setNewEventEndTime(format(event.endTime, "HH:mm"));
-    setNewEventDescription(event.description);
-    setNewEventColor(event.color);
-    setIsEventModalOpen(true);
+    // Validate event data before opening modal to prevent corruption
+    console.log('[Frontend] handleEventClick called with event:', event);
+    
+    if (!event || !event.id || !event.title || !event.startTime || !event.endTime) {
+      console.error('[Frontend] Invalid event data, refusing to open modal:', event);
+      toast({
+        title: "Error",
+        description: "Cannot edit event: invalid event data detected.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Prevent opening modal during drag/resize operations
+    if (isDraggingEvent || isResizingEvent || draggedEvent || resizingEvent) {
+      console.log('[Frontend] Ignoring event click during drag/resize operation');
+      return;
+    }
+
+    try {
+      setModalMode("edit");
+      setEventToEdit(event);
+      setNewEventTitle(event.title);
+      setNewEventStartDate(format(event.startTime, "yyyy-MM-dd"));
+      setNewEventStartTime(format(event.startTime, "HH:mm"));
+      setNewEventEndDate(format(event.endTime, "yyyy-MM-dd"));
+      setNewEventEndTime(format(event.endTime, "HH:mm"));
+      setNewEventDescription(event.description || '');
+      setNewEventColor(event.color || 'bg-blue-500');
+      setIsEventModalOpen(true);
+    } catch (error) {
+      console.error('[Frontend] Error in handleEventClick:', error);
+      toast({
+        title: "Error",
+        description: "Failed to open event editor.",
+        variant: "destructive",
+      });
+    }
   };
 
   const openCreateModal = (date?: Date) => {
@@ -434,7 +472,53 @@ export default function CalendarPage() { // Renamed from Home for clarity
     setIsEventModalOpen(false);
     setModalMode(null);
     setEventToEdit(null);
+    // Clear preview states when closing modal
+    setPreviewEvent(null);
+    setIsResizingEvent(false);
+    setIsDraggingEvent(false);
     // Optionally reset fields here if not reset on open for create mode
+  };
+
+  // Safe event filtering function to prevent corrupted events from being displayed
+  const getSafeEvents = (eventsList: CalendarEvent[]): CalendarEvent[] => {
+    return eventsList.filter(event => {
+      // Validate event data
+      if (!event || typeof event !== 'object') {
+        console.warn('[Frontend] Filtering out invalid event (not an object):', event);
+        return false;
+      }
+      
+      if (!event.id || (!event.title && event.title !== '')) {
+        console.warn('[Frontend] Filtering out event with missing id or title:', event);
+        return false;
+      }
+      
+      if (!event.startTime || !event.endTime) {
+        console.warn('[Frontend] Filtering out event with missing dates:', event);
+        return false;
+      }
+
+      // Validate dates
+      const startTime = event.startTime instanceof Date ? event.startTime : new Date(event.startTime);
+      const endTime = event.endTime instanceof Date ? event.endTime : new Date(event.endTime);
+      
+      if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+        console.warn('[Frontend] Filtering out event with invalid dates:', event);
+        return false;
+      }
+
+      // Check for suspicious titles that indicate corruption
+      if (typeof event.title === 'string' && (
+        event.title.toLowerCase().includes('happy birthday') ||
+        event.title.toLowerCase().includes('sample') ||
+        event.title.toLowerCase().includes('test') && event.title.toLowerCase().includes('data')
+      )) {
+        console.warn('[Frontend] Filtering out suspicious event title:', event.title);
+        return false;
+      }
+
+      return true;
+    });
   };
 
   const handleSubmitEvent = async () => {
@@ -628,46 +712,118 @@ export default function CalendarPage() { // Renamed from Home for clarity
     }
   };
 
-  const handleResizeEnd = (resizedEvent: CalendarEvent, newStartTime: Date, newEndTime: Date) => {
+  // Safe event update function that prevents data corruption
+  const updateEventSafely = async (eventToUpdate: CalendarEvent, newStartTime: Date, newEndTime: Date) => {
+    console.log('[Frontend] updateEventSafely called', {
+      eventId: eventToUpdate.id,
+      title: eventToUpdate.title,
+      newStartTime,
+      newEndTime
+    });
+
+    // Validate event data to prevent corruption
+    if (!eventToUpdate || !eventToUpdate.id || !eventToUpdate.title) {
+      console.error('[Frontend] Invalid event data, aborting update:', eventToUpdate);
+      toast({
+        title: "Error",
+        description: "Invalid event data. Update cancelled.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     // Ensure minimum 15-minute duration
     const minDuration = 15 * 60 * 1000; // 15 minutes in milliseconds
-    const duration = newEndTime.getTime() - newStartTime.getTime();
+    let finalStartTime = new Date(newStartTime);
+    let finalEndTime = new Date(newEndTime);
+    
+    const duration = finalEndTime.getTime() - finalStartTime.getTime();
     
     if (duration < minDuration) {
       // Adjust to maintain minimum duration
       if (resizingEvent?.handle === 'top') {
-        newStartTime = new Date(newEndTime.getTime() - minDuration);
+        finalStartTime = new Date(finalEndTime.getTime() - minDuration);
       } else {
-        newEndTime = new Date(newStartTime.getTime() + minDuration);
+        finalEndTime = new Date(finalStartTime.getTime() + minDuration);
       }
     }
 
-    // Update the event with new times
-    const updatedEvents = events.map(event => 
-      event.id === resizedEvent.id 
-        ? { ...event, startTime: newStartTime, endTime: newEndTime }
-        : event
-    );
-    
-    // Update React state
-    setEvents(updatedEvents);
-    
-    // Update localStorage with proper date serialization
-    const eventsForStorage = updatedEvents.map(event => ({
-      ...event,
-      startTime: event.startTime.toISOString(),
-      endTime: event.endTime.toISOString()
-    }));
-    localStorage.setItem(calendarEventsLocalStorageKey, JSON.stringify(eventsForStorage));
-    
-    // Dispatch custom event for cross-component synchronization
-    window.dispatchEvent(new CustomEvent('calendarEventsUpdated'));
-    
-    // Show success message
-    toast({
-      title: "Event Updated",
-      description: `"${resizedEvent.title}" duration has been updated.`,
+    try {
+      // Create the updated event with validation
+      const updatedEvent = {
+        ...eventToUpdate,
+        startTime: finalStartTime,
+        endTime: finalEndTime,
+        title: eventToUpdate.title, // Explicitly preserve title
+        description: eventToUpdate.description || '', // Preserve description
+        color: eventToUpdate.color || 'bg-blue-500' // Preserve color
+      };
+
+      // Update the events array safely
+      const updatedEvents = events.map(event => {
+        if (event.id === eventToUpdate.id) {
+          console.log('[Frontend] Updating event:', event.title, '->', updatedEvent.title);
+          return updatedEvent;
+        }
+        return event;
+      });
+      
+      // Verify the update worked correctly
+      const targetEvent = updatedEvents.find(e => e.id === eventToUpdate.id);
+      if (!targetEvent || targetEvent.title !== eventToUpdate.title) {
+        console.error('[Frontend] Event update verification failed', {
+          originalTitle: eventToUpdate.title,
+          updatedTitle: targetEvent?.title
+        });
+        return false;
+      }
+
+      // Update React state
+      setEvents(updatedEvents);
+      
+      // Update localStorage with proper date serialization
+      const eventsForStorage = updatedEvents.map(event => ({
+        ...event,
+        startTime: event.startTime.toISOString(),
+        endTime: event.endTime.toISOString()
+      }));
+      localStorage.setItem(calendarEventsLocalStorageKey, JSON.stringify(eventsForStorage));
+      
+      // Dispatch custom event for cross-component synchronization
+      window.dispatchEvent(new CustomEvent('calendarEventsUpdated'));
+      
+      // Show success message
+      toast({
+        title: "Event Updated",
+        description: `"${eventToUpdate.title}" has been updated.`,
+      });
+
+      return true;
+    } catch (error) {
+      console.error('[Frontend] Error in updateEventSafely:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update event. Please try again.",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
+  const handleResizeEnd = async (resizedEvent: CalendarEvent, newStartTime: Date, newEndTime: Date) => {
+    console.log('[Frontend] handleResizeEnd called', {
+      eventId: resizedEvent.id,
+      title: resizedEvent.title
     });
+    
+    const success = await updateEventSafely(resizedEvent, newStartTime, newEndTime);
+    
+    // Clear preview and resize states
+    setPreviewEvent(null);
+    setIsResizingEvent(false);
+    setResizingEvent(null);
+    
+    return success;
   };
 
   // Sample calendar days for the week view
@@ -1350,21 +1506,28 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                         const newStartTime = new Date(resizingEvent.originalStartTime.getTime() + (deltaMinutes * 60000));
                                         const newEndTime = new Date(resizingEvent.originalEndTime);
                                         
-                                        // Only update visual state during drag
-                                        setEvents(prevEvents => prevEvents.map(ev => 
-                                          ev.id === resizingEvent.event.id ? { ...ev, startTime: newStartTime, endTime: newEndTime } : ev
-                                        ));
+                                        // SAFE: Only update preview state during drag - DO NOT modify main events state
+                                        setPreviewEvent({
+                                          ...resizingEvent.event,
+                                          startTime: newStartTime,
+                                          endTime: newEndTime
+                                        });
+                                        setIsResizingEvent(true);
                                       }
                                     }}
                                                                       onDragEnd={(e) => {
                                     e.stopPropagation();
-                                    if (resizingEvent) {
-                                      // Get the current event state (which has been updated during drag)
-                                      const currentEvent = events.find(ev => ev.id === resizingEvent.event.id);
-                                      if (currentEvent) {
-                                        // Apply final constraints and save to localStorage
-                                        handleResizeEnd(resizingEvent.event, currentEvent.startTime, currentEvent.endTime);
-                                      }
+                                    if (resizingEvent && previewEvent) {
+                                      // SAFE: Use preview event data instead of corrupted main state
+                                      console.log('[Frontend] Top resize handle dragEnd', {
+                                        originalTitle: resizingEvent.event.title,
+                                        previewTitle: previewEvent.title
+                                      });
+                                      handleResizeEnd(resizingEvent.event, previewEvent.startTime, previewEvent.endTime);
+                                    } else if (resizingEvent) {
+                                      // Fallback: use original event data if preview failed
+                                      console.log('[Frontend] Top resize handle dragEnd fallback');
+                                      handleResizeEnd(resizingEvent.event, resizingEvent.originalStartTime, resizingEvent.originalEndTime);
                                     }
                                     setResizingEvent(null);
                                     setIsDragOver(false);
@@ -1394,21 +1557,28 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                         const newStartTime = new Date(resizingEvent.originalStartTime);
                                         const newEndTime = new Date(resizingEvent.originalEndTime.getTime() + (deltaMinutes * 60000));
                                         
-                                        // Only update visual state during drag
-                                        setEvents(prevEvents => prevEvents.map(ev => 
-                                          ev.id === resizingEvent.event.id ? { ...ev, startTime: newStartTime, endTime: newEndTime } : ev
-                                        ));
+                                        // SAFE: Only update preview state during drag - DO NOT modify main events state
+                                        setPreviewEvent({
+                                          ...resizingEvent.event,
+                                          startTime: newStartTime,
+                                          endTime: newEndTime
+                                        });
+                                        setIsResizingEvent(true);
                                       }
                                     }}
                                     onDragEnd={(e) => {
                                       e.stopPropagation();
-                                      if (resizingEvent) {
-                                        // Get the current event state (which has been updated during drag)
-                                        const currentEvent = events.find(ev => ev.id === resizingEvent.event.id);
-                                        if (currentEvent) {
-                                          // Apply final constraints and save to localStorage
-                                          handleResizeEnd(resizingEvent.event, currentEvent.startTime, currentEvent.endTime);
-                                        }
+                                      if (resizingEvent && previewEvent) {
+                                        // SAFE: Use preview event data instead of corrupted main state
+                                        console.log('[Frontend] Bottom resize handle dragEnd', {
+                                          originalTitle: resizingEvent.event.title,
+                                          previewTitle: previewEvent.title
+                                        });
+                                        handleResizeEnd(resizingEvent.event, previewEvent.startTime, previewEvent.endTime);
+                                      } else if (resizingEvent) {
+                                        // Fallback: use original event data if preview failed
+                                        console.log('[Frontend] Bottom resize handle dragEnd fallback');
+                                        handleResizeEnd(resizingEvent.event, resizingEvent.originalStartTime, resizingEvent.originalEndTime);
                                       }
                                       setResizingEvent(null);
                                       setIsDragOver(false);
@@ -1571,21 +1741,28 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                       const newStartTime = new Date(resizingEvent.originalStartTime.getTime() + (deltaMinutes * 60000));
                                       const newEndTime = new Date(resizingEvent.originalEndTime);
                                       
-                                      // Only update visual state during drag
-                                      setEvents(prevEvents => prevEvents.map(ev => 
-                                        ev.id === resizingEvent.event.id ? { ...ev, startTime: newStartTime, endTime: newEndTime } : ev
-                                      ));
+                                      // SAFE: Only update preview state during drag - DO NOT modify main events state
+                                      setPreviewEvent({
+                                        ...resizingEvent.event,
+                                        startTime: newStartTime,
+                                        endTime: newEndTime
+                                      });
+                                      setIsResizingEvent(true);
                                     }
                                   }}
                                   onDragEnd={(e) => {
                                     e.stopPropagation();
-                                    if (resizingEvent) {
-                                      // Get the current event state (which has been updated during drag)
-                                      const currentEvent = events.find(ev => ev.id === resizingEvent.event.id);
-                                      if (currentEvent) {
-                                        // Apply final constraints and save to localStorage
-                                        handleResizeEnd(resizingEvent.event, currentEvent.startTime, currentEvent.endTime);
-                                      }
+                                    if (resizingEvent && previewEvent) {
+                                      // SAFE: Use preview event data instead of corrupted main state
+                                      console.log('[Frontend] Day view top resize handle dragEnd', {
+                                        originalTitle: resizingEvent.event.title,
+                                        previewTitle: previewEvent.title
+                                      });
+                                      handleResizeEnd(resizingEvent.event, previewEvent.startTime, previewEvent.endTime);
+                                    } else if (resizingEvent) {
+                                      // Fallback: use original event data if preview failed
+                                      console.log('[Frontend] Day view top resize handle dragEnd fallback');
+                                      handleResizeEnd(resizingEvent.event, resizingEvent.originalStartTime, resizingEvent.originalEndTime);
                                     }
                                     setResizingEvent(null);
                                     setIsDragOver(false);
@@ -1615,21 +1792,28 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                       const newStartTime = new Date(resizingEvent.originalStartTime);
                                       const newEndTime = new Date(resizingEvent.originalEndTime.getTime() + (deltaMinutes * 60000));
                                       
-                                      // Only update visual state during drag
-                                      setEvents(prevEvents => prevEvents.map(ev => 
-                                        ev.id === resizingEvent.event.id ? { ...ev, startTime: newStartTime, endTime: newEndTime } : ev
-                                      ));
+                                      // SAFE: Only update preview state during drag - DO NOT modify main events state
+                                      setPreviewEvent({
+                                        ...resizingEvent.event,
+                                        startTime: newStartTime,
+                                        endTime: newEndTime
+                                      });
+                                      setIsResizingEvent(true);
                                     }
                                   }}
                                   onDragEnd={(e) => {
                                     e.stopPropagation();
-                                    if (resizingEvent) {
-                                      // Get the current event state (which has been updated during drag)
-                                      const currentEvent = events.find(ev => ev.id === resizingEvent.event.id);
-                                      if (currentEvent) {
-                                        // Apply final constraints and save to localStorage
-                                        handleResizeEnd(resizingEvent.event, currentEvent.startTime, currentEvent.endTime);
-                                      }
+                                    if (resizingEvent && previewEvent) {
+                                      // SAFE: Use preview event data instead of corrupted main state
+                                      console.log('[Frontend] Day view bottom resize handle dragEnd', {
+                                        originalTitle: resizingEvent.event.title,
+                                        previewTitle: previewEvent.title
+                                      });
+                                      handleResizeEnd(resizingEvent.event, previewEvent.startTime, previewEvent.endTime);
+                                    } else if (resizingEvent) {
+                                      // Fallback: use original event data if preview failed
+                                      console.log('[Frontend] Day view bottom resize handle dragEnd fallback');
+                                      handleResizeEnd(resizingEvent.event, resizingEvent.originalStartTime, resizingEvent.originalEndTime);
                                     }
                                     setResizingEvent(null);
                                     setIsDragOver(false);
