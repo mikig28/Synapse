@@ -936,16 +936,37 @@ export default function CalendarPage() { // Renamed from Home for clarity
     const start = startHour + startMinute / 60;
     const end = endHour + endMinute / 60;
     
-    // Clamp the start time to be within the visible grid (7 AM - 7 PM)
-    const clampedStart = Math.max(7, Math.min(19, start));
-    const clampedEnd = Math.max(7, Math.min(19, end));
+    // Check if this is an all-day event (starts at 00:00 and ends at 23:59 or spans full day)
+    const isAllDayEvent = (start === 0 && end >= 23) || (endTime.getTime() - startTime.getTime() >= 23 * 60 * 60 * 1000);
     
-    const top = (clampedStart - 7) * 80; // 80px per hour, assuming 7 AM is the start of the grid
-    const height = Math.max(20, (clampedEnd - clampedStart) * 80); // Minimum 20px height
+    if (isAllDayEvent) {
+      // Show all-day events at the top as a banner
+      return {
+        top: `0px`,
+        height: `30px`,
+        opacity: isDragging ? 0.5 : 1,
+        cursor: isDragging ? 'grabbing' : 'pointer',
+        zIndex: isDragging ? 1000 : 15,
+        borderRadius: '6px',
+        fontSize: '11px',
+        display: 'flex',
+        alignItems: 'center',
+        marginBottom: '2px'
+      };
+    }
+    
+    // For regular timed events, extend the visible window to show more hours
+    const clampedStart = Math.max(0, Math.min(24, start)); // Show 24-hour window instead of 7-19
+    const clampedEnd = Math.max(0, Math.min(24, end));
+    
+    // Adjust calculation for extended window (0-24 hours)
+    const gridStartHour = 7; // Still start visual grid at 7 AM for normal view
+    const adjustedTop = Math.max(0, (clampedStart - gridStartHour) * 80);
+    const adjustedHeight = Math.max(20, (clampedEnd - clampedStart) * 80);
     
     return {
-      top: `${top}px`,
-      height: `${height}px`,
+      top: `${adjustedTop}px`,
+      height: `${adjustedHeight}px`,
       opacity: isDragging ? 0.5 : 1,
       cursor: isDragging ? 'grabbing' : 'pointer',
       zIndex: isDragging ? 1000 : 10,
@@ -1580,14 +1601,11 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                 }
                                 setIsDragOver(false); // Always reset this
                               }}
-                              className={`absolute rounded-md p-2 text-white text-xs shadow-md group transition-all duration-200 ease-in-out hover:translate-y-[-2px] hover:shadow-lg ${draggedEvent?.id === event.id ? 'cursor-grabbing' : 'cursor-pointer'}`}
+                              className={`absolute rounded-md p-2 text-white text-xs shadow-md group transition-all duration-200 ease-in-out hover:translate-y-[-2px] hover:shadow-lg ${draggedEvent?.id === event.id ? 'cursor-grabbing' : 'cursor-pointer'} ${event.color || 'bg-blue-500'}`}
                               style={{
                                 ...eventStyle,
                                 left: "4px",
                                 right: "4px",
-                                backgroundColor: '#ff0000', // Temporary bright red for debugging
-                                border: '2px solid #ffff00', // Bright yellow border
-                                zIndex: 9999, // High z-index to ensure visibility
                               }}
                               onClick={() => handleEventClick(event)}
                             >
@@ -1852,14 +1870,11 @@ export default function CalendarPage() { // Renamed from Home for clarity
                               }
                               setIsDragOver(false);
                             }}
-                            className={`absolute rounded-md p-2 text-white text-xs shadow-md group cursor-pointer transition-all duration-200 ease-in-out hover:translate-y-[-2px] hover:shadow-lg ${draggedEvent?.id === event.id ? 'cursor-grabbing' : 'cursor-pointer'}`}
+                            className={`absolute rounded-md p-2 text-white text-xs shadow-md group cursor-pointer transition-all duration-200 ease-in-out hover:translate-y-[-2px] hover:shadow-lg ${draggedEvent?.id === event.id ? 'cursor-grabbing' : 'cursor-pointer'} ${event.color || 'bg-blue-500'}`}
                             style={{
                               ...eventStyle,
                               left: "4px",
                               right: "4px",
-                              backgroundColor: '#ff0000', // Temporary bright red for debugging
-                              border: '2px solid #ffff00', // Bright yellow border
-                              zIndex: 9999, // High z-index to ensure visibility
                             }}
                             onClick={() => handleEventClick(event)}
                           >
