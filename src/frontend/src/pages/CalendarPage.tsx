@@ -603,6 +603,11 @@ export default function CalendarPage() { // Renamed from Home for clarity
           console.log('[Frontend] New event added:', backendEvent.title);
           return newEventsArray;
         });
+
+        // Force reload events from backend to ensure UI sync
+        setTimeout(() => {
+          loadEventsFromBackend().catch(console.error);
+        }, 500);
         
         toast({
           title: "Event Created",
@@ -666,6 +671,11 @@ export default function CalendarPage() { // Renamed from Home for clarity
         } else {
           setEvents(prevEvents => [...prevEvents, updatedEvent]);
         }
+
+        // Force reload events from backend to ensure UI sync
+        setTimeout(() => {
+          loadEventsFromBackend().catch(console.error);
+        }, 500);
 
         toast({
           title: "Event Updated",
