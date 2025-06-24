@@ -55,6 +55,7 @@ export const createCalendarEvent = async (req: Request, res: Response) => {
       description,
       color,
       userId,
+      syncStatus: 'local_only', // Explicitly mark as local-only for sync
     });
 
     await newEvent.save();
@@ -115,6 +116,11 @@ export const updateCalendarEvent = async (req: Request, res: Response) => {
     event.title = title || event.title;
     event.description = description === undefined ? event.description : description;
     event.color = color || event.color;
+
+    // Mark event as needing sync if it was previously synced with Google
+    if (event.googleEventId && event.syncStatus === 'synced') {
+      event.syncStatus = 'pending';
+    }
 
     const updatedEvent = await event.save();
     res.status(200).json(updatedEvent);

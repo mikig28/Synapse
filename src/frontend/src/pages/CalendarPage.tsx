@@ -24,6 +24,7 @@ import {
 import axiosInstance from '@/services/axiosConfig';
 import { useToast } from "@/hooks/use-toast";
 import googleCalendarService from '@/services/googleCalendarService';
+import googleAuthService from '@/services/googleAuthService';
 import { useGoogleLogin } from '@react-oauth/google';
 import {
   AlertDialog,
@@ -197,6 +198,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
     lastSyncAt?: string;
   } | null>(null);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
 
   // Initial events data - this will be moved into state
   const initialEvents: CalendarEvent[] = [
@@ -691,14 +693,24 @@ export default function CalendarPage() { // Renamed from Home for clarity
   const handleGoogleLogin = useGoogleLogin({
     scope: 'https://www.googleapis.com/auth/calendar.events',
     onSuccess: (tokenResponse) => {
+      console.log('[GoogleAuth] Login successful, saving auth state');
+      
+      // Save to persistent storage
+      googleAuthService.saveAuthState(tokenResponse);
+      
+      // Update component state
       setGoogleAccessToken(tokenResponse.access_token);
+      setIsGoogleConnected(true);
+      
+      const connectionStatus = googleAuthService.getConnectionStatus();
       toast({
         title: "Google Calendar Connected",
-        description: "You can now sync your calendar with Google Calendar.",
+        description: `Connected successfully! ${connectionStatus.timeLeft ? `Expires in ${Math.floor(connectionStatus.timeLeft / 60)} hours.` : ''}`,
       });
     },
     onError: (error) => {
       console.error('Google login error:', error);
+      setIsGoogleConnected(false);
       toast({
         title: "Connection Failed",
         description: "Failed to connect to Google Calendar. Please try again.",
@@ -709,19 +721,39 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
   const handleSyncWithGoogle = async () => {
     console.log('[Frontend] Starting Google Calendar sync...');
-    console.log('[Frontend] Access token present:', !!googleAccessToken);
-    console.log('[Frontend] Access token length:', googleAccessToken?.length || 0);
+    
+    // Get current token (may be from localStorage)
+    const currentToken = googleAuthService.getAccessToken();
+    const connectionStatus = googleAuthService.getConnectionStatus();
+    
+    console.log('[Frontend] Connection status:', connectionStatus);
+    console.log('[Frontend] Access token present:', !!currentToken);
+    console.log('[Frontend] Access token length:', currentToken?.length || 0);
 
-    if (!googleAccessToken) {
-      console.log('[Frontend] No access token, triggering Google login...');
+    if (!currentToken || !connectionStatus.connected) {
+      console.log('[Frontend] No valid access token, triggering Google login...');
+      
+      // Clear expired state if exists
+      if (!connectionStatus.connected) {
+        googleAuthService.clearAuthState();
+        setIsGoogleConnected(false);
+        setGoogleAccessToken(null);
+      }
+      
       handleGoogleLogin();
       return;
+    }
+
+    // Update local state if we got token from storage
+    if (currentToken !== googleAccessToken) {
+      setGoogleAccessToken(currentToken);
+      setIsGoogleConnected(true);
     }
 
     setIsSyncing(true);
     try {
       console.log('[Frontend] Calling sync API...');
-      const result = await googleCalendarService.syncWithGoogle(googleAccessToken);
+      const result = await googleCalendarService.syncWithGoogle(currentToken);
       
       console.log('[Frontend] Sync API response:', result);
       console.log('[Frontend] Events imported:', result.eventsImported);
@@ -782,10 +814,54 @@ export default function CalendarPage() { // Renamed from Home for clarity
     return `${syncStatus.syncedEvents}/${syncStatus.totalEvents} synced`;
   };
 
-  // Load sync status on component mount
+  // Initialize Google auth state on component mount
   useEffect(() => {
+    // Check for existing Google auth state
+    const savedToken = googleAuthService.getAccessToken();
+    const connectionStatus = googleAuthService.getConnectionStatus();
+    
+    if (savedToken && connectionStatus.connected) {
+      console.log('[GoogleAuth] Restored connection from localStorage');
+      setGoogleAccessToken(savedToken);
+      setIsGoogleConnected(true);
+      
+      if (connectionStatus.timeLeft && connectionStatus.timeLeft < 30) {
+        toast({
+          title: "Google Calendar Token Expiring",
+          description: `Your Google Calendar connection expires in ${connectionStatus.timeLeft} minutes.`,
+          variant: "default",
+        });
+      }
+    } else {
+      console.log('[GoogleAuth] No valid stored connection found');
+      setIsGoogleConnected(false);
+    }
+    
     fetchSyncStatus();
   }, []);
+
+  // Check token expiration periodically
+  useEffect(() => {
+    if (!isGoogleConnected) return;
+
+    const checkTokenExpiration = () => {
+      const connectionStatus = googleAuthService.getConnectionStatus();
+      if (!connectionStatus.connected) {
+        console.log('[GoogleAuth] Token expired, clearing connection');
+        setIsGoogleConnected(false);
+        setGoogleAccessToken(null);
+        toast({
+          title: "Google Calendar Disconnected",
+          description: "Your session has expired. Please reconnect to continue syncing.",
+          variant: "default",
+        });
+      }
+    };
+
+    // Check every 5 minutes
+    const interval = setInterval(checkTokenExpiration, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [isGoogleConnected]);
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden"> {/* Removed temp bg-red-500 */}
@@ -930,7 +1006,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                     {getSyncStatusIcon()}
                   </div>
                   <span className="hidden sm:inline">
-                    {isSyncing ? 'Syncing...' : 'Sync Google'}
+                    {isSyncing ? 'Syncing...' : isGoogleConnected ? 'Sync Google' : 'Connect Google'}
                   </span>
                 </button>
                 
@@ -939,7 +1015,17 @@ export default function CalendarPage() { // Renamed from Home for clarity
                   <div className="hidden md:flex items-center gap-1 px-2 py-1 bg-white/5 rounded-md text-xs text-white/70">
                     <span>📅</span>
                     <span>{syncStatus.syncedEvents}/{syncStatus.totalEvents}</span>
-                    <span className="text-emerald-400">🔗</span>
+                    <span className={isGoogleConnected ? "text-emerald-400" : "text-gray-400"}>
+                      {isGoogleConnected ? "🔗" : "🔌"}
+                    </span>
+                  </div>
+                )}
+                
+                {/* Connection Status */}
+                {isGoogleConnected && (
+                  <div className="hidden lg:flex items-center gap-1 px-2 py-1 bg-emerald-500/10 rounded-md text-xs text-emerald-400">
+                    <span>✅</span>
+                    <span>Connected</span>
                   </div>
                 )}
               </div>

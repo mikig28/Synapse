@@ -151,8 +151,15 @@ export class GoogleCalendarService {
 
           if (existingEvent) {
             console.log('[GoogleCalendarService] Updating existing event:', googleEvent.summary);
-            // Update existing event
+            // Update existing event, but preserve sync status if it's pending
             const updatedData = this.convertGoogleEventToInternal(googleEvent, userId);
+            
+            // Don't overwrite pending status - let the export handle pending changes
+            if (existingEvent.syncStatus === 'pending') {
+              console.log('[GoogleCalendarService] Preserving pending status for event:', googleEvent.summary);
+              updatedData.syncStatus = 'pending';
+            }
+            
             await CalendarEvent.findByIdAndUpdate(existingEvent._id, updatedData);
             updated.push(googleEvent.id);
           } else {
