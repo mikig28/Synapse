@@ -100,8 +100,9 @@ export default function CalendarPage() { // Renamed from Home for clarity
         endTime: new Date(event.endTime),
       }));
       
-      console.log('[Frontend] Loaded', backendEvents.length, 'events from backend');
+      console.log('[Frontend] ✅ Loaded', backendEvents.length, 'events from backend');
       console.log('[Frontend] Sample events:', backendEvents.slice(0, 3).map(e => ({ title: e.title, color: e.color, syncStatus: e.syncStatus })));
+      console.log('[Frontend] All event titles:', backendEvents.map(e => e.title));
       
       setEvents(backendEvents);
       
@@ -481,20 +482,35 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
   // Safe event filtering function to prevent corrupted events from being displayed
   const getSafeEvents = (eventsList: CalendarEvent[]): CalendarEvent[] => {
-    return eventsList.filter(event => {
+    console.log('[Frontend] getSafeEvents called with', eventsList.length, 'events');
+    
+    const filteredEvents = eventsList.filter(event => {
+      console.log('[Frontend] Checking event:', {
+        id: event?.id,
+        title: event?.title,
+        startTime: event?.startTime,
+        endTime: event?.endTime,
+        type: typeof event
+      });
+      
       // Validate event data
       if (!event || typeof event !== 'object') {
-        console.warn('[Frontend] Filtering out invalid event (not an object):', event);
+        console.warn('[Frontend] ❌ Filtering out invalid event (not an object):', event);
         return false;
       }
       
-      if (!event.id || (!event.title && event.title !== '')) {
-        console.warn('[Frontend] Filtering out event with missing id or title:', event);
+      if (!event.id) {
+        console.warn('[Frontend] ❌ Filtering out event with missing id:', event);
+        return false;
+      }
+      
+      if (!event.title && event.title !== '') {
+        console.warn('[Frontend] ❌ Filtering out event with missing title:', event);
         return false;
       }
       
       if (!event.startTime || !event.endTime) {
-        console.warn('[Frontend] Filtering out event with missing dates:', event);
+        console.warn('[Frontend] ❌ Filtering out event with missing dates:', event);
         return false;
       }
 
@@ -503,22 +519,29 @@ export default function CalendarPage() { // Renamed from Home for clarity
       const endTime = event.endTime instanceof Date ? event.endTime : new Date(event.endTime);
       
       if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
-        console.warn('[Frontend] Filtering out event with invalid dates:', event);
+        console.warn('[Frontend] ❌ Filtering out event with invalid dates:', event);
         return false;
       }
 
-      // Check for suspicious titles that indicate corruption
+      // TEMPORARILY DISABLED: Check for suspicious titles that indicate corruption
+      // We'll disable this to see if it's filtering out legitimate events
+      /*
       if (typeof event.title === 'string' && (
         event.title.toLowerCase().includes('happy birthday') ||
         event.title.toLowerCase().includes('sample') ||
         event.title.toLowerCase().includes('test') && event.title.toLowerCase().includes('data')
       )) {
-        console.warn('[Frontend] Filtering out suspicious event title:', event.title);
+        console.warn('[Frontend] ❌ Filtering out suspicious event title:', event.title);
         return false;
       }
+      */
 
+      console.log('[Frontend] ✅ Event passed validation:', event.title);
       return true;
     });
+    
+    console.log('[Frontend] getSafeEvents filtered', eventsList.length, '->', filteredEvents.length, 'events');
+    return filteredEvents;
   };
 
   const handleSubmitEvent = async () => {
@@ -548,6 +571,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
     try {
       if (modalMode === "create") {
+        console.log('[Frontend] Creating new event...');
+        
         // Create new event in backend
         const eventData = {
           title: newEventTitle,
@@ -557,14 +582,27 @@ export default function CalendarPage() { // Renamed from Home for clarity
           color: newEventColor,
         };
 
+        console.log('[Frontend] Sending event data to backend:', eventData);
+        
         const response = await axiosInstance.post('/calendar-events', eventData);
+        
+        console.log('[Frontend] Backend response:', response.data);
+        
         const backendEvent = {
           ...response.data,
           startTime: new Date(response.data.startTime),
           endTime: new Date(response.data.endTime),
         };
 
-        setEvents(prevEvents => [...prevEvents, backendEvent]);
+        console.log('[Frontend] Processed backend event:', backendEvent);
+        console.log('[Frontend] Current events before adding:', events.length);
+
+        setEvents(prevEvents => {
+          const newEventsArray = [...prevEvents, backendEvent];
+          console.log('[Frontend] Updated events array:', newEventsArray.length, 'total events');
+          console.log('[Frontend] New event added:', backendEvent.title);
+          return newEventsArray;
+        });
         
         toast({
           title: "Event Created",
@@ -1448,9 +1486,17 @@ export default function CalendarPage() { // Renamed from Home for clarity
                           ></div>
                         )
                       })}
-                      {getSafeEvents(events)
-                        .filter((event) => isSameDay(event.startTime, weekDates[dayIndex]))
-                        .map((event) => {
+                      {(() => {
+                        const safeEvents = getSafeEvents(events);
+                        const dayEvents = safeEvents.filter((event) => isSameDay(event.startTime, weekDates[dayIndex]));
+                        console.log(`[Frontend] Week view rendering day ${dayIndex} (${weekDates[dayIndex].toDateString()}):`, {
+                          totalEvents: events.length,
+                          safeEvents: safeEvents.length,
+                          dayEvents: dayEvents.length,
+                          dayEventTitles: dayEvents.map(e => e.title)
+                        });
+                        return dayEvents;
+                      })().map((event) => {
                           const eventStyle = calculateEventStyle(event.startTime, event.endTime, draggedEvent?.id === event.id)
                           return (
                             <div
@@ -1710,9 +1756,17 @@ export default function CalendarPage() { // Renamed from Home for clarity
                         ></div>
                       );
                     })}
-                    {getSafeEvents(events)
-                      .filter((event) => isSameDay(event.startTime, currentDisplayDate))
-                      .map((event) => {
+                    {(() => {
+                      const safeEvents = getSafeEvents(events);
+                      const dayEvents = safeEvents.filter((event) => isSameDay(event.startTime, currentDisplayDate));
+                      console.log(`[Frontend] Day view rendering for ${currentDisplayDate.toDateString()}:`, {
+                        totalEvents: events.length,
+                        safeEvents: safeEvents.length,
+                        dayEvents: dayEvents.length,
+                        dayEventTitles: dayEvents.map(e => e.title)
+                      });
+                      return dayEvents;
+                    })().map((event) => {
                         const eventStyle = calculateEventStyle(event.startTime, event.endTime, draggedEvent?.id === event.id);
                         return (
                           <div
