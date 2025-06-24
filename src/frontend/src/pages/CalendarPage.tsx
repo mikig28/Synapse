@@ -169,14 +169,17 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
   // Debug useEffect to track events state changes
   useEffect(() => {
-    console.log('[Frontend] 📊 Events state updated:', {
+    console.log('[EVENTS DEBUG] 📊 Events state updated:', {
       totalEvents: events.length,
-      eventTitles: events.map(e => e.title),
-      eventDates: events.map(e => ({
-        title: e.title,
-        start: e.startTime.toISOString(),
-        end: e.endTime.toISOString()
-      }))
+      eventTitles: events.map((e: CalendarEvent) => e.title),
+      sampleEvent: events[0] ? {
+        id: events[0].id,
+        title: events[0].title,
+        startTime: events[0].startTime,
+        endTime: events[0].endTime,
+        startTimeString: events[0].startTime.toISOString(),
+        endTimeString: events[0].endTime.toISOString()
+      } : 'NO EVENTS'
     });
   }, [events]);
 
@@ -933,15 +936,6 @@ export default function CalendarPage() { // Renamed from Home for clarity
     const start = startHour + startMinute / 60;
     const end = endHour + endMinute / 60;
     
-    console.log('[Frontend] calculateEventStyle for event:', {
-      startTime: startTime.toLocaleString(),
-      endTime: endTime.toLocaleString(),
-      start,
-      end,
-      startHour,
-      endHour
-    });
-    
     // Clamp the start time to be within the visible grid (7 AM - 7 PM)
     const clampedStart = Math.max(7, Math.min(19, start));
     const clampedEnd = Math.max(7, Math.min(19, end));
@@ -949,24 +943,12 @@ export default function CalendarPage() { // Renamed from Home for clarity
     const top = (clampedStart - 7) * 80; // 80px per hour, assuming 7 AM is the start of the grid
     const height = Math.max(20, (clampedEnd - clampedStart) * 80); // Minimum 20px height
     
-    // Detect if event is outside visible range
-    const isClipped = start < 7 || end > 19;
-    
-    console.log('[Frontend] Event positioning:', {
-      top: `${top}px`,
-      height: `${height}px`,
-      isClipped,
-      clampedStart,
-      clampedEnd
-    });
-    
     return {
       top: `${top}px`,
       height: `${height}px`,
       opacity: isDragging ? 0.5 : 1,
       cursor: isDragging ? 'grabbing' : 'pointer',
       zIndex: isDragging ? 1000 : 10,
-      border: isClipped ? '2px dashed rgba(255,255,255,0.5)' : undefined, // Visual indicator for clipped events
     };
   }
 
@@ -1566,12 +1548,15 @@ export default function CalendarPage() { // Renamed from Home for clarity
                       {(() => {
                         const safeEvents = getSafeEvents(events);
                         const dayEvents = safeEvents.filter((event) => isSameDay(event.startTime, weekDates[dayIndex]));
-                        console.log(`[Frontend] Week view rendering day ${dayIndex} (${weekDates[dayIndex].toDateString()}):`, {
-                          totalEvents: events.length,
-                          safeEvents: safeEvents.length,
-                          dayEvents: dayEvents.length,
-                          dayEventTitles: dayEvents.map(e => e.title)
-                        });
+                        // Only log for today to reduce noise
+                        if (dayIndex === 0 && isToday(weekDates[dayIndex])) {
+                          console.log(`[WEEK DEBUG] Today's events:`, {
+                            totalEvents: events.length,
+                            safeEvents: safeEvents.length,
+                            dayEvents: dayEvents.length,
+                            dayEventTitles: dayEvents.map(e => e.title)
+                          });
+                        }
                         return dayEvents;
                       })().map((event) => {
                           const eventStyle = calculateEventStyle(event.startTime, event.endTime, draggedEvent?.id === event.id)
@@ -1595,11 +1580,14 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                 }
                                 setIsDragOver(false); // Always reset this
                               }}
-                              className={`absolute ${event.color} rounded-md p-2 text-white text-xs shadow-md group transition-all duration-200 ease-in-out hover:translate-y-[-2px] hover:shadow-lg ${draggedEvent?.id === event.id ? 'cursor-grabbing' : 'cursor-pointer'}`}
+                              className={`absolute rounded-md p-2 text-white text-xs shadow-md group transition-all duration-200 ease-in-out hover:translate-y-[-2px] hover:shadow-lg ${draggedEvent?.id === event.id ? 'cursor-grabbing' : 'cursor-pointer'}`}
                               style={{
                                 ...eventStyle,
                                 left: "4px",
                                 right: "4px",
+                                backgroundColor: '#ff0000', // Temporary bright red for debugging
+                                border: '2px solid #ffff00', // Bright yellow border
+                                zIndex: 9999, // High z-index to ensure visibility
                               }}
                               onClick={() => handleEventClick(event)}
                             >
@@ -1836,7 +1824,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                     {(() => {
                       const safeEvents = getSafeEvents(events);
                       const dayEvents = safeEvents.filter((event) => isSameDay(event.startTime, currentDisplayDate));
-                      console.log(`[Frontend] Day view rendering for ${currentDisplayDate.toDateString()}:`, {
+                      console.log(`[DAY DEBUG] Events for ${currentDisplayDate.toDateString()}:`, {
                         totalEvents: events.length,
                         safeEvents: safeEvents.length,
                         dayEvents: dayEvents.length,
@@ -1864,11 +1852,14 @@ export default function CalendarPage() { // Renamed from Home for clarity
                               }
                               setIsDragOver(false);
                             }}
-                            className={`absolute ${event.color} rounded-md p-2 text-white text-xs shadow-md group cursor-pointer transition-all duration-200 ease-in-out hover:translate-y-[-2px] hover:shadow-lg ${draggedEvent?.id === event.id ? 'cursor-grabbing' : 'cursor-pointer'}`}
+                            className={`absolute rounded-md p-2 text-white text-xs shadow-md group cursor-pointer transition-all duration-200 ease-in-out hover:translate-y-[-2px] hover:shadow-lg ${draggedEvent?.id === event.id ? 'cursor-grabbing' : 'cursor-pointer'}`}
                             style={{
                               ...eventStyle,
                               left: "4px",
                               right: "4px",
+                              backgroundColor: '#ff0000', // Temporary bright red for debugging
+                              border: '2px solid #ffff00', // Bright yellow border
+                              zIndex: 9999, // High z-index to ensure visibility
                             }}
                             onClick={() => handleEventClick(event)}
                           >
