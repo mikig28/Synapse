@@ -101,13 +101,13 @@ export default function CalendarPage() { // Renamed from Home for clarity
       }));
       
       console.log('[Frontend] ✅ Loaded', backendEvents.length, 'events from backend');
-      console.log('[Frontend] Sample events:', backendEvents.slice(0, 3).map(e => ({ title: e.title, color: e.color, syncStatus: e.syncStatus })));
-      console.log('[Frontend] All event titles:', backendEvents.map(e => e.title));
+      console.log('[Frontend] Sample events:', backendEvents.slice(0, 3).map((e: CalendarEvent) => ({ title: e.title, color: e.color, syncStatus: (e as any).syncStatus })));
+      console.log('[Frontend] All event titles:', backendEvents.map((e: CalendarEvent) => e.title));
       
       setEvents(backendEvents);
       
       // Update localStorage to match backend state
-      const eventsToStore = backendEvents.map(event => ({
+      const eventsToStore = backendEvents.map((event: CalendarEvent) => ({
         ...event,
         startTime: event.startTime.toISOString(),
         endTime: event.endTime.toISOString(),
@@ -138,7 +138,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
         if (storedEventsString) {
           console.log('[Frontend] 📦 Loading events from localStorage');
           const parsedEvents = JSON.parse(storedEventsString) as Array<Omit<CalendarEvent, 'startTime' | 'endTime'> & { startTime: string; endTime: string }>;
-          const eventsWithDateObjects: CalendarEvent[] = parsedEvents.map(event => ({
+          const eventsWithDateObjects: CalendarEvent[] = parsedEvents.map((event: Omit<CalendarEvent, 'startTime' | 'endTime'> & { startTime: string; endTime: string }) => ({
             ...event,
             startTime: new Date(event.startTime),
             endTime: new Date(event.endTime),
@@ -157,6 +157,9 @@ export default function CalendarPage() { // Renamed from Home for clarity
       }
     }
   };
+
+  // State declarations must come before useEffect hooks that use them
+  const [events, setEvents] = useState<CalendarEvent[]>([]); // Initialize with empty array, will be populated by useEffect
 
   // Load events on component mount
   useEffect(() => {
@@ -390,8 +393,6 @@ export default function CalendarPage() { // Renamed from Home for clarity
     },
     ];
   };
-
-  const [events, setEvents] = useState<CalendarEvent[]>([]); // Initialize with empty array, will be populated by useEffect
 
   // useEffect to save events to localStorage whenever the events state changes
   const isInitialMount = useRef(true); // Ref to track initial mount
