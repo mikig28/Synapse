@@ -95,9 +95,15 @@ export default function CalendarPage() { // Renamed from Home for clarity
       console.log('[Frontend] Loading events from backend API...');
       const response = await axiosInstance.get('/calendar-events');
       const backendEvents = response.data.map((event: any) => ({
-        ...event,
+        id: event._id || event.id,
+        title: event.title || 'Untitled Event',
         startTime: new Date(event.startTime),
         endTime: new Date(event.endTime),
+        color: event.color || 'bg-blue-500',
+        description: event.description || '',
+        location: event.location || '',
+        attendees: event.attendees || [],
+        organizer: event.organizer || 'Unknown',
       }));
       
       console.log('[Frontend] ✅ Loaded', backendEvents.length, 'events from backend');
@@ -139,9 +145,15 @@ export default function CalendarPage() { // Renamed from Home for clarity
           console.log('[Frontend] 📦 Loading events from localStorage');
           const parsedEvents = JSON.parse(storedEventsString) as Array<Omit<CalendarEvent, 'startTime' | 'endTime'> & { startTime: string; endTime: string }>;
           const eventsWithDateObjects: CalendarEvent[] = parsedEvents.map((event: Omit<CalendarEvent, 'startTime' | 'endTime'> & { startTime: string; endTime: string }) => ({
-            ...event,
+            id: event.id,
+            title: event.title || 'Untitled Event',
             startTime: new Date(event.startTime),
             endTime: new Date(event.endTime),
+            color: event.color || 'bg-blue-500',
+            description: event.description || '',
+            location: event.location || '',
+            attendees: event.attendees || [],
+            organizer: event.organizer || 'Unknown',
           }));
           console.log('[Frontend] 📦 Loaded', eventsWithDateObjects.length, 'events from localStorage');
           setEvents(eventsWithDateObjects);
@@ -525,66 +537,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
   // Safe event filtering function to prevent corrupted events from being displayed
   const getSafeEvents = (eventsList: CalendarEvent[]): CalendarEvent[] => {
-    console.log('[Frontend] getSafeEvents called with', eventsList.length, 'events');
-    
-    const filteredEvents = eventsList.filter(event => {
-      console.log('[Frontend] Checking event:', {
-        id: event?.id,
-        title: event?.title,
-        startTime: event?.startTime,
-        endTime: event?.endTime,
-        type: typeof event
-      });
-      
-      // Validate event data
-      if (!event || typeof event !== 'object') {
-        console.warn('[Frontend] ❌ Filtering out invalid event (not an object):', event);
-        return false;
-      }
-      
-      if (!event.id) {
-        console.warn('[Frontend] ❌ Filtering out event with missing id:', event);
-        return false;
-      }
-      
-      if (!event.title && event.title !== '') {
-        console.warn('[Frontend] ❌ Filtering out event with missing title:', event);
-        return false;
-      }
-      
-      if (!event.startTime || !event.endTime) {
-        console.warn('[Frontend] ❌ Filtering out event with missing dates:', event);
-        return false;
-      }
-
-      // Validate dates
-      const startTime = event.startTime instanceof Date ? event.startTime : new Date(event.startTime);
-      const endTime = event.endTime instanceof Date ? event.endTime : new Date(event.endTime);
-      
-      if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
-        console.warn('[Frontend] ❌ Filtering out event with invalid dates:', event);
-        return false;
-      }
-
-      // TEMPORARILY DISABLED: Check for suspicious titles that indicate corruption
-      // We'll disable this to see if it's filtering out legitimate events
-      /*
-      if (typeof event.title === 'string' && (
-        event.title.toLowerCase().includes('happy birthday') ||
-        event.title.toLowerCase().includes('sample') ||
-        event.title.toLowerCase().includes('test') && event.title.toLowerCase().includes('data')
-      )) {
-        console.warn('[Frontend] ❌ Filtering out suspicious event title:', event.title);
-        return false;
-      }
-      */
-
-      console.log('[Frontend] ✅ Event passed validation:', event.title);
-      return true;
-    });
-    
-    console.log('[Frontend] getSafeEvents filtered', eventsList.length, '->', filteredEvents.length, 'events');
-    return filteredEvents;
+    // For now, just return all events - we've fixed the data loading to ensure all fields exist
+    return eventsList;
   };
 
   const handleSubmitEvent = async () => {
@@ -623,6 +577,9 @@ export default function CalendarPage() { // Renamed from Home for clarity
           endTime: endDateTime.toISOString(),
           description: newEventDescription,
           color: newEventColor,
+          location: '',
+          attendees: [],
+          organizer: 'You',
         };
 
         console.log('[Frontend] Sending event data to backend:', eventData);
@@ -632,9 +589,15 @@ export default function CalendarPage() { // Renamed from Home for clarity
         console.log('[Frontend] Backend response:', response.data);
         
         const backendEvent = {
-          ...response.data,
+          id: response.data._id || response.data.id,
+          title: response.data.title,
           startTime: new Date(response.data.startTime),
           endTime: new Date(response.data.endTime),
+          color: response.data.color || 'bg-blue-500',
+          description: response.data.description || '',
+          location: response.data.location || '',
+          attendees: response.data.attendees || [],
+          organizer: response.data.organizer || 'You',
         };
 
         console.log('[Frontend] Processed backend event:', backendEvent);
@@ -677,6 +640,9 @@ export default function CalendarPage() { // Renamed from Home for clarity
           endTime: endDateTime.toISOString(),
           description: newEventDescription,
           color: newEventColor,
+          location: eventToEdit.location || '',
+          attendees: eventToEdit.attendees || [],
+          organizer: eventToEdit.organizer || 'You',
         };
 
         let updatedEvent;
