@@ -72,6 +72,15 @@ interface CalendarEvent {
   organizer: string;
 }
 
+// Helper function to compare dates by UTC values to avoid timezone issues
+const isSameUTCDate = (dateLeft: Date, dateRight: Date): boolean => {
+  return (
+    dateLeft.getUTCFullYear() === dateRight.getUTCFullYear() &&
+    dateLeft.getUTCMonth() === dateRight.getUTCMonth() &&
+    dateLeft.getUTCDate() === dateRight.getUTCDate()
+  );
+};
+
 
 export default function CalendarPage() { // Renamed from Home for clarity
   const [isLoaded, setIsLoaded] = useState(false);
@@ -1584,7 +1593,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                       })}
                       {(() => {
                         const safeEvents = getSafeEvents(events);
-                        const dayEvents = safeEvents.filter((event) => isSameDay(event.startTime, weekDates[dayIndex]));
+                        const dayEvents = safeEvents.filter((event) => isSameUTCDate(event.startTime, weekDates[dayIndex]));
                         // Only log for today to reduce noise
                         if (dayIndex === 0 && isToday(weekDates[dayIndex])) {
                           console.log(`[WEEK DEBUG] Today's events:`, {
@@ -1857,7 +1866,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                     })}
                     {(() => {
                       const safeEvents = getSafeEvents(events);
-                      const dayEvents = safeEvents.filter((event) => isSameDay(event.startTime, currentDisplayDate));
+                      const dayEvents = safeEvents.filter((event) => isSameUTCDate(event.startTime, currentDisplayDate));
                       console.log(`[DAY DEBUG] Events for ${currentDisplayDate.toDateString()}:`, {
                         totalEvents: events.length,
                         safeEvents: safeEvents.length,
