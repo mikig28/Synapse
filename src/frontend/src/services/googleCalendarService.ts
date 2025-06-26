@@ -183,6 +183,8 @@ class GoogleCalendarService {
       }, 1000);
     });
   }
+}
+
 
   /**
    * Create a single event in Google Calendar
