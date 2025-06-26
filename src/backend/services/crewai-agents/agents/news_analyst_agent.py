@@ -1,6 +1,10 @@
+
+
 import os
 import json
-from typing import List, Dict, Any, Union
+import re
+from typing import List, Dict, Any
+from collections import Counter
 from datetime import datetime
 from crewai import Agent
 from crewai_tools import BaseTool
@@ -9,408 +13,256 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# A set of common English stop words
+STOP_WORDS = set([
+    "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "aren't", "as", "at",
+    "be", "because", "been", "before", "being", "below", "between", "both", "but", "by", "can't", "cannot", "could",
+    "couldn't", "did", "didn't", "do", "does", "doesn't", "doing", "don't", "down", "during", "each", "few", "for",
+    "from", "further", "had", "hadn't", "has", "hasn't", "have", "haven't", "having", "he", "he'd", "he'll", "he's",
+    "her", "here", "here's", "hers", "herself", "him", "himself", "his", "how", "how's", "i", "i'd", "i'll", "i'm",
+    "i've", "if", "in", "into", "is", "isn't", "it", "it's", "its", "itself", "let's", "me", "more", "most", "mustn't",
+    "my", "myself", "no", "nor", "not", "of", "off", "on", "once", "only", "or", "other", "ought", "our", "ours",
+    "ourselves", "out", "over", "own", "same", "shan't", "she", "she'd", "she'll", "she's", "should", "shouldn't",
+    "so", "some", "such", "than", "that", "that's", "the", "their", "theirs", "them", "themselves", "then", "there",
+    "there's", "these", "they", "they'd", "they'll", "they're", "they've", "this", "those", "through", "to", "too",
+    "under", "until", "up", "very", "was", "wasn't", "we", "we'd", "we'll", "we're", "we've", "were", "weren't",
+    "what", "what's", "when", "when's", "where", "where's", "which", "while", "who", "who's", "whom", "why", "why's",
+    "with", "won't", "would", "wouldn't", "you", "you'd", "you'll", "you're", "you've", "your", "yours", "yourself",
+    "yourselves", "news", "latest", "trending"
+])
+
 class NewsAnalysisTool(BaseTool):
-    """Tool for analyzing and synthesizing news data from multiple sources"""
-    
     name: str = "News Analysis and Synthesis"
     description: str = "Analyzes and synthesizes news data to create comprehensive insights and trends"
-    
+
     def __init__(self, llm=None):
         super().__init__()
         self.llm = llm or ChatOpenAI(
-            model_name="gpt-4o-mini",
-            temperature=0.3,
+            model_name=os.getenv("OPENAI_MODEL_NAME", "gpt-4o-mini"),
+            temperature=0.2,
             openai_api_key=os.getenv('OPENAI_API_KEY')
         )
-    
-    def _run(self, news_data: str) -> str:
-        """Analyze and synthesize news data from all sources"""
-        
+
+    def _run(self, news_data: str, topics: str = None) -> str:
         try:
-            # Parse the input news data
-            if isinstance(news_data, str):
-                try:
-                    data = json.loads(news_data)
-                except json.JSONDecodeError:
-                    data = {"raw_data": news_data}
-            else:
-                data = news_data
-            
-            # Extract content from different sources
-            reddit_posts = self._extract_reddit_data(data)
-            linkedin_posts = self._extract_linkedin_data(data)
-            telegram_messages = self._extract_telegram_data(data)
-            news_articles = self._extract_news_data(data)
-            
+            data = json.loads(news_data)
+            topics_list = topics.split(',') if topics else []
+
+            # Process data from each source
+            processed_data = self._process_sources(data)
+
             # Perform comprehensive analysis
-            analysis_result = self._perform_comprehensive_analysis(
-                reddit_posts, linkedin_posts, telegram_messages, news_articles
-            )
-            
+            analysis_result = self._perform_comprehensive_analysis(processed_data, topics_list)
+
             return json.dumps(analysis_result, indent=2)
-            
+
         except Exception as e:
-            error_result = {
-                'success': False,
-                'error': f"Analysis failed: {str(e)}",
-                'timestamp': datetime.now().isoformat()
-            }
-            logger.error(f"News analysis failed: {str(e)}")
-            return json.dumps(error_result, indent=2)
-    
-    def _extract_reddit_data(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Extract Reddit posts from the data"""
-        reddit_posts = []
-        
-        if 'reddit' in data:
-            reddit_posts = data['reddit'].get('posts', [])
-        elif isinstance(data, list):
-            for item in data:
-                if isinstance(item, dict) and item.get('source') == 'reddit':
-                    reddit_posts.append(item)
-        
-        return reddit_posts
-    
-    def _extract_linkedin_data(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Extract LinkedIn posts from the data"""
-        linkedin_posts = []
-        
-        if 'linkedin' in data:
-            linkedin_posts = data['linkedin'].get('posts', [])
-        elif isinstance(data, list):
-            for item in data:
-                if isinstance(item, dict) and item.get('source') == 'linkedin':
-                    linkedin_posts.append(item)
-        
-        return linkedin_posts
-    
-    def _extract_telegram_data(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Extract Telegram messages from the data"""
-        telegram_messages = []
-        
-        if 'telegram' in data:
-            telegram_messages = data['telegram'].get('messages', [])
-        elif isinstance(data, list):
-            for item in data:
-                if isinstance(item, dict) and item.get('source') == 'telegram':
-                    telegram_messages.append(item)
-        
-        return telegram_messages
-    
-    def _extract_news_data(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Extract news articles from the data"""
-        news_articles = []
-        
-        if 'news_websites' in data:
-            news_articles = data['news_websites'].get('articles', [])
-        elif isinstance(data, list):
-            for item in data:
-                if isinstance(item, dict) and item.get('source_category') in ['tech', 'news']:
-                    news_articles.append(item)
-        
-        return news_articles
-    
-    def _perform_comprehensive_analysis(self, reddit_posts: List[Dict], linkedin_posts: List[Dict], 
-                                      telegram_messages: List[Dict], news_articles: List[Dict]) -> Dict[str, Any]:
-        """Perform comprehensive analysis of all collected data"""
-        
-        # Combine all content for analysis
-        all_content = []
-        
-        # Process Reddit posts
-        for post in reddit_posts[:10]:  # Limit to top 10
-            all_content.append({
-                'source': 'reddit',
-                'title': post.get('title', ''),
-                'content': post.get('content', ''),
-                'engagement': post.get('score', 0),
-                'url': post.get('url', ''),
-                'timestamp': post.get('created_utc', ''),
-                'metadata': {
-                    'subreddit': post.get('subreddit', ''),
-                    'comments': post.get('num_comments', 0)
+            logger.error(f"News analysis failed: {e}", exc_info=True)
+            return json.dumps({'success': False, 'error': f"Analysis failed: {str(e)}"})
+
+    def _process_sources(self, data: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+        """Standardize data from different sources into a consistent format."""
+        processed = {}
+        source_mapping = {
+            'reddit': 'reddit_posts',
+            'linkedin': 'linkedin_posts',
+            'telegram': 'telegram_messages',
+            'news_websites': 'news_articles'
+        }
+
+        for key, source_name in source_mapping.items():
+            source_data = data.get(key, {})
+            items = source_data.get('posts') or source_data.get('messages') or source_data.get('articles', [])
+            
+            # Basic validation to ensure items is a list of dicts
+            if isinstance(items, list) and all(isinstance(i, dict) for i in items):
+                processed[source_name] = {
+                    "source_name": source_data.get('source', key).replace('_', ' ').title(),
+                    "items": items,
+                    "status": self._get_source_status(source_data)
                 }
-            })
-        
-        # Process LinkedIn posts
-        for post in linkedin_posts[:10]:
-            all_content.append({
-                'source': 'linkedin',
-                'title': post.get('title', ''),
-                'content': post.get('content', ''),
-                'engagement': post.get('engagement', {}).get('likes', 0),
-                'url': post.get('url', ''),
-                'timestamp': post.get('timestamp', ''),
-                'metadata': {
-                    'author': post.get('author', ''),
-                    'company': post.get('company', '')
+            else:
+                 processed[source_name] = {
+                    "source_name": key.replace('_', ' ').title(),
+                    "items": [],
+                    "status": "❌ No items received or invalid format"
                 }
-            })
+        return processed
+
+    def _get_source_status(self, source_data: Dict[str, Any]) -> str:
+        """Determine the status of the data source."""
+        if not source_data.get('success', False):
+            return f"❌ Failed: {source_data.get('error', 'Unknown error')}"
+        if not source_data.get('posts') and not source_data.get('messages') and not source_data.get('articles'):
+            return "⚠️ No items found"
+        if any('simulated' in str(val).lower() for val in source_data.values()):
+             return "⚠️ Simulated items"
+        if any('rss' in str(val).lower() or 'alternative' in str(val).lower() for val in source_data.values()):
+            return "⚠️ RSS Fallback"
+        return "✅ Real items"
+
+    def _perform_comprehensive_analysis(self, processed_data: Dict[str, Any], topics_list: List[str]) -> Dict[str, Any]:
+        """Perform comprehensive analysis of all collected data."""
+        all_items = [item for source in processed_data.values() for item in source.get('items', [])]
+
+        # Generate trending topics dynamically
+        trending_topics = self._identify_trending_topics(all_items, topics_list)
+
+        # Generate executive summary using AI
+        executive_summary = self._generate_executive_summary(all_items, trending_topics, topics_list)
         
-        # Process Telegram messages
-        for message in telegram_messages[:10]:
-            all_content.append({
-                'source': 'telegram',
-                'title': message.get('text', '')[:100],  # First 100 chars as title
-                'content': message.get('text', ''),
-                'engagement': message.get('views', 0),
-                'url': '',
-                'timestamp': message.get('timestamp', ''),
-                'metadata': {
-                    'channel': message.get('channel', ''),
-                    'forwards': message.get('forwards', 0)
-                }
-            })
-        
-        # Process news articles
-        for article in news_articles[:15]:
-            all_content.append({
-                'source': 'news',
-                'title': article.get('title', ''),
-                'content': article.get('content', ''),
-                'engagement': 0,  # News articles don't have engagement metrics
-                'url': article.get('url', ''),
-                'timestamp': article.get('published_date', ''),
-                'metadata': {
-                    'source_name': article.get('source', ''),
-                    'author': article.get('author', '')
-                }
-            })
-        
-        # Perform AI-powered analysis
-        ai_analysis = self._ai_analyze_content(all_content)
-        
-        # Generate trending topics
-        trending_topics = self._identify_trending_topics(all_content)
-        
-        # Generate executive summary
-        executive_summary = self._generate_executive_summary(all_content, ai_analysis)
-        
-        # Source analysis
-        source_analysis = self._analyze_sources(reddit_posts, linkedin_posts, telegram_messages, news_articles)
-        
+        # Get AI insights
+        ai_insights = self._ai_analyze_content(all_items, topics_list)
+
         # Generate recommendations
-        recommendations = self._generate_recommendations(trending_topics, ai_analysis)
-        
-        return {
+        recommendations = self._generate_recommendations(trending_topics, ai_insights)
+
+        # Create the final structured report
+        report = {
             'success': True,
             'analysis_timestamp': datetime.now().isoformat(),
-            'total_items_analyzed': len(all_content),
+            'metadata': {
+                'topics_analyzed': topics_list,
+                'total_items_analyzed': len(all_items),
+                'sources_summary': {k: {"status": v['status'], "items_found": len(v['items'])} for k, v in processed_data.items()}
+            },
             'executive_summary': executive_summary,
             'trending_topics': trending_topics,
-            'ai_insights': ai_analysis,
-            'source_analysis': source_analysis,
-            'recommendations': recommendations,
-            'organized_content': {
-                'reddit_posts': reddit_posts[:5],
-                'linkedin_posts': linkedin_posts[:5],
-                'telegram_messages': telegram_messages[:5],
-                'news_articles': news_articles[:10]
-            },
-            'metadata': {
-                'sources_analyzed': {
-                    'reddit': len(reddit_posts),
-                    'linkedin': len(linkedin_posts),
-                    'telegram': len(telegram_messages),
-                    'news': len(news_articles)
-                }
-            }
+            'source_specific_results': {k: {"source_name": v['source_name'], "items": v['items'][:10]} for k, v in processed_data.items()},
+            'ai_insights': ai_insights,
+            'recommendations': recommendations
         }
-    
-    def _ai_analyze_content(self, content: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Use AI to analyze content for patterns and insights"""
+        return report
+
+    def _identify_trending_topics(self, all_items: List[Dict[str, Any]], topics_list: List[str]) -> List[Dict[str, Any]]:
+        """Identify trending topics from content dynamically."""
+        text_corpus = " ".join(item.get('title', '') for item in all_items).lower()
         
+        # Remove punctuation and extra spaces
+        text_corpus = re.sub(r'[^\w\s]', '', text_corpus)
+        words = text_corpus.split()
+
+        # Filter out stop words and the original topics
+        filtered_words = [word for word in words if word not in STOP_WORDS and word not in topics_list and len(word) > 3]
+
+        # Get the most common words/phrases (bi-grams and tri-grams)
+        bi_grams = [" ".join(grams) for grams in zip(filtered_words, filtered_words[1:])]
+        tri_grams = [" ".join(grams) for grams in zip(filtered_words, filtered_words[1:], filtered_words[2:])]
+        
+        word_counts = Counter(filtered_words)
+        bi_gram_counts = Counter(bi_grams)
+        tri_gram_counts = Counter(tri_grams)
+
+        # Combine and score topics
+        trending = {}
+        for word, count in word_counts.most_common(10):
+            trending[word] = trending.get(word, 0) + count
+        for phrase, count in bi_gram_counts.most_common(10):
+            trending[phrase] = trending.get(phrase, 0) + count * 1.5 # Give more weight to phrases
+        for phrase, count in tri_gram_counts.most_common(5):
+            trending[phrase] = trending.get(phrase, 0) + count * 2.0
+
+        # Format for output
+        sorted_trending = sorted(trending.items(), key=lambda x: x[1], reverse=True)
+        
+        return [{"topic": topic, "score": round(score, 2)} for topic, score in sorted_trending[:7]]
+
+    def _generate_executive_summary(self, all_items: List[Dict[str, Any]], trending_topics: List[Dict[str, Any]], topics_list: List[str]) -> List[str]:
+        """Generate executive summary of key insights using an LLM."""
+        if not all_items:
+            return ["No content was found to generate a summary."]
+
+        content_preview = ""
+        for item in all_items[:15]: # Use a sample of items
+            content_preview += f"- {item.get('title', 'No Title')}\n"
+
+        prompt = f"""
+        Based on the following list of item titles and trending topics, please generate a concise, professional executive summary (3-4 bullet points).
+        The summary should highlight the main findings and the most significant trends for the general topic of '{', '.join(topics_list)}'.
+
+        Item Titles:
+        {content_preview}
+
+        Trending Topics:
+        {json.dumps(trending_topics)}
+
+        Generate the executive summary as a JSON array of strings. For example:
+        ["First bullet point.", "Second bullet point."]
+        """
         try:
-            # Prepare content for AI analysis
-            content_text = ""
-            for item in content[:20]:  # Limit to 20 items for AI analysis
-                content_text += f"Source: {item['source']}\n"
-                content_text += f"Title: {item['title']}\n"
-                content_text += f"Content: {item['content'][:300]}...\n\n"
-            
-            # AI analysis prompt
-            prompt = f"""
-            Analyze the following news and social media content and provide insights:
-
-            {content_text}
-
-            Please provide analysis in the following JSON format:
-            {{
-                "key_themes": ["theme1", "theme2", "theme3"],
-                "sentiment_analysis": "overall sentiment (positive/negative/neutral)",
-                "emerging_trends": ["trend1", "trend2"],
-                "important_developments": ["development1", "development2"],
-                "market_implications": "brief analysis of market implications",
-                "technology_focus": "main technology areas discussed"
-            }}
-            """
-            
             response = self.llm.invoke(prompt)
-            
-            try:
-                ai_insights = json.loads(response.content)
-            except json.JSONDecodeError:
-                ai_insights = {
-                    "key_themes": ["technology", "innovation", "business"],
-                    "sentiment_analysis": "positive",
-                    "emerging_trends": ["AI advancement", "digital transformation"],
-                    "important_developments": ["new partnerships", "product launches"],
-                    "market_implications": "Positive outlook for tech sector",
-                    "technology_focus": "AI and automation"
-                }
-            
-            return ai_insights
-            
+            summary = json.loads(response.content)
+            if isinstance(summary, list):
+                return summary
+            return ["Failed to generate a valid summary."]
         except Exception as e:
-            logger.error(f"AI analysis failed: {str(e)}")
-            return {
-                "key_themes": ["technology", "business"],
-                "sentiment_analysis": "neutral",
-                "emerging_trends": ["digital innovation"],
-                "important_developments": ["industry updates"],
-                "market_implications": "Mixed signals in the market",
-                "technology_focus": "General technology trends",
-                "error": str(e)
-            }
-    
-    def _identify_trending_topics(self, content: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Identify trending topics from content"""
+            logger.error(f"Failed to generate executive summary: {e}")
+            return ["AI summary generation failed. Key trends appear to be around " + ", ".join(t['topic'] for t in trending_topics[:2]) + "."]
+
+    def _ai_analyze_content(self, all_items: List[Dict[str, Any]], topics_list: List[str]) -> Dict[str, Any]:
+        """Use AI to analyze content for patterns and insights."""
+        if not all_items:
+            return {}
+
+        content_text = ""
+        for item in all_items[:20]:  # Limit to 20 items for AI analysis
+            content_text += f"Title: {item.get('title', '')}\\n"
         
-        topic_counts = {}
-        topics_with_engagement = {}
-        
-        # Common keywords to track
-        tech_keywords = [
-            'AI', 'artificial intelligence', 'machine learning', 'blockchain', 
-            'cryptocurrency', 'startups', 'funding', 'IPO', 'acquisition',
-            'cloud computing', 'cybersecurity', 'IoT', 'data science',
-            'automation', 'robotics', 'VR', 'AR', 'metaverse', '5G'
-        ]
-        
-        for item in content:
-            text = f"{item['title']} {item['content']}".lower()
-            engagement = item.get('engagement', 0)
-            
-            for keyword in tech_keywords:
-                if keyword.lower() in text:
-                    if keyword not in topic_counts:
-                        topic_counts[keyword] = 0
-                        topics_with_engagement[keyword] = 0
-                    
-                    topic_counts[keyword] += 1
-                    topics_with_engagement[keyword] += engagement
-        
-        # Calculate trending score (mentions + engagement)
-        trending_topics = []
-        for topic, count in topic_counts.items():
-            if count >= 2:  # Must appear at least twice
-                trending_score = count * 10 + (topics_with_engagement[topic] / 100)
-                trending_topics.append({
-                    'topic': topic,
-                    'mentions': count,
-                    'total_engagement': topics_with_engagement[topic],
-                    'trending_score': round(trending_score, 2)
-                })
-        
-        # Sort by trending score
-        trending_topics.sort(key=lambda x: x['trending_score'], reverse=True)
-        
-        return trending_topics[:10]  # Top 10 trending topics
-    
-    def _generate_executive_summary(self, content: List[Dict[str, Any]], ai_analysis: Dict[str, Any]) -> List[str]:
-        """Generate executive summary of key insights"""
-        
-        total_items = len(content)
-        sources = set(item['source'] for item in content)
-        
-        summary = [
-            f"Analyzed {total_items} items from {len(sources)} different sources",
-            f"Key themes identified: {', '.join(ai_analysis.get('key_themes', []))}",
-            f"Overall sentiment: {ai_analysis.get('sentiment_analysis', 'neutral')}",
-            f"Emerging trends: {', '.join(ai_analysis.get('emerging_trends', []))}"
-        ]
-        
-        return summary
-    
-    def _analyze_sources(self, reddit_posts: List, linkedin_posts: List, 
-                        telegram_messages: List, news_articles: List) -> Dict[str, Any]:
-        """Analyze the quality and distribution of sources"""
-        
-        return {
-            'source_distribution': {
-                'reddit': len(reddit_posts),
-                'linkedin': len(linkedin_posts), 
-                'telegram': len(telegram_messages),
-                'news': len(news_articles)
-            },
-            'credibility_assessment': {
-                'reddit': 'Community-driven insights',
-                'linkedin': 'Professional perspectives',
-                'telegram': 'Real-time updates',
-                'news': 'Authoritative reporting'
-            },
-            'cross_verification': self._check_cross_verification(reddit_posts, linkedin_posts, telegram_messages, news_articles)
-        }
-    
-    def _check_cross_verification(self, reddit_posts: List, linkedin_posts: List, 
-                                 telegram_messages: List, news_articles: List) -> List[str]:
-        """Check for stories that appear across multiple sources"""
-        
-        # Simple keyword matching across sources
-        common_topics = []
-        
-        # Extract keywords from each source
-        reddit_keywords = set()
-        for post in reddit_posts[:5]:
-            title = post.get('title', '').lower()
-            reddit_keywords.update(word for word in title.split() if len(word) > 4)
-        
-        news_keywords = set()
-        for article in news_articles[:5]:
-            title = article.get('title', '').lower()
-            news_keywords.update(word for word in title.split() if len(word) > 4)
-        
-        # Find overlapping keywords
-        overlapping = reddit_keywords.intersection(news_keywords)
-        if overlapping:
-            common_topics.extend(list(overlapping)[:3])
-        
-        return common_topics
-    
+        prompt = f"""
+        Analyze the following news and social media content related to '{', '.join(topics_list)}' and provide insights.
+        Content Titles:
+        {content_text}
+
+        Please provide analysis in the following JSON format:
+        {{
+            "key_themes": ["theme1", "theme2", "theme3"],
+            "sentiment_analysis": "overall sentiment (e.g., 'Positive', 'Negative', 'Neutral', 'Mixed')",
+            "emerging_trends": ["trend1", "trend2"]
+        }}
+        """
+        try:
+            response = self.llm.invoke(prompt)
+            return json.loads(response.content)
+        except Exception as e:
+            logger.error(f"AI analysis failed: {e}")
+            return {"error": "AI analysis failed to generate insights."}
+
     def _generate_recommendations(self, trending_topics: List[Dict], ai_analysis: Dict[str, Any]) -> List[str]:
-        """Generate actionable recommendations based on analysis"""
-        
+        """Generate actionable recommendations based on analysis."""
         recommendations = []
-        
+        if not trending_topics and not ai_analysis:
+            return ["No data available to generate recommendations."]
+
         if trending_topics:
             top_topic = trending_topics[0]['topic']
-            recommendations.append(f"Monitor {top_topic} closely - showing high engagement and mentions")
+            recommendations.append(f"Monitor '{top_topic}' closely, as it shows the highest engagement and mentions.")
         
-        if ai_analysis.get('sentiment_analysis') == 'positive':
-            recommendations.append("Market sentiment is positive - consider investment opportunities")
-        elif ai_analysis.get('sentiment_analysis') == 'negative':
-            recommendations.append("Market sentiment is negative - exercise caution and monitor for recovery signs")
-        
+        sentiment = ai_analysis.get('sentiment_analysis', 'neutral').lower()
+        if sentiment == 'positive':
+            recommendations.append("Overall sentiment is positive, suggesting favorable conditions or reception in this area.")
+        elif sentiment == 'negative':
+            recommendations.append("Overall sentiment is negative; exercise caution and monitor for underlying issues.")
+
         if ai_analysis.get('emerging_trends'):
-            recommendations.append(f"Focus on emerging trends: {', '.join(ai_analysis['emerging_trends'][:2])}")
+            recommendations.append(f"Focus on emerging trends: {', '.join(ai_analysis['emerging_trends'][:2])}.")
         
-        recommendations.append("Continue monitoring these sources for trend confirmation")
-        
+        recommendations.append("Cross-reference findings with primary news sources for deeper insights.")
         return recommendations
 
 class NewsAnalystAgent:
     """News analyst agent for comprehensive analysis and synthesis"""
-    
+
     def __init__(self, llm=None):
         self.tool = NewsAnalysisTool(llm=llm)
         self.agent = Agent(
-            role='News Analyst and Synthesizer',
-            goal='Analyze and synthesize news data from multiple sources to create comprehensive insights',
-            backstory="""You are a senior news analyst with expertise in technology, business, 
-            and market trends. You excel at synthesizing information from multiple sources, 
-            identifying patterns and trends, cross-referencing information for accuracy, 
-            and generating actionable insights. Your analysis helps decision-makers understand 
-            the broader implications of current events and emerging trends.""",
+            role='Principal News Analyst and Strategist',
+            goal='Transform raw news data from multiple sources into a structured, insightful, and actionable intelligence report.',
+            backstory=(
+                "You are a top-tier news analyst, renowned for your ability to cut through the noise. "
+                "You synthesize disparate information from news articles, social media, and professional networks "
+                "into a coherent, easy-to-digest report. Your insights are trusted by decision-makers to "
+                "understand market trends, public sentiment, and emerging opportunities."
+            ),
             tools=[self.tool],
             llm=llm,
             verbose=True,
