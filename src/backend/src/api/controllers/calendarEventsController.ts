@@ -98,6 +98,19 @@ export const updateCalendarEvent = async (req: Request, res: Response) => {
       return res.status(403).json({ message: 'User not authorized to update this event' });
     }
 
+    // Check if this event is synced with Google Calendar
+    const hasGoogleEventId = event.googleEventId;
+    const isGoogleSynced = hasGoogleEventId && event.syncStatus === 'synced';
+
+    console.log('[CalendarController] Updating event:', {
+      eventId: event._id,
+      title: event.title,
+      hasGoogleEventId: !!hasGoogleEventId,
+      syncStatus: event.syncStatus,
+      isGoogleSynced,
+      updateFields: { title, startTime, endTime, description, color }
+    });
+
     // Validate date formats and ensure endTime is after startTime if provided
     if (startTime || endTime) {
         const newStartTime = startTime ? new Date(startTime) : event.startTime;
@@ -116,19 +129,47 @@ export const updateCalendarEvent = async (req: Request, res: Response) => {
         event.endTime = newEndTime;
     }
 
-
+    // Update event fields
     event.title = title || event.title;
     event.description = description === undefined ? event.description : description;
     event.color = color || event.color;
 
-    // Mark event as needing sync if it was previously synced with Google
-    if (event.googleEventId && event.syncStatus === 'synced') {
+    // Handle Google Calendar sync status
+    if (isGoogleSynced) {
+      // Mark event as needing sync if it was previously synced with Google
+      console.log('[CalendarController] Event is synced with Google Calendar, marking as pending sync');
+      event.syncStatus = 'pending';
+      event.lastSyncAt = undefined; // Clear last sync time to indicate sync needed
+    } else if (hasGoogleEventId && event.syncStatus !== 'error') {
+      // Event has Google ID but wasn't fully synced, mark as pending
+      console.log('[CalendarController] Event has Google ID but not synced, marking as pending');
       event.syncStatus = 'pending';
     }
 
     const updatedEvent = await event.save();
-    res.status(200).json(updatedEvent);
+    
+    console.log('[CalendarController] ✅ Event updated successfully:', {
+      eventId: updatedEvent._id,
+      newSyncStatus: updatedEvent.syncStatus,
+      needsGoogleSync: updatedEvent.syncStatus === 'pending'
+    });
+
+    // Provide appropriate response based on sync status
+    if (isGoogleSynced || hasGoogleEventId) {
+      res.status(200).json({
+        ...updatedEvent.toObject(),
+        _syncMessage: 'Event updated. Changes will sync to Google Calendar on next sync.',
+        _requiresGoogleSync: true
+      });
+    } else {
+      res.status(200).json({
+        ...updatedEvent.toObject(),
+        _syncMessage: 'Event updated successfully.',
+        _requiresGoogleSync: false
+      });
+    }
   } catch (error) {
+    console.error('[CalendarController] Error in updateCalendarEvent:', error);
     if (error instanceof Error) {
       res.status(500).json({ message: 'Error updating calendar event', error: error.message });
     } else {
@@ -165,9 +206,61 @@ export const deleteCalendarEvent = async (req: Request, res: Response) => {
       return res.status(403).json({ message: 'User not authorized to delete this event' });
     }
 
-    await event.deleteOne(); // Corrected: use deleteOne method on the document
-    res.status(200).json({ message: 'Calendar event deleted successfully' });
+    // Check if this event is synced with Google Calendar
+    const hasGoogleEventId = event.googleEventId;
+    const isGoogleSynced = hasGoogleEventId && event.syncStatus === 'synced';
+
+    console.log('[CalendarController] Deleting event:', {
+      eventId: event._id,
+      title: event.title,
+      hasGoogleEventId: !!hasGoogleEventId,
+      syncStatus: event.syncStatus,
+      isGoogleSynced
+    });
+
+    // If event is synced with Google Calendar, try to delete it there too
+    if (isGoogleSynced && hasGoogleEventId) {
+      try {
+        console.log('[CalendarController] Event is synced with Google, attempting Google Calendar deletion...');
+        
+        // Initialize Google Calendar service
+        const googleCalendarService = initializeGoogleCalendarService();
+        
+        // Note: We don't have access token here in the delete request
+        // This is a limitation - we'd need to store refresh tokens or handle this differently
+        // For now, we'll delete from our database and mark it for deletion sync
+        console.log('[CalendarController] ⚠️ Cannot delete from Google Calendar without access token');
+        console.log('[CalendarController] Deleting from Synapse database only');
+        
+        // TODO: Implement proper Google Calendar deletion with stored refresh tokens
+        // For now, we just delete from our database
+        
+      } catch (googleError) {
+        console.error('[CalendarController] Error deleting from Google Calendar:', googleError);
+        // Continue with database deletion even if Google deletion fails
+      }
+    }
+
+    // Delete from our database
+    await event.deleteOne();
+    
+    console.log('[CalendarController] ✅ Event deleted from database successfully');
+
+    if (isGoogleSynced) {
+      res.status(200).json({ 
+        message: 'Calendar event deleted from Synapse. Note: Google Calendar sync may be needed to complete deletion.',
+        deletedFromGoogle: false,
+        requiresGoogleSync: true
+      });
+    } else {
+      res.status(200).json({ 
+        message: 'Calendar event deleted successfully',
+        deletedFromGoogle: false,
+        requiresGoogleSync: false
+      });
+    }
   } catch (error) {
+    console.error('[CalendarController] Error in deleteCalendarEvent:', error);
     if (error instanceof Error) {
       res.status(500).json({ message: 'Error deleting calendar event', error: error.message });
     } else {

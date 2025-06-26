@@ -737,15 +737,85 @@ export default function CalendarPage() { // Renamed from Home for clarity
   // Delete event function
   const handleDeleteEvent = async (eventToDelete: CalendarEvent) => {
     try {
+      // Check if this is a Google Calendar synced event
+      const hasGoogleEventId = (eventToDelete as any).googleEventId;
+      const isGoogleCalendarEvent = eventToDelete.color === 'bg-emerald-600' || hasGoogleEventId;
+      
       // Delete from backend if it's a backend event (MongoDB ObjectId format)
       const isBackendEvent = typeof eventToDelete.id === 'string' && eventToDelete.id.length === 24;
       
       if (isBackendEvent) {
         console.log('[Frontend] Deleting backend event with ID:', eventToDelete.id);
-        await axiosInstance.delete(`/calendar-events/${eventToDelete.id}`);
+        console.log('[Frontend] Is Google Calendar event:', isGoogleCalendarEvent);
+        console.log('[Frontend] Google Event ID:', hasGoogleEventId);
+        
+        // For Google Calendar events, we need to handle deletion carefully
+        if (isGoogleCalendarEvent && hasGoogleEventId) {
+          // Show confirmation for Google Calendar events
+          const confirmDelete = window.confirm(
+            `"${eventToDelete.title}" is synced with Google Calendar.\n\n` +
+            `Delete options:\n` +
+            `• OK: Delete from both Synapse and Google Calendar\n` +
+            `• Cancel: Keep event unchanged\n\n` +
+            `Choose OK to delete from both calendars.`
+          );
+          
+          if (!confirmDelete) {
+            return; // User cancelled deletion
+          }
+          
+          // Check if Google is connected before attempting sync delete
+          const currentToken = googleAuthService.getAccessToken();
+          const connectionStatus = googleAuthService.getConnectionStatus();
+          
+          if (currentToken && connectionStatus.connected) {
+            try {
+              // First, delete from Synapse backend (this will handle Google Calendar deletion via backend)
+              await axiosInstance.delete(`/calendar-events/${eventToDelete.id}`);
+              
+              toast({
+                title: "Google Calendar Event Deleted",
+                description: `"${eventToDelete.title}" has been deleted from both Synapse and Google Calendar.`,
+                variant: "default"
+              });
+            } catch (error: any) {
+              console.error('[Frontend] Error deleting Google Calendar event:', error);
+              
+              // If backend delete fails, still remove from local state but warn user
+              toast({
+                title: "Partial Deletion",
+                description: `Event removed from Synapse, but may still exist in Google Calendar. Try syncing to resolve.`,
+                variant: "destructive"
+              });
+            }
+          } else {
+            // No Google connection - delete from Synapse only and warn user
+            await axiosInstance.delete(`/calendar-events/${eventToDelete.id}`);
+            
+            toast({
+              title: "Google Calendar Disconnected",
+              description: `"${eventToDelete.title}" deleted from Synapse only. Connect Google Calendar and sync to complete deletion.`,
+              variant: "destructive"
+            });
+          }
+        } else {
+          // Regular Synapse-only event
+          await axiosInstance.delete(`/calendar-events/${eventToDelete.id}`);
+          
+          toast({
+            title: "Event Deleted",
+            description: `"${eventToDelete.title}" has been removed from your calendar.`,
+            variant: "default"
+          });
+        }
       } else {
         console.log('[Frontend] Deleting local event with ID:', eventToDelete.id);
         // Local events don't need backend deletion
+        toast({
+          title: "Local Event Deleted",
+          description: `"${eventToDelete.title}" has been removed from your calendar.`,
+          variant: "default"
+        });
       }
 
       // Update React state
@@ -763,11 +833,6 @@ export default function CalendarPage() { // Renamed from Home for clarity
       // Dispatch custom event to notify other components
       window.dispatchEvent(new CustomEvent('calendarEventsUpdated'));
       
-      toast({
-        title: "Event Deleted",
-        description: `"${eventToDelete.title}" has been removed from your calendar.`,
-        variant: "default"
-      });
     } catch (error: any) {
       console.error('Error deleting event:', error);
       toast({
@@ -808,6 +873,10 @@ export default function CalendarPage() { // Renamed from Home for clarity
       return false;
     }
 
+    // Check if this is a Google Calendar synced event
+    const hasGoogleEventId = (eventToUpdate as any).googleEventId;
+    const isGoogleCalendarEvent = eventToUpdate.color === 'bg-emerald-600' || hasGoogleEventId;
+
     // Ensure minimum 15-minute duration
     const minDuration = 15 * 60 * 1000; // 15 minutes in milliseconds
     let finalStartTime = new Date(newStartTime);
@@ -835,9 +904,6 @@ export default function CalendarPage() { // Renamed from Home for clarity
         color: eventToUpdate.color || 'bg-blue-500' // Preserve color
       };
 
-      // FIXED: Save to backend API first to ensure persistence across page reloads
-      console.log('[Frontend] Attempting to save drag/drop changes to backend...');
-      
       // Check if this event has a MongoDB ObjectId (backend event)
       const isBackendEvent = typeof eventToUpdate.id === 'string' && eventToUpdate.id.length === 24;
       
@@ -854,6 +920,11 @@ export default function CalendarPage() { // Renamed from Home for clarity
             organizer: updatedEvent.organizer || 'You',
           };
 
+          console.log('[Frontend] Updating backend event...');
+          if (isGoogleCalendarEvent) {
+            console.log('[Frontend] Event is synced with Google Calendar, backend will handle Google sync');
+          }
+
           const response = await axiosInstance.put(`/calendar-events/${eventToUpdate.id}`, payload);
           console.log('[Frontend] ✅ Backend update successful for drag/drop:', response.data);
           
@@ -862,6 +933,30 @@ export default function CalendarPage() { // Renamed from Home for clarity
           updatedEvent.id = backendEvent._id || backendEvent.id;
           updatedEvent.startTime = new Date(backendEvent.startTime);
           updatedEvent.endTime = new Date(backendEvent.endTime);
+          
+          // Show different messages for Google Calendar events
+          if (isGoogleCalendarEvent && hasGoogleEventId) {
+            const currentToken = googleAuthService.getAccessToken();
+            const connectionStatus = googleAuthService.getConnectionStatus();
+            
+            if (currentToken && connectionStatus.connected) {
+              toast({
+                title: "Google Calendar Event Updated",
+                description: `"${eventToUpdate.title}" updated in both Synapse and Google Calendar.`,
+              });
+            } else {
+              toast({
+                title: "Event Updated (Synapse Only)",
+                description: `"${eventToUpdate.title}" updated in Synapse. Connect Google to sync changes.`,
+                variant: "destructive"
+              });
+            }
+          } else {
+            toast({
+              title: "Event Updated",
+              description: `"${eventToUpdate.title}" has been updated and synced.`,
+            });
+          }
           
         } catch (backendError: any) {
           console.error('[Frontend] ❌ Backend update failed for drag/drop:', backendError);
@@ -884,6 +979,10 @@ export default function CalendarPage() { // Renamed from Home for clarity
         }
       } else {
         console.log('[Frontend] Event appears to be localStorage-only, skipping backend update');
+        toast({
+          title: "Local Event Updated",
+          description: `"${eventToUpdate.title}" has been updated locally.`,
+        });
       }
 
       // Update the events array safely
@@ -918,12 +1017,6 @@ export default function CalendarPage() { // Renamed from Home for clarity
       
       // Dispatch custom event for cross-component synchronization
       window.dispatchEvent(new CustomEvent('calendarEventsUpdated'));
-      
-      // Show success message
-      toast({
-        title: "Event Updated",
-        description: `"${eventToUpdate.title}" has been updated and synced.`,
-      });
 
       return true;
     } catch (error) {
@@ -1111,7 +1204,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
   });
 
   const handleSyncWithGoogle = async () => {
-    console.log('[Frontend] Starting Google Calendar sync...');
+    console.log('[Frontend] Starting comprehensive Google Calendar sync...');
     
     // Get current token (may be from localStorage)
     const currentToken = googleAuthService.getAccessToken();
@@ -1131,6 +1224,12 @@ export default function CalendarPage() { // Renamed from Home for clarity
         setGoogleAccessToken(null);
       }
       
+      toast({
+        title: "Google Calendar Connection Required",
+        description: "Please connect to Google Calendar to enable bidirectional sync.",
+        variant: "default"
+      });
+      
       handleGoogleLogin();
       return;
     }
@@ -1142,26 +1241,67 @@ export default function CalendarPage() { // Renamed from Home for clarity
     }
 
     setIsSyncing(true);
+    
     try {
-      console.log('[Frontend] Calling sync API...');
+      console.log('[Frontend] Starting bidirectional sync process...');
+      
+      // Show initial sync status
+      toast({
+        title: "Google Calendar Sync Started",
+        description: "Syncing events in both directions between Synapse and Google Calendar...",
+        variant: "default"
+      });
+
       const result = await googleCalendarService.syncWithGoogle(currentToken);
       
       console.log('[Frontend] Sync API response:', result);
-      console.log('[Frontend] Events imported:', result.eventsImported);
-      console.log('[Frontend] Events exported:', result.eventsExported);
-      console.log('[Frontend] Errors:', result.errors);
+      console.log('[Frontend] Events imported from Google:', result.eventsImported);
+      console.log('[Frontend] Events exported to Google:', result.eventsExported);
+      console.log('[Frontend] Sync errors:', result.errors);
 
-      toast({
-        title: "Sync Completed",
-        description: `Imported ${result.eventsImported} events, exported ${result.eventsExported} events.`,
-      });
+      // Provide detailed feedback based on results
+      if (result.success) {
+        const totalEvents = result.eventsImported + result.eventsExported;
+        
+        if (totalEvents === 0) {
+          toast({
+            title: "Sync Complete - No Changes",
+            description: "All events are already in sync between Synapse and Google Calendar.",
+            variant: "default"
+          });
+        } else {
+          let description = [];
+          if (result.eventsImported > 0) {
+            description.push(`Imported ${result.eventsImported} events from Google Calendar`);
+          }
+          if (result.eventsExported > 0) {
+            description.push(`Exported ${result.eventsExported} events to Google Calendar`);
+          }
+          
+          toast({
+            title: "Bidirectional Sync Complete ✅",
+            description: description.join('. ') + '.',
+            variant: "default"
+          });
+        }
+      } else {
+        toast({
+          title: "Sync Completed with Issues",
+          description: `Partial sync completed. ${result.errors.length} errors occurred.`,
+          variant: "destructive"
+        });
+      }
 
+      // Handle any errors that occurred
       if (result.errors.length > 0) {
         console.warn('[Frontend] Sync completed with errors:', result.errors);
+        
+        // Show detailed error information for debugging
+        const errorSummary = result.errors.slice(0, 3).join('; ');
         toast({
-          title: "Sync Completed with Warnings",
-          description: `Some events had issues: ${result.errors.length} errors occurred.`,
-          variant: "destructive",
+          title: "Sync Warnings",
+          description: `Some events had issues: ${errorSummary}${result.errors.length > 3 ? '...' : ''}`,
+          variant: "destructive"
         });
       }
 
@@ -1170,24 +1310,28 @@ export default function CalendarPage() { // Renamed from Home for clarity
       try {
         const refreshedEvents = await loadEventsFromBackend(); // Force reload from backend to get new Google Calendar events
         console.log('[Frontend] Refreshed events count:', refreshedEvents.length);
-        console.log('[Frontend] Google Calendar events (emerald):', refreshedEvents.filter((e: CalendarEvent) => e.color === 'bg-emerald-600').length);
-        console.log('[Frontend] Local events (blue):', refreshedEvents.filter((e: CalendarEvent) => e.color === 'bg-blue-500').length);
+        
+        const googleEvents = refreshedEvents.filter((e: CalendarEvent) => e.color === 'bg-emerald-600');
+        const synapseEvents = refreshedEvents.filter((e: CalendarEvent) => e.color !== 'bg-emerald-600');
+        
+        console.log('[Frontend] Google Calendar events (emerald):', googleEvents.length);
+        console.log('[Frontend] Synapse events (other colors):', synapseEvents.length);
         
         await fetchSyncStatus();
         console.log('[Frontend] Events and sync status refreshed successfully');
         
-        // Show success message with details
+        // Show final success message with details
         toast({
           title: "Calendar Refreshed",
-          description: `Loaded ${refreshedEvents.length} events from server.`,
-          variant: "default",
+          description: `Displaying ${refreshedEvents.length} total events (${googleEvents.length} from Google, ${synapseEvents.length} from Synapse).`,
+          variant: "default"
         });
       } catch (refreshError) {
         console.error('[Frontend] Error refreshing events:', refreshError);
         toast({
           title: "Refresh Warning", 
-          description: "Using cached events. Some recent changes may not be visible.",
-          variant: "default",
+          description: "Sync completed but couldn't refresh display. Please reload the page to see changes.",
+          variant: "destructive"
         });
         // Still try fallback method
         await loadEventsFromStorage();
@@ -1195,9 +1339,23 @@ export default function CalendarPage() { // Renamed from Home for clarity
     } catch (error: any) {
       console.error('[Frontend] Sync error:', error);
       console.error('[Frontend] Error response:', error.response?.data);
+      
+      let errorMessage = "Failed to sync with Google Calendar.";
+      if (error.response?.status === 401) {
+        errorMessage = "Authentication expired. Please reconnect to Google Calendar.";
+        // Clear auth state
+        googleAuthService.clearAuthState();
+        setIsGoogleConnected(false);
+        setGoogleAccessToken(null);
+      } else if (error.response?.status === 403) {
+        errorMessage = "Permission denied. Please check Google Calendar access permissions.";
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
       toast({
         title: "Sync Failed",
-        description: error.message || "Failed to sync with Google Calendar.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

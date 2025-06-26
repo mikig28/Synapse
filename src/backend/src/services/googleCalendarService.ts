@@ -293,30 +293,109 @@ export class GoogleCalendarService {
     timeRange?: { start: Date; end: Date }
   ): Promise<SyncResult> {
     try {
-      // Import from Google Calendar
+      console.log('[GoogleCalendarService] Starting bidirectional sync for user:', userId);
+
+      // Step 1: Import from Google Calendar
+      console.log('[GoogleCalendarService] Step 1: Importing from Google Calendar...');
       const importResult = await this.importEventsFromGoogle(
         userId,
         timeRange?.start,
         timeRange?.end
       );
 
-      // Export to Google Calendar
+      // Step 2: Handle pending deletions (events deleted in Synapse but still in Google)
+      console.log('[GoogleCalendarService] Step 2: Processing deletions...');
+      const deletionResult = await this.processPendingDeletions(userId);
+
+      // Step 3: Export to Google Calendar
+      console.log('[GoogleCalendarService] Step 3: Exporting to Google Calendar...');
       const exportResult = await this.exportEventsToGoogle(userId);
+
+      console.log('[GoogleCalendarService] Sync completed:', {
+        imported: importResult.imported,
+        deleted: deletionResult.deleted,
+        exported: exportResult.exported,
+        totalErrors: [...importResult.errors, ...deletionResult.errors, ...exportResult.errors].length
+      });
 
       return {
         success: true,
         eventsImported: importResult.imported,
-        eventsExported: exportResult.exported,
-        errors: [...importResult.errors, ...exportResult.errors],
+        eventsExported: exportResult.exported + deletionResult.deleted, // Include deletions in export count
+        errors: [...importResult.errors, ...deletionResult.errors, ...exportResult.errors],
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[GoogleCalendarService] Sync failed:', errorMessage);
       return {
         success: false,
         eventsImported: 0,
         eventsExported: 0,
         errors: [errorMessage],
       };
+    }
+  }
+
+  /**
+   * Process pending deletions - handle events that were deleted in Synapse but need deletion from Google
+   */
+  private async processPendingDeletions(
+    userId: mongoose.Schema.Types.ObjectId
+  ): Promise<{ deleted: number; errors: string[] }> {
+    try {
+      console.log('[GoogleCalendarService] Processing pending deletions...');
+
+      // Find events marked for deletion or check for events deleted from our DB but still in Google
+      // This is a complex scenario - for now, we'll focus on ensuring clean sync
+      
+      // Get all our current events with Google IDs
+      const ourGoogleEvents = await CalendarEvent.find({
+        userId,
+        googleEventId: { $exists: true, $ne: null }
+      });
+
+      console.log('[GoogleCalendarService] Found', ourGoogleEvents.length, 'events with Google IDs in our database');
+
+      // Get Google Calendar events to compare
+      const response = await this.calendar.events.list({
+        calendarId: 'primary',
+        timeMin: new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000).toISOString(), // 6 months ago
+        timeMax: new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000).toISOString(), // 2 years from now
+        singleEvents: true,
+        orderBy: 'startTime',
+        maxResults: 100,
+      });
+
+      const googleEvents = response.data.items || [];
+      const googleEventIds = new Set(googleEvents.map(e => e.id).filter(Boolean));
+      const ourGoogleEventIds = new Set(ourGoogleEvents.map(e => e.googleEventId).filter(Boolean));
+
+      console.log('[GoogleCalendarService] Google Calendar has', googleEventIds.size, 'events');
+      console.log('[GoogleCalendarService] Our database has', ourGoogleEventIds.size, 'Google-synced events');
+
+      // Find events in Google that are no longer in our database (potential deletions)
+      const eventsToDeleteFromGoogle: string[] = [];
+      for (const googleEventId of googleEventIds) {
+        if (!ourGoogleEventIds.has(googleEventId)) {
+          // This event exists in Google but not in our database - should we delete it?
+          // For safety, we'll NOT auto-delete from Google Calendar
+          // Only delete if explicitly marked for deletion
+          console.log('[GoogleCalendarService] Found orphaned event in Google Calendar:', googleEventId, '(not auto-deleting)');
+        }
+      }
+
+      let deleted = 0;
+      const errors: string[] = [];
+
+      // For now, we don't auto-delete orphaned events for safety
+      // In the future, this could be enhanced to handle explicit deletion marking
+
+      console.log('[GoogleCalendarService] Deletion processing completed. Deleted:', deleted, 'Errors:', errors.length);
+      return { deleted, errors };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[GoogleCalendarService] Error processing deletions:', errorMessage);
+      return { deleted: 0, errors: [errorMessage] };
     }
   }
 
