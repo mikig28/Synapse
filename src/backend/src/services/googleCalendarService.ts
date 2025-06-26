@@ -367,8 +367,8 @@ export class GoogleCalendarService {
       });
 
       const googleEvents = response.data.items || [];
-      const googleEventIds = new Set(googleEvents.map(e => e.id).filter(Boolean));
-      const ourGoogleEventIds = new Set(ourGoogleEvents.map(e => e.googleEventId).filter(Boolean));
+      const googleEventIds = new Set(googleEvents.map(e => e.id).filter((id): id is string => Boolean(id)));
+      const ourGoogleEventIds = new Set(ourGoogleEvents.map(e => e.googleEventId).filter((id): id is string => Boolean(id)));
 
       console.log('[GoogleCalendarService] Google Calendar has', googleEventIds.size, 'events');
       console.log('[GoogleCalendarService] Our database has', ourGoogleEventIds.size, 'Google-synced events');
