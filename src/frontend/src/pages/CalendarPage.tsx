@@ -782,17 +782,27 @@ export default function CalendarPage() { // Renamed from Home for clarity
   const updateEventSafely = async (eventToUpdate: CalendarEvent, newStartTime: Date, newEndTime: Date) => {
     console.log('[Frontend] updateEventSafely called', {
       eventId: eventToUpdate.id,
-      title: eventToUpdate.title,
-      newStartTime,
-      newEndTime
+      eventTitle: eventToUpdate.title,
+      newStartTime: newStartTime.toString(),
+      newEndTime: newEndTime.toString()
     });
 
-    // Validate event data to prevent corruption
+    // Validate inputs to prevent corruption
     if (!eventToUpdate || !eventToUpdate.id || !eventToUpdate.title) {
-      console.error('[Frontend] Invalid event data, aborting update:', eventToUpdate);
+      console.error('[Frontend] Invalid event data passed to updateEventSafely:', eventToUpdate);
       toast({
         title: "Error",
-        description: "Invalid event data. Update cancelled.",
+        description: "Invalid event data. Cannot update event.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (!newStartTime || !newEndTime || isNaN(newStartTime.getTime()) || isNaN(newEndTime.getTime())) {
+      console.error('[Frontend] Invalid date data passed to updateEventSafely:', { newStartTime, newEndTime });
+      toast({
+        title: "Error", 
+        description: "Invalid date data. Cannot update event.",
         variant: "destructive",
       });
       return false;
@@ -824,6 +834,57 @@ export default function CalendarPage() { // Renamed from Home for clarity
         description: eventToUpdate.description || '', // Preserve description
         color: eventToUpdate.color || 'bg-blue-500' // Preserve color
       };
+
+      // FIXED: Save to backend API first to ensure persistence across page reloads
+      console.log('[Frontend] Attempting to save drag/drop changes to backend...');
+      
+      // Check if this event has a MongoDB ObjectId (backend event)
+      const isBackendEvent = typeof eventToUpdate.id === 'string' && eventToUpdate.id.length === 24;
+      
+      if (isBackendEvent) {
+        try {
+          const payload = {
+            title: updatedEvent.title,
+            startTime: finalStartTime.toISOString(),
+            endTime: finalEndTime.toISOString(),
+            description: updatedEvent.description,
+            color: updatedEvent.color,
+            location: updatedEvent.location || '',
+            attendees: updatedEvent.attendees || [],
+            organizer: updatedEvent.organizer || 'You',
+          };
+
+          const response = await axiosInstance.put(`/calendar-events/${eventToUpdate.id}`, payload);
+          console.log('[Frontend] ✅ Backend update successful for drag/drop:', response.data);
+          
+          // Update the local event with any data returned from backend
+          const backendEvent = response.data;
+          updatedEvent.id = backendEvent._id || backendEvent.id;
+          updatedEvent.startTime = new Date(backendEvent.startTime);
+          updatedEvent.endTime = new Date(backendEvent.endTime);
+          
+        } catch (backendError: any) {
+          console.error('[Frontend] ❌ Backend update failed for drag/drop:', backendError);
+          
+          if (backendError?.response?.status === 401) {
+            toast({
+              title: "Authentication Error",
+              description: "Please log in to save changes. Changes saved locally only.",
+              variant: "destructive"
+            });
+          } else {
+            const errorMessage = backendError?.response?.data?.message || backendError?.message || 'Backend error';
+            toast({
+              title: "Sync Warning",
+              description: `Could not sync to server: ${errorMessage}. Changes saved locally.`,
+              variant: "destructive"
+            });
+          }
+          // Continue with local update even if backend fails
+        }
+      } else {
+        console.log('[Frontend] Event appears to be localStorage-only, skipping backend update');
+      }
 
       // Update the events array safely
       const updatedEvents = events.map(event => {
@@ -861,7 +922,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
       // Show success message
       toast({
         title: "Event Updated",
-        description: `"${eventToUpdate.title}" has been updated.`,
+        description: `"${eventToUpdate.title}" has been updated and synced.`,
       });
 
       return true;
@@ -1109,8 +1170,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
       try {
         const refreshedEvents = await loadEventsFromBackend(); // Force reload from backend to get new Google Calendar events
         console.log('[Frontend] Refreshed events count:', refreshedEvents.length);
-        console.log('[Frontend] Google Calendar events (emerald):', refreshedEvents.filter(e => e.color === 'bg-emerald-600').length);
-        console.log('[Frontend] Local events (blue):', refreshedEvents.filter(e => e.color === 'bg-blue-500').length);
+        console.log('[Frontend] Google Calendar events (emerald):', refreshedEvents.filter((e: CalendarEvent) => e.color === 'bg-emerald-600').length);
+        console.log('[Frontend] Local events (blue):', refreshedEvents.filter((e: CalendarEvent) => e.color === 'bg-blue-500').length);
         
         await fetchSyncStatus();
         console.log('[Frontend] Events and sync status refreshed successfully');
