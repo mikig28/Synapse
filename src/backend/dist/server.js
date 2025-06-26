@@ -41,11 +41,6 @@ const PORT = parseInt(rawPort, 10); // Convert to number
 // Define Frontend URL from environment variable or default to localhost
 const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
 console.log(`[CORS Setup] Allowed origin for Express CORS: ${frontendUrl}`); // Log the origin being used
-console.log(`[CORS Setup] NODE_ENV: ${process.env.NODE_ENV}`);
-console.log(`[CORS Setup] All environment variables related to frontend:`);
-console.log(`  - FRONTEND_URL: ${process.env.FRONTEND_URL}`);
-console.log(`  - PORT: ${process.env.PORT}`);
-console.log(`  - NODE_ENV: ${process.env.NODE_ENV}`);
 // Create HTTP server and pass it to Socket.IO
 const httpServer = http_1.default.createServer(app);
 // Define allowed origins for Socket.IO
@@ -90,57 +85,42 @@ const io = new socket_io_1.Server(httpServer, {
     }
 });
 exports.io = io;
-// Middleware - Enhanced CORS configuration with production fix
+// Middleware - Enhanced CORS configuration
 app.use((0, cors_1.default)({
     origin: function (requestOrigin, callback) {
         console.log(`[CORS] Request from origin: ${requestOrigin}`);
         // Allow requests with no origin (mobile apps, etc.)
-        if (!requestOrigin) {
-            console.log(`[CORS] No origin header - allowing`);
+        if (!requestOrigin)
             return callback(null, true);
-        }
         const allowedOrigins = [
             frontendUrl,
             "https://synapse-frontend.onrender.com",
             "http://localhost:5173", // Local development
-            "http://localhost:3000", // Alternative local port
-            "http://localhost:5174", // Vite alternative port
-            "https://synapse-frontend.onrender.com", // Explicit production frontend
+            "http://localhost:3000" // Alternative local port
         ];
-        console.log(`[CORS] Checking origin ${requestOrigin} against allowed origins:`, allowedOrigins);
         if (allowedOrigins.includes(requestOrigin)) {
-            console.log(`[CORS] ✅ Origin ${requestOrigin} explicitly allowed`);
+            console.log(`[CORS] Origin ${requestOrigin} allowed`);
             return callback(null, true);
         }
         else {
-            // For production debugging - temporarily allow all origins
-            console.log(`[CORS] ⚠️ Origin ${requestOrigin} not in allowed list, but allowing for production debugging`);
-            return callback(null, true);
+            console.log(`[CORS] Origin ${requestOrigin} not in allowed list, but allowing for debugging`);
+            return callback(null, true); // Allow all for now to debug
         }
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Access-Control-Allow-Origin", "Access-Control-Allow-Methods", "Access-Control-Allow-Headers"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Access-Control-Allow-Origin"],
     credentials: true,
     optionsSuccessStatus: 200, // For legacy browser support
     preflightContinue: false
 }));
-// Add explicit CORS headers middleware with enhanced logging
+// Add explicit CORS headers for Socket.IO
 app.use((req, res, next) => {
-    const origin = req.headers.origin;
-    const method = req.method;
-    console.log(`[Explicit CORS] ${method} request from origin: ${origin}`);
-    console.log(`[Explicit CORS] Request path: ${req.path}`);
-    console.log(`[Explicit CORS] Authorization header: ${req.headers.authorization ? 'Present' : 'Missing'}`);
-    // Set CORS headers explicitly
-    res.header('Access-Control-Allow-Origin', origin || 'https://synapse-frontend.onrender.com');
-    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, Accept, Origin');
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
     res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Max-Age', '3600');
-    if (method === 'OPTIONS') {
-        console.log(`[Explicit CORS] Handling preflight OPTIONS request for ${req.path}`);
-        res.status(200).end();
-        return;
+    if (req.method === 'OPTIONS') {
+        res.sendStatus(200);
     }
     else {
         next();

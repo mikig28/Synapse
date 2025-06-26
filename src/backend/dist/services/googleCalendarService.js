@@ -41,7 +41,7 @@ class GoogleCalendarService {
             lastSyncAt: new Date(),
             syncStatus: 'synced',
             userId,
-            color: 'bg-emerald-600', // Distinct emerald color for Google Calendar events
+            color: '#3174ad', // Default color
         };
     }
     /**
@@ -68,36 +68,19 @@ class GoogleCalendarService {
      */
     async importEventsFromGoogle(userId, timeMin, timeMax) {
         try {
-            console.log('[GoogleCalendarService] Starting import from Google Calendar...');
-            console.log('[GoogleCalendarService] User ID:', userId);
-            console.log('[GoogleCalendarService] Time range:', { timeMin, timeMax });
-            // Default time range: 6 months in the past to 2 years in the future
-            const defaultTimeMin = timeMin || new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000); // 6 months ago
-            const defaultTimeMax = timeMax || new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000); // 2 years from now
-            console.log('[GoogleCalendarService] Using time range:', {
-                timeMin: defaultTimeMin.toISOString(),
-                timeMax: defaultTimeMax.toISOString()
-            });
             const response = await this.calendar.events.list({
                 calendarId: 'primary',
-                timeMin: defaultTimeMin.toISOString(),
-                timeMax: defaultTimeMax.toISOString(),
+                timeMin: timeMin?.toISOString() || new Date().toISOString(),
+                timeMax: timeMax?.toISOString(),
                 singleEvents: true,
                 orderBy: 'startTime',
                 maxResults: 100,
             });
-            console.log('[GoogleCalendarService] Google API response status:', response.status);
             const googleEvents = response.data.items || [];
-            console.log('[GoogleCalendarService] Found', googleEvents.length, 'events in Google Calendar');
-            if (googleEvents.length > 0) {
-                console.log('[GoogleCalendarService] Sample event titles:', googleEvents.slice(0, 3).map(e => e.summary || 'No title'));
-            }
             const imported = [];
-            const updated = [];
             const errors = [];
             for (const googleEvent of googleEvents) {
                 try {
-                    console.log('[GoogleCalendarService] Processing event:', googleEvent.summary, 'ID:', googleEvent.id);
                     if (!googleEvent.id) {
                         errors.push('Google event missing ID');
                         continue;
@@ -108,38 +91,26 @@ class GoogleCalendarService {
                         userId,
                     });
                     if (existingEvent) {
-                        console.log('[GoogleCalendarService] Updating existing event:', googleEvent.summary);
-                        // Update existing event, but preserve sync status if it's pending
+                        // Update existing event
                         const updatedData = this.convertGoogleEventToInternal(googleEvent, userId);
-                        // Don't overwrite pending status - let the export handle pending changes
-                        if (existingEvent.syncStatus === 'pending') {
-                            console.log('[GoogleCalendarService] Preserving pending status for event:', googleEvent.summary);
-                            updatedData.syncStatus = 'pending';
-                        }
                         await CalendarEvent_1.default.findByIdAndUpdate(existingEvent._id, updatedData);
-                        updated.push(googleEvent.id);
                     }
                     else {
-                        console.log('[GoogleCalendarService] Creating new event:', googleEvent.summary);
                         // Create new event
                         const eventData = this.convertGoogleEventToInternal(googleEvent, userId);
-                        const newEvent = await CalendarEvent_1.default.create(eventData);
-                        console.log('[GoogleCalendarService] Created event with DB ID:', newEvent._id);
+                        await CalendarEvent_1.default.create(eventData);
                         imported.push(googleEvent.id);
                     }
                 }
                 catch (error) {
                     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-                    console.error('[GoogleCalendarService] Error processing event:', googleEvent.summary, errorMessage);
                     errors.push(`Failed to import event ${googleEvent.id}: ${errorMessage}`);
                 }
             }
-            console.log('[GoogleCalendarService] Import completed. New:', imported.length, 'Updated:', updated.length, 'Errors:', errors.length);
-            return { imported: imported.length + updated.length, errors }; // Count both new and updated as "imported"
+            return { imported: imported.length, errors };
         }
         catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            console.error('[GoogleCalendarService] FATAL import error:', errorMessage);
             throw new Error(`Failed to import from Google Calendar: ${errorMessage}`);
         }
     }
@@ -148,19 +119,6 @@ class GoogleCalendarService {
      */
     async exportEventsToGoogle(userId) {
         try {
-            console.log('[GoogleCalendarService] Starting export to Google Calendar...');
-            console.log('[GoogleCalendarService] User ID:', userId);
-            // Debug: Check all events for this user first
-            const allUserEvents = await CalendarEvent_1.default.find({ userId });
-            console.log('[GoogleCalendarService] Total events for user:', allUserEvents.length);
-            if (allUserEvents.length > 0) {
-                console.log('[GoogleCalendarService] Sample events:', allUserEvents.slice(0, 3).map(e => ({
-                    title: e.title,
-                    syncStatus: e.syncStatus,
-                    googleEventId: e.googleEventId ? 'Present' : 'None',
-                    color: e.color
-                })));
-            }
             // Get local events that haven't been synced to Google
             const localEvents = await CalendarEvent_1.default.find({
                 userId,
@@ -171,18 +129,12 @@ class GoogleCalendarService {
                     { syncStatus: 'local_only' }
                 ]
             });
-            console.log('[GoogleCalendarService] Found', localEvents.length, 'local events to export');
-            if (localEvents.length > 0) {
-                console.log('[GoogleCalendarService] Sample local event titles:', localEvents.slice(0, 3).map(e => e.title));
-            }
             const exported = [];
             const errors = [];
             for (const localEvent of localEvents) {
                 try {
-                    console.log('[GoogleCalendarService] Exporting event:', localEvent.title, 'Status:', localEvent.syncStatus);
                     const googleEventData = this.convertInternalEventToGoogle(localEvent);
                     if (localEvent.googleEventId) {
-                        console.log('[GoogleCalendarService] Updating existing Google event:', localEvent.googleEventId);
                         // Update existing Google event
                         const response = await this.calendar.events.update({
                             calendarId: 'primary',
@@ -194,11 +146,9 @@ class GoogleCalendarService {
                             localEvent.syncStatus = 'synced';
                             localEvent.lastSyncAt = new Date();
                             await localEvent.save();
-                            console.log('[GoogleCalendarService] Updated Google event successfully');
                         }
                     }
                     else {
-                        console.log('[GoogleCalendarService] Creating new Google event');
                         // Create new Google event
                         const response = await this.calendar.events.insert({
                             calendarId: 'primary',
@@ -210,24 +160,20 @@ class GoogleCalendarService {
                             localEvent.syncStatus = 'synced';
                             localEvent.lastSyncAt = new Date();
                             await localEvent.save();
-                            console.log('[GoogleCalendarService] Created Google event with ID:', response.data.id);
                         }
                     }
                 }
                 catch (error) {
                     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-                    console.error('[GoogleCalendarService] Error exporting event:', localEvent.title, errorMessage);
                     errors.push(`Failed to export event ${localEvent.title}: ${errorMessage}`);
                     localEvent.syncStatus = 'error';
                     await localEvent.save();
                 }
             }
-            console.log('[GoogleCalendarService] Export completed. Exported:', exported.length, 'Errors:', errors.length);
             return { exported: exported.length, errors };
         }
         catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            console.error('[GoogleCalendarService] FATAL export error:', errorMessage);
             throw new Error(`Failed to export to Google Calendar: ${errorMessage}`);
         }
     }

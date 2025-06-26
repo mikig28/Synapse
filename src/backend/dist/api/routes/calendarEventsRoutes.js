@@ -20,6 +20,4 @@ router.post('/sync', calendarEventsController_1.syncWithGoogleCalendar);
 router.get('/sync/status', calendarEventsController_1.getSyncStatus);
 router.post('/sync/import', calendarEventsController_1.importFromGoogleCalendar);
 router.post('/sync/export', calendarEventsController_1.exportToGoogleCalendar);
-// Debug route
-router.get('/debug', calendarEventsController_1.debugCalendarEvents);
 exports.default = router;

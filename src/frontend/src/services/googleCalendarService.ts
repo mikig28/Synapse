@@ -185,22 +185,5 @@ class GoogleCalendarService {
   }
 }
 
-
-  /**
-   * Create a single event in Google Calendar
-   */
-  async createEvent(eventData: { title: string; description: string; startTime: string; endTime: string; }): Promise<any> {
-    try {
-      const response = await axiosInstance.post(`${this.baseUrl}/create-event`, eventData);
-      return response.data;
-    } catch (error: any) {
-      console.error('Error creating Google Calendar event:', error);
-      throw new Error(
-        error.response?.data?.message || 'Failed to create Google Calendar event'
-      );
-    }
-  }
-}
-
 export const googleCalendarService = new GoogleCalendarService();
 export default googleCalendarService;
