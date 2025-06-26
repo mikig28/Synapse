@@ -17,15 +17,21 @@ interface CrewAINewsRequest {
     sentiment_analysis?: boolean;
     trend_detection?: boolean;
     url_extraction?: boolean;
+    topic_filtering?: boolean;
+    relevance_scoring?: boolean;
   };
   parameters?: {
     max_items_per_source?: number;
     time_range?: string;
     quality_threshold?: number;
+    relevance_threshold?: number;
     include_urls?: boolean;
     include_metadata?: boolean;
     analyze_sentiment?: boolean;
     extract_entities?: boolean;
+    enforce_topic_relevance?: boolean;
+    filter_irrelevant_content?: boolean;
+    require_source_attribution?: boolean;
   };
 }
 
@@ -103,17 +109,17 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       
       // Handle various formats and ensure we have valid topics
       if (!configTopics) {
-        // No topics configured - use a generic default
-        console.warn(`[CrewAI Agent] No topics configured for agent ${agent.name}`);
-        topics = ['news', 'trending', 'latest'];
-        await run.addLog('warn', `No topics configured, using generic defaults: ${topics.join(', ')}`);
+        // No topics configured - require user to specify topics for meaningful results
+        console.error(`[CrewAI Agent] No topics configured for agent ${agent.name}`);
+        await run.addLog('error', `No topics configured for agent "${agent.name}". Please configure specific topics in agent settings for meaningful results.`);
+        throw new Error(`Agent "${agent.name}" has no topics configured. Please add topics in the agent configuration to specify what content should be gathered.`);
       } else if (typeof configTopics === 'string') {
         // Handle string topics - could be comma-separated or single topic
         const trimmed = configTopics.trim();
         if (trimmed.length === 0) {
-          // Empty string - use generic defaults
-          topics = ['news', 'trending', 'latest'];
-          await run.addLog('warn', `Empty topics string, using defaults: ${topics.join(', ')}`);
+          // Empty string - require user to specify topics
+          await run.addLog('error', `Empty topics string provided for agent "${agent.name}". Please specify meaningful topics.`);
+          throw new Error(`Agent "${agent.name}" has empty topics configuration. Please provide specific topics to gather content about.`);
         } else {
           // Parse comma-separated topics or use as single topic
           topics = trimmed.includes(',') 
@@ -121,7 +127,8 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
             : [trimmed];
           
           if (topics.length === 0) {
-            topics = ['news', 'trending', 'latest'];
+            await run.addLog('error', `No valid topics found after parsing for agent "${agent.name}". Please provide meaningful topics.`);
+            throw new Error(`Agent "${agent.name}" configuration resulted in no valid topics. Please check your topic configuration.`);
           }
         }
       } else if (Array.isArray(configTopics)) {
@@ -131,9 +138,9 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
           .map((t: string) => t.trim());
         
         if (topics.length === 0) {
-          // Empty array after filtering - use generic defaults
-          topics = ['news', 'trending', 'latest'];
-          await run.addLog('warn', `No valid topics in array, using defaults: ${topics.join(', ')}`);
+          // Empty array after filtering - require user to specify topics
+          await run.addLog('error', `No valid topics found in array for agent "${agent.name}". Please provide meaningful topics.`);
+          throw new Error(`Agent "${agent.name}" configuration contains no valid topics. Please provide specific topics in the configuration.`);
         }
       }
       
@@ -213,16 +220,22 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
           content_analysis: true,
           sentiment_analysis: true,
           trend_detection: true,
-          url_extraction: true
+          url_extraction: true,
+          topic_filtering: true,
+          relevance_scoring: true
         },
         parameters: {
           max_items_per_source: config.maxItemsPerRun || 10,
           time_range: '24h',
           quality_threshold: 0.7,
+          relevance_threshold: 0.6,
           include_urls: true,
           include_metadata: true,
           analyze_sentiment: true,
-          extract_entities: true
+          extract_entities: true,
+          enforce_topic_relevance: true,
+          filter_irrelevant_content: true,
+          require_source_attribution: true
         }
       }, run);
 
@@ -737,19 +750,31 @@ Using fallback test crew to demonstrate dashboard functionality.`);
     // Check data types for better reporting
     const dataTypeInfo = this.analyzeDataTypes(data.organized_content || {});
     
+    const topicFocus = response.topics?.join(', ') || 'User-Defined Topics';
+    const topicDomain = this.detectTopicDomain(response.topics || []);
     const analysisContent = [
-      '# CrewAI Multi-Agent News Analysis Report',
+      `# CrewAI Multi-Agent Analysis Report`,
+      `## ${topicFocus}`,
       '',
       dataTypeInfo.hasSimulated ? '⚠️ **DATA NOTICE**: Some content is simulated due to missing API credentials.' : '✅ **DATA STATUS**: All content is from real sources.',
       '',
       '## Executive Summary',
+      `**Focus Areas**: ${topicFocus}`,
+      `**Content Domain**: ${topicDomain}`,
       ...(data.executive_summary || []).map(item => `- ${item}`),
+      '',
+      '## Content Quality Metrics',
+      `- **Total Items Processed**: ${this.calculateTotalSourceItems(data.organized_content)}`,
+      `- **Quality Score**: ${data.ai_insights?.quality_score || 'N/A'}`,
+      `- **Relevance Score**: ${data.ai_insights?.average_relevance || 'N/A'}`,
+      `- **Topic Match Rate**: ${this.calculateTopicMatchRate(data.organized_content, response.topics)}%`,
+      `- **Content Filtering**: ${data.ai_insights?.content_filtering_enabled ? 'Enabled' : 'Disabled'}`,
       '',
       '## Data Sources Status',
       ...dataTypeInfo.statusLines,
       '',
-      '## Trending Topics',
-      ...(data.trending_topics || []).slice(0, 10).map(t => `- **${t.topic}** (${t.mentions} mentions, score: ${t.trending_score})`),
+      `## Trending Topics in ${topicDomain}`,
+      ...(data.trending_topics || []).slice(0, 10).map(t => `- **${t.topic}** (${t.mentions || 'N/A'} mentions, score: ${t.trending_score})`),
       '',
       '---',
       '## Source Items Processed',
@@ -815,7 +840,16 @@ Using fallback test crew to demonstrate dashboard functionality.`);
       const isSimulated = item.simulated === true || this.isSimulatedId(item.id);
       const simulationPrefix = isSimulated ? '🤖 ' : '';
       
-      lines.push(`- [${simulationPrefix}${displayTitle}](${url})`);
+      // Add source validation indicator
+      const sourceValid = this.validateItemSource(item, sourceType);
+      const sourcePrefix = sourceValid ? '✅ ' : '⚠️ ';
+      
+      lines.push(`- [${sourcePrefix}${simulationPrefix}${displayTitle}](${url})`);
+      
+      // Add source attribution note if misattributed
+      if (!sourceValid) {
+        lines.push(`  *Note: Content source may be misattributed*`);
+      }
     }
     lines.push('');
     return lines;
@@ -828,6 +862,29 @@ Using fallback test crew to demonstrate dashboard functionality.`);
     if (titleLower.includes('telegram')) return 'telegram';
     if (titleLower.includes('news')) return 'news_website';
     return 'unknown';
+  }
+
+  private validateItemSource(item: any, claimedSource: string): boolean {
+    const url = item.url || item.external_url || '';
+    const content = JSON.stringify(item).toLowerCase();
+    
+    switch (claimedSource) {
+      case 'reddit':
+        return !!(item.subreddit || url.includes('reddit.com') || 
+                 content.includes('subreddit') || item.reddit_url);
+      case 'telegram':
+        return !!(url.includes('t.me') || item.channel || 
+                 item.channel_name || content.includes('telegram'));
+      case 'linkedin':
+        return !!(url.includes('linkedin.com') || item.company || 
+                 content.includes('linkedin'));
+      case 'news_website':
+        // Most news content should be valid unless it has specific social media indicators
+        return !content.includes('subreddit') && !content.includes('telegram') && 
+               !content.includes('linkedin');
+      default:
+        return true; // Default to valid for unknown sources
+    }
   }
 
   private analyzeDataTypes(organizedContent: any): { hasSimulated: boolean; statusLines: string[] } {
@@ -1285,5 +1342,104 @@ Using fallback test crew to demonstrate dashboard functionality.`);
       (content.telegram_messages?.length || 0) +
       (content.news_articles?.length || 0)
     );
+  }
+
+  private calculateTotalSourceItems(organizedContent: any): number {
+    if (!organizedContent) return 0;
+    return (
+      (organizedContent.reddit_posts?.length || 0) +
+      (organizedContent.linkedin_posts?.length || 0) +
+      (organizedContent.telegram_messages?.length || 0) +
+      (organizedContent.news_articles?.length || 0)
+    );
+  }
+
+  private calculateTopicMatchRate(organizedContent: any, topics: string[]): number {
+    if (!organizedContent || !topics || topics.length === 0) return 0;
+    
+    const allItems = [
+      ...(organizedContent.reddit_posts || []),
+      ...(organizedContent.linkedin_posts || []),
+      ...(organizedContent.telegram_messages || []),
+      ...(organizedContent.news_articles || [])
+    ];
+    
+    if (allItems.length === 0) return 0;
+    
+    const topicKeywords = topics.map(t => t.toLowerCase());
+    let relevantItems = 0;
+    
+    allItems.forEach(item => {
+      const text = `${item.title || ''} ${item.content || item.text || ''}`.toLowerCase();
+      const hasTopicMatch = topicKeywords.some(keyword => text.includes(keyword));
+      if (hasTopicMatch) relevantItems++;
+    });
+    
+    return Math.round((relevantItems / allItems.length) * 100);
+  }
+
+  private detectTopicDomain(topics: string[]): string {
+    if (!topics || topics.length === 0) return 'General Content';
+    
+    const topicsLower = topics.map(t => t.toLowerCase());
+    const topicsText = topicsLower.join(' ');
+    
+    // Define domain patterns without hardcoding specific topics
+    const domains = [
+      { 
+        keywords: ['sport', 'football', 'basketball', 'soccer', 'tennis', 'baseball', 'hockey', 'nfl', 'nba', 'mlb', 'fifa', 'olympics'], 
+        name: 'Sports & Athletics' 
+      },
+      { 
+        keywords: ['tech', 'technology', 'ai', 'artificial intelligence', 'software', 'programming', 'startup', 'innovation'], 
+        name: 'Technology & Innovation' 
+      },
+      { 
+        keywords: ['business', 'finance', 'market', 'economy', 'trading', 'investment', 'corporate', 'company'], 
+        name: 'Business & Finance' 
+      },
+      { 
+        keywords: ['health', 'medical', 'medicine', 'healthcare', 'fitness', 'wellness', 'nutrition'], 
+        name: 'Health & Wellness' 
+      },
+      { 
+        keywords: ['entertainment', 'movie', 'music', 'celebrity', 'hollywood', 'gaming', 'film'], 
+        name: 'Entertainment & Media' 
+      },
+      { 
+        keywords: ['politics', 'government', 'election', 'policy', 'law', 'legal', 'court'], 
+        name: 'Politics & Government' 
+      },
+      { 
+        keywords: ['science', 'research', 'study', 'discovery', 'experiment', 'physics', 'chemistry', 'biology'], 
+        name: 'Science & Research' 
+      },
+      { 
+        keywords: ['education', 'university', 'school', 'learning', 'academic', 'student'], 
+        name: 'Education & Learning' 
+      }
+    ];
+    
+    // Find the domain with the most keyword matches
+    let bestMatch = { domain: 'General Content', matches: 0 };
+    
+    domains.forEach(domain => {
+      const matches = domain.keywords.filter(keyword => topicsText.includes(keyword)).length;
+      if (matches > bestMatch.matches) {
+        bestMatch = { domain: domain.name, matches };
+      }
+    });
+    
+    // If we found matches, use that domain, otherwise create a dynamic domain name
+    if (bestMatch.matches > 0) {
+      return bestMatch.domain;
+    }
+    
+    // Create a domain name from the first few topics
+    const primaryTopics = topics.slice(0, 3).map(t => 
+      t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()
+    ).join(' & ');
+    
+    return `${primaryTopics} Content`;
   }
 }

@@ -39,37 +39,32 @@ const AddToCalendarModal: React.FC<AddToCalendarModalProps> = ({
   const [color, setColor] = useState('bg-blue-500');
   const { toast } = useToast();
 
-  const calendarEventsLocalStorageKey = "calendarEvents";
+  
+import { googleCalendarService } from '@/services/googleCalendarService';
 
-  const colorOptions = [
-    'bg-blue-500',
-    'bg-green-500',
-    'bg-purple-500',
-    'bg-red-500',
-    'bg-yellow-500',
-    'bg-orange-500',
-    'bg-pink-500',
-    'bg-indigo-500',
-  ];
+// ... (imports remain the same)
+
+const AddToCalendarModal: React.FC<AddToCalendarModalProps> = ({
+  isOpen,
+  onClose,
+  task,
+  onEventAdded
+}) => {
+  // ... (state variables remain the same)
 
   useEffect(() => {
     if (isOpen && task) {
-      // Set default description to task description
       setDescription(task.description || '');
-      
-      // Set default date to today
       const today = new Date();
       const formattedDate = today.toISOString().split('T')[0];
       setDate(formattedDate);
-      
-      // Set default time to next hour
       const nextHour = new Date(today.getTime() + 60 * 60 * 1000);
       const formattedTime = nextHour.toTimeString().slice(0, 5);
       setStartTime(formattedTime);
     }
   }, [isOpen, task]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!date || !startTime || !duration) {
@@ -82,12 +77,9 @@ const AddToCalendarModal: React.FC<AddToCalendarModalProps> = ({
     }
 
     try {
-      // Create start and end dates
       const startDateTime = new Date(`${date}T${startTime}`);
-      const durationMinutes = parseInt(duration);
-      const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000);
+      const endDateTime = new Date(startDateTime.getTime() + parseInt(duration) * 60000);
 
-      // Validate dates
       if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
         throw new Error("Invalid date or time format");
       }
@@ -96,69 +88,34 @@ const AddToCalendarModal: React.FC<AddToCalendarModalProps> = ({
         throw new Error("End time must be after start time");
       }
 
-      // Create the calendar event
-      const newEvent: CalendarEvent = {
-        id: Date.now(), // Simple unique ID
+      await googleCalendarService.createEvent({
         title: task.title,
-        startTime: startDateTime,
-        endTime: endDateTime,
-        color: color,
         description: description || task.description || '',
-        location: '',
-        attendees: [],
-        organizer: 'You',
-      };
+        startTime: startDateTime.toISOString(),
+        endTime: endDateTime.toISOString(),
+      });
 
-      // Get existing events from localStorage
-      let existingEvents: CalendarEvent[] = [];
-      try {
-        const storedEventsString = localStorage.getItem(calendarEventsLocalStorageKey);
-        if (storedEventsString) {
-          const parsedEvents = JSON.parse(storedEventsString) as Array<Omit<CalendarEvent, 'startTime' | 'endTime'> & { startTime: string; endTime: string }>;
-          existingEvents = parsedEvents.map(event => ({
-            ...event,
-            startTime: new Date(event.startTime),
-            endTime: new Date(event.endTime),
-          }));
-        }
-      } catch (error) {
-        console.error("Error reading existing events:", error);
-        existingEvents = [];
-      }
-
-      // Add the new event
-      const updatedEvents = [...existingEvents, newEvent];
-
-      // Save back to localStorage
-      const eventsToStore = updatedEvents.map(event => ({
-        ...event,
-        startTime: event.startTime.toISOString(),
-        endTime: event.endTime.toISOString(),
-      }));
-      localStorage.setItem(calendarEventsLocalStorageKey, JSON.stringify(eventsToStore));
-
-      // Dispatch custom event to notify calendar page of changes (same-tab)
-      window.dispatchEvent(new CustomEvent('calendarEventsUpdated'));
-
-      // Call success callbacks
       onEventAdded();
       onClose();
 
       toast({
         title: "Success",
-        description: `Task "${task.title}" has been added to your calendar.`,
+        description: `Task "${task.title}" has been added to your Google Calendar.`,
         variant: "default"
       });
 
     } catch (error) {
-      console.error("Error adding event to calendar:", error);
+      console.error("Error adding event to Google Calendar:", error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to add event to calendar.",
+        description: error instanceof Error ? error.message : "Failed to add event to Google Calendar.",
         variant: "destructive"
       });
     }
   };
+
+  // ... (rest of the component remains the same)
+
 
   const modalVariants = {
     hidden: { opacity: 0, scale: 0.95 },

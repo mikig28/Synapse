@@ -123,9 +123,10 @@ export class CrewAIAgentExecutor implements AgentExecutor {
     
     // Handle various formats and ensure we have valid topics
     if (!topics || (Array.isArray(topics) && topics.length === 0) || (typeof topics === 'string' && !topics.trim())) {
-      // No topics configured - use generic defaults
-      console.warn(`[CrewAIExecutor] No topics configured for agent ${agent.name}`);
-      topics = ['news', 'trending', 'latest'];
+      // No topics configured - require user to specify topics for meaningful results
+      const errorMessage = `Agent "${agent.name}" has no topics configured. Please add specific topics in the agent configuration to specify what content should be gathered.`;
+      console.error(`[CrewAIExecutor] ${errorMessage}`);
+      throw new Error(errorMessage);
     } else if (typeof topics === 'string') {
       // Handle string topics - could be comma-separated or single topic
       const trimmed = topics.trim();
@@ -134,15 +135,19 @@ export class CrewAIAgentExecutor implements AgentExecutor {
           ? trimmed.split(',').map(t => t.trim()).filter(t => t.length > 0)
           : [trimmed];
       }
-      // If still empty after processing, use defaults
+      // If still empty after processing, throw error
       if (!topics || topics.length === 0) {
-        topics = ['news', 'trending', 'latest'];
+        const errorMessage = `Agent "${agent.name}" configuration resulted in no valid topics after processing. Please check your topic configuration.`;
+        console.error(`[CrewAIExecutor] ${errorMessage}`);
+        throw new Error(errorMessage);
       }
     } else if (Array.isArray(topics)) {
       // Filter out empty topics
       topics = topics.filter(t => t && t.trim && t.trim().length > 0);
       if (topics.length === 0) {
-        topics = ['news', 'trending', 'latest'];
+        const errorMessage = `Agent "${agent.name}" configuration contains no valid topics. Please provide specific topics in the configuration.`;
+        console.error(`[CrewAIExecutor] ${errorMessage}`);
+        throw new Error(errorMessage);
       }
     }
     
