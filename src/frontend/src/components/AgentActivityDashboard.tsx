@@ -45,6 +45,20 @@ interface LiveMetrics {
   lastUpdate: string;
 }
 
+interface AgentProgress {
+  agentId: string;
+  steps: Array<{
+    agent: string;
+    step: string;
+    status: string;
+    message: string;
+    timestamp: string;
+  }>;
+  hasActiveProgress: boolean;
+  results?: any;
+  error?: string;
+}
+
 const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
   agents,
   onAgentExecute,
@@ -60,23 +74,33 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
     itemsProcessedToday: 0,
     lastUpdate: new Date().toISOString()
   });
+  const [agentProgress, setAgentProgress] = useState<Map<string, AgentProgress>>(new Map());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchRecentActivity();
+    fetchAgentProgress();
     
     if (autoRefresh) {
       intervalRef.current = setInterval(() => {
         fetchRecentActivity(true);
       }, 10000); // Refresh every 10 seconds
+      
+      progressIntervalRef.current = setInterval(() => {
+        fetchAgentProgress(true);
+      }, 5000); // Check progress every 5 seconds
     }
 
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
+      }
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
       }
     };
   }, [agents, autoRefresh]);
@@ -135,6 +159,75 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
       }
     } finally {
       if (!silent) setIsRefreshing(false);
+    }
+  };
+
+  const fetchAgentProgress = async (silent: boolean = false) => {
+    try {
+      const runningAgents = agents.filter(a => a.status === 'running' && a.type === 'crewai_news');
+      
+      if (runningAgents.length === 0) {
+        setAgentProgress(new Map());
+        return;
+      }
+
+      const progressPromises = runningAgents.map(async (agent) => {
+        try {
+          console.log(`[Dashboard] Fetching progress for agent: ${agent.name} (${agent._id})`);
+          const response = await agentService.getCrewProgress(agent._id);
+          
+          if (response.success && response.progress) {
+            return {
+              agentId: agent._id,
+              agentName: agent.name,
+              ...response.progress
+            };
+          } else {
+            console.log(`[Dashboard] No active progress for agent: ${agent.name}`);
+            return {
+              agentId: agent._id,
+              agentName: agent.name,
+              steps: [],
+              hasActiveProgress: false,
+              error: 'No active progress'
+            };
+          }
+        } catch (error: any) {
+          console.warn(`[Dashboard] Failed to fetch progress for agent ${agent.name}:`, error.message);
+          return {
+            agentId: agent._id,
+            agentName: agent.name,
+            steps: [],
+            hasActiveProgress: false,
+            error: error.message
+          };
+        }
+      });
+
+      const progressResults = await Promise.all(progressPromises);
+      
+      const newProgressMap = new Map<string, AgentProgress>();
+      let totalActiveProgress = 0;
+      
+      progressResults.forEach((progress) => {
+        if (progress) {
+          newProgressMap.set(progress.agentId, progress);
+          if (progress.hasActiveProgress) {
+            totalActiveProgress++;
+          }
+        }
+      });
+
+      setAgentProgress(newProgressMap);
+      
+      if (!silent && totalActiveProgress > 0) {
+        console.log(`[Dashboard] Updated progress for ${totalActiveProgress} active agents`);
+      }
+      
+    } catch (error: any) {
+      if (!silent) {
+        console.error('[Dashboard] Failed to fetch agent progress:', error);
+      }
     }
   };
 
@@ -293,40 +386,105 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
                 const activeRun = activeAgentRuns.find(r => 
                   (typeof r.agentId === 'object' ? r.agentId._id : r.agentId) === agent._id
                 );
+                const progress = agentProgress.get(agent._id);
+                const latestStep = progress?.steps && progress.steps.length > 0 
+                  ? progress.steps[progress.steps.length - 1] 
+                  : null;
+                
                 return (
                   <motion.div
                     key={agent._id}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border"
+                    className="p-4 bg-muted/30 rounded-lg border space-y-3"
                   >
-                    <div className="flex items-center gap-3">
-                      {getAgentTypeIcon(agent.type)}
-                      <div>
-                        <p className="font-medium">{agent.name}</p>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          <span>Processing...</span>
-                          {activeRun && (
-                            <span>• {activeRun.itemsProcessed} items so far</span>
-                          )}
+                    {/* Agent Header */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        {getAgentTypeIcon(agent.type)}
+                        <div>
+                          <p className="font-medium">{agent.name}</p>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            {progress?.hasActiveProgress ? (
+                              <span>Running • {progress.steps.length} steps completed</span>
+                            ) : (
+                              <span>Starting up...</span>
+                            )}
+                            {activeRun && (
+                              <span>• {activeRun.itemsProcessed} items so far</span>
+                            )}
+                          </div>
                         </div>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="default" className="animate-pulse">
+                          {progress?.hasActiveProgress ? 'Active' : 'Starting'}
+                        </Badge>
+                        {onAgentToggle && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onAgentToggle(agent)}
+                          >
+                            <Pause className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="default" className="animate-pulse">
-                        Running
-                      </Badge>
-                      {onAgentToggle && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => onAgentToggle(agent)}
-                        >
-                          <Pause className="w-3 h-3" />
-                        </Button>
-                      )}
-                    </div>
+
+                    {/* Progress Steps */}
+                    {progress?.hasActiveProgress && progress.steps.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Activity className="w-3 h-3" />
+                          <span>Recent Steps</span>
+                        </div>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {progress.steps.slice(-3).map((step, index) => (
+                            <motion.div
+                              key={index}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="flex items-start gap-2 text-xs p-2 bg-background/50 rounded border"
+                            >
+                              <div className="flex-shrink-0 mt-0.5">
+                                {step.status === 'completed' ? (
+                                  <CheckCircle className="w-3 h-3 text-green-500" />
+                                ) : step.status === 'failed' ? (
+                                  <AlertCircle className="w-3 h-3 text-red-500" />
+                                ) : (
+                                  <Loader2 className="w-3 h-3 animate-spin text-blue-500" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate">{step.agent}</p>
+                                <p className="text-muted-foreground truncate">{step.step}</p>
+                                {step.message && (
+                                  <p className="text-muted-foreground/80 text-xs truncate">{step.message}</p>
+                                )}
+                              </div>
+                              <span className="text-muted-foreground/60 text-xs flex-shrink-0">
+                                {formatTimeAgo(step.timestamp)}
+                              </span>
+                            </motion.div>
+                          ))}
+                        </div>
+                        {progress.steps.length > 3 && (
+                          <p className="text-xs text-muted-foreground text-center">
+                            ... and {progress.steps.length - 3} more steps
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Error Display */}
+                    {progress?.error && !progress.hasActiveProgress && (
+                      <div className="flex items-center gap-2 text-xs text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded">
+                        <AlertCircle className="w-3 h-3" />
+                        <span>Progress tracking: {progress.error}</span>
+                      </div>
+                    )}
                   </motion.div>
                 );
               })}

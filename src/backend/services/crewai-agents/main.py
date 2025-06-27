@@ -679,7 +679,22 @@ class EnhancedNewsGatherer:
                              for topic in topics:
                                  # Try both hot and new Reddit feeds for recency
                                  for sort_type in ['hot', 'new']:
-                                     rss_url = f"https://www.reddit.com/r/{topic}/{sort_type}.rss"
+                                     # **FIX 38: Smart subreddit mapping for sports topics**
+                                     subreddit_name = topic.lower().strip()
+                                     
+                                     # Map sports topics to proper subreddit names
+                                     if 'nba' in subreddit_name:
+                                         subreddit_name = 'nba'
+                                     elif 'football' in subreddit_name:
+                                         subreddit_name = 'soccer'  # Reddit uses /r/soccer for football
+                                     elif 'israeli league' in subreddit_name:
+                                         subreddit_name = 'soccer'  # Use general soccer for Israeli league
+                                     elif 'champion league' in subreddit_name or 'champions league' in subreddit_name:
+                                         subreddit_name = 'soccer'  # Champions League in soccer subreddit
+                                     elif any(sport in subreddit_name for sport in ['sport', 'league', 'champion']):
+                                         subreddit_name = 'sports'  # General sports subreddit
+                                     
+                                     rss_url = f"https://www.reddit.com/r/{subreddit_name}/{sort_type}.rss"
                                      response = requests.get(rss_url, timeout=10, headers={
                                          'User-Agent': 'Synapse News Bot 1.0'
                                      })
@@ -792,18 +807,32 @@ class EnhancedNewsGatherer:
                         ('https://feeds.feedburner.com/venturebeat/SZYF', 'VentureBeat'),
                         ('https://techreporter.com/feed/', 'Tech Reporter'),
                         ('https://feeds.feedburner.com/oreilly/radar', 'O\'Reilly'),
+                        # **FIX 34: Add sports-specific RSS feeds**
+                        ('https://www.espn.com/espn/rss/news', 'ESPN'),
+                        ('https://feeds.bbci.co.uk/sport/rss.xml', 'BBC Sport'),
+                        ('https://rss.cnn.com/rss/edition.rss', 'CNN'),
+                        ('https://feeds.skysports.com/feeds/11095', 'Sky Sports'),
+                        ('https://www.goal.com/feeds/en/news', 'Goal.com'),
+                        ('https://feeds.reuters.com/reuters/sportsNews', 'Reuters Sports'),
+                        ('https://rss.nytimes.com/services/xml/rss/nyt/Sports.xml', 'NYT Sports'),
                     ]
                     
                     articles_found = 0
                     working_feeds = []
                     
-                    # **FIX 32: Add date-aware news filtering**
+                    # **FIX 32: Add date-aware news filtering with sports flexibility**
                     current_date = getattr(self, 'current_date_context', {}).get('current_date')
                     time_range_hours = 24  # Default to 24 hours
                     if hasattr(self, 'current_date_context'):
                         tr = self.current_date_context.get('time_range', '24h')
                         if tr.endswith('h'):
                             time_range_hours = int(tr[:-1])
+                    
+                    # **FIX 39: Extend time range for sports content**
+                    is_sports_query = any(sport in ' '.join(topics).lower() for sport in ['nba', 'football', 'soccer', 'basketball', 'league', 'champion', 'sport'])
+                    if is_sports_query:
+                        time_range_hours = max(time_range_hours, 72)  # At least 72 hours for sports
+                        logger.info(f"🏆 Sports content detected - extending time range to {time_range_hours} hours")
                     
                     cutoff_time = datetime.now() - timedelta(hours=time_range_hours)
                     logger.info(f"📅 Filtering news for articles published after: {cutoff_time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -829,27 +858,63 @@ class EnhancedNewsGatherer:
                                     title_lower = entry.get('title', '').lower()
                                     summary_lower = entry.get('summary', '').lower()
                                     
-                                    # Check if any topic or related keyword is mentioned
+                                    # **FIX 35: Enhanced topic matching for sports and other domains**
                                     topic_keywords = []
-                                    for topic in topics:
-                                        topic_keywords.extend([
-                                            topic.lower(),
-                                            topic.lower() + 's',  # plural
-                                            topic.lower() + 'ing',  # progressive
-                                        ])
+                                    sports_keywords = []
+                                    tech_keywords = ['tech', 'technology', 'innovation', 'startup', 'ai', 'artificial intelligence', 'software', 'digital']
                                     
+                                    for topic in topics:
+                                        topic_clean = topic.lower().strip()
+                                        topic_keywords.extend([
+                                            topic_clean,
+                                            topic_clean + 's',  # plural
+                                            topic_clean + 'ing',  # progressive
+                                        ])
+                                        
+                                        # **FIX 36: Add sports-specific keyword expansion**
+                                        if any(sport in topic_clean for sport in ['nba', 'football', 'soccer', 'basketball', 'league', 'champion', 'sport']):
+                                            sports_keywords.extend([
+                                                topic_clean,
+                                                topic_clean.replace('league', 'championship'),
+                                                topic_clean.replace('champion league', 'champions league'),
+                                                topic_clean.replace('champion league', 'uefa'),
+                                                'football' if 'soccer' in topic_clean else topic_clean,
+                                                'soccer' if 'football' in topic_clean else topic_clean,
+                                                'basketball' if 'nba' in topic_clean else topic_clean,
+                                                'premier league' if 'league' in topic_clean else topic_clean,
+                                                'uefa' if 'champion' in topic_clean else topic_clean,
+                                                'sports' if any(x in topic_clean for x in ['nba', 'football', 'league']) else topic_clean
+                                            ])
+                                    
+                                    # Remove duplicates and empty strings
+                                    all_keywords = list(set([kw for kw in topic_keywords + sports_keywords if kw.strip()]))
+                                    
+                                    # Check for topic relevance
                                     is_relevant = any(
                                         keyword in title_lower or keyword in summary_lower
-                                        for keyword in topic_keywords
+                                        for keyword in all_keywords
                                     )
                                     
-                                    # Also include if it's technology/business related for broad topics
-                                    tech_keywords = ['tech', 'technology', 'innovation', 'startup', 'ai', 'artificial intelligence', 'software', 'digital']
-                                    if not is_relevant and any(topic.lower() in ['technology', 'tech', 'innovation', 'news'] for topic in topics):
-                                        is_relevant = any(
-                                            keyword in title_lower or keyword in summary_lower
-                                            for keyword in tech_keywords
-                                        )
+                                    # **FIX 37: Enhanced fallback matching**
+                                    if not is_relevant:
+                                        # Tech topics fallback
+                                        if any(topic.lower() in ['technology', 'tech', 'innovation', 'news'] for topic in topics):
+                                            is_relevant = any(
+                                                keyword in title_lower or keyword in summary_lower
+                                                for keyword in tech_keywords
+                                            )
+                                        
+                                        # Sports topics fallback - broader matching
+                                        elif any(sport in ' '.join(topics).lower() for sport in ['nba', 'football', 'soccer', 'basketball', 'league', 'champion', 'sport']):
+                                            sports_general = ['sport', 'sports', 'game', 'match', 'team', 'player', 'championship', 'tournament', 'league', 'cup', 'final']
+                                            is_relevant = any(
+                                                keyword in title_lower or keyword in summary_lower
+                                                for keyword in sports_general
+                                            )
+                                        
+                                        # General news fallback for broad topics
+                                        elif any(topic.lower() in ['news', 'general', 'all'] for topic in topics):
+                                            is_relevant = True  # Include any recent news
                                     
                                     if is_relevant:
                                         # **FIX 33: Add recency filtering and scoring**
