@@ -460,7 +460,33 @@ class EnhancedNewsGatherer:
         with self.progress_lock:
             self.current_progress = {}
         
-        data = result.get('result', {}) if 'result' in result else result.get('data', {})
+        # Handle different result formats from different crew methods
+        data = None
+        if 'result' in result and isinstance(result['result'], dict):
+            # This is from research_news_with_social_media method
+            data = result['result']
+        elif 'raw_result' in result:
+            # This is from regular research_news method - try to extract structured data
+            # For now, create a compatible structure
+            data = {
+                "organized_content": {
+                    "news_articles": [],
+                    "reddit_posts": [],
+                    "linkedin_posts": [],
+                    "telegram_messages": []
+                },
+                "validated_articles": [],  # This will be empty for regular research_news
+                "executive_summary": [str(result.get('result', 'No summary available'))],
+                "trending_topics": [],
+                "ai_insights": {},
+                "recommendations": []
+            }
+        else:
+            # Fallback for other formats
+            data = result.get('result', {}) if 'result' in result else result.get('data', {})
+        
+        if not isinstance(data, dict):
+            data = {}
         
         return {
             "success": True,

@@ -1356,12 +1356,24 @@ class EnhancedNewsResearchCrew:
                 update_progress(7, 'completed', 'Comprehensive report generated successfully')
                 logger.info("✅ Final comprehensive report generated")
                 
+                # Create validated_articles by combining all organized content
+                validated_articles = []
+                
+                # Add all articles from organized content to validated_articles
+                validated_articles.extend(organized_content.get('news_articles', []))
+                validated_articles.extend(organized_content.get('reddit_posts', []))
+                validated_articles.extend(organized_content.get('linkedin_posts', []))
+                validated_articles.extend(organized_content.get('telegram_messages', []))
+                
+                logger.info(f"📊 Created validated_articles with {len(validated_articles)} total items")
+                
                 return {
                     "status": "success",
                     "result": {
                         "executive_summary": executive_summary,
                         "trending_topics": trending_topics,
                         "organized_content": organized_content,
+                        "validated_articles": validated_articles,  # Add this field that TypeScript expects
                         "ai_insights": ai_insights,
                         "quality_metrics": quality_metrics,
                         "recommendations": [

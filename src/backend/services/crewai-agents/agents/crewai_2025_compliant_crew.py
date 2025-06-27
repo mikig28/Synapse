@@ -317,6 +317,7 @@ class CrewAI2025CompliantNewsResearch:
                     'linkedin_posts': [],
                     'telegram_messages': []
                 },
+                'validated_articles': [],  # Add this field for TypeScript compatibility
                 'ai_insights': {
                     'framework_version': 'CrewAI 2025',
                     'configuration_method': 'YAML-based',

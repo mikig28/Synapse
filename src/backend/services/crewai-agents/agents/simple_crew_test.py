@@ -163,16 +163,23 @@ class SimpleTestCrew:
             
             logger.info(f"✅ Simple crew test completed successfully")
             
+            # Create validated_articles by combining all organized content
+            all_articles = []
+            all_articles.extend(mock_articles.get("reddit", []))
+            all_articles.extend(mock_articles.get("linkedin", []))
+            all_articles.extend(mock_articles.get("telegram", []))
+            all_articles.extend(mock_articles.get("news", []))
+            
             return {
                 "status": "success",
-                "result": str(result) if result else "Simple crew test completed",
-                "data": {
+                "result": {
                     "organized_content": {
                         "reddit_posts": mock_articles.get("reddit", []),
                         "linkedin_posts": mock_articles.get("linkedin", []),
                         "telegram_messages": mock_articles.get("telegram", []),
                         "news_articles": mock_articles.get("news", [])
                     },
+                    "validated_articles": all_articles,  # Add this field that TypeScript expects
                     "executive_summary": [
                         f"Generated {len(mock_articles.get('reddit', []))} Reddit posts about {', '.join(topics)}",
                         f"Created {len(mock_articles.get('linkedin', []))} LinkedIn posts about {', '.join(topics)}",
