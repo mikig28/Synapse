@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { agentService } from '../services/agentService';
+import { agentService, AgentProgress } from '../services/agentService';
 import { Agent } from '../types/agent';
 import {
   Activity,
@@ -31,455 +31,205 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Progress } from '@/components/ui/progress';
 
 interface CrewExecutionDashboardProps {
-  agent: Agent;
-  className?: string;
+  agentId: string;
+  agentName: string;
+  isRunning: boolean;
+  onExecuteAgent: () => void;
+  onPauseAgent: () => void;
 }
 
-interface DebugLog {
-  timestamp: string;
-  level: 'info' | 'warning' | 'error' | 'success';
-  message: string;
-  data?: any;
-}
-
-interface CrewProgress {
-  steps: Array<{
-    agent: string;
-    step: string;
-    status: string;
-    message: string;
-    timestamp: string;
-  }>;
-  hasActiveProgress: boolean;
-  results?: any;
-  error?: string;
-  debug_info?: any;
-}
-
-const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
-  agent,
-  className = ''
+export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({ 
+  agentId,
+  agentName,
+  isRunning,
+  onExecuteAgent,
+  onPauseAgent
 }) => {
-  const [progress, setProgress] = useState<CrewProgress | null>(null);
-  const [debugLogs, setDebugLogs] = useState<DebugLog[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState(3000); // 3 seconds
+  const [progress, setProgress] = useState<AgentProgress | null>(null);
+  const [isPanelVisible, setIsPanelVisible] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
-  // Add debug log
-  const addDebugLog = (level: DebugLog['level'], message: string, data?: any) => {
-    const log: DebugLog = {
-      timestamp: new Date().toISOString(),
-      level,
-      message,
-      data
-    };
-    
-    setDebugLogs(prev => [log, ...prev.slice(0, 49)]); // Keep last 50 logs
-    
-    if (level === 'error') {
-      console.error(`[CrewDashboard] ${message}`, data);
-    } else {
-      console.log(`[CrewDashboard] ${message}`, data);
-    }
-  };
-
-  // Fetch progress from backend
-  const fetchProgress = async (silent: boolean = false) => {
-    try {
-      if (!silent) {
-        addDebugLog('info', `Fetching progress for agent: ${agent.name} (${agent._id})`);
-      }
-      
-      const response = await agentService.getCrewProgress(agent._id);
-      
-      if (response.success) {
-        setProgress(response.progress || null);
-        setIsConnected(true);
-        
-        if (!silent) {
-          addDebugLog('success', 'Progress retrieved successfully', {
-            hasActiveProgress: response.progress?.hasActiveProgress,
-            stepsCount: response.progress?.steps?.length,
-            hasResults: !!response.progress?.results
-          });
-        }
-        
-        // Log each new step
-        if (response.progress?.steps) {
-          response.progress.steps.forEach((step, index) => {
-            const stepKey = `${step.agent}-${step.step}-${step.timestamp}`;
-            if (!debugLogs.some(log => log.data?.stepKey === stepKey)) {
-              addDebugLog('info', `Step ${index + 1}: ${step.agent} - ${step.step}`, {
-                stepKey,
-                status: step.status,
-                message: step.message
-              });
-            }
-          });
-        }
-        
-      } else {
-        setProgress(null);
-        setIsConnected(false);
-        addDebugLog('warning', 'No progress data available', response);
-      }
-      
-    } catch (error: any) {
-      setIsConnected(false);
-      addDebugLog('error', `Failed to fetch progress: ${error.message}`, error);
-      
-      if (!silent) {
-        toast({
-          title: 'Connection Error',
-          description: `Failed to fetch progress: ${error.message}`,
-          variant: 'destructive',
-        });
-      }
-    }
-  };
-
-  // Start/stop auto refresh
-  const toggleAutoRefresh = () => {
-    setAutoRefresh(!autoRefresh);
-    if (!autoRefresh) {
-      fetchProgress();
-    }
-  };
-
-  // Clear debug logs
-  const clearLogs = () => {
-    setDebugLogs([]);
-    addDebugLog('info', 'Debug logs cleared');
-  };
-
-  // Effect for auto refresh
   useEffect(() => {
-    if (autoRefresh && agent.status === 'running') {
-      fetchProgress();
-      
-      intervalRef.current = setInterval(() => {
-        fetchProgress(true);
-      }, refreshInterval);
+    const checkConnection = async () => {
+      try {
+        await agentService.healthCheck();
+        setIsOnline(true);
+      } catch {
+        setIsOnline(false);
+        setProgress(null);
+      }
+    };
+
+    checkConnection();
+
+    if (isRunning) {
+      fetchProgress(); // Fetch immediately
+      intervalRef.current = setInterval(fetchProgress, 3000);
+    } else {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      setProgress(null);
     }
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
+      if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [autoRefresh, refreshInterval, agent.status]);
+  }, [isRunning, agentId]);
 
-  // Effect for initial load
-  useEffect(() => {
-    addDebugLog('info', `Dashboard initialized for agent: ${agent.name}`, {
-      agentId: agent._id,
-      agentType: agent.type,
-      agentStatus: agent.status
-    });
-    
-    if (agent.status === 'running') {
-      fetchProgress();
-    }
-  }, []);
-
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffSecs = Math.floor(diffMs / 1000);
-    
-    if (diffSecs < 60) return `${diffSecs}s ago`;
-    const diffMins = Math.floor(diffSecs / 60);
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    return `${diffHours}h ago`;
-  };
-
-  const getStepIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case 'failed':
-        return <AlertCircle className="w-4 h-4 text-red-500" />;
-      case 'running':
-        return <Loader2 className="w-4 h-4 animate-spin text-blue-500" />;
-      default:
-        return <Clock className="w-4 h-4 text-gray-500" />;
+  const fetchProgress = async () => {
+    try {
+      const response = await agentService.getCrewProgress(agentId);
+      if (response.success && response.progress) {
+        setProgress(response.progress);
+        if(response.progress?.status === 'completed' || response.progress?.status === 'error') {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        }
+      } else {
+         if (response.status === 404 && response.error?.includes('No active session')) {
+           setProgress(null);
+         } else if (response.status !== 202) { 
+           //
+         }
+      }
+      if (!isOnline) setIsOnline(true);
+    } catch (error) {
+      if (isOnline) setIsOnline(false);
+      console.error(`[CrewDashboard] Error fetching progress for ${agentId}:`, error);
     }
   };
 
-  const getLogIcon = (level: DebugLog['level']) => {
-    switch (level) {
-      case 'success':
-        return <CheckCircle className="w-3 h-3 text-green-500" />;
-      case 'error':
-        return <AlertCircle className="w-3 h-3 text-red-500" />;
-      case 'warning':
-        return <AlertCircle className="w-3 h-3 text-yellow-500" />;
-      default:
-        return <Terminal className="w-3 h-3 text-blue-500" />;
-    }
-  };
+  const renderStep = (step: any, index: number) => (
+    <motion.div
+      key={index}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.1 }}
+      className="flex items-start gap-3"
+    >
+      <div>
+        {step.status === 'completed' ? (
+          <CheckCircle className="w-4 h-4 text-green-500 mt-1" />
+        ) : step.status === 'error' ? (
+          <AlertCircle className="w-4 h-4 text-red-500 mt-1" />
+        ) : (
+          <Loader2 className="w-4 h-4 animate-spin text-blue-500 mt-1" />
+        )}
+      </div>
+      <div className="flex-1">
+        <p className="font-medium text-sm">{step.agent || 'System'}: <span className="font-normal">{step.step}</span></p>
+        <p className="text-xs text-muted-foreground">{step.message}</p>
+      </div>
+      <p className="text-xs text-muted-foreground">{new Date(step.timestamp).toLocaleTimeString()}</p>
+    </motion.div>
+  );
 
   return (
-    <div className={`space-y-6 ${className}`}>
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Brain className="w-6 h-6 text-primary" />
-          <div>
-            <h3 className="text-xl font-semibold">CrewAI Execution Dashboard</h3>
-            <p className="text-sm text-muted-foreground">
-              Live progress tracking for {agent.name}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2">
-            {isConnected ? (
-              <Wifi className="w-4 h-4 text-green-500" />
-            ) : (
-              <WifiOff className="w-4 h-4 text-red-500" />
-            )}
-            <span className="text-xs text-muted-foreground">
-              {isConnected ? 'Connected' : 'Disconnected'}
-            </span>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={toggleAutoRefresh}
-            className={autoRefresh ? 'text-green-600' : ''}
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full"
+        onClick={() => setIsPanelVisible(true)}
+      >
+        <Eye className="w-4 h-4 mr-2" />
+        View Crew Progress
+      </Button>
+
+      <AnimatePresence>
+        {isPanelVisible && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center"
+            onClick={() => setIsPanelVisible(false)}
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
-            Auto Refresh {autoRefresh ? 'On' : 'Off'}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fetchProgress()}
-          >
-            <Eye className="w-4 h-4 mr-2" />
-            Check Now
-          </Button>
-        </div>
-      </div>
-
-      {/* Status Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-full">
-                <Bot className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{agent.status}</p>
-                <p className="text-xs text-muted-foreground">Agent Status</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-full">
-                <Activity className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{progress?.steps?.length || 0}</p>
-                <p className="text-xs text-muted-foreground">Steps Completed</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-full">
-                <Brain className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{progress?.hasActiveProgress ? 'Yes' : 'No'}</p>
-                <p className="text-xs text-muted-foreground">Active Progress</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-full">
-                <Globe className="w-5 h-5 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{progress?.results ? 'Yes' : 'No'}</p>
-                <p className="text-xs text-muted-foreground">Has Results</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Execution Steps */}
-      {progress?.steps && progress.steps.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Cpu className="w-5 h-5 text-green-500" />
-              Execution Steps ({progress.steps.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-64">
-              <div className="space-y-3">
-                <AnimatePresence>
-                  {progress.steps.map((step, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className="flex items-start gap-3 p-3 bg-muted/20 rounded-lg"
-                    >
-                      {getStepIcon(step.status)}
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-sm">{step.agent}</p>
-                          <Badge variant="outline" className="text-xs">
-                            {step.status}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1">{step.step}</p>
-                        {step.message && (
-                          <p className="text-xs text-muted-foreground/80 mt-1">{step.message}</p>
-                        )}
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        {formatTimeAgo(step.timestamp)}
-                      </span>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Debug Console */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Bug className="w-5 h-5 text-yellow-500" />
-              Debug Console ({debugLogs.length})
-            </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={clearLogs}
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="relative w-full max-w-4xl h-[80vh] bg-background rounded-xl border shadow-2xl flex flex-col"
+              onClick={(e) => e.stopPropagation()}
             >
-              Clear Logs
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <ScrollArea className="h-48">
-            <div className="space-y-2 font-mono text-xs">
-              <AnimatePresence>
-                {debugLogs.map((log, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex items-start gap-2 p-2 bg-background rounded border"
-                  >
-                    {getLogIcon(log.level)}
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground">
-                          {new Date(log.timestamp).toLocaleTimeString()}
-                        </span>
-                        <Badge variant={log.level === 'error' ? 'destructive' : 'secondary'} className="text-xs">
-                          {log.level}
-                        </Badge>
-                      </div>
-                      <p className="mt-1">{log.message}</p>
-                      {log.data && (
-                        <pre className="mt-1 text-xs text-muted-foreground overflow-x-auto">
-                          {JSON.stringify(log.data, null, 2)}
-                        </pre>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-              
-              {debugLogs.length === 0 && (
-                <div className="text-center py-8">
-                  <Terminal className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <p className="text-muted-foreground">No debug logs yet</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Logs will appear here as the agent executes
-                  </p>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Cpu className="w-6 h-6 text-purple-500" />
+                  <div>
+                    <CardTitle>Crew Execution: {agentName}</CardTitle>
+                    <CardDescription>Live progress from the CrewAI multi-agent system.</CardDescription>
+                  </div>
                 </div>
-              )}
-            </div>
-          </ScrollArea>
-        </CardContent>
-      </Card>
+                <div className="flex items-center gap-3">
+                  {isOnline ? (
+                    <Badge variant="outline" className="text-green-500 border-green-500"><Wifi className="w-3 h-3 mr-1" /> Online</Badge>
+                  ) : (
+                    <Badge variant="destructive"><WifiOff className="w-3 h-3 mr-1" /> Offline</Badge>
+                  )}
+                   <Button variant="ghost" size="sm" onClick={() => setIsPanelVisible(false)}>X</Button>
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1 overflow-hidden">
+                <ScrollArea className="h-full pr-4">
+                  <div className="space-y-4">
+                    {progress ? (
+                      <>
+                        <div className="flex items-center gap-4 text-sm">
+                           <Badge variant={
+                             progress.status === 'completed' ? 'default' :
+                             progress.status === 'error' ? 'destructive' :
+                             'secondary'
+                           }>{progress.status}</Badge>
+                          <p><strong className="font-semibold">Session:</strong> {progress.session_id}</p>
+                          <p><strong className="font-semibold">Last Update:</strong> {new Date(progress.timestamp).toLocaleTimeString()}</p>
+                        </div>
+                        
+                        <div className="w-full bg-muted rounded-full h-2.5">
+                          <motion.div
+                            className={`h-2.5 rounded-full ${progress.status === 'error' ? 'bg-red-500' : 'bg-blue-500'}`}
+                            initial={{ width: '0%' }}
+                            animate={{ width: `${progress.progress || 0}%` }}
+                          />
+                        </div>
 
-      {/* Results Display */}
-      {progress?.results && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <TrendingUp className="w-5 h-5 text-green-500" />
-              Execution Results
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <pre className="text-xs bg-muted/30 p-4 rounded-lg overflow-x-auto">
-                {JSON.stringify(progress.results, null, 2)}
-              </pre>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                        {progress.steps && progress.steps.length > 0 ? (
+                           <div className="space-y-3 pt-2">
+                             {progress.steps.map(renderStep)}
+                           </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Waiting for execution steps...</p>
+                        )}
 
-      {/* Error Display */}
-      {progress?.error && (
-        <Card className="border-red-200 dark:border-red-800">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg text-red-600">
-              <AlertCircle className="w-5 h-5" />
-              Error Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg">
-              <p className="text-red-800 dark:text-red-200">{progress.error}</p>
-              {progress.debug_info && (
-                <pre className="mt-2 text-xs text-red-700 dark:text-red-300 overflow-x-auto">
-                  {JSON.stringify(progress.debug_info, null, 2)}
-                </pre>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+                        {progress.status === 'completed' && progress.results && (
+                           <Card className="mt-4">
+                             <CardHeader><CardTitle>Final Results</CardTitle></CardHeader>
+                             <CardContent>
+                               <pre className="text-xs bg-muted p-2 rounded whitespace-pre-wrap">{JSON.stringify(progress.results, null, 2)}</pre>
+                             </CardContent>
+                           </Card>
+                        )}
+                        {progress.status === 'error' && progress.error && (
+                           <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-700 dark:text-red-300">
+                             <p className="font-bold">An error occurred:</p>
+                             <p className="text-sm">{progress.error}</p>
+                           </div>
+                        )}
+                      </>
+                    ) : (
+                       <div className="text-center py-10">
+                         <Loader2 className="w-8 h-8 mx-auto animate-spin text-muted-foreground" />
+                         <p className="mt-2 text-muted-foreground">Awaiting progress from agent...</p>
+                       </div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 };
-
-export default CrewExecutionDashboard;

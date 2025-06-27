@@ -99,6 +99,20 @@ export interface MCPRecommendationsResponse {
   };
 }
 
+export interface AgentProgress {
+  agentId: string;
+  session_id: string;
+  status: string;
+  message: string;
+  progress: number;
+  steps?: Array<{ agent: string; step: string; status:string; message: string; timestamp: string; }>;
+  results?: any;
+  error?: string;
+  timestamp: string;
+  hasActiveProgress: boolean;
+  debug_info?: any;
+}
+
 export const agentService = {
   // Get all agents for the current user
   async getAgents(): Promise<Agent[]> {
@@ -151,18 +165,19 @@ export const agentService = {
   // Get crew execution progress for CrewAI agents
   async getCrewProgress(agentId: string): Promise<{
     success: boolean;
-    progress?: {
-      steps: any[];
-      results?: any;
-      hasActiveProgress: boolean;
-    };
+    progress?: AgentProgress;
+    error?: string;
+    status?: number;
   }> {
     try {
-      const response = await axiosInstance.get<{ success: boolean; progress: any }>(`/agents/${agentId}/crew-progress`);
-      return response.data;
-    } catch (error) {
+      const response = await axiosInstance.get<{ success: boolean; progress: any; error?: string; }>(`/agents/${agentId}/crew-progress`);
+      return { ...response.data, status: response.status };
+    } catch (error: any) {
       console.error('Error fetching crew progress:', error);
-      return { success: false };
+      if (error.response) {
+        return { success: false, error: error.response.data?.error || error.message, status: error.response.status };
+      }
+      return { success: false, error: error.message };
     }
   },
 
@@ -335,5 +350,11 @@ export const agentService = {
   // Helper function to get agent by ID (alias for getAgentById)
   async getAgent(agentId: string): Promise<Agent> {
     return this.getAgentById(agentId);
+  },
+
+  // Add a healthcheck for the dashboard
+  async healthCheck(): Promise<any> {
+    const response = await axiosInstance.get('/agents/health');
+    return response.data;
   },
 };

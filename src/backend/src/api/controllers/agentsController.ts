@@ -15,6 +15,24 @@ export const initializeAgentServices = (service: AgentService, scheduler: AgentS
   agentScheduler = scheduler;
 };
 
+// Health check for the agent system
+export const getHealthStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // In a real system, you might check db connection, executor services, etc.
+    res.json({
+      success: true,
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      status: 'unhealthy',
+      error: error.message,
+    });
+  }
+};
+
 // Get all agents for the authenticated user
 export const getAgents = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {

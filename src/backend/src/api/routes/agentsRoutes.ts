@@ -22,9 +22,13 @@ import {
   getAgentStatus,
   resetAgentStatus,
   getCrewProgress,
+  getHealthStatus,
 } from '../controllers/agentsController';
 
 const router = express.Router();
+
+// Health check endpoint (no auth required)
+router.get('/health', getHealthStatus);
 
 // Debug endpoint (no auth required for testing)
 router.get('/debug/environment', getEnvironmentDebug);
