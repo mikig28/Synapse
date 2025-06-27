@@ -11,6 +11,7 @@ interface CrewAINewsRequest {
     telegram?: boolean;
     news_websites?: boolean;
   };
+  agent_id?: string; // Add agent ID for session tracking
   tools?: {
     web_search?: boolean;
     content_analysis?: boolean;
@@ -34,6 +35,7 @@ interface CrewAINewsResponse {
   timestamp: string;
   topics: string[];
   sources_used: any;
+  session_id?: string; // Add session ID for progress tracking
   data?: {
     executive_summary?: string[];
     trending_topics?: Array<{
@@ -209,6 +211,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       const crewaiResponse = await this.executeCrewAIGatheringWithFallback({
         topics: topics,
         sources: sources,
+        agent_id: agent._id.toString(), // Add agent ID for session tracking
         // Enhanced configuration with strict filtering
         tools: {
           web_search: true,
@@ -237,6 +240,15 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
 
       if (!crewaiResponse.success) {
         throw new Error(`CrewAI execution failed: ${crewaiResponse.error}`);
+      }
+
+      // **FIX 1: Store session ID in agent run for progress tracking**
+      if (crewaiResponse.session_id) {
+        await run.updateOne({ 
+          'results.sessionId': crewaiResponse.session_id 
+        });
+        await run.addLog('info', `📋 Session ID stored for progress tracking: ${crewaiResponse.session_id}`);
+        console.log(`[CrewAI Agent] Stored session ID: ${crewaiResponse.session_id} for run: ${run._id}`);
       }
 
       await run.addLog('info', '🎉 CrewAI news gathering completed successfully', {
@@ -1135,7 +1147,7 @@ Using fallback test crew to demonstrate dashboard functionality.`);
     console.log(`[CrewAI Agent] Generating fallback URL for ${source} (simulated: ${isSimulated})`);
     
     if (isSimulated) {
-      // For simulated data, provide useful search/browse URLs instead of broken links
+      // For simulated data, provide useful browsing URLs instead of broken links
       return this.generateSimulatedDataUrl(item, source);
     }
     

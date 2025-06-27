@@ -391,11 +391,24 @@ export class AgentService {
         throw new Error('Progress tracking is only available for CrewAI agents');
       }
 
-      // Get the latest run to get session ID
-      const latestRun = await AgentRun.findOne({ 
-        agentId: agent._id,
-        status: 'running'
-      }).sort({ createdAt: -1 });
+      // **FIX 2: Get stored session IDs from agent runs**
+      const recentRuns = await AgentRun.find({ 
+        agentId: agent._id
+      }).sort({ createdAt: -1 }).limit(10);
+
+      // Extract session IDs from agent run results
+      const storedSessionIds = recentRuns
+        .map(run => run.results?.sessionId)
+        .filter(Boolean);
+
+      // Get current running session ID from the most recent running run
+      const runningRun = recentRuns.find(run => run.status === 'running');
+      const currentSessionId = runningRun?.results?.sessionId;
+
+      console.log(`[AgentService] Found session IDs: ${storedSessionIds.join(', ')}`);
+      if (currentSessionId) {
+        console.log(`[AgentService] Current running session: ${currentSessionId}`);
+      }
 
       // Try to get progress from the CrewAI service
       const crewaiServiceUrl = process.env.CREWAI_SERVICE_URL || 'http://localhost:5000';
@@ -404,53 +417,134 @@ export class AgentService {
         // Import axios here to avoid circular dependencies
         const axios = require('axios');
         
-        // Include session ID if we have an active run
-        const params: any = {};
-        if (latestRun) {
-          // Use run ID as session ID for tracking
-          params.session_id = `news_${latestRun._id}`;
+        // **FIX 3: Try stored session IDs first, then fallback patterns**
+        const sessionIdsToTry = [
+          currentSessionId, // Current running session (highest priority)
+          ...storedSessionIds, // Previously stored session IDs
+          `news_${agentId}_*`, // Wildcard pattern for any current session
+          agentId, // Simple agent ID fallback
+        ].filter(Boolean);
+        
+        let progressData = null;
+        let activeSessionId = null;
+        
+        // Try each session ID until we find active progress
+        for (const sessionId of sessionIdsToTry) {
+          if (!sessionId) continue;
+          
+          try {
+            console.log(`[AgentService] Checking progress for session: ${sessionId}`);
+            const response = await axios.get(`${crewaiServiceUrl}/progress`, {
+              timeout: 8000, // 8 second timeout per attempt
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              params: { session_id: sessionId }
+            });
+
+            if (response.data?.success) {
+              const progress = response.data.progress;
+              if (progress?.hasActiveProgress || (progress?.steps && progress.steps.length > 0)) {
+                console.log(`[AgentService] Found active progress with session: ${sessionId}`);
+                progressData = progress;
+                activeSessionId = sessionId;
+                break;
+              }
+            }
+          } catch (err: any) {
+            console.log(`[AgentService] Session ${sessionId} check failed: ${err.message}`);
+            continue;
+          }
         }
         
-        const response = await axios.get(`${crewaiServiceUrl}/progress`, {
-          timeout: 10000, // 10 second timeout
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          params
-        });
+        // **FIX 4: If no specific session found, try general progress query**
+        if (!progressData) {
+          try {
+            console.log(`[AgentService] Trying general progress query for agent ${agentId}`);
+            const response = await axios.get(`${crewaiServiceUrl}/progress`, {
+              timeout: 5000,
+              headers: {
+                'Content-Type': 'application/json'
+              }
+              // No session_id param - get any active progress
+            });
 
-        if (response.data?.success) {
-          console.log(`[AgentService] Retrieved progress data from CrewAI service`);
+            if (response.data?.success && response.data?.progress?.hasActiveProgress) {
+              console.log(`[AgentService] Found general active progress`);
+              progressData = response.data.progress;
+              activeSessionId = response.data.progress.session_id;
+            }
+          } catch (err: any) {
+            console.log(`[AgentService] General progress query failed: ${err.message}`);
+          }
+        }
+
+        if (progressData) {
+          console.log(`[AgentService] Retrieved progress data from CrewAI service for session: ${activeSessionId}`);
           
-          // Extract progress data
-          const progressData = response.data.progress || {};
+          // **FIX 5: Store newly discovered session ID in running agent run**
+          if (activeSessionId && runningRun && !runningRun.results?.sessionId) {
+            try {
+              await AgentRun.findByIdAndUpdate(runningRun._id, {
+                'results.sessionId': activeSessionId
+              });
+              console.log(`[AgentService] Stored discovered session ID ${activeSessionId} in run ${runningRun._id}`);
+            } catch (updateError) {
+              console.warn(`[AgentService] Failed to store session ID: ${updateError}`);
+            }
+          }
           
           return {
             steps: progressData.steps || [],
             results: progressData.results || null,
-            hasActiveProgress: progressData.hasActiveProgress || response.data.has_active_progress || false,
-            timestamp: progressData.timestamp || response.data.timestamp || new Date().toISOString(),
-            session_id: progressData.session_id || params.session_id
+            hasActiveProgress: progressData.hasActiveProgress || false,
+            timestamp: progressData.timestamp || new Date().toISOString(),
+            session_id: activeSessionId,
+            agent_id: agentId
           };
         } else {
-          console.log(`[AgentService] CrewAI service returned no progress data`);
+          console.log(`[AgentService] No active progress found for agent ${agentId}`);
+          
+          // **FIX 6: Check if agent is actually running and provide better feedback**
+          const isAgentRunning = agent.status === 'running';
+          const hasRecentRuns = recentRuns.length > 0;
+          const lastRunStatus = recentRuns[0]?.status;
+          
           return {
             steps: [],
             results: null,
             hasActiveProgress: false,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            agent_id: agentId,
+            debug_info: {
+              agent_status: agent.status,
+              is_running: isAgentRunning,
+              recent_runs_count: recentRuns.length,
+              last_run_status: lastRunStatus,
+              stored_session_ids: storedSessionIds,
+              current_session_id: currentSessionId,
+              attempted_sessions: sessionIdsToTry.filter(Boolean)
+            }
           };
         }
       } catch (crewaiError: any) {
         console.warn(`[AgentService] Could not fetch progress from CrewAI service: ${crewaiError.message}`);
         
-        // Return empty progress instead of error for better UX
+        // **FIX 7: Return more informative error for debugging**
         return {
           steps: [],
           results: null,
           hasActiveProgress: false,
           timestamp: new Date().toISOString(),
-          message: 'CrewAI service unavailable'
+          message: 'CrewAI service unavailable',
+          agent_id: agentId,
+          error_details: {
+            service_url: crewaiServiceUrl,
+            error_message: crewaiError.message,
+            error_code: crewaiError.code,
+            agent_status: agent.status,
+            stored_sessions: storedSessionIds
+          }
         };
       }
     } catch (error: any) {
