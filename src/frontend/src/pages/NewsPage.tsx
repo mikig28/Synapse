@@ -49,6 +49,219 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import TelegramCard from '@/components/ui/TelegramCard';
 
+// Enhanced CrewAI Analysis Display Component
+const CrewAIAnalysisDisplay: React.FC<{ content: string }> = ({ content }) => {
+  const parseAnalysisContent = (markdown: string) => {
+    const sections = {
+      executiveSummary: [] as string[],
+      dataStatus: '',
+      trendingTopics: [] as { topic: string; mentions: number; score: number }[],
+      sourceBreakdown: [] as { type: string; items: string[] }[],
+      aiInsights: '',
+      recommendations: [] as string[]
+    };
+
+    const lines = markdown.split('\n');
+    let currentSection = '';
+    let currentSourceType = '';
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      if (line.includes('DATA NOTICE') || line.includes('DATA STATUS')) {
+        sections.dataStatus = line.replace(/[⚠️✅*]/g, '').trim();
+      } else if (line.startsWith('## Executive Summary')) {
+        currentSection = 'executive';
+      } else if (line.startsWith('## Trending Topics')) {
+        currentSection = 'trending';
+      } else if (line.startsWith('## AI Insights')) {
+        currentSection = 'insights';
+      } else if (line.startsWith('## Recommendations')) {
+        currentSection = 'recommendations';
+      } else if (line.match(/^## (News Articles|Reddit Posts|LinkedIn Posts|Telegram Messages)/)) {
+        currentSection = 'sources';
+        currentSourceType = line.replace(/^## /, '').replace(/\s+📰|🔴|💼|📱/, '');
+      } else if (line.startsWith('- ') && currentSection) {
+        const item = line.substring(2);
+        
+        if (currentSection === 'executive') {
+          sections.executiveSummary.push(item);
+        } else if (currentSection === 'trending') {
+          const match = item.match(/\*\*(.*?)\*\*.*?(\d+)\s+mentions.*?(\d+)/);
+          if (match) {
+            sections.trendingTopics.push({
+              topic: match[1],
+              mentions: parseInt(match[2]),
+              score: parseInt(match[3])
+            });
+          }
+        } else if (currentSection === 'recommendations') {
+          sections.recommendations.push(item);
+        } else if (currentSection === 'sources' && currentSourceType) {
+          const existingSource = sections.sourceBreakdown.find(s => s.type === currentSourceType);
+          if (existingSource) {
+            existingSource.items.push(item);
+          } else {
+            sections.sourceBreakdown.push({ type: currentSourceType, items: [item] });
+          }
+        }
+      } else if (currentSection === 'insights' && line.startsWith('```')) {
+        // Capture AI insights JSON
+        const jsonStart = i + 1;
+        const jsonEnd = lines.findIndex((l, idx) => idx > i && l.startsWith('```'));
+        if (jsonEnd > jsonStart) {
+          sections.aiInsights = lines.slice(jsonStart, jsonEnd).join('\n');
+        }
+      }
+    }
+
+    return sections;
+  };
+
+  const analysis = parseAnalysisContent(content);
+
+  const getSourceIcon = (type: string) => {
+    switch (type.toLowerCase()) {
+      case 'news articles': return '📰';
+      case 'reddit posts': return '🔴';
+      case 'linkedin posts': return '💼';
+      case 'telegram messages': return '📱';
+      default: return '📄';
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
+        <div className="flex items-center gap-2 mb-2">
+          <Bot className="w-5 h-5 text-purple-600" />
+          <h3 className="text-lg font-semibold text-purple-900 dark:text-purple-100">
+            CrewAI Multi-Agent Analysis Report
+          </h3>
+          <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-300">
+            AI Generated
+          </Badge>
+        </div>
+        {analysis.dataStatus && (
+          <p className="text-sm text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/30 px-3 py-1 rounded">
+            {analysis.dataStatus}
+          </p>
+        )}
+      </div>
+
+      {/* Executive Summary */}
+      {analysis.executiveSummary.length > 0 && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+          <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-3 flex items-center gap-2">
+            <MessageSquare className="w-4 h-4" />
+            Executive Summary
+          </h4>
+          <div className="space-y-2">
+            {analysis.executiveSummary.map((item, idx) => (
+              <div key={idx} className="flex items-start gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
+                <p className="text-sm text-blue-800 dark:text-blue-200">{item}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Trending Topics */}
+      {analysis.trendingTopics.length > 0 && (
+        <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
+          <h4 className="font-semibold text-green-900 dark:text-green-100 mb-3 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4" />
+            Trending Topics
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {analysis.trendingTopics.slice(0, 6).map((topic, idx) => (
+              <div key={idx} className="bg-white dark:bg-green-900/30 rounded-md p-3 border border-green-300 dark:border-green-700">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-medium text-green-900 dark:text-green-100 text-sm">{topic.topic}</span>
+                  <Badge variant="secondary" className="text-xs bg-green-200 text-green-800">
+                    {topic.score}
+                  </Badge>
+                </div>
+                <p className="text-xs text-green-700 dark:text-green-300">{topic.mentions} mentions</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Source Breakdown */}
+      {analysis.sourceBreakdown.length > 0 && (
+        <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4 border border-orange-200 dark:border-orange-800">
+          <h4 className="font-semibold text-orange-900 dark:text-orange-100 mb-3 flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            Content Sources Summary
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {analysis.sourceBreakdown.map((source, idx) => (
+              <div key={idx} className="bg-white dark:bg-orange-900/30 rounded-md p-3 border border-orange-300 dark:border-orange-700">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">{getSourceIcon(source.type)}</span>
+                  <span className="font-medium text-orange-900 dark:text-orange-100 text-sm">{source.type}</span>
+                  <Badge variant="outline" className="text-xs bg-orange-200 text-orange-800">
+                    {source.items.length} items
+                  </Badge>
+                </div>
+                <div className="max-h-24 overflow-y-auto">
+                  {source.items.slice(0, 3).map((item, itemIdx) => (
+                    <p key={itemIdx} className="text-xs text-orange-700 dark:text-orange-300 mb-1 line-clamp-1">
+                      • {item.replace(/🤖|\[.*?\]/g, '').trim()}
+                    </p>
+                  ))}
+                  {source.items.length > 3 && (
+                    <p className="text-xs text-orange-600 dark:text-orange-400 italic">
+                      +{source.items.length - 3} more items...
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* AI Insights */}
+      {analysis.aiInsights && (
+        <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
+          <h4 className="font-semibold text-purple-900 dark:text-purple-100 mb-3 flex items-center gap-2">
+            <Briefcase className="w-4 h-4" />
+            AI Insights & Analysis
+          </h4>
+          <div className="bg-white dark:bg-purple-900/30 rounded-md p-3 border border-purple-300 dark:border-purple-700">
+            <pre className="text-sm text-purple-800 dark:text-purple-200 whitespace-pre-wrap overflow-x-auto">
+              {analysis.aiInsights}
+            </pre>
+          </div>
+        </div>
+      )}
+
+      {/* Recommendations */}
+      {analysis.recommendations.length > 0 && (
+        <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-4 border border-indigo-200 dark:border-indigo-800">
+          <h4 className="font-semibold text-indigo-900 dark:text-indigo-100 mb-3 flex items-center gap-2">
+            <Star className="w-4 h-4" />
+            Recommendations
+          </h4>
+          <div className="space-y-2">
+            {analysis.recommendations.map((rec, idx) => (
+              <div key={idx} className="flex items-start gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-2 flex-shrink-0" />
+                <p className="text-sm text-indigo-800 dark:text-indigo-200">{rec}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const NewsPage: React.FC = () => {
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [telegramMessages, setTelegramMessages] = useState<any[]>([]);
@@ -842,13 +1055,21 @@ const NewsPage: React.FC = () => {
 
                   {/* Content */}
                   {selectedContent.content && (
-                    <div className="prose prose-sm max-w-none dark:prose-invert">
-                      <h4 className="font-medium mb-3">Full Content</h4>
-                      <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {selectedContent.content}
-                        </ReactMarkdown>
-                      </div>
+                    <div>
+                      {selectedContent.source.id === 'crewai_analysis' ? (
+                        // Enhanced CrewAI Analysis Report Display
+                        <CrewAIAnalysisDisplay content={selectedContent.content} />
+                      ) : (
+                        // Standard content display for other types
+                        <div className="prose prose-sm max-w-none dark:prose-invert">
+                          <h4 className="font-medium mb-3">Full Content</h4>
+                          <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {selectedContent.content}
+                            </ReactMarkdown>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
