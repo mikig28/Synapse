@@ -300,7 +300,10 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => fetchRecentActivity()}
+            onClick={() => {
+              fetchRecentActivity();
+              fetchAgentProgress();
+            }}
             disabled={isRefreshing}
           >
             {isRefreshing ? (
@@ -486,6 +489,67 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
                       </div>
                     )}
                   </motion.div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Agent Results & Content */}
+      {Array.from(agentProgress.values()).some(p => p.results && Object.keys(p.results).length > 0) && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Globe className="w-5 h-5 text-green-500" />
+              Content Fetched
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {Array.from(agentProgress.entries()).map(([agentId, progress]) => {
+                if (!progress.results || Object.keys(progress.results).length === 0) return null;
+                
+                const agent = agents.find(a => a._id === agentId);
+                if (!agent) return null;
+
+                return (
+                  <div key={agentId} className="p-3 bg-muted/20 rounded-lg">
+                    <div className="flex items-center gap-2 mb-3">
+                      {getAgentTypeIcon(agent.type)}
+                      <span className="font-medium">{agent.name}</span>
+                      <Badge variant="secondary" className="text-xs">Content Available</Badge>
+                    </div>
+                    
+                    {progress.results.data && (
+                      <div className="space-y-2">
+                        {progress.results.data.executive_summary && progress.results.data.executive_summary.length > 0 && (
+                          <div>
+                            <p className="text-sm font-medium mb-1">Summary:</p>
+                            <div className="text-xs text-muted-foreground space-y-1">
+                              {progress.results.data.executive_summary.slice(0, 3).map((item: string, index: number) => (
+                                <p key={index}>• {item}</p>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {progress.results.data.organized_content && (
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            {Object.entries(progress.results.data.organized_content).map(([source, items]: [string, any]) => {
+                              if (!Array.isArray(items) || items.length === 0) return null;
+                              return (
+                                <div key={source} className="p-2 bg-background/50 rounded border">
+                                  <p className="font-medium capitalize">{source.replace('_', ' ')}</p>
+                                  <p className="text-muted-foreground">{items.length} items</p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
