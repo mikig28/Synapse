@@ -203,11 +203,13 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       await run.addLog('info', '📈 Agent 3: Trend Analysis Expert is identifying patterns...');
       await run.addLog('info', '⚡ Agents are now gathering and analyzing content...');
       await run.addLog('info', '🧠 AI agents are processing content and matching topics...');
+      await run.addLog('info', '🔒 Strict filtering enabled: high relevance threshold, spam detection, source validation');
+      await run.addLog('info', `🎯 Topic keywords expanded: ${this.expandTopicKeywords(topics).slice(0, 10).join(', ')}${this.expandTopicKeywords(topics).length > 10 ? '...' : ''}`);
       
       const crewaiResponse = await this.executeCrewAIGatheringWithFallback({
         topics: topics,
         sources: sources,
-        // Add enhanced configuration
+        // Enhanced configuration with strict filtering
         tools: {
           web_search: true,
           content_analysis: true,
@@ -218,11 +220,20 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
         parameters: {
           max_items_per_source: config.maxItemsPerRun || 10,
           time_range: '24h',
-          quality_threshold: 0.7,
+          quality_threshold: 0.8, // Increased from 0.7 for higher quality
           include_urls: true,
           include_metadata: true,
           analyze_sentiment: true,
-          extract_entities: true
+          extract_entities: true,
+          // NEW: Strict filtering parameters
+          strict_topic_filtering: true,
+          minimum_relevance_score: 0.4,
+          content_length_minimum: 20,
+          require_title: true,
+          exclude_spam: true,
+          validate_sources: true,
+          topic_keywords: this.expandTopicKeywords(topics),
+          filter_mode: 'strict' // Enable strict filtering mode
         }
       }, run);
 
@@ -528,7 +539,11 @@ Using fallback test crew to demonstrate dashboard functionality.`);
         return;
       }
 
-      // Store news articles from various sources
+      // STRICT CONTENT FILTERING - Get agent topics for validation
+      const agentTopics = response.topics || [];
+      await run.addLog('info', `🎯 Agent topics for validation: ${agentTopics.join(', ')}`);
+
+      // Store news articles from various sources with STRICT filtering
       if (data.organized_content) {
         const sources = ['news_articles', 'reddit_posts', 'linkedin_posts', 'telegram_messages'];
         const sourceNames = {
@@ -538,12 +553,22 @@ Using fallback test crew to demonstrate dashboard functionality.`);
           telegram_messages: 'telegram'
         };
 
-        await run.addLog('info', '📊 Content breakdown received from CrewAI:', {
-          news_articles: data.organized_content.news_articles?.length || 0,
-          reddit_posts: data.organized_content.reddit_posts?.length || 0,
-          linkedin_posts: data.organized_content.linkedin_posts?.length || 0,
-          telegram_messages: data.organized_content.telegram_messages?.length || 0
+        // First, filter ALL content for topic relevance
+        const filteredContent = this.filterContentByTopicRelevance(data.organized_content, agentTopics, run);
+        
+        await run.addLog('info', '📊 Content breakdown after filtering:', {
+          original_news_articles: data.organized_content.news_articles?.length || 0,
+          filtered_news_articles: filteredContent.news_articles?.length || 0,
+          original_reddit_posts: data.organized_content.reddit_posts?.length || 0,
+          filtered_reddit_posts: filteredContent.reddit_posts?.length || 0,
+          original_linkedin_posts: data.organized_content.linkedin_posts?.length || 0,
+          filtered_linkedin_posts: filteredContent.linkedin_posts?.length || 0,
+          original_telegram_messages: data.organized_content.telegram_messages?.length || 0,
+          filtered_telegram_messages: filteredContent.telegram_messages?.length || 0
         });
+
+        // Update data with filtered content
+        data.organized_content = filteredContent;
 
         for (const sourceKey of sources) {
           const items = data.organized_content[sourceKey as keyof typeof data.organized_content];
@@ -1038,12 +1063,17 @@ Using fallback test crew to demonstrate dashboard functionality.`);
   private isFakeUrl(url: string): boolean {
     if (!url) return false;
     const urlLower = url.toLowerCase();
-    return urlLower.includes('post_') || 
-           urlLower.includes('message_') || 
-           urlLower.includes('article_') ||
-           urlLower.includes('example.com') ||
-           urlLower.includes('fake.') ||
-           urlLower.includes('simulation');
+    
+    // Enhanced fake URL detection patterns
+    const fakePatterns = [
+      'post_', 'message_', 'article_', 'item_',
+      'example.com', 'test.com', 'fake.', 'mock.',
+      'simulation', 'demo.', 'placeholder',
+      'localhost', '127.0.0.1', 'invalid.',
+      'dummy', 'sample'
+    ];
+    
+    return fakePatterns.some(pattern => urlLower.includes(pattern));
   }
 
   private generateSimulatedDataUrl(item: any, source: string): string {
@@ -1285,5 +1315,299 @@ Using fallback test crew to demonstrate dashboard functionality.`);
       (content.telegram_messages?.length || 0) +
       (content.news_articles?.length || 0)
     );
+  }
+
+  private filterContentByTopicRelevance(organizedContent: any, topics: string[], run: any): any {
+    const filteredContent: any = {};
+    
+    // Define topic keywords for better matching
+    const topicKeywords = this.expandTopicKeywords(topics);
+    
+    ['news_articles', 'reddit_posts', 'linkedin_posts', 'telegram_messages'].forEach(sourceKey => {
+      const items = organizedContent[sourceKey] || [];
+      const filteredItems = items.filter((item: any) => {
+        // Enhanced content validation
+        const contentValidation = this.validateContentQuality(item, topics, topicKeywords);
+        const isRelevant = contentValidation.isRelevant;
+        
+        if (!isRelevant) {
+          console.log(`[CrewAI Agent] Filtering out irrelevant ${sourceKey} item: "${item.title}" (score: ${contentValidation.relevanceScore}, reasons: ${contentValidation.rejectionReasons.join(', ')})`);
+        } else {
+          console.log(`[CrewAI Agent] Accepting ${sourceKey} item: "${item.title}" (score: ${contentValidation.relevanceScore}, matched: ${contentValidation.matchedKeywords.join(', ')})`);
+        }
+        
+        return isRelevant;
+      });
+      
+      filteredContent[sourceKey] = filteredItems;
+    });
+    
+    return filteredContent;
+  }
+
+  private expandTopicKeywords(topics: string[]): string[] {
+    const expanded = [...topics];
+    
+    topics.forEach(topic => {
+      const topicLower = topic.toLowerCase();
+      
+      // Generic topic expansion using word variations and synonyms
+      // Split multi-word topics into individual keywords
+      const words = topicLower.split(/\s+|[-_]/).filter(word => word.length > 2);
+      expanded.push(...words);
+      
+      // Add common variations for compound words
+      if (words.length > 1) {
+        // Add hyphenated versions
+        expanded.push(words.join('-'));
+        // Add concatenated versions  
+        expanded.push(words.join(''));
+      }
+      
+      // Add plurals and singulars
+      words.forEach(word => {
+        if (word.endsWith('s') && word.length > 3) {
+          expanded.push(word.slice(0, -1)); // Remove 's' for singular
+        } else if (!word.endsWith('s')) {
+          expanded.push(word + 's'); // Add 's' for plural
+        }
+      });
+    });
+    
+    return [...new Set(expanded.map(k => k.toLowerCase()))]; // Remove duplicates
+  }
+
+  private calculateItemTopicRelevance(item: any, topicKeywords: string[], originalTopics: string[]): {
+    score: number;
+    matchedKeywords: string[];
+    matchedTopics: string[];
+  } {
+    const text = `${item.title || ''} ${item.content || item.text || item.summary || ''}`.toLowerCase();
+    const url = (item.url || '').toLowerCase();
+    
+    let score = 0;
+    const matchedKeywords: string[] = [];
+    const matchedTopics: string[] = [];
+    
+    // Check original topics (higher weight)
+    originalTopics.forEach(topic => {
+      const topicLower = topic.toLowerCase();
+      if (text.includes(topicLower) || url.includes(topicLower)) {
+        score += 0.5; // High weight for exact topic match
+        matchedTopics.push(topic);
+      }
+    });
+    
+    // Check expanded keywords (moderate weight)
+    const uniqueKeywords = [...new Set(topicKeywords)];
+    uniqueKeywords.forEach(keyword => {
+      if (text.includes(keyword) || url.includes(keyword)) {
+        score += 0.1; // Lower weight for keyword match
+        matchedKeywords.push(keyword);
+      }
+    });
+    
+    // Generic relevance boost based on keyword density
+    if (matchedKeywords.length > 0) {
+      const keywordDensity = matchedKeywords.length / Math.max(text.split(' ').length, 1);
+      score += keywordDensity * 0.2; // Boost for keyword density
+    }
+    
+    // Boost for exact phrase matches in title (any topic domain)
+    originalTopics.forEach(topic => {
+      const titleLower = (item.title || '').toLowerCase();
+      if (titleLower.includes(topic.toLowerCase())) {
+        score += 0.3; // Extra boost for title matches
+      }
+    });
+    
+    return {
+      score: Math.min(score, 1.0), // Cap at 1.0
+      matchedKeywords: [...new Set(matchedKeywords)],
+      matchedTopics: [...new Set(matchedTopics)]
+    };
+  }
+
+  private validateContentQuality(item: any, topics: string[], topicKeywords: string[]): {
+    isRelevant: boolean;
+    relevanceScore: number;
+    matchedKeywords: string[];
+    rejectionReasons: string[];
+  } {
+    const rejectionReasons: string[] = [];
+    const text = `${item.title || ''} ${item.content || item.text || item.summary || ''}`.toLowerCase();
+    const title = (item.title || '').toLowerCase();
+    const url = (item.url || '').toLowerCase();
+    
+    // Calculate base relevance score using existing method
+    const relevanceData = this.calculateItemTopicRelevance(item, topicKeywords, topics);
+    let relevanceScore = relevanceData.score;
+    
+    // STRICT VALIDATION RULES - topic-agnostic
+    
+    // Rule 1: Must have minimum topic relevance
+    if (relevanceScore < 0.3) {
+      rejectionReasons.push('insufficient topic relevance');
+    }
+    
+    // Rule 2: Must have meaningful content
+    if (text.trim().length < 20) {
+      rejectionReasons.push('content too short');
+      relevanceScore *= 0.5;
+    }
+    
+    // Rule 3: Must have a title
+    if (title.trim().length < 5) {
+      rejectionReasons.push('title too short or missing');
+      relevanceScore *= 0.7;
+    }
+    
+    // Rule 4: Check for spam indicators (topic-agnostic)
+    const spamIndicators = [
+      'click here', 'amazing deal', 'limited time', 'act now', 'free money',
+      'guaranteed', 'no obligation', 'risk free', 'as seen on tv',
+      'weight loss', 'lose weight fast', 'work from home'
+    ];
+    const hasSpamIndicators = spamIndicators.some(indicator => text.includes(indicator));
+    if (hasSpamIndicators) {
+      rejectionReasons.push('contains spam indicators');
+      relevanceScore *= 0.3;
+    }
+    
+    // Rule 5: Check for relevant keywords in title (higher weight)
+    const titleHasRelevantKeyword = topics.some(topic => 
+      title.includes(topic.toLowerCase())
+    ) || topicKeywords.some(keyword => 
+      title.includes(keyword)
+    );
+    
+    if (titleHasRelevantKeyword) {
+      relevanceScore += 0.2; // Boost for title relevance
+    } else if (relevanceScore < 0.5) {
+      rejectionReasons.push('no relevant keywords in title');
+    }
+    
+    // Rule 6: URL quality check (basic validation)
+    if (url && (url.includes('spam') || url.includes('fake') || url.includes('scam'))) {
+      rejectionReasons.push('suspicious URL');
+      relevanceScore *= 0.2;
+    }
+    
+    // Rule 7: Content quality indicators
+    const qualityIndicators = text.length > 100 && text.includes(' '); // Has decent length and spaces
+    if (!qualityIndicators) {
+      rejectionReasons.push('poor content quality indicators');
+      relevanceScore *= 0.8;
+    }
+    
+    // Final decision based on score and rejection reasons
+    const minAcceptableScore = 0.4;
+    const hasCriticalRejections = rejectionReasons.some(reason => 
+      reason.includes('spam') || reason.includes('suspicious') || reason.includes('insufficient topic relevance')
+    );
+    
+    const isRelevant = relevanceScore >= minAcceptableScore && !hasCriticalRejections;
+    
+    return {
+      isRelevant,
+      relevanceScore: Math.min(relevanceScore, 1.0),
+      matchedKeywords: relevanceData.matchedKeywords,
+      rejectionReasons
+    };
+  }
+
+  private validateSourceAttribution(item: any, claimedSource: string): {
+    actualSource: string;
+    isAccurate: boolean;
+    confidence: number;
+    validationRules: string[];
+  } {
+    const validationRules: string[] = [];
+    let confidence = 0;
+    let actualSource = claimedSource;
+    
+    const url = (item.url || item.external_url || '').toLowerCase();
+    const content = JSON.stringify(item).toLowerCase();
+    
+    // Reddit source validation
+    if (claimedSource === 'reddit') {
+      if (item.subreddit || item.reddit_url || url.includes('reddit.com') || content.includes('subreddit')) {
+        confidence += 0.8;
+        validationRules.push('Reddit indicators found');
+      } else if (url && !url.includes('reddit.com')) {
+        // This might be a Reddit post linking to external content
+        if (item.domain || item.external_link) {
+          actualSource = `reddit_external`;
+          confidence += 0.6;
+          validationRules.push('Reddit post with external link');
+        } else {
+          confidence += 0.1;
+          validationRules.push('Weak Reddit validation');
+        }
+      }
+    }
+    
+    // LinkedIn source validation
+    else if (claimedSource === 'linkedin') {
+      if (url.includes('linkedin.com') || item.company || content.includes('linkedin')) {
+        confidence += 0.8;
+        validationRules.push('LinkedIn indicators found');
+      } else {
+        confidence += 0.1;
+        validationRules.push('Weak LinkedIn validation');
+      }
+    }
+    
+    // Telegram source validation
+    else if (claimedSource === 'telegram') {
+      if (url.includes('t.me') || item.channel || item.channel_name || item.message_id) {
+        confidence += 0.8;
+        validationRules.push('Telegram indicators found');
+      } else {
+        confidence += 0.1;
+        validationRules.push('Weak Telegram validation');
+      }
+    }
+    
+    // News website validation
+    else if (claimedSource === 'news_website' || claimedSource === 'news_articles') {
+      // Most flexible validation for news
+      if (url && (url.includes('.com') || url.includes('.org') || url.includes('.net'))) {
+        confidence += 0.7;
+        validationRules.push('Valid news URL structure');
+      } else if (item.domain || item.source) {
+        confidence += 0.6;
+        validationRules.push('News source metadata found');
+      } else {
+        confidence += 0.4;
+        validationRules.push('Generic news validation');
+      }
+    }
+    
+    // Cross-validation: check if item belongs to different source
+    if (confidence < 0.5) {
+      if (url.includes('reddit.com') || content.includes('subreddit')) {
+        actualSource = 'reddit';
+        confidence = 0.8;
+        validationRules.push('Detected as Reddit despite claim');
+      } else if (url.includes('linkedin.com')) {
+        actualSource = 'linkedin';
+        confidence = 0.8;
+        validationRules.push('Detected as LinkedIn despite claim');
+      } else if (url.includes('t.me')) {
+        actualSource = 'telegram';
+        confidence = 0.8;
+        validationRules.push('Detected as Telegram despite claim');
+      }
+    }
+    
+    const isAccurate = confidence >= 0.6 && actualSource === claimedSource;
+    
+    return {
+      actualSource,
+      isAccurate,
+      confidence,
+      validationRules
+    };
   }
 }

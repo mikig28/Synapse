@@ -1,0 +1,166 @@
+# CrewAI 2025 - Task Configuration (YAML-based as recommended)
+# Synapse Multi-Agent News Research System Tasks
+
+research_news_sources:
+  description: |
+    Research and collect news content from multiple sources based on user-specified topics: {topics}.
+    
+    Ensure strict topic relevance by:
+    1. Expanding topic keywords using generic word variations (no hardcoded domains)
+    2. Applying minimum relevance threshold of 0.4
+    3. Validating content length (minimum 20 characters)
+    4. Ensuring meaningful titles (minimum 5 characters)
+    5. Rejecting spam or promotional content
+    
+    Focus areas: {focus_areas}
+    Maximum articles per source: {max_articles}
+    
+    Return organized content with proper source attribution and relevance scores.
+  expected_output: |
+    A structured dictionary containing:
+    - organized_content: Content categorized by source (reddit_posts, linkedin_posts, news_articles, telegram_messages)
+    - source_statistics: Count and quality metrics for each source
+    - topic_relevance_scores: Relevance scoring for each piece of content
+    - rejected_content_summary: Statistics on filtered out content with reasons
+  agent: news_research_specialist
+  tools:
+    - reddit_scraper_tool
+    - news_feed_scraper_tool
+    - content_search_tool
+
+validate_content_quality:
+  description: |
+    Analyze and validate the quality of collected content using strict, topic-agnostic criteria:
+    
+    Quality validation rules:
+    1. Topic relevance score >= 0.4 (using user-specified topics: {topics})
+    2. Content length >= 20 characters
+    3. Title present and >= 5 characters
+    4. No spam indicators (promotional language, clickbait patterns)
+    5. Relevant keywords present in title or content
+    6. URL quality validation (no suspicious domains)
+    7. Content structure validation (proper formatting, readable text)
+    
+    Apply these rules uniformly regardless of topic domain (sports, tech, business, etc.).
+    
+    Filter mode: {filter_mode}
+    Quality threshold: {quality_threshold}
+  expected_output: |
+    Content validation report including:
+    - validated_articles: List of content that passed all quality checks
+    - rejection_log: Detailed log of rejected content with specific reasons
+    - quality_metrics: Overall quality scores and statistics
+    - recommendation_summary: Suggestions for improving content quality
+  agent: content_quality_analyst
+  context:
+    - research_news_sources
+
+validate_urls_and_sources:
+  description: |
+    Validate all URLs and verify source attribution accuracy:
+    
+    1. Check URL validity and accessibility
+    2. Detect fake or suspicious URLs (test.com, example.com, localhost, etc.)
+    3. Verify source attribution matches actual content source
+    4. Cross-validate claimed sources against URL patterns and content metadata
+    5. Generate confidence scores for source attribution
+    6. Flag misattributed content (e.g., non-Reddit links labeled as Reddit)
+    
+    Apply strict validation to prevent source misattribution issues.
+  expected_output: |
+    URL and source validation report:
+    - validated_urls: List of verified, accessible URLs
+    - source_attribution_report: Accuracy assessment of source claims
+    - suspicious_urls: List of potentially fake or problematic URLs
+    - source_confidence_scores: Confidence ratings for each source attribution
+    - corrections_made: Any source attribution corrections applied
+  agent: url_validation_specialist
+  context:
+    - validate_content_quality
+
+analyze_trends_and_insights:
+  description: |
+    Analyze content trends and generate insights based on the validated content:
+    
+    1. Identify trending topics within user-specified areas: {topics}
+    2. Calculate topic mention frequencies and engagement metrics
+    3. Analyze content patterns and emerging themes
+    4. Generate topic-specific insights (adaptable to any domain)
+    5. Assess content quality distribution across sources
+    6. Provide recommendations for future content gathering
+    
+    Ensure analysis is topic-agnostic and works for any user-configured subject area.
+  expected_output: |
+    Comprehensive trend analysis including:
+    - trending_topics: List of topics with mention counts and trend scores
+    - content_insights: Key themes and patterns identified
+    - engagement_metrics: User interaction data where available
+    - quality_distribution: Content quality breakdown by source
+    - strategic_recommendations: Actionable insights for content strategy
+  agent: trend_analysis_expert
+  context:
+    - validate_urls_and_sources
+
+monitor_social_media:
+  description: |
+    Monitor social media platforms for content related to user topics: {topics}
+    
+    Platforms to monitor based on source configuration: {sources}
+    
+    1. Reddit: Use JSON endpoints and API when available
+    2. LinkedIn: Professional content from news sources and RSS feeds
+    3. Telegram: Monitor public channels (limited by Bot API restrictions)
+    
+    Apply strict content filtering:
+    - Only include content matching user-specified topics
+    - Validate source attribution accuracy
+    - Filter out irrelevant or low-quality content
+    - Maintain proper platform-specific metadata
+    
+    Source validation requirements: {validate_sources}
+  expected_output: |
+    Social media monitoring report:
+    - platform_content: Content organized by platform (Reddit, LinkedIn, Telegram)
+    - source_validation_results: Verification of content source claims  
+    - platform_statistics: Engagement and quality metrics per platform
+    - filtering_summary: Content filtering statistics and rejection reasons
+    - platform_health: Status and accessibility of each monitored platform
+  agent: social_media_monitor
+  tools:
+    - reddit_scraper_tool
+    - telegram_monitor_tool
+    - linkedin_content_tool
+
+generate_comprehensive_report:
+  description: |
+    Compile all research findings into a comprehensive, user-focused report:
+    
+    1. Synthesize content from all validated sources
+    2. Create executive summary highlighting key findings
+    3. Organize content by source with proper attribution
+    4. Include trend analysis and insights
+    5. Provide content quality metrics and validation results
+    6. Generate actionable recommendations
+    
+    Topics analyzed: {topics}
+    Sources covered: {sources}
+    Content filtering applied: strict topic relevance with {filter_mode} mode
+    
+    Ensure report is comprehensive yet focused on user-specified topics.
+  expected_output: |
+    Executive news research report containing:
+    - executive_summary: High-level overview of findings
+    - organized_content: Content categorized by source with validation status
+    - trending_topics: Topic analysis with relevance scores
+    - ai_insights: Key insights and patterns discovered
+    - quality_metrics: Content validation and filtering statistics
+    - source_attribution_report: Source verification results
+    - recommendations: Strategic recommendations for future research
+    - url_validation_stats: URL validation summary and statistics
+  agent: trend_analysis_expert
+  context:
+    - research_news_sources
+    - validate_content_quality
+    - validate_urls_and_sources
+    - analyze_trends_and_insights
+    - monitor_social_media

@@ -108,7 +108,20 @@ except ImportError:
     logger.error("❌ requests not available - service will be limited")
     CRITICAL_DEPS_AVAILABLE = False
 
-# Import the enhanced crew system
+# Import CrewAI 2025 compliant system first (recommended)
+try:
+    from agents.crewai_2025_compliant_crew import (
+        CrewAI2025CompliantNewsResearch,
+        create_crewai_2025_crew
+    )
+    CREWAI_2025_AVAILABLE = True
+    logger.info("✅ CrewAI 2025 compliant system loaded successfully")
+except ImportError as e:
+    logger.error(f"❌ Failed to import CrewAI 2025 compliant system: {str(e)}")
+    logger.error(f"   Full traceback: {traceback.format_exc()}")
+    CREWAI_2025_AVAILABLE = False
+
+# Import the enhanced crew system as fallback
 try:
     from agents.enhanced_news_research_crew import (
         EnhancedNewsResearchCrew,
@@ -116,7 +129,7 @@ try:
         ContentValidator
     )
     ENHANCED_CREW_AVAILABLE = True
-    logger.info("✅ Enhanced news research crew system loaded successfully")
+    logger.info("✅ Enhanced news research crew system loaded as fallback")
 except ImportError as e:
     logger.error(f"❌ Failed to import enhanced crew system: {str(e)}")
     logger.error(f"   Full traceback: {traceback.format_exc()}")
@@ -156,20 +169,34 @@ class EnhancedNewsGatherer:
         self.progress_lock = threading.Lock()
         
         # Initialize attributes to None first
+        self.crewai_2025_system = None
         self.enhanced_crew = None
         self.dynamic_crew = None
         self.mode = "fallback"
         
-        # Try to initialize enhanced crew first
-        if ENHANCED_CREW_AVAILABLE:
+        # Try to initialize CrewAI 2025 compliant system first (recommended)
+        if CREWAI_2025_AVAILABLE:
+            try:
+                self.crewai_2025_system = create_crewai_2025_crew()
+                self.mode = "crewai_2025_compliant"
+                logger.info("✅ CrewAI 2025 compliant system initialized successfully")
+            except Exception as e:
+                logger.error(f"❌ CrewAI 2025 system initialization failed: {str(e)}")
+                self.crewai_2025_system = None
+                self.initialization_error = str(e)
+        
+        # Try to initialize enhanced crew as fallback
+        if not self.crewai_2025_system and ENHANCED_CREW_AVAILABLE:
             try:
                 self.enhanced_crew = EnhancedNewsResearchCrew()
-                self.mode = "enhanced_multi_agent"
-                logger.info("✅ Enhanced multi-agent crew initialized successfully")
+                if self.mode == "fallback":  # Only change mode if not already set
+                    self.mode = "enhanced_multi_agent"
+                logger.info("✅ Enhanced multi-agent crew initialized as fallback")
             except Exception as e:
                 logger.error(f"❌ Enhanced crew initialization failed: {str(e)}")
                 self.enhanced_crew = None
-                self.initialization_error = str(e)
+                if not hasattr(self, 'initialization_error'):
+                    self.initialization_error = str(e)
         
         # Initialize simple test crew as additional fallback
         try:
@@ -237,8 +264,39 @@ class EnhancedNewsGatherer:
                 'platforms': [k for k, v in sources.items() if v] if isinstance(sources, dict) else sources
             }
             
-            # Try enhanced multi-agent system first
-            if self.enhanced_crew and self.mode == "enhanced_multi_agent":
+            # Try CrewAI 2025 compliant system first (recommended)
+            if self.crewai_2025_system and self.mode == "crewai_2025_compliant":
+                try:
+                    logger.info(f"🚀 Using CrewAI 2025 compliant system for topics: {topics}")
+                    
+                    # Use the 2025 compliant method with enhanced parameters
+                    result = self.crewai_2025_system.research_news_with_topics(
+                        topics=topics,
+                        sources=sources,
+                        focus_areas=user_input.get('focus_areas', ['quality', 'relevance']),
+                        max_articles=user_input.get('max_articles', 50),
+                        quality_threshold=user_input.get('quality_threshold', 0.8),
+                        filter_mode='strict',
+                        validate_sources=True,
+                        strict_topic_filtering=True,
+                        minimum_relevance_score=0.4
+                    )
+                    
+                    if result.get('success'):
+                        logger.info("✅ CrewAI 2025 compliant research completed successfully")
+                        return result
+                    else:
+                        logger.warning(f"CrewAI 2025 system returned error: {result.get('error', 'Unknown error')}")
+                        # Fall back to enhanced crew
+                        return self._try_enhanced_crew(user_input, topics, sources)
+                        
+                except Exception as e:
+                    logger.error(f"CrewAI 2025 system execution failed: {str(e)}")
+                    # Fall back to enhanced crew
+                    return self._try_enhanced_crew(user_input, topics, sources)
+            
+            # Try enhanced multi-agent system as fallback
+            elif self.enhanced_crew and self.mode == "enhanced_multi_agent":
                 try:
                     # Create progress callback that stores to global progress store
                     def progress_callback(progress_data):
@@ -319,6 +377,36 @@ class EnhancedNewsGatherer:
                 "mode": self.mode
             }
     
+    def _try_enhanced_crew(self, user_input: Dict[str, Any], topics: List[str], sources: Dict[str, Any]) -> Dict[str, Any]:
+        """Try enhanced crew as fallback from CrewAI 2025"""
+        if self.enhanced_crew:
+            try:
+                # Create progress callback that stores to global progress store
+                def progress_callback(progress_data):
+                    with self.progress_lock:
+                        self.current_progress = progress_data
+                        logger.info(f"📊 Progress Update: [{progress_data.get('agent', 'Unknown')}] {progress_data.get('description', '')} - {progress_data.get('status', '').upper()}")
+                
+                logger.info(f"🔄 Using enhanced crew as fallback for topics: {topics}")
+                # Use the enhanced method that combines news analysis with real social media scraping
+                result = self.enhanced_crew.research_news_with_social_media(topics, sources, progress_callback=progress_callback)
+                logger.info(f"🔄 Enhanced crew research completed. Result keys: {list(result.keys()) if isinstance(result, dict) else type(result)}")
+                
+                if result.get('status') == 'success':
+                    logger.info("✅ Enhanced multi-agent research completed as fallback")
+                    return self._format_enhanced_result(result, topics, sources)
+                else:
+                    logger.warning(f"Enhanced crew returned error: {result.get('message', 'Unknown error')}")
+                    # Fall back to simple test crew for reliable dashboard testing
+                    return self._try_simple_test_crew(topics, sources)
+                    
+            except Exception as e:
+                logger.error(f"Enhanced crew execution failed: {str(e)}")
+                # Fall back to simple test crew for dashboard testing
+                return self._try_simple_test_crew(topics, sources)
+        else:
+            return self._try_simple_test_crew(topics, sources)
+
     def _try_dynamic_crew(self, user_input: Dict[str, Any], topics: List[str], sources: Dict[str, Any]) -> Dict[str, Any]:
         """Try dynamic crew as fallback"""
         if self.dynamic_crew:
@@ -682,12 +770,17 @@ def health_check():
     
     # System capabilities
     capabilities = {
+        "crewai_2025_compliant": "✅ Available" if CREWAI_2025_AVAILABLE else "❌ Not Available",
+        "yaml_configuration": "✅ Available" if CREWAI_2025_AVAILABLE else "❌ Not Available",
         "enhanced_multi_agent_crew": "✅ Available" if ENHANCED_CREW_AVAILABLE else "❌ Not Available",
         "dynamic_multi_agent_crew": "✅ Available" if DYNAMIC_CREW_AVAILABLE else "❌ Not Available",
         "simple_news_scraper": "✅ Available" if SIMPLE_SCRAPER_AVAILABLE else "❌ Not Available",
         "url_validation": "✅ Available",
         "content_quality_scoring": "✅ Available",
-        "task_delegation": "✅ Available" if ENHANCED_CREW_AVAILABLE or DYNAMIC_CREW_AVAILABLE else "❌ Not Available"
+        "task_delegation": "✅ Available" if CREWAI_2025_AVAILABLE or ENHANCED_CREW_AVAILABLE or DYNAMIC_CREW_AVAILABLE else "❌ Not Available",
+        "topic_agnostic_filtering": "✅ Available",
+        "strict_content_validation": "✅ Available",
+        "source_attribution_validation": "✅ Available"
     }
     
     # Data source availability
@@ -723,15 +816,23 @@ def health_check():
         "dependencies": dependencies,
         "data_sources": data_sources,
         "features": {
-            "dynamic_task_delegation": ENHANCED_CREW_AVAILABLE or DYNAMIC_CREW_AVAILABLE,
+            "crewai_2025_compliant": CREWAI_2025_AVAILABLE,
+            "yaml_based_configuration": CREWAI_2025_AVAILABLE,
+            "topic_agnostic_filtering": True,
+            "strict_content_validation": True,
+            "source_attribution_validation": True,
+            "dynamic_task_delegation": CREWAI_2025_AVAILABLE or ENHANCED_CREW_AVAILABLE or DYNAMIC_CREW_AVAILABLE,
             "url_validation": True,
             "content_quality_scoring": True,
-            "multi_agent_coordination": ENHANCED_CREW_AVAILABLE or DYNAMIC_CREW_AVAILABLE,
+            "multi_agent_coordination": CREWAI_2025_AVAILABLE or ENHANCED_CREW_AVAILABLE or DYNAMIC_CREW_AVAILABLE,
             "fallback_scraping": SIMPLE_SCRAPER_AVAILABLE,
             "real_news_content": True,
             "social_media_limited": True
         },
         "notes": {
+            "crewai_2025": "Fully compliant with CrewAI 2025 framework standards" if CREWAI_2025_AVAILABLE else "CrewAI 2025 system not available",
+            "configuration": "Uses YAML-based agent and task configuration (2025 standard)" if CREWAI_2025_AVAILABLE else "Using legacy code-based configuration",
+            "filtering": "Topic-agnostic content filtering works with any user-specified domain",
             "reddit": "Works without credentials using JSON endpoints",
             "linkedin": "Professional content from news sources",
             "telegram": "Limited by Bot API - alternatives used",
@@ -865,10 +966,27 @@ def system_info():
     """Get detailed system information"""
     
     return jsonify({
-        "service_name": "Enhanced Synapse Multi-Agent News Service",
-        "version": "2.0.0",
+        "service_name": "CrewAI 2025 Compliant Synapse Multi-Agent News Service",
+        "version": "3.0.0",
+        "framework_compliance": "CrewAI 2025",
         "mode": news_gatherer.mode if news_gatherer else "not_initialized",
         "features": {
+            "crewai_2025_compliant": {
+                "available": CREWAI_2025_AVAILABLE,
+                "description": "Fully compliant with CrewAI 2025 framework standards using YAML-based configuration"
+            },
+            "topic_agnostic_filtering": {
+                "available": True,
+                "description": "Universal content filtering that works with any user-specified topic domain"
+            },
+            "strict_content_validation": {
+                "available": True,
+                "description": "Comprehensive content quality validation with spam detection and relevance scoring"
+            },
+            "source_attribution_validation": {
+                "available": True,
+                "description": "Advanced source verification to prevent misattribution issues"
+            },
             "dynamic_multi_agent_crew": {
                 "available": DYNAMIC_CREW_AVAILABLE,
                 "description": "Advanced multi-agent system with dynamic task delegation"
@@ -882,7 +1000,7 @@ def system_info():
                 "description": "AI-powered content quality assessment"
             },
             "task_delegation": {
-                "available": DYNAMIC_CREW_AVAILABLE,
+                "available": CREWAI_2025_AVAILABLE or DYNAMIC_CREW_AVAILABLE,
                 "description": "Intelligent task delegation between specialized agents"
             },
             "fallback_scraping": {
