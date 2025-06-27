@@ -211,7 +211,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       const crewaiResponse = await this.executeCrewAIGatheringWithFallback({
         topics: topics,
         sources: sources,
-        agent_id: agent._id.toString(), // Add agent ID for session tracking
+        agent_id: (agent._id as mongoose.Types.ObjectId).toString(), // Fix TypeScript error
         // Enhanced configuration with strict filtering
         tools: {
           web_search: true,

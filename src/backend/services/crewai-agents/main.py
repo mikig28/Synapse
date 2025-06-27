@@ -799,32 +799,32 @@ class EnhancedNewsGatherer:
                     
                     # **FIX 32: Add date-aware news filtering**
                     current_date = getattr(self, 'current_date_context', {}).get('current_date')
-                     time_range_hours = 24  # Default to 24 hours
-                     if hasattr(self, 'current_date_context'):
-                         tr = self.current_date_context.get('time_range', '24h')
-                         if tr.endswith('h'):
-                             time_range_hours = int(tr[:-1])
-                     
-                     cutoff_time = datetime.now() - timedelta(hours=time_range_hours)
-                     logger.info(f"📅 Filtering news for articles published after: {cutoff_time.strftime('%Y-%m-%d %H:%M:%S')}")
-                     
+                    time_range_hours = 24  # Default to 24 hours
+                    if hasattr(self, 'current_date_context'):
+                        tr = self.current_date_context.get('time_range', '24h')
+                        if tr.endswith('h'):
+                            time_range_hours = int(tr[:-1])
+                    
+                    cutoff_time = datetime.now() - timedelta(hours=time_range_hours)
+                    logger.info(f"📅 Filtering news for articles published after: {cutoff_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                    
                     for feed_url, source_name in news_feeds:
                         if articles_found >= 20:  # Limit total articles
                             break
                             
                         try:
-                             logger.info(f"🔍 Trying {source_name}...")
-                             response = requests.get(feed_url, timeout=15, headers={
-                                 'User-Agent': 'Synapse News Aggregator 1.0',
-                                 'Accept': 'application/rss+xml, application/xml, text/xml'
-                             })
-                             
-                             if response.status_code == 200:
-                                 feed = feedparser.parse(response.content)
-                                 feed_articles = 0
-                                 recent_articles = 0
-                                 
-                                 for entry in feed.entries[:8]:  # More articles per feed
+                            logger.info(f"🔍 Trying {source_name}...")
+                            response = requests.get(feed_url, timeout=15, headers={
+                                'User-Agent': 'Synapse News Aggregator 1.0',
+                                'Accept': 'application/rss+xml, application/xml, text/xml'
+                            })
+                            
+                            if response.status_code == 200:
+                                feed = feedparser.parse(response.content)
+                                feed_articles = 0
+                                recent_articles = 0
+                                
+                                for entry in feed.entries[:8]:  # More articles per feed
                                     # Enhanced relevance checking
                                     title_lower = entry.get('title', '').lower()
                                     summary_lower = entry.get('summary', '').lower()
@@ -855,48 +855,48 @@ class EnhancedNewsGatherer:
                                         # **FIX 33: Add recency filtering and scoring**
                                         published_date = entry.get('published', datetime.now().isoformat())
                                         try:
-                                             # Parse publication date
-                                             pub_dt = datetime.fromisoformat(published_date.replace('Z', '+00:00'))
-                                             recency_hours = (datetime.now() - pub_dt).total_seconds() / 3600
-                                             
-                                             # Only include articles within our time range
-                                             if pub_dt >= cutoff_time:
-                                                 # Calculate recency score (higher for more recent)
-                                                 recency_score = max(0, 100 - recency_hours)
-                                                 
-                                                 all_content['news_articles'].append({
-                                                     'title': entry.get('title', ''),
-                                                     'content': entry.get('summary', '')[:500] + '...',
-                                                     'url': entry.get('link', ''),
-                                                     'source': source_name,
-                                                     'published_date': published_date,
-                                                     'author': entry.get('author', 'Staff Writer'),
-                                                     'score': 100 + len(all_content['news_articles']) * 5 + recency_score,
-                                                     'category': 'technology' if any(kw in title_lower for kw in tech_keywords) else 'news',
-                                                     'recency_hours': recency_hours,
-                                                     'recency_score': recency_score,
-                                                     'is_recent': True
-                                                 })
-                                                 feed_articles += 1
-                                                 articles_found += 1
-                                                 recent_articles += 1
-                                             else:
-                                                 logger.debug(f"⏰ Skipped old article: {entry.get('title', '')[:50]} (published {recency_hours:.1f}h ago)")
-                                         except:
-                                             # If date parsing fails, include anyway but with lower score
-                                             all_content['news_articles'].append({
-                                                 'title': entry.get('title', ''),
-                                                 'content': entry.get('summary', '')[:500] + '...',
-                                                 'url': entry.get('link', ''),
-                                                 'source': source_name,
-                                                 'published_date': published_date,
-                                                 'author': entry.get('author', 'Staff Writer'),
-                                                 'score': 50 + len(all_content['news_articles']) * 5,  # Lower score for unknown date
-                                                 'category': 'technology' if any(kw in title_lower for kw in tech_keywords) else 'news',
-                                                 'recency_hours': 48,  # Default to 48 hours ago
-                                                 'recency_score': 25,
-                                                 'is_recent': False
-                                             })
+                                            # Parse publication date
+                                            pub_dt = datetime.fromisoformat(published_date.replace('Z', '+00:00'))
+                                            recency_hours = (datetime.now() - pub_dt).total_seconds() / 3600
+                                            
+                                            # Only include articles within our time range
+                                            if pub_dt >= cutoff_time:
+                                                # Calculate recency score (higher for more recent)
+                                                recency_score = max(0, 100 - recency_hours)
+                                                
+                                                all_content['news_articles'].append({
+                                                    'title': entry.get('title', ''),
+                                                    'content': entry.get('summary', '')[:500] + '...',
+                                                    'url': entry.get('link', ''),
+                                                    'source': source_name,
+                                                    'published_date': published_date,
+                                                    'author': entry.get('author', 'Staff Writer'),
+                                                    'score': 100 + len(all_content['news_articles']) * 5 + recency_score,
+                                                    'category': 'technology' if any(kw in title_lower for kw in tech_keywords) else 'news',
+                                                    'recency_hours': recency_hours,
+                                                    'recency_score': recency_score,
+                                                    'is_recent': True
+                                                })
+                                                feed_articles += 1
+                                                articles_found += 1
+                                                recent_articles += 1
+                                            else:
+                                                logger.debug(f"⏰ Skipped old article: {entry.get('title', '')[:50]} (published {recency_hours:.1f}h ago)")
+                                        except:
+                                            # If date parsing fails, include anyway but with lower score
+                                            all_content['news_articles'].append({
+                                                'title': entry.get('title', ''),
+                                                'content': entry.get('summary', '')[:500] + '...',
+                                                'url': entry.get('link', ''),
+                                                'source': source_name,
+                                                'published_date': published_date,
+                                                'author': entry.get('author', 'Staff Writer'),
+                                                'score': 50 + len(all_content['news_articles']) * 5,  # Lower score for unknown date
+                                                'category': 'technology' if any(kw in title_lower for kw in tech_keywords) else 'news',
+                                                'recency_hours': 48,  # Default to 48 hours ago
+                                                'recency_score': 25,
+                                                'is_recent': False
+                                            })
                                             feed_articles += 1
                                             articles_found += 1
                                 

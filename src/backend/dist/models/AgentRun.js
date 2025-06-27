@@ -64,6 +64,7 @@ const AgentRunSchema = new mongoose_1.Schema({
     results: {
         summary: { type: String, default: '' },
         details: { type: mongoose_1.Schema.Types.Mixed },
+        sessionId: { type: String },
     },
 }, { timestamps: true });
 // Index for efficient querying

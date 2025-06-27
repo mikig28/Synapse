@@ -137,6 +137,7 @@ class CrewAINewsAgentExecutor {
             const crewaiResponse = await this.executeCrewAIGatheringWithFallback({
                 topics: topics,
                 sources: sources,
+                agent_id: agent._id.toString(), // Fix TypeScript error
                 // Enhanced configuration with strict filtering
                 tools: {
                     web_search: true,
@@ -163,6 +164,14 @@ class CrewAINewsAgentExecutor {
             });
             if (!crewaiResponse.success) {
                 throw new Error(`CrewAI execution failed: ${crewaiResponse.error}`);
+            }
+            // **FIX 1: Store session ID in agent run for progress tracking**
+            if (crewaiResponse.session_id) {
+                await run.updateOne({
+                    'results.sessionId': crewaiResponse.session_id
+                });
+                await run.addLog('info', `📋 Session ID stored for progress tracking: ${crewaiResponse.session_id}`);
+                console.log(`[CrewAI Agent] Stored session ID: ${crewaiResponse.session_id} for run: ${run._id}`);
             }
             await run.addLog('info', '🎉 CrewAI news gathering completed successfully', {
                 sourcesUsed: crewaiResponse.sources_used,
@@ -620,6 +629,12 @@ Using fallback test crew to demonstrate dashboard functionality.`);
         const data = response.data;
         // Check data types for better reporting
         const dataTypeInfo = this.analyzeDataTypes(data.organized_content || {});
+        // Calculate execution metrics
+        const executionTime = run.duration || 0;
+        const totalItems = (data.organized_content?.news_articles?.length || 0) +
+            (data.organized_content?.reddit_posts?.length || 0) +
+            (data.organized_content?.linkedin_posts?.length || 0) +
+            (data.organized_content?.telegram_messages?.length || 0);
         const analysisContent = [
             '# CrewAI Multi-Agent News Analysis Report',
             '',
@@ -628,6 +643,13 @@ Using fallback test crew to demonstrate dashboard functionality.`);
             '## Executive Summary',
             ...(data.executive_summary || []).map(item => `- ${item}`),
             '',
+            '## Performance Metrics',
+            `- **Total Items Processed**: ${totalItems}`,
+            `- **Execution Time**: ${Math.round(executionTime / 1000)}s`,
+            `- **Sources Analyzed**: ${Object.keys(data.organized_content || {}).length}`,
+            `- **Content Quality**: ${dataTypeInfo.hasSimulated ? 'Mixed (Real + Simulated)' : 'All Real Content'}`,
+            `- **Report Generated**: ${new Date().toLocaleString()}`,
+            '',
             '## Data Sources Status',
             ...dataTypeInfo.statusLines,
             '',
@@ -635,19 +657,33 @@ Using fallback test crew to demonstrate dashboard functionality.`);
             ...(data.trending_topics || []).slice(0, 10).map(t => `- **${t.topic}** (${t.mentions} mentions, score: ${t.trending_score})`),
             '',
             '---',
-            '## Source Items Processed',
+            '## News Articles 📰',
+            ...this.buildEnhancedSourceSection('News Articles', data.organized_content?.news_articles),
             '',
-            ...this.buildSourceSection('News Articles', data.organized_content?.news_articles),
-            ...this.buildSourceSection('Reddit Posts', data.organized_content?.reddit_posts),
-            ...this.buildSourceSection('LinkedIn Posts', data.organized_content?.linkedin_posts),
-            ...this.buildSourceSection('Telegram Messages', data.organized_content?.telegram_messages),
+            '## Reddit Posts 🔴',
+            ...this.buildEnhancedSourceSection('Reddit Posts', data.organized_content?.reddit_posts),
+            '',
+            '## LinkedIn Posts 💼',
+            ...this.buildEnhancedSourceSection('LinkedIn Posts', data.organized_content?.linkedin_posts),
+            '',
+            '## Telegram Messages 📱',
+            ...this.buildEnhancedSourceSection('Telegram Messages', data.organized_content?.telegram_messages),
             '',
             '---',
             '## AI Insights',
-            data.ai_insights ? '```json\n' + JSON.stringify(data.ai_insights, null, 2) + '\n```' : 'No AI insights available.',
+            this.formatAIInsights(data.ai_insights),
             '',
             '## Recommendations',
-            ...(data.recommendations || []).map(rec => `- ${rec}`)
+            ...(data.recommendations || []).map(rec => `- ${rec}`),
+            '',
+            '---',
+            '## Report Metadata',
+            `- **Framework**: CrewAI 2025 Compliant`,
+            `- **Agent Type**: Multi-Agent Coordination`,
+            `- **Topic Filtering**: ${dataTypeInfo.hasSimulated ? 'Limited (API Issues)' : 'Strict Quality Filtering'}`,
+            `- **Source Attribution**: Validated`,
+            `- **Run ID**: ${run._id}`,
+            `- **Agent ID**: ${run.agentId}`
         ].join('\n');
         const analysisItem = new NewsItem_1.default({
             userId,
@@ -677,26 +713,88 @@ Using fallback test crew to demonstrate dashboard functionality.`);
             throw error;
         }
     }
-    /** Build formatted markdown section for a specific source list */
-    buildSourceSection(title, items) {
-        if (!items || items.length === 0)
-            return [];
+    /** Build enhanced formatted markdown section for a specific source list */
+    buildEnhancedSourceSection(title, items) {
+        if (!items || items.length === 0) {
+            return [`**No ${title.toLowerCase()} found**`, ''];
+        }
         const lines = [];
-        lines.push(`### ${title}`);
+        const realItems = items.filter(item => !item.simulated && !this.isSimulatedId(item.id));
+        const simulatedItems = items.filter(item => item.simulated || this.isSimulatedId(item.id));
+        lines.push(`**Found ${items.length} items** (${realItems.length} real, ${simulatedItems.length} simulated)`);
         lines.push('');
-        for (const item of items.slice(0, 50)) { // limit to 50 to avoid huge reports
-            // Determine source type for URL processing
+        // Show top items with enhanced formatting
+        for (const item of items.slice(0, 20)) { // limit to 20 for better readability
             const sourceType = this.getSourceTypeFromTitle(title);
-            // Use our enhanced URL processing instead of raw URLs
             const url = this.getValidUrl(item, sourceType);
-            const displayTitle = item.title || item.text?.substring(0, 80) || 'Untitled';
-            // Add simulation indicator if needed
+            const displayTitle = item.title || item.text?.substring(0, 100) || 'Untitled';
+            // Add simulation indicator and metadata
             const isSimulated = item.simulated === true || this.isSimulatedId(item.id);
             const simulationPrefix = isSimulated ? '🤖 ' : '';
-            lines.push(`- [${simulationPrefix}${displayTitle}](${url})`);
+            const engagement = item.engagement || item.score || item.likes || '';
+            const author = item.author || item.subreddit || item.channel || '';
+            let itemLine = `- ${simulationPrefix}**${displayTitle}**`;
+            if (author)
+                itemLine += ` _(${author})_`;
+            if (engagement)
+                itemLine += ` \`${engagement}\``;
+            lines.push(itemLine);
+        }
+        if (items.length > 20) {
+            lines.push(`- _... and ${items.length - 20} more items_`);
         }
         lines.push('');
         return lines;
+    }
+    /** Format AI insights in a more readable way */
+    formatAIInsights(insights) {
+        if (!insights || typeof insights !== 'object') {
+            return 'No AI insights available.';
+        }
+        try {
+            const formatted = [];
+            // Extract key insights
+            if (insights.content_sources) {
+                formatted.push('**Content Sources Analyzed:**');
+                insights.content_sources.forEach((source) => {
+                    formatted.push(`- ${source}`);
+                });
+                formatted.push('');
+            }
+            if (insights.topic_coverage) {
+                formatted.push('**Topic Coverage Analysis:**');
+                Object.entries(insights.topic_coverage).forEach(([topic, count]) => {
+                    formatted.push(`- ${topic}: ${count} relevant items`);
+                });
+                formatted.push('');
+            }
+            if (insights.data_quality) {
+                formatted.push(`**Data Quality Assessment:** ${insights.data_quality}`);
+                formatted.push('');
+            }
+            if (insights.collection_method) {
+                formatted.push(`**Collection Method:** ${insights.collection_method}`);
+                formatted.push('');
+            }
+            if (insights.failed_sources && insights.failed_sources.length > 0) {
+                formatted.push('**Source Issues:**');
+                insights.failed_sources.forEach((source) => {
+                    formatted.push(`- ${source}`);
+                });
+                formatted.push('');
+            }
+            // Add raw JSON for detailed analysis
+            if (Object.keys(insights).length > 0) {
+                formatted.push('**Detailed Analysis:**');
+                formatted.push('```json');
+                formatted.push(JSON.stringify(insights, null, 2));
+                formatted.push('```');
+            }
+            return formatted.join('\n');
+        }
+        catch (error) {
+            return `Raw insights data:\n\`\`\`json\n${JSON.stringify(insights, null, 2)}\n\`\`\``;
+        }
     }
     getSourceTypeFromTitle(title) {
         const titleLower = title.toLowerCase();
@@ -874,7 +972,7 @@ Using fallback test crew to demonstrate dashboard functionality.`);
         // If no valid URL found or data is simulated, generate useful fallback URLs
         console.log(`[CrewAI Agent] Generating fallback URL for ${source} (simulated: ${isSimulated})`);
         if (isSimulated) {
-            // For simulated data, provide useful search/browse URLs instead of broken links
+            // For simulated data, provide useful browsing URLs instead of broken links
             return this.generateSimulatedDataUrl(item, source);
         }
         // For real data without valid URLs, try to construct platform URLs

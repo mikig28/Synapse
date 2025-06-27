@@ -19,6 +19,7 @@ export interface IAgentRun extends Document {
   results: {
     summary: string;
     details?: any;
+    sessionId?: string;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -60,6 +61,7 @@ const AgentRunSchema: Schema<IAgentRun> = new Schema(
     results: {
       summary: { type: String, default: '' },
       details: { type: Schema.Types.Mixed },
+      sessionId: { type: String },
     },
   },
   { timestamps: true }
