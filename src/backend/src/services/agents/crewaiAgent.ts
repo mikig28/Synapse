@@ -224,17 +224,8 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
           include_urls: true,
           include_metadata: true,
           analyze_sentiment: true,
-          extract_entities: true,
-          // NEW: Strict filtering parameters
-          strict_topic_filtering: true,
-          minimum_relevance_score: 0.4,
-          content_length_minimum: 20,
-          require_title: true,
-          exclude_spam: true,
-          validate_sources: true,
-          topic_keywords: this.expandTopicKeywords(topics),
-          filter_mode: 'strict' // Enable strict filtering mode
-        }
+          extract_entities: true
+        } as any
       }, run);
 
       const duration = Date.now() - startTime;
@@ -557,13 +548,13 @@ Using fallback test crew to demonstrate dashboard functionality.`);
         const filteredContent = this.filterContentByTopicRelevance(data.organized_content, agentTopics, run);
         
         await run.addLog('info', '📊 Content breakdown after filtering:', {
-          original_news_articles: data.organized_content.news_articles?.length || 0,
+          original_news_articles: (data.organized_content as any).news_articles?.length || 0,
           filtered_news_articles: filteredContent.news_articles?.length || 0,
-          original_reddit_posts: data.organized_content.reddit_posts?.length || 0,
+          original_reddit_posts: (data.organized_content as any).reddit_posts?.length || 0,
           filtered_reddit_posts: filteredContent.reddit_posts?.length || 0,
-          original_linkedin_posts: data.organized_content.linkedin_posts?.length || 0,
+          original_linkedin_posts: (data.organized_content as any).linkedin_posts?.length || 0,
           filtered_linkedin_posts: filteredContent.linkedin_posts?.length || 0,
-          original_telegram_messages: data.organized_content.telegram_messages?.length || 0,
+          original_telegram_messages: (data.organized_content as any).telegram_messages?.length || 0,
           filtered_telegram_messages: filteredContent.telegram_messages?.length || 0
         });
 
@@ -571,41 +562,41 @@ Using fallback test crew to demonstrate dashboard functionality.`);
         data.organized_content = filteredContent;
 
         for (const sourceKey of sources) {
-          const items = data.organized_content[sourceKey as keyof typeof data.organized_content];
+          const items = (data.organized_content as any)[sourceKey];
           const sourceName = sourceNames[sourceKey as keyof typeof sourceNames];
           
-          if (items && items.length > 0) {
+          if (items && Array.isArray(items) && items.length > 0) {
             // Enhanced Debugging
             if (sourceKey === 'reddit_posts') {
               await run.addLog('info', `🔴 REDDIT DEBUG: Received ${items.length} posts. Sample:`, {
                 sampleItem: {
-                  id: items[0]?.id,
-                  title: items[0]?.title,
-                  subreddit: items[0]?.subreddit,
-                  permalink: items[0]?.permalink,
-                  url: items[0]?.url,
-                  simulated: items[0]?.simulated,
+                  id: (items as any[])[0]?.id,
+                  title: (items as any[])[0]?.title,
+                  subreddit: (items as any[])[0]?.subreddit,
+                  permalink: (items as any[])[0]?.permalink,
+                  url: (items as any[])[0]?.url,
+                  simulated: (items as any[])[0]?.simulated,
                 }
               });
             }
             if (sourceKey === 'linkedin_posts') {
               await run.addLog('info', `💼 LINKEDIN DEBUG: Received ${items.length} posts. Sample:`, {
                 sampleItem: {
-                  id: items[0]?.id,
-                  title: items[0]?.title || items[0]?.text,
-                  author: items[0]?.author,
-                  external_url: items[0]?.external_url,
-                  simulated: items[0]?.simulated,
+                  id: (items as any[])[0]?.id,
+                  title: (items as any[])[0]?.title || (items as any[])[0]?.text,
+                  author: (items as any[])[0]?.author,
+                  external_url: (items as any[])[0]?.external_url,
+                  simulated: (items as any[])[0]?.simulated,
                 }
               });
             }
             if (sourceKey === 'telegram_messages') {
               await run.addLog('info', `📱 TELEGRAM DEBUG: Received ${items.length} messages. Sample:`, {
                 sampleItem: {
-                  id: items[0]?.id,
-                  title: items[0]?.title || items[0]?.text,
-                  channel: items[0]?.channel,
-                  simulated: items[0]?.simulated,
+                  id: (items as any[])[0]?.id,
+                  title: (items as any[])[0]?.title || (items as any[])[0]?.text,
+                  channel: (items as any[])[0]?.channel,
+                  simulated: (items as any[])[0]?.simulated,
                 }
               });
             }
@@ -613,9 +604,9 @@ Using fallback test crew to demonstrate dashboard functionality.`);
             await run.addLog('info', `📝 Processing ${items.length} items from ${sourceName.replace('_', ' ')}`);
             
             let sourceAddedCount = 0;
-            for (const [index, item] of items.entries()) {
+            for (const [index, item] of (items as any[]).entries()) {
               try {
-                await run.addLog('info', `Processing ${sourceName} item ${index + 1}/${items.length}: ${(item.title || item.text || 'Untitled').substring(0, 80)}...`);
+                await run.addLog('info', `Processing ${sourceName} item ${index + 1}/${items.length}: ${((item as any).title || (item as any).text || 'Untitled').substring(0, 80)}...`);
                 const added = await this.storeNewsItem(item, userId, sourceName, run);
                 if (added) {
                   sourceAddedCount++;
