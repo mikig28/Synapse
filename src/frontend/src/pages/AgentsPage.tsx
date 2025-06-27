@@ -367,6 +367,21 @@ const AgentsPage: React.FC = () => {
     }
   };
 
+  const getAgentDisplayName = (type: string) => {
+    switch (type) {
+      case 'twitter':
+        return 'Twitter Agent';
+      case 'news':
+        return 'News Agent';
+      case 'crewai_news':
+        return 'CrewAI 2025 Multi-Agent';
+      case 'custom':
+        return 'Custom Agent';
+      default:
+        return `${type} Agent`;
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'running':
@@ -467,7 +482,7 @@ const AgentsPage: React.FC = () => {
                       <SelectContent>
                         <SelectItem value="twitter">Twitter Agent</SelectItem>
                         <SelectItem value="news">News Agent</SelectItem>
-                        <SelectItem value="crewai_news">🤖 CrewAI Multi-Agent News</SelectItem>
+                        <SelectItem value="crewai_news">🤖 CrewAI 2025 Multi-Agent (Any Topic)</SelectItem>
                         <SelectItem value="custom">Custom Agent</SelectItem>
                       </SelectContent>
                     </Select>
@@ -555,10 +570,31 @@ const AgentsPage: React.FC = () => {
 
                 {newAgent.type === 'crewai_news' && (
                   <div className="space-y-4">
-                    <Label>CrewAI Multi-Agent Configuration</Label>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Label className="text-base font-medium">CrewAI 2025 Multi-Agent Configuration</Label>
+                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                        Enhanced
+                      </Badge>
+                    </div>
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-4">
+                      <div className="flex items-start gap-2">
+                        <Bot className="w-4 h-4 text-purple-600 mt-0.5" />
+                        <div className="text-sm text-purple-800">
+                          <p className="font-medium mb-1">Advanced Multi-Agent System</p>
+                          <p className="text-xs">
+                            ✅ Works with ANY topic/domain • ✅ Strict content filtering • ✅ Source validation • ✅ CrewAI 2025 compliant
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                     <div className="space-y-3">
                       <div>
-                        <Label htmlFor="topics">Topics (comma-separated)</Label>
+                        <Label htmlFor="topics" className="flex items-center gap-2">
+                          Topics/Goals (comma-separated)
+                          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                            Topic-Agnostic
+                          </Badge>
+                        </Label>
                         <Input
                           id="topics"
                           value={newAgent.configuration.topics}
@@ -566,17 +602,22 @@ const AgentsPage: React.FC = () => {
                             ...prev, 
                             configuration: { ...prev.configuration, topics: e.target.value }
                           }))}
-                          placeholder="AI, machine learning, startups, blockchain, technology"
+                          placeholder="sports, finance, health, travel, cooking, gaming, politics, science..."
                         />
                         <p className="text-xs text-muted-foreground mt-1">
-                          Topics for the multi-agent system to focus on across all sources
+                          🎯 <strong>Any topics you want!</strong> The CrewAI 2025 system works with any domain - sports, business, entertainment, science, hobbies, etc. Uses advanced filtering to find only relevant, high-quality content.
                         </p>
                       </div>
                       
                       <div>
-                        <Label>News Sources</Label>
+                        <Label className="flex items-center gap-2">
+                          Content Sources
+                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                            Multi-Platform
+                          </Badge>
+                        </Label>
                         <p className="text-xs text-muted-foreground mb-2">
-                          Select which sources the CrewAI agents should monitor
+                          🔍 Select sources for intelligent content discovery across multiple platforms with quality validation
                         </p>
                         <div className="grid grid-cols-2 gap-3">
                           <div className="flex items-center space-x-2">
@@ -747,7 +788,14 @@ const AgentsPage: React.FC = () => {
                       {getAgentIcon(agent.type)}
                       <div>
                         <CardTitle className="text-lg">{agent.name}</CardTitle>
-                        <CardDescription className="capitalize">{agent.type} Agent</CardDescription>
+                        <CardDescription className="flex items-center gap-2">
+                          {getAgentDisplayName(agent.type)}
+                          {agent.type === 'crewai_news' && (
+                            <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                              Enhanced
+                            </Badge>
+                          )}
+                        </CardDescription>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
