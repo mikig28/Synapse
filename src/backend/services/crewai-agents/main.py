@@ -257,6 +257,22 @@ class EnhancedNewsGatherer:
         # Store session ID for later access
         self.current_session_id = session_id
         
+        # **FIX 27: Extract date awareness parameters**
+        current_date = kwargs.get('current_date', datetime.now().strftime('%Y-%m-%d'))
+        current_datetime = kwargs.get('current_datetime', datetime.now().isoformat())
+        timezone = kwargs.get('timezone', 'UTC')
+        time_range = kwargs.get('time_range', '24h')
+        date_filters = kwargs.get('date_filters', {})
+        
+        # Store date context for agents
+        self.current_date_context = {
+            'current_date': current_date,
+            'current_datetime': current_datetime,
+            'timezone': timezone,
+            'time_range': time_range,
+            'date_filters': date_filters
+        }
+        
         # Initialize progress tracking for this session
         initial_progress = {
             'steps': [],
@@ -266,12 +282,14 @@ class EnhancedNewsGatherer:
             'hasActiveProgress': True,
             'status': 'starting',
             'topics': topics,
-            'sources': sources
+            'sources': sources,
+            'date_context': self.current_date_context
         }
         progress_store.set_progress(session_id, initial_progress)
         
         # Log session creation for debugging
         logger.info(f"🔍 Created session {session_id} for agent {agent_id}")
+        logger.info(f"📅 Date context: {current_date} ({timezone}) - Range: {time_range}")
         logger.info(f"📋 Initial progress stored: {list(initial_progress.keys())}")
         
         try:
@@ -286,7 +304,14 @@ class EnhancedNewsGatherer:
                 'include_trends': kwargs.get('include_trends', True),
                 'focus_areas': kwargs.get('focus_areas', ['quality', 'relevance']),
                 'platforms': [k for k, v in sources.items() if v] if isinstance(sources, dict) else sources,
-                'session_id': session_id
+                'session_id': session_id,
+                # **FIX 28: Include date context in user input**
+                'current_date': current_date,
+                'current_datetime': current_datetime,
+                'timezone': timezone,
+                'time_range': time_range,
+                'date_filters': date_filters,
+                'recency_boost': kwargs.get('recency_boost', True)
             }
             
             # Try CrewAI 2025 compliant system first (recommended)
@@ -304,7 +329,12 @@ class EnhancedNewsGatherer:
                         filter_mode='strict',
                         validate_sources=True,
                         strict_topic_filtering=True,
-                        minimum_relevance_score=0.4
+                        minimum_relevance_score=0.4,
+                        # **FIX 29: Pass date context to CrewAI 2025 system**
+                        current_date=current_date,
+                        current_datetime=current_datetime,
+                        time_range=time_range,
+                        recency_boost=user_input.get('recency_boost', True)
                     )
                     
                     if result.get('success'):
@@ -425,7 +455,15 @@ class EnhancedNewsGatherer:
                 
                 logger.info(f"🔄 Using enhanced crew as fallback for topics: {topics}")
                 # Use the enhanced method that combines news analysis with real social media scraping
-                result = self.enhanced_crew.research_news_with_social_media(topics, sources, progress_callback=progress_callback)
+                # **FIX 30: Pass date context to enhanced crew**
+                result = self.enhanced_crew.research_news_with_social_media(
+                    topics, 
+                    sources, 
+                    progress_callback=progress_callback,
+                    current_date=current_date,
+                    time_range=time_range,
+                    recency_boost=user_input.get('recency_boost', True)
+                )
                 logger.info(f"🔄 Enhanced crew research completed. Result keys: {list(result.keys()) if isinstance(result, dict) else type(result)}")
                 
                 if result.get('status') == 'success':
@@ -604,6 +642,7 @@ class EnhancedNewsGatherer:
             # **FIX 12: More aggressive Reddit content fetching**
             if sources.get('reddit', True):
                 logger.info("📡 Fetching Reddit posts via multiple methods...")
+                logger.info(f"📅 Targeting recent content for date: {getattr(self, 'current_date_context', {}).get('current_date', 'today')}")
                 reddit_success = False
                 
                 try:
@@ -623,34 +662,73 @@ class EnhancedNewsGatherer:
                     
                     # Method 2: RSS feeds if Method 1 failed
                     if not reddit_posts:
-                        try:
-                            import requests
-                            import feedparser
-                            
-                            for topic in topics:
-                                rss_url = f"https://www.reddit.com/r/{topic}.rss"
-                                response = requests.get(rss_url, timeout=10, headers={
-                                    'User-Agent': 'Synapse News Bot 1.0'
-                                })
-                                if response.status_code == 200:
-                                    feed = feedparser.parse(response.content)
-                                    for entry in feed.entries[:3]:
-                                        reddit_posts.append({
-                                            'title': entry.get('title', ''),
-                                            'content': entry.get('summary', '')[:300] + '...',
-                                            'url': entry.get('link', ''),
-                                            'author': entry.get('author', 'reddit_user'),
-                                            'subreddit': topic,
-                                            'score': 100,
-                                            'comments': 20,
-                                            'source': 'reddit',
-                                            'published_date': entry.get('published', datetime.now().isoformat())
-                                        })
-                            if reddit_posts:
-                                logger.info(f"✅ Method 2 success: Got {len(reddit_posts)} Reddit posts via RSS")
-                                reddit_success = True
-                        except Exception as e:
-                            logger.info(f"⚠️ Method 2 failed: {e}")
+                         try:
+                             import requests
+                             import feedparser
+                             
+                             # **FIX 31: Add date-aware Reddit filtering**
+                             current_date = getattr(self, 'current_date_context', {}).get('current_date')
+                             time_range_hours = 24  # Default to 24 hours
+                             if hasattr(self, 'current_date_context'):
+                                 tr = self.current_date_context.get('time_range', '24h')
+                                 if tr.endswith('h'):
+                                     time_range_hours = int(tr[:-1])
+                             
+                             cutoff_time = datetime.now() - timedelta(hours=time_range_hours)
+                             
+                             for topic in topics:
+                                 # Try both hot and new Reddit feeds for recency
+                                 for sort_type in ['hot', 'new']:
+                                     rss_url = f"https://www.reddit.com/r/{topic}/{sort_type}.rss"
+                                     response = requests.get(rss_url, timeout=10, headers={
+                                         'User-Agent': 'Synapse News Bot 1.0'
+                                     })
+                                     if response.status_code == 200:
+                                         feed = feedparser.parse(response.content)
+                                         for entry in feed.entries[:5]:  # Increased from 3 to 5
+                                             # Parse published date
+                                             published_date = entry.get('published', datetime.now().isoformat())
+                                             try:
+                                                 pub_dt = datetime.fromisoformat(published_date.replace('Z', '+00:00'))
+                                                 # Only include recent posts
+                                                 if pub_dt >= cutoff_time:
+                                                     reddit_posts.append({
+                                                         'title': entry.get('title', ''),
+                                                         'content': entry.get('summary', '')[:300] + '...',
+                                                         'url': entry.get('link', ''),
+                                                         'author': entry.get('author', 'reddit_user'),
+                                                         'subreddit': topic,
+                                                         'score': 100,
+                                                         'comments': 20,
+                                                         'source': 'reddit',
+                                                         'published_date': published_date,
+                                                         'sort_type': sort_type,
+                                                         'recency_score': (datetime.now() - pub_dt).total_seconds() / 3600  # Hours ago
+                                                     })
+                                             except:
+                                                 # If date parsing fails, include anyway but mark as unknown date
+                                                 reddit_posts.append({
+                                                     'title': entry.get('title', ''),
+                                                     'content': entry.get('summary', '')[:300] + '...',
+                                                     'url': entry.get('link', ''),
+                                                     'author': entry.get('author', 'reddit_user'),
+                                                     'subreddit': topic,
+                                                     'score': 100,
+                                                     'comments': 20,
+                                                     'source': 'reddit',
+                                                     'published_date': published_date,
+                                                     'sort_type': sort_type,
+                                                     'recency_score': 24  # Default to 24 hours ago
+                                                 })
+                             
+                             if reddit_posts:
+                                 # Sort by recency (lower score = more recent)
+                                 reddit_posts.sort(key=lambda x: x.get('recency_score', 24))
+                                 logger.info(f"✅ Method 2 success: Got {len(reddit_posts)} recent Reddit posts via RSS")
+                                 logger.info(f"📅 Filtered for content within last {time_range_hours} hours")
+                                 reddit_success = True
+                         except Exception as e:
+                             logger.info(f"⚠️ Method 2 failed: {e}")
                     
                     if reddit_posts:
                         all_content['reddit_posts'] = reddit_posts[:15]  # Increased limit
@@ -719,22 +797,34 @@ class EnhancedNewsGatherer:
                     articles_found = 0
                     working_feeds = []
                     
+                    # **FIX 32: Add date-aware news filtering**
+                    current_date = getattr(self, 'current_date_context', {}).get('current_date')
+                     time_range_hours = 24  # Default to 24 hours
+                     if hasattr(self, 'current_date_context'):
+                         tr = self.current_date_context.get('time_range', '24h')
+                         if tr.endswith('h'):
+                             time_range_hours = int(tr[:-1])
+                     
+                     cutoff_time = datetime.now() - timedelta(hours=time_range_hours)
+                     logger.info(f"📅 Filtering news for articles published after: {cutoff_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                     
                     for feed_url, source_name in news_feeds:
                         if articles_found >= 20:  # Limit total articles
                             break
                             
                         try:
-                            logger.info(f"🔍 Trying {source_name}...")
-                            response = requests.get(feed_url, timeout=15, headers={
-                                'User-Agent': 'Synapse News Aggregator 1.0',
-                                'Accept': 'application/rss+xml, application/xml, text/xml'
-                            })
-                            
-                            if response.status_code == 200:
-                                feed = feedparser.parse(response.content)
-                                feed_articles = 0
-                                
-                                for entry in feed.entries[:8]:  # More articles per feed
+                             logger.info(f"🔍 Trying {source_name}...")
+                             response = requests.get(feed_url, timeout=15, headers={
+                                 'User-Agent': 'Synapse News Aggregator 1.0',
+                                 'Accept': 'application/rss+xml, application/xml, text/xml'
+                             })
+                             
+                             if response.status_code == 200:
+                                 feed = feedparser.parse(response.content)
+                                 feed_articles = 0
+                                 recent_articles = 0
+                                 
+                                 for entry in feed.entries[:8]:  # More articles per feed
                                     # Enhanced relevance checking
                                     title_lower = entry.get('title', '').lower()
                                     summary_lower = entry.get('summary', '').lower()
@@ -762,24 +852,59 @@ class EnhancedNewsGatherer:
                                         )
                                     
                                     if is_relevant:
-                                        all_content['news_articles'].append({
-                                            'title': entry.get('title', ''),
-                                            'content': entry.get('summary', '')[:500] + '...',
-                                            'url': entry.get('link', ''),
-                                            'source': source_name,
-                                            'published_date': entry.get('published', datetime.now().isoformat()),
-                                            'author': entry.get('author', 'Staff Writer'),
-                                            'score': 100 + len(all_content['news_articles']) * 5,
-                                            'category': 'technology' if any(kw in title_lower for kw in tech_keywords) else 'news'
-                                        })
-                                        feed_articles += 1
-                                        articles_found += 1
+                                        # **FIX 33: Add recency filtering and scoring**
+                                        published_date = entry.get('published', datetime.now().isoformat())
+                                        try:
+                                             # Parse publication date
+                                             pub_dt = datetime.fromisoformat(published_date.replace('Z', '+00:00'))
+                                             recency_hours = (datetime.now() - pub_dt).total_seconds() / 3600
+                                             
+                                             # Only include articles within our time range
+                                             if pub_dt >= cutoff_time:
+                                                 # Calculate recency score (higher for more recent)
+                                                 recency_score = max(0, 100 - recency_hours)
+                                                 
+                                                 all_content['news_articles'].append({
+                                                     'title': entry.get('title', ''),
+                                                     'content': entry.get('summary', '')[:500] + '...',
+                                                     'url': entry.get('link', ''),
+                                                     'source': source_name,
+                                                     'published_date': published_date,
+                                                     'author': entry.get('author', 'Staff Writer'),
+                                                     'score': 100 + len(all_content['news_articles']) * 5 + recency_score,
+                                                     'category': 'technology' if any(kw in title_lower for kw in tech_keywords) else 'news',
+                                                     'recency_hours': recency_hours,
+                                                     'recency_score': recency_score,
+                                                     'is_recent': True
+                                                 })
+                                                 feed_articles += 1
+                                                 articles_found += 1
+                                                 recent_articles += 1
+                                             else:
+                                                 logger.debug(f"⏰ Skipped old article: {entry.get('title', '')[:50]} (published {recency_hours:.1f}h ago)")
+                                         except:
+                                             # If date parsing fails, include anyway but with lower score
+                                             all_content['news_articles'].append({
+                                                 'title': entry.get('title', ''),
+                                                 'content': entry.get('summary', '')[:500] + '...',
+                                                 'url': entry.get('link', ''),
+                                                 'source': source_name,
+                                                 'published_date': published_date,
+                                                 'author': entry.get('author', 'Staff Writer'),
+                                                 'score': 50 + len(all_content['news_articles']) * 5,  # Lower score for unknown date
+                                                 'category': 'technology' if any(kw in title_lower for kw in tech_keywords) else 'news',
+                                                 'recency_hours': 48,  # Default to 48 hours ago
+                                                 'recency_score': 25,
+                                                 'is_recent': False
+                                             })
+                                            feed_articles += 1
+                                            articles_found += 1
                                 
                                 if feed_articles > 0:
-                                    working_feeds.append(f"{source_name} ({feed_articles} articles)")
-                                    logger.info(f"✅ {source_name}: {feed_articles} relevant articles")
+                                    working_feeds.append(f"{source_name} ({feed_articles} articles, {recent_articles} recent)")
+                                    logger.info(f"✅ {source_name}: {feed_articles} relevant articles ({recent_articles} within {time_range_hours}h)")
                                 else:
-                                    logger.info(f"⚠️ {source_name}: no relevant articles")
+                                    logger.info(f"⚠️ {source_name}: no relevant articles within time range")
                             else:
                                 logger.info(f"⚠️ {source_name}: HTTP {response.status_code}")
                                 
@@ -806,9 +931,13 @@ class EnhancedNewsGatherer:
             
             # If no content was found at all, return error
             if total_items == 0:
+                # **FIX 24: Ensure session ID in error responses**
+                error_session_id = getattr(self, 'current_session_id', f"fallback_error_{int(time.time())}")
+                
                 return {
                     "success": False,
                     "timestamp": datetime.now().isoformat(),
+                    "session_id": error_session_id,
                     "topics": topics,
                     "sources_used": sources,
                     "mode": "no_content_found",
@@ -816,7 +945,8 @@ class EnhancedNewsGatherer:
                     "details": {
                         "failed_sources": failed_sources,
                         "attempted_sources": list(sources.keys()),
-                        "search_topics": topics
+                        "search_topics": topics,
+                        "session_id": error_session_id
                     },
                     "data": {
                         "organized_content": all_content,
@@ -844,14 +974,15 @@ class EnhancedNewsGatherer:
                     "enhanced_relevance_matching": True,
                     "no_mock_data": True
                 },
-                "data": {
-                    "executive_summary": [
-                        f"✅ Successfully gathered {total_items} REAL items from {len(success_sources)} working sources",
-                        f"📊 Content breakdown: Reddit ({len(all_content['reddit_posts'])}), Professional ({len(all_content['linkedin_posts'])}), News ({len(all_content['news_articles'])})",
-                        f"🎯 Topics analyzed: {', '.join(topics)}",
-                        f"📡 Working sources: {', '.join(success_sources)}" if success_sources else "⚠️ No sources provided content",
-                        f"❌ Failed sources: {', '.join(failed_sources)}" if failed_sources else "✅ All attempted sources were successful"
-                    ],
+                                     "data": {
+                         "executive_summary": [
+                             f"✅ Successfully gathered {total_items} REAL items from {len(success_sources)} working sources",
+                             f"📊 Content breakdown: Reddit ({len(all_content['reddit_posts'])}), Professional ({len(all_content['linkedin_posts'])}), News ({len(all_content['news_articles'])})",
+                             f"📅 Date filter: Content from last {getattr(self, 'current_date_context', {}).get('time_range', '24h')} ({getattr(self, 'current_date_context', {}).get('current_date', 'today')})",
+                             f"🎯 Topics analyzed: {', '.join(topics)}",
+                             f"📡 Working sources: {', '.join(success_sources)}" if success_sources else "⚠️ No sources provided content",
+                             f"❌ Failed sources: {', '.join(failed_sources)}" if failed_sources else "✅ All attempted sources were successful"
+                         ],
                     "trending_topics": [
                         {
                             "topic": topic, 
@@ -863,19 +994,22 @@ class EnhancedNewsGatherer:
                     ] if total_items > 0 else [],
                     "organized_content": all_content,
                     "validated_articles": all_content.get('news_articles', []),  # For compatibility
-                    "ai_insights": {
-                        "content_sources": success_sources,
-                        "all_sources_attempted": list(sources.keys()),
-                        "successful_sources": success_sources,
-                        "failed_sources": failed_sources,
-                        "topic_coverage": {topic: max(1, total_items // len(topics)) if total_items > 0 else 0 for topic in topics},
-                        "data_quality": "real_content_only",
-                        "collection_method": "enhanced_multi_source_aggregation",
-                        "content_freshness": "within_24_hours",
-                        "relevance_threshold": 0.8,
-                        "total_sources_checked": len(sources),
-                        "success_rate": f"{len(success_sources)}/{len([k for k, v in sources.items() if v])} sources"
-                    },
+                                             "ai_insights": {
+                             "content_sources": success_sources,
+                             "all_sources_attempted": list(sources.keys()),
+                             "successful_sources": success_sources,
+                             "failed_sources": failed_sources,
+                             "topic_coverage": {topic: max(1, total_items // len(topics)) if total_items > 0 else 0 for topic in topics},
+                             "data_quality": "real_content_only",
+                             "collection_method": "enhanced_multi_source_aggregation",
+                             "content_freshness": f"within_{getattr(self, 'current_date_context', {}).get('time_range', '24h')}",
+                             "date_context": getattr(self, 'current_date_context', {}),
+                             "recent_content_ratio": len([item for item in all_content.get('news_articles', []) if item.get('is_recent', False)]) / max(1, len(all_content.get('news_articles', []))),
+                             "average_recency_hours": sum([item.get('recency_hours', 24) for item in all_content.get('news_articles', [])]) / max(1, len(all_content.get('news_articles', []))),
+                             "relevance_threshold": 0.8,
+                             "total_sources_checked": len(sources),
+                             "success_rate": f"{len(success_sources)}/{len([k for k, v in sources.items() if v])} sources"
+                         },
                     "recommendations": [
                         f"✅ Content successfully gathered from {len(success_sources)} sources" if success_sources else "⚠️ Consider enabling more sources",
                         "🔄 Try different or more specific topics for better targeting" if total_items < 5 else "✅ Good content volume achieved",
@@ -888,17 +1022,21 @@ class EnhancedNewsGatherer:
                 
         except Exception as e:
             logger.error(f"Enhanced fallback scraper failed: {str(e)}")
-            # Return error without any mock data
+            # **FIX 25: Ensure session ID in exception responses**
+            error_session_id = getattr(self, 'current_session_id', f"fallback_exception_{int(time.time())}")
+            
             return {
                 "success": False,
                 "error": f"Failed to fetch content: {str(e)}",
                 "timestamp": datetime.now().isoformat(),
+                "session_id": error_session_id,
                 "mode": "scraping_failed",
                 "details": {
                     "error_type": type(e).__name__,
                     "error_message": str(e),
                     "attempted_topics": topics,
-                    "attempted_sources": list(sources.keys())
+                    "attempted_sources": list(sources.keys()),
+                    "session_id": error_session_id
                 },
                 "data": {
                     "organized_content": {

@@ -150,6 +150,8 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
   const [pollingProgress, setPollingProgress] = useState(false);
   const [lastRunResults, setLastRunResults] = useState<any>(null);
   const [agentRuns, setAgentRuns] = useState<any[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [progressStatus, setProgressStatus] = useState<string>('idle');
   const progressPollingRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -193,12 +195,31 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
       try {
         const progressData = await agentService.getCrewProgress(agentId);
         if (progressData?.progress) {
-          setProgressSteps(progressData.progress.steps || []);
+          const progress = progressData.progress;
+          
+          // **FIX 22: Enhanced progress handling with session tracking**
+          setProgressSteps(progress.steps || []);
+          setCurrentSessionId(progress.session_id || null);
+          setProgressStatus(progress.status || 'idle');
+          
+          console.log(`📊 Progress update - Session: ${progress.session_id}, Steps: ${progress.steps?.length || 0}, Status: ${progress.status}`);
           
           // Update parsed content if available
-          if (progressData.progress.results) {
-            processCrewAIResults(progressData.progress.results);
+          if (progress.results) {
+            processCrewAIResults(progress.results);
           }
+          
+          // Stop polling if we reach a terminal state
+          if (progress.status === 'completed' || progress.status === 'failed' || !progress.hasActiveProgress) {
+            if (progressPollingRef.current) {
+              setTimeout(() => {
+                console.log('⏹️ Stopping progress polling - reached terminal state:', progress.status);
+                stopProgressPolling();
+              }, 5000); // Wait 5 seconds before stopping to catch final updates
+            }
+          }
+        } else {
+          console.log('⚠️ No progress data received');
         }
       } catch (error) {
         console.error('Failed to poll progress:', error);
@@ -209,8 +230,8 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
     // Initial fetch
     pollProgress();
 
-    // Set up polling interval (every 2 seconds)
-    progressPollingRef.current = setInterval(pollProgress, 2000);
+    // Set up polling interval (every 3 seconds for better performance)
+    progressPollingRef.current = setInterval(pollProgress, 3000);
   };
 
   const stopProgressPolling = () => {
@@ -511,7 +532,7 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
           <div className="flex items-center gap-2">
             {/* Status Indicator */}
             {agentStatus && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-muted/30 rounded-full text-xs">
+                                    <div className="flex items-center gap-2 px-3 py-1 bg-muted/30 rounded-full text-xs">
                 {agentStatus.isStuck ? (
                   <AlertCircle className="w-3 h-3 text-red-500" />
                 ) : agentStatus.canExecute ? (
@@ -519,9 +540,12 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
                 ) : (
                   <Clock className="w-3 h-3 text-yellow-500" />
                 )}
-                <span className="capitalize">{agentStatus.status}</span>
+                <span className="capitalize">{progressStatus !== 'idle' ? progressStatus : agentStatus.status}</span>
                 {agentStatus.statusReason && (
                   <span className="text-muted-foreground">• {agentStatus.statusReason}</span>
+                )}
+                {currentSessionId && (
+                  <span className="text-muted-foreground">• Session: {currentSessionId.split('_').pop()?.substring(0, 6)}</span>
                 )}
                 {pollingProgress && (
                   <span className="text-blue-500 animate-pulse">• Live Updates</span>
@@ -813,12 +837,25 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
                           <p className="text-lg font-medium">No Active Progress</p>
                           <p className="text-sm mt-1">
                             {isRunning 
-                              ? "Agent is starting up... Progress will appear shortly."
+                              ? `Agent is ${progressStatus !== 'idle' ? progressStatus : 'starting up'}... Progress will appear shortly.`
                               : agentRuns.length > 0
                                 ? `Last run: ${agentRuns[0]?.status || 'unknown'} • ${new Date(agentRuns[0]?.createdAt || Date.now()).toLocaleString()}`
                                 : "Execute the agent to see real-time progress updates."
                             }
                           </p>
+                          
+                          {/* **FIX 23: Enhanced status display with session info** */}
+                          {currentSessionId && (
+                            <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                              <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                                📊 Session Active: {currentSessionId.split('_').pop()?.substring(0, 8)}
+                              </p>
+                              <p className="text-xs text-blue-500 dark:text-blue-300 mt-1">
+                                Status: {progressStatus} • Polling: {pollingProgress ? 'Active' : 'Stopped'}
+                              </p>
+                            </div>
+                          )}
+                          
                           {agentRuns.length > 0 && (
                             <div className="mt-4 space-y-2">
                               <p className="text-xs font-medium">Recent Activity:</p>

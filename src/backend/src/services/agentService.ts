@@ -277,15 +277,45 @@ export class AgentService {
 
   private emitAgentUpdate(userId: string, update: any): void {
     try {
-      // Get io instance from global if available
+      // **FIX 17: Enhanced real-time update broadcasting**
       if ((global as any).io) {
+        // Emit to user's room
         (global as any).io.to(`user_${userId}`).emit('agent_update', update);
-        console.log(`[AgentService] Emitted real-time update for user ${userId}:`, update.message);
+        
+        // Also emit to agent-specific room if available
+        if (update.agentId) {
+          (global as any).io.to(`agent_${update.agentId}`).emit('agent_progress', update);
+        }
+        
+        console.log(`[AgentService] 📡 Broadcasted real-time update for user ${userId}:`, 
+          update.message || update.type || 'progress_update');
       } else {
-        console.warn(`[AgentService] Socket.IO instance not available for real-time updates`);
+        console.warn(`[AgentService] ⚠️ Socket.IO instance not available for real-time updates`);
       }
     } catch (error) {
-      console.warn(`[AgentService] Failed to emit real-time update:`, error);
+      console.warn(`[AgentService] ❌ Failed to emit real-time update:`, error);
+    }
+  }
+
+  // **FIX 18: Add progress broadcasting method**
+  public broadcastProgress(agentId: string, progressData: any): void {
+    try {
+      // Find the agent to get user ID
+      Agent.findById(agentId).then(agent => {
+        if (agent && agent.userId) {
+          this.emitAgentUpdate(agent.userId.toString(), {
+            agentId,
+            type: 'crew_progress',
+            progress: progressData,
+            timestamp: new Date(),
+            message: `Progress update: ${progressData.steps?.length || 0} steps`
+          });
+        }
+      }).catch(error => {
+        console.warn(`[AgentService] Failed to broadcast progress: ${error}`);
+      });
+    } catch (error) {
+      console.warn(`[AgentService] Error in broadcastProgress:`, error);
     }
   }
 

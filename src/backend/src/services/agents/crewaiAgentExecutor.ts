@@ -165,13 +165,32 @@ export class CrewAIAgentExecutor implements AgentExecutor {
       sources.telegram = false;
     }
 
+    // **FIX 19: Include agent_id for proper session tracking**
+    // **FIX 26: Add current date awareness for up-to-date content**
+    const now = new Date();
+    const currentDate = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+    const currentDateTime = now.toISOString();
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    
     return {
       topics,
       sources,
+      agent_id: agent._id.toString(), // Critical for session tracking
       max_articles: config.maxItemsPerRun || 50,
       quality_threshold: 0.7,
       include_trends: true,
-      focus_areas: ['quality', 'relevance', 'url_validation']
+      focus_areas: ['quality', 'relevance', 'url_validation', 'recency'],
+      // Date awareness for latest content
+      current_date: currentDate,
+      current_datetime: currentDateTime,
+      timezone: timeZone,
+      time_range: '24h', // Focus on last 24 hours
+      recency_boost: true, // Boost recent content in scoring
+      date_filters: {
+        min_date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Last 7 days
+        max_date: currentDate,
+        prefer_recent: true
+      }
     };
   }
 
@@ -654,23 +673,56 @@ Attempted with progressive timeouts (${initial/1000}s, ${retry/1000}s, ${retry/1
     let lastError: any;
     const { timeout, maxAttempts } = this.timeouts.newsGathering;
     
+    // **FIX 20: Store session ID from response for progress tracking**
+    let sessionId: string | null = null;
+    
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        console.log(`[CrewAIExecutor] News gathering attempt ${attempt}/${maxAttempts}`);
+        console.log(`[CrewAIExecutor] News gathering attempt ${attempt}/${maxAttempts} for agent: ${requestData.agent_id}`);
         
         if (run) {
           await run.addLog('info', `🤖 Starting CrewAI multi-agent research (attempt ${attempt}/${maxAttempts})...`);
+          await run.addLog('info', `🔍 Session tracking enabled for agent: ${requestData.agent_id}`);
         }
         
         const response = await axios.post(`${this.crewaiServiceUrl}/gather-news`, requestData, {
           timeout,
           headers: {
             'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache'
+            'Cache-Control': 'no-cache',
+            'User-Agent': 'Synapse-CrewAI-Executor/1.0'
           }
         });
 
-        console.log(`[CrewAIExecutor] News gathering succeeded on attempt ${attempt}`);
+        console.log(`[CrewAIExecutor] ✅ News gathering succeeded on attempt ${attempt}`);
+        
+        // **FIX 21: Extract and store session ID from response**
+        const responseData = response.data as any;
+        if (responseData?.session_id) {
+          sessionId = responseData.session_id;
+          console.log(`[CrewAIExecutor] 📊 Session ID received: ${sessionId}`);
+          
+          if (run) {
+            await run.addLog('info', `📊 Session ID: ${sessionId} - Use this for progress tracking`);
+            
+            // Store session ID in the run results for later retrieval
+            try {
+              const AgentRun = require('../../models/AgentRun').default;
+              await AgentRun.findByIdAndUpdate(run._id, {
+                'results.sessionId': sessionId,
+                'results.sessionCreated': new Date().toISOString()
+              });
+              console.log(`[CrewAIExecutor] 💾 Stored session ID ${sessionId} in run ${run._id}`);
+            } catch (updateError) {
+              console.warn(`[CrewAIExecutor] ⚠️ Failed to store session ID: ${updateError}`);
+            }
+          }
+        } else {
+          console.warn(`[CrewAIExecutor] ⚠️ No session_id in response - progress tracking may be limited`);
+          if (run) {
+            await run.addLog('warn', 'No session ID received - progress tracking may be limited');
+          }
+        }
         
         if (run) {
           await run.addLog('info', `✅ CrewAI research completed successfully on attempt ${attempt}`);
