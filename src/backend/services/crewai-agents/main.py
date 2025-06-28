@@ -14,7 +14,6 @@ import logging
 import threading
 import time
 from crewai import Agent, Task, Crew, Process
-from crewai.crews import CrewBase
 from langchain_community.tools import DuckDuckGoSearchRun
 from crewai_tools import FirecrawlSearchTool
 import yaml
@@ -320,22 +319,19 @@ def create_social_monitoring_task(topics: str) -> Task:
     return create_task_from_config('monitor_social_media', social_monitor, context_vars)
 
 
-# --- CrewAI 2025 CrewBase Implementation ---
-class SynapseNewsCrew(CrewBase):
-    """CrewAI 2025 compliant crew implementation"""
+# --- CrewAI 2025 Compatible Crew Implementation ---
+class SynapseNewsCrew:
+    """CrewAI 2025 compatible crew implementation using standard Crew class"""
     
     def __init__(self, topic: str, date_context: dict):
-        super().__init__()
         self.topic = topic
         self.date_context = date_context
         
-    @property
-    def agents(self) -> list:
+    def get_agents(self) -> list:
         """Define crew agents"""
         return [researcher_agent, quality_analyst, url_validator, analyst_agent, social_monitor]
     
-    @property
-    def tasks(self) -> list:
+    def get_tasks(self) -> list:
         """Define crew tasks with dependencies"""
         research_task = create_research_task(self.topic, self.date_context)
         quality_task = create_quality_validation_task(self.topic)
@@ -343,28 +339,17 @@ class SynapseNewsCrew(CrewBase):
         social_task = create_social_monitoring_task(self.topic)
         analysis_task = create_analysis_task(self.topic)
         
-        # Set task dependencies for 2025 framework
-        quality_task.context = [research_task]
-        url_task.context = [quality_task]
-        social_task.context = [research_task]
-        analysis_task.context = [research_task, quality_task, url_task, social_task]
-        
+        # Return tasks in dependency order
         return [research_task, quality_task, url_task, social_task, analysis_task]
     
-    def crew(self) -> Crew:
-        """Create crew with 2025 configuration"""
+    def create_crew(self) -> Crew:
+        """Create crew with 2025-compatible configuration"""
         return Crew(
-            agents=self.agents,
-            tasks=self.tasks,
+            agents=self.get_agents(),
+            tasks=self.get_tasks(),
             process=Process.sequential,
             verbose=True,
-            memory=True,
-            embedder={
-                "provider": "openai",
-                "config": {
-                    "model": "text-embedding-3-small"
-                }
-            }
+            memory=True
         )
 
 # --- CREW EXECUTION ---
@@ -426,9 +411,9 @@ def run_crew(agent_id: str, topic: str, date_context: dict) -> Dict[str, Any]:
                 for msg in telegram_messages[:2]:
                     social_context += f"- {msg['title']}\n"
         
-        # Create and execute 2025 compliant crew
+        # Create and execute 2025 compatible crew
         synapse_crew = SynapseNewsCrew(topic, date_context)
-        news_crew = synapse_crew.crew()
+        news_crew = synapse_crew.create_crew()
 
         progress_store.set(session_id, {'status': 'running', 'message': 'Crew is researching and analyzing.', 'progress': 50})
         
@@ -489,7 +474,7 @@ def run_crew(agent_id: str, topic: str, date_context: dict) -> Dict[str, Any]:
             "mode": "crewai_2025_yaml_config",
             "enhanced_features": {
                 "yaml_configuration": True,
-                "crew_base_implementation": True,
+                "crew_class_implementation": True,
                 "multi_agent_validation": True,
                 "social_media_integration": True,
                 "url_validation": True,
@@ -497,8 +482,8 @@ def run_crew(agent_id: str, topic: str, date_context: dict) -> Dict[str, Any]:
             },
             "execution_info": {
                 "framework_version": "CrewAI 2025",
-                "agents_used": len(synapse_crew.agents),
-                "tasks_executed": len(synapse_crew.tasks),
+                "agents_used": len(synapse_crew.get_agents()),
+                "tasks_executed": len(synapse_crew.get_tasks()),
                 "configuration_source": "YAML"
             }
         }
@@ -544,7 +529,7 @@ def health_check():
             "multi_platform_analysis": True,
             "ai_research_crew": True,
             "yaml_configuration": True,
-            "crew_base_inheritance": True,
+            "crew_class_implementation": True,
             "multi_agent_validation": True,
             "url_validation": True,
             "content_quality_analysis": True

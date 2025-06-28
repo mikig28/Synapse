@@ -39,7 +39,7 @@ interface CrewAINewsResponse {
   mode?: string; // Add mode property that CrewAI service returns
   enhanced_features?: {
     yaml_configuration?: boolean;
-    crew_base_implementation?: boolean;
+    crew_class_implementation?: boolean;
     multi_agent_validation?: boolean;
     social_media_integration?: boolean;
     url_validation?: boolean;
@@ -300,7 +300,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       if (crewaiResponse.enhanced_features) {
         await run.addLog('info', '🚀 CrewAI 2025 Framework Features Active:', {
           yamlConfiguration: crewaiResponse.enhanced_features.yaml_configuration,
-          crewBaseImplementation: crewaiResponse.enhanced_features.crew_base_implementation,
+          crewClassImplementation: crewaiResponse.enhanced_features.crew_class_implementation,
           multiAgentValidation: crewaiResponse.enhanced_features.multi_agent_validation,
           socialMediaIntegration: crewaiResponse.enhanced_features.social_media_integration,
           urlValidation: crewaiResponse.enhanced_features.url_validation,
