@@ -14,8 +14,6 @@ import logging
 import threading
 import time
 from crewai import Agent, Task, Crew, Process
-from langchain_community.tools import DuckDuckGoSearchRun
-from crewai_tools import FirecrawlSearchTool
 import yaml
 
 # --- Basic Setup ---
@@ -80,13 +78,16 @@ import requests
 import feedparser
 from urllib.parse import quote_plus
 
-# Web search tool
+# Import custom tools
+from tools.custom_tools import WebSearchTool, FirecrawlScrapeTool
+
+# Web search tool - use custom tools that are CrewAI compatible
 if FIRECRAWL_API_KEY:
-    search_tool = FirecrawlSearchTool()
-    logger.info("Using FirecrawlSearchTool.")
+    search_tool = FirecrawlScrapeTool()
+    logger.info("Using FirecrawlScrapeTool.")
 else:
-    search_tool = DuckDuckGoSearchRun()
-    logger.warning("FIRECRAWL_API_KEY not set. Using DuckDuckGoSearchRun as fallback.")
+    search_tool = WebSearchTool()
+    logger.warning("FIRECRAWL_API_KEY not set. Using custom WebSearchTool as fallback.")
 
 # Social Media Scraping Functions
 def scrape_reddit_posts(topics: list, max_posts: int = 10) -> list:
@@ -159,25 +160,26 @@ def scrape_linkedin_posts(topics: list, max_posts: int = 5) -> list:
     posts = []
     
     # LinkedIn doesn't allow easy scraping, so we'll generate LinkedIn-style insights
-    for topic in topics:
+    # Create one comprehensive post for all topics instead of individual posts
+    if topics:
         try:
-            # Clean topic display
-            clean_topic = topic.strip() if isinstance(topic, str) else str(topic)
+            clean_topics = [topic.strip() if isinstance(topic, str) else str(topic) for topic in topics]
+            topics_string = ', '.join(clean_topics)
+            primary_topic = clean_topics[0] if clean_topics else 'trending topics'
             
             # Use web search to find LinkedIn-related content
-            search_query = f"site:linkedin.com/pulse {clean_topic}"
-            # This is a placeholder - real LinkedIn scraping requires special handling
+            search_query = f"site:linkedin.com/pulse {primary_topic}"
             posts.append({
-                'title': f'Professional insights on {clean_topic}',
-                'content': f'Industry analysis and professional perspectives on {clean_topic} trends.',
-                'url': f'https://linkedin.com/search/results/content/?keywords={quote_plus(clean_topic)}',
-                'author': 'LinkedIn Network',
-                'engagement': 'Professional network',
+                'title': f'Professional insights on {topics_string}',
+                'content': f'Industry analysis and professional perspectives on {topics_string} trends and market developments.',
+                'url': f'https://linkedin.com/search/results/content/?keywords={quote_plus(primary_topic)}',
+                'author': 'LinkedIn Professional Network',
+                'engagement': 'Professional discussions',
                 'source': 'linkedin_search',
-                'topic': clean_topic
+                'topic': topics_string
             })
         except Exception as e:
-            logger.warning(f"Failed to get LinkedIn content for topic '{topic}': {str(e)}")
+            logger.warning(f"Failed to get LinkedIn content for topics '{topics}': {str(e)}")
     
     return posts[:max_posts]
 
@@ -190,23 +192,25 @@ def scrape_telegram_messages(topics: list, max_messages: int = 5) -> list:
         return messages
     
     # This is a simplified version - real Telegram monitoring requires channel setup
-    for topic in topics:
+    # Create one comprehensive message for all topics
+    if topics:
         try:
-            # Clean topic display
-            clean_topic = topic.strip() if isinstance(topic, str) else str(topic)
+            clean_topics = [topic.strip() if isinstance(topic, str) else str(topic) for topic in topics]
+            topics_string = ', '.join(clean_topics)
+            primary_topic = clean_topics[0] if clean_topics else 'news'
             
             # Placeholder for Telegram content
             messages.append({
-                'title': f'Telegram discussions on {clean_topic}',
-                'content': f'Community discussions and updates about {clean_topic} from Telegram channels.',
-                'url': f'https://t.me/s/{clean_topic.lower().replace(" ", "_")}',
-                'channel': f'{clean_topic.lower().replace(" ", "_")}_news',
+                'title': f'Telegram discussions on {topics_string}',
+                'content': f'Community discussions and updates about {topics_string} from Telegram news channels.',
+                'url': f'https://t.me/s/{primary_topic.lower().replace(" ", "_")}_news',
+                'channel': f'{primary_topic.lower().replace(" ", "_")}_news',
                 'timestamp': datetime.now().isoformat(),
                 'source': 'telegram',
-                'topic': clean_topic
+                'topic': topics_string
             })
         except Exception as e:
-            logger.warning(f"Failed to get Telegram content for topic '{topic}': {str(e)}")
+            logger.warning(f"Failed to get Telegram content for topics '{topics}': {str(e)}")
     
     return messages[:max_messages]
 
@@ -293,13 +297,16 @@ def create_research_task(topic: str, date_context: dict, social_context: str = "
             "Use your search tool to find multiple high-quality articles, posts, and discussions. "
             f"Focus on information published within the last {time_range_hours} hours, "
             f"relative to the current date: {date_context.get('current_date', 'N/A')}. "
-            "Synthesize the findings to provide a comprehensive overview. "
+            "IMPORTANT: You must include the full clickable URLs from your search results. "
+            "Do not just mention source names like 'CNN' or 'BBC' - provide the actual URLs. "
+            "Format URLs clearly in your report so they can be easily identified and clicked. "
             f"{social_context}"
-            "Your final output must be a detailed report with key points and include the URLs of the sources used."
+            "Your final output must be a detailed report with key points and include the complete URLs of all sources used."
         ),
         expected_output=(
             "A detailed report on the topic, including an introduction, key findings with bullet points, "
-            "and a conclusion. The report must include at least 5 URLs to the most relevant sources found."
+            "a conclusion, and a 'Sources' section with at least 5 complete URLs to the articles found. "
+            "Format: **Sources:**\n- https://example.com/article1\n- https://example.com/article2\n(etc.)"
         ),
         agent=researcher_agent,
     )
@@ -395,6 +402,9 @@ def run_crew(agent_id: str, topic: str, date_context: dict) -> Dict[str, Any]:
         else:
             topics = [str(topic)]
         
+        # Create clean topic string for display
+        clean_topic_string = ', '.join(topics)
+        
         progress_store.set(session_id, {'status': 'running', 'message': 'Gathering social media content...', 'progress': 10})
         
         # Gather social media content with detailed progress
@@ -472,7 +482,7 @@ def run_crew(agent_id: str, topic: str, date_context: dict) -> Dict[str, Any]:
             logger.info(f"✅ CrewAI agents completed research. Report length: {len(crew_output)} characters")
             
             # Create structured report
-            final_report = f"""# {topic} - Comprehensive Research Report
+            final_report = f"""# {clean_topic_string} - Comprehensive Research Report
 
 ## Executive Summary
 {crew_output}
@@ -480,7 +490,7 @@ def run_crew(agent_id: str, topic: str, date_context: dict) -> Dict[str, Any]:
 """
         else:
             logger.warning("⚠️ CrewAI agents returned no result")
-            final_report = f"# {topic} - Research Report\n\nNo content was generated by the research agents."
+            final_report = f"# {clean_topic_string} - Research Report\n\nNo content was generated by the research agents."
         
         # Add social media section to report
         if reddit_posts or linkedin_posts or telegram_messages:
@@ -514,6 +524,7 @@ def run_crew(agent_id: str, topic: str, date_context: dict) -> Dict[str, Any]:
             "report": final_report,
             "social_media_summary": social_content_summary,
             "topics": topics,
+            "clean_topics": clean_topic_string,
             "mode": "crewai_2025_yaml_config",
             "enhanced_features": {
                 "yaml_configuration": True,
