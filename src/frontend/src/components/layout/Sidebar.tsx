@@ -19,6 +19,7 @@ import {
   FileText,
   Lightbulb,
   Mic,
+  Clock,
   ChevronUp,
   ChevronDown,
 } from 'lucide-react';
@@ -47,6 +48,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
     { href: "/ideas", label: "Ideas", icon: Lightbulb },
     { href: "/meetings", label: "Meetings", icon: Mic },
     { href: "/agents", label: "AI Agents", icon: Bot },
+    { href: "/scheduled-agents", label: "Scheduled Agents", icon: Clock },
     { href: "/calendar", label: "Calendar", icon: CalendarDays }, 
     { href: "/planning", label: "Planning", icon: Plane }, 
     { href: "/goals", label: "Goals", icon: Target }, 
