@@ -239,13 +239,23 @@ export class AgentService {
       // Send report to Telegram if enabled
       try {
         const reportTitle = `${agent.name} Execution Complete`;
+        
+        // Generate detailed content summary from logs
+        const detailedContent = await this.generateDetailedReportContent(agentRun);
+        
+        // Generate link to full report
+        const baseUrl = process.env.BACKEND_URL || process.env.API_URL || 'http://localhost:3001';
+        const reportUrl = `${baseUrl}/api/agents/runs/${agentRun._id}/report/html`;
+        
         const reportContent = `📊 **Execution Summary**
 🔄 Items Processed: ${agentRun.itemsProcessed}
 ✅ New Items Added: ${agentRun.itemsAdded}
 ⏱️ Duration: ${agentRun.duration ? Math.round(agentRun.duration / 1000) : 0}s
 🎯 Status: Completed Successfully
 
-${agentRun.results?.summary || 'Agent execution completed without detailed summary.'}`;
+${detailedContent}
+
+🔗 **View Full Report**: ${reportUrl}`;
 
         await sendAgentReportToTelegram(
           agent.userId.toString(),
@@ -353,6 +363,107 @@ ${agentRun.results?.summary || 'Agent execution completed without detailed summa
       .sort({ createdAt: -1 })
       .limit(limit)
       .populate('agentId', 'name type');
+  }
+
+  private async generateDetailedReportContent(agentRun: IAgentRun): Promise<string> {
+    try {
+      // Extract articles from logs that were successfully saved
+      const savedArticleLogs = agentRun.logs.filter(log => 
+        log.level === 'info' && 
+        log.message === 'Saved news article' && 
+        log.data?.title && 
+        log.data?.source
+      );
+
+      // Get source breakdown from logs
+      const completionLog = agentRun.logs.find(log => 
+        log.message === 'CrewAI execution completed' && 
+        log.data?.sourceBreakdown
+      );
+
+      let reportContent = '';
+
+      // Add source breakdown if available
+      if (completionLog?.data?.sourceBreakdown) {
+        reportContent += '📈 **Source Breakdown**\n';
+        Object.entries(completionLog.data.sourceBreakdown).forEach(([source, count]) => {
+          const sourceEmoji = this.getSourceEmoji(source);
+          reportContent += `${sourceEmoji} ${source}: ${count} articles\n`;
+        });
+        reportContent += '\n';
+      }
+
+      // Add brief articles summary
+      if (savedArticleLogs.length > 0) {
+        reportContent += '📰 **Recent Articles Added**\n';
+        
+        // Show only first 3 articles for Telegram summary
+        const articlesToShow = savedArticleLogs.slice(0, 3);
+        
+        articlesToShow.forEach((log, index) => {
+          const { title, source, sourceType, qualityScore, urlValidated } = log.data;
+          const sourceEmoji = this.getSourceEmoji(sourceType || source);
+          const qualityEmoji = qualityScore ? this.getQualityEmoji(qualityScore) : '';
+          const validationEmoji = urlValidated ? '✅' : '';
+          
+          // Truncate long titles for Telegram
+          const truncatedTitle = title.length > 80 ? title.substring(0, 80) + '...' : title;
+          
+          reportContent += `${index + 1}. ${sourceEmoji} **${truncatedTitle}**\n`;
+          reportContent += `   📍 ${source} ${qualityEmoji} ${validationEmoji}\n\n`;
+        });
+
+        // Add note about remaining articles
+        if (savedArticleLogs.length > 3) {
+          reportContent += `📎 ... and ${savedArticleLogs.length - 3} more articles (see full report)\n\n`;
+        }
+      }
+
+      // Add execution insights if available
+      if (completionLog?.data?.qualityMetrics) {
+        reportContent += '🎯 **Quality Metrics**\n';
+        const metrics = completionLog.data.qualityMetrics;
+        if (metrics.avgQualityScore) {
+          reportContent += `📊 Avg Quality Score: ${metrics.avgQualityScore.toFixed(1)}/10\n`;
+        }
+        if (metrics.urlValidationRate) {
+          reportContent += `🔗 URL Validation Rate: ${(metrics.urlValidationRate * 100).toFixed(0)}%\n`;
+        }
+        reportContent += '\n';
+      }
+
+      // Add refresh mode info if available
+      if (completionLog?.data?.refreshMode) {
+        reportContent += `🔄 Mode: ${completionLog.data.refreshMode}\n`;
+      }
+
+      // Fallback to basic summary if no detailed content
+      if (!reportContent.trim()) {
+        reportContent = agentRun.results?.summary || 'Agent execution completed successfully.';
+      }
+
+      return reportContent;
+    } catch (error) {
+      console.error('[AgentService] Error generating detailed report:', error);
+      return agentRun.results?.summary || 'Agent execution completed without detailed summary.';
+    }
+  }
+
+  private getSourceEmoji(source: string): string {
+    const sourceType = source.toLowerCase();
+    if (sourceType.includes('reddit')) return '🔴';
+    if (sourceType.includes('telegram')) return '💬';
+    if (sourceType.includes('linkedin')) return '💼';
+    if (sourceType.includes('twitter') || sourceType.includes('x.com')) return '🐦';
+    if (sourceType.includes('news')) return '📰';
+    return '🌐';
+  }
+
+  private getQualityEmoji(score: number): string {
+    if (score >= 8) return '🌟';
+    if (score >= 6) return '⭐';
+    if (score >= 4) return '🔸';
+    return '🔹';
   }
 
   private calculateNextRun(cronExpression: string): Date {
