@@ -35,6 +35,7 @@ const newsRoutes_1 = __importDefault(require("./api/routes/newsRoutes")); // Imp
 const ttsRoutes_1 = __importDefault(require("./api/routes/ttsRoutes")); // Import text-to-speech routes
 const calendarEventsRoutes_1 = __importDefault(require("./api/routes/calendarEventsRoutes")); // Import calendar event routes
 const scheduledAgents_1 = __importDefault(require("./api/routes/scheduledAgents")); // Import scheduled agents routes
+const taskReminderService_1 = require("./services/taskReminderService"); // Import task reminder service
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const rawPort = process.env.PORT || '3001'; // Read as string
@@ -340,6 +341,9 @@ const startServer = async () => {
         // Start the agent scheduler
         await agentScheduler.start();
         console.log('[Server] Agent scheduler started successfully');
+        // Initialize task reminder scheduler
+        (0, taskReminderService_1.initializeTaskReminderScheduler)();
+        console.log('[Server] Task reminder scheduler initialized');
         // Make io available globally for real-time updates
         global.io = io;
         httpServer.listen(PORT, '0.0.0.0', () => {

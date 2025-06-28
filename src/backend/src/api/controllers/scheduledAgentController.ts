@@ -214,13 +214,24 @@ export const updateScheduledAgent = async (req: AuthenticatedRequest, res: Respo
     const userId = req.user?.id;
     const updates = req.body;
 
+    console.log(`[ScheduledAgent] UPDATE request for agent ID: ${id}, User ID: ${userId}`);
+
     if (!userId) {
+      console.log('[ScheduledAgent] UPDATE failed - no user ID');
       res.status(401).json({ success: false, error: 'Authentication required' });
       return;
     }
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      res.status(400).json({ success: false, error: 'Invalid agent ID' });
+      console.log(`[ScheduledAgent] UPDATE failed - invalid agent ID format: ${id}`);
+      res.status(400).json({ success: false, error: 'Invalid agent ID format' });
+      return;
+    }
+
+    // Check database connection
+    if (mongoose.connection.readyState !== 1) {
+      console.error('[ScheduledAgent] UPDATE failed - database not connected, readyState:', mongoose.connection.readyState);
+      res.status(503).json({ success: false, error: 'Database connection unavailable' });
       return;
     }
 
@@ -231,16 +242,42 @@ export const updateScheduledAgent = async (req: AuthenticatedRequest, res: Respo
     delete updates.failureCount;
     delete updates.lastResult;
 
+    console.log(`[ScheduledAgent] Attempting to update agent with ID: ${id} and userId: ${userId}`);
+
     const scheduledAgent = await ScheduledAgent.findOneAndUpdate(
       { _id: id, userId },
       { ...updates, updatedAt: new Date() },
       { new: true, runValidators: true }
-    );
+    ).catch(error => {
+      console.error('[ScheduledAgent] Database update error:', error);
+      throw error;
+    });
 
     if (!scheduledAgent) {
-      res.status(404).json({ success: false, error: 'Scheduled agent not found' });
+      console.log(`[ScheduledAgent] UPDATE failed - agent not found for ID: ${id} and userId: ${userId}`);
+      
+      // Check if agent exists but belongs to different user
+      const agentExistsForOtherUser = await ScheduledAgent.findById(id);
+      if (agentExistsForOtherUser) {
+        console.log(`[ScheduledAgent] Agent ${id} exists but belongs to different user`);
+        res.status(403).json({ 
+          success: false, 
+          error: 'Access denied to this scheduled agent',
+          details: 'This agent belongs to another user'
+        });
+        return;
+      }
+      
+      console.log(`[ScheduledAgent] Agent ${id} does not exist in database`);
+      res.status(404).json({ 
+        success: false, 
+        error: 'Scheduled agent not found',
+        details: 'The agent you are trying to update no longer exists. Please refresh the page.'
+      });
       return;
     }
+
+    console.log(`[ScheduledAgent] Successfully updated agent: ${scheduledAgent.name}`);
 
     res.json({
       success: true,
@@ -249,7 +286,7 @@ export const updateScheduledAgent = async (req: AuthenticatedRequest, res: Respo
     });
 
   } catch (error: any) {
-    console.error('Error updating scheduled agent:', error);
+    console.error('[ScheduledAgent] Error updating scheduled agent:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to update scheduled agent',

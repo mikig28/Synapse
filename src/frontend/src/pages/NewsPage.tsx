@@ -278,12 +278,27 @@ const NewsPage: React.FC = () => {
     source: '',
     isRead: undefined as boolean | undefined,
     isFavorite: undefined as boolean | undefined,
+    runId: undefined as string | undefined,
   });
   const [selectedContent, setSelectedContent] = useState<NewsItem | null>(null);
   const [contentModalOpen, setContentModalOpen] = useState(false);
   const [relatedItems, setRelatedItems] = useState<NewsItem[]>([]);
   const [loadingRelated, setLoadingRelated] = useState(false);
   const { toast } = useToast();
+
+  // Check for runId in URL parameters
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const runId = urlParams.get('runId');
+    if (runId) {
+      setFilters(prev => ({ ...prev, runId }));
+      setShowTelegramSection(false); // Hide telegram section when viewing specific run
+      toast({
+        title: 'Agent Report',
+        description: 'Showing results from specific agent execution',
+      });
+    }
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -292,8 +307,10 @@ const NewsPage: React.FC = () => {
   useEffect(() => {
     fetchCategories();
     fetchStatistics();
-    fetchTelegramMessages();
-  }, []);
+    if (!filters.runId) { // Only fetch telegram messages if not viewing specific run
+      fetchTelegramMessages();
+    }
+  }, [filters.runId]);
 
   const fetchData = async () => {
     try {
@@ -537,17 +554,34 @@ const NewsPage: React.FC = () => {
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full">
-              <Newspaper className="w-8 h-8 text-primary" />
+              {filters.runId ? <Bot className="w-8 h-8 text-primary" /> : <Newspaper className="w-8 h-8 text-primary" />}
             </div>
             <div>
               <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-primary">
-                News Feed
+                {filters.runId ? 'Agent Execution Report' : 'News Feed'}
               </h1>
               <p className="text-muted-foreground">
-                AI-curated news articles from your agents
+                {filters.runId 
+                  ? 'Detailed results from agent execution' 
+                  : 'AI-curated news articles from your agents'
+                }
               </p>
             </div>
           </div>
+          {filters.runId && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                window.history.pushState({}, '', '/news');
+                setFilters(prev => ({ ...prev, runId: undefined }));
+                setShowTelegramSection(true);
+              }}
+              className="flex items-center gap-2"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Back to News Feed
+            </Button>
+          )}
         </div>
 
         {/* Statistics */}

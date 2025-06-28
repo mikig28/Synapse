@@ -49,6 +49,7 @@ const TaskSchema = new mongoose_1.Schema({
         default: 'medium',
     },
     dueDate: { type: Date },
+    reminderEnabled: { type: Boolean, default: false },
     source: { type: String },
     telegramMessageId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'TelegramItem' },
     rawTranscription: { type: String, required: false },

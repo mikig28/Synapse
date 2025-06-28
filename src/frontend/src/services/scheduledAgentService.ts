@@ -102,6 +102,14 @@ export const scheduledAgentService = {
       return response.data.data;
     } catch (error: any) {
       console.error('Error updating scheduled agent:', error);
+      
+      // Handle specific error cases
+      if (error.response?.status === 404) {
+        throw new Error('This scheduled agent no longer exists. The page will refresh to show current agents.');
+      } else if (error.response?.status === 403) {
+        throw new Error('Access denied to this scheduled agent.');
+      }
+      
       throw new Error(error.response?.data?.error || error.message || 'Failed to update scheduled agent');
     }
   },

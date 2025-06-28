@@ -221,11 +221,22 @@ const EditScheduledAgentModal: React.FC<EditScheduledAgentModalProps> = ({
       });
       onSuccess(updatedAgent);
     } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to update scheduled agent',
-        variant: 'destructive',
-      });
+      // Handle 404 errors by closing modal and showing specific message
+      if (error.message?.includes('no longer exists')) {
+        toast({
+          title: 'Agent Not Found',
+          description: error.message,
+          variant: 'destructive',
+        });
+        onOpenChange(false); // Close the modal
+        // The parent component will handle refreshing the list
+      } else {
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to update scheduled agent',
+          variant: 'destructive',
+        });
+      }
     } finally {
       setLoading(false);
     }

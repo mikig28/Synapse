@@ -3,9 +3,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteTask = exports.updateTask = exports.createTask = exports.getTasks = void 0;
+exports.sendTaskReminder = exports.deleteTask = exports.updateTask = exports.createTask = exports.getTasks = void 0;
 const Task_1 = __importDefault(require("../../models/Task"));
 const mongoose_1 = __importDefault(require("mongoose"));
+const taskReminderService_1 = require("../../services/taskReminderService");
 const getTasks = async (req, res) => {
     try {
         const userId = req.user?.id;
@@ -29,13 +30,15 @@ const createTask = async (req, res) => {
         if (!userId) {
             return res.status(401).json({ message: 'User not authenticated' });
         }
-        const { title, description, status, priority, source, telegramMessageId } = req.body;
+        const { title, description, status, priority, dueDate, reminderEnabled, source, telegramMessageId } = req.body;
         const newTask = new Task_1.default({
             userId: new mongoose_1.default.Types.ObjectId(userId),
             title,
             description,
             status: status || 'pending',
             priority: priority || 'medium',
+            dueDate: dueDate ? new Date(dueDate) : undefined,
+            reminderEnabled: reminderEnabled || false,
             source,
             ...(telegramMessageId && mongoose_1.default.Types.ObjectId.isValid(telegramMessageId) && { telegramMessageId: new mongoose_1.default.Types.ObjectId(telegramMessageId) }),
         });
@@ -58,8 +61,15 @@ const updateTask = async (req, res) => {
         if (!mongoose_1.default.Types.ObjectId.isValid(taskId)) {
             return res.status(400).json({ message: 'Invalid task ID' });
         }
-        const { title, description, status, priority } = req.body;
-        const updatedTask = await Task_1.default.findOneAndUpdate({ _id: taskId, userId: new mongoose_1.default.Types.ObjectId(userId) }, { title, description, status, priority }, { new: true, runValidators: true });
+        const { title, description, status, priority, dueDate, reminderEnabled } = req.body;
+        const updatedTask = await Task_1.default.findOneAndUpdate({ _id: taskId, userId: new mongoose_1.default.Types.ObjectId(userId) }, {
+            title,
+            description,
+            status,
+            priority,
+            dueDate: dueDate ? new Date(dueDate) : undefined,
+            reminderEnabled
+        }, { new: true, runValidators: true });
         if (!updatedTask) {
             return res.status(404).json({ message: 'Task not found or user not authorized' });
         }
@@ -93,3 +103,18 @@ const deleteTask = async (req, res) => {
     }
 };
 exports.deleteTask = deleteTask;
+const sendTaskReminder = async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) {
+            return res.status(401).json({ message: 'User not authenticated' });
+        }
+        await (0, taskReminderService_1.sendTaskReminderToUser)(userId);
+        res.status(200).json({ message: 'Task reminder sent successfully' });
+    }
+    catch (error) {
+        console.error('Error sending task reminder:', error);
+        res.status(500).json({ message: 'Failed to send task reminder', error: error.message });
+    }
+};
+exports.sendTaskReminder = sendTaskReminder;

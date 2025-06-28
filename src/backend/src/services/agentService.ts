@@ -243,9 +243,9 @@ export class AgentService {
         // Generate detailed content summary from logs
         const detailedContent = await this.generateDetailedReportContent(agentRun);
         
-        // Generate link to full report
-        const baseUrl = process.env.BACKEND_URL || process.env.API_URL || 'http://localhost:3001';
-        const reportUrl = `${baseUrl}/api/agents/runs/${agentRun._id}/report/html`;
+        // Generate link to full report via frontend
+        const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:4173';
+        const reportUrl = `${frontendUrl}/news?runId=${agentRun._id}`;
         
         const reportContent = `📊 **Execution Summary**
 🔄 Items Processed: ${agentRun.itemsProcessed}

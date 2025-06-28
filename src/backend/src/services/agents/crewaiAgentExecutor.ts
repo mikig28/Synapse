@@ -346,6 +346,7 @@ export class CrewAIAgentExecutor implements AgentExecutor {
             _id: new mongoose.Types.ObjectId(), // Ensure unique ObjectId
             userId,
             agentId: agent._id,
+            runId: run._id, // Link to the specific agent run
             title: article.title || 'Untitled',
             content: article.content || article.summary || article.text || '',
             summary: article.summary || article.content?.substring(0, 300) + '...' || article.text?.substring(0, 300) + '...' || '',

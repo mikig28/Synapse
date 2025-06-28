@@ -11,4 +11,5 @@ router.get('/', authMiddleware_1.protect, tasksController_1.getTasks);
 router.post('/', authMiddleware_1.protect, tasksController_1.createTask);
 router.put('/:id', authMiddleware_1.protect, tasksController_1.updateTask);
 router.delete('/:id', authMiddleware_1.protect, tasksController_1.deleteTask);
+router.post('/send-reminder', authMiddleware_1.protect, tasksController_1.sendTaskReminder);
 exports.default = router;
