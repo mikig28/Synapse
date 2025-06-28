@@ -245,14 +245,20 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
         hasSuccess: 'success' in crewaiResponse,
         successValue: crewaiResponse.success,
         successType: typeof crewaiResponse.success,
+        hasStatus: 'status' in crewaiResponse,
+        statusValue: (crewaiResponse as any).status,
         responseKeys: Object.keys(crewaiResponse),
         mode: crewaiResponse.mode
       });
 
-      if (!crewaiResponse.success) {
-        const errorMessage = crewaiResponse.error || 'Unknown error from CrewAI service';
+      // Handle both response formats: new format with 'success' and old format with 'status'
+      const isSuccessful = crewaiResponse.success === true || (crewaiResponse as any).status === 'success';
+      
+      if (!isSuccessful) {
+        const errorMessage = crewaiResponse.error || (crewaiResponse as any).error || 'Unknown error from CrewAI service';
         await run.addLog('error', `CrewAI returned unsuccessful response`, {
           success: crewaiResponse.success,
+          status: (crewaiResponse as any).status,
           error: errorMessage,
           responseKeys: Object.keys(crewaiResponse)
         });
@@ -260,12 +266,14 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       }
 
       // **FIX 1: Store session ID in agent run for progress tracking**
-      if (crewaiResponse.session_id) {
+      // Handle both session ID formats: session_id (new) and sessionId (old)
+      const sessionId = crewaiResponse.session_id || (crewaiResponse as any).sessionId;
+      if (sessionId) {
         await run.updateOne({ 
-          'results.sessionId': crewaiResponse.session_id 
+          'results.sessionId': sessionId 
         });
-        await run.addLog('info', `📋 Session ID stored for progress tracking: ${crewaiResponse.session_id}`);
-        console.log(`[CrewAI Agent] Stored session ID: ${crewaiResponse.session_id} for run: ${run._id}`);
+        await run.addLog('info', `📋 Session ID stored for progress tracking: ${sessionId}`);
+        console.log(`[CrewAI Agent] Stored session ID: ${sessionId} for run: ${run._id}`);
       }
 
       await run.addLog('info', '🎉 CrewAI news gathering completed successfully', {
@@ -293,22 +301,72 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       // Process and store the results
       await run.addLog('info', 'Processing and storing results...');
       
-      // Check if we got real data or fallback data
-      const dataAnalysis = this.analyzeDataQuality(crewaiResponse);
-      if (dataAnalysis.isFallbackData) {
-        await run.addLog('warn', '⚠️ Received simulated/fallback data instead of real sources');
-        await run.addLog('info', '🔍 Possible reasons: API rate limits, source unavailability, or service configuration issues');
-        await run.addLog('info', '💡 The system generated AI analysis based on the topics instead of scraping real content');
-      } else if (dataAnalysis.realItemCount === 0) {
-        await run.addLog('warn', '📭 No real items found from any data sources');
-        await run.addLog('info', '🔍 This could indicate: API limits, network issues, or sources being temporarily unavailable');
-        await run.addLog('info', '💡 Consider trying again later or with different topics');
-      } else {
-        await run.addLog('info', `✅ Successfully gathered ${dataAnalysis.realItemCount} real items from ${dataAnalysis.activeSources.length} sources`);
-        await run.addLog('info', `📊 Active sources: ${dataAnalysis.activeSources.join(', ')}`);
-      }
+      // Check if this is the old format (has 'report') or new format (has 'data')
+      const hasReport = 'report' in crewaiResponse;
+      const hasData = 'data' in crewaiResponse;
       
-      await this.processAndStoreResults(crewaiResponse, userId, run);
+      if (hasReport && !hasData) {
+        // Old format - just store the report as a simple result
+        await run.addLog('info', '📝 Processing text report from CrewAI agents');
+        const reportContent = (crewaiResponse as any).report;
+        await run.addLog('info', '✅ CrewAI research report received', {
+          reportLength: reportContent?.length || 0,
+          format: 'text_report'
+        });
+        
+        // Store as a simple news item
+        if (reportContent && reportContent.trim()) {
+          try {
+            const agentTopics = crewaiResponse.topics || [];
+            const newsItem = new NewsItem({
+              title: `CrewAI Research Report: ${agentTopics.join(', ')}`,
+              content: reportContent,
+              url: `${this.crewaiServiceUrl}/reports/${sessionId}`,
+              source: 'CrewAI Multi-Agent System',
+              sourceType: 'ai_research_report',
+              author: 'CrewAI Agents',
+              publishedAt: new Date(),
+              userId: userId,
+              agentId: (agent._id as mongoose.Types.ObjectId).toString(),
+              tags: agentTopics,
+              metadata: {
+                sessionId: sessionId,
+                serviceMode: 'original_crewai',
+                agentNames: ['News Researcher', 'Senior News Analyst'],
+                generatedAt: new Date().toISOString()
+              }
+            });
+            
+            await newsItem.save();
+            run.itemsAdded = 1;
+            run.itemsProcessed = 1;
+            
+            await run.addLog('info', '💾 Research report stored successfully', {
+              itemsAdded: 1,
+              reportTitle: newsItem.title
+            });
+          } catch (error: any) {
+            await run.addLog('warn', `Failed to store research report: ${error.message}`);
+          }
+        }
+      } else {
+        // New format - process structured data
+        const dataAnalysis = this.analyzeDataQuality(crewaiResponse);
+        if (dataAnalysis.isFallbackData) {
+          await run.addLog('warn', '⚠️ Received simulated/fallback data instead of real sources');
+          await run.addLog('info', '🔍 Possible reasons: API rate limits, source unavailability, or service configuration issues');
+          await run.addLog('info', '💡 The system generated AI analysis based on the topics instead of scraping real content');
+        } else if (dataAnalysis.realItemCount === 0) {
+          await run.addLog('warn', '📭 No real items found from any data sources');
+          await run.addLog('info', '🔍 This could indicate: API limits, network issues, or sources being temporarily unavailable');
+          await run.addLog('info', '💡 Consider trying again later or with different topics');
+        } else {
+          await run.addLog('info', `✅ Successfully gathered ${dataAnalysis.realItemCount} real items from ${dataAnalysis.activeSources.length} sources`);
+          await run.addLog('info', `📊 Active sources: ${dataAnalysis.activeSources.join(', ')}`);
+        }
+        
+        await this.processAndStoreResults(crewaiResponse, userId, run);
+      }
 
       // Update run statistics
       const totalItems = this.calculateTotalItems(crewaiResponse);
@@ -1435,6 +1493,11 @@ Using fallback test crew to demonstrate dashboard functionality.`);
   }
 
   private calculateTotalItems(response: CrewAINewsResponse): number {
+    // Handle old format (report) vs new format (data.organized_content)
+    if ('report' in response && !(response.data?.organized_content)) {
+      return (response as any).report ? 1 : 0;
+    }
+    
     if (!response.data?.organized_content) return 0;
     
     const content = response.data.organized_content;
