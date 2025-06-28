@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import ScheduledAgent, { IScheduledAgent } from '../models/ScheduledAgent';
-import { agentService } from './agentService';
+import { AgentService } from './agentService';
 import Agent from '../models/Agent';
 import AgentRun from '../models/AgentRun';
 import mongoose from 'mongoose';
@@ -14,8 +14,10 @@ class SchedulerService {
   private scheduledTasks: Map<string, SchedulerInstance> = new Map();
   private intervalChecks: Map<string, NodeJS.Timeout> = new Map();
   private isRunning: boolean = false;
+  private agentService: AgentService;
 
   constructor() {
+    this.agentService = new AgentService();
     // Main scheduler that checks for due executions every minute
     this.startMainScheduler();
   }
@@ -96,7 +98,7 @@ class SchedulerService {
       }
 
       // Execute the agent using the existing agent service
-      const run = await agentService.executeAgent(agent._id, scheduledAgent.userId);
+      const run = await this.agentService.executeAgent(agent._id, scheduledAgent.userId);
       
       if (!run) {
         throw new Error('Failed to create agent run');
@@ -240,7 +242,6 @@ class SchedulerService {
     const cronTask = this.scheduledTasks.get(agentId);
     if (cronTask) {
       cronTask.task.stop();
-      cronTask.task.destroy();
       this.scheduledTasks.delete(agentId);
       console.log(`🗑️ Unregistered cron scheduled agent: ${agentId}`);
     }
@@ -291,7 +292,6 @@ class SchedulerService {
     // Stop all cron tasks
     for (const [agentId, instance] of this.scheduledTasks) {
       instance.task.stop();
-      instance.task.destroy();
     }
     this.scheduledTasks.clear();
 

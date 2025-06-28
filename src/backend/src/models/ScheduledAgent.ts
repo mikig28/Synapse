@@ -39,8 +39,14 @@ export interface IScheduledAgent extends Document {
     executedAt: Date;
     duration?: number; // in milliseconds
   };
+  successRate: number; // Virtual property
   createdAt: Date;
   updatedAt: Date;
+  
+  // Method declarations
+  calculateNextExecution(): Date | undefined;
+  calculateCronNextRun(cronExpression: string, timezone?: string): Date;
+  markExecution(result: { status: 'success' | 'error'; message?: string; reportId?: mongoose.Types.ObjectId; duration?: number }): Promise<this>;
 }
 
 const ScheduledAgentSchema = new Schema<IScheduledAgent>({

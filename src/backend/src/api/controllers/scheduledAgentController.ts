@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import ScheduledAgent, { IScheduledAgent } from '../../models/ScheduledAgent';
-import { AuthenticatedRequest } from '../../middleware/auth';
+import { AuthenticatedRequest } from '../middleware/authMiddleware';
 import mongoose from 'mongoose';
 
 // Create a new scheduled agent
@@ -387,11 +387,14 @@ export const getExecutionHistory = async (req: AuthenticatedRequest, res: Respon
 
     // Get related agent runs (this would need to be implemented based on your AgentRun model)
     // For now, return the agent's basic execution stats
+    const successRate = scheduledAgent.executionCount > 0 ? 
+      (scheduledAgent.successCount / scheduledAgent.executionCount) * 100 : 0;
+    
     const executionHistory = {
       totalExecutions: scheduledAgent.executionCount,
       successfulExecutions: scheduledAgent.successCount,
       failedExecutions: scheduledAgent.failureCount,
-      successRate: scheduledAgent.successRate,
+      successRate: Math.round(successRate),
       lastExecution: scheduledAgent.lastExecuted,
       lastResult: scheduledAgent.lastResult,
       nextExecution: scheduledAgent.nextExecution
