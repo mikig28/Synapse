@@ -11,6 +11,10 @@ const router = express_1.default.Router();
 // @desc    Add a Telegram chat ID to the authenticated user's monitored list
 // @access  Private (requires JWT)
 router.post('/me/telegram-chats', authMiddleware_1.protect, userController_1.addMonitoredTelegramChat);
+// @route   PUT /api/v1/users/me/telegram-report-settings
+// @desc    Update user's Telegram report settings
+// @access  Private (requires JWT)
+router.put('/me/telegram-report-settings', authMiddleware_1.protect, userController_1.updateTelegramReportSettings);
 // You can add other user-specific routes here, e.g.:
 // router.get('/me', protect, getMyProfile);
 // router.put('/me', protect, updateMyProfile);

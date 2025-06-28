@@ -61,6 +61,11 @@ const CreateScheduledAgentModal: React.FC<CreateScheduledAgentModalProps> = ({
   const [activeTab, setActiveTab] = useState('basic');
   const { toast } = useToast();
 
+  // Debug logging for modal state
+  React.useEffect(() => {
+    console.log('🔄 CreateScheduledAgentModal: open state changed to:', open);
+  }, [open]);
+
   // Form state
   const [formData, setFormData] = useState<CreateScheduledAgentRequest>({
     name: '',
@@ -188,7 +193,11 @@ const CreateScheduledAgentModal: React.FC<CreateScheduledAgentModalProps> = ({
 
   // Handle submit
   const handleSubmit = async () => {
+    console.log('🚀 CreateScheduledAgentModal: handleSubmit called');
+    console.log('📋 Form data:', formData);
+    
     if (!validateForm()) {
+      console.log('❌ Form validation failed:', errors);
       toast({
         title: 'Validation Error',
         description: 'Please fix the errors in the form',
@@ -197,16 +206,20 @@ const CreateScheduledAgentModal: React.FC<CreateScheduledAgentModalProps> = ({
       return;
     }
 
+    console.log('✅ Form validation passed');
     setLoading(true);
 
     try {
+      console.log('📡 Calling scheduledAgentService.createScheduledAgent...');
       const newAgent = await scheduledAgentService.createScheduledAgent(formData);
+      console.log('✅ Agent created successfully:', newAgent);
       toast({
         title: 'Success',
         description: 'Scheduled agent created successfully',
       });
       onSuccess(newAgent);
     } catch (error: any) {
+      console.error('❌ Error creating agent:', error);
       toast({
         title: 'Error',
         description: error.message || 'Failed to create scheduled agent',

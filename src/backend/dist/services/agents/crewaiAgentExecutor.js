@@ -60,6 +60,22 @@ class CrewAIAgentExecutor {
             // Call the enhanced CrewAI service with retry logic
             const response = await this.executeNewsGatheringWithRetry(requestData, run);
             const result = response.data;
+            if (!result.success && !result.sessionId) {
+                throw new Error(result.error || 'CrewAI service returned unsuccessful result or did not provide a session ID');
+            }
+            // **FIX**: Immediately save the session ID to the agent run to enable progress tracking.
+            // This is the most critical part for ensuring the frontend can poll for progress.
+            if (result.sessionId) {
+                run.results = { ...run.results, sessionId: result.sessionId };
+                await run.save();
+                await run.addLog('info', 'CrewAI session started', { sessionId: result.sessionId });
+                console.log(`[CrewAIExecutor] Saved session ID ${result.sessionId} to run ${run._id}`);
+            }
+            else {
+                // If no session ID is returned, we cannot track progress. Log a warning.
+                await run.addLog('warn', 'CrewAI service did not return a session ID. Progress tracking will be unavailable for this run.');
+                console.warn(`[CrewAIExecutor] No session ID returned from CrewAI service for agent ${agent.name}`);
+            }
             if (!result.success) {
                 throw new Error(result.error || 'CrewAI service returned unsuccessful result');
             }

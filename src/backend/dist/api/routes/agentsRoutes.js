@@ -7,6 +7,8 @@ const express_1 = __importDefault(require("express"));
 const authMiddleware_1 = require("../middleware/authMiddleware");
 const agentsController_1 = require("../controllers/agentsController");
 const router = express_1.default.Router();
+// Health check endpoint (no auth required)
+router.get('/health', agentsController_1.getHealthStatus);
 // Debug endpoint (no auth required for testing)
 router.get('/debug/environment', agentsController_1.getEnvironmentDebug);
 // All other routes require authentication

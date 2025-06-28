@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AgentService = void 0;
 const Agent_1 = __importDefault(require("../models/Agent"));
 const AgentRun_1 = __importDefault(require("../models/AgentRun"));
+const telegramService_1 = require("./telegramService");
 class AgentService {
     constructor() {
         this.executors = new Map();
@@ -188,6 +189,22 @@ class AgentService {
                     duration: agentRun.duration
                 }
             });
+            // Send report to Telegram if enabled
+            try {
+                const reportTitle = `${agent.name} Execution Complete`;
+                const reportContent = `📊 **Execution Summary**
+🔄 Items Processed: ${agentRun.itemsProcessed}
+✅ New Items Added: ${agentRun.itemsAdded}
+⏱️ Duration: ${agentRun.duration ? Math.round(agentRun.duration / 1000) : 0}s
+🎯 Status: Completed Successfully
+
+${agentRun.results?.summary || 'Agent execution completed without detailed summary.'}`;
+                await (0, telegramService_1.sendAgentReportToTelegram)(agent.userId.toString(), reportTitle, reportContent);
+            }
+            catch (telegramError) {
+                console.error(`[AgentService] Failed to send Telegram report:`, telegramError);
+                // Don't fail the agent execution if Telegram fails
+            }
         }
         catch (error) {
             console.error(`[AgentService] Agent ${agent.name} failed:`, {

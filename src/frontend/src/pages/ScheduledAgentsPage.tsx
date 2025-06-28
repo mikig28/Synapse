@@ -196,7 +196,10 @@ const ScheduledAgentsPage: React.FC = () => {
             Automate your research agents to run on a schedule
           </p>
         </div>
-        <Button onClick={() => setShowCreateModal(true)} className="flex items-center gap-2">
+        <Button onClick={() => {
+          console.log('🚀 Create Scheduled Agent button clicked - opening modal');
+          setShowCreateModal(true);
+        }} className="flex items-center gap-2">
           <Plus className="w-4 h-4" />
           Create Scheduled Agent
         </Button>
@@ -258,7 +261,10 @@ const ScheduledAgentsPage: React.FC = () => {
             <p className="text-muted-foreground mb-4">
               Create your first scheduled agent to automate research tasks
             </p>
-            <Button onClick={() => setShowCreateModal(true)}>
+            <Button onClick={() => {
+              console.log('🚀 Create Scheduled Agent button (empty state) clicked - opening modal');
+              setShowCreateModal(true);
+            }}>
               <Plus className="w-4 h-4 mr-2" />
               Create Scheduled Agent
             </Button>

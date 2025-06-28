@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getEnvironmentDebug = exports.resetAgentStatus = exports.getCrewProgress = exports.getAgentStatus = exports.testCrewAISources = exports.getAgentCapabilities = exports.getMCPRecommendations = exports.testMCPConnection = exports.getBuiltinTools = exports.getSchedulerStatus = exports.resumeAgent = exports.pauseAgent = exports.getAgentStatistics = exports.getUserAgentRuns = exports.getAgentRuns = exports.executeAgent = exports.deleteAgent = exports.updateAgent = exports.createAgent = exports.getAgentById = exports.getAgents = exports.initializeAgentServices = void 0;
+exports.getEnvironmentDebug = exports.resetAgentStatus = exports.getCrewProgress = exports.getAgentStatus = exports.testCrewAISources = exports.getAgentCapabilities = exports.getMCPRecommendations = exports.testMCPConnection = exports.getBuiltinTools = exports.getSchedulerStatus = exports.resumeAgent = exports.pauseAgent = exports.getAgentStatistics = exports.getUserAgentRuns = exports.getAgentRuns = exports.executeAgent = exports.deleteAgent = exports.updateAgent = exports.createAgent = exports.getAgentById = exports.getAgents = exports.getHealthStatus = exports.initializeAgentServices = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 const Agent_1 = __importDefault(require("../../models/Agent"));
 const AgentRun_1 = __importDefault(require("../../models/AgentRun"));
@@ -48,6 +48,25 @@ const initializeAgentServices = (service, scheduler) => {
     agentScheduler = scheduler;
 };
 exports.initializeAgentServices = initializeAgentServices;
+// Health check for the agent system
+const getHealthStatus = async (req, res) => {
+    try {
+        // In a real system, you might check db connection, executor services, etc.
+        res.json({
+            success: true,
+            status: 'healthy',
+            timestamp: new Date().toISOString(),
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            status: 'unhealthy',
+            error: error.message,
+        });
+    }
+};
+exports.getHealthStatus = getHealthStatus;
 // Get all agents for the authenticated user
 const getAgents = async (req, res) => {
     try {

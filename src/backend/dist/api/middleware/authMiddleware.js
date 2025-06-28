@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.authMiddleware = exports.protect = void 0;
+exports.auth = exports.authMiddleware = exports.protect = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const protect = async (req, res, next) => {
     console.log('[AuthMiddleware] Processing request:', {
@@ -50,3 +50,5 @@ const setCorsHeaders = (res, origin) => {
 };
 // Export as authMiddleware for compatibility
 exports.authMiddleware = exports.protect;
+// Export auth as an alias to protect for compatibility
+exports.auth = exports.protect;

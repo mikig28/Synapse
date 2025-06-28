@@ -66,6 +66,10 @@ const UserSchema = new mongoose_1.Schema({
         type: [Number], // Array of numbers
         default: [], // Default to an empty array
     },
+    sendAgentReportsToTelegram: {
+        type: Boolean,
+        default: false, // Default to false
+    },
     // You can add more fields here as your application grows
     // e.g., profilePictureUrl: String,
     // lastLogin: Date,

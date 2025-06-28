@@ -34,6 +34,7 @@ const agentsRoutes_1 = __importDefault(require("./api/routes/agentsRoutes")); //
 const newsRoutes_1 = __importDefault(require("./api/routes/newsRoutes")); // Import news routes
 const ttsRoutes_1 = __importDefault(require("./api/routes/ttsRoutes")); // Import text-to-speech routes
 const calendarEventsRoutes_1 = __importDefault(require("./api/routes/calendarEventsRoutes")); // Import calendar event routes
+const scheduledAgents_1 = __importDefault(require("./api/routes/scheduledAgents")); // Import scheduled agents routes
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const rawPort = process.env.PORT || '3001'; // Read as string
@@ -196,6 +197,7 @@ app.use('/api/v1/agents', agentsRoutes_1.default); // Use agents routes
 app.use('/api/v1/news', newsRoutes_1.default); // Use news routes
 app.use('/api/v1/tts', ttsRoutes_1.default); // Use TTS proxy route
 app.use('/api/v1/calendar-events', calendarEventsRoutes_1.default); // Use calendar event routes
+app.use('/api/v1/scheduled-agents', scheduledAgents_1.default); // Use scheduled agents routes
 // Health check endpoint for Render
 app.get('/health', (req, res) => {
     try {

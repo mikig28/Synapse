@@ -162,21 +162,60 @@ class CrewAINewsAgentExecutor {
                 success: crewaiResponse.success,
                 timestamp: crewaiResponse.timestamp
             });
-            if (!crewaiResponse.success) {
-                throw new Error(`CrewAI execution failed: ${crewaiResponse.error}`);
+            console.log(`[CrewAI Agent] Response validation:`, {
+                hasSuccess: 'success' in crewaiResponse,
+                successValue: crewaiResponse.success,
+                successType: typeof crewaiResponse.success,
+                hasStatus: 'status' in crewaiResponse,
+                statusValue: crewaiResponse.status,
+                responseKeys: Object.keys(crewaiResponse),
+                mode: crewaiResponse.mode
+            });
+            // Handle both response formats: new format with 'success' and old format with 'status'
+            const isSuccessful = crewaiResponse.success === true || crewaiResponse.status === 'success';
+            if (!isSuccessful) {
+                const errorMessage = crewaiResponse.error || crewaiResponse.error || 'Unknown error from CrewAI service';
+                await run.addLog('error', `CrewAI returned unsuccessful response`, {
+                    success: crewaiResponse.success,
+                    status: crewaiResponse.status,
+                    error: errorMessage,
+                    responseKeys: Object.keys(crewaiResponse)
+                });
+                throw new Error(`CrewAI execution failed: ${errorMessage}`);
             }
             // **FIX 1: Store session ID in agent run for progress tracking**
-            if (crewaiResponse.session_id) {
+            // Handle both session ID formats: session_id (new) and sessionId (old)
+            const sessionId = crewaiResponse.session_id || crewaiResponse.sessionId;
+            if (sessionId) {
                 await run.updateOne({
-                    'results.sessionId': crewaiResponse.session_id
+                    'results.sessionId': sessionId
                 });
-                await run.addLog('info', `📋 Session ID stored for progress tracking: ${crewaiResponse.session_id}`);
-                console.log(`[CrewAI Agent] Stored session ID: ${crewaiResponse.session_id} for run: ${run._id}`);
+                await run.addLog('info', `📋 Session ID stored for progress tracking: ${sessionId}`);
+                console.log(`[CrewAI Agent] Stored session ID: ${sessionId} for run: ${run._id}`);
             }
             await run.addLog('info', '🎉 CrewAI news gathering completed successfully', {
                 sourcesUsed: crewaiResponse.sources_used,
                 topicsAnalyzed: crewaiResponse.topics
             });
+            // Log 2025 framework compliance features
+            if (crewaiResponse.enhanced_features) {
+                await run.addLog('info', '🚀 CrewAI 2025 Framework Features Active:', {
+                    yamlConfiguration: crewaiResponse.enhanced_features.yaml_configuration,
+                    crewClassImplementation: crewaiResponse.enhanced_features.crew_class_implementation,
+                    multiAgentValidation: crewaiResponse.enhanced_features.multi_agent_validation,
+                    socialMediaIntegration: crewaiResponse.enhanced_features.social_media_integration,
+                    urlValidation: crewaiResponse.enhanced_features.url_validation,
+                    contentQualityAnalysis: crewaiResponse.enhanced_features.content_quality_analysis
+                });
+            }
+            if (crewaiResponse.execution_info) {
+                await run.addLog('info', '📋 Execution Information:', {
+                    frameworkVersion: crewaiResponse.execution_info.framework_version,
+                    agentsUsed: crewaiResponse.execution_info.agents_used,
+                    tasksExecuted: crewaiResponse.execution_info.tasks_executed,
+                    configurationSource: crewaiResponse.execution_info.configuration_source
+                });
+            }
             // Add topic analysis visibility
             if (crewaiResponse.data?.trending_topics) {
                 await run.addLog('info', '📊 Topic Analysis Results:', {
@@ -194,23 +233,105 @@ class CrewAINewsAgentExecutor {
             }
             // Process and store the results
             await run.addLog('info', 'Processing and storing results...');
-            // Check if we got real data or fallback data
-            const dataAnalysis = this.analyzeDataQuality(crewaiResponse);
-            if (dataAnalysis.isFallbackData) {
-                await run.addLog('warn', '⚠️ Received simulated/fallback data instead of real sources');
-                await run.addLog('info', '🔍 Possible reasons: API rate limits, source unavailability, or service configuration issues');
-                await run.addLog('info', '💡 The system generated AI analysis based on the topics instead of scraping real content');
-            }
-            else if (dataAnalysis.realItemCount === 0) {
-                await run.addLog('warn', '📭 No real items found from any data sources');
-                await run.addLog('info', '🔍 This could indicate: API limits, network issues, or sources being temporarily unavailable');
-                await run.addLog('info', '💡 Consider trying again later or with different topics');
+            // Check if this is the old format (has 'report') or new format (has 'data')
+            const hasReport = 'report' in crewaiResponse;
+            const hasData = 'data' in crewaiResponse;
+            // Initialize dataAnalysis for all cases
+            let dataAnalysis = null;
+            if (hasReport && !hasData) {
+                // Old format - just store the report as a simple result
+                await run.addLog('info', '📝 Processing text report from CrewAI agents');
+                const reportContent = crewaiResponse.report;
+                await run.addLog('info', '✅ CrewAI research report received', {
+                    reportLength: reportContent?.length || 0,
+                    format: 'text_report'
+                });
+                // Store as a simple news item
+                if (reportContent && reportContent.trim()) {
+                    try {
+                        const agentTopics = crewaiResponse.topics || [];
+                        // Extract URLs from the report content
+                        const urlRegex = /https?:\/\/[^\s\)]+/g;
+                        const extractedUrls = reportContent.match(urlRegex) || [];
+                        // Clean and validate URLs
+                        const sourceUrls = extractedUrls
+                            .map((url) => url.replace(/[.,;!?]$/, '')) // Remove trailing punctuation
+                            .filter((url) => {
+                            try {
+                                new URL(url);
+                                return true;
+                            }
+                            catch {
+                                return false;
+                            }
+                        })
+                            .slice(0, 10); // Limit to first 10 URLs
+                        await run.addLog('info', `📎 Extracted ${sourceUrls.length} source URLs from report`, {
+                            urlCount: sourceUrls.length,
+                            sources: sourceUrls.slice(0, 3) // Log first 3 for debugging
+                        });
+                        const newsItem = new NewsItem_1.default({
+                            title: `CrewAI Research Report: ${agentTopics.join(', ')}`,
+                            content: reportContent,
+                            url: `#crewai-report-${sessionId}`, // Internal reference, not a real URL
+                            source: {
+                                id: 'crewai-multi-agent-system',
+                                name: 'CrewAI Multi-Agent System'
+                            },
+                            author: 'CrewAI Agents',
+                            publishedAt: new Date(),
+                            userId: userId,
+                            agentId: agent._id,
+                            tags: agentTopics,
+                            metadata: {
+                                sessionId: sessionId,
+                                serviceMode: 'original_crewai',
+                                agentNames: ['News Researcher', 'Senior News Analyst'],
+                                generatedAt: new Date().toISOString(),
+                                sourceType: 'ai_research_report',
+                                sourceUrls: sourceUrls, // Store extracted URLs in metadata
+                                urlCount: sourceUrls.length
+                            }
+                        });
+                        await newsItem.save();
+                        run.itemsAdded = 1;
+                        run.itemsProcessed = 1;
+                        await run.addLog('info', '💾 Research report stored successfully', {
+                            itemsAdded: 1,
+                            reportTitle: newsItem.title
+                        });
+                    }
+                    catch (error) {
+                        await run.addLog('warn', `Failed to store research report: ${error.message}`);
+                    }
+                }
+                // Set simple dataAnalysis for old format
+                dataAnalysis = {
+                    isFallbackData: false,
+                    realItemCount: reportContent ? 1 : 0,
+                    activeSources: ['crewai_report'],
+                    format: 'text_report'
+                };
             }
             else {
-                await run.addLog('info', `✅ Successfully gathered ${dataAnalysis.realItemCount} real items from ${dataAnalysis.activeSources.length} sources`);
-                await run.addLog('info', `📊 Active sources: ${dataAnalysis.activeSources.join(', ')}`);
+                // New format - process structured data
+                dataAnalysis = this.analyzeDataQuality(crewaiResponse);
+                if (dataAnalysis.isFallbackData) {
+                    await run.addLog('warn', '⚠️ Received simulated/fallback data instead of real sources');
+                    await run.addLog('info', '🔍 Possible reasons: API rate limits, source unavailability, or service configuration issues');
+                    await run.addLog('info', '💡 The system generated AI analysis based on the topics instead of scraping real content');
+                }
+                else if (dataAnalysis.realItemCount === 0) {
+                    await run.addLog('warn', '📭 No real items found from any data sources');
+                    await run.addLog('info', '🔍 This could indicate: API limits, network issues, or sources being temporarily unavailable');
+                    await run.addLog('info', '💡 Consider trying again later or with different topics');
+                }
+                else {
+                    await run.addLog('info', `✅ Successfully gathered ${dataAnalysis.realItemCount} real items from ${dataAnalysis.activeSources.length} sources`);
+                    await run.addLog('info', `📊 Active sources: ${dataAnalysis.activeSources.join(', ')}`);
+                }
+                await this.processAndStoreResults(crewaiResponse, userId, run);
             }
-            await this.processAndStoreResults(crewaiResponse, userId, run);
             // Update run statistics
             const totalItems = this.calculateTotalItems(crewaiResponse);
             run.itemsProcessed = totalItems;
@@ -303,6 +424,13 @@ Using fallback test crew to demonstrate dashboard functionality.`);
                     }
                 });
                 console.log(`[CrewAI Agent] News gathering succeeded on attempt ${attempt}`);
+                console.log(`[CrewAI Agent] Response structure:`, {
+                    status: response.status,
+                    dataKeys: Object.keys(response.data || {}),
+                    success: response.data?.success,
+                    hasError: 'error' in (response.data || {}),
+                    mode: response.data?.mode
+                });
                 return response.data;
             }
             catch (error) {
@@ -1200,6 +1328,10 @@ Using fallback test crew to demonstrate dashboard functionality.`);
         return analysis;
     }
     calculateTotalItems(response) {
+        // Handle old format (report) vs new format (data.organized_content)
+        if ('report' in response && !(response.data?.organized_content)) {
+            return response.report ? 1 : 0;
+        }
         if (!response.data?.organized_content)
             return 0;
         const content = response.data.organized_content;

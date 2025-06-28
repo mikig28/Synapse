@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.initializeTelegramBot = void 0;
+exports.sendAgentReportToTelegram = exports.initializeTelegramBot = void 0;
 const node_telegram_bot_api_1 = __importDefault(require("node-telegram-bot-api"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const axios_1 = __importDefault(require("axios")); // <-- Import axios
@@ -327,5 +327,38 @@ const initializeTelegramBot = () => {
     // You could return the bot instance if needed elsewhere, but for now, it operates globally in this module.
 };
 exports.initializeTelegramBot = initializeTelegramBot;
+// Function to send agent reports to Telegram
+const sendAgentReportToTelegram = async (userId, reportTitle, reportContent) => {
+    try {
+        const user = await User_1.default.findById(userId);
+        if (!user) {
+            console.error(`[sendAgentReportToTelegram]: User not found: ${userId}`);
+            return;
+        }
+        if (!user.sendAgentReportsToTelegram) {
+            console.log(`[sendAgentReportToTelegram]: User ${userId} has disabled Telegram reports`);
+            return;
+        }
+        if (!user.monitoredTelegramChats || user.monitoredTelegramChats.length === 0) {
+            console.log(`[sendAgentReportToTelegram]: User ${userId} has no monitored Telegram chats`);
+            return;
+        }
+        const message = `🤖 **Agent Report: ${reportTitle}**\n\n${reportContent}`;
+        // Send to all monitored chats
+        for (const chatId of user.monitoredTelegramChats) {
+            try {
+                await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+                console.log(`[sendAgentReportToTelegram]: Report sent to chat ${chatId} for user ${userId}`);
+            }
+            catch (error) {
+                console.error(`[sendAgentReportToTelegram]: Failed to send to chat ${chatId}:`, error);
+            }
+        }
+    }
+    catch (error) {
+        console.error('[sendAgentReportToTelegram]: Error sending agent report:', error);
+    }
+};
+exports.sendAgentReportToTelegram = sendAgentReportToTelegram;
 // Export the bot instance if you need to access it directly in other modules (e.g., to send messages programmatically)
 // export default bot; 
