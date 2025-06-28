@@ -36,6 +36,9 @@ interface CrewAINewsResponse {
   topics: string[];
   sources_used: any;
   session_id?: string; // Add session ID for progress tracking
+  mode?: string; // Add mode property that CrewAI service returns
+  enhanced_features?: any; // Add enhanced_features property
+  execution_info?: any; // Add execution_info property
   data?: {
     executive_summary?: string[];
     trending_topics?: Array<{
