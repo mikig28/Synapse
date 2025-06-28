@@ -324,7 +324,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
             const newsItem = new NewsItem({
               title: `CrewAI Research Report: ${agentTopics.join(', ')}`,
               content: reportContent,
-              url: `${this.crewaiServiceUrl}/reports/${sessionId}`,
+              url: `#crewai-report-${sessionId}`, // Internal reference, not a real URL
               source: {
                 id: 'crewai-multi-agent-system',
                 name: 'CrewAI Multi-Agent System'
