@@ -305,6 +305,9 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       const hasReport = 'report' in crewaiResponse;
       const hasData = 'data' in crewaiResponse;
       
+      // Initialize dataAnalysis for all cases
+      let dataAnalysis: any = null;
+      
       if (hasReport && !hasData) {
         // Old format - just store the report as a simple result
         await run.addLog('info', '📝 Processing text report from CrewAI agents');
@@ -349,9 +352,17 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
             await run.addLog('warn', `Failed to store research report: ${error.message}`);
           }
         }
+        
+        // Set simple dataAnalysis for old format
+        dataAnalysis = {
+          isFallbackData: false,
+          realItemCount: reportContent ? 1 : 0,
+          activeSources: ['crewai_report'],
+          format: 'text_report'
+        };
       } else {
         // New format - process structured data
-        const dataAnalysis = this.analyzeDataQuality(crewaiResponse);
+        dataAnalysis = this.analyzeDataQuality(crewaiResponse);
         if (dataAnalysis.isFallbackData) {
           await run.addLog('warn', '⚠️ Received simulated/fallback data instead of real sources');
           await run.addLog('info', '🔍 Possible reasons: API rate limits, source unavailability, or service configuration issues');
