@@ -5,9 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Bell } from 'lucide-react';
 
 // Define a local Task interface, mirroring the one in TasksPage.tsx
 // Or, ideally, import from a shared types file like '@/types/task' if it exists
@@ -17,6 +18,8 @@ interface Task {
   description?: string;
   status: 'pending' | 'in-progress' | 'completed' | 'deferred';
   priority?: 'low' | 'medium' | 'high';
+  dueDate?: string;
+  reminderEnabled?: boolean;
   source?: string;
   telegramMessageId?: string;
   createdAt: string;
@@ -34,6 +37,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave }) 
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<Task['status']>('pending');
   const [priority, setPriority] = useState<Task['priority'] | undefined>(undefined);
+  const [dueDate, setDueDate] = useState('');
+  const [reminderEnabled, setReminderEnabled] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,6 +49,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave }) 
       setDescription('');
       setStatus('pending');
       setPriority(undefined);
+      setDueDate('');
+      setReminderEnabled(false);
       setError(null);
       setIsSubmitting(false);
     }
@@ -63,6 +70,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave }) 
       description: description || undefined,
       status,
       priority: priority || undefined,
+      dueDate: dueDate || undefined,
+      reminderEnabled,
       // source and telegramMessageId are not set by manual creation by default
     };
 
@@ -159,6 +168,32 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave }) 
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div>
+              <Label htmlFor="dueDate" className="text-muted-foreground">Due Date</Label>
+              <Input
+                type="date"
+                id="dueDate"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="mt-1 bg-background/50 border-border/50 focus:border-primary focus:ring-primary"
+                disabled={isSubmitting}
+              />
+            </div>
+            <div className="flex items-center justify-between p-4 bg-background/20 rounded-lg border border-border/30">
+              <div className="flex items-center space-x-3">
+                <Bell className="w-5 h-5 text-primary" />
+                <div>
+                  <Label htmlFor="reminderEnabled" className="text-muted-foreground font-medium">Telegram Reminder</Label>
+                  <p className="text-xs text-muted-foreground/70">Get daily reminder notifications in Telegram</p>
+                </div>
+              </div>
+              <Switch
+                id="reminderEnabled"
+                checked={reminderEnabled}
+                onCheckedChange={setReminderEnabled}
+                disabled={isSubmitting}
+              />
             </div>
             <div className="flex justify-end space-x-3 pt-4">
               <AnimatedButton 

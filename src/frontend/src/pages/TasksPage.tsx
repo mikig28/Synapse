@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { Task } from '../../types/task'; // Using the centralized Task type
 import axiosInstance from '@/services/axiosConfig'; // Import axiosInstance
+import { sendManualTaskReminder } from '@/services/taskService'; // Import task service
 import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { 
   CheckSquare, 
@@ -28,7 +29,7 @@ import {
   Search,
   Filter,
   TrendingUp,
-  CalendarPlus // Added for the new button
+  Bell // Added for reminder button
 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast"; // Added useToast
 import {
@@ -58,6 +59,7 @@ const TasksPage: React.FC = () => {
   const [showAddTaskModal, setShowAddTaskModal] = useState<boolean>(false);
   const [showAddToCalendarModal, setShowAddToCalendarModal] = useState<boolean>(false);
   const [taskForCalendar, setTaskForCalendar] = useState<Task | null>(null);
+  const [sendingReminder, setSendingReminder] = useState<boolean>(false);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -192,6 +194,24 @@ const TasksPage: React.FC = () => {
     // fetchTasks(); // Example if you want to re-fetch tasks
   };
 
+  const handleSendManualReminder = async () => {
+    if (!token) {
+      toast({ title: "Authentication Error", description: "Authentication token not found.", variant: "destructive" });
+      return;
+    }
+    setSendingReminder(true);
+    try {
+      await sendManualTaskReminder();
+      toast({ title: "Reminder Sent", description: "Task reminder sent to your Telegram successfully!", variant: "default" });
+    } catch (err: any) {
+      const errMsg = err.response?.data?.message || err.message || 'Failed to send reminder.';
+      console.error("Failed to send manual reminder:", errMsg);
+      toast({ title: "Reminder Failed", description: `Error: ${errMsg}`, variant: "destructive" });
+    } finally {
+      setSendingReminder(false);
+    }
+  };
+
   const filteredTasks = tasks.filter(task => {
     const titleMatches = task.title.toLowerCase().includes(searchTerm.toLowerCase());
     const descriptionMatches = (task.description || '').toLowerCase().includes(searchTerm.toLowerCase());
@@ -250,7 +270,7 @@ const TasksPage: React.FC = () => {
                   <Skeleton className="h-5 w-2/3" />
                   <Skeleton className="h-5 w-1/4" />
                 </div>
-                <SkeletonText lines={2} className="mb-3"/>
+                <SkeletonText lines={2} />
                 <div className="flex justify-end mt-2">
                   <Skeleton className="h-8 w-16 mr-2 rounded" />
                   <Skeleton className="h-8 w-16 rounded" />
@@ -407,13 +427,24 @@ const TasksPage: React.FC = () => {
               </Select>
             </div>
 
-            <AnimatedButton 
-              onClick={handleOpenAddTaskModal} 
-              className="w-full md:w-auto glow-purple-md"
-              variant="gradient"
-            >
-              <Plus className="mr-2 h-5 w-5" /> Add New Task
-            </AnimatedButton>
+            <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+              <AnimatedButton 
+                onClick={handleSendManualReminder} 
+                className="w-full md:w-auto glow-blue-md"
+                variant="outline"
+                loading={sendingReminder}
+                disabled={sendingReminder}
+              >
+                <Bell className="mr-2 h-5 w-5" /> Send Reminder
+              </AnimatedButton>
+              <AnimatedButton 
+                onClick={handleOpenAddTaskModal} 
+                className="w-full md:w-auto glow-purple-md"
+                variant="gradient"
+              >
+                <Plus className="mr-2 h-5 w-5" /> Add New Task
+              </AnimatedButton>
+            </div>
           </div>
         </motion.div>
 

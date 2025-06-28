@@ -5,7 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
+import { Bell } from 'lucide-react';
 
 // Re-using the Task interface, assuming it might be moved to a shared types file later
 interface Task {
@@ -14,6 +16,8 @@ interface Task {
   description?: string;
   status: 'pending' | 'in-progress' | 'completed' | 'deferred';
   priority?: 'low' | 'medium' | 'high';
+  dueDate?: string;
+  reminderEnabled?: boolean;
   source?: string;
   telegramMessageId?: string;
   createdAt: string;
@@ -32,6 +36,8 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, isOpen, onClose, on
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<Task['status']>('pending');
   const [priority, setPriority] = useState<Task['priority'] | undefined>('medium');
+  const [dueDate, setDueDate] = useState('');
+  const [reminderEnabled, setReminderEnabled] = useState(false);
 
   useEffect(() => {
     if (task) {
@@ -39,12 +45,16 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, isOpen, onClose, on
       setDescription(task.description || '');
       setStatus(task.status || 'pending');
       setPriority(task.priority || 'medium');
+      setDueDate(task.dueDate ? task.dueDate.split('T')[0] : ''); // Format for date input
+      setReminderEnabled(task.reminderEnabled || false);
     } else {
       // Reset form if no task is provided (e.g. modal closed and reopened for a new task later, though not current use case)
       setTitle('');
       setDescription('');
       setStatus('pending');
       setPriority('medium');
+      setDueDate('');
+      setReminderEnabled(false);
     }
   }, [task]);
 
@@ -62,6 +72,8 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, isOpen, onClose, on
       description,
       status,
       priority,
+      dueDate: dueDate || undefined,
+      reminderEnabled,
     };
     onSave(updatedTaskData);
   };
@@ -134,6 +146,32 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, isOpen, onClose, on
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            
+            <div>
+              <Label htmlFor="dueDate" className="text-muted-foreground">Due Date</Label>
+              <Input
+                type="date"
+                id="dueDate"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="mt-1 bg-background/50 border-border/50 focus:border-primary focus:ring-primary"
+              />
+            </div>
+            
+            <div className="flex items-center justify-between p-4 bg-background/20 rounded-lg border border-border/30">
+              <div className="flex items-center space-x-3">
+                <Bell className="w-5 h-5 text-primary" />
+                <div>
+                  <Label htmlFor="reminderEnabled" className="text-muted-foreground font-medium">Telegram Reminder</Label>
+                  <p className="text-xs text-muted-foreground/70">Get daily reminder notifications in Telegram</p>
+                </div>
+              </div>
+              <Switch
+                id="reminderEnabled"
+                checked={reminderEnabled}
+                onCheckedChange={setReminderEnabled}
+              />
             </div>
 
             <div className="flex justify-end space-x-3 pt-4">

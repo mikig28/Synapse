@@ -98,4 +98,19 @@ export const deleteTask = async (req: AuthenticatedRequest, res: Response) => {
     console.error('Error deleting task:', error);
     res.status(500).json({ message: 'Failed to delete task', error: (error as Error).message });
   }
+};
+
+export const sendTaskReminder = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    await sendTaskReminderToUser(userId);
+    res.status(200).json({ message: 'Task reminder sent successfully' });
+  } catch (error) {
+    console.error('Error sending task reminder:', error);
+    res.status(500).json({ message: 'Failed to send task reminder', error: (error as Error).message });
+  }
 }; 
