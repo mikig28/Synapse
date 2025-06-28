@@ -312,40 +312,7 @@ export const agentService = {
     return response.data.data;
   },
 
-  // Get agent execution status
-  async getAgentStatus(agentId: string): Promise<{
-    agentId: string;
-    status: string;
-    isActive: boolean;
-    canExecute: boolean;
-    isStuck: boolean;
-    statusReason: string;
-    lastRun: string | null;
-    lastRunStatus: string | null;
-  }> {
-    try {
-      const response = await axiosInstance.get(`/agents/${agentId}/status`);
-      return response.data.data;
-    } catch (error) {
-      console.error('Error fetching agent status:', error);
-      throw error;
-    }
-  },
 
-  // Reset agent status (for stuck agents)
-  async resetAgentStatus(agentId: string): Promise<{
-    agentId: string;
-    status: string;
-    resetAt: string;
-  }> {
-    try {
-      const response = await axiosInstance.post(`/agents/${agentId}/reset-status`);
-      return response.data.data;
-    } catch (error) {
-      console.error('Error resetting agent status:', error);
-      throw error;
-    }
-  },
 
   // Helper function to get agent by ID (alias for getAgentById)
   async getAgent(agentId: string): Promise<Agent> {

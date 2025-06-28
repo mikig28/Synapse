@@ -161,22 +161,22 @@ export const DashboardHealthCheck: React.FC<DashboardHealthCheckProps> = ({
       newHealth.crewaiService = 'disconnected';
     }
 
-    // Check Socket.IO connection
+    // Check Socket.IO connection by testing if the server responds to Socket.IO handshake
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
       
-      // Try to connect to Socket.IO endpoint
-      const socketResponse = await fetch(`${BACKEND_ROOT_URL}/socket.io/`, {
+      // Test Socket.IO endpoint with proper query parameters for handshake
+      const socketResponse = await fetch(`${BACKEND_ROOT_URL}/socket.io/?EIO=4&transport=polling`, {
         method: 'GET',
         signal: controller.signal,
       });
       
       clearTimeout(timeoutId);
       
-      // Socket.IO typically returns a JSON response with upgrade info or 400 for invalid request
-      // If we get any response (even 400), it means the Socket.IO server is running
-      newHealth.socketio = (socketResponse.status === 400 || socketResponse.ok) ? 'connected' : 'disconnected';
+      // Socket.IO returns specific responses for handshake requests
+      // Status 200 with proper response indicates Socket.IO is working
+      newHealth.socketio = socketResponse.ok ? 'connected' : 'disconnected';
     } catch (error: any) {
       console.log('Socket.IO check failed:', error.message);
       newHealth.socketio = 'disconnected';

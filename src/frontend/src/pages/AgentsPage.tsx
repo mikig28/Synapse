@@ -125,6 +125,7 @@ const AgentsPage: React.FC = () => {
   };
 
   const handleCreateAgent = async () => {
+    console.log('🚀 Create Agent button clicked!', newAgent);
     try {
       const agentData = {
         name: newAgent.name,
