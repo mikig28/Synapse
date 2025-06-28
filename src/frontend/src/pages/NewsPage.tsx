@@ -867,6 +867,28 @@ const NewsPage: React.FC = () => {
                         </p>
                       )}
 
+                      {/* Source URLs Preview - for CrewAI reports */}
+                      {item.metadata?.sourceUrls && item.metadata.sourceUrls.length > 0 && (
+                        <div className="mb-3 p-2 bg-muted/20 rounded-lg">
+                          <div className="flex items-center gap-2 mb-1">
+                            <ExternalLink className="w-3 h-3 text-muted-foreground" />
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {item.metadata.sourceUrls.length} source{item.metadata.sourceUrls.length > 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground line-clamp-1">
+                            {item.metadata.sourceUrls.slice(0, 2).map((url: string) => {
+                              try {
+                                return new URL(url).hostname;
+                              } catch {
+                                return url.substring(0, 30) + '...';
+                              }
+                            }).join(', ')}
+                            {item.metadata.sourceUrls.length > 2 && ` +${item.metadata.sourceUrls.length - 2} more`}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Quick Actions */}
                       <div className="flex items-center gap-2">
                         <Button
@@ -1070,6 +1092,40 @@ const NewsPage: React.FC = () => {
                           </div>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Source URLs - for CrewAI reports with extracted URLs */}
+                  {selectedContent.metadata?.sourceUrls && selectedContent.metadata.sourceUrls.length > 0 && (
+                    <div className="border-t pt-4">
+                      <h4 className="font-medium mb-3 flex items-center gap-2">
+                        <ExternalLink className="w-4 h-4" />
+                        Sources ({selectedContent.metadata.sourceUrls.length})
+                      </h4>
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {selectedContent.metadata.sourceUrls.map((url: string, index: number) => (
+                          <div key={index} className="flex items-center gap-2 p-2 bg-muted/20 rounded-lg">
+                            <ExternalLink className="w-3 h-3 text-muted-foreground shrink-0" />
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline line-clamp-1 flex-1"
+                              title={url}
+                            >
+                              {url}
+                            </a>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+                              className="h-6 w-6 p-0 shrink-0"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 
