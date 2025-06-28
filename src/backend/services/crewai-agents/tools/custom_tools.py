@@ -446,8 +446,8 @@ class FirecrawlScrapeTool(BaseTool):
             if extract_options:
                 default_options.update(extract_options)
             
-            # Scrape with Firecrawl
-            result = self.firecrawl.scrape_url(url, params=default_options)
+            # Scrape with Firecrawl (v1 API format)
+            result = self.firecrawl.scrape_url(url, default_options)
             
             if result.get('success'):
                 content_data = result.get('data', {})
@@ -505,8 +505,8 @@ class FirecrawlScrapeTool(BaseTool):
             if crawl_options:
                 default_options.update(crawl_options)
             
-            # Start crawl job
-            crawl_result = self.firecrawl.crawl_url(url, params=default_options)
+            # Start crawl job (v1 API format)
+            crawl_result = self.firecrawl.crawl_url(url, default_options)
             
             if crawl_result.get('success'):
                 pages = crawl_result.get('data', [])
