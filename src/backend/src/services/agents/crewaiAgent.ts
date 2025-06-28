@@ -325,18 +325,21 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
               title: `CrewAI Research Report: ${agentTopics.join(', ')}`,
               content: reportContent,
               url: `${this.crewaiServiceUrl}/reports/${sessionId}`,
-              source: 'CrewAI Multi-Agent System',
-              sourceType: 'ai_research_report',
+              source: {
+                id: 'crewai-multi-agent-system',
+                name: 'CrewAI Multi-Agent System'
+              },
               author: 'CrewAI Agents',
               publishedAt: new Date(),
               userId: userId,
-              agentId: (agent._id as mongoose.Types.ObjectId).toString(),
+              agentId: (agent._id as mongoose.Types.ObjectId),
               tags: agentTopics,
               metadata: {
                 sessionId: sessionId,
                 serviceMode: 'original_crewai',
                 agentNames: ['News Researcher', 'Senior News Analyst'],
-                generatedAt: new Date().toISOString()
+                generatedAt: new Date().toISOString(),
+                sourceType: 'ai_research_report'
               }
             });
             
