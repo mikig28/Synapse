@@ -238,8 +238,22 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
         timestamp: crewaiResponse.timestamp
       });
 
+      console.log(`[CrewAI Agent] Response validation:`, {
+        hasSuccess: 'success' in crewaiResponse,
+        successValue: crewaiResponse.success,
+        successType: typeof crewaiResponse.success,
+        responseKeys: Object.keys(crewaiResponse),
+        mode: crewaiResponse.mode
+      });
+
       if (!crewaiResponse.success) {
-        throw new Error(`CrewAI execution failed: ${crewaiResponse.error}`);
+        const errorMessage = crewaiResponse.error || 'Unknown error from CrewAI service';
+        await run.addLog('error', `CrewAI returned unsuccessful response`, {
+          success: crewaiResponse.success,
+          error: errorMessage,
+          responseKeys: Object.keys(crewaiResponse)
+        });
+        throw new Error(`CrewAI execution failed: ${errorMessage}`);
       }
 
       // **FIX 1: Store session ID in agent run for progress tracking**
@@ -403,6 +417,13 @@ Using fallback test crew to demonstrate dashboard functionality.`);
         });
 
         console.log(`[CrewAI Agent] News gathering succeeded on attempt ${attempt}`);
+        console.log(`[CrewAI Agent] Response structure:`, {
+          status: response.status,
+          dataKeys: Object.keys(response.data || {}),
+          success: response.data?.success,
+          hasError: 'error' in (response.data || {}),
+          mode: response.data?.mode
+        });
         return response.data;
         
       } catch (error: any) {
