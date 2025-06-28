@@ -549,6 +549,21 @@ def run_crew(agent_id: str, topic: str, date_context: dict) -> Dict[str, Any]:
 
 
 # --- API Endpoints ---
+@app.route('/', methods=['GET'])
+def root():
+    return jsonify({
+        "status": "running",
+        "service": "Synapse CrewAI Agent Service",
+        "version": "CrewAI 2025",
+        "timestamp": datetime.now().isoformat(),
+        "available_endpoints": {
+            "/health": "Service health check",
+            "/gather-news": "POST - Gather news for specified topics",
+            "/progress": "GET - Check progress of news gathering task"
+        },
+        "documentation": "Use /health for detailed service status"
+    })
+
 @app.route('/health', methods=['GET'])
 def health_check():
     return jsonify({
