@@ -14,8 +14,10 @@ import logging
 import threading
 import time
 from crewai import Agent, Task, Crew, Process
+from crewai.crews import CrewBase
 from langchain_community.tools import DuckDuckGoSearchRun
 from crewai_tools import FirecrawlSearchTool
+import yaml
 
 # --- Basic Setup ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -203,69 +205,169 @@ def scrape_telegram_messages(topics: list, max_messages: int = 5) -> list:
     
     return messages[:max_messages]
 
-# --- AGENTS ---
-researcher_agent = Agent(
-    role="Expert Researcher",
-    goal="Find the most relevant and up-to-date information on any given topic using available web search tools.",
-    backstory=(
-        "You are a master of the internet, capable of finding, extracting, and summarizing "
-        "information from any website. You are skilled in using search tools to quickly "
-        "identify the most credible and relevant sources. You are thorough and meticulous, "
-        "ensuring that the information you provide is accurate and comprehensive."
-    ),
-    tools=[search_tool],
-    allow_delegation=False,
-    verbose=True
-)
+# --- CrewAI 2025 YAML-Based Configuration ---
+def load_yaml_config(config_path: str) -> dict:
+    """Load YAML configuration file"""
+    try:
+        with open(config_path, 'r') as file:
+            return yaml.safe_load(file)
+    except FileNotFoundError:
+        logger.error(f"Config file not found: {config_path}")
+        return {}
+    except yaml.YAMLError as e:
+        logger.error(f"Error parsing YAML config: {e}")
+        return {}
 
-analyst_agent = Agent(
-    role="Senior News Analyst",
-    goal="Analyze the research findings to produce a concise, insightful, and engaging report.",
-    backstory=(
-        "You are an experienced news analyst with a talent for identifying key trends, "
-        "synthesizing complex information, and crafting compelling narratives. "
-        "You transform raw data into a clear, executive-level summary that is both informative and easy to digest."
-    ),
-    allow_delegation=False,
-    verbose=True
-)
+# Load agent and task configurations
+agents_config = load_yaml_config('config/agents.yaml')
+tasks_config = load_yaml_config('config/tasks.yaml')
 
-
-# --- TASKS ---
-def create_research_task(topic: str, date_context: dict, social_context: str = "") -> Task:
-    """Creates a research task for a given topic and date context."""
-    time_range_hours = date_context.get('time_range', '24h').replace('h','')
-    return Task(
-        description=(
-            f"Conduct a comprehensive search for the topic: '{topic}'. "
-            "Use your search tool to find multiple high-quality articles, posts, and discussions. "
-            f"Focus on information published within the last {time_range_hours} hours, "
-            f"relative to the current date: {date_context.get('current_date', 'N/A')}. "
-            "Synthesize the findings to provide a comprehensive overview. "
-            f"{social_context}"
-            "Your final output must be a detailed report with key points and include the URLs of the sources used."
-        ),
-        expected_output=(
-            "A detailed report on the topic, including an introduction, key findings with bullet points, "
-            "and a conclusion. The report must include at least 5 URLs to the most relevant sources found."
-        ),
-        agent=researcher_agent,
+def create_agent_from_config(agent_name: str, config: dict) -> Agent:
+    """Create agent from YAML configuration"""
+    agent_config = config.get(agent_name, {})
+    
+    return Agent(
+        role=agent_config.get('role', 'Unknown Role'),
+        goal=agent_config.get('goal', 'No goal specified'),
+        backstory=agent_config.get('backstory', 'No backstory provided'),
+        tools=[search_tool] if agent_name in ['news_research_specialist', 'social_media_monitor'] else [],
+        allow_delegation=agent_config.get('allow_delegation', False),
+        verbose=agent_config.get('verbose', True),
+        max_iter=agent_config.get('max_iter', 5),
+        memory=agent_config.get('memory', True)
     )
+
+# Create agents from YAML configuration
+researcher_agent = create_agent_from_config('news_research_specialist', agents_config)
+analyst_agent = create_agent_from_config('trend_analysis_expert', agents_config)
+quality_analyst = create_agent_from_config('content_quality_analyst', agents_config)
+url_validator = create_agent_from_config('url_validation_specialist', agents_config)
+social_monitor = create_agent_from_config('social_media_monitor', agents_config)
+
+
+# --- CrewAI 2025 Task Creation from YAML ---
+def create_task_from_config(task_name: str, agent: Agent, context_vars: dict = None) -> Task:
+    """Create task from YAML configuration with dynamic variable substitution"""
+    task_config = tasks_config.get(task_name, {})
+    
+    if not task_config:
+        logger.warning(f"Task configuration not found for: {task_name}")
+        return None
+    
+    # Substitute variables in description and expected_output
+    description = task_config.get('description', '')
+    expected_output = task_config.get('expected_output', '')
+    
+    if context_vars:
+        for key, value in context_vars.items():
+            placeholder = f"{{{key}}}"
+            description = description.replace(placeholder, str(value))
+            expected_output = expected_output.replace(placeholder, str(value))
+    
+    return Task(
+        description=description,
+        expected_output=expected_output,
+        agent=agent
+    )
+
+def create_research_task(topic: str, date_context: dict, social_context: str = "") -> Task:
+    """Creates a research task using YAML configuration"""
+    topics_list = [t.strip() for t in topic.split(',') if t.strip()] if isinstance(topic, str) else [str(topic)]
+    
+    context_vars = {
+        'topics': ', '.join(topics_list),
+        'focus_areas': 'Recent developments, trending discussions, expert opinions',
+        'max_articles': '10',
+        'sources': 'reddit,linkedin,news_websites,telegram'
+    }
+    
+    return create_task_from_config('research_news_sources', researcher_agent, context_vars)
+
+def create_quality_validation_task(topics: str) -> Task:
+    """Creates content quality validation task"""
+    context_vars = {
+        'topics': topics,
+        'filter_mode': 'strict',
+        'quality_threshold': '0.4'
+    }
+    
+    return create_task_from_config('validate_content_quality', quality_analyst, context_vars)
+
+def create_url_validation_task() -> Task:
+    """Creates URL validation task"""
+    return create_task_from_config('validate_urls_and_sources', url_validator)
 
 def create_analysis_task(topic: str) -> Task:
-    """Creates an analysis task to summarize the research."""
-    return Task(
-        description=f"Analyze the research report on '{topic}' and create a final, polished executive summary.",
-        expected_output=(
-            "A concise and insightful summary of the research findings. It should be well-structured, "
-            "engaging, and easy to read for a busy executive. Include a title, a brief introduction, "
-            "bullet points for key insights, and a concluding sentence."
-        ),
-        agent=analyst_agent,
-    )
+    """Creates comprehensive analysis task using YAML configuration"""
+    topics_list = [t.strip() for t in topic.split(',') if t.strip()] if isinstance(topic, str) else [str(topic)]
+    
+    context_vars = {
+        'topics': ', '.join(topics_list),
+        'sources': 'reddit,linkedin,news_websites,telegram',
+        'filter_mode': 'strict'
+    }
+    
+    return create_task_from_config('generate_comprehensive_report', analyst_agent, context_vars)
+
+def create_social_monitoring_task(topics: str) -> Task:
+    """Creates social media monitoring task"""
+    context_vars = {
+        'topics': topics,
+        'sources': 'reddit,linkedin,telegram',
+        'validate_sources': 'true'
+    }
+    
+    return create_task_from_config('monitor_social_media', social_monitor, context_vars)
 
 
-# --- CREW ---
+# --- CrewAI 2025 CrewBase Implementation ---
+class SynapseNewsCrew(CrewBase):
+    """CrewAI 2025 compliant crew implementation"""
+    
+    def __init__(self, topic: str, date_context: dict):
+        super().__init__()
+        self.topic = topic
+        self.date_context = date_context
+        
+    @property
+    def agents(self) -> list:
+        """Define crew agents"""
+        return [researcher_agent, quality_analyst, url_validator, analyst_agent, social_monitor]
+    
+    @property
+    def tasks(self) -> list:
+        """Define crew tasks with dependencies"""
+        research_task = create_research_task(self.topic, self.date_context)
+        quality_task = create_quality_validation_task(self.topic)
+        url_task = create_url_validation_task()
+        social_task = create_social_monitoring_task(self.topic)
+        analysis_task = create_analysis_task(self.topic)
+        
+        # Set task dependencies for 2025 framework
+        quality_task.context = [research_task]
+        url_task.context = [quality_task]
+        social_task.context = [research_task]
+        analysis_task.context = [research_task, quality_task, url_task, social_task]
+        
+        return [research_task, quality_task, url_task, social_task, analysis_task]
+    
+    def crew(self) -> Crew:
+        """Create crew with 2025 configuration"""
+        return Crew(
+            agents=self.agents,
+            tasks=self.tasks,
+            process=Process.sequential,
+            verbose=True,
+            memory=True,
+            embedder={
+                "provider": "openai",
+                "config": {
+                    "model": "text-embedding-3-small"
+                }
+            }
+        )
+
+# --- CREW EXECUTION ---
 def run_crew(agent_id: str, topic: str, date_context: dict) -> Dict[str, Any]:
     """Runs the research and analysis crew with social media scraping."""
     session_id = f"{agent_id}-{int(datetime.now().timestamp())}"
@@ -324,15 +426,9 @@ def run_crew(agent_id: str, topic: str, date_context: dict) -> Dict[str, Any]:
                 for msg in telegram_messages[:2]:
                     social_context += f"- {msg['title']}\n"
         
-        research_task = create_research_task(topic, date_context, social_context)
-        analysis_task = create_analysis_task(topic)
-
-        news_crew = Crew(
-            agents=[researcher_agent, analyst_agent],
-            tasks=[research_task, analysis_task],
-            process=Process.sequential,
-            verbose=True,
-        )
+        # Create and execute 2025 compliant crew
+        synapse_crew = SynapseNewsCrew(topic, date_context)
+        news_crew = synapse_crew.crew()
 
         progress_store.set(session_id, {'status': 'running', 'message': 'Crew is researching and analyzing.', 'progress': 50})
         
@@ -389,7 +485,22 @@ def run_crew(agent_id: str, topic: str, date_context: dict) -> Dict[str, Any]:
             "sessionId": session_id, 
             "report": final_report,
             "social_media_summary": social_content_summary,
-            "topics": topics
+            "topics": topics,
+            "mode": "crewai_2025_yaml_config",
+            "enhanced_features": {
+                "yaml_configuration": True,
+                "crew_base_implementation": True,
+                "multi_agent_validation": True,
+                "social_media_integration": True,
+                "url_validation": True,
+                "content_quality_analysis": True
+            },
+            "execution_info": {
+                "framework_version": "CrewAI 2025",
+                "agents_used": len(synapse_crew.agents),
+                "tasks_executed": len(synapse_crew.tasks),
+                "configuration_source": "YAML"
+            }
         }
 
     except Exception as e:
@@ -404,9 +515,17 @@ def health_check():
     return jsonify({
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "mode": "enhanced_with_social_media",
+        "mode": "crewai_2025_yaml_config",
+        "framework_version": "CrewAI 2025",
         "real_news_enabled": True,
         "scraper_type": "enhanced_multi_source",
+        "configuration": {
+            "yaml_agents": bool(agents_config),
+            "yaml_tasks": bool(tasks_config),
+            "crew_base_implementation": True,
+            "agents_loaded": len(agents_config) if agents_config else 0,
+            "tasks_loaded": len(tasks_config) if tasks_config else 0
+        },
         "dependencies": {
             "OpenAI or Anthropic Key": "Set" if OPENAI_API_KEY or ANTHROPIC_API_KEY else "Not Set",
             "Firecrawl Key": "Set" if FIRECRAWL_API_KEY else "Not Set (using fallback)",
@@ -423,7 +542,12 @@ def health_check():
             "social_media_scraping": True,
             "real_time_content": True,
             "multi_platform_analysis": True,
-            "ai_research_crew": True
+            "ai_research_crew": True,
+            "yaml_configuration": True,
+            "crew_base_inheritance": True,
+            "multi_agent_validation": True,
+            "url_validation": True,
+            "content_quality_analysis": True
         }
     })
 

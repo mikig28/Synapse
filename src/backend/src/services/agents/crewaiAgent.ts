@@ -37,8 +37,20 @@ interface CrewAINewsResponse {
   sources_used: any;
   session_id?: string; // Add session ID for progress tracking
   mode?: string; // Add mode property that CrewAI service returns
-  enhanced_features?: any; // Add enhanced_features property
-  execution_info?: any; // Add execution_info property
+  enhanced_features?: {
+    yaml_configuration?: boolean;
+    crew_base_implementation?: boolean;
+    multi_agent_validation?: boolean;
+    social_media_integration?: boolean;
+    url_validation?: boolean;
+    content_quality_analysis?: boolean;
+  }; // Enhanced features for 2025 framework
+  execution_info?: {
+    framework_version?: string;
+    agents_used?: number;
+    tasks_executed?: number;
+    configuration_source?: string;
+  }; // Execution info for 2025 framework
   data?: {
     executive_summary?: string[];
     trending_topics?: Array<{
@@ -57,6 +69,9 @@ interface CrewAINewsResponse {
     crew_result?: string;
   };
   error?: string;
+  // Legacy support for old response format
+  report?: string;
+  social_media_summary?: any;
 }
 
 export class CrewAINewsAgentExecutor implements AgentExecutor {
@@ -280,6 +295,27 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
         sourcesUsed: crewaiResponse.sources_used,
         topicsAnalyzed: crewaiResponse.topics
       });
+
+      // Log 2025 framework compliance features
+      if (crewaiResponse.enhanced_features) {
+        await run.addLog('info', '🚀 CrewAI 2025 Framework Features Active:', {
+          yamlConfiguration: crewaiResponse.enhanced_features.yaml_configuration,
+          crewBaseImplementation: crewaiResponse.enhanced_features.crew_base_implementation,
+          multiAgentValidation: crewaiResponse.enhanced_features.multi_agent_validation,
+          socialMediaIntegration: crewaiResponse.enhanced_features.social_media_integration,
+          urlValidation: crewaiResponse.enhanced_features.url_validation,
+          contentQualityAnalysis: crewaiResponse.enhanced_features.content_quality_analysis
+        });
+      }
+
+      if (crewaiResponse.execution_info) {
+        await run.addLog('info', '📋 Execution Information:', {
+          frameworkVersion: crewaiResponse.execution_info.framework_version,
+          agentsUsed: crewaiResponse.execution_info.agents_used,
+          tasksExecuted: crewaiResponse.execution_info.tasks_executed,
+          configurationSource: crewaiResponse.execution_info.configuration_source
+        });
+      }
 
       // Add topic analysis visibility
       if (crewaiResponse.data?.trending_topics) {

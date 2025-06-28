@@ -165,8 +165,13 @@ const AddToCalendarModal: React.FC<AddToCalendarModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      // Create start and end dates
-      const startDateTime = new Date(`${date}T${startTime}`);
+      // FIXED: Create dates using explicit local timezone to avoid date offset issues
+      // Split the date and time components to avoid timezone conversion
+      const [year, month, day] = date.split('-').map(Number);
+      const [hours, minutes] = startTime.split(':').map(Number);
+      
+      // Create dates in local timezone without conversion
+      const startDateTime = new Date(year, month - 1, day, hours, minutes, 0, 0);
       const durationMinutes = parseInt(duration);
       const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000);
 
@@ -178,6 +183,17 @@ const AddToCalendarModal: React.FC<AddToCalendarModalProps> = ({
       if (endDateTime <= startDateTime) {
         throw new Error("End time must be after start time");
       }
+
+      // Log for debugging
+      console.log('[AddToCalendarModal] Date creation debug:', {
+        inputDate: date,
+        inputTime: startTime,
+        parsedComponents: { year, month: month-1, day, hours, minutes },
+        resultStartTime: startDateTime.toString(),
+        resultEndTime: endDateTime.toString(),
+        startTimeISO: startDateTime.toISOString(),
+        endTimeISO: endDateTime.toISOString()
+      });
 
       // Create the calendar event
       const newEvent: CalendarEvent = {

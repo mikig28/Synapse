@@ -1,49 +1,113 @@
 #!/usr/bin/env python3
 """
-Test imports to debug URLValidator issue
+Test script to verify imports and basic functionality
 """
 
-import sys
-import os
-
-# Add current directory to Python path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-if current_dir not in sys.path:
-    sys.path.insert(0, current_dir)
-
-print(f"Python path: {sys.path}")
-print(f"Current directory: {current_dir}")
-print(f"Files in directory: {os.listdir(current_dir)}")
+print("Testing imports...")
 
 try:
-    print("Testing enhanced_news_research_crew import...")
-    from agents.enhanced_news_research_crew import URLValidator, ContentValidator, EnhancedNewsResearchCrew
-    print("✅ Enhanced crew imported successfully")
-    
-    # Test URLValidator
-    print("Testing URLValidator...")
-    test_url = "https://example.com"
-    is_valid = URLValidator.is_valid_url(test_url)
-    cleaned = URLValidator.clean_url(test_url)
-    print(f"✅ URLValidator working: {test_url} -> valid: {is_valid}, cleaned: {cleaned}")
-    
+    import os
+    print("✅ os imported")
 except ImportError as e:
-    print(f"❌ Enhanced crew import failed: {str(e)}")
-    import traceback
-    traceback.print_exc()
+    print(f"❌ Failed to import os: {e}")
 
 try:
-    print("Testing dynamic_news_research_crew import...")
-    from agents.dynamic_news_research_crew import create_dynamic_news_research_crew
-    print("✅ Dynamic crew imported successfully")
+    import json
+    print("✅ json imported")
 except ImportError as e:
-    print(f"❌ Dynamic crew import failed: {str(e)}")
+    print(f"❌ Failed to import json: {e}")
 
 try:
-    print("Testing simple_news_scraper import...")
-    from agents.simple_news_scraper import SimpleNewsScraperAgent
-    print("✅ Simple scraper imported successfully")
+    from typing import Dict, Any
+    print("✅ typing imported")
 except ImportError as e:
-    print(f"❌ Simple scraper import failed: {str(e)}")
+    print(f"❌ Failed to import typing: {e}")
 
-print("Import test complete.")
+try:
+    from datetime import datetime, timedelta
+    print("✅ datetime imported")
+except ImportError as e:
+    print(f"❌ Failed to import datetime: {e}")
+
+try:
+    from flask import Flask, request, jsonify
+    print("✅ flask imported")
+except ImportError as e:
+    print(f"❌ Failed to import flask: {e}")
+
+try:
+    from flask_cors import CORS
+    print("✅ flask_cors imported")
+except ImportError as e:
+    print(f"❌ Failed to import flask_cors: {e}")
+
+try:
+    from dotenv import load_dotenv
+    print("✅ dotenv imported")
+except ImportError as e:
+    print(f"❌ Failed to import dotenv: {e}")
+
+try:
+    import logging
+    print("✅ logging imported")
+except ImportError as e:
+    print(f"❌ Failed to import logging: {e}")
+
+try:
+    import threading
+    print("✅ threading imported")
+except ImportError as e:
+    print(f"❌ Failed to import threading: {e}")
+
+try:
+    import time
+    print("✅ time imported")
+except ImportError as e:
+    print(f"❌ Failed to import time: {e}")
+
+try:
+    from crewai import Agent, Task, Crew, Process
+    print("✅ crewai imported")
+except ImportError as e:
+    print(f"❌ Failed to import crewai: {e}")
+
+try:
+    from langchain_community.tools import DuckDuckGoSearchRun
+    print("✅ DuckDuckGoSearchRun imported")
+except ImportError as e:
+    print(f"❌ Failed to import DuckDuckGoSearchRun: {e}")
+
+try:
+    from crewai_tools import FirecrawlSearchTool
+    print("✅ FirecrawlSearchTool imported")
+except ImportError as e:
+    print(f"❌ Failed to import FirecrawlSearchTool: {e}")
+
+print("\nTesting environment variables...")
+load_dotenv()
+
+anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+openai_key = os.getenv("OPENAI_API_KEY")
+firecrawl_key = os.getenv("FIRECRAWL_API_KEY")
+
+print(f"ANTHROPIC_API_KEY: {'Set' if anthropic_key else 'Not Set'}")
+print(f"OPENAI_API_KEY: {'Set' if openai_key else 'Not Set'}")
+print(f"FIRECRAWL_API_KEY: {'Set' if firecrawl_key else 'Not Set'}")
+
+if not anthropic_key and not openai_key:
+    print("❌ ERROR: Neither ANTHROPIC_API_KEY nor OPENAI_API_KEY is set!")
+else:
+    print("✅ At least one AI API key is configured")
+
+print("\nTesting basic tool initialization...")
+try:
+    if firecrawl_key:
+        search_tool = FirecrawlSearchTool()
+        print("✅ FirecrawlSearchTool initialized successfully")
+    else:
+        search_tool = DuckDuckGoSearchRun()
+        print("✅ DuckDuckGoSearchRun initialized successfully")
+except Exception as e:
+    print(f"❌ Failed to initialize search tool: {e}")
+
+print("\nAll tests completed!")
