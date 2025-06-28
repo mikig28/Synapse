@@ -321,6 +321,29 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
         if (reportContent && reportContent.trim()) {
           try {
             const agentTopics = crewaiResponse.topics || [];
+            
+            // Extract URLs from the report content
+            const urlRegex = /https?:\/\/[^\s\)]+/g;
+            const extractedUrls = reportContent.match(urlRegex) || [];
+            
+            // Clean and validate URLs
+            const sourceUrls = extractedUrls
+              .map(url => url.replace(/[.,;!?]$/, '')) // Remove trailing punctuation
+              .filter(url => {
+                try {
+                  new URL(url);
+                  return true;
+                } catch {
+                  return false;
+                }
+              })
+              .slice(0, 10); // Limit to first 10 URLs
+            
+            await run.addLog('info', `📎 Extracted ${sourceUrls.length} source URLs from report`, {
+              urlCount: sourceUrls.length,
+              sources: sourceUrls.slice(0, 3) // Log first 3 for debugging
+            });
+            
             const newsItem = new NewsItem({
               title: `CrewAI Research Report: ${agentTopics.join(', ')}`,
               content: reportContent,
@@ -339,7 +362,9 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
                 serviceMode: 'original_crewai',
                 agentNames: ['News Researcher', 'Senior News Analyst'],
                 generatedAt: new Date().toISOString(),
-                sourceType: 'ai_research_report'
+                sourceType: 'ai_research_report',
+                sourceUrls: sourceUrls, // Store extracted URLs in metadata
+                urlCount: sourceUrls.length
               }
             });
             
