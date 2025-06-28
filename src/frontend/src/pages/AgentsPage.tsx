@@ -449,7 +449,14 @@ const AgentsPage: React.FC = () => {
 
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogTrigger asChild>
-              <Button size="lg" className="hover:scale-105 transition-all duration-200">
+              <Button 
+                size="lg" 
+                className="hover:scale-105 transition-all duration-200"
+                onClick={() => {
+                  console.log('Create Agent button clicked');
+                  setShowCreateDialog(true);
+                }}
+              >
                 <Plus className="w-5 h-5 mr-2" />
                 Create Agent
               </Button>
