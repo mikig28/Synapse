@@ -184,10 +184,12 @@ def health_check():
 @app.route('/gather-news', methods=['POST'])
 def gather_news_endpoint():
     data = request.get_json()
-    if not data or 'topic' not in data:
-        return jsonify({"status": "error", "error": "Missing 'topic' in request"}), 400
+    # Support both 'topic' (singular) and 'topics' (plural) for backward compatibility
+    if not data or ('topic' not in data and 'topics' not in data):
+        return jsonify({"status": "error", "error": "Missing 'topic' or 'topics' in request"}), 400
 
-    topic = data['topic']
+    # Handle both singular and plural forms
+    topic = data.get('topic') or data.get('topics')
     agent_id = data.get('agent_id', 'unknown-agent')
     date_context = {
         'current_date': data.get('current_date', datetime.now().strftime('%Y-%m-%d')),
