@@ -1,4 +1,4 @@
-import api from './api';
+import axiosInstance from './axiosConfig';
 import {
   ScheduledAgent,
   CreateScheduledAgentRequest,
@@ -28,7 +28,7 @@ export const scheduledAgentService = {
   // Create a new scheduled agent
   async createScheduledAgent(request: CreateScheduledAgentRequest): Promise<ScheduledAgent> {
     try {
-      const response = await api.post<ApiResponse<ScheduledAgent>>('/scheduled-agents', request);
+      const response = await axiosInstance.post<ApiResponse<ScheduledAgent>>('/scheduled-agents', request);
       
       if (!response.data.success || !response.data.data) {
         throw new Error(response.data.error || 'Failed to create scheduled agent');
@@ -56,7 +56,7 @@ export const scheduledAgentService = {
       if (params?.status) queryParams.append('status', params.status);
       if (params?.search) queryParams.append('search', params.search);
 
-      const response = await api.get<PaginatedResponse<ScheduledAgent>>(
+      const response = await axiosInstance.get<PaginatedResponse<ScheduledAgent>>(
         `/scheduled-agents?${queryParams.toString()}`
       );
       
@@ -77,7 +77,7 @@ export const scheduledAgentService = {
   // Get a specific scheduled agent
   async getScheduledAgent(id: string): Promise<ScheduledAgent> {
     try {
-      const response = await api.get<ApiResponse<ScheduledAgent>>(`/scheduled-agents/${id}`);
+      const response = await axiosInstance.get<ApiResponse<ScheduledAgent>>(`/scheduled-agents/${id}`);
       
       if (!response.data.success || !response.data.data) {
         throw new Error(response.data.error || 'Failed to fetch scheduled agent');
@@ -93,7 +93,7 @@ export const scheduledAgentService = {
   // Update a scheduled agent
   async updateScheduledAgent(id: string, request: UpdateScheduledAgentRequest): Promise<ScheduledAgent> {
     try {
-      const response = await api.put<ApiResponse<ScheduledAgent>>(`/scheduled-agents/${id}`, request);
+      const response = await axiosInstance.put<ApiResponse<ScheduledAgent>>(`/scheduled-agents/${id}`, request);
       
       if (!response.data.success || !response.data.data) {
         throw new Error(response.data.error || 'Failed to update scheduled agent');
@@ -109,7 +109,7 @@ export const scheduledAgentService = {
   // Toggle active status of a scheduled agent
   async toggleScheduledAgent(id: string): Promise<ScheduledAgent> {
     try {
-      const response = await api.patch<ApiResponse<ScheduledAgent>>(`/scheduled-agents/${id}/toggle`);
+      const response = await axiosInstance.patch<ApiResponse<ScheduledAgent>>(`/scheduled-agents/${id}/toggle`);
       
       if (!response.data.success || !response.data.data) {
         throw new Error(response.data.error || 'Failed to toggle scheduled agent');
@@ -125,7 +125,7 @@ export const scheduledAgentService = {
   // Delete a scheduled agent
   async deleteScheduledAgent(id: string): Promise<void> {
     try {
-      const response = await api.delete<ApiResponse<void>>(`/scheduled-agents/${id}`);
+      const response = await axiosInstance.delete<ApiResponse<void>>(`/scheduled-agents/${id}`);
       
       if (!response.data.success) {
         throw new Error(response.data.error || 'Failed to delete scheduled agent');
@@ -139,7 +139,7 @@ export const scheduledAgentService = {
   // Execute a scheduled agent manually
   async executeScheduledAgent(id: string): Promise<any> {
     try {
-      const response = await api.post<ApiResponse<any>>(`/scheduled-agents/${id}/execute`);
+      const response = await axiosInstance.post<ApiResponse<any>>(`/scheduled-agents/${id}/execute`);
       
       if (!response.data.success) {
         throw new Error(response.data.error || 'Failed to execute scheduled agent');
@@ -163,7 +163,7 @@ export const scheduledAgentService = {
       if (params?.page) queryParams.append('page', params.page.toString());
       if (params?.limit) queryParams.append('limit', params.limit.toString());
 
-      const response = await api.get<ApiResponse<ScheduledAgentExecutionHistory>>(
+      const response = await axiosInstance.get<ApiResponse<ScheduledAgentExecutionHistory>>(
         `/scheduled-agents/${id}/history?${queryParams.toString()}`
       );
       
@@ -186,11 +186,11 @@ export const scheduledAgentService = {
     
     // Basic field validation (this is simplified - a real implementation would be more thorough)
     const validators = [
-      /^(\*|\d+|\d+-\d+|\*/\d+|(\d+,)*\d+)$/, // minute (0-59)
-      /^(\*|\d+|\d+-\d+|\*/\d+|(\d+,)*\d+)$/, // hour (0-23)
-      /^(\*|\d+|\d+-\d+|\*/\d+|(\d+,)*\d+)$/, // day of month (1-31)
-      /^(\*|\d+|\d+-\d+|\*/\d+|(\d+,)*\d+|[A-Z]{3})$/, // month (1-12 or JAN-DEC)
-      /^(\*|\d+|\d+-\d+|\*/\d+|(\d+,)*\d+|[A-Z]{3})$/, // day of week (0-7 or SUN-SAT)
+      /^(\*|\d+|\d+-\d+|\*\/\d+|(\d+,)*\d+)$/, // minute (0-59)
+      /^(\*|\d+|\d+-\d+|\*\/\d+|(\d+,)*\d+)$/, // hour (0-23)
+      /^(\*|\d+|\d+-\d+|\*\/\d+|(\d+,)*\d+)$/, // day of month (1-31)
+      /^(\*|\d+|\d+-\d+|\*\/\d+|(\d+,)*\d+|[A-Z]{3})$/, // month (1-12 or JAN-DEC)
+      /^(\*|\d+|\d+-\d+|\*\/\d+|(\d+,)*\d+|[A-Z]{3})$/, // day of week (0-7 or SUN-SAT)
     ];
     
     // If 6 fields, add year validator
