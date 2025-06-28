@@ -161,17 +161,20 @@ def scrape_linkedin_posts(topics: list, max_posts: int = 5) -> list:
     # LinkedIn doesn't allow easy scraping, so we'll generate LinkedIn-style insights
     for topic in topics:
         try:
+            # Clean topic display
+            clean_topic = topic.strip() if isinstance(topic, str) else str(topic)
+            
             # Use web search to find LinkedIn-related content
-            search_query = f"site:linkedin.com/pulse {topic}"
+            search_query = f"site:linkedin.com/pulse {clean_topic}"
             # This is a placeholder - real LinkedIn scraping requires special handling
             posts.append({
-                'title': f'Professional insights on {topic}',
-                'content': f'Industry analysis and professional perspectives on {topic} trends.',
-                'url': f'https://linkedin.com/search/results/content/?keywords={quote_plus(topic)}',
+                'title': f'Professional insights on {clean_topic}',
+                'content': f'Industry analysis and professional perspectives on {clean_topic} trends.',
+                'url': f'https://linkedin.com/search/results/content/?keywords={quote_plus(clean_topic)}',
                 'author': 'LinkedIn Network',
                 'engagement': 'Professional network',
                 'source': 'linkedin_search',
-                'topic': topic
+                'topic': clean_topic
             })
         except Exception as e:
             logger.warning(f"Failed to get LinkedIn content for topic '{topic}': {str(e)}")
@@ -189,15 +192,18 @@ def scrape_telegram_messages(topics: list, max_messages: int = 5) -> list:
     # This is a simplified version - real Telegram monitoring requires channel setup
     for topic in topics:
         try:
+            # Clean topic display
+            clean_topic = topic.strip() if isinstance(topic, str) else str(topic)
+            
             # Placeholder for Telegram content
             messages.append({
-                'title': f'Telegram discussions on {topic}',
-                'content': f'Community discussions and updates about {topic} from Telegram channels.',
-                'url': f'https://t.me/s/{topic.lower()}',
-                'channel': f'{topic.lower()}_news',
+                'title': f'Telegram discussions on {clean_topic}',
+                'content': f'Community discussions and updates about {clean_topic} from Telegram channels.',
+                'url': f'https://t.me/s/{clean_topic.lower().replace(" ", "_")}',
+                'channel': f'{clean_topic.lower().replace(" ", "_")}_news',
                 'timestamp': datetime.now().isoformat(),
                 'source': 'telegram',
-                'topic': topic
+                'topic': clean_topic
             })
         except Exception as e:
             logger.warning(f"Failed to get Telegram content for topic '{topic}': {str(e)}")
@@ -270,17 +276,33 @@ def create_task_from_config(task_name: str, agent: Agent, context_vars: dict = N
     )
 
 def create_research_task(topic: str, date_context: dict, social_context: str = "") -> Task:
-    """Creates a research task using YAML configuration"""
-    topics_list = [t.strip() for t in topic.split(',') if t.strip()] if isinstance(topic, str) else [str(topic)]
+    """Creates a research task using both YAML configuration and traditional approach"""
+    # Clean topic formatting
+    if isinstance(topic, str):
+        topics_list = [t.strip() for t in topic.split(',') if t.strip()]
+    else:
+        topics_list = [str(topic)]
     
-    context_vars = {
-        'topics': ', '.join(topics_list),
-        'focus_areas': 'Recent developments, trending discussions, expert opinions',
-        'max_articles': '10',
-        'sources': 'reddit,linkedin,news_websites,telegram'
-    }
+    clean_topics = ', '.join(topics_list)
+    time_range_hours = date_context.get('time_range', '24h').replace('h','')
     
-    return create_task_from_config('research_news_sources', researcher_agent, context_vars)
+    # Use traditional task creation for better reliability
+    return Task(
+        description=(
+            f"Conduct a comprehensive search for the topic: '{clean_topics}'. "
+            "Use your search tool to find multiple high-quality articles, posts, and discussions. "
+            f"Focus on information published within the last {time_range_hours} hours, "
+            f"relative to the current date: {date_context.get('current_date', 'N/A')}. "
+            "Synthesize the findings to provide a comprehensive overview. "
+            f"{social_context}"
+            "Your final output must be a detailed report with key points and include the URLs of the sources used."
+        ),
+        expected_output=(
+            "A detailed report on the topic, including an introduction, key findings with bullet points, "
+            "and a conclusion. The report must include at least 5 URLs to the most relevant sources found."
+        ),
+        agent=researcher_agent,
+    )
 
 def create_quality_validation_task(topics: str) -> Task:
     """Creates content quality validation task"""
@@ -297,16 +319,24 @@ def create_url_validation_task() -> Task:
     return create_task_from_config('validate_urls_and_sources', url_validator)
 
 def create_analysis_task(topic: str) -> Task:
-    """Creates comprehensive analysis task using YAML configuration"""
-    topics_list = [t.strip() for t in topic.split(',') if t.strip()] if isinstance(topic, str) else [str(topic)]
+    """Creates analysis task to summarize the research."""
+    # Clean topic formatting
+    if isinstance(topic, str):
+        topics_list = [t.strip() for t in topic.split(',') if t.strip()]
+    else:
+        topics_list = [str(topic)]
     
-    context_vars = {
-        'topics': ', '.join(topics_list),
-        'sources': 'reddit,linkedin,news_websites,telegram',
-        'filter_mode': 'strict'
-    }
+    clean_topics = ', '.join(topics_list)
     
-    return create_task_from_config('generate_comprehensive_report', analyst_agent, context_vars)
+    return Task(
+        description=f"Analyze the research report on '{clean_topics}' and create a final, polished executive summary.",
+        expected_output=(
+            "A concise and insightful summary of the research findings. It should be well-structured, "
+            "engaging, and easy to read for a busy executive. Include a title, a brief introduction, "
+            "bullet points for key insights, and a concluding sentence."
+        ),
+        agent=analyst_agent,
+    )
 
 def create_social_monitoring_task(topics: str) -> Task:
     """Creates social media monitoring task"""
@@ -323,24 +353,24 @@ def create_social_monitoring_task(topics: str) -> Task:
 class SynapseNewsCrew:
     """CrewAI 2025 compatible crew implementation using standard Crew class"""
     
-    def __init__(self, topic: str, date_context: dict):
+    def __init__(self, topic: str, date_context: dict, social_context: str = ""):
         self.topic = topic
         self.date_context = date_context
+        self.social_context = social_context
         
     def get_agents(self) -> list:
         """Define crew agents"""
-        return [researcher_agent, quality_analyst, url_validator, analyst_agent, social_monitor]
+        # Simplify to core agents for better reliability
+        return [researcher_agent, analyst_agent]
     
     def get_tasks(self) -> list:
         """Define crew tasks with dependencies"""
-        research_task = create_research_task(self.topic, self.date_context)
-        quality_task = create_quality_validation_task(self.topic)
-        url_task = create_url_validation_task()
-        social_task = create_social_monitoring_task(self.topic)
+        # Simplify to core research and analysis tasks for better reliability
+        research_task = create_research_task(self.topic, self.date_context, self.social_context)
         analysis_task = create_analysis_task(self.topic)
         
-        # Return tasks in dependency order
-        return [research_task, quality_task, url_task, social_task, analysis_task]
+        # Return core tasks only
+        return [research_task, analysis_task]
     
     def create_crew(self) -> Crew:
         """Create crew with 2025-compatible configuration"""
@@ -412,7 +442,7 @@ def run_crew(agent_id: str, topic: str, date_context: dict) -> Dict[str, Any]:
                     social_context += f"- {msg['title']}\n"
         
         # Create and execute 2025 compatible crew
-        synapse_crew = SynapseNewsCrew(topic, date_context)
+        synapse_crew = SynapseNewsCrew(topic, date_context, social_context)
         news_crew = synapse_crew.create_crew()
 
         progress_store.set(session_id, {'status': 'running', 'message': 'Crew is researching and analyzing.', 'progress': 50})
@@ -436,8 +466,21 @@ def run_crew(agent_id: str, topic: str, date_context: dict) -> Dict[str, Any]:
         result = news_crew.kickoff()
         progress_store.set(session_id, {'status': 'running', 'message': 'Finalizing report with social media insights.', 'progress': 90})
         
-        # Enhance final report with social media data
-        final_report = str(result) if result is not None else "No content was generated."
+        # Process and format the crew result
+        if result is not None:
+            crew_output = str(result)
+            logger.info(f"✅ CrewAI agents completed research. Report length: {len(crew_output)} characters")
+            
+            # Create structured report
+            final_report = f"""# {topic} - Comprehensive Research Report
+
+## Executive Summary
+{crew_output}
+
+"""
+        else:
+            logger.warning("⚠️ CrewAI agents returned no result")
+            final_report = f"# {topic} - Research Report\n\nNo content was generated by the research agents."
         
         # Add social media section to report
         if reddit_posts or linkedin_posts or telegram_messages:
