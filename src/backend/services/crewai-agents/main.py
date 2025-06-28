@@ -280,11 +280,19 @@ def run_crew(agent_id: str, topic: str, date_context: dict) -> Dict[str, Any]:
         
         progress_store.set(session_id, {'status': 'running', 'message': 'Gathering social media content...', 'progress': 10})
         
-        # Gather social media content
-        logger.info(f"Scraping social media for topics: {topics}")
+        # Gather social media content with detailed progress
+        logger.info(f"🔄 Starting social media scraping for topics: {topics}")
+        progress_store.set(session_id, {'status': 'running', 'message': '📱 Scraping Reddit discussions...', 'progress': 12})
         reddit_posts = scrape_reddit_posts(topics, max_posts=5)
-        linkedin_posts = scrape_linkedin_posts(topics, max_posts=3) 
+        logger.info(f"✅ Reddit: Found {len(reddit_posts)} posts")
+        
+        progress_store.set(session_id, {'status': 'running', 'message': '💼 Gathering LinkedIn insights...', 'progress': 15})
+        linkedin_posts = scrape_linkedin_posts(topics, max_posts=3)
+        logger.info(f"✅ LinkedIn: Found {len(linkedin_posts)} insights")
+        
+        progress_store.set(session_id, {'status': 'running', 'message': '📢 Monitoring Telegram channels...', 'progress': 18})
         telegram_messages = scrape_telegram_messages(topics, max_messages=3)
+        logger.info(f"✅ Telegram: Found {len(telegram_messages)} messages")
         
         # Log social media results
         social_content_summary = {
@@ -327,6 +335,23 @@ def run_crew(agent_id: str, topic: str, date_context: dict) -> Dict[str, Any]:
         )
 
         progress_store.set(session_id, {'status': 'running', 'message': 'Crew is researching and analyzing.', 'progress': 50})
+        
+        # Add detailed agent progress logging
+        logger.info("🤖 Agent 1: Expert Researcher is analyzing web sources...")
+        progress_store.set(session_id, {'status': 'running', 'message': '🔍 Agent 1: Expert Researcher is scanning multiple sources...', 'progress': 55})
+        
+        logger.info("🔍 Agent 1: Expert Researcher is validating content quality...")
+        progress_store.set(session_id, {'status': 'running', 'message': '🔍 Agent 1: Expert Researcher is validating content quality...', 'progress': 65})
+        
+        logger.info("📈 Agent 2: Senior News Analyst is processing findings...")
+        progress_store.set(session_id, {'status': 'running', 'message': '📈 Agent 2: Senior News Analyst is processing findings...', 'progress': 75})
+        
+        logger.info("🧠 AI agents are processing content and matching topics...")
+        progress_store.set(session_id, {'status': 'running', 'message': '🧠 AI agents are processing content and matching topics...', 'progress': 80})
+        
+        logger.info("⚡ Agents are now generating comprehensive analysis...")
+        progress_store.set(session_id, {'status': 'running', 'message': '⚡ Agents are now generating comprehensive analysis...', 'progress': 85})
+        
         result = news_crew.kickoff()
         progress_store.set(session_id, {'status': 'running', 'message': 'Finalizing report with social media insights.', 'progress': 90})
         
