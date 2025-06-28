@@ -7,6 +7,7 @@ export interface ITask extends Document {
   status: 'pending' | 'in-progress' | 'completed' | 'deferred';
   priority?: 'low' | 'medium' | 'high';
   dueDate?: Date;
+  reminderEnabled?: boolean; // Toggle for Telegram reminders
   source?: string; // e.g., 'telegram', 'manual', 'voice_memo'
   telegramMessageId?: mongoose.Types.ObjectId; // Link to original TelegramItem
   rawTranscription?: string; // To store the full transcription if source is voice
@@ -30,6 +31,7 @@ const TaskSchema = new Schema<ITask>(
       default: 'medium',
     },
     dueDate: { type: Date },
+    reminderEnabled: { type: Boolean, default: false },
     source: { type: String },
     telegramMessageId: { type: Schema.Types.ObjectId, ref: 'TelegramItem' },
     rawTranscription: { type: String, required: false },

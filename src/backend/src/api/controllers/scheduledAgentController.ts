@@ -142,25 +142,54 @@ export const getScheduledAgent = async (req: AuthenticatedRequest, res: Response
     const { id } = req.params;
     const userId = req.user?.id;
 
+    console.log(`[ScheduledAgent] GET request for agent ID: ${id}, User ID: ${userId}`);
+
     if (!userId) {
+      console.log('[ScheduledAgent] Authentication failed - no user ID');
       res.status(401).json({ success: false, error: 'Authentication required' });
       return;
     }
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      res.status(400).json({ success: false, error: 'Invalid agent ID' });
+    // Enhanced ObjectId validation
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      console.log(`[ScheduledAgent] Invalid agent ID format: ${id}`);
+      res.status(400).json({ success: false, error: 'Invalid agent ID format' });
       return;
     }
+
+    // Check database connection
+    if (mongoose.connection.readyState !== 1) {
+      console.error('[ScheduledAgent] Database not connected, readyState:', mongoose.connection.readyState);
+      res.status(503).json({ success: false, error: 'Database connection unavailable' });
+      return;
+    }
+
+    console.log(`[ScheduledAgent] Searching for agent with ID: ${id} and userId: ${userId}`);
 
     const scheduledAgent = await ScheduledAgent.findOne({
       _id: id,
       userId
+    }).catch(error => {
+      console.error('[ScheduledAgent] Database query error:', error);
+      throw error;
     });
 
     if (!scheduledAgent) {
+      console.log(`[ScheduledAgent] Agent not found for ID: ${id} and userId: ${userId}`);
+      
+      // Check if agent exists but belongs to different user
+      const agentExistsForOtherUser = await ScheduledAgent.findById(id);
+      if (agentExistsForOtherUser) {
+        console.log(`[ScheduledAgent] Agent ${id} exists but belongs to different user`);
+        res.status(403).json({ success: false, error: 'Access denied to this scheduled agent' });
+        return;
+      }
+      
       res.status(404).json({ success: false, error: 'Scheduled agent not found' });
       return;
     }
+
+    console.log(`[ScheduledAgent] Successfully found agent: ${scheduledAgent.name}`);
 
     res.json({
       success: true,
@@ -168,11 +197,12 @@ export const getScheduledAgent = async (req: AuthenticatedRequest, res: Response
     });
 
   } catch (error: any) {
-    console.error('Error fetching scheduled agent:', error);
+    console.error('[ScheduledAgent] Error fetching scheduled agent:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch scheduled agent',
-      details: error.message
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };

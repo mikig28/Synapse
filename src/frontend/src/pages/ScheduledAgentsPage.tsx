@@ -56,7 +56,7 @@ const ScheduledAgentsPage: React.FC = () => {
   });
   const { toast } = useToast();
 
-  // Load scheduled agents
+  // Load scheduled agents with enhanced error handling
   const loadScheduledAgents = async (page: number = 1) => {
     try {
       setLoading(true);
@@ -67,15 +67,39 @@ const ScheduledAgentsPage: React.FC = () => {
         ...(searchTerm && { search: searchTerm })
       };
       
+      console.log('[ScheduledAgents] Loading agents with params:', params);
       const result = await scheduledAgentService.getScheduledAgents(params);
+      console.log('[ScheduledAgents] Loaded agents:', result.agents.length);
+      
       setScheduledAgents(result.agents);
       setPagination(result.pagination);
     } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to load scheduled agents',
-        variant: 'destructive'
-      });
+      console.error('[ScheduledAgents] Error loading agents:', error);
+      
+      // Handle specific error cases
+      if (error.message?.includes('500')) {
+        toast({
+          title: 'Server Error',
+          description: 'There was a server error loading scheduled agents. Please try refreshing the page.',
+          variant: 'destructive'
+        });
+      } else if (error.message?.includes('401') || error.message?.includes('Authentication')) {
+        toast({
+          title: 'Authentication Error',
+          description: 'Please log in again to access scheduled agents.',
+          variant: 'destructive'
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to load scheduled agents',
+          variant: 'destructive'
+        });
+      }
+      
+      // Set empty state on error to prevent showing stale data
+      setScheduledAgents([]);
+      setPagination({ page: 1, limit: 10, total: 0, pages: 0 });
     } finally {
       setLoading(false);
     }

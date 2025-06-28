@@ -29,6 +29,7 @@ import newsRoutes from './api/routes/newsRoutes'; // Import news routes
 import ttsRoutes from './api/routes/ttsRoutes'; // Import text-to-speech routes
 import calendarEventsRoutes from './api/routes/calendarEventsRoutes'; // Import calendar event routes
 import scheduledAgentsRoutes from './api/routes/scheduledAgents'; // Import scheduled agents routes
+import { initializeTaskReminderScheduler } from './services/taskReminderService'; // Import task reminder service
 
 dotenv.config();
 
@@ -349,6 +350,10 @@ const startServer = async () => {
     // Start the agent scheduler
     await agentScheduler.start();
     console.log('[Server] Agent scheduler started successfully');
+
+    // Initialize task reminder scheduler
+    initializeTaskReminderScheduler();
+    console.log('[Server] Task reminder scheduler initialized');
 
     // Make io available globally for real-time updates
     (global as any).io = io;

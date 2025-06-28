@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import Task, { ITask } from '../../models/Task';
 import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../../types/express';
+import { sendTaskReminderToUser } from '../../services/taskReminderService';
 
 export const getTasks = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -25,13 +26,15 @@ export const createTask = async (req: AuthenticatedRequest, res: Response) => {
     if (!userId) {
       return res.status(401).json({ message: 'User not authenticated' });
     }
-    const { title, description, status, priority, source, telegramMessageId } = req.body;
+    const { title, description, status, priority, dueDate, reminderEnabled, source, telegramMessageId } = req.body;
     const newTask = new Task({
       userId: new mongoose.Types.ObjectId(userId),
       title,
       description,
       status: status || 'pending',
       priority: priority || 'medium',
+      dueDate: dueDate ? new Date(dueDate) : undefined,
+      reminderEnabled: reminderEnabled || false,
       source,
       ...(telegramMessageId && mongoose.Types.ObjectId.isValid(telegramMessageId) && { telegramMessageId: new mongoose.Types.ObjectId(telegramMessageId) }),
     });
@@ -53,10 +56,17 @@ export const updateTask = async (req: AuthenticatedRequest, res: Response) => {
     if (!mongoose.Types.ObjectId.isValid(taskId)) {
       return res.status(400).json({ message: 'Invalid task ID' });
     }
-    const { title, description, status, priority } = req.body;
+    const { title, description, status, priority, dueDate, reminderEnabled } = req.body;
     const updatedTask = await Task.findOneAndUpdate(
       { _id: taskId, userId: new mongoose.Types.ObjectId(userId) },
-      { title, description, status, priority },
+      { 
+        title, 
+        description, 
+        status, 
+        priority,
+        dueDate: dueDate ? new Date(dueDate) : undefined,
+        reminderEnabled
+      },
       { new: true, runValidators: true }
     );
     if (!updatedTask) {
