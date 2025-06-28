@@ -121,11 +121,22 @@ const ScheduledAgentsPage: React.FC = () => {
         description: `Agent ${updatedAgent.isActive ? 'activated' : 'deactivated'} successfully`
       });
     } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to toggle agent status',
-        variant: 'destructive'
-      });
+      // Handle 404 errors by refreshing the agents list
+      if (error.message?.includes('no longer exists')) {
+        toast({
+          title: 'Agent Not Found',
+          description: error.message,
+          variant: 'destructive'
+        });
+        // Refresh the agents list to remove stale data
+        loadScheduledAgents(pagination.page);
+      } else {
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to toggle agent status',
+          variant: 'destructive'
+        });
+      }
     }
   };
 
@@ -282,16 +293,28 @@ const ScheduledAgentsPage: React.FC = () => {
           <CardContent className="text-center py-12">
             <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Scheduled Agents</h3>
-            <p className="text-muted-foreground mb-4">
-              Create your first scheduled agent to automate research tasks
+            <p className="text-muted-foreground mb-6">
+              Create your first scheduled agent to automate research tasks. You can schedule any of your existing AI agents to run automatically.
             </p>
-            <Button onClick={() => {
-              console.log('🚀 Create Scheduled Agent button (empty state) clicked - opening modal');
-              setShowCreateModal(true);
-            }}>
-              <Plus className="w-4 h-4 mr-2" />
-              Create Scheduled Agent
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button onClick={() => {
+                console.log('🚀 Create Scheduled Agent button (empty state) clicked - opening modal');
+                setShowCreateModal(true);
+              }}>
+                <Plus className="w-4 h-4 mr-2" />
+                Create Scheduled Agent
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => window.location.href = '/agents'}
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Browse AI Agents
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground mt-4">
+              💡 Tip: Create AI agents first, then schedule them to run automatically
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -482,7 +505,13 @@ const ScheduledAgentsPage: React.FC = () => {
         <EditScheduledAgentModal
           agent={editingAgent}
           open={!!editingAgent}
-          onOpenChange={() => setEditingAgent(null)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditingAgent(null);
+              // Refresh the agents list in case the modal was closed due to a 404
+              loadScheduledAgents(pagination.page);
+            }
+          }}
           onSuccess={(updatedAgent) => {
             setScheduledAgents(prev => 
               prev.map(a => a._id === updatedAgent._id ? updatedAgent : a)
