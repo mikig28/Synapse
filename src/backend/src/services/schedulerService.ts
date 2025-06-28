@@ -98,14 +98,14 @@ class SchedulerService {
       }
 
       // Execute the agent using the existing agent service
-      const run = await this.agentService.executeAgent(agent._id, scheduledAgent.userId);
+      const run = await this.agentService.executeAgent((agent._id as mongoose.Types.ObjectId).toString());
       
       if (!run) {
         throw new Error('Failed to create agent run');
       }
 
       // Wait for the execution to complete (with timeout)
-      const completedRun = await this.waitForRunCompletion(run._id, 300000); // 5 minutes timeout
+      const completedRun = await this.waitForRunCompletion(run._id as mongoose.Types.ObjectId, 300000); // 5 minutes timeout
       
       const duration = Date.now() - startTime;
       

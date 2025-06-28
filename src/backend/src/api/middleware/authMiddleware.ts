@@ -3,6 +3,9 @@ import { Request, Response, NextFunction } from 'express';
 import User from '../../models/User'; // Adjust path as necessary
 import { AuthenticatedRequest } from '../../types/express';
 
+// Export AuthenticatedRequest interface for use in other modules
+export { AuthenticatedRequest };
+
 interface JwtPayload {
   id: string;
 }
@@ -58,3 +61,6 @@ const setCorsHeaders = (res: Response, origin?: string) => {
 
 // Export as authMiddleware for compatibility
 export const authMiddleware = protect;
+
+// Export auth as an alias to protect for compatibility
+export const auth = protect;

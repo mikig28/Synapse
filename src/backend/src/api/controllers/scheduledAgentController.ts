@@ -7,7 +7,7 @@ import mongoose from 'mongoose';
 export const createScheduledAgent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { name, description, agentConfig, schedule } = req.body;
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
 
     if (!userId) {
       res.status(401).json({ success: false, error: 'Authentication required' });
@@ -80,7 +80,7 @@ export const createScheduledAgent = async (req: AuthenticatedRequest, res: Respo
 // Get all scheduled agents for a user
 export const getScheduledAgents = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
 
     if (!userId) {
       res.status(401).json({ success: false, error: 'Authentication required' });
@@ -140,7 +140,7 @@ export const getScheduledAgents = async (req: AuthenticatedRequest, res: Respons
 export const getScheduledAgent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
 
     if (!userId) {
       res.status(401).json({ success: false, error: 'Authentication required' });
@@ -181,7 +181,7 @@ export const getScheduledAgent = async (req: AuthenticatedRequest, res: Response
 export const updateScheduledAgent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     const updates = req.body;
 
     if (!userId) {
@@ -232,7 +232,7 @@ export const updateScheduledAgent = async (req: AuthenticatedRequest, res: Respo
 export const toggleScheduledAgent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
 
     if (!userId) {
       res.status(401).json({ success: false, error: 'Authentication required' });
@@ -274,7 +274,7 @@ export const toggleScheduledAgent = async (req: AuthenticatedRequest, res: Respo
 export const deleteScheduledAgent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
 
     if (!userId) {
       res.status(401).json({ success: false, error: 'Authentication required' });
@@ -315,7 +315,7 @@ export const deleteScheduledAgent = async (req: AuthenticatedRequest, res: Respo
 export const executeScheduledAgent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
 
     if (!userId) {
       res.status(401).json({ success: false, error: 'Authentication required' });
@@ -362,7 +362,7 @@ export const executeScheduledAgent = async (req: AuthenticatedRequest, res: Resp
 export const getExecutionHistory = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     const { page = 1, limit = 10 } = req.query;
 
     if (!userId) {
