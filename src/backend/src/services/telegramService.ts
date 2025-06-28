@@ -340,5 +340,40 @@ export const initializeTelegramBot = () => {
   // You could return the bot instance if needed elsewhere, but for now, it operates globally in this module.
 };
 
+// Function to send agent reports to Telegram
+export const sendAgentReportToTelegram = async (userId: string, reportTitle: string, reportContent: string): Promise<void> => {
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      console.error(`[sendAgentReportToTelegram]: User not found: ${userId}`);
+      return;
+    }
+
+    if (!user.sendAgentReportsToTelegram) {
+      console.log(`[sendAgentReportToTelegram]: User ${userId} has disabled Telegram reports`);
+      return;
+    }
+
+    if (!user.monitoredTelegramChats || user.monitoredTelegramChats.length === 0) {
+      console.log(`[sendAgentReportToTelegram]: User ${userId} has no monitored Telegram chats`);
+      return;
+    }
+
+    const message = `🤖 **Agent Report: ${reportTitle}**\n\n${reportContent}`;
+    
+    // Send to all monitored chats
+    for (const chatId of user.monitoredTelegramChats) {
+      try {
+        await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+        console.log(`[sendAgentReportToTelegram]: Report sent to chat ${chatId} for user ${userId}`);
+      } catch (error) {
+        console.error(`[sendAgentReportToTelegram]: Failed to send to chat ${chatId}:`, error);
+      }
+    }
+  } catch (error) {
+    console.error('[sendAgentReportToTelegram]: Error sending agent report:', error);
+  }
+};
+
 // Export the bot instance if you need to access it directly in other modules (e.g., to send messages programmatically)
 // export default bot; 

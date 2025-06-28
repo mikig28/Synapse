@@ -1,6 +1,7 @@
 import Agent, { IAgent } from '../models/Agent';
 import AgentRun, { IAgentRun } from '../models/AgentRun';
 import mongoose from 'mongoose';
+import { sendAgentReportToTelegram } from './telegramService';
 
 export interface AgentExecutionContext {
   agent: IAgent;
@@ -234,6 +235,27 @@ export class AgentService {
           duration: agentRun.duration
         }
       });
+
+      // Send report to Telegram if enabled
+      try {
+        const reportTitle = `${agent.name} Execution Complete`;
+        const reportContent = `📊 **Execution Summary**
+🔄 Items Processed: ${agentRun.itemsProcessed}
+✅ New Items Added: ${agentRun.itemsAdded}
+⏱️ Duration: ${agentRun.duration ? Math.round(agentRun.duration / 1000) : 0}s
+🎯 Status: Completed Successfully
+
+${agentRun.results?.summary || 'Agent execution completed without detailed summary.'}`;
+
+        await sendAgentReportToTelegram(
+          agent.userId.toString(),
+          reportTitle,
+          reportContent
+        );
+      } catch (telegramError: any) {
+        console.error(`[AgentService] Failed to send Telegram report:`, telegramError);
+        // Don't fail the agent execution if Telegram fails
+      }
 
     } catch (error: any) {
       console.error(`[AgentService] Agent ${agent.name} failed:`, {

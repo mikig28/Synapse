@@ -8,6 +8,7 @@ export interface IUser extends Document {
   password?: string; // Password might not be present if using OAuth only for a user
   googleId?: string; // For Google OAuth
   monitoredTelegramChats?: number[]; // Added for storing Telegram chat IDs to monitor
+  sendAgentReportsToTelegram?: boolean; // Toggle for sending agent reports to Telegram
   // Add other fields like profilePicture, etc.
   createdAt: Date;
   updatedAt: Date;
@@ -42,6 +43,10 @@ const UserSchema: Schema<IUser> = new Schema(
     monitoredTelegramChats: {
       type: [Number], // Array of numbers
       default: [],    // Default to an empty array
+    },
+    sendAgentReportsToTelegram: {
+      type: Boolean,
+      default: false, // Default to false
     },
     // You can add more fields here as your application grows
     // e.g., profilePictureUrl: String,

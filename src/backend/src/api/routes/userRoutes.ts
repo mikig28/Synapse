@@ -1,5 +1,5 @@
 import express from 'express';
-import { addMonitoredTelegramChat } from '../controllers/userController';
+import { addMonitoredTelegramChat, updateTelegramReportSettings } from '../controllers/userController';
 import { protect } from '../middleware/authMiddleware'; // Your JWT protection middleware
 
 const router = express.Router();
@@ -8,6 +8,11 @@ const router = express.Router();
 // @desc    Add a Telegram chat ID to the authenticated user's monitored list
 // @access  Private (requires JWT)
 router.post('/me/telegram-chats', protect, addMonitoredTelegramChat);
+
+// @route   PUT /api/v1/users/me/telegram-report-settings
+// @desc    Update user's Telegram report settings
+// @access  Private (requires JWT)
+router.put('/me/telegram-report-settings', protect, updateTelegramReportSettings);
 
 // You can add other user-specific routes here, e.g.:
 // router.get('/me', protect, getMyProfile);
