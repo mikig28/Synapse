@@ -364,8 +364,8 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
             
             // Clean and validate URLs
             const sourceUrls = extractedUrls
-              .map(url => url.replace(/[.,;!?]$/, '')) // Remove trailing punctuation
-              .filter(url => {
+              .map((url: string) => url.replace(/[.,;!?]$/, '')) // Remove trailing punctuation
+              .filter((url: string) => {
                 try {
                   new URL(url);
                   return true;
