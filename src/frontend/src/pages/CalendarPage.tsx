@@ -1105,17 +1105,23 @@ export default function CalendarPage() { // Renamed from Home for clarity
     const adjustedTop = getGridPositionForHour(clampedStart);
     const adjustedHeight = Math.max(20, (clampedEnd - clampedStart) * 80);
     
-    // Debug logging for positioning
+    // Debug logging for positioning (only when dragging to reduce noise)
     if (isDragging) {
       console.log('[DEBUG] Event positioning during drag:', {
-        startHour: startTime.getHours(),
-        endHour: endTime.getHours(),
+        eventStartHour: startTime.getHours(),
+        eventEndHour: endTime.getHours(),
+        startMinutes: startTime.getMinutes(),
+        endMinutes: endTime.getMinutes(),
         clampedStart,
         clampedEnd,
         gridStartHour,
         adjustedTop,
         adjustedHeight,
-        isDragging
+        isDragging,
+        rawStart: start,
+        rawEnd: end,
+        timeSlotForStart: Math.floor(clampedStart), // Which time slot this event should appear in
+        expectedSlotIndex: Math.floor(clampedStart) - 7  // Index in timeSlots array
       });
     }
     
@@ -1782,18 +1788,33 @@ export default function CalendarPage() { // Renamed from Home for clarity
                         return (
                           <div 
                             key={timeIndex} 
-                            className={`h-20 border-b border-white/10 transition-colors duration-150 ease-in-out ${isHighlighted ? 'bg-blue-500/30' : ''}`}
+                            className={`h-20 border-b border-white/10 transition-colors duration-150 ease-in-out ${isHighlighted ? 'bg-blue-500/30' : ''} relative`}
+                            style={{
+                              // Add visual debug grid when debugging
+                              ...(isHighlighted && {
+                                border: '2px solid blue',
+                                backgroundColor: 'rgba(59, 130, 246, 0.3)'
+                              })
+                            }}
+                            title={`Time Slot: ${currentSlotHour}:00 (Index: ${timeIndex}, Expected Top: ${timeIndex * 80}px)`}
                             onDragOver={(e) => {
                               e.preventDefault(); 
                               // Only handle regular event dragging, not resizing
                               if (!resizingEvent && draggedEvent) {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const relativeY = e.clientY - rect.top;
                                 console.log('[DEBUG] Drag over - Week View:', {
                                   dayIndex,
                                   timeIndex,
                                   currentSlotHour,
                                   currentSlotDate,
                                   draggedEvent: draggedEvent.title,
-                                  calculatedPosition: getGridPositionForHour(currentSlotHour)
+                                  calculatedPosition: getGridPositionForHour(currentSlotHour),
+                                  mouseY: e.clientY,
+                                  dropZoneTop: rect.top,
+                                  relativeY,
+                                  dropZoneHeight: rect.height,
+                                  expectedTop: timeIndex * 80  // Expected position based on timeIndex
                                 });
                                 setDragOverDate(currentSlotDate);
                                 setDragOverTimeSlot(currentSlotHour);
@@ -1832,7 +1853,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                   endHour: newEndTime.getHours()
                                 },
                                 dropSlot: dragOverTimeSlot,
-                                expectedVisualPosition: (dragOverTimeSlot - 7) * 80
+                                expectedVisualPosition: getGridPositionForHour(dragOverTimeSlot)
                               });
 
                                 // Use our safe update function instead of direct state manipulation
@@ -2077,16 +2098,31 @@ export default function CalendarPage() { // Renamed from Home for clarity
                       return (
                         <div 
                           key={timeIndex} 
-                          className={`h-20 border-b border-white/10 transition-colors duration-150 ease-in-out ${isHighlighted ? 'bg-blue-500/30' : ''}`}
+                          className={`h-20 border-b border-white/10 transition-colors duration-150 ease-in-out ${isHighlighted ? 'bg-blue-500/30' : ''} relative`}
+                          style={{
+                            // Add visual debug grid when debugging
+                            ...(isHighlighted && {
+                              border: '2px solid blue',
+                              backgroundColor: 'rgba(59, 130, 246, 0.3)'
+                            })
+                          }}
+                          title={`Time Slot: ${currentSlotHour}:00 (Index: ${timeIndex}, Expected Top: ${timeIndex * 80}px)`}
                           onDragOver={(e) => {
                             e.preventDefault();
                             // Only handle regular event dragging, not resizing
                             if (!resizingEvent && draggedEvent) {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const relativeY = e.clientY - rect.top;
                               console.log('[DEBUG] Drag over - Day View:', {
                                 timeIndex,
                                 currentSlotHour,
                                 draggedEvent: draggedEvent.title,
-                                calculatedPosition: getGridPositionForHour(currentSlotHour)
+                                calculatedPosition: getGridPositionForHour(currentSlotHour),
+                                mouseY: e.clientY,
+                                dropZoneTop: rect.top,
+                                relativeY,
+                                dropZoneHeight: rect.height,
+                                expectedTop: timeIndex * 80  // Expected position based on timeIndex
                               });
                               setDragOverDate(currentSlotDate);
                               setDragOverTimeSlot(currentSlotHour);
@@ -2125,7 +2161,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                   endHour: newEndTime.getHours()
                                 },
                                 dropSlot: dragOverTimeSlot,
-                                expectedVisualPosition: (dragOverTimeSlot - 7) * 80
+                                expectedVisualPosition: getGridPositionForHour(dragOverTimeSlot)
                               });
 
                               // Use our safe update function instead of direct state manipulation

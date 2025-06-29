@@ -2,6 +2,13 @@ import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../../types/express';
 import NewsItem, { INewsItem } from '../../models/NewsItem';
+import { 
+  enhanceNewsItemWithImage, 
+  enhanceNewsItemsBatch, 
+  enhanceRecentNewsItems, 
+  getImageEnhancementStats 
+} from '../../services/newsEnhancementService';
+import { getIllustration } from '../../services/imageService';
 
 // Get all news items for the authenticated user with pagination
 export const getNewsItems = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -385,6 +392,136 @@ export const bulkMarkAsRead = async (req: AuthenticatedRequest, res: Response): 
       success: false,
       error: 'Failed to mark news items as read',
       message: error.message,
+    });
+  }
+};
+
+// NEW: Image Enhancement Endpoints
+
+/**
+ * Enhance a specific news item with an image
+ */
+export const enhanceNewsWithImage = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { force = false } = req.body;
+    const userId = req.user!.id;
+
+    const newsItem = await NewsItem.findOne({ _id: id, userId });
+
+    if (!newsItem) {
+      res.status(404).json({
+        success: false,
+        error: 'News item not found',
+      });
+      return;
+    }
+
+    const enhancedItem = await enhanceNewsItemWithImage(newsItem, { 
+      skipExisting: !force 
+    });
+
+    if (!enhancedItem) {
+      res.status(400).json({
+        success: false,
+        error: 'Failed to enhance news item with image',
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: enhancedItem,
+      message: `Enhanced with ${enhancedItem.generatedImage?.source} image`
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to enhance news item',
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Enhance recent news items with images
+ */
+export const enhanceRecentNews = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { 
+      hoursBack = 24, 
+      batchSize = 5, 
+      skipExisting = true 
+    } = req.body;
+    const userId = req.user!.id;
+
+    const result = await enhanceRecentNewsItems(userId, hoursBack, {
+      batchSize,
+      skipExisting
+    });
+
+    res.json({
+      success: true,
+      data: result,
+      message: `Enhanced ${result.enhanced} news items with images`
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to enhance recent news items',
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Get image enhancement statistics
+ */
+export const getImageStats = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const stats = await getImageEnhancementStats(userId);
+
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get image enhancement statistics',
+      details: error.message,
+    });
+  }
+};
+
+/**
+ * Generate a test image for a given prompt
+ */
+export const generateTestImage = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { prompt } = req.body;
+
+    if (!prompt) {
+      res.status(400).json({
+        success: false,
+        error: 'Prompt is required',
+      });
+      return;
+    }
+
+    const imageResult = await getIllustration(prompt);
+
+    res.json({
+      success: true,
+      data: imageResult,
+      message: `Generated ${imageResult.source} image for prompt: ${prompt}`
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate test image',
+      details: error.message,
     });
   }
 };

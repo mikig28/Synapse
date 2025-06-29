@@ -28,6 +28,11 @@ export interface INewsItem extends Document {
   readAt?: Date;
   contentHash?: string; // MD5 hash of title + url for duplicate detection
   metadata?: any; // Additional metadata from agents
+  generatedImage?: {
+    url: string;
+    source: 'unsplash' | 'replicate';
+    attribution?: string;
+  }; // AI-generated or fetched image for this news item
   createdAt: Date;
   updatedAt: Date;
   
@@ -72,6 +77,11 @@ const NewsItemSchema: Schema<INewsItem> = new Schema(
     readAt: { type: Date },
     contentHash: { type: String, sparse: true }, // MD5 hash for duplicate detection
     metadata: { type: Schema.Types.Mixed }, // Additional metadata storage
+    generatedImage: {
+      url: { type: String },
+      source: { type: String, enum: ['unsplash', 'replicate'] },
+      attribution: { type: String }
+    }
   },
   { timestamps: true }
 );

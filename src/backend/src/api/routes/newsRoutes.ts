@@ -10,6 +10,10 @@ import {
   getNewsCategories,
   getNewsStatistics,
   bulkMarkAsRead,
+  enhanceNewsWithImage,
+  enhanceRecentNews,
+  getImageStats,
+  generateTestImage,
 } from '../controllers/newsController';
 
 const router = express.Router();
@@ -30,5 +34,11 @@ router.delete('/:newsId', deleteNewsItem);
 router.post('/:newsId/read', markAsRead);
 router.post('/:newsId/favorite', toggleFavorite);
 router.post('/:newsId/archive', archiveNewsItem);
+
+// Image enhancement endpoints
+router.post('/:newsId/enhance-image', enhanceNewsWithImage);
+router.post('/enhance/recent', enhanceRecentNews);
+router.get('/images/stats', getImageStats);
+router.post('/images/test', generateTestImage);
 
 export default router;

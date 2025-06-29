@@ -3,6 +3,7 @@ import { AgentExecutor, AgentExecutionContext } from '../agentService';
 import { IAgentRun } from '../../models/AgentRun';
 import NewsItem from '../../models/NewsItem';
 import mongoose from 'mongoose';
+import { enhanceNewsItemWithImage } from '../newsEnhancementService';
 
 export class CrewAIAgentExecutor implements AgentExecutor {
   private crewaiServiceUrl: string;
@@ -398,6 +399,23 @@ export class CrewAIAgentExecutor implements AgentExecutor {
           sourceCounts[sourceType] = (sourceCounts[sourceType] || 0) + 1;
 
           console.log(`[CrewAIExecutor] ✅ Successfully stored ${sourceType} item ${i+1}`);
+          
+          // Enhance with relevant image (async, don't block the main flow)
+          enhanceNewsItemWithImage(newsItem, { skipExisting: true })
+            .then((enhancedItem) => {
+              if (enhancedItem?.generatedImage) {
+                console.log(`[CrewAIExecutor] 🖼️ Enhanced news item with ${enhancedItem.generatedImage.source} image`);
+                run.addLog('info', 'Enhanced article with image', {
+                  title: article.title,
+                  imageSource: enhancedItem.generatedImage.source,
+                  imageUrl: enhancedItem.generatedImage.url
+                });
+              }
+            })
+            .catch((error) => {
+              console.warn(`[CrewAIExecutor] Failed to enhance item with image: ${error.message}`);
+            });
+
           await run.addLog('info', 'Saved news article', {
             title: article.title,
             source: newsItem.source,

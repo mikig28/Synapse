@@ -767,17 +767,27 @@ const NewsPage: React.FC = () => {
               <Card className={`hover:shadow-lg transition-all duration-300 hover:border-primary/30 ${!item.isRead ? 'border-l-4 border-l-blue-500' : ''}`}>
                 <CardContent className="p-6">
                   <div className="flex gap-4">
-                    {/* Image */}
-                    {item.urlToImage && (
-                      <div className="flex-shrink-0">
+                    {/* Image - prioritize generated image, fallback to urlToImage */}
+                    {(item.generatedImage?.url || item.urlToImage) && (
+                      <div className="flex-shrink-0 relative">
                         <img
-                          src={item.urlToImage}
+                          src={item.generatedImage?.url || item.urlToImage}
                           alt={item.title}
                           className="w-24 h-24 object-cover rounded-lg"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none';
                           }}
                         />
+                        {item.generatedImage?.source && (
+                          <div className="absolute bottom-0 right-0 bg-black/70 text-white text-xs px-1 py-0.5 rounded-tl">
+                            {item.generatedImage.source === 'replicate' ? '🎨' : '📸'}
+                          </div>
+                        )}
+                        {item.generatedImage?.attribution && (
+                          <div className="absolute inset-0 opacity-0 hover:opacity-100 bg-black/70 text-white text-xs p-1 rounded-lg flex items-end transition-opacity">
+                            <span className="text-xs">{item.generatedImage.attribution}</span>
+                          </div>
+                        )}
                       </div>
                     )}
 
