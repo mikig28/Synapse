@@ -1054,6 +1054,17 @@ export default function CalendarPage() { // Renamed from Home for clarity
     end: endOfWeek(currentDisplayDate, { weekStartsOn: 0 }),
   })
   const timeSlots = Array.from({ length: 13 }, (_, i) => i + 7) // 7 AM to 7 PM (inclusive)
+  
+  // Helper function to ensure consistent positioning across drag/drop and visual rendering
+  const getGridPositionForHour = (hour: number): number => {
+    const gridStartHour = 7;
+    return (hour - gridStartHour) * 80; // 80px per hour slot
+  }
+  
+  const getHourFromGridPosition = (position: number): number => {
+    const gridStartHour = 7;
+    return Math.round(position / 80) + gridStartHour;
+  }
 
   // Helper function to calculate event position and height
   const calculateEventStyle = (startTime: Date, endTime: Date, isDragging: boolean = false) => {
@@ -1084,14 +1095,29 @@ export default function CalendarPage() { // Renamed from Home for clarity
       };
     }
     
-    // For regular timed events, extend the visible window to show more hours
-    const clampedStart = Math.max(0, Math.min(24, start)); // Show 24-hour window instead of 7-19
-    const clampedEnd = Math.max(0, Math.min(24, end));
+    // For regular timed events - clamp to visible grid hours (7-19)
+    const gridStartHour = 7; // Grid starts at 7 AM
+    const gridEndHour = 19; // Grid ends at 7 PM
+    const clampedStart = Math.max(gridStartHour, Math.min(gridEndHour, start));
+    const clampedEnd = Math.max(gridStartHour, Math.min(gridEndHour + 1, end)); // Allow end to be 8 PM (20:00)
     
-    // Adjust calculation for extended window (0-24 hours)
-    const gridStartHour = 7; // Still start visual grid at 7 AM for normal view
-    const adjustedTop = Math.max(0, (clampedStart - gridStartHour) * 80);
+    // Calculate position relative to grid start (7 AM = position 0)
+    const adjustedTop = getGridPositionForHour(clampedStart);
     const adjustedHeight = Math.max(20, (clampedEnd - clampedStart) * 80);
+    
+    // Debug logging for positioning
+    if (isDragging) {
+      console.log('[DEBUG] Event positioning during drag:', {
+        startHour: startTime.getHours(),
+        endHour: endTime.getHours(),
+        clampedStart,
+        clampedEnd,
+        gridStartHour,
+        adjustedTop,
+        adjustedHeight,
+        isDragging
+      });
+    }
     
     return {
       top: `${adjustedTop}px`,
@@ -1761,6 +1787,14 @@ export default function CalendarPage() { // Renamed from Home for clarity
                               e.preventDefault(); 
                               // Only handle regular event dragging, not resizing
                               if (!resizingEvent && draggedEvent) {
+                                console.log('[DEBUG] Drag over - Week View:', {
+                                  dayIndex,
+                                  timeIndex,
+                                  currentSlotHour,
+                                  currentSlotDate,
+                                  draggedEvent: draggedEvent.title,
+                                  calculatedPosition: getGridPositionForHour(currentSlotHour)
+                                });
                                 setDragOverDate(currentSlotDate);
                                 setDragOverTimeSlot(currentSlotHour);
                                 setIsDragOver(true);
@@ -1783,11 +1817,23 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                 
                                 const newEndTime = new Date(newStartTime.getTime() + duration);
 
-                                console.log('[Frontend] Attempting to move event:', {
-                                  eventTitle: draggedEvent.title,
-                                  from: `${draggedEvent.startTime} - ${draggedEvent.endTime}`,
-                                  to: `${newStartTime} - ${newEndTime}`
-                                });
+                                                              console.log('[Frontend] Attempting to move event:', {
+                                eventTitle: draggedEvent.title,
+                                from: {
+                                  startTime: draggedEvent.startTime,
+                                  endTime: draggedEvent.endTime,
+                                  startHour: draggedEvent.startTime.getHours(),
+                                  endHour: draggedEvent.endTime.getHours()
+                                },
+                                to: {
+                                  startTime: newStartTime,
+                                  endTime: newEndTime, 
+                                  startHour: newStartTime.getHours(),
+                                  endHour: newEndTime.getHours()
+                                },
+                                dropSlot: dragOverTimeSlot,
+                                expectedVisualPosition: (dragOverTimeSlot - 7) * 80
+                              });
 
                                 // Use our safe update function instead of direct state manipulation
                                 const success = await updateEventSafely(draggedEvent, newStartTime, newEndTime);
@@ -1878,12 +1924,13 @@ export default function CalendarPage() { // Renamed from Home for clarity
                               </Button>
                               
                               {/* Resize Handles */}
-                              {!draggedEvent && (
+                              {!draggedEvent && !isDraggingEvent && (
                                 <>
                                   <div 
                                     draggable 
                                     onDragStart={(e) => {
                                       e.stopPropagation(); // Prevent event drag when resizing
+                                      console.log('[DEBUG] Starting resize - top handle');
                                       setResizingEvent({ 
                                         event,
                                         handle: 'top',
@@ -1936,6 +1983,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                     draggable 
                                     onDragStart={(e) => {
                                       e.stopPropagation();
+                                      console.log('[DEBUG] Starting resize - bottom handle');
                                       setResizingEvent({ 
                                         event,
                                         handle: 'bottom',
@@ -2034,6 +2082,12 @@ export default function CalendarPage() { // Renamed from Home for clarity
                             e.preventDefault();
                             // Only handle regular event dragging, not resizing
                             if (!resizingEvent && draggedEvent) {
+                              console.log('[DEBUG] Drag over - Day View:', {
+                                timeIndex,
+                                currentSlotHour,
+                                draggedEvent: draggedEvent.title,
+                                calculatedPosition: getGridPositionForHour(currentSlotHour)
+                              });
                               setDragOverDate(currentSlotDate);
                               setDragOverTimeSlot(currentSlotHour);
                               setIsDragOver(true);
@@ -2058,8 +2112,20 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
                               console.log('[Frontend] Day view attempting to move event:', {
                                 eventTitle: draggedEvent.title,
-                                from: `${draggedEvent.startTime} - ${draggedEvent.endTime}`,
-                                to: `${newStartTime} - ${newEndTime}`
+                                from: {
+                                  startTime: draggedEvent.startTime,
+                                  endTime: draggedEvent.endTime,
+                                  startHour: draggedEvent.startTime.getHours(),
+                                  endHour: draggedEvent.endTime.getHours()
+                                },
+                                to: {
+                                  startTime: newStartTime,
+                                  endTime: newEndTime,
+                                  startHour: newStartTime.getHours(),
+                                  endHour: newEndTime.getHours()
+                                },
+                                dropSlot: dragOverTimeSlot,
+                                expectedVisualPosition: (dragOverTimeSlot - 7) * 80
                               });
 
                               // Use our safe update function instead of direct state manipulation
@@ -2147,12 +2213,13 @@ export default function CalendarPage() { // Renamed from Home for clarity
                             </Button>
                             
                             {/* Resize Handles */}
-                            {!draggedEvent && (
+                            {!draggedEvent && !isDraggingEvent && (
                               <>
                                 <div 
                                   draggable 
                                   onDragStart={(e) => {
                                     e.stopPropagation();
+                                    console.log('[DEBUG] Day view - Starting resize - top handle');
                                     setResizingEvent({ 
                                       event,
                                       handle: 'top',
@@ -2204,6 +2271,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                   draggable 
                                   onDragStart={(e) => {
                                     e.stopPropagation();
+                                    console.log('[DEBUG] Day view - Starting resize - bottom handle');
                                     setResizingEvent({ 
                                       event,
                                       handle: 'bottom',
