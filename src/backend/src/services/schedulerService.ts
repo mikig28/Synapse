@@ -14,12 +14,22 @@ class SchedulerService {
   private scheduledTasks: Map<string, SchedulerInstance> = new Map();
   private intervalChecks: Map<string, NodeJS.Timeout> = new Map();
   private isRunning: boolean = false;
-  private agentService: AgentService;
+  private agentService: AgentService | null = null;
 
-  constructor() {
-    this.agentService = new AgentService();
+  constructor(agentService?: AgentService) {
+    if (agentService) {
+      this.agentService = agentService;
+    }
     // Main scheduler that checks for due executions every minute
     this.startMainScheduler();
+  }
+
+  /**
+   * Set the agent service instance (used when not provided in constructor)
+   */
+  setAgentService(agentService: AgentService): void {
+    this.agentService = agentService;
+    console.log('📅 SchedulerService: AgentService instance set');
   }
 
   /**
@@ -71,6 +81,10 @@ class SchedulerService {
     let executionResult: any = null;
 
     try {
+      if (!this.agentService) {
+        throw new Error('AgentService not initialized. Cannot execute scheduled agent.');
+      }
+
       console.log(`🚀 Executing scheduled agent: ${scheduledAgent.name} (${scheduledAgent._id})`);
 
       // Map scheduled agent type to Agent model type
@@ -325,7 +339,7 @@ class SchedulerService {
   }
 }
 
-// Create singleton instance
+// Create singleton instance (will be initialized with AgentService later)
 export const schedulerService = new SchedulerService();
 
 // Helper function for controller
@@ -333,5 +347,5 @@ export const executeScheduledAgentById = (scheduledAgentId: mongoose.Types.Objec
   return schedulerService.executeScheduledAgentById(scheduledAgentId);
 };
 
-// Initialize on module load
-schedulerService.initializeExistingSchedules();
+// Export SchedulerService class for instantiation in server
+export { SchedulerService };

@@ -30,6 +30,7 @@ import ttsRoutes from './api/routes/ttsRoutes'; // Import text-to-speech routes
 import calendarEventsRoutes from './api/routes/calendarEventsRoutes'; // Import calendar event routes
 import scheduledAgentsRoutes from './api/routes/scheduledAgents'; // Import scheduled agents routes
 import { initializeTaskReminderScheduler } from './services/taskReminderService'; // Import task reminder service
+import { schedulerService } from './services/schedulerService'; // Import scheduler service
 
 dotenv.config();
 
@@ -343,6 +344,11 @@ const startServer = async () => {
     
     // Register agent executors
     registerAgentExecutors(agentService);
+    
+    // Initialize scheduler service with the configured agent service
+    schedulerService.setAgentService(agentService);
+    await schedulerService.initializeExistingSchedules();
+    console.log('[Server] Scheduler service initialized with AgentService');
     
     // Initialize agent controller dependencies
     initializeAgentServices(agentService, agentScheduler);
