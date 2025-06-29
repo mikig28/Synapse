@@ -14,7 +14,7 @@ class CrewAINewsAgentExecutor {
             NODE_ENV: process.env.NODE_ENV,
             PORT: process.env.PORT
         });
-        this.crewaiServiceUrl = process.env.CREWAI_SERVICE_URL || 'http://localhost:5000';
+        this.crewaiServiceUrl = process.env.CREWAI_SERVICE_URL || 'https://synapse-crewai.onrender.com';
         console.log(`[CrewAI Agent] Using Service URL: ${this.crewaiServiceUrl}`);
         // Validate URL format
         try {

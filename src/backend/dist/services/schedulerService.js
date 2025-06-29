@@ -3,20 +3,29 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.executeScheduledAgentById = exports.schedulerService = void 0;
+exports.SchedulerService = exports.executeScheduledAgentById = exports.schedulerService = void 0;
 const node_cron_1 = __importDefault(require("node-cron"));
 const ScheduledAgent_1 = __importDefault(require("../models/ScheduledAgent"));
-const agentService_1 = require("./agentService");
 const Agent_1 = __importDefault(require("../models/Agent"));
 const AgentRun_1 = __importDefault(require("../models/AgentRun"));
 class SchedulerService {
-    constructor() {
+    constructor(agentService) {
         this.scheduledTasks = new Map();
         this.intervalChecks = new Map();
         this.isRunning = false;
-        this.agentService = new agentService_1.AgentService();
+        this.agentService = null;
+        if (agentService) {
+            this.agentService = agentService;
+        }
         // Main scheduler that checks for due executions every minute
         this.startMainScheduler();
+    }
+    /**
+     * Set the agent service instance (used when not provided in constructor)
+     */
+    setAgentService(agentService) {
+        this.agentService = agentService;
+        console.log('📅 SchedulerService: AgentService instance set');
     }
     /**
      * Start the main scheduler that checks for due scheduled agents
@@ -60,12 +69,28 @@ class SchedulerService {
         const startTime = Date.now();
         let executionResult = null;
         try {
+            if (!this.agentService) {
+                throw new Error('AgentService not initialized. Cannot execute scheduled agent.');
+            }
             console.log(`🚀 Executing scheduled agent: ${scheduledAgent.name} (${scheduledAgent._id})`);
+            // Map scheduled agent type to Agent model type
+            const getAgentType = (scheduledType) => {
+                switch (scheduledType) {
+                    case 'crewai':
+                        return 'crewai_news';
+                    case 'custom':
+                        return 'custom';
+                    default:
+                        console.warn(`[SchedulerService] Unknown scheduled agent type: ${scheduledType}, defaulting to crewai_news`);
+                        return 'crewai_news';
+                }
+            };
+            const agentType = getAgentType(scheduledAgent.agentConfig.type);
             // Create or find the corresponding agent for execution
             let agent = await Agent_1.default.findOne({
                 userId: scheduledAgent.userId,
                 name: `Scheduled: ${scheduledAgent.name}`,
-                type: scheduledAgent.agentConfig.type
+                type: agentType
             });
             if (!agent) {
                 // Create a temporary agent for this execution
@@ -73,10 +98,15 @@ class SchedulerService {
                     userId: scheduledAgent.userId,
                     name: `Scheduled: ${scheduledAgent.name}`,
                     description: `Auto-generated agent for scheduled execution: ${scheduledAgent.description || scheduledAgent.name}`,
-                    type: scheduledAgent.agentConfig.type,
-                    config: {
+                    type: agentType,
+                    configuration: {
                         topics: scheduledAgent.agentConfig.topics,
-                        crewaiSources: scheduledAgent.agentConfig.sources,
+                        crewaiSources: scheduledAgent.agentConfig.sources || {
+                            reddit: true,
+                            linkedin: true,
+                            telegram: true,
+                            news_websites: true
+                        },
                         maxItemsPerRun: scheduledAgent.agentConfig.parameters?.maxItemsPerRun || 10
                     },
                     isActive: true
@@ -256,12 +286,11 @@ class SchedulerService {
         console.log('🛑 All scheduled tasks stopped');
     }
 }
-// Create singleton instance
+exports.SchedulerService = SchedulerService;
+// Create singleton instance (will be initialized with AgentService later)
 exports.schedulerService = new SchedulerService();
 // Helper function for controller
 const executeScheduledAgentById = (scheduledAgentId) => {
     return exports.schedulerService.executeScheduledAgentById(scheduledAgentId);
 };
 exports.executeScheduledAgentById = executeScheduledAgentById;
-// Initialize on module load
-exports.schedulerService.initializeExistingSchedules();

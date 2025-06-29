@@ -57,6 +57,9 @@ interface AgentProgress {
   hasActiveProgress: boolean;
   results?: any;
   error?: string;
+  userMessage: string;
+  errorType: string;
+  debugInfo?: any;
 }
 
 const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
@@ -177,29 +180,84 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
           const response = await agentService.getCrewProgress(agent._id);
           
           if (response.success && response.progress) {
+            const progress = response.progress;
+            
+            console.log(`[Dashboard] Progress for ${agent.name}:`, {
+              status: progress.progress_status,
+              hasActive: progress.hasActiveProgress,
+              stepCount: progress.step_count,
+              sessionId: progress.session_id
+            });
+            
             return {
               agentId: agent._id,
               agentName: agent.name,
-              ...response.progress
+              ...progress,
+              userMessage: getUserFriendlyMessage(progress, agent),
+              errorType: 'success'
             };
           } else {
             console.log(`[Dashboard] No active progress for agent: ${agent.name}`);
+            
+            const errorDetails = response.progress?.error_details;
+            let userMessage = 'Checking for execution steps...';
+            let errorType = 'checking';
+            
+            if (errorDetails) {
+              if (errorDetails.service_unreachable) {
+                userMessage = 'CrewAI service is starting up. Please wait...';
+                errorType = 'service_starting';
+              } else if (errorDetails.connection_timeout) {
+                userMessage = 'Service is busy. Retrying...';
+                errorType = 'service_busy';
+              } else if (errorDetails.agent_status === 'running' && errorDetails.time_since_last_run_seconds < 30) {
+                userMessage = 'Agent just started. Initializing...';
+                errorType = 'initializing';
+              } else if (errorDetails.agent_status === 'running' && errorDetails.time_since_last_run_seconds > 300) {
+                userMessage = 'Agent may be stuck. Consider restarting it.';
+                errorType = 'potentially_stuck';
+              } else {
+                userMessage = 'Waiting for execution steps...';
+                errorType = 'waiting';
+              }
+            }
+            
             return {
               agentId: agent._id,
               agentName: agent.name,
               steps: [],
               hasActiveProgress: false,
-              error: 'No active progress'
+              error: response.progress?.message || 'No active progress',
+              userMessage: userMessage,
+              errorType: errorType,
+              debugInfo: response.progress?.debug_info
             };
           }
         } catch (error: any) {
           console.warn(`[Dashboard] Failed to fetch progress for agent ${agent.name}:`, error.message);
+          
+          let userMessage = 'Connection error. Retrying...';
+          let errorType = 'connection_error';
+          
+          if (error.message.includes('timeout')) {
+            userMessage = 'Service timeout. Please wait...';
+            errorType = 'timeout';
+          } else if (error.message.includes('ECONNREFUSED')) {
+            userMessage = 'CrewAI service is not responding. Please check service status.';
+            errorType = 'service_down';
+          } else if (error.message.includes('404')) {
+            userMessage = 'Progress endpoint not found. Service may be outdated.';
+            errorType = 'endpoint_missing';
+          }
+          
           return {
             agentId: agent._id,
             agentName: agent.name,
             steps: [],
             hasActiveProgress: false,
-            error: error.message
+            error: error.message,
+            userMessage: userMessage,
+            errorType: errorType
           };
         }
       });
@@ -208,26 +266,66 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
       
       const newProgressMap = new Map<string, AgentProgress>();
       let totalActiveProgress = 0;
+      let totalErrorAgents = 0;
       
       progressResults.forEach((progress) => {
         if (progress) {
           newProgressMap.set(progress.agentId, progress);
           if (progress.hasActiveProgress) {
             totalActiveProgress++;
+          } else if (progress.error) {
+            totalErrorAgents++;
           }
         }
       });
 
       setAgentProgress(newProgressMap);
       
-      if (!silent && totalActiveProgress > 0) {
-        console.log(`[Dashboard] Updated progress for ${totalActiveProgress} active agents`);
+      if (!silent) {
+        if (totalActiveProgress > 0) {
+          console.log(`[Dashboard] ✅ Updated progress for ${totalActiveProgress} active agents`);
+        } else if (totalErrorAgents > 0) {
+          console.log(`[Dashboard] ⚠️ ${totalErrorAgents} agents have progress tracking issues`);
+        } else {
+          console.log(`[Dashboard] 📝 All agents checked - no active progress found`);
+        }
       }
       
     } catch (error: any) {
       if (!silent) {
         console.error('[Dashboard] Failed to fetch agent progress:', error);
+        
+        toast({
+          title: 'Progress Tracking Issue',
+          description: 'Unable to fetch agent progress. The CrewAI service may be starting up.',
+          variant: 'destructive',
+        });
       }
+    }
+  };
+
+  const getUserFriendlyMessage = (progress: any, agent: any): string => {
+    if (progress.hasActiveProgress && progress.steps && progress.steps.length > 0) {
+      const latestStep = progress.steps[progress.steps.length - 1];
+      return `${latestStep.step || latestStep.message || 'Processing...'}`;
+    } else if (progress.progress_status === 'active') {
+      return 'Agent is working...';
+    } else if (progress.progress_status === 'no_active_progress') {
+      const debugInfo = progress.debug_info;
+      if (debugInfo?.agent_status === 'running') {
+        if (debugInfo.time_since_last_run_seconds < 30) {
+          return 'Starting up...';
+        } else if (debugInfo.time_since_last_run_seconds > 300) {
+          return 'Agent may be stuck';
+        } else {
+          return 'Initializing...';
+        }
+      }
+      return 'Waiting for execution steps...';
+    } else if (progress.progress_status === 'service_error') {
+      return 'Service connection issue';
+    } else {
+      return 'Checking status...';
     }
   };
 
@@ -407,22 +505,39 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
                         {getAgentTypeIcon(agent.type)}
                         <div>
                           <p className="font-medium">{agent.name}</p>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            {progress?.hasActiveProgress ? (
-                              <span>Running • {progress.steps.length} steps completed</span>
-                            ) : (
-                              <span>Starting up...</span>
-                            )}
-                            {activeRun && (
-                              <span>• {activeRun.itemsProcessed} items so far</span>
-                            )}
-                          </div>
+                                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      {progress?.hasActiveProgress ? (
+                        <Loader2 className="w-3 h-3 animate-spin text-green-500" />
+                      ) : progress?.errorType === 'service_down' || progress?.errorType === 'connection_error' ? (
+                        <AlertCircle className="w-3 h-3 text-red-500" />
+                      ) : progress?.errorType === 'potentially_stuck' ? (
+                        <AlertCircle className="w-3 h-3 text-yellow-500" />
+                      ) : (
+                        <Loader2 className="w-3 h-3 animate-spin text-blue-500" />
+                      )}
+                      <span>{progress?.userMessage || 'Waiting for execution steps...'}</span>
+                      {activeRun && activeRun.itemsProcessed > 0 && (
+                        <span>• {activeRun.itemsProcessed} items so far</span>
+                      )}
+                    </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant="default" className="animate-pulse">
-                          {progress?.hasActiveProgress ? 'Active' : 'Starting'}
+                        <Badge 
+                          variant={
+                            progress?.hasActiveProgress ? 'default' : 
+                            progress?.errorType === 'service_down' || progress?.errorType === 'connection_error' ? 'destructive' :
+                            progress?.errorType === 'potentially_stuck' ? 'destructive' :
+                            'secondary'
+                          } 
+                          className={progress?.hasActiveProgress ? 'animate-pulse' : ''}
+                        >
+                          {progress?.hasActiveProgress ? 'Active' : 
+                           progress?.errorType === 'service_down' ? 'Service Down' :
+                           progress?.errorType === 'connection_error' ? 'Connection Issue' :
+                           progress?.errorType === 'potentially_stuck' ? 'May Be Stuck' :
+                           progress?.errorType === 'initializing' ? 'Initializing' :
+                           'Starting'}
                         </Badge>
                         {onAgentToggle && (
                           <Button
@@ -481,11 +596,37 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
                       </div>
                     )}
 
-                    {/* Error Display */}
+                    {/* Enhanced Error Display */}
                     {progress?.error && !progress.hasActiveProgress && (
-                      <div className="flex items-center gap-2 text-xs text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded">
-                        <AlertCircle className="w-3 h-3" />
-                        <span>Progress tracking: {progress.error}</span>
+                      <div className={`flex items-center gap-2 text-xs p-2 rounded ${
+                        progress.errorType === 'service_down' || progress.errorType === 'connection_error' 
+                          ? 'text-red-600 bg-red-50 dark:bg-red-900/20'
+                          : progress.errorType === 'potentially_stuck'
+                          ? 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20'
+                          : 'text-blue-600 bg-blue-50 dark:bg-blue-900/20'
+                      }`}>
+                        {progress.errorType === 'service_down' || progress.errorType === 'connection_error' ? (
+                          <AlertCircle className="w-3 h-3" />
+                        ) : progress.errorType === 'potentially_stuck' ? (
+                          <AlertCircle className="w-3 h-3" />
+                        ) : (
+                          <Activity className="w-3 h-3" />
+                        )}
+                        <span>{progress.userMessage}</span>
+                        {(progress.errorType === 'service_down' || progress.errorType === 'connection_error') && (
+                          <button 
+                            onClick={() => {
+                              fetchAgentProgress();
+                              toast({
+                                title: 'Retrying Connection',
+                                description: 'Attempting to reconnect to CrewAI service...',
+                              });
+                            }}
+                            className="ml-auto text-xs underline hover:no-underline"
+                          >
+                            Retry
+                          </button>
+                        )}
                       </div>
                     )}
                   </motion.div>

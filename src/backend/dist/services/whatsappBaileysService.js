@@ -65,8 +65,8 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
         this.lastPingTime = 0;
         this.MAX_MESSAGES_PER_CHAT = 100;
         this.MEMORY_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
-        this.CONNECTION_TIMEOUT = 90000; // 90 seconds
-        this.KEEP_ALIVE_INTERVAL = 25000; // 25 seconds
+        this.CONNECTION_TIMEOUT = 120000; // 120 seconds (increased)
+        this.KEEP_ALIVE_INTERVAL = 30000; // 30 seconds (increased)
         this.loadSession();
         // Cleanup timers on process exit
         process.on('SIGINT', this.cleanup.bind(this));
@@ -194,8 +194,10 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
                 connectTimeoutMs: this.CONNECTION_TIMEOUT,
                 keepAliveIntervalMs: this.KEEP_ALIVE_INTERVAL,
                 // Additional performance optimizations
-                retryRequestDelayMs: 250,
-                maxMsgRetryCount: 3,
+                retryRequestDelayMs: 500, // Increased from 250
+                maxMsgRetryCount: 5, // Increased from 3
+                // Add qr timeout
+                qrTimeout: 60000, // 60 seconds for QR timeout
                 // Improved connection stability
                 emitOwnEvents: false,
                 fireInitQueries: true
@@ -279,11 +281,27 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
                     return;
                 }
                 if (isTimeoutError) {
-                    console.log('⏰ Connection timeout detected - implementing timeout recovery');
+                    console.log('⏰ Connection timeout detected - implementing enhanced timeout recovery');
                     this.reconnectAttempts++;
-                    const delay = this.calculateBackoffDelay(this.reconnectAttempts);
-                    console.log(`🔄 Timeout recovery attempt ${this.reconnectAttempts}: Reconnecting in ${delay / 1000}s...`);
-                    this.scheduleReconnect(delay, false); // Don't clear auth for timeouts
+                    // For timeout errors, use progressive recovery strategy
+                    if (this.reconnectAttempts <= 2) {
+                        // First 2 attempts: Quick retry without clearing auth
+                        const delay = 5000 + (this.reconnectAttempts * 2000); // 5s, 7s
+                        console.log(`🔄 Quick timeout recovery attempt ${this.reconnectAttempts}: Reconnecting in ${delay / 1000}s...`);
+                        this.scheduleReconnect(delay, false);
+                    }
+                    else if (this.reconnectAttempts <= 5) {
+                        // Next 3 attempts: Longer delay, still no auth clear
+                        const delay = 15000 + (this.reconnectAttempts * 5000); // 20s, 25s, 30s
+                        console.log(`🔄 Extended timeout recovery attempt ${this.reconnectAttempts}: Reconnecting in ${delay / 1000}s...`);
+                        this.scheduleReconnect(delay, false);
+                    }
+                    else {
+                        // After 5 attempts: Clear auth and longer delay
+                        const delay = 60000; // 1 minute
+                        console.log(`🔄 Deep timeout recovery attempt ${this.reconnectAttempts}: Clearing auth and reconnecting in ${delay / 1000}s...`);
+                        this.scheduleReconnect(delay, true);
+                    }
                     return;
                 }
                 this.isClientReady = false;
@@ -444,6 +462,11 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
                         if (!message || !message.key || !message.key.remoteJid) {
                             continue;
                         }
+                        // Add null check for message.message to prevent imageMessage errors
+                        if (!message.message) {
+                            console.log('⚠️ Skipping message with null message content');
+                            continue;
+                        }
                         const messageText = this.extractMessageText(message);
                         // Allow empty messages if they're media messages
                         if (!messageText && !this.isMediaMessage(message.message)) {
@@ -478,6 +501,18 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
                     }
                     catch (msgError) {
                         console.log('⚠️ Error processing historical message:', msgError.message);
+                        // Log the problematic message for debugging
+                        try {
+                            console.log('⚠️ Problematic message structure:', JSON.stringify({
+                                hasKey: !!message.key,
+                                hasMessage: !!message.message,
+                                messageKeys: message.message ? Object.keys(message.message) : 'N/A',
+                                remoteJid: message.key?.remoteJid || 'N/A'
+                            }, null, 2));
+                        }
+                        catch (logError) {
+                            console.log('⚠️ Could not log message structure due to circular reference');
+                        }
                     }
                 }
                 // Message limiting is now handled per-chat in addMessageToChat method
@@ -570,9 +605,14 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
     async handleIncomingMessages(messageUpdate) {
         try {
             const { messages } = messageUpdate;
+            if (!messages || !Array.isArray(messages)) {
+                console.log('⚠️ Invalid messages array in handleIncomingMessages');
+                return;
+            }
             for (const message of messages) {
-                if (!message.message || message.key.fromMe)
-                    continue; // Skip our own messages
+                if (!message || !message.key || !message.message || message.key.fromMe) {
+                    continue; // Skip invalid messages and our own messages
+                }
                 try {
                     const messageText = this.extractMessageText(message);
                     if (!messageText)
@@ -610,11 +650,13 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
                 }
                 catch (error) {
                     console.error('❌ Error processing individual WhatsApp message:', error.message);
+                    console.error('❌ Message data that caused error:', JSON.stringify(message, null, 2));
                 }
             }
         }
         catch (error) {
             console.error('❌ Error in handleIncomingMessages batch:', error.message);
+            console.error('❌ MessageUpdate data that caused error:', JSON.stringify(messageUpdate, null, 2));
         }
     }
     extractMessageText(message) {
@@ -623,23 +665,27 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
                 return '';
             }
             const msgContent = message.message;
-            // Handle different message types
+            // Additional null check for msgContent
+            if (!msgContent) {
+                return '';
+            }
+            // Handle different message types with null checks
             if (msgContent.conversation) {
                 return msgContent.conversation;
             }
-            if (msgContent.extendedTextMessage?.text) {
+            if (msgContent.extendedTextMessage && msgContent.extendedTextMessage.text) {
                 return msgContent.extendedTextMessage.text;
             }
-            if (msgContent.imageMessage?.caption) {
+            if (msgContent.imageMessage && msgContent.imageMessage.caption) {
                 return msgContent.imageMessage.caption;
             }
-            if (msgContent.videoMessage?.caption) {
+            if (msgContent.videoMessage && msgContent.videoMessage.caption) {
                 return msgContent.videoMessage.caption;
             }
-            if (msgContent.documentMessage?.caption) {
+            if (msgContent.documentMessage && msgContent.documentMessage.caption) {
                 return msgContent.documentMessage.caption;
             }
-            // For messages without text content, return a placeholder
+            // For messages without text content, return a placeholder with null checks
             if (msgContent.imageMessage) {
                 return '[Image]';
             }
@@ -669,10 +715,14 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
         }
         catch (error) {
             console.log('⚠️ Error extracting message text:', error.message);
+            console.log('⚠️ Message data that caused extraction error:', JSON.stringify(message, null, 2));
         }
         return '';
     }
     isMediaMessage(message) {
+        if (!message) {
+            return false;
+        }
         return !!(message.imageMessage || message.videoMessage || message.audioMessage || message.documentMessage);
     }
     async getContactName(jid) {
@@ -1199,9 +1249,9 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
     }
     // Helper method to calculate exponential backoff with jitter
     calculateBackoffDelay(attempt) {
-        const baseDelay = 1000; // 1 second
+        const baseDelay = 2000; // 2 seconds (increased from 1 second)
         const maxDelay = 300000; // 5 minutes
-        const exponentialDelay = Math.min(baseDelay * Math.pow(2, attempt - 1), maxDelay);
+        const exponentialDelay = Math.min(baseDelay * Math.pow(1.8, attempt - 1), maxDelay); // Reduced multiplier from 2 to 1.8
         // Add jitter (±25% randomization)
         const jitter = exponentialDelay * 0.25 * (Math.random() - 0.5);
         return Math.floor(exponentialDelay + jitter);
@@ -1226,7 +1276,7 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
             }
         }, delay);
     }
-    // Health monitoring to detect connection issues
+    // Enhanced health monitoring to detect connection issues
     startHealthMonitoring() {
         if (this.healthCheckTimer) {
             clearInterval(this.healthCheckTimer);
@@ -1237,20 +1287,33 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
             try {
                 // Send ping to check connection health
                 const now = Date.now();
-                if (now - this.lastPingTime > 60000) { // Ping every minute
-                    await this.socket.sendPresenceUpdate('available');
+                if (now - this.lastPingTime > 90000) { // Ping every 90 seconds (increased)
+                    console.log('💓 Performing connection health check...');
+                    // Use a timeout for the health check
+                    const pingPromise = this.socket.sendPresenceUpdate('available');
+                    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Health check timeout')), 15000));
+                    await Promise.race([pingPromise, timeoutPromise]);
                     this.lastPingTime = now;
                     console.log('💓 Connection health check successful');
                 }
             }
             catch (error) {
                 console.error('❌ Health check failed:', error.message);
+                // Only restart if we haven't exceeded max attempts
                 if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
-                    console.log('🔄 Restarting connection due to health check failure...');
-                    this.restart();
+                    console.log('🔄 Scheduling connection restart due to health check failure...');
+                    // Use a delay to avoid immediate restart
+                    setTimeout(() => {
+                        if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
+                            this.restart();
+                        }
+                    }, 5000);
+                }
+                else {
+                    console.log('⚠️ Max reconnect attempts reached, health monitoring paused');
                 }
             }
-        }, 30000); // Check every 30 seconds
+        }, 45000); // Check every 45 seconds (increased from 30)
     }
     // Memory cleanup to prevent memory leaks
     startMemoryCleanup() {

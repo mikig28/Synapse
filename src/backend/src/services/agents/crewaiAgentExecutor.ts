@@ -29,7 +29,7 @@ export class CrewAIAgentExecutor implements AgentExecutor {
   };
 
   constructor() {
-    this.crewaiServiceUrl = process.env.CREWAI_SERVICE_URL || 'http://localhost:5000';
+    this.crewaiServiceUrl = process.env.CREWAI_SERVICE_URL || 'https://synapse-crewai.onrender.com';
     
     // Validate and log the service URL for debugging
     console.log(`[CrewAIExecutor] Initialized with service URL: ${this.crewaiServiceUrl}`);

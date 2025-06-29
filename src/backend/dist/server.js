@@ -36,6 +36,7 @@ const ttsRoutes_1 = __importDefault(require("./api/routes/ttsRoutes")); // Impor
 const calendarEventsRoutes_1 = __importDefault(require("./api/routes/calendarEventsRoutes")); // Import calendar event routes
 const scheduledAgents_1 = __importDefault(require("./api/routes/scheduledAgents")); // Import scheduled agents routes
 const taskReminderService_1 = require("./services/taskReminderService"); // Import task reminder service
+const schedulerService_1 = require("./services/schedulerService"); // Import scheduler service
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const rawPort = process.env.PORT || '3001'; // Read as string
@@ -336,6 +337,10 @@ const startServer = async () => {
         const agentScheduler = new agentScheduler_1.AgentScheduler(agentService);
         // Register agent executors
         (0, agents_1.registerAgentExecutors)(agentService);
+        // Initialize scheduler service with the configured agent service
+        schedulerService_1.schedulerService.setAgentService(agentService);
+        await schedulerService_1.schedulerService.initializeExistingSchedules();
+        console.log('[Server] Scheduler service initialized with AgentService');
         // Initialize agent controller dependencies
         (0, agentsController_1.initializeAgentServices)(agentService, agentScheduler);
         // Start the agent scheduler
