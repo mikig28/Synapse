@@ -73,11 +73,26 @@ class SchedulerService {
     try {
       console.log(`🚀 Executing scheduled agent: ${scheduledAgent.name} (${scheduledAgent._id})`);
 
+      // Map scheduled agent type to Agent model type
+      const getAgentType = (scheduledType: string): string => {
+        switch (scheduledType) {
+          case 'crewai':
+            return 'crewai_news';
+          case 'custom':
+            return 'custom';
+          default:
+            console.warn(`[SchedulerService] Unknown scheduled agent type: ${scheduledType}, defaulting to crewai_news`);
+            return 'crewai_news';
+        }
+      };
+
+      const agentType = getAgentType(scheduledAgent.agentConfig.type);
+
       // Create or find the corresponding agent for execution
       let agent = await Agent.findOne({
         userId: scheduledAgent.userId,
         name: `Scheduled: ${scheduledAgent.name}`,
-        type: scheduledAgent.agentConfig.type
+        type: agentType
       });
 
       if (!agent) {
@@ -86,10 +101,15 @@ class SchedulerService {
           userId: scheduledAgent.userId,
           name: `Scheduled: ${scheduledAgent.name}`,
           description: `Auto-generated agent for scheduled execution: ${scheduledAgent.description || scheduledAgent.name}`,
-          type: scheduledAgent.agentConfig.type,
-          config: {
+          type: agentType,
+          configuration: {
             topics: scheduledAgent.agentConfig.topics,
-            crewaiSources: scheduledAgent.agentConfig.sources,
+            crewaiSources: scheduledAgent.agentConfig.sources || {
+              reddit: true,
+              linkedin: true,
+              telegram: true,
+              news_websites: true
+            },
             maxItemsPerRun: scheduledAgent.agentConfig.parameters?.maxItemsPerRun || 10
           },
           isActive: true
