@@ -10,7 +10,7 @@ news_research_specialist:
     can identify trending stories, and have a keen eye for content quality and relevance.
     Your work forms the foundation for comprehensive news analysis across all domains.
   verbose: true
-  allow_delegation: true
+  allow_delegation: false
   max_iter: 5
   memory: true
 
@@ -49,7 +49,7 @@ trend_analysis_expert:
     content engagement, topic momentum, and providing actionable insights about 
     trending subjects regardless of the specific field or industry.
   verbose: true
-  allow_delegation: true
+  allow_delegation: false
   max_iter: 4
   memory: true
 
