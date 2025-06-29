@@ -42,8 +42,8 @@ export async function enhanceNewsItemWithImage(
     console.log(`Enhanced news item ${newsItem._id} with ${imageResult.source} image`);
     
     return newsItem;
-  } catch (error) {
-    console.error(`Failed to enhance news item ${newsItem._id}:`, error.message);
+  } catch (error: any) {
+    console.error(`Failed to enhance news item ${newsItem._id}:`, error?.message || 'Unknown error');
     return null;
   }
 }
