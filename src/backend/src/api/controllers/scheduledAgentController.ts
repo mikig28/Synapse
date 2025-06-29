@@ -50,6 +50,7 @@ export const createScheduledAgent = async (req: AuthenticatedRequest, res: Respo
     }
 
     // Create the scheduled agent
+    console.log(`[ScheduledAgent] Creating new scheduled agent with schedule:`, schedule);
     const scheduledAgent = new ScheduledAgent({
       userId,
       name,
@@ -60,6 +61,7 @@ export const createScheduledAgent = async (req: AuthenticatedRequest, res: Respo
     });
 
     await scheduledAgent.save();
+    console.log(`[ScheduledAgent] Created scheduled agent: ${scheduledAgent.name}, nextExecution: ${scheduledAgent.nextExecution}`);
 
     res.status(201).json({
       success: true,

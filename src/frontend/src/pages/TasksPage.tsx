@@ -15,6 +15,7 @@ import { Task } from '../../types/task'; // Using the centralized Task type
 import axiosInstance from '@/services/axiosConfig'; // Import axiosInstance
 import { sendManualTaskReminder } from '@/services/taskService'; // Import task service
 import { FloatingParticles } from '@/components/common/FloatingParticles';
+import KanbanView from '../components/tasks/KanbanView'; // Import Kanban view
 import { 
   CheckSquare, 
   Plus, 
@@ -29,7 +30,9 @@ import {
   Search,
   Filter,
   TrendingUp,
-  Bell // Added for reminder button
+  Bell, // Added for reminder button
+  LayoutGrid,
+  List
 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast"; // Added useToast
 import {
@@ -60,6 +63,7 @@ const TasksPage: React.FC = () => {
   const [showAddToCalendarModal, setShowAddToCalendarModal] = useState<boolean>(false);
   const [taskForCalendar, setTaskForCalendar] = useState<Task | null>(null);
   const [sendingReminder, setSendingReminder] = useState<boolean>(false);
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -428,6 +432,32 @@ const TasksPage: React.FC = () => {
             </div>
 
             <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+              {/* View Mode Toggle */}
+              <div className="flex bg-white/5 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`px-3 py-1.5 rounded-md flex items-center gap-2 transition-all ${
+                    viewMode === 'list' 
+                      ? 'bg-pink-500/30 text-white' 
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <List className="w-4 h-4" />
+                  <span className="text-sm">List</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('kanban')}
+                  className={`px-3 py-1.5 rounded-md flex items-center gap-2 transition-all ${
+                    viewMode === 'kanban' 
+                      ? 'bg-pink-500/30 text-white' 
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                  <span className="text-sm">Kanban</span>
+                </button>
+              </div>
+              
               <AnimatedButton 
                 onClick={handleSendManualReminder} 
                 className="w-full md:w-auto glow-blue-md"
@@ -448,7 +478,7 @@ const TasksPage: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* Tasks List */}
+        {/* Tasks View */}
         {filteredTasks.length === 0 ? (
           <motion.div 
             className="text-center py-10"
@@ -462,6 +492,14 @@ const TasksPage: React.FC = () => {
               </p>
             </GlassCard>
           </motion.div>
+        ) : viewMode === 'kanban' ? (
+          <KanbanView
+            tasks={filteredTasks}
+            onUpdateTask={handleSaveEdit}
+            onEditTask={handleEdit}
+            onDeleteTask={handleDelete}
+            onAddToCalendar={handleOpenAddToCalendarModal}
+          />
         ) : (
           <motion.div 
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6"

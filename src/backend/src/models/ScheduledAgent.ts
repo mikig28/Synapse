@@ -181,29 +181,39 @@ ScheduledAgentSchema.virtual('successRate').get(function(this: IScheduledAgent) 
 
 // Pre-save middleware to calculate next execution time
 ScheduledAgentSchema.pre('save', function(this: IScheduledAgent, next) {
-  if (this.isModified('schedule') || this.isModified('isActive')) {
+  // Always calculate nextExecution for new documents or when schedule/isActive is modified
+  if (this.isNew || this.isModified('schedule') || this.isModified('isActive')) {
     this.nextExecution = this.calculateNextExecution();
+    console.log(`[ScheduledAgent] Calculated nextExecution for ${this.name}: ${this.nextExecution}`);
   }
   next();
 });
 
 // Method to calculate next execution time
 ScheduledAgentSchema.methods.calculateNextExecution = function(this: IScheduledAgent): Date | undefined {
-  if (!this.isActive) return undefined;
+  if (!this.isActive) {
+    console.log(`[ScheduledAgent] Agent ${this.name} is not active, no next execution`);
+    return undefined;
+  }
 
   const now = new Date();
   
   if (this.schedule.type === 'interval' && this.schedule.intervalMinutes) {
     const intervalMs = this.schedule.intervalMinutes * 60 * 1000;
-    return new Date(now.getTime() + intervalMs);
+    const nextExecution = new Date(now.getTime() + intervalMs);
+    console.log(`[ScheduledAgent] Interval schedule for ${this.name}: every ${this.schedule.intervalMinutes} minutes, next execution: ${nextExecution}`);
+    return nextExecution;
   }
   
   if (this.schedule.type === 'cron' && this.schedule.cronExpression) {
     // For cron, we'll use a simple calculation for common patterns
     // In production, you'd want to use a proper cron library like 'node-cron' or 'cron-parser'
-    return this.calculateCronNextRun(this.schedule.cronExpression, this.schedule.timezone);
+    const nextExecution = this.calculateCronNextRun(this.schedule.cronExpression, this.schedule.timezone);
+    console.log(`[ScheduledAgent] Cron schedule for ${this.name}: ${this.schedule.cronExpression}, next execution: ${nextExecution}`);
+    return nextExecution;
   }
   
+  console.log(`[ScheduledAgent] No valid schedule found for ${this.name}:`, this.schedule);
   return undefined;
 };
 
