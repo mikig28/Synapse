@@ -140,33 +140,101 @@ export async function enhanceRecentNewsItems(
 
 /**
  * Generate an appropriate image prompt from news item content
+ * Extracts the most relevant keywords and concepts for visual representation
  */
 function generateImagePrompt(newsItem: INewsItem): string | null {
-  // Start with title as primary source
+  // Extract key entities and concepts from title and description
+  const fullText = `${newsItem.title} ${newsItem.description || ''}`.toLowerCase();
+  
+  // Define topic-specific keywords that translate well to images
+  const topicKeywords = {
+    technology: ['AI', 'artificial intelligence', 'robot', 'computer', 'software', 'tech', 'digital', 'innovation'],
+    business: ['startup', 'funding', 'investment', 'company', 'corporate', 'finance', 'money', 'business'],
+    science: ['research', 'study', 'discovery', 'experiment', 'laboratory', 'scientist', 'breakthrough'],
+    environment: ['climate', 'environment', 'green', 'renewable', 'sustainability', 'earth', 'nature'],
+    health: ['medical', 'health', 'doctor', 'hospital', 'medicine', 'treatment', 'vaccine'],
+    automotive: ['car', 'vehicle', 'electric', 'tesla', 'automotive', 'transportation'],
+    space: ['space', 'rocket', 'satellite', 'mars', 'NASA', 'astronaut', 'cosmic'],
+    politics: ['government', 'election', 'political', 'president', 'congress', 'policy'],
+    sports: ['football', 'basketball', 'soccer', 'olympics', 'athlete', 'championship'],
+    entertainment: ['movie', 'film', 'music', 'celebrity', 'entertainment', 'hollywood']
+  };
+
+  // Start with title as base
   let prompt = newsItem.title;
+
+  // Detect primary topic and enhance with relevant visual concepts
+  let detectedTopic = '';
+  let topicScore = 0;
+  
+  for (const [topic, keywords] of Object.entries(topicKeywords)) {
+    const matches = keywords.filter(keyword => 
+      fullText.includes(keyword.toLowerCase())
+    ).length;
+    
+    if (matches > topicScore) {
+      topicScore = matches;
+      detectedTopic = topic;
+    }
+  }
 
   // Add category context if available
   if (newsItem.category) {
     prompt = `${newsItem.category} ${prompt}`;
+  } else if (detectedTopic) {
+    prompt = `${detectedTopic} ${prompt}`;
   }
 
-  // Add key words from description if available and title is short
-  if (newsItem.description && prompt.length < 30) {
-    const descriptionWords = newsItem.description
-      .split(' ')
-      .slice(0, 5) // Take first 5 words
-      .join(' ');
-    prompt = `${prompt} ${descriptionWords}`;
+  // Extract key visual concepts from content
+  const visualConcepts = extractVisualConcepts(fullText);
+  if (visualConcepts.length > 0) {
+    prompt = `${prompt} ${visualConcepts.slice(0, 2).join(' ')}`;
   }
+
+  // Add style hints for better image quality
+  const styleHints = 'professional, high quality, detailed';
+  prompt = `${prompt}, ${styleHints}`;
 
   // Clean and limit the prompt
   const cleaned = prompt
-    .replace(/[^\w\s]/g, ' ')
+    .replace(/[^\w\s,]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .substring(0, 60); // Limit to 60 characters
+    .substring(0, 80); // Increased limit for better context
 
-  return cleaned.length > 5 ? cleaned : null;
+  return cleaned.length > 10 ? cleaned : null;
+}
+
+/**
+ * Extract visual concepts that translate well to images
+ */
+function extractVisualConcepts(text: string): string[] {
+  const visualWords = [
+    // Technology
+    'artificial intelligence', 'robot', 'computer', 'smartphone', 'data center', 'circuit board',
+    // Business
+    'office building', 'meeting room', 'handshake', 'graph', 'chart', 'money', 'coins',
+    // Science
+    'laboratory', 'microscope', 'test tubes', 'research', 'experiment', 'DNA',
+    // Environment
+    'solar panels', 'wind turbine', 'forest', 'ocean', 'recycling', 'green energy',
+    // Transportation
+    'electric car', 'autonomous vehicle', 'highway', 'traffic', 'charging station',
+    // Space
+    'rocket launch', 'satellite', 'space station', 'planet', 'astronaut',
+    // Medical
+    'hospital', 'stethoscope', 'medical equipment', 'laboratory', 'vaccine'
+  ];
+
+  const foundConcepts: string[] = [];
+  
+  for (const concept of visualWords) {
+    if (text.includes(concept.toLowerCase()) && foundConcepts.length < 3) {
+      foundConcepts.push(concept);
+    }
+  }
+
+  return foundConcepts;
 }
 
 /**

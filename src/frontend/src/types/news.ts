@@ -24,6 +24,11 @@ export interface NewsItem {
   isRead: boolean;
   isFavorite: boolean;
   readAt?: string;
+  generatedImage?: {
+    url: string;
+    source: 'unsplash' | 'replicate';
+    attribution?: string;
+  };
   createdAt: string;
   updatedAt: string;
 }
