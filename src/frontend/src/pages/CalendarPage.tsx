@@ -1833,8 +1833,14 @@ export default function CalendarPage() { // Renamed from Home for clarity
                               
                               if (draggedEvent && dragOverDate && dragOverTimeSlot !== null) {
                                 const duration = draggedEvent.endTime.getTime() - draggedEvent.startTime.getTime();
-                                const newStartTime = new Date(dragOverDate);
-                                newStartTime.setHours(dragOverTimeSlot, 0, 0, 0); // Set minutes and seconds to 0 for simplicity
+                                // Create new date using UTC methods to avoid timezone issues
+                                const newStartTime = new Date(
+                                  dragOverDate.getFullYear(),
+                                  dragOverDate.getMonth(),
+                                  dragOverDate.getDate(),
+                                  dragOverTimeSlot,
+                                  0, 0, 0
+                                );
                                 
                                 const newEndTime = new Date(newStartTime.getTime() + duration);
 
@@ -2141,8 +2147,14 @@ export default function CalendarPage() { // Renamed from Home for clarity
                             
                             if (draggedEvent && dragOverDate && dragOverTimeSlot !== null) {
                               const duration = draggedEvent.endTime.getTime() - draggedEvent.startTime.getTime();
-                              const newStartTime = new Date(dragOverDate);
-                              newStartTime.setHours(dragOverTimeSlot, 0, 0, 0); // Set minutes and seconds to 0
+                              // Create new date using explicit constructor to avoid timezone issues
+                              const newStartTime = new Date(
+                                dragOverDate.getFullYear(),
+                                dragOverDate.getMonth(),
+                                dragOverDate.getDate(),
+                                dragOverTimeSlot,
+                                0, 0, 0
+                              );
                               
                               const newEndTime = new Date(newStartTime.getTime() + duration);
 
@@ -2417,16 +2429,21 @@ export default function CalendarPage() { // Renamed from Home for clarity
                         }}
                         onDrop={() => {
                           if (draggedEvent && dragOverDate) {
-                            const newStartDate = new Date(dragOverDate);
-                            newStartDate.setHours(
+                            // Create new dates using explicit constructor to avoid timezone issues
+                            const newStartDate = new Date(
+                              dragOverDate.getFullYear(),
+                              dragOverDate.getMonth(),
+                              dragOverDate.getDate(),
                               draggedEvent.startTime.getHours(),
                               draggedEvent.startTime.getMinutes(),
                               draggedEvent.startTime.getSeconds(),
                               draggedEvent.startTime.getMilliseconds()
                             );
 
-                            const newEndDate = new Date(dragOverDate);
-                            newEndDate.setHours(
+                            const newEndDate = new Date(
+                              dragOverDate.getFullYear(),
+                              dragOverDate.getMonth(),
+                              dragOverDate.getDate(),
                               draggedEvent.endTime.getHours(),
                               draggedEvent.endTime.getMinutes(),
                               draggedEvent.endTime.getSeconds(),
