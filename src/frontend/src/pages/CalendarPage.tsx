@@ -1813,7 +1813,9 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                   dayIndex,
                                   timeIndex,
                                   currentSlotHour,
-                                  currentSlotDate: format(currentSlotDate, 'yyyy-MM-dd'),
+                                  currentSlotDate: format(currentSlotDate, 'yyyy-MM-dd EEEE'),
+                                  weekDate: format(weekDates[dayIndex], 'yyyy-MM-dd EEEE'),
+                                  areDatesEqual: isSameDay(currentSlotDate, weekDates[dayIndex]),
                                   draggedEvent: draggedEvent.title,
                                   calculatedPosition: getGridPositionForHour(currentSlotHour),
                                   mouseY: e.clientY,
@@ -1852,7 +1854,23 @@ export default function CalendarPage() { // Renamed from Home for clarity
                               
                               if (draggedEvent && dragOverDate && dragOverTimeSlot !== null) {
                                 const duration = draggedEvent.endTime.getTime() - draggedEvent.startTime.getTime();
-                                // Create new date using UTC methods to avoid timezone issues
+                                
+                                // Debug the input values
+                                console.log('🔍 [DATE DEBUG] Input values:', {
+                                  dragOverDate: {
+                                    original: dragOverDate,
+                                    formatted: format(dragOverDate, 'yyyy-MM-dd EEEE'),
+                                    year: dragOverDate.getFullYear(),
+                                    month: dragOverDate.getMonth(),
+                                    date: dragOverDate.getDate(),
+                                    timezone: dragOverDate.getTimezoneOffset()
+                                  },
+                                  dragOverTimeSlot,
+                                  currentSlotDate: format(currentSlotDate, 'yyyy-MM-dd EEEE'),
+                                  currentSlotHour
+                                });
+                                
+                                // Create new date using explicit constructor to avoid timezone issues
                                 const newStartTime = new Date(
                                   dragOverDate.getFullYear(),
                                   dragOverDate.getMonth(),
@@ -1860,6 +1878,15 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                   dragOverTimeSlot,
                                   0, 0, 0
                                 );
+                                
+                                console.log('🔍 [DATE DEBUG] Created newStartTime:', {
+                                  newStartTime,
+                                  formatted: format(newStartTime, 'yyyy-MM-dd HH:mm'),
+                                  expectedDate: format(dragOverDate, 'yyyy-MM-dd'),
+                                  expectedTime: `${dragOverTimeSlot}:00`,
+                                  actualDate: format(newStartTime, 'yyyy-MM-dd'),
+                                  actualTime: format(newStartTime, 'HH:mm')
+                                });
                                 
                                 const newEndTime = new Date(newStartTime.getTime() + duration);
 
