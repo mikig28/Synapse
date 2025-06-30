@@ -39,7 +39,7 @@ const TelegramFeed: React.FC = () => {
   };
 
   return (
-    <div className="telegram-feed-container mobile-card p-3 sm:p-4 border rounded-lg shadow-md bg-card w-full max-w-full overflow-hidden" style={{minWidth: 0, maxWidth: '100%'}}>
+    <div className="telegram-feed-container mobile-card p-3 sm:p-4 border rounded-lg shadow-md bg-card w-full max-w-full overflow-hidden">
       <h2 className="text-xl font-semibold mb-3 text-card-foreground">Telegram Feed</h2>
       <p className="mb-2 text-sm text-muted-foreground">
         Socket Status: {
@@ -49,9 +49,9 @@ const TelegramFeed: React.FC = () => {
       {telegramItems.length === 0 && (
         <p className="text-muted-foreground">No Telegram messages yet. Send a message to your bot!</p>
       )}
-      <ul className="space-y-3 max-h-72 sm:max-h-80 md:max-h-96 overflow-y-auto pr-2 mobile-scroll w-full" style={{minWidth: 0, maxWidth: '100%'}}> {/* Added pr-2 for scrollbar spacing */}
+      <ul className="space-y-3 max-h-72 sm:max-h-80 md:max-h-96 overflow-y-auto pr-2 mobile-scroll w-full"> {/* Added pr-2 for scrollbar spacing */}
         {telegramItems.map((item: TelegramItemType) => (
-          <motion.li key={item._id} className="mobile-card p-3 sm:p-3 border rounded-md bg-background shadow-sm relative group w-full max-w-full overflow-hidden" style={{minWidth: 0, maxWidth: '100%', wordBreak: 'break-word'}}>
+          <motion.li key={item._id} className="mobile-card p-3 sm:p-3 border rounded-md bg-background shadow-sm relative group w-full max-w-full overflow-hidden">
             <button 
               onClick={() => handleDelete(item._id, item.title || item.content || item.text || item.messageType)} 
               className="absolute top-1 right-1 p-1.5 text-muted-foreground hover:text-destructive opacity-75 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100 transition-opacity rounded-full hover:bg-muted/50 tap-target touch-manipulation"
@@ -59,15 +59,15 @@ const TelegramFeed: React.FC = () => {
             >
               <X size={16} />
             </button>
-            <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center mb-1 w-full max-w-full" style={{minWidth: 0, maxWidth: '100%'}}>
-              <span className="font-medium text-sm text-primary truncate max-w-full" style={{minWidth: 0, maxWidth: '100%'}}>
+            <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center mb-1 w-full max-w-full min-w-0">
+              <span className="font-medium text-sm text-primary truncate max-w-full min-w-0">
                 {item.fromUsername || 'Unknown User'} ({item.chatTitle || 'DM'})
               </span>
               <span className="text-xs text-muted-foreground mt-1 sm:mt-0 text-left sm:text-right flex-shrink-0">
                 {new Date(item.receivedAt).toLocaleString()}
               </span>
             </div>
-            <p className="text-sm text-foreground mb-1 line-clamp-3 break-words overflow-wrap-anywhere w-full max-w-full" style={{minWidth: 0, maxWidth: '100%', wordBreak: 'break-word', overflowWrap: 'anywhere'}}>
+            <p className="text-sm text-foreground mb-1 line-clamp-3 break-words overflow-wrap-anywhere w-full max-w-full mobile-text-wrap">
               {getMainContent(item)}
             </p>
             
@@ -78,7 +78,7 @@ const TelegramFeed: React.FC = () => {
                   <MessageSquareText size={14} className="mr-1.5" />
                   <span>Original Transcription:</span>
                 </div>
-                <p className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 p-2 rounded-md break-words overflow-wrap-anywhere w-full max-w-full" style={{minWidth: 0, maxWidth: '100%', wordBreak: 'break-word', overflowWrap: 'anywhere'}}>
+                <p className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 p-2 rounded-md break-words overflow-wrap-anywhere w-full max-w-full mobile-text-wrap">
                   {item.rawTranscription}
                 </p>
               </div>
@@ -96,15 +96,14 @@ const TelegramFeed: React.FC = () => {
               </div>
             )}
             {item.urls && item.urls.length > 0 && (
-              <div className="mt-1" style={{minWidth: 0, maxWidth: '100%'}}>
+              <div className="mt-1 w-full max-w-full min-w-0">
                 {item.urls.map((url, index) => (
                   <a 
                     key={index} 
                     href={url} 
                     target="_blank" 
                     rel="noopener noreferrer" 
-                    className="text-xs text-indigo-500 hover:underline mr-2 min-h-[32px] flex items-center touch-manipulation break-all max-w-full"
-                    style={{minWidth: 0, maxWidth: '100%', wordBreak: 'break-all', overflowWrap: 'anywhere'}}
+                    className="text-xs text-indigo-500 hover:underline mr-2 min-h-[32px] flex items-center touch-manipulation break-all max-w-full mobile-text-wrap"
                   >
                     {url}
                   </a>
