@@ -39,7 +39,7 @@ const TelegramFeed: React.FC = () => {
   };
 
   return (
-    <div className="p-4 border rounded-lg shadow-md bg-card">
+    <div className="mobile-card p-3 sm:p-4 border rounded-lg shadow-md bg-card">
       <h2 className="text-xl font-semibold mb-3 text-card-foreground">Telegram Feed</h2>
       <p className="mb-2 text-sm text-muted-foreground">
         Socket Status: {
@@ -49,12 +49,12 @@ const TelegramFeed: React.FC = () => {
       {telegramItems.length === 0 && (
         <p className="text-muted-foreground">No Telegram messages yet. Send a message to your bot!</p>
       )}
-      <ul className="space-y-3 max-h-72 sm:max-h-80 md:max-h-96 overflow-y-auto pr-2"> {/* Added pr-2 for scrollbar spacing */}
+      <ul className="space-y-3 max-h-72 sm:max-h-80 md:max-h-96 overflow-y-auto pr-2 mobile-scroll"> {/* Added pr-2 for scrollbar spacing */}
         {telegramItems.map((item: TelegramItemType) => (
-          <motion.li key={item._id} className="p-2 sm:p-3 border rounded-md bg-background shadow-sm relative group">
+          <motion.li key={item._id} className="mobile-card p-3 sm:p-3 border rounded-md bg-background shadow-sm relative group">
             <button 
               onClick={() => handleDelete(item._id, item.title || item.content || item.text || item.messageType)} 
-              className="absolute top-1 right-1 p-1.5 text-muted-foreground hover:text-destructive opacity-75 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100 transition-opacity rounded-full hover:bg-muted/50"
+              className="absolute top-1 right-1 p-1.5 text-muted-foreground hover:text-destructive opacity-75 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100 transition-opacity rounded-full hover:bg-muted/50 tap-target touch-manipulation"
               title="Delete item"
             >
               <X size={16} />
@@ -103,7 +103,7 @@ const TelegramFeed: React.FC = () => {
                     href={url} 
                     target="_blank" 
                     rel="noopener noreferrer" 
-                    className="text-xs text-indigo-500 hover:underline mr-2"
+                    className="text-xs text-indigo-500 hover:underline mr-2 min-h-[32px] flex items-center touch-manipulation"
                   >
                     {url}
                   </a>
