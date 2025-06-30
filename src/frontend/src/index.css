@@ -668,10 +668,24 @@ code {
   .mobile-card {
     margin: 0.5rem;
     border-radius: 0.75rem;
+    max-width: 100%;
+    overflow: hidden;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
   }
 
   .mobile-card:active {
     transform: scale(0.98);
+  }
+
+  /* Prevent text overflow on mobile */
+  .mobile-text-wrap {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    hyphens: auto;
+    max-width: 100%;
   }
 
   @media (max-width: 640px) {
