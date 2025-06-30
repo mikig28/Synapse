@@ -1832,7 +1832,10 @@ export default function CalendarPage() { // Renamed from Home for clarity
                               setIsDragOver(false);
                             }}
                             onDrop={async () => {
-                              alert(`DROP: Moving ${draggedEvent?.title} to ${format(currentSlotDate, 'yyyy-MM-dd')} at ${currentSlotHour}:00`);
+                              if (draggedEvent) {
+                                document.title = `📍 Dropped: ${draggedEvent.title} → ${format(currentSlotDate, 'MM/dd')} ${currentSlotHour}:00`;
+                                setTimeout(() => document.title = 'Calendar - Synapse', 2000);
+                              }
                               console.log('📍 [DROP] Week View Event Triggered', {
                                 draggedEvent: draggedEvent?.title,
                                 dragOverDate: dragOverDate ? format(dragOverDate, 'yyyy-MM-dd EEEE') : null,
@@ -1920,12 +1923,13 @@ export default function CalendarPage() { // Renamed from Home for clarity
                               draggable // Make the event draggable
                               onDragStart={() => {
                                 console.log('🚀 [DRAG START] Event:', event.title);
-                                alert(`DRAG START: ${event.title}`);
+                                document.title = `🔄 Dragging: ${event.title}`;
                                 setDraggedEvent(event);
                                 setIsDraggingEvent(true);
                               }}
                               onDragEnd={() => {
                                 console.log('[Frontend] Drag end for event');
+                                document.title = 'Calendar - Synapse';
                                 setDraggedEvent(null); // Clean up after drag ends
                                 setIsDraggingEvent(false);
                                 // Only clear dragOverDate and dragOverTimeSlot if not actively resizing
