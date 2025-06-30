@@ -1761,7 +1761,10 @@ export default function CalendarPage() { // Renamed from Home for clarity
                           isToday(weekDates[i]) ? "bg-blue-500 rounded-full w-8 h-8 flex items-center justify-center mx-auto" : ""
                         } ${
                           !isSameMonth(weekDates[i], currentDisplayDate) && currentView !== 'week' ? "text-white/50" : ""
+                        } ${
+                          dragOverDate && isSameDay(dragOverDate, weekDates[i]) ? "bg-green-500/50 rounded px-2 py-1" : ""
                         }`}
+                        title={`Column ${i}: ${format(weekDates[i], 'yyyy-MM-dd EEEE')}`}
                       >
                         {format(weekDates[i], "d")}
                       </div>
@@ -1803,19 +1806,23 @@ export default function CalendarPage() { // Renamed from Home for clarity
                               if (!resizingEvent && draggedEvent) {
                                 const rect = e.currentTarget.getBoundingClientRect();
                                 const relativeY = e.clientY - rect.top;
+                                
+                                // Use the current time slot rather than calculating precise position
+                                // This ensures we always use valid time slots
                                 console.log('[DEBUG] Drag over - Week View:', {
                                   dayIndex,
                                   timeIndex,
                                   currentSlotHour,
-                                  currentSlotDate,
+                                  currentSlotDate: format(currentSlotDate, 'yyyy-MM-dd'),
                                   draggedEvent: draggedEvent.title,
                                   calculatedPosition: getGridPositionForHour(currentSlotHour),
                                   mouseY: e.clientY,
                                   dropZoneTop: rect.top,
                                   relativeY,
                                   dropZoneHeight: rect.height,
-                                  expectedTop: timeIndex * 80  // Expected position based on timeIndex
+                                  expectedTop: timeIndex * 80
                                 });
+                                
                                 setDragOverDate(currentSlotDate);
                                 setDragOverTimeSlot(currentSlotHour);
                                 setIsDragOver(true);
@@ -1825,10 +1832,18 @@ export default function CalendarPage() { // Renamed from Home for clarity
                               setIsDragOver(false);
                             }}
                             onDrop={async () => {
-                              console.log('[Frontend] Drop event triggered', {
+                              console.log('[Frontend] Drop event triggered - Week View', {
                                 draggedEvent: draggedEvent?.title,
-                                dragOverDate,
-                                dragOverTimeSlot
+                                dragOverDate: dragOverDate ? format(dragOverDate, 'yyyy-MM-dd EEEE') : null,
+                                dragOverTimeSlot,
+                                dayIndex,
+                                timeIndex,
+                                currentSlotDate: format(currentSlotDate, 'yyyy-MM-dd EEEE'),
+                                currentSlotHour,
+                                originalEventTime: draggedEvent ? {
+                                  start: format(draggedEvent.startTime, 'yyyy-MM-dd HH:mm'),
+                                  end: format(draggedEvent.endTime, 'yyyy-MM-dd HH:mm')
+                                } : null
                               });
                               
                               if (draggedEvent && dragOverDate && dragOverTimeSlot !== null) {
@@ -2119,17 +2134,21 @@ export default function CalendarPage() { // Renamed from Home for clarity
                             if (!resizingEvent && draggedEvent) {
                               const rect = e.currentTarget.getBoundingClientRect();
                               const relativeY = e.clientY - rect.top;
+                              
+                              // Use the current time slot to ensure consistency
                               console.log('[DEBUG] Drag over - Day View:', {
                                 timeIndex,
                                 currentSlotHour,
+                                currentSlotDate: format(currentSlotDate, 'yyyy-MM-dd'),
                                 draggedEvent: draggedEvent.title,
                                 calculatedPosition: getGridPositionForHour(currentSlotHour),
                                 mouseY: e.clientY,
                                 dropZoneTop: rect.top,
                                 relativeY,
                                 dropZoneHeight: rect.height,
-                                expectedTop: timeIndex * 80  // Expected position based on timeIndex
+                                expectedTop: timeIndex * 80
                               });
+                              
                               setDragOverDate(currentSlotDate);
                               setDragOverTimeSlot(currentSlotHour);
                               setIsDragOver(true);
@@ -2141,8 +2160,15 @@ export default function CalendarPage() { // Renamed from Home for clarity
                           onDrop={async () => {
                             console.log('[Frontend] Day view drop event triggered', {
                               draggedEvent: draggedEvent?.title,
-                              dragOverDate,
-                              dragOverTimeSlot
+                              dragOverDate: dragOverDate ? format(dragOverDate, 'yyyy-MM-dd EEEE') : null,
+                              dragOverTimeSlot,
+                              timeIndex,
+                              currentSlotDate: format(currentSlotDate, 'yyyy-MM-dd EEEE'),
+                              currentSlotHour,
+                              originalEventTime: draggedEvent ? {
+                                start: format(draggedEvent.startTime, 'yyyy-MM-dd HH:mm'),
+                                end: format(draggedEvent.endTime, 'yyyy-MM-dd HH:mm')
+                              } : null
                             });
                             
                             if (draggedEvent && dragOverDate && dragOverTimeSlot !== null) {
