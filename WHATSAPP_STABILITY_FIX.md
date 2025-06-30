@@ -42,6 +42,7 @@ ANTHROPIC_API_KEY=your_anthropic_key
 - ✅ Enhanced reconnection logic with gentle recovery
 - ✅ Optimized message sync (3 days instead of 7 days)
 - ✅ Added better error handling for connection conflicts
+- ✅ Fixed TypeScript compilation error (removed invalid cachedGroupMetadata function)
 
 ### 3. Frontend Socket.IO Connection (`src/frontend/src/pages/WhatsAppPage.tsx`)
 - ✅ Fixed Socket.IO server URL configuration
@@ -125,6 +126,12 @@ Look for these log messages:
 - Verify VITE_BACKEND_ROOT_URL points to correct backend
 - Check browser network tab for WebSocket upgrade attempts
 - Monitor backend logs for Socket.IO connection attempts
+
+#### 4. TypeScript Build Error
+- **Error**: `Type '() => Promise<{}>' is not assignable to type '(jid: string) => Promise<GroupMetadata | undefined>'`
+- **Solution**: Fixed by removing invalid cachedGroupMetadata function
+- **Status**: ✅ Resolved in latest code
+- **Prevention**: Ensure all Baileys socket configuration options match expected types
 
 ## Expected Behavior After Fix
 
