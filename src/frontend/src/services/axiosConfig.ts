@@ -93,21 +93,26 @@ axiosInstance.interceptors.response.use(
     });
     
     if (error.response && error.response.status === 401) {
-      // If unauthorized, indicate the session is invalid but avoid immediately
-      // logging the user out. This prevents abrupt page transitions when the
-      // backend rejects a request (e.g. stale token) and allows the caller to
-      // handle the error gracefully.
+      // If unauthorized, check if it's a token expiration issue
       if (
         error.config &&
         !error.config.url?.includes('/auth/login') &&
         !error.config.url?.includes('/auth/register')
       ) {
-        console.warn(
-          '[AxiosInterceptor] 401 response detected. Token may be invalid.'
-        );
-        // Consumers can choose how to react (e.g. show a toast and redirect).
-        // The previous behaviour forcibly logged the user out which caused the
-        // bookmarks page to disappear while loading.
+        console.warn('[AxiosInterceptor] 401 response detected. Token expired or invalid.');
+        
+        // Clear expired token and redirect to login
+        const authStore = useAuthStore.getState();
+        if (authStore.isAuthenticated) {
+          console.log('[AxiosInterceptor] Logging out user due to expired token');
+          authStore.logout();
+          
+          // Optional: Show user-friendly message
+          if (typeof window !== 'undefined') {
+            alert('Your session has expired. Please log in again.');
+            window.location.href = '/login';
+          }
+        }
       }
     }
     return Promise.reject(error);

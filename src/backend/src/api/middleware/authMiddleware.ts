@@ -26,18 +26,41 @@ export const protect = async (req: AuthenticatedRequest, res: Response, next: Ne
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
       token = req.headers.authorization.split(' ')[1];
-      console.log('[AuthMiddleware] Token extracted, verifying...');
+      console.log('[AuthMiddleware] Token extracted, length:', token.length);
+      console.log('[AuthMiddleware] Token preview:', token.substring(0, 20) + '...');
+      console.log('[AuthMiddleware] JWT_SECRET present:', !!process.env.JWT_SECRET);
+      console.log('[AuthMiddleware] JWT_SECRET length:', process.env.JWT_SECRET ? process.env.JWT_SECRET.length : 0);
       
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'yourfallbacksecret') as JwtPayload;
+      console.log('[AuthMiddleware] Token decoded successfully:', {
+        userId: decoded.id,
+        iat: decoded.iat,
+        exp: decoded.exp,
+        isExpired: decoded.exp ? decoded.exp < Date.now() / 1000 : 'No expiration'
+      });
       
-      // Attach user to request object (without password)
-      // In a real app, you might want to check if user still exists, is not blocked, etc.
-      req.user = { id: decoded.id }; // Or fetch full user: await User.findById(decoded.id).select('-password');
+      // Check if user still exists in database
+      const user = await User.findById(decoded.id);
+      if (!user) {
+        console.error('[AuthMiddleware] ❌ User not found in database for ID:', decoded.id);
+        setCorsHeaders(res, req.headers.origin);
+        res.status(401).json({ message: 'Not authorized, user not found' });
+        return;
+      }
+      
+      // Attach user to request object
+      req.user = { id: decoded.id };
       
       console.log('[AuthMiddleware] ✅ Token verified successfully for user:', decoded.id);
       next();
-    } catch (error) {
-      console.error('[AuthMiddleware] ❌ Token verification failed', error);
+    } catch (error: any) {
+      console.error('[AuthMiddleware] ❌ Token verification failed:', {
+        error: error.message,
+        name: error.name,
+        expiredAt: error.expiredAt,
+        tokenPreview: token ? token.substring(0, 20) + '...' : 'No token',
+        jwtSecretPresent: !!process.env.JWT_SECRET
+      });
       // Ensure CORS headers are set before sending 401
       setCorsHeaders(res, req.headers.origin);
       res.status(401).json({ message: 'Not authorized, token failed' });
