@@ -478,7 +478,7 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
         // Progressive timeout: 15s first attempt, 45s for subsequent attempts (Render cold starts)
         const timeout = attempt === 1 ? 15000 : 45000;
         
-        const response = await axios.get<{initialized: boolean}>(`${this.crewaiServiceUrl}/health`, {
+        const response = await axios.get<{initialized?: boolean; status?: string}>(`${this.crewaiServiceUrl}/health`, {
           timeout,
           headers: {
             'Cache-Control': 'no-cache',
@@ -488,7 +488,9 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
         
         console.log(`[CrewAI Agent] Health check response (attempt ${attempt}):`, response.data);
         
-        if (!response.data.initialized) {
+        // Support both old format (initialized) and new format (status)
+        const isHealthy = response.data.initialized === true || response.data.status === 'healthy';
+        if (!isHealthy) {
           throw new Error('CrewAI service is not properly initialized');
         }
         

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { AxiosRequestConfig, AxiosError, AxiosResponse } from 'axios';
+import type { InternalAxiosRequestConfig, AxiosError, AxiosResponse } from 'axios';
 import useAuthStore from '../store/authStore'; // Adjust path if your store is elsewhere
 
 // Define the root URL for your backend.
@@ -38,7 +38,7 @@ export const STATIC_ASSETS_BASE_URL = BACKEND_ROOT_URL;
 
 // Request interceptor to add token to headers
 axiosInstance.interceptors.request.use(
-  (config: AxiosRequestConfig): AxiosRequestConfig => {
+  (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
     const token = useAuthStore.getState().token;
     console.log('[AxiosInterceptor] Token from store:', token ? 'Present' : 'Absent'); // Log token presence
     console.log('[AxiosInterceptor] Full request config:', {
