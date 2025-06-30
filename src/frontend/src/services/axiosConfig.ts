@@ -40,7 +40,15 @@ export const STATIC_ASSETS_BASE_URL = BACKEND_ROOT_URL;
 axiosInstance.interceptors.request.use(
   (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
     const token = useAuthStore.getState().token;
-    console.log('[AxiosInterceptor] Token from store:', token ? 'Present' : 'Absent'); // Log token presence
+    const authState = useAuthStore.getState();
+    console.log('[AxiosInterceptor] Auth State Debug:', {
+      hasToken: !!token,
+      tokenLength: token ? token.length : 0,
+      tokenStart: token ? token.substring(0, 10) + '...' : 'None',
+      isAuthenticated: authState.isAuthenticated,
+      hasUser: !!authState.user,
+      userId: authState.user?.id || 'None'
+    });
     console.log('[AxiosInterceptor] Full request config:', {
       url: config.url,
       method: config.method,

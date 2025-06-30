@@ -14,8 +14,11 @@ export const protect = async (req: AuthenticatedRequest, res: Response, next: Ne
   console.log('[AuthMiddleware] Processing request:', {
     method: req.method,
     path: req.path,
+    url: req.url,
+    fullUrl: req.originalUrl,
     origin: req.headers.origin,
-    hasAuth: !!req.headers.authorization
+    hasAuth: !!req.headers.authorization,
+    authHeader: req.headers.authorization ? req.headers.authorization.substring(0, 20) + '...' : 'None'
   });
 
   let token;
@@ -43,7 +46,13 @@ export const protect = async (req: AuthenticatedRequest, res: Response, next: Ne
   }
 
   if (!token) {
-    console.error('[AuthMiddleware] ❌ No token provided');
+    console.error('[AuthMiddleware] ❌ No token provided for:', {
+      method: req.method,
+      path: req.path,
+      url: req.url,
+      fullUrl: req.originalUrl,
+      authHeader: req.headers.authorization || 'Missing'
+    });
     // Ensure CORS headers are set before sending 401
     setCorsHeaders(res, req.headers.origin);
     res.status(401).json({ message: 'Not authorized, no token' });
