@@ -684,6 +684,24 @@ code {
     
     .telegram-feed-container {
       overflow: visible;
+      max-width: 100%;
+    }
+    
+    /* Better desktop readability */
+    .telegram-feed-container ul {
+      max-width: 100%;
+    }
+    
+    .telegram-feed-container li {
+      max-width: 100%;
+    }
+  }
+
+  /* Large desktop optimization */
+  @media (min-width: 1200px) {
+    .telegram-feed-container {
+      max-width: 900px;
+      margin: 0 auto;
     }
   }
 

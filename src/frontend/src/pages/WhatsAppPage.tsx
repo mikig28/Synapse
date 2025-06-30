@@ -84,12 +84,11 @@ const WhatsAppPage: React.FC = () => {
   const { isAuthenticated, token } = useAuthStore();
 
   // Socket.io setup - declare early to avoid hoisting issues
-  const SOCKET_SERVER_URL = import.meta.env.VITE_SOCKET_IO_URL || 
-    (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001');
+  const SOCKET_SERVER_URL = import.meta.env.VITE_BACKEND_ROOT_URL || 'https://synapse-backend-7lq6.onrender.com';
 
   // Backend URL for Socket.io (non-API endpoints)
   const getBackendUrl = () => {
-    return import.meta.env.VITE_BACKEND_ROOT_URL || 'https://synapse-pxad.onrender.com';
+    return import.meta.env.VITE_BACKEND_ROOT_URL || 'https://synapse-backend-7lq6.onrender.com';
   };
 
   useEffect(() => {
@@ -117,9 +116,16 @@ const WhatsAppPage: React.FC = () => {
       return;
     }
 
+    console.log(`[WhatsApp Socket.IO] Attempting to connect to: ${SOCKET_SERVER_URL}`);
+
     const newSocket = io(SOCKET_SERVER_URL, {
       auth: { token },
       autoConnect: false,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000,
+      timeout: 10000,
+      transports: ['websocket', 'polling'], // Allow fallback to polling
     });
 
     setSocket(newSocket);
@@ -127,13 +133,45 @@ const WhatsAppPage: React.FC = () => {
 
     // Connection events
     newSocket.on('connect', () => {
-      console.log('[WhatsApp Socket.IO] Connected to server');
+      console.log('[WhatsApp Socket.IO] ✅ Connected to server');
       setIsSocketConnected(true);
+      toast({
+        title: "WhatsApp Connected",
+        description: "Real-time updates enabled",
+      });
     });
 
-    newSocket.on('disconnect', () => {
-      console.log('[WhatsApp Socket.IO] Disconnected from server');
+    newSocket.on('connect_error', (error) => {
+      console.error('[WhatsApp Socket.IO] ❌ Connection error:', error);
       setIsSocketConnected(false);
+      toast({
+        title: "Connection Error",
+        description: "Failed to connect to WhatsApp service",
+        variant: "destructive",
+      });
+    });
+
+    newSocket.on('disconnect', (reason) => {
+      console.log('[WhatsApp Socket.IO] 🔌 Disconnected from server:', reason);
+      setIsSocketConnected(false);
+      
+      if (reason === 'io server disconnect') {
+        // Server initiated disconnect, try to reconnect
+        newSocket.connect();
+      }
+    });
+
+    newSocket.on('reconnect', (attemptNumber) => {
+      console.log(`[WhatsApp Socket.IO] 🔄 Reconnected after ${attemptNumber} attempts`);
+      setIsSocketConnected(true);
+      toast({
+        title: "Reconnected",
+        description: "WhatsApp service connection restored",
+      });
+    });
+
+    newSocket.on('reconnect_error', (error) => {
+      console.error('[WhatsApp Socket.IO] ❌ Reconnection error:', error);
     });
 
     // WhatsApp-specific events

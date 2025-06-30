@@ -62,36 +62,39 @@ console.log(`[Socket.IO CORS Setup] Allowed origins for Socket.IO: ${allowedSock
 
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: function (requestOrigin, callback) {
-      // Log the origin for every connection attempt
-      console.log(`[Socket.IO CORS] Request origin: ${requestOrigin}`);
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!requestOrigin) {
-        console.log('[Socket.IO CORS] Allowing request with no origin.');
-        return callback(null, true);
-      }
-      
-      // Enhanced allowed origins for Socket.IO
-      const socketAllowedOrigins = [
-        frontendUrl, 
-        "https://synapse-frontend.onrender.com",
-        "http://localhost:5173",
-        "http://localhost:3000"
-      ];
-      
-      if (socketAllowedOrigins.includes(requestOrigin)) {
-        console.log(`[Socket.IO CORS] Origin ${requestOrigin} is allowed.`);
-        return callback(null, true);
-      } else {
-        console.error(`[Socket.IO CORS] Origin ${requestOrigin} is NOT allowed.`);
-        // Temporarily allow all for debugging
-        console.log('[Socket.IO CORS] Allowing anyway for debugging');
-        return callback(null, true);
-      }
-    },
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    origin: [
+      "https://synapse-frontend.onrender.com",
+      "http://localhost:5173",
+      "http://localhost:3000",
+      "http://localhost:5174"
+    ],
+    methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true
+  },
+  // Add connection timeout and ping settings for stability
+  pingTimeout: 60000, // 60 seconds
+  pingInterval: 25000, // 25 seconds
+  upgradeTimeout: 30000, // 30 seconds
+  allowRequest: (req, callback) => {
+    // Additional validation for Socket.IO connections
+    const origin = req.headers.origin;
+    console.log(`[Socket.IO] Connection request from origin: ${origin}`);
+    
+    const allowedOrigins = [
+      "https://synapse-frontend.onrender.com",
+      "http://localhost:5173",
+      "http://localhost:3000",
+      "http://localhost:5174"
+    ];
+    
+    if (!origin || allowedOrigins.includes(origin)) {
+      console.log(`[Socket.IO] ✅ Connection allowed from: ${origin || 'no origin'}`);
+      callback(null, true);
+    } else {
+      console.log(`[Socket.IO] ❌ Connection rejected from: ${origin}`);
+      callback('Origin not allowed', false);
+    }
   }
 });
 
@@ -99,19 +102,20 @@ const io = new SocketIOServer(httpServer, {
 app.use(cors({
   origin: function (requestOrigin, callback) {
     console.log(`[CORS] Request from origin: ${requestOrigin}`);
-    // Allow requests with no origin (mobile apps, etc.)
+    
+    // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!requestOrigin) {
       console.log(`[CORS] No origin header - allowing`);
       return callback(null, true);
     }
     
     const allowedOrigins = [
-      frontendUrl, 
       "https://synapse-frontend.onrender.com",
+      "https://synapse-backend-7lq6.onrender.com", // Backend for Socket.IO
       "http://localhost:5173", // Local development
       "http://localhost:3000",  // Alternative local port
       "http://localhost:5174",  // Vite alternative port
-      "https://synapse-frontend.onrender.com", // Explicit production frontend
+      "http://localhost:3001",  // Backend local
     ];
     
     console.log(`[CORS] Checking origin ${requestOrigin} against allowed origins:`, allowedOrigins);
@@ -120,41 +124,43 @@ app.use(cors({
       console.log(`[CORS] ✅ Origin ${requestOrigin} explicitly allowed`);
       return callback(null, true);
     } else {
-      // For production debugging - temporarily allow all origins
-      console.log(`[CORS] ⚠️ Origin ${requestOrigin} not in allowed list, but allowing for production debugging`);
-      return callback(null, true);
+      console.log(`[CORS] ❌ Origin ${requestOrigin} not in allowed list`);
+      return callback(new Error('Not allowed by CORS'), false);
     }
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Access-Control-Allow-Origin", "Access-Control-Allow-Methods", "Access-Control-Allow-Headers"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
   credentials: true,
-  optionsSuccessStatus: 200, // For legacy browser support
+  optionsSuccessStatus: 200,
   preflightContinue: false
 }));
 
-// Add explicit CORS headers middleware with enhanced logging
+// Add explicit CORS headers middleware
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  const method = req.method;
   
-  console.log(`[Explicit CORS] ${method} request from origin: ${origin}`);
-  console.log(`[Explicit CORS] Request path: ${req.path}`);
-  console.log(`[Explicit CORS] Authorization header: ${req.headers.authorization ? 'Present' : 'Missing'}`);
+  // Always set CORS headers for Socket.IO compatibility
+  if (origin && [
+    "https://synapse-frontend.onrender.com",
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:5174"
+  ].includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
   
-  // Set CORS headers explicitly
-  res.header('Access-Control-Allow-Origin', origin || 'https://synapse-frontend.onrender.com');
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, Accept, Origin');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Max-Age', '3600');
   
-  if (method === 'OPTIONS') {
-    console.log(`[Explicit CORS] Handling preflight OPTIONS request for ${req.path}`);
+  if (req.method === 'OPTIONS') {
+    console.log(`[CORS] Handling preflight OPTIONS for ${req.path} from ${origin}`);
     res.status(200).end();
     return;
-  } else {
-    next();
   }
+  
+  next();
 });
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
