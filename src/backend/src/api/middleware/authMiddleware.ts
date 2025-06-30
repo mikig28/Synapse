@@ -6,8 +6,10 @@ import { AuthenticatedRequest } from '../../types/express';
 // Export AuthenticatedRequest interface for use in other modules
 export { AuthenticatedRequest };
 
-interface JwtPayload {
+interface JwtPayload extends jwt.JwtPayload {
   id: string;
+  iat?: number;
+  exp?: number;
 }
 
 export const protect = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
