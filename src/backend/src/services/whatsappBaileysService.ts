@@ -226,8 +226,6 @@ class WhatsAppBaileysService extends EventEmitter {
           // Return empty to avoid message retrieval issues
           return undefined;
         },
-        // Optimize connection
-        cachedGroupMetadata: async () => ({}),
         // Add connection options for Render deployment
         options: {
           version: [2, 2323, 4],
