@@ -1809,7 +1809,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                 
                                 // Use the current time slot rather than calculating precise position
                                 // This ensures we always use valid time slots
-                                console.log('[DEBUG] Drag over - Week View:', {
+                                console.log('⬇️ [DRAG OVER] Week View:', {
                                   dayIndex,
                                   timeIndex,
                                   currentSlotHour,
@@ -1832,7 +1832,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
                               setIsDragOver(false);
                             }}
                             onDrop={async () => {
-                              console.log('[Frontend] Drop event triggered - Week View', {
+                              alert(`DROP: Moving ${draggedEvent?.title} to ${format(currentSlotDate, 'yyyy-MM-dd')} at ${currentSlotHour}:00`);
+                              console.log('📍 [DROP] Week View Event Triggered', {
                                 draggedEvent: draggedEvent?.title,
                                 dragOverDate: dragOverDate ? format(dragOverDate, 'yyyy-MM-dd EEEE') : null,
                                 dragOverTimeSlot,
@@ -1918,7 +1919,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
                               key={event.id}
                               draggable // Make the event draggable
                               onDragStart={() => {
-                                console.log('[Frontend] Drag start for event:', event.title);
+                                console.log('🚀 [DRAG START] Event:', event.title);
+                                alert(`DRAG START: ${event.title}`);
                                 setDraggedEvent(event);
                                 setIsDraggingEvent(true);
                               }}
