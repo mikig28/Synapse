@@ -17,6 +17,7 @@ export const getNewsItems = async (req: AuthenticatedRequest, res: Response): Pr
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const category = req.query.category as string;
+    const source = req.query.source as string;
     const isRead = req.query.isRead as string;
     const isFavorite = req.query.isFavorite as string;
     const search = req.query.search as string;
@@ -32,6 +33,10 @@ export const getNewsItems = async (req: AuthenticatedRequest, res: Response): Pr
 
     if (category) {
       filter.category = category;
+    }
+
+    if (source) {
+      filter['source.id'] = source;
     }
 
     if (isRead !== undefined) {
@@ -403,11 +408,11 @@ export const bulkMarkAsRead = async (req: AuthenticatedRequest, res: Response): 
  */
 export const enhanceNewsWithImage = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { newsId } = req.params;
     const { force = false } = req.body;
     const userId = req.user!.id;
 
-    const newsItem = await NewsItem.findOne({ _id: id, userId });
+    const newsItem = await NewsItem.findOne({ _id: newsId, userId });
 
     if (!newsItem) {
       res.status(404).json({
