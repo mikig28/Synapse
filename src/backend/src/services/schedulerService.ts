@@ -129,6 +129,15 @@ class SchedulerService {
           isActive: true
         });
         await agent.save();
+        console.log(`[SchedulerService] Created new temporary agent: ${agent.name} (isActive: ${agent.isActive})`);
+      } else {
+        // Ensure existing agent is active
+        if (!agent.isActive) {
+          console.log(`[SchedulerService] Activating existing agent: ${agent.name}`);
+          agent.isActive = true;
+          await agent.save();
+        }
+        console.log(`[SchedulerService] Using existing agent: ${agent.name} (isActive: ${agent.isActive})`);
       }
 
       // Execute the agent using the existing agent service
@@ -188,7 +197,13 @@ class SchedulerService {
     }
 
     if (!scheduledAgent.isActive) {
-      throw new Error('Scheduled agent is not active');
+      console.error(`[SchedulerService] Scheduled agent "${scheduledAgent.name}" is not active. Activating it automatically.`);
+      
+      // Auto-activate the scheduled agent instead of throwing an error
+      scheduledAgent.isActive = true;
+      await scheduledAgent.save();
+      
+      console.log(`[SchedulerService] Successfully activated scheduled agent: ${scheduledAgent.name}`);
     }
 
     return this.executeScheduledAgent(scheduledAgent);
