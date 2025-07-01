@@ -31,6 +31,8 @@ import calendarEventsRoutes from './api/routes/calendarEventsRoutes'; // Import 
 import scheduledAgentsRoutes from './api/routes/scheduledAgents'; // Import scheduled agents routes
 import { initializeTaskReminderScheduler } from './services/taskReminderService'; // Import task reminder service
 import { schedulerService } from './services/schedulerService'; // Import scheduler service
+import { agui } from './services/aguiEmitter'; // Import AG-UI emitter
+import { createAgentCommandEvent } from './services/aguiMapper'; // Import AG-UI mapper
 
 dotenv.config();
 
@@ -215,6 +217,68 @@ app.use('/api/v1/tts', ttsRoutes); // Use TTS proxy route
 app.use('/api/v1/calendar-events', calendarEventsRoutes); // Use calendar event routes
 app.use('/api/v1/scheduled-agents', scheduledAgentsRoutes); // Use scheduled agents routes
 
+// **AG-UI Protocol Endpoints**
+
+// Server-Sent Events endpoint for AG-UI protocol
+app.get('/api/v1/ag-ui/events', (req: Request, res: Response) => {
+  console.log('[AG-UI SSE] Client connected to events stream');
+  
+  // Set SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': req.headers.origin || '*',
+    'Access-Control-Allow-Headers': 'Cache-Control',
+    'Access-Control-Allow-Credentials': 'true'
+  });
+
+  // Get user ID from query params or headers
+  const userId = req.query.userId as string || req.headers['x-user-id'] as string;
+  const sessionId = req.query.sessionId as string || req.headers['x-session-id'] as string;
+
+  // Send initial connection event
+  res.write(`data: ${JSON.stringify({
+    type: 'CONNECTION_ESTABLISHED',
+    timestamp: new Date().toISOString(),
+    userId,
+    sessionId
+  })}\n\n`);
+
+  // Subscribe to AG-UI events
+  const subscription = agui.subscribe((event) => {
+    try {
+      // Filter events by user/session if specified
+      const eventUserId = (event as any).userId;
+      const eventSessionId = (event as any).sessionId;
+      
+      if (userId && eventUserId && eventUserId !== userId) {
+        return; // Skip events not for this user
+      }
+      
+      if (sessionId && eventSessionId && eventSessionId !== sessionId) {
+        return; // Skip events not for this session
+      }
+
+      // Send event to client
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    } catch (error) {
+      console.error('[AG-UI SSE] Error sending event:', error);
+    }
+  });
+
+  // Handle client disconnect
+  req.on('close', () => {
+    console.log('[AG-UI SSE] Client disconnected from events stream');
+    subscription.unsubscribe();
+  });
+
+  req.on('error', (error) => {
+    console.error('[AG-UI SSE] Connection error:', error);
+    subscription.unsubscribe();
+  });
+});
+
 // Health check endpoint for Render
 app.get('/health', (req: Request, res: Response) => {
   try {
@@ -278,6 +342,68 @@ io.on('connection', (socket) => {
   socket.on('join', (room: string) => {
     socket.join(room);
     console.log(`[Socket.IO]: Client ${socket.id} joined room: ${room}`);
+  });
+
+  // **AG-UI Protocol: Handle AG-UI command events from frontend**
+  socket.on('ag_ui_cmd', async (commandData) => {
+    try {
+      console.log(`[Socket.IO AG-UI]: Received command:`, commandData);
+      
+      const { command, agentId, userId } = commandData;
+      
+      if (!command || !agentId) {
+        console.warn('[Socket.IO AG-UI]: Invalid command data');
+        return;
+      }
+
+      // Get agent service instance from global scope (set during startup)
+      const agentService = (global as any).agentService;
+      
+      if (!agentService) {
+        console.error('[Socket.IO AG-UI]: Agent service not available');
+        return;
+      }
+
+      let result = null;
+      
+      // Execute the command
+      switch (command) {
+        case 'pause':
+          result = await agentService.pauseAgent(agentId);
+          break;
+        case 'resume':
+          result = await agentService.resumeAgent(agentId);
+          break;
+        case 'cancel':
+          result = await agentService.cancelAgent(agentId);
+          break;
+        case 'restart':
+          result = await agentService.resetAgentStatus(agentId);
+          break;
+        default:
+          console.warn(`[Socket.IO AG-UI]: Unknown command: ${command}`);
+          return;
+      }
+
+      // Send acknowledgment back to client
+      socket.emit('ag_ui_cmd_ack', {
+        command,
+        agentId,
+        success: !!result,
+        timestamp: new Date().toISOString()
+      });
+
+      console.log(`[Socket.IO AG-UI]: Executed command ${command} for agent ${agentId}`);
+    } catch (error) {
+      console.error('[Socket.IO AG-UI]: Error handling command:', error);
+      socket.emit('ag_ui_cmd_ack', {
+        command: commandData.command,
+        agentId: commandData.agentId,
+        success: false,
+        error: (error as Error).message,
+        timestamp: new Date().toISOString()
+      });
+    }
   });
 
   // Handle client disconnection
@@ -369,6 +495,35 @@ const startServer = async () => {
 
     // Make io available globally for real-time updates
     (global as any).io = io;
+    
+    // Make agent service available globally for AG-UI commands
+    (global as any).agentService = agentService;
+    
+    // **AG-UI Protocol: Bridge AG-UI events to Socket.IO**
+    agui.subscribe((event) => {
+      try {
+        // Emit AG-UI events to all connected Socket.IO clients
+        const eventUserId = (event as any).userId;
+        const eventSessionId = (event as any).sessionId;
+        
+        if (eventUserId) {
+          // Send to specific user
+          io.to(`user_${eventUserId}`).emit('ag_ui_event', event);
+        } else if (eventSessionId) {
+          // Send to specific session
+          io.to(`session_${eventSessionId}`).emit('ag_ui_event', event);
+        } else {
+          // Broadcast to all connected clients
+          io.emit('ag_ui_event', event);
+        }
+        
+        console.log(`[AG-UI Bridge] Bridged event ${event.type} via Socket.IO`);
+      } catch (error) {
+        console.error('[AG-UI Bridge] Error bridging event to Socket.IO:', error);
+      }
+    });
+    
+    console.log('[AG-UI] Protocol initialized and bridged to Socket.IO');
 
     httpServer.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server is running on port ${PORT}`);

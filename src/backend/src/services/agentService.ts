@@ -2,6 +2,16 @@ import Agent, { IAgent } from '../models/Agent';
 import AgentRun, { IAgentRun } from '../models/AgentRun';
 import mongoose from 'mongoose';
 import { sendAgentReportToTelegram } from './telegramService';
+import { agui } from './aguiEmitter';
+import { 
+  mapAgentStatusToAGUIEvents, 
+  mapCrewProgressToAGUIEvents,
+  mapAgentLogToAGUIEvents,
+  mapAgentStatsToAGUIEvent,
+  createAgentCommandEvent,
+  AgentUpdateData,
+  CrewProgressData
+} from './aguiMapper';
 
 export interface AgentExecutionContext {
   agent: IAgent;
@@ -324,8 +334,56 @@ ${detailedContent}
       } else {
         console.warn(`[AgentService] ⚠️ Socket.IO instance not available for real-time updates`);
       }
+
+      // **NEW: Emit AG-UI events**
+      this.emitAGUIEvents(userId, update);
     } catch (error) {
       console.warn(`[AgentService] ❌ Failed to emit real-time update:`, error);
+    }
+  }
+
+  private async emitAGUIEvents(userId: string, update: any): Promise<void> {
+    try {
+      if (!update.agentId) {
+        console.warn('[AgentService] No agentId in update, skipping AG-UI events');
+        return;
+      }
+
+      // Get agent details for enriched events
+      const agent = await Agent.findById(update.agentId);
+      if (!agent) {
+        console.warn(`[AgentService] Agent ${update.agentId} not found for AG-UI events`);
+        return;
+      }
+
+      const agentUpdateData: AgentUpdateData = {
+        agentId: update.agentId,
+        runId: update.runId,
+        status: update.status || 'unknown',
+        message: update.message || '',
+        timestamp: update.timestamp || new Date(),
+        stats: update.stats,
+        error: update.error,
+        progress: update.progress
+      };
+
+      // Map agent update to AG-UI events
+      const aguiEvents = mapAgentStatusToAGUIEvents(
+        userId,
+        update.agentId,
+        agent.name,
+        agent.type,
+        agentUpdateData
+      );
+
+      // Emit each AG-UI event
+      for (const event of aguiEvents) {
+        agui.emitToUser(userId, event);
+      }
+
+      console.log(`[AgentService] 🔄 Emitted ${aguiEvents.length} AG-UI events for ${agent.name}`);
+    } catch (error) {
+      console.error('[AgentService] Error emitting AG-UI events:', error);
     }
   }
 
@@ -333,8 +391,9 @@ ${detailedContent}
   public broadcastProgress(agentId: string, progressData: any): void {
     try {
       // Find the agent to get user ID
-      Agent.findById(agentId).then(agent => {
+      Agent.findById(agentId).then(async agent => {
         if (agent && agent.userId) {
+          // Legacy Socket.IO broadcast
           this.emitAgentUpdate(agent.userId.toString(), {
             agentId,
             type: 'crew_progress',
@@ -342,12 +401,44 @@ ${detailedContent}
             timestamp: new Date(),
             message: `Progress update: ${progressData.steps?.length || 0} steps`
           });
+
+          // **NEW: AG-UI CrewAI progress events**
+          await this.emitCrewProgressAGUIEvents(agent.userId.toString(), agentId, agent.name, progressData);
         }
       }).catch(error => {
         console.warn(`[AgentService] Failed to broadcast progress: ${error}`);
       });
     } catch (error) {
       console.warn(`[AgentService] Error in broadcastProgress:`, error);
+    }
+  }
+
+  private async emitCrewProgressAGUIEvents(userId: string, agentId: string, agentName: string, progressData: any): Promise<void> {
+    try {
+      const crewProgressData: CrewProgressData = {
+        steps: progressData.steps || [],
+        hasActiveProgress: progressData.hasActiveProgress || false,
+        results: progressData.results,
+        session_id: progressData.session_id,
+        agent_id: agentId
+      };
+
+      // Map CrewAI progress to AG-UI events
+      const aguiEvents = mapCrewProgressToAGUIEvents(
+        userId,
+        agentId,
+        agentName,
+        crewProgressData
+      );
+
+      // Emit each AG-UI event
+      for (const event of aguiEvents) {
+        agui.emitToUser(userId, event);
+      }
+
+      console.log(`[AgentService] 🔄 Emitted ${aguiEvents.length} AG-UI progress events for ${agentName}`);
+    } catch (error) {
+      console.error('[AgentService] Error emitting CrewAI AG-UI events:', error);
     }
   }
 
@@ -509,11 +600,42 @@ ${detailedContent}
   }
 
   async pauseAgent(agentId: string): Promise<IAgent | null> {
-    return this.updateAgent(agentId, { status: 'paused', isActive: false });
+    const agent = await this.updateAgent(agentId, { status: 'paused', isActive: false });
+    
+    // Emit AG-UI command acknowledgment
+    if (agent) {
+      const commandEvent = createAgentCommandEvent('pause', agentId, agent.userId.toString());
+      agui.emitToUser(agent.userId.toString(), commandEvent);
+      console.log(`[AgentService] 🔄 Emitted AG-UI pause command for agent ${agent.name}`);
+    }
+    
+    return agent;
   }
 
   async resumeAgent(agentId: string): Promise<IAgent | null> {
-    return this.updateAgent(agentId, { status: 'idle', isActive: true });
+    const agent = await this.updateAgent(agentId, { status: 'idle', isActive: true });
+    
+    // Emit AG-UI command acknowledgment
+    if (agent) {
+      const commandEvent = createAgentCommandEvent('resume', agentId, agent.userId.toString());
+      agui.emitToUser(agent.userId.toString(), commandEvent);
+      console.log(`[AgentService] 🔄 Emitted AG-UI resume command for agent ${agent.name}`);
+    }
+    
+    return agent;
+  }
+
+  async cancelAgent(agentId: string): Promise<IAgent | null> {
+    const agent = await this.updateAgent(agentId, { status: 'idle', isActive: false });
+    
+    // Emit AG-UI command acknowledgment
+    if (agent) {
+      const commandEvent = createAgentCommandEvent('cancel', agentId, agent.userId.toString());
+      agui.emitToUser(agent.userId.toString(), commandEvent);
+      console.log(`[AgentService] 🔄 Emitted AG-UI cancel command for agent ${agent.name}`);
+    }
+    
+    return agent;
   }
 
   async resetAgentStatus(agentId: string): Promise<IAgent | null> {
