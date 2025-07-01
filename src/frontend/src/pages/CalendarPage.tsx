@@ -237,6 +237,10 @@ export default function CalendarPage() { // Renamed from Home for clarity
   const [dragOverDate, setDragOverDate] = useState<Date | null>(null);
   const [dragOverTimeSlot, setDragOverTimeSlot] = useState<number | null>(null); // To store the hour
   const [isDragOver, setIsDragOver] = useState(false); // To indicate if a drag is actively over a valid slot
+  
+  // Debug state
+  const [debugInfo, setDebugInfo] = useState<string>('No drag activity yet');
+  const [lastDropInfo, setLastDropInfo] = useState<string>('No drops yet');
 
   // State for resizing events - enhanced with preview state
   const [resizingEvent, setResizingEvent] = useState<{ 
@@ -1746,6 +1750,17 @@ export default function CalendarPage() { // Renamed from Home for clarity
             </div>
           </div>
 
+          {/* Debug Panel */}
+          <div className="bg-red-500/20 backdrop-blur-lg rounded-lg border border-red-500/30 p-3 mx-4 mb-2">
+            <div className="text-red-300 text-sm font-bold mb-2">🔧 DEBUG INFO</div>
+            <div className="text-white text-xs space-y-1">
+              <div><strong>Current Activity:</strong> {debugInfo}</div>
+              <div><strong>Last Drop:</strong> {lastDropInfo}</div>
+              <div><strong>Dragged Event:</strong> {draggedEvent ? `${draggedEvent.title} (${format(draggedEvent.startTime, 'MM/dd HH:mm')})` : 'None'}</div>
+              <div><strong>Drop Target:</strong> {dragOverDate && dragOverTimeSlot ? `${format(dragOverDate, 'MM/dd EEEE')} at ${dragOverTimeSlot}:00` : 'None'}</div>
+            </div>
+          </div>
+
           {/* Week View / Day View / Month View Container */}
           <div className="flex-1 overflow-auto p-4">
             {currentView === "week" && (
@@ -1828,6 +1843,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                 setDragOverDate(currentSlotDate);
                                 setDragOverTimeSlot(currentSlotHour);
                                 setIsDragOver(true);
+                                setDebugInfo(`DRAG OVER: Day ${dayIndex} (${format(currentSlotDate, 'MM/dd EEEE')}) at ${currentSlotHour}:00`);
                               }
                             }}
                             onDragLeave={() => {
@@ -1887,6 +1903,8 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                   actualDate: format(newStartTime, 'yyyy-MM-dd'),
                                   actualTime: format(newStartTime, 'HH:mm')
                                 });
+                                
+                                setLastDropInfo(`DROP: ${draggedEvent.title} from ${format(draggedEvent.startTime, 'MM/dd HH:mm')} to ${format(newStartTime, 'MM/dd HH:mm')} (Expected: ${format(dragOverDate, 'MM/dd')} ${dragOverTimeSlot}:00)`);
                                 
                                 const newEndTime = new Date(newStartTime.getTime() + duration);
 
@@ -1951,6 +1969,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                               onDragStart={() => {
                                 console.log('🚀 [DRAG START] Event:', event.title);
                                 document.title = `🔄 Dragging: ${event.title}`;
+                                setDebugInfo(`DRAG START: ${event.title} from ${format(event.startTime, 'MM/dd HH:mm')}`);
                                 setDraggedEvent(event);
                                 setIsDraggingEvent(true);
                               }}
