@@ -219,6 +219,37 @@ app.use('/api/v1/scheduled-agents', scheduledAgentsRoutes); // Use scheduled age
 
 // **AG-UI Protocol Endpoints**
 
+// Test endpoint to manually emit AG-UI events for debugging
+app.get('/api/v1/ag-ui/test-event', (req: Request, res: Response) => {
+  try {
+    console.log('[AG-UI Test] Manually emitting test event');
+    
+    // Emit a test event
+    agui.emitEvent({
+      type: 'AGENT_MESSAGE' as any,
+      timestamp: new Date().toISOString(),
+      agentId: 'test-agent',
+      message: 'This is a test AG-UI event',
+      metadata: {
+        source: 'manual-test',
+        timestamp: new Date().toISOString()
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Test AG-UI event emitted',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('[AG-UI Test] Error emitting test event:', error);
+    res.status(500).json({
+      success: false,
+      error: (error as Error).message
+    });
+  }
+});
+
 // Server-Sent Events endpoint for AG-UI protocol
 app.get('/api/v1/ag-ui/events', (req: Request, res: Response) => {
   console.log('[AG-UI SSE] Client connected to events stream');
@@ -531,18 +562,4 @@ const startServer = async () => {
       console.log(`📦 Environment PORT: ${process.env.PORT || 'not set'}`);
       console.log(`🔧 NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
       console.log(`✅ Health check available at: http://0.0.0.0:${PORT}/health`);
-      console.log(`🎯 RENDER DEPLOYMENT READY - Service is accessible!`);
-      // The "[mongoose]: Mongoose connected to DB" log from database.ts confirms success
-    });
-  } catch (error) {
-    console.error('[server]: Failed to start server or connect to database', error);
-    process.exit(1);
-  }
-};
-
-startServer();
-
-// Export io instance so it can be used in other modules (e.g., telegramService)
-export { io };
-
-export default app; // Optional: export app for testing purposes
+      console.log(`

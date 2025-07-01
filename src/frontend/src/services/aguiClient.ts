@@ -23,8 +23,6 @@ export class AGUIClient implements IAGUIClient {
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private lastEventTime = Date.now();
   private reconnectTimeout: NodeJS.Timeout | null = null;
-  private isConnected = false;
-  private currentSessionId: string | null = null;
 
   constructor(config: AGUIClientConfig) {
     this.config = {
@@ -41,6 +39,7 @@ export class AGUIClient implements IAGUIClient {
 
     this.connectionState = 'connecting';
     console.log('[AGUIClient] Connecting to AG-UI protocol endpoint...');
+    console.log('[AGUIClient] Backend URL:', this.config.endpoint);
 
     try {
       // Primary connection via SSE
@@ -76,10 +75,11 @@ export class AGUIClient implements IAGUIClient {
           url.searchParams.set('sessionId', this.config.sessionId);
         }
 
+        console.log('[AGUIClient] Creating EventSource:', url.toString());
         this.eventSource = new EventSource(url.toString());
 
         this.eventSource.onopen = () => {
-          console.log('[AGUIClient SSE] Connected');
+          console.log('[AGUIClient SSE] Connected successfully');
           resolve();
         };
 
@@ -89,18 +89,24 @@ export class AGUIClient implements IAGUIClient {
 
         this.eventSource.onerror = (error) => {
           console.error('[AGUIClient SSE] Connection error:', error);
+          console.error('[AGUIClient SSE] ReadyState:', this.eventSource?.readyState);
+          
           if (this.eventSource?.readyState === EventSource.CLOSED) {
             reject(new Error('SSE connection failed'));
+          } else if (this.eventSource?.readyState === EventSource.CONNECTING) {
+            console.log('[AGUIClient SSE] Still connecting...');
           }
         };
 
         // Set a timeout for initial connection
         setTimeout(() => {
           if (this.eventSource?.readyState !== EventSource.OPEN) {
+            console.error('[AGUIClient SSE] Connection timeout. ReadyState:', this.eventSource?.readyState);
             reject(new Error('SSE connection timeout'));
           }
-        }, 10000);
+        }, 15000); // Increased timeout for production
       } catch (error) {
+        console.error('[AGUIClient SSE] Setup error:', error);
         reject(error);
       }
     });
@@ -127,6 +133,7 @@ export class AGUIClient implements IAGUIClient {
       
       // Handle connection establishment
       if (eventData.type === 'CONNECTION_ESTABLISHED') {
+        console.log('[AGUIClient] Connection established with server');
         return;
       }
       
@@ -153,6 +160,8 @@ export class AGUIClient implements IAGUIClient {
       
       // Combine and deduplicate
       const allSubscribers = new Set([...typeSubscribers, ...wildcardSubscribers]);
+      
+      console.log(`[AGUIClient] Emitting to ${allSubscribers.size} subscribers`);
       
       allSubscribers.forEach(handler => {
         try {
@@ -204,7 +213,11 @@ export class AGUIClient implements IAGUIClient {
 
     console.log(`[AGUIClient] Scheduling reconnect attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
 
-    setTimeout(() => {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
+
+    this.reconnectTimeout = setTimeout(() => {
       if (this.connectionState !== 'connected') {
         this.reconnect();
       }
@@ -236,6 +249,11 @@ export class AGUIClient implements IAGUIClient {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
     }
+
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
   }
 
   subscribe<T extends AGUIEvent>(
@@ -249,7 +267,7 @@ export class AGUIClient implements IAGUIClient {
     const typeSubscribers = this.subscribers.get(eventType)!;
     typeSubscribers.add(handler as AGUIEventHandler);
 
-    console.log(`[AGUIClient] Subscribed to event type: ${eventType}`);
+    console.log(`[AGUIClient] Subscribed to event type: ${eventType} (total subscribers: ${this.getSubscriberCount()})`);
 
     return {
       unsubscribe: () => {
@@ -302,98 +320,5 @@ export class AGUIClient implements IAGUIClient {
       subscriberCount: this.getSubscriberCount(),
       lastEventTime: this.lastEventTime
     };
-  }
-
-  private createEventSource(sessionId: string): EventSource {
-    const url = new URL(`${this.config.endpoint}/api/v1/ag-ui/events`);
-    url.searchParams.append('sessionId', sessionId);
-
-    console.log('[AG-UI Client] Creating EventSource:', url.toString());
-    
-    const eventSource = new EventSource(url.toString());
-
-    eventSource.onopen = () => {
-      console.log('[AG-UI Client] EventSource connected');
-      this.connectionState = 'connected';
-      this.reconnectAttempts = 0;
-      this.isConnected = true;
-      this.notifyStatusListeners();
-      
-      // Clear any existing reconnect timeout
-      if (this.reconnectTimeout) {
-        clearTimeout(this.reconnectTimeout);
-        this.reconnectTimeout = null;
-      }
-    };
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('[AG-UI Client] Received event:', data.type);
-        
-        if (data.type === 'CONNECTION_ESTABLISHED') {
-          console.log('[AG-UI Client] Connection established with server');
-        } else {
-          this.handleEvent(data);
-        }
-      } catch (error) {
-        console.error('[AG-UI Client] Error parsing event:', error);
-      }
-    };
-
-    eventSource.onerror = (error) => {
-      console.error('[AG-UI Client] EventSource error:', error);
-      this.connectionState = 'error';
-      this.isConnected = false;
-      this.notifyStatusListeners();
-
-      // Close the current event source
-      eventSource.close();
-      
-      // Check if this is a 503 error (service unavailable)
-      const isServiceUnavailable = (error as any)?.status === 503 || 
-                                  (error as any)?.target?.readyState === EventSource.CLOSED;
-      
-      if (isServiceUnavailable) {
-        console.warn('[AG-UI Client] Backend service unavailable (503). Will retry with longer delay.');
-      }
-
-      // Attempt to reconnect with exponential backoff
-      if (this.reconnectAttempts < this.config.reconnectAttempts!) {
-        this.reconnectAttempts++;
-        const baseDelay = isServiceUnavailable ? 10000 : 3000; // 10s for 503, 3s for other errors
-        const delay = Math.min(baseDelay * Math.pow(2, this.reconnectAttempts - 1), 60000);
-        
-        console.log(`[AG-UI Client] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.config.reconnectAttempts})`);
-        this.connectionState = 'reconnecting';
-        this.notifyStatusListeners();
-
-        this.reconnectTimeout = setTimeout(() => {
-          if (this.currentSessionId && !this.eventSource) {
-            console.log('[AG-UI Client] Attempting reconnection...');
-            this.eventSource = this.createEventSource(this.currentSessionId);
-          }
-        }, delay);
-      } else {
-        console.error('[AG-UI Client] Max reconnection attempts reached. Please refresh the page.');
-        this.connectionState = 'disconnected';
-        this.notifyStatusListeners();
-        
-        // Notify user of connection issues
-        if (this.subscribers.size > 0) {
-          this.notifySubscribers({
-            type: 'CONNECTION_LOST',
-            timestamp: new Date().toISOString(),
-            error: 'Unable to connect to AG-UI service. The backend may be restarting.',
-            rawEvent: { 
-              message: 'Connection lost. Please check if the backend service is running.',
-              severity: 'error'
-            }
-          } as AGUIEvent);
-        }
-      }
-    };
-
-    return eventSource;
   }
 }
