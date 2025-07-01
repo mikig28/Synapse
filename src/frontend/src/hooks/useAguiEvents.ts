@@ -11,7 +11,7 @@ import {
   TextMessageContentEvent,
   StateUpdateEvent,
   AgentCommandEvent
-} from '../../../shared/aguiTypes';
+} from '../types/aguiTypes';
 
 /**
  * Hook for tracking agent execution lifecycle
@@ -68,27 +68,34 @@ export const useAgentLifecycle = (agentId?: string) => {
  */
 export const useAgentSteps = (agentId?: string) => {
   const [steps, setSteps] = useState<Array<{
+    id: string;
     stepId: string;
-    stepName: string;
-    status: 'started' | 'finished';
-    timestamp: string;
+    name: string;
+    description?: string;
+    status: 'pending' | 'running' | 'completed' | 'failed';
+    startTime: string;
+    endTime?: string;
+    duration?: number;
+    error?: string;
     agentId?: string;
   }>>([]);
-  const [activeSteps, setActiveSteps] = useState<Set<string>>(new Set());
+  const [currentStep, setCurrentStep] = useState<any | null>(null);
 
   useAguiEvent(AGUIEventType.STEP_STARTED, (event: StepStartedEvent) => {
     const synapseEvent = event as any;
     if (!agentId || synapseEvent.agentId === agentId) {
       const stepData = {
+        id: event.stepId || `${event.stepName}_${Date.now()}`,
         stepId: event.stepId || `${event.stepName}_${Date.now()}`,
-        stepName: event.stepName,
-        status: 'started' as const,
-        timestamp: event.timestamp || new Date().toISOString(),
+        name: event.stepName,
+        description: synapseEvent.description,
+        status: 'running' as const,
+        startTime: event.timestamp || new Date().toISOString(),
         agentId: synapseEvent.agentId
       };
       
       setSteps(prev => [stepData, ...prev].slice(0, 50)); // Keep last 50 steps
-      setActiveSteps(prev => new Set(prev).add(stepData.stepId));
+      setCurrentStep(stepData);
     }
   }, [agentId]);
 
@@ -96,24 +103,52 @@ export const useAgentSteps = (agentId?: string) => {
     const synapseEvent = event as any;
     if (!agentId || synapseEvent.agentId === agentId) {
       const stepId = event.stepId || `${event.stepName}_${Date.now()}`;
+      const endTime = new Date().toISOString();
       
-      setSteps(prev => prev.map(step => 
-        step.stepId === stepId 
-          ? { ...step, status: 'finished' as const }
-          : step
-      ));
-      setActiveSteps(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(stepId);
-        return newSet;
-      });
+      setSteps(prev => prev.map(step => {
+        if (step.stepId === stepId) {
+          const duration = new Date(endTime).getTime() - new Date(step.startTime).getTime();
+          return { 
+            ...step, 
+            status: 'completed' as const,
+            endTime,
+            duration
+          };
+        }
+        return step;
+      }));
+      
+      if (currentStep?.stepId === stepId) {
+        setCurrentStep(null);
+      }
     }
-  }, [agentId]);
+  }, [agentId, currentStep]);
+
+  // Handle step errors
+  useAguiEvent(AGUIEventType.RUN_ERROR, (event: RunErrorEvent) => {
+    const synapseEvent = event as any;
+    if (!agentId || synapseEvent.agentId === agentId) {
+      if (currentStep) {
+        setSteps(prev => prev.map(step => {
+          if (step.stepId === currentStep.stepId) {
+            return { 
+              ...step, 
+              status: 'failed' as const,
+              error: event.message,
+              endTime: new Date().toISOString()
+            };
+          }
+          return step;
+        }));
+        setCurrentStep(null);
+      }
+    }
+  }, [agentId, currentStep]);
 
   return {
     steps,
-    activeSteps: Array.from(activeSteps),
-    hasActiveSteps: activeSteps.size > 0,
+    currentStep,
+    hasActiveSteps: currentStep !== null,
     getStepsByAgent: (targetAgentId: string) => steps.filter(s => s.agentId === targetAgentId)
   };
 };

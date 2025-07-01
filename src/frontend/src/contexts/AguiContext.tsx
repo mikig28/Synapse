@@ -7,7 +7,7 @@ import {
   AGUIEventHandler,
   AGUISubscription,
   AGUIEventType
-} from '../../../shared/aguiTypes';
+} from '../types/aguiTypes';
 
 interface AguiContextValue {
   client: IAGUIClient | null;
@@ -266,3 +266,6 @@ export const useUserEvents = (
     }
   }, [userId, ...deps]);
 };
+
+// Export the stats hook from the main hooks file
+export { useAguiStats } from '../hooks/useAguiEvents';

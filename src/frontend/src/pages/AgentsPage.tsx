@@ -9,11 +9,14 @@ import { Agent, AgentRun } from '../types/agent';
 import { ErrorHandler } from '@/utils/errorHandler';
 import { AgentLogViewer } from '@/components/AgentLogViewer';
 import AgentActivityDashboard from '@/components/AgentActivityDashboard';
+import AgentStepTimeline from '@/components/AgentStepTimeline';
 import DebugPanel from '@/components/DebugPanel';
 import { CrewExecutionDashboard } from '@/components/CrewExecutionDashboard';
 import { DashboardHealthCheck } from '@/components/DashboardHealthCheck';
 import { DashboardEmptyState } from '@/components/DashboardEmptyState';
+import { AguiStatusBar } from '@/components/AguiStatusBar';
 import { useNavigate } from 'react-router-dom';
+import { useAgui } from '../contexts/AguiContext';
 import {
   Bot,
   Plus,
@@ -31,6 +34,8 @@ import {
   Newspaper,
   Zap,
   RotateCcw,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import {
   Dialog,
@@ -48,6 +53,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 const AgentsPage: React.FC = () => {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [recentRuns, setRecentRuns] = useState<AgentRun[]>([]);
+  const { isConnected, connectionState, eventCount } = useAgui();
   const [loading, setLoading] = useState(true);
   const [executingAgents, setExecutingAgents] = useState<Set<string>>(new Set());
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -426,6 +432,9 @@ const AgentsPage: React.FC = () => {
         {/* Health Check - Always visible for system monitoring */}
         <DashboardHealthCheck onHealthChange={setIsDashboardHealthy} />
         
+        {/* AG-UI Status Bar */}
+        <AguiStatusBar />
+        
         {/* Header */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div className="flex items-center gap-3">
@@ -445,6 +454,26 @@ const AgentsPage: React.FC = () => {
                   <span className="text-red-500 ml-2">• Check system health above</span>
                 )}
               </p>
+              
+              {/* AG-UI Connection Status */}
+              <div className="flex items-center gap-2 mt-2">
+                {isConnected ? (
+                  <>
+                    <Wifi className="w-4 h-4 text-green-500" />
+                    <span className="text-sm text-green-600">Live streaming connected</span>
+                    <Badge variant="outline" className="text-xs">
+                      {eventCount} events received
+                    </Badge>
+                  </>
+                ) : (
+                  <>
+                    <WifiOff className="w-4 h-4 text-yellow-500" />
+                    <span className="text-sm text-yellow-600">
+                      Connecting to live stream... ({connectionState})
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -941,6 +970,16 @@ const AgentsPage: React.FC = () => {
           onAgentExecute={handleExecuteAgent}
           onAgentToggle={handleToggleAgent}
         />
+
+        {/* Live Agent Execution Timelines */}
+        {agents?.filter(agent => agent.status === 'running').map(agent => (
+          <AgentStepTimeline 
+            key={`timeline-${agent._id}`}
+            agentId={agent._id}
+            agentName={agent.name}
+            showMessages={true}
+          />
+        ))}
       </div>
 
       {/* Debug Panel - only shows in development */}

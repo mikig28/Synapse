@@ -1,272 +1,225 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  CheckCircle, 
-  Loader2, 
-  AlertCircle, 
-  Clock, 
-  Bot, 
-  Zap,
-  Activity,
-  ArrowRight
-} from 'lucide-react';
+import { useAgentSteps, useAgentMessages, useAgentState, useAgentLifecycle } from '../hooks/useAguiEvents';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useAgentSteps, useAgentMessages } from '../hooks/useAguiEvents';
+import { 
+  PlayCircle, 
+  CheckCircle, 
+  AlertCircle, 
+  Clock, 
+  MessageSquare,
+  Loader2,
+  ChevronRight,
+  ChevronDown 
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface AgentStepTimelineProps {
   agentId: string;
-  agentName?: string;
-  className?: string;
-  maxSteps?: number;
+  agentName: string;
   showMessages?: boolean;
-  compact?: boolean;
+  maxHeight?: string;
 }
 
-interface StepIconProps {
-  status: 'started' | 'finished' | 'error';
-  isActive?: boolean;
-}
-
-const StepIcon: React.FC<StepIconProps> = ({ status, isActive = false }) => {
-  const baseClasses = "w-4 h-4";
-  
-  switch (status) {
-    case 'started':
-      return (
-        <div className="relative">
-          <Loader2 className={`${baseClasses} animate-spin text-blue-500`} />
-          {isActive && (
-            <div className="absolute -inset-1 rounded-full bg-blue-500/20 animate-pulse" />
-          )}
-        </div>
-      );
-    case 'finished':
-      return <CheckCircle className={`${baseClasses} text-green-500`} />;
-    case 'error':
-      return <AlertCircle className={`${baseClasses} text-red-500`} />;
-    default:
-      return <Clock className={`${baseClasses} text-gray-400`} />;
-  }
-};
-
-const formatTimeAgo = (timestamp: string): string => {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffSecs = Math.floor(diffMs / 1000);
-  const diffMins = Math.floor(diffSecs / 60);
-
-  if (diffSecs < 10) return 'Just now';
-  if (diffSecs < 60) return `${diffSecs}s ago`;
-  if (diffMins < 60) return `${diffMins}m ago`;
-  return date.toLocaleTimeString();
-};
-
-const getStepProgress = (steps: any[], activeSteps: string[]): number => {
-  if (steps.length === 0) return 0;
-  const finishedSteps = steps.filter(step => step.status === 'finished').length;
-  return (finishedSteps / steps.length) * 100;
-};
-
-export const AgentStepTimeline: React.FC<AgentStepTimelineProps> = ({
-  agentId,
-  agentName,
-  className = '',
-  maxSteps = 20,
-  showMessages = false,
-  compact = false
+const AgentStepTimeline: React.FC<AgentStepTimelineProps> = ({ 
+  agentId, 
+  agentName, 
+  showMessages = true,
+  maxHeight = '400px' 
 }) => {
-  const { steps, activeSteps, hasActiveSteps } = useAgentSteps(agentId);
-  const { messages } = useAgentMessages(agentId, 10);
+  const { steps, currentStep, hasActiveSteps } = useAgentSteps(agentId);
+  const { messages } = useAgentMessages(agentId);
+  const { state } = useAgentState(agentId);
+  const { currentStatus } = useAgentLifecycle(agentId);
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
 
-  const displaySteps = steps.slice(0, maxSteps);
-  const progress = getStepProgress(displaySteps, activeSteps);
+  const toggleStep = (stepId: string) => {
+    setExpandedSteps(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(stepId)) {
+        newSet.delete(stepId);
+      } else {
+        newSet.add(stepId);
+      }
+      return newSet;
+    });
+  };
 
-  if (displaySteps.length === 0) {
-    return (
-      <Card className={className}>
-        <CardContent className="p-6">
-          <div className="text-center text-muted-foreground">
-            <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>No execution steps yet</p>
-            <p className="text-sm mt-1">Steps will appear here when the agent starts running</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
+  const getStepIcon = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle className="w-5 h-5 text-green-500" />;
+      case 'failed':
+        return <AlertCircle className="w-5 h-5 text-red-500" />;
+      case 'running':
+        return <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />;
+      default:
+        return <Clock className="w-5 h-5 text-gray-400" />;
+    }
+  };
+
+  const getStepStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'border-green-500 bg-green-50';
+      case 'failed':
+        return 'border-red-500 bg-red-50';
+      case 'running':
+        return 'border-blue-500 bg-blue-50';
+      default:
+        return 'border-gray-300 bg-gray-50';
+    }
+  };
+
+  if (!hasActiveSteps && steps.length === 0) {
+    return null;
   }
 
   return (
-    <Card className={className}>
-      <CardHeader className={compact ? "pb-3" : "pb-4"}>
+    <Card className="w-full overflow-hidden">
+      <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Bot className="w-5 h-5 text-primary" />
-            {agentName || 'Agent'} Timeline
-            {hasActiveSteps && (
-              <Badge variant="default" className="animate-pulse ml-2">
-                <Zap className="w-3 h-3 mr-1" />
-                Active
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-lg font-semibold">{agentName}</CardTitle>
+            {currentStatus && (
+              <Badge 
+                variant={currentStatus === 'running' ? 'default' : 'secondary'}
+                className="animate-pulse"
+              >
+                {currentStatus}
               </Badge>
             )}
-          </CardTitle>
-          <div className="text-right">
-            <p className="text-sm font-medium">{displaySteps.length} steps</p>
-            <p className="text-xs text-muted-foreground">
-              {activeSteps.length} running
-            </p>
           </div>
-        </div>
-
-        {/* Progress Bar */}
-        {!compact && (
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Progress</span>
-              <span>{Math.round(progress)}%</span>
+          {state && state.progress && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Progress value={state.progress} className="w-24 h-2" />
+              <span>{state.progress}%</span>
             </div>
-            <Progress value={progress} className="h-2" />
-          </div>
-        )}
+          )}
+        </div>
       </CardHeader>
+      <CardContent className="p-0">
+        <ScrollArea className={`px-4 pb-4`} style={{ maxHeight }}>
+          <div className="space-y-2">
+            <AnimatePresence mode="popLayout">
+              {steps.map((step, index) => {
+                const isExpanded = expandedSteps.has(step.id);
+                const isCurrentStep = currentStep?.id === step.id;
+                const stepMessages = messages.filter(msg => 
+                  msg.timestamp >= step.startTime && 
+                  (!step.endTime || msg.timestamp <= step.endTime)
+                );
 
-      <CardContent className={compact ? "pt-0" : ""}>
-        <ScrollArea className={compact ? "h-64" : "h-80"}>
-          <div className="space-y-3">
-            <AnimatePresence>
-              {displaySteps.map((step, index) => {
-                const isActive = activeSteps.includes(step.stepId);
-                const isLatest = index === 0;
-                
                 return (
                   <motion.div
-                    key={step.stepId}
+                    key={step.id}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
-                    transition={{ duration: 0.3, delay: index * 0.05 }}
-                    className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
-                      isActive 
-                        ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' 
-                        : isLatest 
-                          ? 'bg-muted/50' 
-                          : 'bg-background'
-                    }`}
+                    transition={{ duration: 0.2, delay: index * 0.05 }}
                   >
-                    {/* Step Icon and Connector */}
-                    <div className="flex flex-col items-center">
-                      <StepIcon status={step.status} isActive={isActive} />
-                      {index < displaySteps.length - 1 && (
-                        <div className={`w-px h-8 mt-2 ${
-                          step.status === 'finished' ? 'bg-green-200' : 'bg-gray-200'
-                        }`} />
+                    <div
+                      className={cn(
+                        "relative rounded-lg border-2 transition-all duration-200",
+                        getStepStatusColor(step.status),
+                        isCurrentStep && "ring-2 ring-blue-400 ring-offset-2"
                       )}
-                    </div>
-
-                    {/* Step Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className={`font-medium text-sm truncate ${
-                          isActive ? 'text-blue-700 dark:text-blue-300' : ''
-                        }`}>
-                          {step.stepName}
-                        </p>
-                        {isActive && (
-                          <Badge variant="outline" className="animate-pulse text-xs">
-                            Running
-                          </Badge>
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-muted-foreground">
-                          {formatTimeAgo(step.timestamp)}
-                        </p>
-                        {step.status === 'finished' && (
-                          <ArrowRight className="w-3 h-3 text-green-500" />
-                        )}
-                      </div>
-
-                      {/* Step Messages */}
-                      {showMessages && isActive && (
-                        <div className="mt-2 p-2 bg-background/80 rounded border text-xs">
-                          {messages
-                            .filter(msg => msg.timestamp >= step.timestamp)
-                            .slice(0, 2)
-                            .map(msg => (
-                              <p key={msg.messageId} className="text-muted-foreground mb-1 last:mb-0">
-                                {msg.content.slice(0, 100)}
-                                {msg.content.length > 100 ? '...' : ''}
+                    >
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start p-3 h-auto"
+                        onClick={() => toggleStep(step.id)}
+                      >
+                        <div className="flex items-start gap-3 w-full">
+                          <div className="mt-0.5">
+                            {getStepIcon(step.status)}
+                          </div>
+                          <div className="flex-1 text-left">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">
+                                {step.name || `Step ${index + 1}`}
+                              </span>
+                              {isCurrentStep && (
+                                <Badge variant="outline" className="text-xs">
+                                  Current
+                                </Badge>
+                              )}
+                            </div>
+                            {step.description && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {step.description}
                               </p>
-                            ))
-                          }
+                            )}
+                            {step.duration && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Duration: {(step.duration / 1000).toFixed(1)}s
+                              </p>
+                            )}
+                          </div>
+                          <div className="ml-auto">
+                            {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                          </div>
+                        </div>
+                      </Button>
+
+                      {/* Step Details & Messages */}
+                      {isExpanded && (showMessages || step.error) && (
+                        <div className="px-3 pb-3">
+                          {step.error && (
+                            <div className="bg-red-100 border border-red-300 rounded p-2 mb-2">
+                              <p className="text-xs text-red-700">{step.error}</p>
+                            </div>
+                          )}
+                          
+                          {showMessages && stepMessages.length > 0 && (
+                            <div className="space-y-1 mt-2">
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                                <MessageSquare className="w-3 h-3" />
+                                <span>Messages</span>
+                              </div>
+                              {stepMessages.map((msg, msgIndex) => (
+                                <div 
+                                  key={`${msg.timestamp}-${msgIndex}`}
+                                  className="bg-white rounded p-2 text-xs border"
+                                >
+                                  {msg.content}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
+
+                    {/* Connection Line */}
+                    {index < steps.length - 1 && (
+                      <div className="relative ml-7 -mt-1 -mb-1">
+                        <div className="absolute left-0 w-0.5 h-6 bg-gray-300"></div>
+                      </div>
+                    )}
                   </motion.div>
                 );
               })}
             </AnimatePresence>
 
-            {/* Load More Indicator */}
-            {steps.length > maxSteps && (
-              <div className="text-center py-2">
-                <p className="text-xs text-muted-foreground">
-                  ... and {steps.length - maxSteps} more steps
-                </p>
-              </div>
+            {/* Live indicator when agent is running */}
+            {currentStatus === 'running' && !currentStep && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200"
+              >
+                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                <span className="text-sm text-blue-700">Agent initializing...</span>
+              </motion.div>
             )}
           </div>
         </ScrollArea>
-
-        {/* Recent Messages Section */}
-        {showMessages && messages.length > 0 && !compact && (
-          <div className="mt-4 border-t pt-4">
-            <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-              <Activity className="w-4 h-4" />
-              Recent Messages
-            </h4>
-            <div className="space-y-2 max-h-32 overflow-y-auto">
-              {messages.slice(0, 3).map(msg => (
-                <div key={msg.messageId} className="text-xs p-2 bg-muted/30 rounded">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="outline" className="text-xs">{msg.role}</Badge>
-                    <span className="text-muted-foreground">
-                      {formatTimeAgo(msg.timestamp)}
-                    </span>
-                  </div>
-                  <p className="text-muted-foreground">
-                    {msg.content.slice(0, 150)}
-                    {msg.content.length > 150 ? '...' : ''}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Summary Stats */}
-        {!compact && (
-          <div className="mt-4 grid grid-cols-3 gap-4 text-center text-xs">
-            <div>
-              <p className="font-medium text-green-600">
-                {displaySteps.filter(s => s.status === 'finished').length}
-              </p>
-              <p className="text-muted-foreground">Completed</p>
-            </div>
-            <div>
-              <p className="font-medium text-blue-600">{activeSteps.length}</p>
-              <p className="text-muted-foreground">Running</p>
-            </div>
-            <div>
-              <p className="font-medium text-gray-600">{displaySteps.length}</p>
-              <p className="text-muted-foreground">Total</p>
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );

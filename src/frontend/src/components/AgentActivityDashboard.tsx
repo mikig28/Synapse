@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAgentLifecycle, useAgentSteps, useAgentMessages, useAgentState } from '../hooks/useAguiEvents';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -77,36 +78,39 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
     itemsProcessedToday: 0,
     lastUpdate: new Date().toISOString()
   });
-  const [agentProgress, setAgentProgress] = useState<Map<string, AgentProgress>>(new Map());
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [autoRefresh, setAutoRefresh] = useState(true);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchRecentActivity();
-    fetchAgentProgress();
-    
-    if (autoRefresh) {
-      intervalRef.current = setInterval(() => {
-        fetchRecentActivity(true);
-      }, 10000); // Refresh every 10 seconds
-      
-      progressIntervalRef.current = setInterval(() => {
-        fetchAgentProgress(true);
-      }, 5000); // Check progress every 5 seconds
-    }
+  // AG-UI Hooks for real-time updates
+  const { runningRuns, completedRuns, failedRuns, currentStatus } = useAgentLifecycle();
+  const { steps, hasActiveSteps } = useAgentSteps();
+  const { messages } = useAgentMessages();
 
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-      }
-    };
-  }, [agents, autoRefresh]);
+  useEffect(() => {
+    // Initial fetch of legacy data (still needed for historical runs)
+    fetchRecentActivity();
+    
+    // Update live metrics based on AG-UI events
+    updateLiveMetrics();
+  }, [agents, runningRuns, completedRuns, failedRuns]);
+
+  const updateLiveMetrics = () => {
+    const runningAgents = agents.filter(a => a.status === 'running').length;
+    const activeAgents = agents.filter(a => a.isActive).length;
+    
+    // Calculate metrics from AG-UI events
+    const totalRuns = completedRuns.length + failedRuns.length;
+    const successRate = totalRuns > 0 ? (completedRuns.length / totalRuns) * 100 : 0;
+    
+    setLiveMetrics({
+      totalActiveAgents: activeAgents,
+      runningAgents,
+      successRate,
+      avgResponseTime: 0, // Will be calculated from actual run data
+      itemsProcessedToday: 0, // Will be calculated from actual run data
+      lastUpdate: new Date().toISOString()
+    });
+  };
 
   const fetchRecentActivity = async (silent: boolean = false) => {
     try {
@@ -386,15 +390,10 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setAutoRefresh(!autoRefresh)}
-            className={autoRefresh ? 'text-green-600' : ''}
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
-            Auto Refresh {autoRefresh ? 'On' : 'Off'}
-          </Button>
+          <Badge variant="outline" className="px-3 py-1">
+            <Activity className="w-3 h-3 mr-1" />
+            Live AG-UI Events
+          </Badge>
           <Button
             variant="outline"
             size="sm"
@@ -544,6 +543,7 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
                             size="sm"
                             variant="outline"
                             onClick={() => onAgentToggle(agent)}
+                            title={hasActiveSteps ? "Pause agent via AG-UI" : "Stop agent"}
                           >
                             <Pause className="w-3 h-3" />
                           </Button>

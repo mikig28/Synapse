@@ -5,7 +5,7 @@ import {
   AGUIEventHandler,
   AGUISubscription,
   AGUIEventType
-} from '../../../shared/aguiTypes';
+} from '../types/aguiTypes';
 
 /**
  * AG-UI Client Implementation for Frontend
