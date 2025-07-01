@@ -42,7 +42,7 @@ export const AguiLiveDashboard: React.FC<AguiLiveDashboardProps> = ({ className 
   
   const { isConnected, eventCount } = useAgui();
   const { runningRuns, completedRuns, failedRuns } = useAgentLifecycle();
-  const { steps, activeSteps } = useAgentSteps();
+  const { steps, currentStep, hasActiveSteps } = useAgentSteps();
   const { messages } = useAgentMessages();
   const { eventStats, totalEventTypes, mostFrequentEventType } = useAguiStats();
 
@@ -50,6 +50,9 @@ export const AguiLiveDashboard: React.FC<AguiLiveDashboardProps> = ({ className 
   const totalRuns = runningRuns.length + completedRuns.length + failedRuns.length;
   const successRate = totalRuns > 0 ? (completedRuns.length / totalRuns) * 100 : 0;
   const activeAgents = new Set(runningRuns.map(r => r.agentId)).size;
+  
+  // Calculate active steps from the steps array
+  const activeStepsCount = steps.filter(step => step.status === 'running').length;
 
   // Latest events
   const latestSteps = steps.slice(0, 5);
@@ -170,7 +173,7 @@ export const AguiLiveDashboard: React.FC<AguiLiveDashboardProps> = ({ className 
               >
                 <div className="flex items-center gap-2">
                   <Zap className="w-4 h-4 text-orange-600" />
-                  <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">{activeSteps.size}</p>
+                  <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">{activeStepsCount}</p>
                 </div>
                 <p className="text-xs text-orange-600 dark:text-orange-400">Active Steps</p>
               </motion.div>
