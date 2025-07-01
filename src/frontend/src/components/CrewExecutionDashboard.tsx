@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { useAguiEvents } from '@/hooks/useAguiEvents';
+import { useAguiEvents } from '@/contexts/AguiContext';
 import { AGUIEventType, StepProgressEvent, RunStartedEvent, RunCompletedEvent, AgentMessageEvent } from '@/types/aguiTypes';
 import {
   Activity,
@@ -146,7 +146,7 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
     }
   };
 
-  useAguiEvents(handleAguiEvent);
+  useAguiEvents(handleAguiEvent, [agentId]);
 
   // Auto-open panel when agent starts running
   useEffect(() => {

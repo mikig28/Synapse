@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useAguiEvent } from '../hooks/useAguiEvents';
+import { useAguiEvent } from '../contexts/AguiContext';
 import { AGUIEventType } from '../types/aguiTypes';
 import { 
   CheckCircle, 

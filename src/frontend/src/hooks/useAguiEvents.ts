@@ -313,11 +313,3 @@ export const useUserAgentEvents = (userId: string) => {
     clearUserEvents: () => setUserEvents([])
   };
 };
-
-/**
- * Hook for listening to all AG-UI events
- * @param handler - Function to handle incoming events
- */
-export const useAguiEvents = (handler: (event: AGUIEvent) => void) => {
-  useAguiEvent('*', handler, [handler]);
-};
