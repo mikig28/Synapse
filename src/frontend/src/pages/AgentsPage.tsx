@@ -15,6 +15,7 @@ import { CrewExecutionDashboard } from '@/components/CrewExecutionDashboard';
 import { DashboardHealthCheck } from '@/components/DashboardHealthCheck';
 import { DashboardEmptyState } from '@/components/DashboardEmptyState';
 import { AguiStatusBar } from '@/components/AguiStatusBar';
+import { AguiLiveDashboard } from '@/components/AguiLiveDashboard';
 import { useNavigate } from 'react-router-dom';
 import { useAgui } from '../contexts/AguiContext';
 import {
@@ -1001,6 +1002,9 @@ const AgentsPage: React.FC = () => {
           />
         </>
       )}
+
+      {/* AG-UI Live Dashboard - Always visible when agents are running */}
+      <AguiLiveDashboard />
     </div>
   );
 };

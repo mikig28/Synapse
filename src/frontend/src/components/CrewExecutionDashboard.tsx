@@ -51,7 +51,23 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
   const [isPanelVisible, setIsPanelVisible] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const hasAutoOpened = useRef(false);
   const { toast } = useToast();
+
+  // Auto-open panel when agent starts running
+  useEffect(() => {
+    if (isRunning && !hasAutoOpened.current) {
+      setIsPanelVisible(true);
+      hasAutoOpened.current = true;
+      toast({
+        title: 'Agent Started',
+        description: `${agentName} is now running. View live progress!`,
+        duration: 3000,
+      });
+    } else if (!isRunning) {
+      hasAutoOpened.current = false;
+    }
+  }, [isRunning, agentName, toast]);
 
   useEffect(() => {
     const checkConnection = async () => {
@@ -136,6 +152,11 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
       >
         <Eye className="w-4 h-4 mr-2" />
         View Crew Progress
+        {isRunning && (
+          <Badge variant="default" className="ml-2 animate-pulse">
+            Live
+          </Badge>
+        )}
       </Button>
 
       <AnimatePresence>

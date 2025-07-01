@@ -12,6 +12,8 @@ import { PWAProvider } from './components/pwa/PWAPrompts';
 import { StagewiseToolbar } from '@stagewise/toolbar-react';
 import { ReactPlugin } from '@stagewise-plugins/react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import { AguiNotifications } from './components/AguiNotifications';
+import { Toaster } from '@/components/ui/toaster';
 
 // Lazy load all pages for better performance
 const DashboardPage = React.lazy(() => import('@/pages/DashboardPage'));
@@ -91,6 +93,12 @@ function AppContent() {
           isOpen={commandPalette.isOpen}
           onClose={commandPalette.close}
         />
+
+        {/* AG-UI Notifications */}
+        <AguiNotifications />
+        
+        {/* Toast Container */}
+        <Toaster />
       </TelegramProvider>
     </DigestProvider>
   );
