@@ -80,6 +80,7 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [agentProgress, setAgentProgress] = useState<Map<string, AgentProgress>>(new Map());
+  const hasInitialized = useRef(false);
   const { toast } = useToast();
 
   // AG-UI Hooks for real-time updates
@@ -88,12 +89,15 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
   const { messages } = useAgentMessages();
 
   useEffect(() => {
-    // Initial fetch of legacy data (still needed for historical runs)
-    fetchRecentActivity();
-    // Disabled polling for agent progress - using AG-UI events instead
-    // fetchAgentProgress();
-    
-    // Update live metrics based on AG-UI events
+    // Only fetch data once on initial load
+    if (!hasInitialized.current) {
+      fetchRecentActivity();
+      hasInitialized.current = true;
+    }
+  }, []); // Empty dependency array - only run once on mount
+
+  // Update live metrics based on AG-UI events
+  useEffect(() => {
     updateLiveMetrics();
   }, [agents, runningRuns, completedRuns, failedRuns]);
 
