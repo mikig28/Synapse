@@ -19,21 +19,13 @@ async function enhanceNewsItemWithImage(newsItem, options = {}) {
             console.log(`Skipping news item - image already exists`);
             return newsItem;
         }
-        // Check if either API key is available
-        const hasUnsplash = !!process.env.UNSPLASH_ACCESS_KEY;
-        const hasReplicate = !!process.env.REPLICATE_API_TOKEN;
-        if (!hasUnsplash && !hasReplicate) {
-            console.log(`No image API keys configured - skipping image enhancement for ${newsItem.toString()}`);
-            console.log(`To enable image generation, set UNSPLASH_ACCESS_KEY and/or REPLICATE_API_TOKEN in environment`);
-            return null;
-        }
         // Generate prompt from title and description
         const prompt = generateImagePrompt(newsItem);
         if (!prompt) {
             console.log(`No suitable prompt for news item`);
             return null;
         }
-        // Get image
+        // Get image (imageService now handles fallbacks when API keys are not available)
         const imageResult = await (0, imageService_1.getIllustration)(prompt);
         // Update news item
         newsItem.generatedImage = {
@@ -42,15 +34,11 @@ async function enhanceNewsItemWithImage(newsItem, options = {}) {
             attribution: imageResult.attribution
         };
         await newsItem.save();
-        console.log(`Enhanced news item ${newsItem.toString()} with ${imageResult.source} image`);
+        console.log(`Enhanced news item with ${imageResult.source} image`);
         return newsItem;
     }
     catch (error) {
         console.error(`Failed to enhance news item:`, error?.message || 'Unknown error');
-        // Provide more specific error information
-        if (error?.message?.includes('API token not configured')) {
-            console.error(`Image enhancement requires API keys. Set UNSPLASH_ACCESS_KEY and/or REPLICATE_API_TOKEN in environment.`);
-        }
         return null;
     }
 }
