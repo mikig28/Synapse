@@ -183,24 +183,33 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
                 browser: ['Synapse Bot', 'Chrome', '120.0.0'],
                 generateHighQualityLinkPreview: false,
                 syncFullHistory: false, // Disable full history sync to improve performance
-                markOnlineOnConnect: true,
+                markOnlineOnConnect: false, // Reduce server load
                 defaultQueryTimeoutMs: this.CONNECTION_TIMEOUT,
                 shouldSyncHistoryMessage: (msg) => {
-                    // Only sync messages from last 7 days to improve performance
-                    const weekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+                    // Only sync messages from last 3 days to improve performance
+                    const threeDaysAgo = Date.now() - (3 * 24 * 60 * 60 * 1000);
                     const timestamp = msg.messageTimestamp || msg.timestamp || Date.now() / 1000;
-                    return timestamp * 1000 > weekAgo;
+                    return timestamp * 1000 > threeDaysAgo;
                 },
                 connectTimeoutMs: this.CONNECTION_TIMEOUT,
                 keepAliveIntervalMs: this.KEEP_ALIVE_INTERVAL,
-                // Additional performance optimizations
-                retryRequestDelayMs: 500, // Increased from 250
-                maxMsgRetryCount: 5, // Increased from 3
-                // Add qr timeout
-                qrTimeout: 60000, // 60 seconds for QR timeout
-                // Improved connection stability
+                // Enhanced stability options
+                retryRequestDelayMs: 1000, // Increased delay between retries
+                maxMsgRetryCount: 3, // Reduced retry count
+                qrTimeout: 120000, // 2 minutes for QR timeout
+                // Reduce aggressive queries
                 emitOwnEvents: false,
-                fireInitQueries: true
+                fireInitQueries: false, // Disable automatic queries
+                // Add better message handling
+                getMessage: async (key) => {
+                    // Return empty to avoid message retrieval issues
+                    return undefined;
+                },
+                // Add connection options for Render deployment
+                options: {
+                    version: [2, 2323, 4],
+                    makeSocket: true
+                }
             });
             // Set up event handlers
             this.setupEventHandlers(saveCreds);
@@ -1281,39 +1290,42 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
         if (this.healthCheckTimer) {
             clearInterval(this.healthCheckTimer);
         }
+        // Enhanced health monitoring with less aggressive pinging
         this.healthCheckTimer = setInterval(async () => {
-            if (!this.socket || !this.isReady)
-                return;
             try {
-                // Send ping to check connection health
-                const now = Date.now();
-                if (now - this.lastPingTime > 90000) { // Ping every 90 seconds (increased)
-                    console.log('💓 Performing connection health check...');
-                    // Use a timeout for the health check
-                    const pingPromise = this.socket.sendPresenceUpdate('available');
-                    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Health check timeout')), 15000));
-                    await Promise.race([pingPromise, timeoutPromise]);
-                    this.lastPingTime = now;
-                    console.log('💓 Connection health check successful');
+                if (this.socket && this.isClientReady) {
+                    const now = Date.now();
+                    // Only ping every 2 minutes to reduce server load
+                    if (now - this.lastPingTime > 120000) { // 2 minutes
+                        try {
+                            // Simple presence update instead of aggressive pinging
+                            await this.socket.sendPresenceUpdate('available');
+                            this.lastPingTime = now;
+                            console.log('🏥 WhatsApp health check: OK');
+                        }
+                        catch (pingError) {
+                            console.log('⚠️ WhatsApp health check failed:', pingError.message);
+                            // Don't immediately reconnect, wait for actual disconnection
+                            if (this.reconnectAttempts < 3) {
+                                console.log('🔄 Attempting gentle recovery...');
+                                this.reconnectAttempts++;
+                                // Try to refresh connection state
+                                setTimeout(() => {
+                                    if (this.socket && this.isClientReady) {
+                                        this.socket.sendPresenceUpdate('available').catch(() => {
+                                            console.log('🔄 Gentle recovery failed, waiting for natural reconnect...');
+                                        });
+                                    }
+                                }, 5000);
+                            }
+                        }
+                    }
                 }
             }
             catch (error) {
-                console.error('❌ Health check failed:', error.message);
-                // Only restart if we haven't exceeded max attempts
-                if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
-                    console.log('🔄 Scheduling connection restart due to health check failure...');
-                    // Use a delay to avoid immediate restart
-                    setTimeout(() => {
-                        if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
-                            this.restart();
-                        }
-                    }, 5000);
-                }
-                else {
-                    console.log('⚠️ Max reconnect attempts reached, health monitoring paused');
-                }
+                console.log('⚠️ Health monitoring error:', error.message);
             }
-        }, 45000); // Check every 45 seconds (increased from 30)
+        }, 60000); // Check every minute instead of every 30 seconds
     }
     // Memory cleanup to prevent memory leaks
     startMemoryCleanup() {

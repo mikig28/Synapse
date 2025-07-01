@@ -69,6 +69,11 @@ const NewsItemSchema = new mongoose_1.Schema({
     readAt: { type: Date },
     contentHash: { type: String, sparse: true }, // MD5 hash for duplicate detection
     metadata: { type: mongoose_1.Schema.Types.Mixed }, // Additional metadata storage
+    generatedImage: {
+        url: { type: String },
+        source: { type: String, enum: ['unsplash', 'replicate'] },
+        attribution: { type: String }
+    }
 }, { timestamps: true });
 // Index for efficient querying
 NewsItemSchema.index({ userId: 1, createdAt: -1 });

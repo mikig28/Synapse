@@ -7,6 +7,7 @@ exports.CrewAIAgentExecutor = void 0;
 const axios_1 = __importDefault(require("axios"));
 const NewsItem_1 = __importDefault(require("../../models/NewsItem"));
 const mongoose_1 = __importDefault(require("mongoose"));
+const newsEnhancementService_1 = require("../newsEnhancementService");
 class CrewAIAgentExecutor {
     constructor() {
         // Standardized timeout configurations for Render deployment
@@ -352,6 +353,31 @@ class CrewAIAgentExecutor {
                     // Track source counts by verified type
                     sourceCounts[sourceType] = (sourceCounts[sourceType] || 0) + 1;
                     console.log(`[CrewAIExecutor] ✅ Successfully stored ${sourceType} item ${i + 1}`);
+                    // Enhance with relevant image (async, don't block the main flow)
+                    // Changed skipExisting to false to ensure all items get images
+                    (0, newsEnhancementService_1.enhanceNewsItemWithImage)(newsItem, { skipExisting: false })
+                        .then((enhancedItem) => {
+                        if (enhancedItem?.generatedImage) {
+                            console.log(`[CrewAIExecutor] 🖼️ Enhanced news item with ${enhancedItem.generatedImage.source} image`);
+                            run.addLog('info', 'Enhanced article with image', {
+                                title: article.title,
+                                imageSource: enhancedItem.generatedImage.source,
+                                imageUrl: enhancedItem.generatedImage.url
+                            });
+                        }
+                        else {
+                            console.log(`[CrewAIExecutor] ⚠️ Image enhancement returned null for item: ${article.title}`);
+                        }
+                    })
+                        .catch((error) => {
+                        console.warn(`[CrewAIExecutor] Failed to enhance item with image: ${error.message}`);
+                        // Log the specific error for debugging
+                        run.addLog('warn', 'Image enhancement failed', {
+                            title: article.title,
+                            error: error.message,
+                            suggestion: 'Check if REPLICATE_API_TOKEN or UNSPLASH_ACCESS_KEY are configured'
+                        });
+                    });
                     await run.addLog('info', 'Saved news article', {
                         title: article.title,
                         source: newsItem.source,

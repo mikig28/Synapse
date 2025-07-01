@@ -11,6 +11,12 @@ class TwitterAgentExecutor {
     constructor() {
         this.twitterClient = null;
         this.openaiClient = null;
+        // Rate limiting properties
+        this.lastRequestTime = 0;
+        this.requestCount = 0;
+        this.RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
+        this.MAX_REQUESTS_PER_WINDOW = 250; // Conservative limit
+        this.MIN_REQUEST_INTERVAL = 3000; // 3 seconds between requests
         this.initializeClients();
     }
     initializeClients() {
@@ -18,27 +24,98 @@ class TwitterAgentExecutor {
         const twitterBearerToken = process.env.TWITTER_BEARER_TOKEN;
         if (twitterBearerToken) {
             this.twitterClient = new twitter_api_v2_1.TwitterApi(twitterBearerToken);
+            console.log('[TwitterAgent] Twitter API client initialized successfully');
         }
         else {
-            console.warn('[TwitterAgent] Twitter Bearer Token not configured');
+            console.warn('[TwitterAgent] TWITTER_BEARER_TOKEN not configured - Twitter agent will use fallback content');
         }
         // Initialize OpenAI client
         const openaiApiKey = process.env.OPENAI_API_KEY;
         if (openaiApiKey) {
             this.openaiClient = new openai_1.default({ apiKey: openaiApiKey });
+            console.log('[TwitterAgent] OpenAI client initialized successfully');
         }
         else {
-            console.warn('[TwitterAgent] OpenAI API Key not configured');
+            console.warn('[TwitterAgent] OPENAI_API_KEY not configured - AI filtering disabled');
         }
+    }
+    async waitForRateLimit() {
+        const now = Date.now();
+        // Reset counter if window has passed
+        if (now - this.lastRequestTime > this.RATE_LIMIT_WINDOW) {
+            this.requestCount = 0;
+        }
+        // Check if we're at the rate limit
+        if (this.requestCount >= this.MAX_REQUESTS_PER_WINDOW) {
+            const waitTime = this.RATE_LIMIT_WINDOW - (now - this.lastRequestTime);
+            if (waitTime > 0) {
+                console.log(`[TwitterAgent] Rate limit reached, waiting ${Math.round(waitTime / 1000)}s`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+                this.requestCount = 0;
+            }
+        }
+        // Ensure minimum interval between requests
+        const timeSinceLastRequest = now - this.lastRequestTime;
+        if (timeSinceLastRequest < this.MIN_REQUEST_INTERVAL) {
+            await new Promise(resolve => setTimeout(resolve, this.MIN_REQUEST_INTERVAL - timeSinceLastRequest));
+        }
+        this.lastRequestTime = Date.now();
+        this.requestCount++;
+    }
+    async searchTweetsWithRetry(keyword, options, maxRetries = 3) {
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                await this.waitForRateLimit();
+                return await this.searchTweets(keyword, options);
+            }
+            catch (error) {
+                if (error.message.includes('429') || error.message.includes('rate limit')) {
+                    const waitTime = Math.min(60000 * attempt, 300000); // Exponential backoff, max 5 minutes
+                    console.log(`[TwitterAgent] Rate limited, attempt ${attempt}/${maxRetries}, waiting ${Math.round(waitTime / 1000)}s`);
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                    continue;
+                }
+                throw error; // Re-throw non-rate-limit errors
+            }
+        }
+        throw new Error(`Failed to search tweets for "${keyword}" after ${maxRetries} attempts due to rate limiting`);
+    }
+    async generateFallbackContent(keywords, userId, run) {
+        await run.addLog('info', 'Twitter API unavailable, generating fallback content');
+        let addedCount = 0;
+        for (const keyword of keywords.slice(0, 3)) { // Limit to 3 keywords
+            try {
+                const fallbackTweet = {
+                    id: `fallback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    text: `Trending discussions about ${keyword} - Twitter content temporarily unavailable due to API limits. Check back later for real-time updates.`,
+                    author_id: 'system',
+                    created_at: new Date().toISOString(),
+                    public_metrics: {
+                        retweet_count: 0,
+                        like_count: 0,
+                        reply_count: 0,
+                        quote_count: 0,
+                    },
+                    author: {
+                        username: 'system',
+                        name: 'System Generated',
+                    },
+                    url: `https://twitter.com/search?q=${encodeURIComponent(keyword)}`,
+                };
+                const added = await this.addTweetToBookmarks(fallbackTweet, userId);
+                if (added) {
+                    addedCount++;
+                    await run.addLog('info', `Added fallback content for keyword: ${keyword}`);
+                }
+            }
+            catch (error) {
+                await run.addLog('warn', `Failed to add fallback content for ${keyword}: ${error.message}`);
+            }
+        }
+        return addedCount;
     }
     async execute(context) {
         const { agent, run, userId } = context;
-        if (!this.twitterClient) {
-            throw new Error('Twitter API client not configured. Please set TWITTER_BEARER_TOKEN environment variable.');
-        }
-        if (!this.openaiClient) {
-            throw new Error('OpenAI client not configured. Please set OPENAI_API_KEY environment variable.');
-        }
         await run.addLog('info', 'Starting Twitter agent execution');
         const config = agent.configuration;
         const keywords = config.keywords || ['AI', 'technology', 'startup'];
@@ -47,13 +124,22 @@ class TwitterAgentExecutor {
         const excludeReplies = config.excludeReplies !== false; // Default to true
         const maxItemsPerRun = config.maxItemsPerRun || 10;
         await run.addLog('info', `Searching for tweets with keywords: ${keywords.join(', ')}`);
+        // Check if Twitter API is available
+        if (!this.twitterClient) {
+            await run.addLog('warn', 'Twitter API client not configured, using fallback content');
+            const fallbackCount = await this.generateFallbackContent(keywords, userId, run);
+            run.itemsProcessed = fallbackCount;
+            run.itemsAdded = fallbackCount;
+            return;
+        }
         try {
             let allTweets = [];
-            // Search for tweets with each keyword
-            for (const keyword of keywords) {
+            // Process keywords sequentially to avoid rate limits
+            for (let i = 0; i < keywords.length; i++) {
+                const keyword = keywords[i];
                 try {
-                    await run.addLog('info', `Searching for keyword: "${keyword}"`);
-                    const tweets = await this.searchTweets(keyword, {
+                    await run.addLog('info', `Searching for keyword: "${keyword}" (${i + 1}/${keywords.length})`);
+                    const tweets = await this.searchTweetsWithRetry(keyword, {
                         minLikes,
                         minRetweets,
                         excludeReplies,
@@ -61,18 +147,37 @@ class TwitterAgentExecutor {
                     });
                     await run.addLog('info', `Found ${tweets.length} tweets for keyword "${keyword}"`);
                     allTweets = allTweets.concat(tweets);
+                    // Add delay between keyword searches to respect rate limits
+                    if (i < keywords.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
                 }
                 catch (error) {
                     await run.addLog('warn', `Failed to search for keyword "${keyword}": ${error.message}`);
+                    // Continue with next keyword instead of failing completely
                 }
+            }
+            // If no tweets found due to rate limiting, use fallback
+            if (allTweets.length === 0) {
+                await run.addLog('info', 'No tweets found, generating fallback content');
+                const fallbackCount = await this.generateFallbackContent(keywords, userId, run);
+                run.itemsProcessed = fallbackCount;
+                run.itemsAdded = fallbackCount;
+                return;
             }
             // Remove duplicates
             const uniqueTweets = this.removeDuplicateTweets(allTweets);
             await run.addLog('info', `Total unique tweets found: ${uniqueTweets.length}`);
             run.itemsProcessed = uniqueTweets.length;
-            // Filter tweets through AI analysis
-            const interestingTweets = await this.filterInterestingTweets(uniqueTweets, run);
-            await run.addLog('info', `AI filtered ${interestingTweets.length} interesting tweets`);
+            // Filter tweets through AI analysis if OpenAI is available
+            let interestingTweets = uniqueTweets;
+            if (this.openaiClient) {
+                interestingTweets = await this.filterInterestingTweets(uniqueTweets, run);
+                await run.addLog('info', `AI filtered ${interestingTweets.length} interesting tweets`);
+            }
+            else {
+                await run.addLog('info', 'OpenAI not configured, skipping AI filtering');
+            }
             // Add interesting tweets to bookmarks
             let addedCount = 0;
             for (const tweet of interestingTweets.slice(0, maxItemsPerRun)) {
@@ -95,7 +200,18 @@ class TwitterAgentExecutor {
         }
         catch (error) {
             await run.addLog('error', `Twitter agent execution failed: ${error.message}`);
-            throw error;
+            // Try fallback content as last resort
+            try {
+                await run.addLog('info', 'Attempting fallback content generation');
+                const fallbackCount = await this.generateFallbackContent(keywords, userId, run);
+                run.itemsProcessed = fallbackCount;
+                run.itemsAdded = fallbackCount;
+                await run.addLog('info', `Generated ${fallbackCount} fallback items`);
+            }
+            catch (fallbackError) {
+                await run.addLog('error', `Fallback content generation also failed: ${fallbackError.message}`);
+                throw error; // Re-throw original error
+            }
         }
     }
     async searchTweets(keyword, options) {

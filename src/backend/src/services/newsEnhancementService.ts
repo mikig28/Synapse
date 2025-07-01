@@ -17,14 +17,24 @@ export async function enhanceNewsItemWithImage(
   try {
     // Skip if image already exists and skipExisting is true
     if (options.skipExisting && newsItem.generatedImage?.url) {
-      console.log(`Skipping news item ${newsItem._id} - image already exists`);
+      console.log(`Skipping news item - image already exists`);
       return newsItem;
+    }
+
+    // Check if either API key is available
+    const hasUnsplash = !!process.env.UNSPLASH_ACCESS_KEY;
+    const hasReplicate = !!process.env.REPLICATE_API_TOKEN;
+    
+    if (!hasUnsplash && !hasReplicate) {
+      console.log(`No image API keys configured - skipping image enhancement for ${newsItem.toString()}`);
+      console.log(`To enable image generation, set UNSPLASH_ACCESS_KEY and/or REPLICATE_API_TOKEN in environment`);
+      return null;
     }
 
     // Generate prompt from title and description
     const prompt = generateImagePrompt(newsItem);
     if (!prompt) {
-      console.log(`No suitable prompt for news item ${newsItem._id}`);
+      console.log(`No suitable prompt for news item`);
       return null;
     }
 
@@ -39,11 +49,17 @@ export async function enhanceNewsItemWithImage(
     };
 
     await newsItem.save();
-    console.log(`Enhanced news item ${newsItem._id} with ${imageResult.source} image`);
+    console.log(`Enhanced news item ${newsItem.toString()} with ${imageResult.source} image`);
     
     return newsItem;
   } catch (error: any) {
-    console.error(`Failed to enhance news item ${newsItem._id}:`, error?.message || 'Unknown error');
+    console.error(`Failed to enhance news item:`, error?.message || 'Unknown error');
+    
+    // Provide more specific error information
+    if (error?.message?.includes('API token not configured')) {
+      console.error(`Image enhancement requires API keys. Set UNSPLASH_ACCESS_KEY and/or REPLICATE_API_TOKEN in environment.`);
+    }
+    
     return null;
   }
 }
@@ -90,10 +106,10 @@ export async function enhanceNewsItemsBatch(
         } catch (error) {
           attempts++;
           if (attempts >= maxRetries) {
-            console.error(`Failed to enhance news item ${newsItem._id} after ${maxRetries} attempts`);
+            console.error(`Failed to enhance news item after ${maxRetries} attempts`);
             failed++;
           } else {
-            console.log(`Retrying news item ${newsItem._id} (attempt ${attempts + 1})`);
+            console.log(`Retrying news item (attempt ${attempts + 1})`);
             // Wait a bit before retrying
             await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
           }

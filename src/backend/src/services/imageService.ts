@@ -175,8 +175,27 @@ function extractImagePrompt(text: string): string {
 }
 
 /**
+ * Generate a placeholder image URL based on the topic
+ * This is a fallback when no API keys are available
+ */
+function generatePlaceholderImage(prompt: string): ImageResult {
+  // Clean the prompt for URL use
+  const cleanPrompt = prompt.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '+');
+  
+  // Use a free placeholder service that generates topic-relevant images
+  const baseUrl = 'https://via.placeholder.com/800x450/4A90E2/FFFFFF';
+  const textParam = encodeURIComponent(cleanPrompt.substring(0, 30));
+  
+  return {
+    url: `${baseUrl}?text=${textParam}`,
+    source: 'unsplash', // Mark as unsplash for consistency
+    attribution: 'Placeholder image - Enable image APIs for AI-generated content'
+  };
+}
+
+/**
  * Main function to get illustration for any topic
- * Uses cache-first approach, then Unsplash, then FLUX generation
+ * Uses cache-first approach, then Unsplash, then FLUX generation, then fallback
  */
 export async function getIllustration(topic: string): Promise<ImageResult> {
   const prompt = extractImagePrompt(topic);
@@ -184,6 +203,10 @@ export async function getIllustration(topic: string): Promise<ImageResult> {
   if (!prompt) {
     throw new Error('Invalid topic provided for image generation');
   }
+
+  // Check if any image service is available
+  const hasUnsplash = !!process.env.UNSPLASH_ACCESS_KEY;
+  const hasReplicate = !!process.env.REPLICATE_API_TOKEN;
 
   try {
     // 1. Check cache first
@@ -197,7 +220,27 @@ export async function getIllustration(topic: string): Promise<ImageResult> {
       };
     }
 
-    // 2. Try Unsplash first (free and fast)
+    // 2. If no API services available, use placeholder
+    if (!hasUnsplash && !hasReplicate) {
+      console.log(`No image APIs configured, using placeholder for: ${prompt}`);
+      const placeholderResult = generatePlaceholderImage(prompt);
+      
+      // Save placeholder to cache
+      try {
+        await ImageCache.create({
+          prompt,
+          url: placeholderResult.url,
+          source: placeholderResult.source,
+          attribution: placeholderResult.attribution
+        });
+      } catch (cacheError: any) {
+        console.warn('Failed to cache placeholder image:', cacheError?.message || 'Unknown error');
+      }
+      
+      return placeholderResult;
+    }
+
+    // 3. Try Unsplash first (free and fast)
     console.log(`Searching Unsplash for: ${prompt}`);
     const unsplashResult = await tryUnsplash(prompt);
     
@@ -206,14 +249,18 @@ export async function getIllustration(topic: string): Promise<ImageResult> {
     if (unsplashResult) {
       finalResult = unsplashResult;
       console.log(`Found Unsplash image for: ${prompt}`);
-    } else {
-      // 3. Fallback to FLUX generation
+    } else if (hasReplicate) {
+      // 4. Fallback to FLUX generation
       console.log(`Generating FLUX image for: ${prompt}`);
       finalResult = await generateFlux(prompt);
       console.log(`Generated FLUX image for: ${prompt}`);
+    } else {
+      // 5. Final fallback to placeholder
+      console.log(`No suitable image found, using placeholder for: ${prompt}`);
+      finalResult = generatePlaceholderImage(prompt);
     }
 
-    // 4. Save to cache
+    // 6. Save to cache
     try {
       await ImageCache.create({
         prompt,
@@ -229,7 +276,10 @@ export async function getIllustration(topic: string): Promise<ImageResult> {
     return finalResult;
   } catch (error) {
     console.error(`Failed to get illustration for "${topic}":`, error);
-    throw error;
+    
+    // As a final fallback, return a placeholder image
+    console.log(`Using emergency placeholder for: ${prompt}`);
+    return generatePlaceholderImage(prompt);
   }
 }
 

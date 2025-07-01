@@ -401,7 +401,8 @@ export class CrewAIAgentExecutor implements AgentExecutor {
           console.log(`[CrewAIExecutor] ✅ Successfully stored ${sourceType} item ${i+1}`);
           
           // Enhance with relevant image (async, don't block the main flow)
-          enhanceNewsItemWithImage(newsItem, { skipExisting: true })
+          // Changed skipExisting to false to ensure all items get images
+          enhanceNewsItemWithImage(newsItem, { skipExisting: false })
             .then((enhancedItem) => {
               if (enhancedItem?.generatedImage) {
                 console.log(`[CrewAIExecutor] 🖼️ Enhanced news item with ${enhancedItem.generatedImage.source} image`);
@@ -410,10 +411,18 @@ export class CrewAIAgentExecutor implements AgentExecutor {
                   imageSource: enhancedItem.generatedImage.source,
                   imageUrl: enhancedItem.generatedImage.url
                 });
+              } else {
+                console.log(`[CrewAIExecutor] ⚠️ Image enhancement returned null for item: ${article.title}`);
               }
             })
             .catch((error) => {
               console.warn(`[CrewAIExecutor] Failed to enhance item with image: ${error.message}`);
+              // Log the specific error for debugging
+              run.addLog('warn', 'Image enhancement failed', {
+                title: article.title,
+                error: error.message,
+                suggestion: 'Check if REPLICATE_API_TOKEN or UNSPLASH_ACCESS_KEY are configured'
+              });
             });
 
           await run.addLog('info', 'Saved news article', {

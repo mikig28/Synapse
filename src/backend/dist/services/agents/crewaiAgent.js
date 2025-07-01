@@ -369,7 +369,9 @@ class CrewAINewsAgentExecutor {
                     }
                 });
                 console.log(`[CrewAI Agent] Health check response (attempt ${attempt}):`, response.data);
-                if (!response.data.initialized) {
+                // Support both old format (initialized) and new format (status)
+                const isHealthy = response.data.initialized === true || response.data.status === 'healthy';
+                if (!isHealthy) {
                     throw new Error('CrewAI service is not properly initialized');
                 }
                 console.log(`[CrewAI Agent] Health check passed on attempt ${attempt} - service is initialized`);
