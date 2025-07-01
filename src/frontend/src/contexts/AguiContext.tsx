@@ -45,7 +45,12 @@ export const AguiProvider: React.FC<AguiProviderProps> = ({
   const subscriptionsRef = useRef<AGUISubscription[]>([]);
 
   // Get backend URL from environment
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+  // In production, this should be your actual backend URL
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || 
+    import.meta.env.VITE_BACKEND_ROOT_URL ||
+    (window.location.hostname === 'localhost' 
+      ? 'http://localhost:3000' 
+      : 'https://synapse-backend-7lq6.onrender.com');
   
   // Get user ID from localStorage or other auth mechanism
   const getUserId = (): string | undefined => {

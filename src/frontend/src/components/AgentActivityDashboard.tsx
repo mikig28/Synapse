@@ -79,6 +79,7 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
     lastUpdate: new Date().toISOString()
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [agentProgress, setAgentProgress] = useState<Map<string, AgentProgress>>(new Map());
   const { toast } = useToast();
 
   // AG-UI Hooks for real-time updates
@@ -89,6 +90,7 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
   useEffect(() => {
     // Initial fetch of legacy data (still needed for historical runs)
     fetchRecentActivity();
+    fetchAgentProgress();
     
     // Update live metrics based on AG-UI events
     updateLiveMetrics();
