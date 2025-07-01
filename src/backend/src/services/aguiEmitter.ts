@@ -5,7 +5,7 @@ import {
   AGUIEventHandler, 
   AGUISubscription,
   SynapseAGUIEvent
-} from '../../../shared/aguiTypes';
+} from '../types/aguiTypes';
 
 /**
  * AG-UI Event Emitter Implementation
@@ -23,10 +23,10 @@ export class AGUIEmitter extends EventEmitter implements IAGUIEmitter {
   /**
    * Emit an AG-UI event to all subscribers
    */
-  emit(event: AGUIEvent): void {
+  emitEvent(event: AGUIEvent): void {
     if (!this.isEnabled) return;
 
-    const enhancedEvent: SynapseAGUIEvent = {
+    const enhancedEvent: AGUIEvent = {
       ...event,
       timestamp: event.timestamp || new Date().toISOString()
     };
@@ -64,9 +64,8 @@ export class AGUIEmitter extends EventEmitter implements IAGUIEmitter {
   emitToUser(userId: string, event: AGUIEvent): void {
     if (!this.isEnabled) return;
 
-    const enhancedEvent: SynapseAGUIEvent = {
+    const enhancedEvent: AGUIEvent = {
       ...event,
-      userId,
       timestamp: event.timestamp || new Date().toISOString()
     };
 
@@ -77,7 +76,7 @@ export class AGUIEmitter extends EventEmitter implements IAGUIEmitter {
       }
 
       // Also emit to general subscribers for logging/monitoring
-      this.emit(enhancedEvent);
+      this.emitEvent(enhancedEvent);
 
       console.log(`[AGUIEmitter] Emitted event to user ${userId}: ${event.type}`);
     } catch (error) {
@@ -91,9 +90,8 @@ export class AGUIEmitter extends EventEmitter implements IAGUIEmitter {
   emitToSession(sessionId: string, event: AGUIEvent): void {
     if (!this.isEnabled) return;
 
-    const enhancedEvent: SynapseAGUIEvent = {
+    const enhancedEvent: AGUIEvent = {
       ...event,
-      sessionId,
       timestamp: event.timestamp || new Date().toISOString()
     };
 
@@ -104,7 +102,7 @@ export class AGUIEmitter extends EventEmitter implements IAGUIEmitter {
       }
 
       // Also emit to general subscribers
-      this.emit(enhancedEvent);
+      this.emitEvent(enhancedEvent);
 
       console.log(`[AGUIEmitter] Emitted event to session ${sessionId}: ${event.type}`);
     } catch (error) {
@@ -202,7 +200,7 @@ export class AGUIEmitter extends EventEmitter implements IAGUIEmitter {
 export const agui = new AGUIEmitter();
 
 // Export convenience functions
-export const emitAGUIEvent = (event: AGUIEvent) => agui.emit(event);
+export const emitAGUIEvent = (event: AGUIEvent) => agui.emitEvent(event);
 export const emitToUser = (userId: string, event: AGUIEvent) => agui.emitToUser(userId, event);
 export const emitToSession = (sessionId: string, event: AGUIEvent) => agui.emitToSession(sessionId, event);
 export const subscribeToAGUI = (handler: AGUIEventHandler) => agui.subscribe(handler);
