@@ -224,14 +224,16 @@ app.get('/api/v1/ag-ui/test-event', (req: Request, res: Response) => {
   try {
     console.log('[AG-UI Test] Manually emitting test event');
     
-    // Emit a test event
+    // Emit a test event using proper AG-UI event structure
     agui.emitEvent({
-      type: 'AGENT_MESSAGE' as any,
+      type: 'TEXT_MESSAGE_CONTENT',
       timestamp: new Date().toISOString(),
-      agentId: 'test-agent',
-      message: 'This is a test AG-UI event',
-      metadata: {
+      messageId: 'test-message-' + Date.now(),
+      delta: 'This is a test AG-UI event from the backend',
+      rawEvent: {
+        agentId: 'test-agent',
         source: 'manual-test',
+        message: 'Test event successfully triggered',
         timestamp: new Date().toISOString()
       }
     });
