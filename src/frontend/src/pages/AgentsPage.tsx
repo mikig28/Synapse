@@ -50,6 +50,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AguiTestButton } from '@/components/AguiTestButton';
 
 const AgentsPage: React.FC = () => {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -435,6 +436,9 @@ const AgentsPage: React.FC = () => {
         
         {/* AG-UI Status Bar */}
         <AguiStatusBar />
+        
+        {/* AG-UI Test Panel for debugging */}
+        <AguiTestButton />
         
         {/* Header */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">

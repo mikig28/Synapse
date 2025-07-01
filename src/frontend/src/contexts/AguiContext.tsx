@@ -74,6 +74,7 @@ export const AguiProvider: React.FC<AguiProviderProps> = ({
   // Initialize AG-UI client
   useEffect(() => {
     console.log('[AguiProvider] Initializing AG-UI client...');
+    console.log('[AguiProvider] Backend URL:', backendUrl);
     
     const clientConfig: AGUIClientConfig = {
       endpoint: backendUrl,
@@ -84,6 +85,13 @@ export const AguiProvider: React.FC<AguiProviderProps> = ({
       ...config
     };
 
+    console.log('[AguiProvider] AG-UI Client Config:', {
+      endpoint: clientConfig.endpoint,
+      userId: clientConfig.userId,
+      sessionId: clientConfig.sessionId,
+      hasUser: !!clientConfig.userId
+    });
+
     const aguiClient = new AGUIClient(clientConfig);
     setClient(aguiClient);
 
@@ -91,7 +99,7 @@ export const AguiProvider: React.FC<AguiProviderProps> = ({
     const globalSubscription = aguiClient.subscribe('*', (event) => {
       setLastEvent(event);
       setEventCount(prev => prev + 1);
-      console.log('[AguiProvider] Received AG-UI event:', event.type);
+      console.log('[AguiProvider] Received AG-UI event:', event.type, event);
     });
 
     subscriptionsRef.current.push(globalSubscription);
@@ -99,11 +107,16 @@ export const AguiProvider: React.FC<AguiProviderProps> = ({
     // Monitor connection state
     const connectionMonitor = setInterval(() => {
       const state = aguiClient.getConnectionState();
-      setConnectionState(state);
+      const currentState = connectionState;
+      if (state !== currentState) {
+        console.log(`[AguiProvider] Connection state changed: ${currentState} -> ${state}`);
+        setConnectionState(state);
+      }
     }, 1000);
 
     // Auto-connect if enabled
     if (autoConnect) {
+      console.log('[AguiProvider] Auto-connecting to AG-UI...');
       aguiClient.connect().catch(error => {
         console.error('[AguiProvider] Auto-connect failed:', error);
       });
