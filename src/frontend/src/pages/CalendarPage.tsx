@@ -73,6 +73,16 @@ interface CalendarEvent {
 }
 
 // Helper function to compare dates by UTC values to avoid timezone issues
+// Use local date comparison instead of UTC to fix drag/drop timezone issues
+const isSameLocalDate = (dateLeft: Date, dateRight: Date): boolean => {
+  return (
+    dateLeft.getFullYear() === dateRight.getFullYear() &&
+    dateLeft.getMonth() === dateRight.getMonth() &&
+    dateLeft.getDate() === dateRight.getDate()
+  );
+};
+
+// Keep UTC date comparison for backward compatibility if needed
 const isSameUTCDate = (dateLeft: Date, dateRight: Date): boolean => {
   return (
     dateLeft.getUTCFullYear() === dateRight.getUTCFullYear() &&
@@ -237,10 +247,6 @@ export default function CalendarPage() { // Renamed from Home for clarity
   const [dragOverDate, setDragOverDate] = useState<Date | null>(null);
   const [dragOverTimeSlot, setDragOverTimeSlot] = useState<number | null>(null); // To store the hour
   const [isDragOver, setIsDragOver] = useState(false); // To indicate if a drag is actively over a valid slot
-  
-  // Debug state
-  const [debugInfo, setDebugInfo] = useState<string>('No drag activity yet');
-  const [lastDropInfo, setLastDropInfo] = useState<string>('No drops yet');
 
   // State for resizing events - enhanced with preview state
   const [resizingEvent, setResizingEvent] = useState<{ 
@@ -1750,16 +1756,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
             </div>
           </div>
 
-          {/* Debug Panel */}
-          <div className="bg-red-500/20 backdrop-blur-lg rounded-lg border border-red-500/30 p-3 mx-4 mb-2">
-            <div className="text-red-300 text-sm font-bold mb-2">🔧 DEBUG INFO</div>
-            <div className="text-white text-xs space-y-1">
-              <div><strong>Current Activity:</strong> {debugInfo}</div>
-              <div><strong>Last Drop:</strong> {lastDropInfo}</div>
-              <div><strong>Dragged Event:</strong> {draggedEvent ? `${draggedEvent.title} (${format(draggedEvent.startTime, 'MM/dd HH:mm')})` : 'None'}</div>
-              <div><strong>Drop Target:</strong> {dragOverDate && dragOverTimeSlot ? `${format(dragOverDate, 'MM/dd EEEE')} at ${dragOverTimeSlot}:00` : 'None'}</div>
-            </div>
-          </div>
+
 
           {/* Week View / Day View / Month View Container */}
           <div className="flex-1 overflow-auto p-4">
@@ -1843,7 +1840,6 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                 setDragOverDate(currentSlotDate);
                                 setDragOverTimeSlot(currentSlotHour);
                                 setIsDragOver(true);
-                                setDebugInfo(`DRAG OVER: Day ${dayIndex} (${format(currentSlotDate, 'MM/dd EEEE')}) at ${currentSlotHour}:00`);
                               }
                             }}
                             onDragLeave={() => {
@@ -1904,7 +1900,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                   actualTime: format(newStartTime, 'HH:mm')
                                 });
                                 
-                                setLastDropInfo(`DROP: ${draggedEvent.title} from ${format(draggedEvent.startTime, 'MM/dd HH:mm')} to ${format(newStartTime, 'MM/dd HH:mm')} (Expected: ${format(dragOverDate, 'MM/dd')} ${dragOverTimeSlot}:00)`);
+
                                 
                                 const newEndTime = new Date(newStartTime.getTime() + duration);
 
@@ -1949,7 +1945,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                       })}
                       {(() => {
                         const safeEvents = getSafeEvents(events);
-                        const dayEvents = safeEvents.filter((event) => isSameUTCDate(event.startTime, weekDates[dayIndex]));
+                        const dayEvents = safeEvents.filter((event) => isSameLocalDate(event.startTime, weekDates[dayIndex]));
                         // Only log for today to reduce noise
                         if (dayIndex === 0 && isToday(weekDates[dayIndex])) {
                           console.log(`[WEEK DEBUG] Today's events:`, {
@@ -1969,7 +1965,6 @@ export default function CalendarPage() { // Renamed from Home for clarity
                               onDragStart={() => {
                                 console.log('🚀 [DRAG START] Event:', event.title);
                                 document.title = `🔄 Dragging: ${event.title}`;
-                                setDebugInfo(`DRAG START: ${event.title} from ${format(event.startTime, 'MM/dd HH:mm')}`);
                                 setDraggedEvent(event);
                                 setIsDraggingEvent(true);
                               }}
@@ -2277,7 +2272,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                     })}
                     {(() => {
                       const safeEvents = getSafeEvents(events);
-                      const dayEvents = safeEvents.filter((event) => isSameUTCDate(event.startTime, currentDisplayDate));
+                      const dayEvents = safeEvents.filter((event) => isSameLocalDate(event.startTime, currentDisplayDate));
                       console.log(`[DAY DEBUG] Events for ${currentDisplayDate.toDateString()}:`, {
                         totalEvents: events.length,
                         safeEvents: safeEvents.length,
@@ -2505,8 +2500,17 @@ export default function CalendarPage() { // Renamed from Home for clarity
                             // Consider if dragOverDate should be cleared here or only onDragEnd/onDrop
                           }
                         }}
-                        onDrop={() => {
+                        onDrop={async () => {
                           if (draggedEvent && dragOverDate) {
+                            console.log('[Frontend] Month view drop event triggered', {
+                              draggedEvent: draggedEvent.title,
+                              dragOverDate: format(dragOverDate, 'yyyy-MM-dd EEEE'),
+                              originalEventTime: {
+                                start: format(draggedEvent.startTime, 'yyyy-MM-dd HH:mm'),
+                                end: format(draggedEvent.endTime, 'yyyy-MM-dd HH:mm')
+                              }
+                            });
+
                             // Create new dates using explicit constructor to avoid timezone issues
                             const newStartDate = new Date(
                               dragOverDate.getFullYear(),
@@ -2534,17 +2538,36 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                 newEndDate.setDate(newEndDate.getDate() + (draggedEvent.endTime.getDate() - draggedEvent.startTime.getDate()));
                             }
 
-                            setEvents(prevEvents =>
-                              prevEvents.map(e =>
-                                e.id === draggedEvent.id
-                                  ? { ...e, startTime: newStartDate, endTime: newEndDate }
-                                  : e
-                              )
-                            );
+                            console.log('[Frontend] Month view attempting to move event:', {
+                              eventTitle: draggedEvent.title,
+                              from: {
+                                startTime: draggedEvent.startTime,
+                                endTime: draggedEvent.endTime
+                              },
+                              to: {
+                                startTime: newStartDate,
+                                endTime: newEndDate
+                              }
+                            });
+
+                            // Use our safe update function instead of direct state manipulation
+                            const success = await updateEventSafely(draggedEvent, newStartDate, newEndDate);
+                            
+                            if (success) {
+                              toast({
+                                title: "Event Moved",
+                                description: `"${draggedEvent.title}" has been moved successfully.`,
+                              });
+                              
+
+                            }
+                            
+                            // Clear drag states
                             setDraggedEvent(null);
                             setDragOverDate(null);
                             setDragOverTimeSlot(null); // Clear this as it's not relevant for month drop
                             setIsDragOver(false);
+                            setIsDraggingEvent(false);
                           }
                         }}
                       >
@@ -2556,7 +2579,26 @@ export default function CalendarPage() { // Renamed from Home for clarity
                             .map(event => (
                               <div 
                                 key={event.id} 
-                                className={`${event.color} rounded px-1 py-0.5 text-white truncate cursor-pointer hover:opacity-80 group relative`}
+                                draggable
+                                onDragStart={(e) => {
+                                  e.stopPropagation();
+                                  console.log('[Frontend] Month view drag start for event:', event.title);
+                                  setDraggedEvent(event);
+                                  setIsDraggingEvent(true);
+                                }}
+                                onDragEnd={(e) => {
+                                  e.stopPropagation();
+                                  console.log('[Frontend] Month view drag end for event');
+                                  document.title = 'Calendar - Synapse';
+                                  setDraggedEvent(null);
+                                  setIsDraggingEvent(false);
+                                  if (!resizingEvent) {
+                                    setDragOverDate(null);
+                                    setDragOverTimeSlot(null);
+                                  }
+                                  setIsDragOver(false);
+                                }}
+                                className={`${event.color} rounded px-1 py-0.5 text-white truncate ${draggedEvent?.id === event.id ? 'opacity-50 cursor-grabbing' : 'cursor-pointer hover:opacity-80'} group relative`}
                                 onClick={(e) => { e.stopPropagation(); handleEventClick(event); }}
                               >
                                 <span className="truncate">{event.title}</span>
