@@ -562,4 +562,18 @@ const startServer = async () => {
       console.log(`📦 Environment PORT: ${process.env.PORT || 'not set'}`);
       console.log(`🔧 NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
       console.log(`✅ Health check available at: http://0.0.0.0:${PORT}/health`);
-      console.log(`
+      console.log(`🎯 RENDER DEPLOYMENT READY - Service is accessible!`);
+      // The "[mongoose]: Mongoose connected to DB" log from database.ts confirms success
+    });
+  } catch (error) {
+    console.error('[server]: Failed to start server or connect to database', error);
+    process.exit(1);
+  }
+};
+
+startServer();
+
+// Export io instance so it can be used in other modules (e.g., telegramService)
+export { io };
+
+export default app; // Optional: export app for testing purposes
