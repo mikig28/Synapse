@@ -90,7 +90,8 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
   useEffect(() => {
     // Initial fetch of legacy data (still needed for historical runs)
     fetchRecentActivity();
-    fetchAgentProgress();
+    // Disabled polling for agent progress - using AG-UI events instead
+    // fetchAgentProgress();
     
     // Update live metrics based on AG-UI events
     updateLiveMetrics();
@@ -401,7 +402,7 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
             size="sm"
             onClick={() => {
               fetchRecentActivity();
-              fetchAgentProgress();
+              // Removed fetchAgentProgress - using AG-UI events
             }}
             disabled={isRefreshing}
           >
@@ -618,15 +619,15 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
                         {(progress.errorType === 'service_down' || progress.errorType === 'connection_error') && (
                           <button 
                             onClick={() => {
-                              fetchAgentProgress();
+                              // Disabled manual retry - using AG-UI real-time updates
                               toast({
-                                title: 'Retrying Connection',
-                                description: 'Attempting to reconnect to CrewAI service...',
+                                title: 'Using AG-UI',
+                                description: 'Real-time updates via AG-UI protocol. No manual refresh needed.',
                               });
                             }}
                             className="ml-auto text-xs underline hover:no-underline"
                           >
-                            Retry
+                            AG-UI Active
                           </button>
                         )}
                       </div>
