@@ -22,6 +22,9 @@ export class AGUIClient implements IAGUIClient {
   private reconnectDelay = 1000; // Start with 1 second
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private lastEventTime = Date.now();
+  private reconnectTimeout: NodeJS.Timeout | null = null;
+  private isConnected = false;
+  private currentSessionId: string | null = null;
 
   constructor(config: AGUIClientConfig) {
     this.config = {
@@ -299,5 +302,98 @@ export class AGUIClient implements IAGUIClient {
       subscriberCount: this.getSubscriberCount(),
       lastEventTime: this.lastEventTime
     };
+  }
+
+  private createEventSource(sessionId: string): EventSource {
+    const url = new URL(`${this.config.endpoint}/api/v1/ag-ui/events`);
+    url.searchParams.append('sessionId', sessionId);
+
+    console.log('[AG-UI Client] Creating EventSource:', url.toString());
+    
+    const eventSource = new EventSource(url.toString());
+
+    eventSource.onopen = () => {
+      console.log('[AG-UI Client] EventSource connected');
+      this.connectionState = 'connected';
+      this.reconnectAttempts = 0;
+      this.isConnected = true;
+      this.notifyStatusListeners();
+      
+      // Clear any existing reconnect timeout
+      if (this.reconnectTimeout) {
+        clearTimeout(this.reconnectTimeout);
+        this.reconnectTimeout = null;
+      }
+    };
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('[AG-UI Client] Received event:', data.type);
+        
+        if (data.type === 'CONNECTION_ESTABLISHED') {
+          console.log('[AG-UI Client] Connection established with server');
+        } else {
+          this.handleEvent(data);
+        }
+      } catch (error) {
+        console.error('[AG-UI Client] Error parsing event:', error);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('[AG-UI Client] EventSource error:', error);
+      this.connectionState = 'error';
+      this.isConnected = false;
+      this.notifyStatusListeners();
+
+      // Close the current event source
+      eventSource.close();
+      
+      // Check if this is a 503 error (service unavailable)
+      const isServiceUnavailable = (error as any)?.status === 503 || 
+                                  (error as any)?.target?.readyState === EventSource.CLOSED;
+      
+      if (isServiceUnavailable) {
+        console.warn('[AG-UI Client] Backend service unavailable (503). Will retry with longer delay.');
+      }
+
+      // Attempt to reconnect with exponential backoff
+      if (this.reconnectAttempts < this.config.reconnectAttempts!) {
+        this.reconnectAttempts++;
+        const baseDelay = isServiceUnavailable ? 10000 : 3000; // 10s for 503, 3s for other errors
+        const delay = Math.min(baseDelay * Math.pow(2, this.reconnectAttempts - 1), 60000);
+        
+        console.log(`[AG-UI Client] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.config.reconnectAttempts})`);
+        this.connectionState = 'reconnecting';
+        this.notifyStatusListeners();
+
+        this.reconnectTimeout = setTimeout(() => {
+          if (this.currentSessionId && !this.eventSource) {
+            console.log('[AG-UI Client] Attempting reconnection...');
+            this.eventSource = this.createEventSource(this.currentSessionId);
+          }
+        }, delay);
+      } else {
+        console.error('[AG-UI Client] Max reconnection attempts reached. Please refresh the page.');
+        this.connectionState = 'disconnected';
+        this.notifyStatusListeners();
+        
+        // Notify user of connection issues
+        if (this.subscribers.size > 0) {
+          this.notifySubscribers({
+            type: 'CONNECTION_LOST',
+            timestamp: new Date().toISOString(),
+            error: 'Unable to connect to AG-UI service. The backend may be restarting.',
+            rawEvent: { 
+              message: 'Connection lost. Please check if the backend service is running.',
+              severity: 'error'
+            }
+          } as AGUIEvent);
+        }
+      }
+    };
+
+    return eventSource;
   }
 }
