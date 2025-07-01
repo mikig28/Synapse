@@ -14,6 +14,7 @@ import {
   enhanceRecentNews,
   getImageStats,
   generateTestImage,
+  enhanceAnalysisReports,
 } from '../controllers/newsController';
 
 const router = express.Router();
@@ -38,6 +39,7 @@ router.post('/:newsId/archive', archiveNewsItem);
 // Image enhancement endpoints
 router.post('/:newsId/enhance-image', enhanceNewsWithImage);
 router.post('/enhance/recent', enhanceRecentNews);
+router.post('/enhance/analysis-reports', enhanceAnalysisReports);
 router.get('/images/stats', getImageStats);
 router.post('/images/test', generateTestImage);
 

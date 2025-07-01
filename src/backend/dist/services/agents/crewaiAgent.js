@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CrewAINewsAgentExecutor = void 0;
 const axios_1 = __importDefault(require("axios"));
 const NewsItem_1 = __importDefault(require("../../models/NewsItem"));
+const newsEnhancementService_1 = require("../newsEnhancementService");
 class CrewAINewsAgentExecutor {
     constructor() {
         // CrewAI service URL - should be configurable via environment
@@ -369,7 +370,9 @@ class CrewAINewsAgentExecutor {
                     }
                 });
                 console.log(`[CrewAI Agent] Health check response (attempt ${attempt}):`, response.data);
-                if (!response.data.initialized) {
+                // Support both old format (initialized) and new format (status)
+                const isHealthy = response.data.initialized === true || response.data.status === 'healthy';
+                if (!isHealthy) {
                     throw new Error('CrewAI service is not properly initialized');
                 }
                 console.log(`[CrewAI Agent] Health check passed on attempt ${attempt} - service is initialized`);
@@ -833,6 +836,23 @@ Using fallback test crew to demonstrate dashboard functionality.`);
         });
         try {
             await analysisItem.save();
+            // Enhance analysis report with a relevant image
+            try {
+                const enhancedItem = await (0, newsEnhancementService_1.enhanceNewsItemWithImage)(analysisItem, { skipExisting: false });
+                if (enhancedItem?.generatedImage) {
+                    console.log(`[CrewAI Agent] ✅ Enhanced analysis report with ${enhancedItem.generatedImage.source} image`);
+                    await run.addLog('info', 'Enhanced analysis report with image', {
+                        imageSource: enhancedItem.generatedImage.source,
+                        imageUrl: enhancedItem.generatedImage.url
+                    });
+                }
+            }
+            catch (imageError) {
+                console.warn(`[CrewAI Agent] Failed to enhance analysis report with image: ${imageError.message}`);
+                await run.addLog('warn', 'Failed to enhance analysis report with image', {
+                    error: imageError.message
+                });
+            }
         }
         catch (error) {
             console.error('[CrewAI Agent] Failed to save analysis report NewsItem:', {

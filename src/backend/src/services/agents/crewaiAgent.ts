@@ -2,6 +2,7 @@ import axios from 'axios';
 import { AgentExecutor, AgentExecutionContext } from '../agentService';
 import NewsItem from '../../models/NewsItem';
 import mongoose from 'mongoose';
+import { enhanceNewsItemWithImage } from '../newsEnhancementService';
 
 interface CrewAINewsRequest {
   topics?: string[];
@@ -1005,6 +1006,23 @@ Using fallback test crew to demonstrate dashboard functionality.`);
 
     try {
       await analysisItem.save();
+      
+      // Enhance analysis report with a relevant image
+      try {
+        const enhancedItem = await enhanceNewsItemWithImage(analysisItem, { skipExisting: false });
+        if (enhancedItem?.generatedImage) {
+          console.log(`[CrewAI Agent] ✅ Enhanced analysis report with ${enhancedItem.generatedImage.source} image`);
+          await run.addLog('info', 'Enhanced analysis report with image', {
+            imageSource: enhancedItem.generatedImage.source,
+            imageUrl: enhancedItem.generatedImage.url
+          });
+        }
+      } catch (imageError: any) {
+        console.warn(`[CrewAI Agent] Failed to enhance analysis report with image: ${imageError.message}`);
+        await run.addLog('warn', 'Failed to enhance analysis report with image', {
+          error: imageError.message
+        });
+      }
     } catch (error: any) {
       console.error('[CrewAI Agent] Failed to save analysis report NewsItem:', {
         error: error.message,

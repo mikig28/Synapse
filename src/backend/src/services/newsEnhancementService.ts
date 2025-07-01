@@ -143,6 +143,11 @@ export async function enhanceRecentNewsItems(
  * Extracts the most relevant keywords and concepts for visual representation
  */
 function generateImagePrompt(newsItem: INewsItem): string | null {
+  // Special handling for CrewAI analysis reports
+  if (newsItem.source?.id === 'crewai_analysis') {
+    return 'AI artificial intelligence data analysis dashboard charts graphs business intelligence professional technology modern digital';
+  }
+  
   // Extract key entities and concepts from title and description
   const fullText = `${newsItem.title} ${newsItem.description || ''}`.toLowerCase();
   

@@ -20,4 +20,10 @@ router.delete('/:newsId', newsController_1.deleteNewsItem);
 router.post('/:newsId/read', newsController_1.markAsRead);
 router.post('/:newsId/favorite', newsController_1.toggleFavorite);
 router.post('/:newsId/archive', newsController_1.archiveNewsItem);
+// Image enhancement endpoints
+router.post('/:newsId/enhance-image', newsController_1.enhanceNewsWithImage);
+router.post('/enhance/recent', newsController_1.enhanceRecentNews);
+router.post('/enhance/analysis-reports', newsController_1.enhanceAnalysisReports);
+router.get('/images/stats', newsController_1.getImageStats);
+router.post('/images/test', newsController_1.generateTestImage);
 exports.default = router;

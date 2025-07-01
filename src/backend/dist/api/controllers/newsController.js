@@ -3,9 +3,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.bulkMarkAsRead = exports.getNewsStatistics = exports.getNewsCategories = exports.archiveNewsItem = exports.deleteNewsItem = exports.toggleFavorite = exports.markAsRead = exports.getNewsItemById = exports.getNewsItems = void 0;
+exports.enhanceAnalysisReports = exports.generateTestImage = exports.getImageStats = exports.enhanceRecentNews = exports.enhanceNewsWithImage = exports.bulkMarkAsRead = exports.getNewsStatistics = exports.getNewsCategories = exports.archiveNewsItem = exports.deleteNewsItem = exports.toggleFavorite = exports.markAsRead = exports.getNewsItemById = exports.getNewsItems = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 const NewsItem_1 = __importDefault(require("../../models/NewsItem"));
+const newsEnhancementService_1 = require("../../services/newsEnhancementService");
+const imageService_1 = require("../../services/imageService");
 // Get all news items for the authenticated user with pagination
 const getNewsItems = async (req, res) => {
     try {
@@ -13,6 +15,7 @@ const getNewsItems = async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const category = req.query.category;
+        const source = req.query.source;
         const isRead = req.query.isRead;
         const isFavorite = req.query.isFavorite;
         const search = req.query.search;
@@ -25,6 +28,9 @@ const getNewsItems = async (req, res) => {
         const filter = { userId: new mongoose_1.default.Types.ObjectId(userId) };
         if (category) {
             filter.category = category;
+        }
+        if (source) {
+            filter['source.id'] = source;
         }
         if (isRead !== undefined) {
             filter.isRead = isRead === 'true';
@@ -354,3 +360,167 @@ const bulkMarkAsRead = async (req, res) => {
     }
 };
 exports.bulkMarkAsRead = bulkMarkAsRead;
+// NEW: Image Enhancement Endpoints
+/**
+ * Enhance a specific news item with an image
+ */
+const enhanceNewsWithImage = async (req, res) => {
+    try {
+        const { newsId } = req.params;
+        const { force = false } = req.body;
+        const userId = req.user.id;
+        const newsItem = await NewsItem_1.default.findOne({ _id: newsId, userId });
+        if (!newsItem) {
+            res.status(404).json({
+                success: false,
+                error: 'News item not found',
+            });
+            return;
+        }
+        const enhancedItem = await (0, newsEnhancementService_1.enhanceNewsItemWithImage)(newsItem, {
+            skipExisting: !force
+        });
+        if (!enhancedItem) {
+            res.status(400).json({
+                success: false,
+                error: 'Failed to enhance news item with image',
+            });
+            return;
+        }
+        res.json({
+            success: true,
+            data: enhancedItem,
+            message: `Enhanced with ${enhancedItem.generatedImage?.source} image`
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Failed to enhance news item',
+            details: error.message,
+        });
+    }
+};
+exports.enhanceNewsWithImage = enhanceNewsWithImage;
+/**
+ * Enhance recent news items with images
+ */
+const enhanceRecentNews = async (req, res) => {
+    try {
+        const { hoursBack = 24, batchSize = 5, skipExisting = true } = req.body;
+        const userId = req.user.id;
+        const result = await (0, newsEnhancementService_1.enhanceRecentNewsItems)(userId, hoursBack, {
+            batchSize,
+            skipExisting
+        });
+        res.json({
+            success: true,
+            data: result,
+            message: `Enhanced ${result.enhanced} news items with images`
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Failed to enhance recent news items',
+            details: error.message,
+        });
+    }
+};
+exports.enhanceRecentNews = enhanceRecentNews;
+/**
+ * Get image enhancement statistics
+ */
+const getImageStats = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const stats = await (0, newsEnhancementService_1.getImageEnhancementStats)(userId);
+        res.json({
+            success: true,
+            data: stats
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get image enhancement statistics',
+            details: error.message,
+        });
+    }
+};
+exports.getImageStats = getImageStats;
+/**
+ * Generate a test image for a given prompt
+ */
+const generateTestImage = async (req, res) => {
+    try {
+        const { prompt } = req.body;
+        if (!prompt) {
+            res.status(400).json({
+                success: false,
+                error: 'Prompt is required',
+            });
+            return;
+        }
+        const imageResult = await (0, imageService_1.getIllustration)(prompt);
+        res.json({
+            success: true,
+            data: imageResult,
+            message: `Generated ${imageResult.source} image for prompt: ${prompt}`
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Failed to generate test image',
+            details: error.message,
+        });
+    }
+};
+exports.generateTestImage = generateTestImage;
+/**
+ * Enhance existing analysis reports with images
+ */
+const enhanceAnalysisReports = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { force = false } = req.body;
+        // Find analysis reports without images
+        const filter = {
+            userId: new mongoose_1.default.Types.ObjectId(userId),
+            'source.id': 'crewai_analysis'
+        };
+        if (!force) {
+            filter['generatedImage.url'] = { $exists: false };
+        }
+        const analysisReports = await NewsItem_1.default.find(filter)
+            .sort({ createdAt: -1 })
+            .limit(20); // Limit to 20 most recent reports
+        if (analysisReports.length === 0) {
+            res.json({
+                success: true,
+                data: { enhanced: 0, failed: 0, skipped: 0 },
+                message: 'No analysis reports found to enhance'
+            });
+            return;
+        }
+        const result = await (0, newsEnhancementService_1.enhanceNewsItemsBatch)(analysisReports, {
+            batchSize: 3,
+            skipExisting: !force,
+            maxRetries: 2
+        });
+        res.json({
+            success: true,
+            data: result,
+            message: `Enhanced ${result.enhanced} analysis reports with images`
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Failed to enhance analysis reports',
+            details: error.message,
+        });
+    }
+};
+exports.enhanceAnalysisReports = enhanceAnalysisReports;

@@ -530,3 +530,54 @@ export const generateTestImage = async (req: AuthenticatedRequest, res: Response
     });
   }
 };
+
+/**
+ * Enhance existing analysis reports with images
+ */
+export const enhanceAnalysisReports = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const { force = false } = req.body;
+
+    // Find analysis reports without images
+    const filter: any = {
+      userId: new mongoose.Types.ObjectId(userId),
+      'source.id': 'crewai_analysis'
+    };
+
+    if (!force) {
+      filter['generatedImage.url'] = { $exists: false };
+    }
+
+    const analysisReports = await NewsItem.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(20); // Limit to 20 most recent reports
+
+    if (analysisReports.length === 0) {
+      res.json({
+        success: true,
+        data: { enhanced: 0, failed: 0, skipped: 0 },
+        message: 'No analysis reports found to enhance'
+      });
+      return;
+    }
+
+    const result = await enhanceNewsItemsBatch(analysisReports, {
+      batchSize: 3,
+      skipExisting: !force,
+      maxRetries: 2
+    });
+
+    res.json({
+      success: true,
+      data: result,
+      message: `Enhanced ${result.enhanced} analysis reports with images`
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to enhance analysis reports',
+      details: error.message,
+    });
+  }
+};
