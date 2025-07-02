@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, Suspense } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF, Text, Html } from '@react-three/drei';
 import { Group, AnimationMixer, AnimationAction } from 'three';
