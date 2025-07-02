@@ -32,6 +32,7 @@ export default defineConfig({
     },
   },
   server: {
+    port: 5173,
     proxy: {
       '/api/v1': {
         target: 'http://localhost:3001',
@@ -43,9 +44,16 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // Animation libraries
-          if (id.includes('framer-motion')) {
-            return 'framer-motion';
+          // Keep problematic libraries in main chunk to avoid TDZ issues
+          if (id.includes('framer-motion') || id.includes('motion-dom') || 
+              id.includes('micromark') || id.includes('devlop') ||
+              id.includes('zustand')) {
+            return undefined; // Keep in main chunk to avoid initialization errors
+          }
+          
+          // Three.js related - keep together to avoid conflicts
+          if (id.includes('three') || id.includes('@react-three')) {
+            return undefined; // Keep in main chunk for now
           }
           
           // Icon libraries
@@ -61,11 +69,6 @@ export default defineConfig({
           // React ecosystem
           if (id.includes('react-router')) {
             return 'react-router';
-          }
-          
-          // State management
-          if (id.includes('zustand')) {
-            return 'zustand';
           }
           
           // Utility libraries
@@ -100,9 +103,15 @@ export default defineConfig({
       'react',
       'react-dom',
       'react-router-dom',
-      'framer-motion',
       'lucide-react',
       'zustand',
+      'three',
+      '@react-three/fiber',
+      '@react-three/drei'
     ],
+    exclude: [
+      'framer-motion',
+      'motion-dom'
+    ], // Prevent ESM version conflicts
   },
 }) 
