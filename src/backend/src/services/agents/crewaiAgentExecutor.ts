@@ -352,7 +352,10 @@ export class CrewAIAgentExecutor implements AgentExecutor {
             content: article.content || article.summary || article.text || '',
             summary: article.summary || article.content?.substring(0, 300) + '...' || article.text?.substring(0, 300) + '...' || '',
             url: article.url_cleaned || article.url || article.external_url || '',
-            source: this.determineActualSource(article, sourceType),
+            source: {
+              id: 'crewai_analysis',
+              name: this.determineActualSource(article, sourceType)
+            },
             author: article.author || 'Unknown',
             publishedDate: article.published_date ? new Date(article.published_date) : 
                           article.timestamp ? new Date(article.timestamp) :
