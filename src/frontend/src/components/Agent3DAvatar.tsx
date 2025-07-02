@@ -14,8 +14,19 @@ export function Agent3DAvatar({ agent, position }: Agent3DAvatarProps) {
   const mixerRef = useRef<AnimationMixer | null>(null);
   const actionsRef = useRef<{ [key: string]: AnimationAction }>({});
   
-  // Load the GLB model
-  const { scene, animations } = useGLTF('/models/robot_avatar.glb');
+  // Load the GLB model with error handling
+  let scene: Group | null = null;
+  let animations: any[] = [];
+  
+  try {
+    const gltf = useGLTF('/models/robot_avatar.glb');
+    scene = gltf.scene;
+    animations = gltf.animations || [];
+  } catch (error) {
+    console.warn('Failed to load 3D model, using fallback:', error);
+    scene = null;
+    animations = [];
+  }
   
   // Status colors
   const getStatusColor = (status: string) => {
@@ -103,13 +114,25 @@ export function Agent3DAvatar({ agent, position }: Agent3DAvatarProps) {
 
   return (
     <group ref={groupRef} position={position}>
-      {/* Avatar Model */}
-      <primitive 
-        object={scene.clone()} 
-        scale={1.5}
-        castShadow
-        receiveShadow
-      />
+      {/* Avatar Model or Fallback */}
+      {scene ? (
+        <primitive 
+          object={scene.clone()} 
+          scale={1.5}
+          castShadow
+          receiveShadow
+        />
+      ) : (
+        // Fallback geometric representation
+        <mesh castShadow receiveShadow>
+          <boxGeometry args={[1, 2, 1]} />
+          <meshStandardMaterial 
+            color={getStatusColor(agent.status)} 
+            metalness={0.3}
+            roughness={0.7}
+          />
+        </mesh>
+      )}
       
       {/* Status Indicator Ring */}
       <mesh position={[0, -1.5, 0]} rotation={[-Math.PI / 2, 0, 0]}>

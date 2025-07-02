@@ -4,8 +4,8 @@ import { OrbitControls, Environment, Html } from '@react-three/drei';
 import { Agent3DAvatar } from './Agent3DAvatar';
 import { ThreeErrorBoundary } from './ThreeErrorBoundary';
 import { AgentStatus } from '../types/aguiTypes';
-import { detectWebGLSupport } from '../utils/webglSupport';
-import { AlertCircle, Box } from 'lucide-react';
+import { detectWebGLSupport, getWebGLInfo } from '../utils/webglSupport';
+import { AlertCircle, Box, RefreshCw } from 'lucide-react';
 
 interface AgentVisualization3DProps {
   agents: AgentStatus[];
@@ -22,17 +22,39 @@ function Loading() {
 
 export function AgentVisualization3D({ agents, className }: AgentVisualization3DProps) {
   const [webglSupported, setWebglSupported] = useState<boolean | null>(null);
+  const [webglInfo, setWebglInfo] = useState<any>(null);
+  const [retryCount, setRetryCount] = useState(0);
+
+  const checkWebGLSupport = () => {
+    const supported = detectWebGLSupport();
+    const info = getWebGLInfo();
+    
+    console.log('WebGL Support Check:', { supported, info });
+    
+    setWebglSupported(supported);
+    setWebglInfo(info);
+  };
 
   useEffect(() => {
-    setWebglSupported(detectWebGLSupport());
-  }, []);
+    // Add a small delay to ensure DOM is ready
+    const timer = setTimeout(checkWebGLSupport, 100);
+    return () => clearTimeout(timer);
+  }, [retryCount]);
+
+  const handleRetry = () => {
+    setWebglSupported(null);
+    setRetryCount(prev => prev + 1);
+  };
 
   if (webglSupported === null) {
     return (
       <div className={`w-full h-full flex items-center justify-center ${className}`}>
         <div className="text-center">
-          <Box className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+          <Box className="w-8 h-8 text-muted-foreground mx-auto mb-2 animate-pulse" />
           <p className="text-sm text-muted-foreground">Initializing 3D...</p>
+          {retryCount > 0 && (
+            <p className="text-xs text-muted-foreground mt-1">Retry attempt {retryCount}</p>
+          )}
         </div>
       </div>
     );
@@ -41,10 +63,32 @@ export function AgentVisualization3D({ agents, className }: AgentVisualization3D
   if (!webglSupported) {
     return (
       <div className={`w-full h-full flex items-center justify-center ${className}`}>
-        <div className="text-center p-4">
+        <div className="text-center p-4 max-w-md">
           <AlertCircle className="w-8 h-8 text-orange-500 mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground mb-1">3D visualization not supported</p>
-          <p className="text-xs text-muted-foreground">WebGL required for 3D view</p>
+          <p className="text-sm text-muted-foreground mb-1">3D visualization unavailable</p>
+          <p className="text-xs text-muted-foreground mb-3">
+            {webglInfo?.error || 'WebGL or Three.js support required'}
+          </p>
+          
+          {webglInfo && !webglInfo.supported && (
+            <div className="text-xs text-muted-foreground mb-3 p-2 bg-muted rounded">
+              <p><strong>Troubleshooting:</strong></p>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                <li>Update your graphics drivers</li>
+                <li>Try a different browser (Chrome, Firefox, Edge)</li>
+                <li>Check if hardware acceleration is enabled</li>
+                <li>Disable browser extensions that might block WebGL</li>
+              </ul>
+            </div>
+          )}
+          
+          <button 
+            onClick={handleRetry}
+            className="flex items-center gap-2 mx-auto px-3 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
+          >
+            <RefreshCw className="w-3 h-3" />
+            Retry
+          </button>
         </div>
       </div>
     );
@@ -56,8 +100,20 @@ export function AgentVisualization3D({ agents, className }: AgentVisualization3D
         <Canvas
           camera={{ position: [0, 5, 10], fov: 45 }}
           style={{ background: 'linear-gradient(to bottom, #1a1a2e, #16213e)' }}
-          gl={{ antialias: true, alpha: false }}
+          gl={{ 
+            antialias: true, 
+            alpha: false,
+            preserveDrawingBuffer: false,
+            powerPreference: 'default',
+            failIfMajorPerformanceCaveat: false
+          }}
           dpr={[1, 2]}
+          onCreated={() => {
+            console.log('Three.js Canvas created successfully');
+          }}
+          onError={(error) => {
+            console.error('Three.js Canvas error:', error);
+          }}
         >
           <Suspense fallback={<Loading />}>
           {/* Lighting */}
