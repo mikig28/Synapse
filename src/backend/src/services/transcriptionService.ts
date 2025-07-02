@@ -43,14 +43,14 @@ export const transcribeAudio = async (filePath: string): Promise<string> => {
   
   // Try multiple transcription methods in order of preference
   const transcriptionMethods = [
-    { name: 'Dedicated Service', method: () => transcribeWithDedicatedService(absoluteFilePath) },
-    { name: 'OpenAI API', method: () => transcribeWithOpenAI(absoluteFilePath) },
-    { name: 'Local Python', method: () => transcribeAudioLocal(absoluteFilePath) }
+    { name: 'Dedicated Service', method: () => transcribeWithDedicatedService(absoluteFilePath), critical: false },
+    { name: 'OpenAI API', method: () => transcribeWithOpenAI(absoluteFilePath), critical: true },
+    { name: 'Local Python', method: () => transcribeAudioLocal(absoluteFilePath), critical: false }
   ];
 
   let lastError: Error | null = null;
 
-  for (const { name, method } of transcriptionMethods) {
+  for (const { name, method, critical } of transcriptionMethods) {
     try {
       console.log(`[TranscriptionService]: Attempting transcription with ${name}`);
       const result = await method();
@@ -59,6 +59,13 @@ export const transcribeAudio = async (filePath: string): Promise<string> => {
     } catch (error: any) {
       console.error(`[TranscriptionService]: ${name} failed:`, error.message);
       lastError = error;
+      
+      // If this is a critical method (like OpenAI API) and it failed due to configuration,
+      // log more detailed information
+      if (critical && error.message.includes('API key')) {
+        console.error(`[TranscriptionService]: Critical service ${name} failed due to missing configuration. Please check your API keys.`);
+      }
+      
       continue;
     }
   }
@@ -142,76 +149,94 @@ const transcribeWithOpenAI = async (filePath: string): Promise<string> => {
 // Local Python transcription with improved error handling and JSON support
 const transcribeAudioLocal = (filePath: string): Promise<string> => {
   return new Promise((resolve, reject) => {
-    console.log(`[TranscriptionService]: Spawning Python script: ${PYTHON_EXECUTABLE} ${TRANSCRIPTION_SCRIPT_PATH} ${filePath}`);
+    // Check if Python executable exists before attempting to spawn
+    const fs = require('fs');
+    const { exec } = require('child_process');
     
-    const { spawn } = require('child_process');
-    const pythonProcess = spawn(PYTHON_EXECUTABLE, [TRANSCRIPTION_SCRIPT_PATH, filePath]);
-
-    let transcribedText = '';
-    let errorOutput = '';
-
-    pythonProcess.stdout.on('data', (data: Buffer) => {
-      transcribedText += data.toString();
-      console.log(`[TranscriptionService]: Python script stdout: ${data.toString()}`);
-    });
-
-    pythonProcess.stderr.on('data', (data: Buffer) => {
-      errorOutput += data.toString();
-      console.error(`[TranscriptionService]: Python script stderr: ${data.toString()}`);
-    });
-
-    pythonProcess.on('close', (code: number) => {
-      console.log(`[TranscriptionService]: Python script exited with code ${code}`);
-      
-      if (code === 0 && transcribedText.trim()) {
-        // Try to parse JSON response from the improved Python script
-        try {
-          const jsonResponse: PythonScriptResponse = JSON.parse(transcribedText.trim());
-          if (jsonResponse.success && jsonResponse.text) {
-            console.log(`[TranscriptionService]: Transcription successful via local Python script`);
-            resolve(jsonResponse.text);
-          } else {
-            const errorMessage = jsonResponse.error || 'Unknown error from Python script';
-            console.error(`[TranscriptionService]: Python script returned error: ${errorMessage}`);
-            if (jsonResponse.suggestion) {
-              console.log(`[TranscriptionService]: Suggestion: ${jsonResponse.suggestion}`);
-            }
-            reject(new Error(errorMessage));
-          }
-        } catch (parseError) {
-          // Fallback to treating output as plain text (for backward compatibility)
-          console.log(`[TranscriptionService]: Could not parse JSON, treating as plain text`);
-          resolve(transcribedText.trim());
-        }
-      } else {
-        // Handle error cases
-        let errorMessage = `Python script failed with code ${code}`;
-        
-        // Try to parse error output as JSON
-        try {
-          const errorJson: PythonScriptResponse = JSON.parse(errorOutput);
-          if (errorJson.error) {
-            errorMessage = errorJson.error;
-            if (errorJson.suggestion) {
-              console.log(`[TranscriptionService]: Suggestion: ${errorJson.suggestion}`);
-            }
-            if (errorJson.fallback) {
-              console.log(`[TranscriptionService]: Fallback option: ${errorJson.fallback}`);
-            }
-          }
-        } catch (parseError) {
-          // Use raw error output if JSON parsing fails
-          errorMessage += `. Error: ${errorOutput.trim() || 'No stderr output'}`;
-        }
-        
-        console.error(`[TranscriptionService]: ${errorMessage}`);
-        reject(new Error(errorMessage));
+    // Quick check if Python is available
+    exec(`${PYTHON_EXECUTABLE} --version`, (error: any) => {
+      if (error) {
+        reject(new Error(`Python not found: ${PYTHON_EXECUTABLE}. Install Python or use other transcription methods.`));
+        return;
       }
-    });
+      
+      // Check if script exists
+      if (!fs.existsSync(TRANSCRIPTION_SCRIPT_PATH)) {
+        reject(new Error(`Transcription script not found: ${TRANSCRIPTION_SCRIPT_PATH}`));
+        return;
+      }
+      
+      console.log(`[TranscriptionService]: Spawning Python script: ${PYTHON_EXECUTABLE} ${TRANSCRIPTION_SCRIPT_PATH} ${filePath}`);
+      
+      const { spawn } = require('child_process');
+      const pythonProcess = spawn(PYTHON_EXECUTABLE, [TRANSCRIPTION_SCRIPT_PATH, filePath]);
 
-    pythonProcess.on('error', (err: Error) => {
-      console.error('[TranscriptionService]: Failed to start Python script.', err);
-      reject(err);
+      let transcribedText = '';
+      let errorOutput = '';
+
+      pythonProcess.stdout.on('data', (data: Buffer) => {
+        transcribedText += data.toString();
+        console.log(`[TranscriptionService]: Python script stdout: ${data.toString()}`);
+      });
+
+      pythonProcess.stderr.on('data', (data: Buffer) => {
+        errorOutput += data.toString();
+        console.error(`[TranscriptionService]: Python script stderr: ${data.toString()}`);
+      });
+
+      pythonProcess.on('close', (code: number) => {
+        console.log(`[TranscriptionService]: Python script exited with code ${code}`);
+        
+        if (code === 0 && transcribedText.trim()) {
+          // Try to parse JSON response from the improved Python script
+          try {
+            const jsonResponse: PythonScriptResponse = JSON.parse(transcribedText.trim());
+            if (jsonResponse.success && jsonResponse.text) {
+              console.log(`[TranscriptionService]: Transcription successful via local Python script`);
+              resolve(jsonResponse.text);
+            } else {
+              const errorMessage = jsonResponse.error || 'Unknown error from Python script';
+              console.error(`[TranscriptionService]: Python script returned error: ${errorMessage}`);
+              if (jsonResponse.suggestion) {
+                console.log(`[TranscriptionService]: Suggestion: ${jsonResponse.suggestion}`);
+              }
+              reject(new Error(errorMessage));
+            }
+          } catch (parseError) {
+            // Fallback to treating output as plain text (for backward compatibility)
+            console.log(`[TranscriptionService]: Could not parse JSON, treating as plain text`);
+            resolve(transcribedText.trim());
+          }
+        } else {
+          // Handle error cases
+          let errorMessage = `Python script failed with code ${code}`;
+          
+          // Try to parse error output as JSON
+          try {
+            const errorJson: PythonScriptResponse = JSON.parse(errorOutput);
+            if (errorJson.error) {
+              errorMessage = errorJson.error;
+              if (errorJson.suggestion) {
+                console.log(`[TranscriptionService]: Suggestion: ${errorJson.suggestion}`);
+              }
+              if (errorJson.fallback) {
+                console.log(`[TranscriptionService]: Fallback option: ${errorJson.fallback}`);
+              }
+            }
+          } catch (parseError) {
+            // Use raw error output if JSON parsing fails
+            errorMessage += `. Error: ${errorOutput.trim() || 'No stderr output'}`;
+          }
+          
+          console.error(`[TranscriptionService]: ${errorMessage}`);
+          reject(new Error(errorMessage));
+        }
+      });
+
+      pythonProcess.on('error', (err: Error) => {
+        console.error('[TranscriptionService]: Failed to start Python script.', err);
+        reject(err);
+      });
     });
   });
 };
