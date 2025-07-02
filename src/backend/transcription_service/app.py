@@ -32,9 +32,9 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 # --- Configuration ---
-# Use fallback models if the Hebrew model fails
-PRIMARY_MODEL = os.getenv('WHISPER_MODEL', 'ivrit-ai/whisper-large-v3-ct2')
-FALLBACK_MODEL = 'openai/whisper-small'
+# Use smaller, more reliable model as primary for Render deployment
+PRIMARY_MODEL = os.getenv('WHISPER_MODEL', 'openai/whisper-small')
+FALLBACK_MODEL = 'openai/whisper-tiny'
 LANGUAGE_CODE = os.getenv('WHISPER_LANGUAGE', 'he')
 DEVICE = os.getenv('WHISPER_DEVICE', 'cpu')
 COMPUTE_TYPE = os.getenv('WHISPER_COMPUTE_TYPE', 'int8')

@@ -6,7 +6,7 @@ services:
     dockerContext: .
     envVars:
       - key: WHISPER_MODEL
-        value: ivrit-ai/whisper-large-v3-ct2
+        value: openai/whisper-small
       - key: WHISPER_LANGUAGE
         value: he
       - key: WHISPER_DEVICE

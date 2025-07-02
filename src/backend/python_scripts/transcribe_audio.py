@@ -34,9 +34,9 @@ def transcribe_audio_file(audio_path):
     # Import after dependency check
     import faster_whisper
     
-    # Configuration
-    MODEL_NAME = 'ivrit-ai/whisper-large-v3-ct2'
-    FALLBACK_MODEL = 'openai/whisper-small'
+    # Configuration - using smaller, more reliable models
+    MODEL_NAME = 'openai/whisper-small'
+    FALLBACK_MODEL = 'openai/whisper-tiny'
     LANGUAGE_CODE = 'he'
     DEVICE = "cpu"
     COMPUTE_TYPE = "int8"

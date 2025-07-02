@@ -30,8 +30,9 @@ ENV TRANSFORMERS_CACHE=/app/models
 ENV HUGGINGFACE_HUB_CACHE=/app/models
 ENV PYTHONPATH=/app
 
-# Pre-download the fallback model during build (optional, for faster startup)
-RUN python -c "import huggingface_hub; huggingface_hub.snapshot_download('openai/whisper-small', cache_dir='/app/models')" || echo "Fallback model download failed, will retry at runtime"
+# Pre-download both primary and fallback models during build for faster startup
+RUN python -c "import huggingface_hub; huggingface_hub.snapshot_download('openai/whisper-small', cache_dir='/app/models')" || echo "Primary model download failed, will retry at runtime"
+RUN python -c "import huggingface_hub; huggingface_hub.snapshot_download('openai/whisper-tiny', cache_dir='/app/models')" || echo "Fallback model download failed, will retry at runtime"
 
 # Expose port
 EXPOSE 8000
