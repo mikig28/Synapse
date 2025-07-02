@@ -182,3 +182,17 @@ export interface SynapseAGUIEvent extends BaseAGUIEvent {
     itemsAdded?: number;
   };
 }
+
+// Agent status interface for 3D visualization
+export interface AgentStatus {
+  id: string;
+  name: string;
+  type: string;
+  status: 'idle' | 'running' | 'completed' | 'error';
+  lastActivity?: string;
+  performance?: {
+    tasksCompleted: number;
+    successRate: number;
+    avgResponseTime: number;
+  };
+}
