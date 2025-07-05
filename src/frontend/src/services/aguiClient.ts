@@ -65,6 +65,8 @@ export class AGUIClient implements IAGUIClient {
 
   private async connectSSE(): Promise<void> {
     return new Promise((resolve, reject) => {
+      let connectionTimeout: NodeJS.Timeout | null = null;
+      
       try {
         // Build SSE URL with parameters
         const url = new URL(`${this.config.endpoint}/api/v1/ag-ui/events`);
@@ -80,6 +82,11 @@ export class AGUIClient implements IAGUIClient {
 
         this.eventSource.onopen = () => {
           console.log('[AGUIClient SSE] Connected successfully');
+          // Clear the connection timeout since we've successfully connected
+          if (connectionTimeout) {
+            clearTimeout(connectionTimeout);
+            connectionTimeout = null;
+          }
           resolve();
         };
 
@@ -92,6 +99,11 @@ export class AGUIClient implements IAGUIClient {
           console.error('[AGUIClient SSE] ReadyState:', this.eventSource?.readyState);
           
           if (this.eventSource?.readyState === EventSource.CLOSED) {
+            // Clear timeout on error
+            if (connectionTimeout) {
+              clearTimeout(connectionTimeout);
+              connectionTimeout = null;
+            }
             reject(new Error('SSE connection failed'));
           } else if (this.eventSource?.readyState === EventSource.CONNECTING) {
             console.log('[AGUIClient SSE] Still connecting...');
@@ -99,14 +111,20 @@ export class AGUIClient implements IAGUIClient {
         };
 
         // Set a timeout for initial connection
-        setTimeout(() => {
+        connectionTimeout = setTimeout(() => {
           if (this.eventSource?.readyState !== EventSource.OPEN) {
             console.error('[AGUIClient SSE] Connection timeout. ReadyState:', this.eventSource?.readyState);
+            connectionTimeout = null;
             reject(new Error('SSE connection timeout'));
           }
         }, 15000); // Increased timeout for production
       } catch (error) {
         console.error('[AGUIClient SSE] Setup error:', error);
+        // Clear timeout on setup error
+        if (connectionTimeout) {
+          clearTimeout(connectionTimeout);
+          connectionTimeout = null;
+        }
         reject(error);
       }
     });
