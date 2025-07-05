@@ -45,9 +45,6 @@ export class AGUIClient implements IAGUIClient {
       // Primary connection via SSE
       await this.connectSSE();
       
-      // Fallback to WebSocket if available
-      this.connectWebSocket();
-      
       this.connectionState = 'connected';
       this.reconnectAttempts = 0;
       this.reconnectDelay = 1000;
@@ -59,7 +56,11 @@ export class AGUIClient implements IAGUIClient {
     } catch (error) {
       console.error('[AGUIClient] ❌ Failed to connect:', error);
       this.connectionState = 'error';
-      this.scheduleReconnect();
+      
+      // Schedule reconnection only if we haven't exceeded max attempts
+      if (this.reconnectAttempts < this.maxReconnectAttempts) {
+        this.scheduleReconnect();
+      }
     }
   }
 
@@ -78,9 +79,14 @@ export class AGUIClient implements IAGUIClient {
         console.log('[AGUIClient] Creating EventSource:', url.toString());
         this.eventSource = new EventSource(url.toString());
 
+        let isResolved = false;
+
         this.eventSource.onopen = () => {
           console.log('[AGUIClient SSE] Connected successfully');
-          resolve();
+          if (!isResolved) {
+            isResolved = true;
+            resolve();
+          }
         };
 
         this.eventSource.onmessage = (event) => {
@@ -91,20 +97,51 @@ export class AGUIClient implements IAGUIClient {
           console.error('[AGUIClient SSE] Connection error:', error);
           console.error('[AGUIClient SSE] ReadyState:', this.eventSource?.readyState);
           
+          // Check the ready state to determine the type of error
           if (this.eventSource?.readyState === EventSource.CLOSED) {
-            reject(new Error('SSE connection failed'));
+            console.error('[AGUIClient SSE] Connection was closed by server');
+            if (!isResolved) {
+              isResolved = true;
+              reject(new Error('SSE connection closed by server'));
+            }
           } else if (this.eventSource?.readyState === EventSource.CONNECTING) {
-            console.log('[AGUIClient SSE] Still connecting...');
+            console.log('[AGUIClient SSE] Still trying to connect...');
+            // Don't reject here, let the timeout handle it
+          } else {
+            console.error('[AGUIClient SSE] Unknown connection error');
+            if (!isResolved) {
+              isResolved = true;
+              reject(new Error('SSE connection failed'));
+            }
           }
         };
 
-        // Set a timeout for initial connection
-        setTimeout(() => {
-          if (this.eventSource?.readyState !== EventSource.OPEN) {
-            console.error('[AGUIClient SSE] Connection timeout. ReadyState:', this.eventSource?.readyState);
+        // Set a connection timeout (30 seconds for production)
+        const connectionTimeout = setTimeout(() => {
+          if (!isResolved) {
+            isResolved = true;
+            console.error('[AGUIClient SSE] Connection timeout');
+            
+            // Close the event source if it exists
+            if (this.eventSource) {
+              this.eventSource.close();
+              this.eventSource = null;
+            }
+            
             reject(new Error('SSE connection timeout'));
           }
-        }, 15000); // Increased timeout for production
+        }, 30000);
+
+        // Clear timeout when connection is established
+        this.eventSource.onopen = () => {
+          clearTimeout(connectionTimeout);
+          console.log('[AGUIClient SSE] Connected successfully');
+          if (!isResolved) {
+            isResolved = true;
+            resolve();
+          }
+        };
+
       } catch (error) {
         console.error('[AGUIClient SSE] Setup error:', error);
         reject(error);
@@ -134,6 +171,12 @@ export class AGUIClient implements IAGUIClient {
       // Handle connection establishment
       if (eventData.type === 'CONNECTION_ESTABLISHED') {
         console.log('[AGUIClient] Connection established with server');
+        return;
+      }
+      
+      // Handle heartbeat messages
+      if (eventData.type === 'HEARTBEAT') {
+        console.log('[AGUIClient] Received heartbeat');
         return;
       }
       
@@ -209,7 +252,7 @@ export class AGUIClient implements IAGUIClient {
     }
 
     this.reconnectAttempts++;
-    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1); // Exponential backoff
+    const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), 30000); // Max 30 seconds
 
     console.log(`[AGUIClient] Scheduling reconnect attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
 
@@ -219,6 +262,7 @@ export class AGUIClient implements IAGUIClient {
 
     this.reconnectTimeout = setTimeout(() => {
       if (this.connectionState !== 'connected') {
+        console.log('[AGUIClient] Attempting reconnection...');
         this.reconnect();
       }
     }, delay);

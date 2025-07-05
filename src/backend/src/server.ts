@@ -256,60 +256,175 @@ app.get('/api/v1/ag-ui/test-event', (req: Request, res: Response) => {
 app.get('/api/v1/ag-ui/events', (req: Request, res: Response) => {
   console.log('[AG-UI SSE] Client connected to events stream');
   
-  // Set SSE headers
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': req.headers.origin || '*',
-    'Access-Control-Allow-Headers': 'Cache-Control',
-    'Access-Control-Allow-Credentials': 'true'
-  });
+  // Check if connection was already closed
+  if (req.destroyed || res.headersSent) {
+    console.log('[AG-UI SSE] Connection already closed');
+    return;
+  }
 
-  // Get user ID from query params or headers
-  const userId = req.query.userId as string || req.headers['x-user-id'] as string;
-  const sessionId = req.query.sessionId as string || req.headers['x-session-id'] as string;
+  try {
+    // Set SSE headers with proper CORS
+    const origin = req.headers.origin || 'https://synapse-frontend.onrender.com';
+    
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Headers': 'Cache-Control, Content-Type',
+      'Access-Control-Allow-Credentials': 'true',
+      'X-Accel-Buffering': 'no', // Disable nginx buffering
+      'Content-Encoding': 'identity' // Prevent compression
+    });
 
-  // Send initial connection event
-  res.write(`data: ${JSON.stringify({
-    type: 'CONNECTION_ESTABLISHED',
-    timestamp: new Date().toISOString(),
-    userId,
-    sessionId
-  })}\n\n`);
+    // Get user ID from query params or headers
+    const userId = req.query.userId as string || req.headers['x-user-id'] as string;
+    const sessionId = req.query.sessionId as string || req.headers['x-session-id'] as string;
 
-  // Subscribe to AG-UI events
-  const subscription = agui.subscribe((event) => {
+    console.log('[AG-UI SSE] Connection params:', { userId, sessionId, origin });
+
+    // Send initial connection event
+    const initialEvent = {
+      type: 'CONNECTION_ESTABLISHED',
+      timestamp: new Date().toISOString(),
+      userId: userId || 'anonymous',
+      sessionId: sessionId || 'default'
+    };
+
+    res.write(`data: ${JSON.stringify(initialEvent)}\n\n`);
+
+    // Subscribe to AG-UI events
+    let subscription: any = null;
+    let heartbeatInterval: NodeJS.Timeout | null = null;
+    let isAlive = true;
+
     try {
-      // Filter events by user/session if specified
-      const eventUserId = (event as any).userId;
-      const eventSessionId = (event as any).sessionId;
-      
-      if (userId && eventUserId && eventUserId !== userId) {
-        return; // Skip events not for this user
-      }
-      
-      if (sessionId && eventSessionId && eventSessionId !== sessionId) {
-        return; // Skip events not for this session
-      }
+      subscription = agui.subscribe((event) => {
+        if (!isAlive || req.destroyed || res.destroyed) {
+          return;
+        }
 
-      // Send event to client
-      res.write(`data: ${JSON.stringify(event)}\n\n`);
-    } catch (error) {
-      console.error('[AG-UI SSE] Error sending event:', error);
+        try {
+          // Filter events by user/session if specified
+          const eventUserId = (event as any).userId;
+          const eventSessionId = (event as any).sessionId;
+          
+          if (userId && eventUserId && eventUserId !== userId) {
+            return; // Skip events not for this user
+          }
+          
+          if (sessionId && eventSessionId && eventSessionId !== sessionId) {
+            return; // Skip events not for this session
+          }
+
+          // Send event to client
+          const eventData = `data: ${JSON.stringify(event)}\n\n`;
+          res.write(eventData);
+        } catch (error) {
+          console.error('[AG-UI SSE] Error sending event:', error);
+          cleanup();
+        }
+      });
+
+      // Set up heartbeat to keep connection alive (every 30 seconds)
+      heartbeatInterval = setInterval(() => {
+        if (!isAlive || req.destroyed || res.destroyed) {
+          cleanup();
+          return;
+        }
+
+        try {
+          const heartbeat = {
+            type: 'HEARTBEAT',
+            timestamp: new Date().toISOString()
+          };
+          res.write(`data: ${JSON.stringify(heartbeat)}\n\n`);
+        } catch (error) {
+          console.error('[AG-UI SSE] Heartbeat failed:', error);
+          cleanup();
+        }
+      }, 30000);
+
+      console.log('[AG-UI SSE] Connection established successfully');
+
+    } catch (subscriptionError) {
+      console.error('[AG-UI SSE] Error setting up subscription:', subscriptionError);
+      cleanup();
+      return;
     }
-  });
 
-  // Handle client disconnect
-  req.on('close', () => {
-    console.log('[AG-UI SSE] Client disconnected from events stream');
-    subscription.unsubscribe();
-  });
+    // Cleanup function
+    const cleanup = () => {
+      if (!isAlive) return;
+      isAlive = false;
 
-  req.on('error', (error) => {
-    console.error('[AG-UI SSE] Connection error:', error);
-    subscription.unsubscribe();
-  });
+      console.log('[AG-UI SSE] Cleaning up connection');
+      
+      if (subscription) {
+        try {
+          subscription.unsubscribe();
+        } catch (error) {
+          console.error('[AG-UI SSE] Error unsubscribing:', error);
+        }
+      }
+      
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+      }
+
+      // Try to close the response if it's still open
+      try {
+        if (!res.destroyed && !res.headersSent) {
+          res.end();
+        }
+      } catch (error) {
+        console.error('[AG-UI SSE] Error closing response:', error);
+      }
+    };
+
+    // Handle client disconnect
+    req.on('close', () => {
+      console.log('[AG-UI SSE] Client disconnected from events stream');
+      cleanup();
+    });
+
+    req.on('error', (error) => {
+      console.error('[AG-UI SSE] Request error:', error);
+      cleanup();
+    });
+
+    res.on('close', () => {
+      console.log('[AG-UI SSE] Response closed');
+      cleanup();
+    });
+
+    res.on('error', (error) => {
+      console.error('[AG-UI SSE] Response error:', error);
+      cleanup();
+    });
+
+    // Set a timeout for long-running connections (10 minutes)
+    const timeout = setTimeout(() => {
+      console.log('[AG-UI SSE] Connection timeout, closing');
+      cleanup();
+    }, 10 * 60 * 1000);
+
+    // Clear timeout when connection closes
+    res.on('close', () => {
+      clearTimeout(timeout);
+    });
+
+  } catch (error) {
+    console.error('[AG-UI SSE] Error setting up SSE endpoint:', error);
+    
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to establish SSE connection',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
 });
 
 // Health check endpoint for Render
