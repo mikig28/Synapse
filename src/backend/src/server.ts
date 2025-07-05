@@ -298,6 +298,35 @@ app.get('/api/v1/ag-ui/events', (req: Request, res: Response) => {
     let heartbeatInterval: NodeJS.Timeout | null = null;
     let isAlive = true;
 
+    // Cleanup function - declare before it's used
+    const cleanup = () => {
+      if (!isAlive) return;
+      isAlive = false;
+
+      console.log('[AG-UI SSE] Cleaning up connection');
+      
+      if (subscription) {
+        try {
+          subscription.unsubscribe();
+        } catch (error) {
+          console.error('[AG-UI SSE] Error unsubscribing:', error);
+        }
+      }
+      
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+      }
+
+      // Try to close the response if it's still open
+      try {
+        if (!res.destroyed && !res.headersSent) {
+          res.end();
+        }
+      } catch (error) {
+        console.error('[AG-UI SSE] Error closing response:', error);
+      }
+    };
+
     try {
       subscription = agui.subscribe((event) => {
         if (!isAlive || req.destroyed || res.destroyed) {
@@ -352,35 +381,6 @@ app.get('/api/v1/ag-ui/events', (req: Request, res: Response) => {
       cleanup();
       return;
     }
-
-    // Cleanup function
-    const cleanup = () => {
-      if (!isAlive) return;
-      isAlive = false;
-
-      console.log('[AG-UI SSE] Cleaning up connection');
-      
-      if (subscription) {
-        try {
-          subscription.unsubscribe();
-        } catch (error) {
-          console.error('[AG-UI SSE] Error unsubscribing:', error);
-        }
-      }
-      
-      if (heartbeatInterval) {
-        clearInterval(heartbeatInterval);
-      }
-
-      // Try to close the response if it's still open
-      try {
-        if (!res.destroyed && !res.headersSent) {
-          res.end();
-        }
-      } catch (error) {
-        console.error('[AG-UI SSE] Error closing response:', error);
-      }
-    };
 
     // Handle client disconnect
     req.on('close', () => {
