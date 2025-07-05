@@ -103,6 +103,17 @@ export interface AgentCommandEvent extends BaseAGUIEvent {
   userId?: string;
 }
 
+// Connection Events
+export interface HeartbeatEvent extends BaseAGUIEvent {
+  type: 'HEARTBEAT';
+}
+
+export interface ConnectionEstablishedEvent extends BaseAGUIEvent {
+  type: 'CONNECTION_ESTABLISHED';
+  userId?: string;
+  sessionId?: string;
+}
+
 // Union type for all AG-UI events
 export type AGUIEvent = 
   | RunStartedEvent
@@ -119,7 +130,9 @@ export type AGUIEvent =
   | ToolCallResultEvent
   | StateUpdateEvent
   | ContextUpdateEvent
-  | AgentCommandEvent;
+  | AgentCommandEvent
+  | HeartbeatEvent
+  | ConnectionEstablishedEvent;
 
 // AG-UI Event Types enum
 export enum AGUIEventType {
@@ -137,7 +150,9 @@ export enum AGUIEventType {
   TOOL_CALL_RESULT = 'TOOL_CALL_RESULT',
   STATE_UPDATE = 'STATE_UPDATE',
   CONTEXT_UPDATE = 'CONTEXT_UPDATE',
-  AGENT_COMMAND = 'AGENT_COMMAND'
+  AGENT_COMMAND = 'AGENT_COMMAND',
+  HEARTBEAT = 'HEARTBEAT',
+  CONNECTION_ESTABLISHED = 'CONNECTION_ESTABLISHED'
 }
 
 // Client-side AG-UI configuration
