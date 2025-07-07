@@ -94,7 +94,24 @@ const isSameUTCDate = (dateLeft: Date, dateRight: Date): boolean => {
 
 export default function CalendarPage() { // Renamed from Home for clarity
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const { toast } = useToast();
+
+  // Handle window resize for responsive behavior
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 640); // sm breakpoint
+    };
+
+    // Set initial value
+    handleResize();
+
+    // Add event listener
+    window.addEventListener('resize', handleResize);
+
+    // Cleanup
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   // const [showAIPopup, setShowAIPopup] = useState(false) // AI Popup logic remains commented out
   // const [typedText, setTypedText] = useState("")
   // const [isPlaying, setIsPlaying] = useState(false)
@@ -1532,42 +1549,43 @@ export default function CalendarPage() { // Renamed from Home for clarity
         className="object-cover absolute inset-0 w-full h-full -z-10"
       />
 
-      {/* Navigation - Restored */}
+      {/* Navigation - Made Mobile Responsive */}
       <header
-        className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-8 py-6 ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 ease-out`}
+        className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 md:px-8 py-4 md:py-6 ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 ease-out`}
       >
-        <div className="flex items-center gap-4">
-          <Menu className="h-6 w-6 text-white" />
-          <span className="text-2xl font-semibold text-white drop-shadow-lg">Calendar</span>
+        <div className="flex items-center gap-2 md:gap-4">
+          <Menu className="h-5 w-5 md:h-6 md:w-6 text-white" />
+          <span className="text-lg md:text-2xl font-semibold text-white drop-shadow-lg">Calendar</span>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="relative">
+        <div className="flex items-center gap-2 md:gap-4">
+          <div className="relative hidden sm:block">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/70" />
             <input
               type="text"
               placeholder="Search"
-              className="rounded-full bg-white/10 backdrop-blur-sm pl-10 pr-4 py-2 text-white placeholder:text-white/70 border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/30"
+              className="rounded-full bg-white/10 backdrop-blur-sm pl-10 pr-4 py-2 text-white placeholder:text-white/70 border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm"
             />
           </div>
-          <Settings className="h-6 w-6 text-white drop-shadow-md" />
-          <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold shadow-md">
+          <Search className="h-5 w-5 md:h-6 md:w-6 text-white drop-shadow-md sm:hidden" />
+          <Settings className="h-5 w-5 md:h-6 md:w-6 text-white drop-shadow-md" />
+          <div className="h-8 w-8 md:h-10 md:w-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold shadow-md text-sm md:text-base">
             U
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="relative h-screen w-full pt-20 flex z-0"> {/* Added z-0 to main */}
-        {/* Sidebar - Restored */}
+      {/* Main Content - Made Mobile Responsive */}
+      <main className="relative h-screen w-full pt-16 md:pt-20 flex flex-col md:flex-row z-0"> {/* Added z-0 to main */}
+        {/* Sidebar - Made Mobile Responsive */}
         <div
-          className={`w-64 h-full bg-white/10 backdrop-blur-lg p-4 shadow-xl border-r border-white/20 rounded-tr-3xl ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 ease-out delay-200 flex flex-col justify-between`}
+          className={`hidden md:block w-64 h-full bg-white/10 backdrop-blur-lg p-4 shadow-xl border-r border-white/20 rounded-tr-3xl ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 ease-out delay-200 flex flex-col justify-between`}
         >
           <div>
             <button 
               onClick={() => openCreateModal()} 
-              className="mb-6 flex items-center justify-center gap-2 rounded-full bg-blue-500 px-4 py-3 text-white w-full"
+              className="mb-6 flex items-center justify-center gap-2 rounded-full bg-blue-500 px-4 py-3 text-white w-full text-sm md:text-base"
             >
-              <Plus className="h-5 w-5" />
+              <Plus className="h-4 w-4 md:h-5 md:w-5" />
               <span>Create</span>
             </button>
             {/* Mini Calendar & My Calendars sections - Restored and made dynamic */}
@@ -1632,30 +1650,41 @@ export default function CalendarPage() { // Renamed from Home for clarity
           </button>
         </div>
 
-        {/* Calendar View - Added z-index for testing, restored animation classes */}
+        {/* Calendar View - Made Mobile Responsive */}
         <div
           className={`flex-1 flex flex-col ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500 ease-out delay-300 z-30`} /* Applied z-30 */
         >
-          {/* Calendar Controls */}
-          <div className="flex items-center justify-between p-4 border-b border-white/20">
-            <div className="flex items-center gap-4">
-              <button onClick={handleTodayClick} className="px-4 py-2 text-white bg-blue-500 rounded-md">Today</button>
+          {/* Mobile Create Button */}
+          <div className="md:hidden p-4 border-b border-white/20">
+            <button 
+              onClick={() => openCreateModal()} 
+              className="flex items-center justify-center gap-2 rounded-full bg-blue-500 px-4 py-2 text-white w-full text-sm"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Create Event</span>
+            </button>
+          </div>
+
+          {/* Calendar Controls - Made Mobile Responsive */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-2 sm:p-4 border-b border-white/20 gap-2 sm:gap-4">
+            <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
+              <button onClick={handleTodayClick} className="px-3 py-1 sm:px-4 sm:py-2 text-white bg-blue-500 rounded-md text-sm">Today</button>
               <div className="flex">
-                <button onClick={handlePrevClick} className="p-2 text-white hover:bg-white/10 rounded-l-md">
-                  <ChevronLeft className="h-5 w-5" />
+                <button onClick={handlePrevClick} className="p-1 sm:p-2 text-white hover:bg-white/10 rounded-l-md">
+                  <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                 </button>
-                <button onClick={handleNextClick} className="p-2 text-white hover:bg-white/10 rounded-r-md">
-                  <ChevronRight className="h-5 w-5" />
+                <button onClick={handleNextClick} className="p-1 sm:p-2 text-white hover:bg-white/10 rounded-r-md">
+                  <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
                 </button>
               </div>
-              <h2 className="text-xl font-semibold text-white">{formatHeaderDate()}</h2>
+              <h2 className="text-lg sm:text-xl font-semibold text-white truncate flex-1 sm:flex-none">{formatHeaderDate()}</h2>
               
-              {/* Google Calendar Sync Button */}
-              <div className="flex items-center gap-2">
+              {/* Google Calendar Sync Button - Made Mobile Responsive */}
+              <div className="hidden sm:flex items-center gap-1 sm:gap-2">
                 <button
                   onClick={handleSyncWithGoogle}
                   disabled={isSyncing}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+                  className={`flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors duration-200 ${
                     isSyncing 
                       ? 'bg-white/5 text-white/50 cursor-not-allowed' 
                       : 'bg-white/10 text-white hover:bg-white/20'
@@ -1665,14 +1694,14 @@ export default function CalendarPage() { // Renamed from Home for clarity
                   <div className={`${isSyncing ? 'animate-spin' : ''}`}>
                     {getSyncStatusIcon()}
                   </div>
-                  <span className="hidden sm:inline">
+                  <span className="hidden md:inline">
                     {isSyncing ? 'Syncing...' : isGoogleConnected ? 'Sync Google' : 'Connect Google'}
                   </span>
                 </button>
                 
                 {/* Sync Status Indicator */}
                 {syncStatus && (
-                  <div className="hidden md:flex items-center gap-1 px-2 py-1 bg-white/5 rounded-md text-xs text-white/70">
+                  <div className="hidden lg:flex items-center gap-1 px-2 py-1 bg-white/5 rounded-md text-xs text-white/70">
                     <span>📅</span>
                     <span>{syncStatus.syncedEvents}/{syncStatus.totalEvents}</span>
                     <span className={isGoogleConnected ? "text-emerald-400" : "text-gray-400"}>
@@ -1683,22 +1712,22 @@ export default function CalendarPage() { // Renamed from Home for clarity
                 
                 {/* Connection Status */}
                 {isGoogleConnected && (
-                  <div className="hidden lg:flex items-center gap-1 px-2 py-1 bg-emerald-500/10 rounded-md text-xs text-emerald-400">
+                  <div className="hidden xl:flex items-center gap-1 px-2 py-1 bg-emerald-500/10 rounded-md text-xs text-emerald-400">
                     <span>✅</span>
                     <span>Connected</span>
                   </div>
                 )}
 
-                {/* Debug Test Button (temporary) */}
+                {/* Debug Test Button (temporary) - Hidden on mobile */}
                 <button
                   onClick={createTestLocalEvent}
-                  className="flex items-center gap-1 px-2 py-1 bg-orange-500/10 rounded-md text-xs text-orange-400 hover:bg-orange-500/20"
+                  className="hidden lg:flex items-center gap-1 px-2 py-1 bg-orange-500/10 rounded-md text-xs text-orange-400 hover:bg-orange-500/20"
                 >
                   <span>🧪</span>
                   <span>Test Event</span>
                 </button>
                 
-                {/* Debug Log Events Button */}
+                {/* Debug Log Events Button - Hidden on mobile */}
                 <button
                   onClick={() => {
                     console.log('=== CURRENT EVENTS DEBUG ===');
@@ -1727,14 +1756,68 @@ export default function CalendarPage() { // Renamed from Home for clarity
                     const weekEvents = events.filter(e => weekDates.some(d => isSameDay(e.startTime, d)));
                     console.log('Events for this week:', weekEvents.length);
                   }}
-                  className="flex items-center gap-1 px-2 py-1 bg-purple-500/10 rounded-md text-xs text-purple-400 hover:bg-purple-500/20"
+                  className="hidden xl:flex items-center gap-1 px-2 py-1 bg-purple-500/10 rounded-md text-xs text-purple-400 hover:bg-purple-500/20"
                 >
                   <span>📋</span>
                   <span>Log Events</span>
                 </button>
               </div>
             </div>
-            <div className="flex items-center gap-2 rounded-md p-1">
+
+            {/* Mobile Sync Button Row */}
+            <div className="flex sm:hidden items-center justify-between w-full">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleSyncWithGoogle}
+                  disabled={isSyncing}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors duration-200 ${
+                    isSyncing 
+                      ? 'bg-white/5 text-white/50 cursor-not-allowed' 
+                      : 'bg-white/10 text-white hover:bg-white/20'
+                  }`}
+                  title={getSyncStatusText()}
+                >
+                  <div className={`${isSyncing ? 'animate-spin' : ''}`}>
+                    {getSyncStatusIcon()}
+                  </div>
+                  <span className="text-xs">
+                    {isSyncing ? 'Syncing...' : isGoogleConnected ? 'Sync' : 'Connect'}
+                  </span>
+                </button>
+                
+                {/* Mobile Sync Status */}
+                {syncStatus && (
+                  <div className="flex items-center gap-1 px-2 py-1 bg-white/5 rounded-md text-xs text-white/70">
+                    <span>📅</span>
+                    <span>{syncStatus.syncedEvents}/{syncStatus.totalEvents}</span>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-1 rounded-md p-1">
+                <button
+                  onClick={() => setCurrentView("day")}
+                  className={`px-2 py-1 rounded ${currentView === "day" ? "bg-white/20" : ""} text-white text-xs`}
+                >
+                  Day
+                </button>
+                <button
+                  onClick={() => setCurrentView("week")}
+                  className={`px-2 py-1 rounded ${currentView === "week" ? "bg-white/20" : ""} text-white text-xs`}
+                >
+                  Week
+                </button>
+                <button
+                  onClick={() => setCurrentView("month")}
+                  className={`px-2 py-1 rounded ${currentView === "month" ? "bg-white/20" : ""} text-white text-xs`}
+                >
+                  Month
+                </button>
+              </div>
+            </div>
+
+            {/* Desktop View Toggle */}
+            <div className="hidden sm:flex items-center gap-2 rounded-md p-1">
               <button
                 onClick={() => setCurrentView("day")}
                 className={`px-3 py-1 rounded ${currentView === "day" ? "bg-white/20" : ""} text-white text-sm`}
@@ -1758,23 +1841,27 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
 
 
-          {/* Week View / Day View / Month View Container */}
-          <div className="flex-1 overflow-auto p-4">
+          {/* Week View / Day View / Month View Container - Made Mobile Responsive */}
+          <div className="flex-1 overflow-auto p-2 sm:p-4">
             {currentView === "week" && (
               <div className="bg-white/20 backdrop-blur-lg rounded-xl border border-white/20 shadow-xl h-full">
-                {/* Week Header */}
-                <div className="grid grid-cols-8 border-b border-white/20">
-                  <div className="p-2 text-center text-white/50 text-xs"></div>
+                {/* Week Header - Made Mobile Responsive */}
+                <div className="grid grid-cols-4 sm:grid-cols-8 border-b border-white/20">
+                  <div className="p-1 sm:p-2 text-center text-white/50 text-xs"></div>
+                  {/* Mobile: Show first 3 days, Desktop: Show all 7 days */}
                   {weekDays.map((day, i) => (
-                    <div key={i} className="p-2 text-center border-l border-white/20">
-                      <div className="text-xs text-white/70 font-medium">{day}</div>
+                    <div key={i} className={`p-1 sm:p-2 text-center border-l border-white/20 ${i >= 3 ? 'hidden sm:block' : ''}`}>
+                      <div className="text-xs text-white/70 font-medium">
+                        <span className="sm:hidden">{day.substring(0, 2)}</span>
+                        <span className="hidden sm:inline">{day}</span>
+                      </div>
                       <div
-                        className={`text-lg font-medium mt-1 text-white ${
-                          isToday(weekDates[i]) ? "bg-blue-500 rounded-full w-8 h-8 flex items-center justify-center mx-auto" : ""
+                        className={`text-sm sm:text-lg font-medium mt-1 text-white ${
+                          isToday(weekDates[i]) ? "bg-blue-500 rounded-full w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center mx-auto" : ""
                         } ${
                           !isSameMonth(weekDates[i], currentDisplayDate) && currentView !== 'week' ? "text-white/50" : ""
                         } ${
-                          dragOverDate && isSameDay(dragOverDate, weekDates[i]) ? "bg-green-500/50 rounded px-2 py-1" : ""
+                          dragOverDate && isSameDay(dragOverDate, weekDates[i]) ? "bg-green-500/50 rounded px-1 sm:px-2 py-1" : ""
                         }`}
                         title={`Column ${i}: ${format(weekDates[i], 'yyyy-MM-dd EEEE')}`}
                       >
@@ -1783,17 +1870,18 @@ export default function CalendarPage() { // Renamed from Home for clarity
                     </div>
                   ))}
                 </div>
-                {/* Time Grid */}
-                <div className="grid grid-cols-8">
+                {/* Time Grid - Made Mobile Responsive */}
+                <div className="grid grid-cols-4 sm:grid-cols-8">
                   <div className="text-white/70">
                     {timeSlots.map((time, i) => (
-                      <div key={i} className="h-20 border-b border-white/10 pr-2 text-right text-xs flex items-center justify-end">
-                        {time > 12 ? `${time - 12} PM` : `${time} AM`}
+                      <div key={i} className="h-16 sm:h-20 border-b border-white/10 pr-1 sm:pr-2 text-right text-xs flex items-center justify-end">
+                        <span className="hidden sm:inline">{time > 12 ? `${time - 12} PM` : `${time} AM`}</span>
+                        <span className="sm:hidden">{time > 12 ? `${time - 12}P` : `${time}A`}</span>
                       </div>
                     ))}
                   </div>
                   {Array.from({ length: 7 }).map((_, dayIndex) => (
-                    <div key={dayIndex} className="border-l border-white/20 relative">
+                    <div key={dayIndex} className={`border-l border-white/20 relative ${dayIndex >= 3 ? 'hidden sm:block' : ''}`}>
                       {timeSlots.map((_, timeIndex) => {
                         const currentSlotDate = weekDates[dayIndex];
                         const currentSlotHour = timeSlots[timeIndex];
@@ -1803,7 +1891,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                         return (
                           <div 
                             key={timeIndex} 
-                            className={`h-20 border-b border-white/10 transition-colors duration-150 ease-in-out ${isHighlighted ? 'bg-blue-500/30' : ''} relative`}
+                            className={`h-16 sm:h-20 border-b border-white/10 transition-colors duration-150 ease-in-out ${isHighlighted ? 'bg-blue-500/30' : ''} relative`}
                             style={{
                               // Add visual debug grid when debugging
                               ...(isHighlighted && {
@@ -1980,16 +2068,16 @@ export default function CalendarPage() { // Renamed from Home for clarity
                                 }
                                 setIsDragOver(false); // Always reset this
                               }}
-                              className={`absolute rounded-md p-2 text-white text-xs shadow-md group transition-all duration-200 ease-in-out hover:translate-y-[-2px] hover:shadow-lg ${draggedEvent?.id === event.id ? 'cursor-grabbing' : 'cursor-pointer'} ${event.color || 'bg-blue-500'}`}
+                              className={`absolute rounded-md p-1 sm:p-2 text-white text-xs shadow-md group transition-all duration-200 ease-in-out hover:translate-y-[-2px] hover:shadow-lg ${draggedEvent?.id === event.id ? 'cursor-grabbing' : 'cursor-pointer'} ${event.color || 'bg-blue-500'}`}
                               style={{
                                 ...eventStyle,
-                                left: "4px",
-                                right: "4px",
+                                left: "2px",
+                                right: "2px",
                               }}
                               onClick={() => handleEventClick(event)}
                             >
-                              <div className="font-medium">{event.title}</div>
-                              <div className="opacity-80 text-[10px] mt-1">{`${format(event.startTime, "h:mm")} - ${format(event.endTime, "h:mm")}`}</div>
+                              <div className="font-medium text-xs sm:text-sm truncate">{event.title}</div>
+                              <div className="opacity-80 text-[9px] sm:text-[10px] mt-1 hidden sm:block">{`${format(event.startTime, "h:mm")} - ${format(event.endTime, "h:mm")}`}</div>
                               
                               {/* Delete Button */}
                               <Button
@@ -2133,26 +2221,27 @@ export default function CalendarPage() { // Renamed from Home for clarity
 
             {currentView === "day" && (
               <div className="bg-white/20 backdrop-blur-lg rounded-xl border border-white/20 shadow-xl h-full flex flex-col">
-                {/* Day Header */}
+                {/* Day Header - Made Mobile Responsive */}
                 <div className="grid grid-cols-2 border-b border-white/20"> {/* Adjusted for Day View: Time slot column + Day column */}
-                  <div className="p-2 text-center text-white/50 text-xs"></div> {/* Spacer for time column */}
-                  <div className="p-2 text-center border-l border-white/20">
+                  <div className="p-1 sm:p-2 text-center text-white/50 text-xs"></div> {/* Spacer for time column */}
+                  <div className="p-1 sm:p-2 text-center border-l border-white/20">
                     <div className="text-xs text-white/70 font-medium">{format(currentDisplayDate, "EEE").toUpperCase()}</div>
                     <div
-                      className={`text-lg font-medium mt-1 text-white ${
-                        isToday(currentDisplayDate) ? "bg-blue-500 rounded-full w-8 h-8 flex items-center justify-center mx-auto" : ""
+                      className={`text-sm sm:text-lg font-medium mt-1 text-white ${
+                        isToday(currentDisplayDate) ? "bg-blue-500 rounded-full w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center mx-auto" : ""
                       }`}
                     >
                       {format(currentDisplayDate, "d")}
                     </div>
                   </div>
                 </div>
-                {/* Time Grid for Day View */}
+                {/* Time Grid for Day View - Made Mobile Responsive */}
                 <div className="grid grid-cols-2 flex-1"> {/* Adjusted for Day View */}
                   <div className="text-white/70"> {/* Time slots column */}
                     {timeSlots.map((time, i) => (
-                      <div key={i} className="h-20 border-b border-white/10 pr-2 text-right text-xs flex items-center justify-end">
-                        {time > 12 ? `${time - 12} PM` : `${time} AM`}
+                      <div key={i} className="h-16 sm:h-20 border-b border-white/10 pr-1 sm:pr-2 text-right text-xs flex items-center justify-end">
+                        <span className="hidden sm:inline">{time > 12 ? `${time - 12} PM` : `${time} AM`}</span>
+                        <span className="sm:hidden">{time > 12 ? `${time - 12}P` : `${time}A`}</span>
                       </div>
                     ))}
                   </div>
@@ -2166,7 +2255,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                       return (
                         <div 
                           key={timeIndex} 
-                          className={`h-20 border-b border-white/10 transition-colors duration-150 ease-in-out ${isHighlighted ? 'bg-blue-500/30' : ''} relative`}
+                          className={`h-16 sm:h-20 border-b border-white/10 transition-colors duration-150 ease-in-out ${isHighlighted ? 'bg-blue-500/30' : ''} relative`}
                           style={{
                             // Add visual debug grid when debugging
                             ...(isHighlighted && {
@@ -2301,16 +2390,16 @@ export default function CalendarPage() { // Renamed from Home for clarity
                               }
                               setIsDragOver(false);
                             }}
-                            className={`absolute rounded-md p-2 text-white text-xs shadow-md group cursor-pointer transition-all duration-200 ease-in-out hover:translate-y-[-2px] hover:shadow-lg ${draggedEvent?.id === event.id ? 'cursor-grabbing' : 'cursor-pointer'} ${event.color || 'bg-blue-500'}`}
+                            className={`absolute rounded-md p-1 sm:p-2 text-white text-xs shadow-md group cursor-pointer transition-all duration-200 ease-in-out hover:translate-y-[-2px] hover:shadow-lg ${draggedEvent?.id === event.id ? 'cursor-grabbing' : 'cursor-pointer'} ${event.color || 'bg-blue-500'}`}
                             style={{
                               ...eventStyle,
-                              left: "4px",
-                              right: "4px",
+                              left: "2px",
+                              right: "2px",
                             }}
                             onClick={() => handleEventClick(event)}
                           >
-                            <div className="font-medium">{event.title}</div>
-                            <div className="opacity-80 text-[10px] mt-1">{`${format(event.startTime, "h:mm aa")} - ${format(event.endTime, "h:mm aa")}`}</div>
+                            <div className="font-medium text-xs sm:text-sm truncate">{event.title}</div>
+                            <div className="opacity-80 text-[9px] sm:text-[10px] mt-1 hidden sm:block">{`${format(event.startTime, "h:mm aa")} - ${format(event.endTime, "h:mm aa")}`}</div>
                             
                             {/* Delete Button */}
                             <Button
@@ -2451,15 +2540,16 @@ export default function CalendarPage() { // Renamed from Home for clarity
             )}
             {currentView === "month" && (
               <div className="bg-white/20 backdrop-blur-lg rounded-xl border border-white/20 shadow-xl h-full flex flex-col">
-                {/* Month Header - Days of the week */}
+                {/* Month Header - Days of the week - Made Mobile Responsive */}
                 <div className="grid grid-cols-7 border-b border-white/20">
                   {weekDays.map((day, i) => (
-                    <div key={i} className={`p-2 text-center text-xs text-white/70 font-medium ${i > 0 ? 'border-l border-white/20' : ''}`}>
-                      {day}
+                    <div key={i} className={`p-1 sm:p-2 text-center text-xs text-white/70 font-medium ${i > 0 ? 'border-l border-white/20' : ''}`}>
+                      <span className="sm:hidden">{day.substring(0, 1)}</span>
+                      <span className="hidden sm:inline">{day}</span>
                     </div>
                   ))}
                 </div>
-                {/* Month Grid */}
+                {/* Month Grid - Made Mobile Responsive */}
                 <div className="grid grid-cols-7 grid-rows-6 flex-1"> {/* Assuming max 6 weeks for a month view */}
                   {(() => {
                     const monthStart = startOfMonth(currentDisplayDate);
@@ -2472,7 +2562,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                     return daysInGrid.map((day, i) => (
                       <div 
                         key={i} 
-                        className={`p-2 border-b border-r border-white/10 ${ 
+                        className={`p-1 sm:p-2 border-b border-r border-white/10 ${ 
                           !isSameMonth(day, currentDisplayDate) ? 'text-white/40' : 'text-white'
                         } ${ 
                           isToday(day) ? 'bg-blue-500/30' : ''
@@ -2482,7 +2572,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                           i >= daysInGrid.length - 7 ? 'border-b-0' : '' // No bottom border for last row (approx)
                         } ${// Highlight for month view drop target
                           dragOverDate && isSameDay(dragOverDate, day) && draggedEvent ? 'bg-blue-500/40' : ''
-                        } transition-colors duration-150 ease-in-out`}
+                        } transition-colors duration-150 ease-in-out min-h-[3rem] sm:min-h-[5rem]`}
                         onClick={() => {
                             setCurrentDisplayDate(day);
                             setCurrentView('day');
@@ -2571,59 +2661,99 @@ export default function CalendarPage() { // Renamed from Home for clarity
                           }
                         }}
                       >
-                        <div className={`text-sm text-right ${isToday(day) ? 'font-bold' : ''}`}>{format(day, "d")}</div>
-                        <div className="mt-1 space-y-0.5 overflow-hidden text-[10px]">
-                          {events
-                            .filter(event => isSameDay(event.startTime, day))
-                            .slice(0, 2) // Show max 2 events per day in month view for brevity
-                            .map(event => (
-                              <div 
-                                key={event.id} 
-                                draggable
-                                onDragStart={(e) => {
-                                  e.stopPropagation();
-                                  console.log('[Frontend] Month view drag start for event:', event.title);
-                                  setDraggedEvent(event);
-                                  setIsDraggingEvent(true);
-                                }}
-                                onDragEnd={(e) => {
-                                  e.stopPropagation();
-                                  console.log('[Frontend] Month view drag end for event');
-                                  document.title = 'Calendar - Synapse';
-                                  setDraggedEvent(null);
-                                  setIsDraggingEvent(false);
-                                  if (!resizingEvent) {
-                                    setDragOverDate(null);
-                                    setDragOverTimeSlot(null);
-                                  }
-                                  setIsDragOver(false);
-                                }}
-                                className={`${event.color} rounded px-1 py-0.5 text-white truncate ${draggedEvent?.id === event.id ? 'opacity-50 cursor-grabbing' : 'cursor-pointer hover:opacity-80'} group relative`}
-                                onClick={(e) => { e.stopPropagation(); handleEventClick(event); }}
-                              >
-                                <span className="truncate">{event.title}</span>
-                                <button
-                                  className="absolute top-0 right-0 w-4 h-4 text-white/70 hover:text-white hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-sm z-10"
-                                  onClick={(e) => {
-                                    e.preventDefault();
+                        <div className={`text-xs sm:text-sm text-right ${isToday(day) ? 'font-bold' : ''}`}>{format(day, "d")}</div>
+                        <div className="mt-1 space-y-0.5 overflow-hidden text-[8px] sm:text-[10px]">
+                          {/* Mobile: Show 1 event, Desktop: Show 2 events */}
+                          <div className="sm:hidden">
+                            {events
+                              .filter(event => isSameDay(event.startTime, day))
+                              .slice(0, 1)
+                              .map(event => (
+                                <div 
+                                  key={event.id} 
+                                  draggable
+                                  onDragStart={(e) => {
                                     e.stopPropagation();
-                                    
-                                    if (window.confirm(`Are you sure you want to delete "${event.title}"? This action cannot be undone.`)) {
-                                      handleDeleteEvent(event);
+                                    console.log('[Frontend] Month view drag start for event:', event.title);
+                                    setDraggedEvent(event);
+                                    setIsDraggingEvent(true);
+                                  }}
+                                  onDragEnd={(e) => {
+                                    e.stopPropagation();
+                                    console.log('[Frontend] Month view drag end for event');
+                                    document.title = 'Calendar - Synapse';
+                                    setDraggedEvent(null);
+                                    setIsDraggingEvent(false);
+                                    if (!resizingEvent) {
+                                      setDragOverDate(null);
+                                      setDragOverTimeSlot(null);
                                     }
+                                    setIsDragOver(false);
                                   }}
-                                  onMouseDown={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                  }}
+                                  className={`${event.color} rounded px-1 py-0.5 text-white truncate ${draggedEvent?.id === event.id ? 'opacity-50 cursor-grabbing' : 'cursor-pointer hover:opacity-80'} group relative text-xs`}
+                                  onClick={(e) => { e.stopPropagation(); handleEventClick(event); }}
                                 >
-                                  <Trash2 size={8} />
-                                </button>
-                              </div>
-                            ))}
-                          {events.filter(event => isSameDay(event.startTime, day)).length > 2 && (
-                            <div className="text-white/70 text-center">...</div>
-                          )}
+                                  <span className="truncate block">{event.title}</span>
+                                </div>
+                              ))}
+                            {events.filter(event => isSameDay(event.startTime, day)).length > 1 && (
+                              <div className="text-white/70 text-center text-xs">+{events.filter(event => isSameDay(event.startTime, day)).length - 1}</div>
+                            )}
+                          </div>
+                          
+                          <div className="hidden sm:block">
+                            {events
+                              .filter(event => isSameDay(event.startTime, day))
+                              .slice(0, 2)
+                              .map(event => (
+                                <div 
+                                  key={event.id} 
+                                  draggable
+                                  onDragStart={(e) => {
+                                    e.stopPropagation();
+                                    console.log('[Frontend] Month view drag start for event:', event.title);
+                                    setDraggedEvent(event);
+                                    setIsDraggingEvent(true);
+                                  }}
+                                  onDragEnd={(e) => {
+                                    e.stopPropagation();
+                                    console.log('[Frontend] Month view drag end for event');
+                                    document.title = 'Calendar - Synapse';
+                                    setDraggedEvent(null);
+                                    setIsDraggingEvent(false);
+                                    if (!resizingEvent) {
+                                      setDragOverDate(null);
+                                      setDragOverTimeSlot(null);
+                                    }
+                                    setIsDragOver(false);
+                                  }}
+                                  className={`${event.color} rounded px-1 py-0.5 text-white truncate ${draggedEvent?.id === event.id ? 'opacity-50 cursor-grabbing' : 'cursor-pointer hover:opacity-80'} group relative text-sm`}
+                                  onClick={(e) => { e.stopPropagation(); handleEventClick(event); }}
+                                >
+                                  <span className="truncate block">{event.title}</span>
+                                  <button
+                                    className="absolute top-0 right-0 w-4 h-4 text-white/70 hover:text-white hover:bg-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-sm z-10"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      
+                                      if (window.confirm(`Are you sure you want to delete "${event.title}"? This action cannot be undone.`)) {
+                                        handleDeleteEvent(event);
+                                      }
+                                    }}
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                    }}
+                                  >
+                                    <Trash2 size={8} />
+                                  </button>
+                                </div>
+                              ))}
+                            {events.filter(event => isSameDay(event.startTime, day)).length > 2 && (
+                              <div className="text-white/70 text-center text-xs">+{events.filter(event => isSameDay(event.startTime, day)).length - 2}</div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ));
@@ -2634,42 +2764,42 @@ export default function CalendarPage() { // Renamed from Home for clarity
           </div>
         </div>
 
-        {/* Selected Event Modal - Restored (conditionally rendered by selectedEvent state) */}
+        {/* Selected Event Modal - Made Mobile Responsive */}
         {selectedEventForDisplay && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm"> {/* High z-index for modal */}
-            <div className={`${selectedEventForDisplay.color} p-6 rounded-lg shadow-xl max-w-md w-full mx-4 text-white`}>
-              <h3 className="text-2xl font-bold mb-4">{selectedEventForDisplay.title}</h3>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm p-4"> {/* High z-index for modal */}
+            <div className={`${selectedEventForDisplay.color} p-4 sm:p-6 rounded-lg shadow-xl max-w-md w-full text-white max-h-[90vh] overflow-y-auto`}>
+              <h3 className="text-xl sm:text-2xl font-bold mb-4">{selectedEventForDisplay.title}</h3>
               <div className="space-y-3">
-                <p className="flex items-center">
-                  <Clock className="mr-2 h-5 w-5" />
+                <p className="flex items-center text-sm sm:text-base">
+                  <Clock className="mr-2 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
                   {`${format(selectedEventForDisplay.startTime, "h:mm aa")} - ${format(selectedEventForDisplay.endTime, "h:mm aa")}`}
                 </p>
-                <p className="flex items-center">
-                  <MapPin className="mr-2 h-5 w-5" />
-                  {selectedEventForDisplay.location}
+                <p className="flex items-center text-sm sm:text-base">
+                  <MapPin className="mr-2 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                  <span className="truncate">{selectedEventForDisplay.location}</span>
                 </p>
-                <p className="flex items-center">
-                  <CalendarIcon className="mr-2 h-5 w-5" />
+                <p className="flex items-center text-sm sm:text-base">
+                  <CalendarIcon className="mr-2 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
                   {selectedEventForDisplay.startTime ? `${format(selectedEventForDisplay.startTime, "EEE, MMM d")}` : ""}
                 </p>
-                <p className="flex items-start">
-                  <Users className="mr-2 h-5 w-5 mt-1" />
+                <p className="flex items-start text-sm sm:text-base">
+                  <Users className="mr-2 h-4 w-4 sm:h-5 sm:w-5 mt-1 flex-shrink-0" />
                   <span>
                     <strong>Attendees:</strong>
                     <br />
                     {selectedEventForDisplay.attendees.join(", ") || "No attendees"}
                   </span>
                 </p>
-                <p>
+                <p className="text-sm sm:text-base">
                   <strong>Organizer:</strong> {selectedEventForDisplay.organizer}
                 </p>
-                <p>
+                <p className="text-sm sm:text-base">
                   <strong>Description:</strong> {selectedEventForDisplay.description}
                 </p>
               </div>
-              <div className="mt-6 flex justify-end">
+              <div className="mt-6 flex flex-col sm:flex-row justify-end gap-2 sm:gap-0">
                 <button
-                  className="bg-white/90 text-gray-800 px-4 py-2 rounded hover:bg-white transition-colors mr-2"
+                  className="bg-white/90 text-gray-800 px-4 py-2 rounded hover:bg-white transition-colors sm:mr-2 text-sm sm:text-base"
                   onClick={() => {
                     if (selectedEventForDisplay) {
                       handleEventClick(selectedEventForDisplay); // This will open the edit modal
@@ -2680,7 +2810,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                   Edit
                 </button>
                 <button
-                  className="bg-white/90 text-gray-800 px-4 py-2 rounded hover:bg-white transition-colors"
+                  className="bg-white/90 text-gray-800 px-4 py-2 rounded hover:bg-white transition-colors text-sm sm:text-base"
                   onClick={() => setSelectedEventForDisplay(null)}
                 >
                   Close
@@ -2690,15 +2820,15 @@ export default function CalendarPage() { // Renamed from Home for clarity
           </div>
         )}
 
-        {/* Create/Edit Event Modal */}
+        {/* Create/Edit Event Modal - Made Mobile Responsive */}
         {isEventModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 backdrop-blur-sm p-4">
-            <div className="bg-slate-800 p-6 rounded-lg shadow-xl max-w-lg w-full text-white border border-slate-700">
-              <h3 className="text-xl font-semibold mb-6">
+            <div className="bg-slate-800 p-4 sm:p-6 rounded-lg shadow-xl max-w-lg w-full text-white border border-slate-700 max-h-[90vh] overflow-y-auto">
+              <h3 className="text-lg sm:text-xl font-semibold mb-4 sm:mb-6">
                 {modalMode === "create" ? "Create New Event" : "Edit Event"}
               </h3>
               
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <div>
                   <label htmlFor="eventTitle" className="block text-sm font-medium text-slate-300 mb-1">Title</label>
                   <input 
@@ -2706,12 +2836,12 @@ export default function CalendarPage() { // Renamed from Home for clarity
                     id="eventTitle"
                     value={newEventTitle}
                     onChange={(e) => setNewEventTitle(e.target.value)}
-                    className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 sm:p-3 text-sm focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400"
                     placeholder="e.g., Team Meeting"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
                     <label htmlFor="eventStartDate" className="block text-sm font-medium text-slate-300 mb-1">Start Date</label>
                     <input 
@@ -2719,7 +2849,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                       id="eventStartDate"
                       value={newEventStartDate}
                       onChange={(e) => setNewEventStartDate(e.target.value)}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500 tabular-nums"
+                      className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 sm:p-3 text-sm focus:ring-blue-500 focus:border-blue-500 tabular-nums"
                     />
                   </div>
                   <div>
@@ -2729,12 +2859,12 @@ export default function CalendarPage() { // Renamed from Home for clarity
                       id="eventStartTime"
                       value={newEventStartTime}
                       onChange={(e) => setNewEventStartTime(e.target.value)}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 sm:p-3 text-sm focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div>
                     <label htmlFor="eventEndDate" className="block text-sm font-medium text-slate-300 mb-1">End Date</label>
                     <input 
@@ -2742,7 +2872,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                       id="eventEndDate"
                       value={newEventEndDate}
                       onChange={(e) => setNewEventEndDate(e.target.value)}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500 tabular-nums"
+                      className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 sm:p-3 text-sm focus:ring-blue-500 focus:border-blue-500 tabular-nums"
                     />
                   </div>
                   <div>
@@ -2752,7 +2882,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                       id="eventEndTime"
                       value={newEventEndTime}
                       onChange={(e) => setNewEventEndTime(e.target.value)}
-                      className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 sm:p-3 text-sm focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
                 </div>
@@ -2764,7 +2894,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                     value={newEventDescription}
                     onChange={(e) => setNewEventDescription(e.target.value)}
                     rows={3}
-                    className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 sm:p-3 text-sm focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400"
                     placeholder="Add more details..."
                   />
                 </div>
@@ -2775,7 +2905,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                     id="eventColor"
                     value={newEventColor}
                     onChange={(e) => setNewEventColor(e.target.value)}
-                    className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 sm:p-3 text-sm focus:ring-blue-500 focus:border-blue-500"
                   >
                     {myCalendars.map(cal => (
                       <option key={cal.name} value={cal.color} className="text-white">
@@ -2792,10 +2922,10 @@ export default function CalendarPage() { // Renamed from Home for clarity
                 </div>
               </div>
 
-              <div className="mt-8 flex justify-end gap-3">
+              <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row justify-end gap-3">
                 <button 
                   onClick={closeEventModal}
-                  className="px-4 py-2 rounded-md text-sm font-medium text-slate-300 hover:bg-slate-700 transition-colors border border-slate-600"
+                  className="px-4 py-2 rounded-md text-sm font-medium text-slate-300 hover:bg-slate-700 transition-colors border border-slate-600 order-2 sm:order-1"
                 >
                   Cancel
                 </button>
@@ -2806,7 +2936,7 @@ export default function CalendarPage() { // Renamed from Home for clarity
                     console.log('[Frontend] Current modalMode:', modalMode);
                     handleSubmitEvent();
                   }}
-                  className="px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800"
+                  className="px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800 order-1 sm:order-2"
                 >
                   {modalMode === "create" ? "Save Event" : "Update Event"}
                 </button>
