@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -37,15 +37,32 @@ interface AguiLiveDashboardProps {
 }
 
 export const AguiLiveDashboard: React.FC<AguiLiveDashboardProps> = ({ className }) => {
-  const [isExpanded, setIsExpanded] = useState(true);
-  const [isVisible, setIsVisible] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
   const [selectedTab, setSelectedTab] = useState('overview');
+  const isInitialMount = useRef(true);
   
   const { isConnected, eventCount } = useAgui();
   const { runningRuns, completedRuns, failedRuns } = useAgentLifecycle();
   const { steps, currentStep, hasActiveSteps } = useAgentSteps();
   const { messages } = useAgentMessages();
   const { eventStats, totalEventTypes, mostFrequentEventType } = useAguiStats();
+
+  // Auto-show when there's real activity (but not on initial mount)
+  useEffect(() => {
+    // Skip auto-showing on initial mount
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    if (runningRuns.length > 0 || hasActiveSteps || messages.length > 0) {
+      setIsVisible(true);
+      if (runningRuns.length > 0 || hasActiveSteps) {
+        setIsExpanded(true);
+      }
+    }
+  }, [runningRuns.length, hasActiveSteps, messages.length]);
 
   // Calculate live stats
   const totalRuns = runningRuns.length + completedRuns.length + failedRuns.length;

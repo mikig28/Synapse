@@ -1007,7 +1007,7 @@ const AgentsPage: React.FC = () => {
         </>
       )}
 
-      {/* AG-UI Live Dashboard - Always visible when agents are running */}
+      {/* AG-UI Live Dashboard - Only show when there's actual activity */}
       <AguiLiveDashboard />
     </div>
   );

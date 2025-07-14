@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { agentService } from '../services/agentService';
 import { Agent, AgentRun } from '../types/agent';
+import ConnectionStatusNotification from './ConnectionStatusNotification';
 import {
   Activity,
   Bot,
@@ -216,19 +217,19 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
             
             if (errorDetails) {
               if (errorDetails.service_unreachable) {
-                userMessage = 'CrewAI service is starting up. Please wait...';
+                userMessage = '🚀 Starting up agent service (takes ~30 seconds)';
                 errorType = 'service_starting';
               } else if (errorDetails.connection_timeout) {
-                userMessage = 'Service is busy. Retrying...';
+                userMessage = '⏳ Agent is busy processing - will continue in background';
                 errorType = 'service_busy';
               } else if (errorDetails.agent_status === 'running' && errorDetails.time_since_last_run_seconds < 30) {
-                userMessage = 'Agent just started. Initializing...';
+                userMessage = '⚡ Initializing agent workspace...';
                 errorType = 'initializing';
               } else if (errorDetails.agent_status === 'running' && errorDetails.time_since_last_run_seconds > 300) {
-                userMessage = 'Agent may be stuck. Consider restarting it.';
+                userMessage = '⚠️ Agent taking longer than expected - you can start a new one';
                 errorType = 'potentially_stuck';
               } else {
-                userMessage = 'Waiting for execution steps...';
+                userMessage = '👀 Waiting for agent to begin processing...';
                 errorType = 'waiting';
               }
             }
@@ -247,17 +248,17 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
         } catch (error: any) {
           console.warn(`[Dashboard] Failed to fetch progress for agent ${agent.name}:`, error.message);
           
-          let userMessage = 'Connection error. Retrying...';
+          let userMessage = '🔄 Reconnecting to agent service...';
           let errorType = 'connection_error';
           
           if (error.message.includes('timeout')) {
-            userMessage = 'Service timeout. Please wait...';
+            userMessage = '⏱️ Service is responding slowly - agent continues working';
             errorType = 'timeout';
           } else if (error.message.includes('ECONNREFUSED')) {
-            userMessage = 'CrewAI service is not responding. Please check service status.';
+            userMessage = '❌ Agent service is offline - please restart service';
             errorType = 'service_down';
           } else if (error.message.includes('404')) {
-            userMessage = 'Progress endpoint not found. Service may be outdated.';
+            userMessage = '🔧 Agent service needs update - some features unavailable';
             errorType = 'endpoint_missing';
           }
           
@@ -318,25 +319,26 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
   const getUserFriendlyMessage = (progress: any, agent: any): string => {
     if (progress.hasActiveProgress && progress.steps && progress.steps.length > 0) {
       const latestStep = progress.steps[progress.steps.length - 1];
-      return `${latestStep.step || latestStep.message || 'Processing...'}`;
+      const stepMessage = latestStep.step || latestStep.message || 'Processing...';
+      return `🔍 ${stepMessage}`;
     } else if (progress.progress_status === 'active') {
-      return 'Agent is working...';
+      return '⚡ Agent is actively working on your request...';
     } else if (progress.progress_status === 'no_active_progress') {
       const debugInfo = progress.debug_info;
       if (debugInfo?.agent_status === 'running') {
         if (debugInfo.time_since_last_run_seconds < 30) {
-          return 'Starting up...';
+          return '🚀 Agent starting up...';
         } else if (debugInfo.time_since_last_run_seconds > 300) {
-          return 'Agent may be stuck';
+          return '⚠️ Agent taking longer than expected';
         } else {
-          return 'Initializing...';
+          return '⚡ Agent initializing workspace...';
         }
       }
-      return 'Waiting for execution steps...';
+      return '👀 Waiting for agent to begin...';
     } else if (progress.progress_status === 'service_error') {
-      return 'Service connection issue';
+      return '🔌 Connection issue - agent may still be working';
     } else {
-      return 'Checking status...';
+      return '🔍 Checking agent status...';
     }
   };
 
@@ -397,10 +399,7 @@ const AgentActivityDashboard: React.FC<AgentActivityProps> = ({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="px-3 py-1">
-            <Activity className="w-3 h-3 mr-1" />
-            Live AG-UI Events
-          </Badge>
+          <ConnectionStatusNotification showDetails={true} />
           <Button
             variant="outline"
             size="sm"

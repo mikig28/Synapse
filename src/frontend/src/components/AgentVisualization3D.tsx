@@ -5,7 +5,8 @@ import { Agent3DAvatar } from './Agent3DAvatar';
 import { ThreeErrorBoundary } from './ThreeErrorBoundary';
 import { AgentStatus } from '../types/aguiTypes';
 import { detectWebGLSupport, getWebGLInfo } from '../utils/webglSupport';
-import { AlertCircle, Box, RefreshCw } from 'lucide-react';
+import { AlertCircle, Box, RefreshCw, Monitor } from 'lucide-react';
+import Agent2DFallback from './Agent2DFallback';
 
 interface AgentVisualization3DProps {
   agents: AgentStatus[];
@@ -62,34 +63,57 @@ export function AgentVisualization3D({ agents, className }: AgentVisualization3D
 
   if (!webglSupported) {
     return (
-      <div className={`w-full h-full flex items-center justify-center ${className}`}>
-        <div className="text-center p-4 max-w-md">
-          <AlertCircle className="w-8 h-8 text-orange-500 mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground mb-1">3D visualization unavailable</p>
-          <p className="text-xs text-muted-foreground mb-3">
-            {webglInfo?.error || 'WebGL or Three.js support required'}
-          </p>
-          
-          {webglInfo && !webglInfo.supported && (
-            <div className="text-xs text-muted-foreground mb-3 p-2 bg-muted rounded">
-              <p><strong>Troubleshooting:</strong></p>
-              <ul className="list-disc list-inside mt-1 space-y-1">
-                <li>Update your graphics drivers</li>
-                <li>Try a different browser (Chrome, Firefox, Edge)</li>
-                <li>Check if hardware acceleration is enabled</li>
-                <li>Disable browser extensions that might block WebGL</li>
-              </ul>
+      <div className={`w-full h-full ${className}`}>
+        {/* Fallback Header */}
+        <div className="p-4 bg-muted/20 border-b">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Monitor className="w-5 h-5 text-blue-500" />
+              <div>
+                <h3 className="text-sm font-medium">Agent Visualization</h3>
+                <p className="text-xs text-muted-foreground">2D mode - full functionality available</p>
+              </div>
             </div>
-          )}
-          
-          <button 
-            onClick={handleRetry}
-            className="flex items-center gap-2 mx-auto px-3 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
-          >
-            <RefreshCw className="w-3 h-3" />
-            Retry
-          </button>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={handleRetry}
+                className="flex items-center gap-1 px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded transition-colors"
+                title="Try to enable 3D mode"
+              >
+                <RefreshCw className="w-3 h-3" />
+                Try 3D
+              </button>
+            </div>
+          </div>
         </div>
+        
+        {/* 2D Fallback Component */}
+        <Agent2DFallback agents={agents} className="flex-1" />
+        
+        {/* Optional troubleshooting info */}
+        {webglInfo && !webglInfo.supported && retryCount > 2 && (
+          <div className="p-3 m-4 mt-0 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <p className="font-medium text-yellow-800 dark:text-yellow-200">
+                  3D visualization not available
+                </p>
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-yellow-700 dark:text-yellow-300 hover:underline">
+                    Troubleshooting tips
+                  </summary>
+                  <ul className="list-disc list-inside mt-1 space-y-1 text-yellow-700 dark:text-yellow-300">
+                    <li>Update your graphics drivers</li>
+                    <li>Try Chrome, Firefox, or Edge browser</li>
+                    <li>Enable hardware acceleration in browser settings</li>
+                    <li>Disable extensions that might block WebGL</li>
+                  </ul>
+                </details>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

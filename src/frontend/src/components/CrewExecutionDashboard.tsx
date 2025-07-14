@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { useAguiEvents } from '@/contexts/AguiContext';
+import { useAguiEvents, useAgui } from '@/contexts/AguiContext';
 import { AGUIEventType, StepProgressEvent, RunStartedEvent, RunCompletedEvent, AgentMessageEvent } from '@/types/aguiTypes';
+import AgentOutputReport from './AgentOutputReport';
 import {
   Activity,
   Bot,
@@ -58,21 +59,35 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
   onPauseAgent
 }) => {
   const [isPanelVisible, setIsPanelVisible] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [progressSteps, setProgressSteps] = useState<ProgressStep[]>([]);
   const [executionStatus, setExecutionStatus] = useState<'idle' | 'running' | 'completed' | 'error'>('idle');
   const [finalResults, setFinalResults] = useState<any>(null);
+  const [completedRun, setCompletedRun] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const hasAutoOpened = useRef(false);
+  const isInitialMount = useRef(true);
   const { toast } = useToast();
+  const { isConnected } = useAgui();
 
   // Use AG-UI events for real-time updates
   const handleAguiEvent = (event: any) => {
-    // Filter events for this specific agent
-    if (event.agent_id !== agentId) return;
+    console.log('[CrewDashboard] Raw AG-UI event received:', { 
+      eventType: event.type, 
+      agentId: event.agentId, 
+      agent_id: event.agent_id,
+      targetAgentId: agentId,
+      fullEvent: event 
+    });
 
-    console.log('[CrewDashboard] Received AG-UI event:', event.type, event);
+    // Filter events for this specific agent - check both agentId and agent_id fields
+    const eventAgentId = event.agentId || event.agent_id;
+    if (eventAgentId && eventAgentId !== agentId) {
+      console.log('[CrewDashboard] Event filtered out - agent ID mismatch');
+      return;
+    }
+
+    console.log('[CrewDashboard] Processing AG-UI event:', event.type, event);
 
     switch (event.type) {
       case AGUIEventType.RUN_STARTED:
@@ -81,8 +96,8 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
         setExecutionStatus('running');
         setProgressSteps([]);
         setFinalResults(null);
+        setCompletedRun(null);
         setErrorMessage(null);
-        setIsConnected(true);
         break;
 
       case AGUIEventType.STEP_PROGRESS:
@@ -134,23 +149,55 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
             summary: runCompleted.summary,
             duration: runCompleted.duration
           });
+          
+          // Create a mock AgentRun object for the output report
+          setCompletedRun({
+            _id: currentSessionId || 'session-' + Date.now(),
+            agentId: { name: agentName },
+            status: runCompleted.success ? 'completed' : 'failed',
+            results: {
+              summary: runCompleted.summary,
+              data: runCompleted.data || {},
+              executive_summary: runCompleted.executive_summary || [],
+              organized_content: runCompleted.organized_content || {},
+              metrics: {
+                execution_time: runCompleted.duration * 1000, // Convert to ms
+                items_processed: runCompleted.items_collected,
+                success_rate: runCompleted.success ? 1 : 0,
+                sources_used: runCompleted.sources_used || []
+              }
+            },
+            itemsProcessed: runCompleted.items_collected || 0,
+            itemsAdded: runCompleted.items_collected || 0,
+            duration: runCompleted.duration * 1000, // Convert to ms
+            createdAt: new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+            error: runCompleted.success ? undefined : runCompleted.error
+          });
         }
         if (!runCompleted.success && runCompleted.error) {
           setErrorMessage(runCompleted.error);
         }
-        break;
-
-      case AGUIEventType.CONNECTION_STATUS:
-        setIsConnected(event.status === 'connected');
         break;
     }
   };
 
   useAguiEvents(handleAguiEvent, [agentId]);
 
-  // Auto-open panel when agent starts running
+  // Auto-open panel when agent starts running and we have actual activity
   useEffect(() => {
-    if (isRunning && !hasAutoOpened.current) {
+    // Skip auto-opening on initial mount to prevent showing for already-running agents
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    // Only auto-open if:
+    // 1. Agent is running
+    // 2. We haven't auto-opened yet for this session  
+    // 3. We have progress steps OR execution status changed to running
+    // 4. This is not the initial page load
+    if (isRunning && !hasAutoOpened.current && (progressSteps.length > 0 || executionStatus === 'running')) {
       setIsPanelVisible(true);
       hasAutoOpened.current = true;
       toast({
@@ -165,7 +212,7 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
         setExecutionStatus('idle');
       }
     }
-  }, [isRunning, agentName, toast, executionStatus]);
+  }, [isRunning, agentName, toast, executionStatus, progressSteps.length]);
 
   // Calculate progress percentage
   const calculateProgress = () => {
@@ -306,6 +353,30 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
                         <p className="mt-2 text-muted-foreground">
                           {isConnected ? 'Waiting for agent execution steps...' : 'Connecting to AG-UI...'}
                         </p>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="mt-3"
+                          onClick={() => {
+                            console.log('[CrewDashboard] Manual check - Agent ID:', agentId, 'Is Running:', isRunning, 'Session:', currentSessionId);
+                            toast({
+                              title: 'Debug Info',
+                              description: `Agent: ${agentId}, Running: ${isRunning}, Session: ${currentSessionId || 'None'}`,
+                            });
+                          }}
+                        >
+                          Check Status
+                        </Button>
+                        <div className="mt-4 text-xs text-muted-foreground space-y-1">
+                          <p>🔗 AG-UI Status: {isConnected ? 'Connected' : 'Disconnected'}</p>
+                          <p>📡 Session: {currentSessionId || 'Not started'}</p>
+                          <p>⚡ Execution Status: {executionStatus}</p>
+                          {!isConnected && (
+                            <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded text-yellow-700 dark:text-yellow-300">
+                              <p className="text-xs">⚠️ Real-time updates unavailable. Agent is still running in background.</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <div className="text-center py-10 text-muted-foreground">
@@ -315,31 +386,64 @@ export const CrewExecutionDashboard: React.FC<CrewExecutionDashboardProps> = ({
                       </div>
                     )}
 
-                    {/* Final Results */}
-                    {executionStatus === 'completed' && finalResults && (
-                      <Card className="mt-4">
-                        <CardHeader>
-                          <CardTitle className="text-lg">Execution Results</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          {finalResults.itemsCollected && (
-                            <p className="mb-2">
-                              <strong>Items Collected:</strong> {finalResults.itemsCollected}
-                            </p>
-                          )}
-                          {finalResults.duration && (
-                            <p className="mb-2">
-                              <strong>Duration:</strong> {finalResults.duration}s
-                            </p>
-                          )}
-                          {finalResults.summary && (
-                            <div className="mt-3">
-                              <strong>Summary:</strong>
-                              <p className="text-sm text-muted-foreground mt-1">{finalResults.summary}</p>
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
+                    {/* Enhanced Results Report */}
+                    {executionStatus === 'completed' && completedRun && (
+                      <div className="mt-4">
+                        <AgentOutputReport 
+                          run={completedRun}
+                          showActions={true}
+                          onExport={(run, format) => {
+                            // Handle export functionality
+                            const dataStr = format === 'json' 
+                              ? JSON.stringify(run, null, 2)
+                              : `# ${run.agentId.name} Report\n\n${JSON.stringify(run.results, null, 2)}`;
+                            
+                            const blob = new Blob([dataStr], { 
+                              type: format === 'json' ? 'application/json' : 'text/markdown' 
+                            });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `${agentName}-report-${new Date().toISOString().split('T')[0]}.${format}`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                            
+                            toast({
+                              title: 'Report Exported',
+                              description: `Report exported as ${format.toUpperCase()}`,
+                            });
+                          }}
+                          onShare={(run) => {
+                            if (navigator.share) {
+                              navigator.share({
+                                title: `${agentName} Report`,
+                                text: run.results.summary || 'Agent execution report',
+                                url: window.location.href
+                              }).catch(() => {
+                                // Fallback to clipboard
+                                navigator.clipboard.writeText(
+                                  `${agentName} Report: ${run.results.summary || 'Agent execution completed'}`
+                                );
+                                toast({
+                                  title: 'Shared',
+                                  description: 'Report details copied to clipboard',
+                                });
+                              });
+                            } else {
+                              // Fallback to clipboard
+                              navigator.clipboard.writeText(
+                                `${agentName} Report: ${run.results.summary || 'Agent execution completed'}`
+                              );
+                              toast({
+                                title: 'Shared',
+                                description: 'Report details copied to clipboard',
+                              });
+                            }
+                          }}
+                        />
+                      </div>
                     )}
 
                     {/* Error Display */}
