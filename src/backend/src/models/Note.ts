@@ -22,11 +22,10 @@ const NoteSchema = new Schema<INote>(
     content: { type: String, required: true },
     source: { type: String },
     telegramMessageId: { type: Schema.Types.ObjectId, ref: 'TelegramItem' },
-    rawTranscription: { type: String, required: false },
+    rawTranscription: { type: String },
     location: {
       type: { type: String, enum: ['Point'] },
-      coordinates: { type: [Number] },
-      required: false
+      coordinates: { type: [Number] }
     }
   },
   { timestamps: true }

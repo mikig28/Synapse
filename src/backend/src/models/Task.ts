@@ -44,11 +44,10 @@ const TaskSchema = new Schema<ITask>(
     reminderEnabled: { type: Boolean, default: false },
     source: { type: String },
     telegramMessageId: { type: Schema.Types.ObjectId, ref: 'TelegramItem' },
-    rawTranscription: { type: String, required: false },
+    rawTranscription: { type: String },
     location: {
       type: { type: String, enum: ['Point'] },
-      coordinates: { type: [Number] },
-      required: false
+      coordinates: { type: [Number] }
     }
   },
   { timestamps: true }
