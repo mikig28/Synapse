@@ -5,6 +5,7 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { X, AlertCircle } from 'lucide-react';
 import { Note } from '@/pages/NotesPage'; // Assuming Note type is exported from NotesPage or a types file
+import LocationPicker, { LocationData } from '@/components/location/LocationPicker';
 
 // Define a local interface for Note data for the modal
 // This should align with the Note interface in NotesPage.tsx or a shared type
@@ -15,12 +16,13 @@ interface Note {
   createdAt: string;
   updatedAt: string;
   source?: string;
+  location?: LocationData;
 }
 
 export interface AddNoteModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (noteData: Omit<Note, '_id' | 'createdAt' | 'updatedAt' | 'source'>) => Promise<void>;
+  onSave: (noteData: Omit<Note, '_id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   existingError?: string | null;
   clearError?: () => void;
 }
@@ -29,6 +31,7 @@ const AddNoteModal: React.FC<AddNoteModalProps> = ({ isOpen, onClose, onSave, ex
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [source, setSource] = useState('');
+  const [location, setLocation] = useState<LocationData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [internalError, setInternalError] = useState<string | null>(null);
 
@@ -37,6 +40,7 @@ const AddNoteModal: React.FC<AddNoteModalProps> = ({ isOpen, onClose, onSave, ex
       setTitle('');
       setContent('');
       setSource('');
+      setLocation(null);
       setInternalError(null);
       setIsSubmitting(false);
     }
@@ -57,10 +61,11 @@ const AddNoteModal: React.FC<AddNoteModalProps> = ({ isOpen, onClose, onSave, ex
     if (clearError) clearError(); // Clear any page-level error before attempting save
     setIsSubmitting(true);
     
-    const newNoteData: Omit<Note, '_id' | 'createdAt' | 'updatedAt' | 'source'> = {
+    const newNoteData: Omit<Note, '_id' | 'createdAt' | 'updatedAt'> = {
       title: title.trim() || undefined, // Send undefined if title is empty
       content,
       source: source.trim(),
+      location: location || undefined,
     };
 
     try {
@@ -135,6 +140,12 @@ const AddNoteModal: React.FC<AddNoteModalProps> = ({ isOpen, onClose, onSave, ex
               value={source}
               onChange={(e) => setSource(e.target.value)}
               className="w-full p-2 border border-border rounded-md bg-input text-foreground focus:ring-primary focus:border-primary"
+            />
+          </div>
+          <div className="mb-4">
+            <LocationPicker
+              onLocationSelect={setLocation}
+              disabled={isSubmitting}
             />
           </div>
           <div className="flex justify-end space-x-3">

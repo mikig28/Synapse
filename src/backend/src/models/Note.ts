@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema, Document, Point } from 'mongoose';
 
 export interface INote extends Document {
   userId: mongoose.Types.ObjectId;
@@ -9,6 +9,10 @@ export interface INote extends Document {
   rawTranscription?: string; // To store the full transcription if source is voice
   createdAt: Date;
   updatedAt: Date;
+  location?: {
+    type: 'Point';
+    coordinates: [number, number]; // [longitude, latitude]
+  };
 }
 
 const NoteSchema = new Schema<INote>(
@@ -19,11 +23,17 @@ const NoteSchema = new Schema<INote>(
     source: { type: String },
     telegramMessageId: { type: Schema.Types.ObjectId, ref: 'TelegramItem' },
     rawTranscription: { type: String, required: false },
+    location: {
+      type: { type: String, enum: ['Point'] },
+      coordinates: { type: [Number] },
+      required: false
+    }
   },
   { timestamps: true }
 );
 
 NoteSchema.index({ userId: 1, createdAt: -1 });
+NoteSchema.index({ location: '2dsphere' });
 
 const Note = mongoose.model<INote>('Note', NoteSchema);
 

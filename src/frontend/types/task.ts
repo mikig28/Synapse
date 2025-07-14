@@ -8,6 +8,11 @@ export interface Task {
   reminderEnabled?: boolean;
   source?: string;
   telegramMessageId?: string;
+  location?: {
+    type: 'Point';
+    coordinates: [number, number]; // [longitude, latitude]
+    address?: string;
+  };
   createdAt: string;
   updatedAt: string;
 } 

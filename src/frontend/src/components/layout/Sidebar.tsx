@@ -22,6 +22,8 @@ import {
   Clock,
   ChevronUp,
   ChevronDown,
+  MapPin,
+  Map as MapIcon,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -50,6 +52,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
     { href: "/agents", label: "AI Agents", icon: Bot },
     { href: "/scheduled-agents", label: "Scheduled Agents", icon: Clock },
     { href: "/calendar", label: "Calendar", icon: CalendarDays }, 
+    { href: "/places", label: "Places", icon: MapIcon },
+    { href: "/maps", label: "Maps", icon: MapPin },
     { href: "/planning", label: "Planning", icon: Plane }, 
     { href: "/goals", label: "Goals", icon: Target }, 
     { href: "/habits", label: "Habits", icon: Repeat }, 

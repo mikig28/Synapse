@@ -113,4 +113,81 @@ export const sendTaskReminder = async (req: AuthenticatedRequest, res: Response)
     console.error('Error sending task reminder:', error);
     res.status(500).json({ message: 'Failed to send task reminder', error: (error as Error).message });
   }
+};
+
+export const geotagTask = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { location } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'Invalid task ID' });
+    }
+
+    if (!location || !location.type || !Array.isArray(location.coordinates)) {
+      return res.status(400).json({ error: 'Invalid location format. Expected GeoJSON Point.' });
+    }
+
+    if (location.type !== 'Point' || location.coordinates.length !== 2) {
+      return res.status(400).json({ error: 'Location must be a GeoJSON Point with [longitude, latitude]' });
+    }
+
+    const task = await Task.findOneAndUpdate(
+      { _id: id, userId: new mongoose.Types.ObjectId(userId) },
+      { location },
+      { new: true }
+    );
+
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found or user not authorized' });
+    }
+
+    res.json(task);
+  } catch (error) {
+    console.error('Error geotagging task:', error);
+    res.status(500).json({ error: 'Failed to geotag task', message: (error as Error).message });
+  }
+};
+
+export const getNearbyTasks = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { lat, lng, radius = 1000 } = req.query;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    if (!lat || !lng) {
+      return res.status(400).json({ error: 'lat and lng query parameters are required' });
+    }
+
+    const latitude = parseFloat(lat as string);
+    const longitude = parseFloat(lng as string);
+    const searchRadius = parseInt(radius as string);
+
+    if (isNaN(latitude) || isNaN(longitude) || isNaN(searchRadius)) {
+      return res.status(400).json({ error: 'lat, lng, and radius must be valid numbers' });
+    }
+
+    const tasks = await Task.find({
+      userId: new mongoose.Types.ObjectId(userId),
+      location: {
+        $near: {
+          $geometry: { type: 'Point', coordinates: [longitude, latitude] },
+          $maxDistance: searchRadius
+        }
+      }
+    });
+
+    res.json(tasks);
+  } catch (error) {
+    console.error('Error fetching nearby tasks:', error);
+    res.status(500).json({ error: 'Failed to fetch nearby tasks', message: (error as Error).message });
+  }
 }; 

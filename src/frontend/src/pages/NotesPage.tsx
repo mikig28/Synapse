@@ -21,7 +21,8 @@ import {
   Sparkles,
   AlertCircle,
   Search,
-  Filter
+  Filter,
+  MapPin
 } from 'lucide-react';
 
 // Define a local interface for Note data
@@ -32,6 +33,11 @@ export interface Note {
   createdAt: string;
   updatedAt: string;
   source?: string;
+  location?: {
+    type: 'Point';
+    coordinates: [number, number];
+    address?: string;
+  };
 }
 
 const API_BASE_URL = `${BACKEND_ROOT_URL}/api/v1`;
@@ -120,7 +126,7 @@ const NotesPage: React.FC = () => {
     setError(null);
   };
 
-  const handleSaveNewNote = async (newNoteData: Omit<Note, '_id' | 'createdAt' | 'updatedAt' | 'source'>) => {
+  const handleSaveNewNote = async (newNoteData: Omit<Note, '_id' | 'createdAt' | 'updatedAt'>) => {
     if (!token) {
       setError("Authentication token not found. Please log in.");
       return;
@@ -441,7 +447,7 @@ const NotesPage: React.FC = () => {
                   </p>
 
                   <div className="text-xs text-gray-400/80 mt-auto pt-2 border-t border-white/10">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mb-1">
                         <span className="flex items-center">
                             <Calendar size={14} className="mr-1" />
                             Created: {new Date(note.createdAt).toLocaleDateString()}
@@ -451,6 +457,14 @@ const NotesPage: React.FC = () => {
                             Updated: {new Date(note.updatedAt).toLocaleDateString()}
                         </span>
                     </div>
+                    {note.location && (
+                      <div className="flex items-center text-emerald-300/80">
+                        <MapPin size={12} className="mr-1" />
+                        <span className="truncate">
+                          {note.location.address || `${note.location.coordinates[1].toFixed(4)}, ${note.location.coordinates[0].toFixed(4)}`}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex justify-end gap-2 mt-3">

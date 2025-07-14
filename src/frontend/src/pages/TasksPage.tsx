@@ -32,7 +32,8 @@ import {
   TrendingUp,
   Bell, // Added for reminder button
   LayoutGrid,
-  List
+  List,
+  MapPin
 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast"; // Added useToast
 import {
@@ -533,14 +534,24 @@ const TasksPage: React.FC = () => {
                       : 'No description'}
                   </p>
 
-                  <div className="flex items-center justify-between text-xs text-gray-400/80 mb-4">
-                    <span className={`px-2 py-0.5 rounded-md border ${getPriorityColor(task.priority)}`}>
-                      Priority: {task.priority || 'normal'}
-                    </span>
-                    <span className="flex items-center">
-                      <Calendar size={14} className="mr-1" />
-                      {new Date(task.createdAt).toLocaleDateString()}
-                    </span>
+                  <div className="text-xs text-gray-400/80 mb-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className={`px-2 py-0.5 rounded-md border ${getPriorityColor(task.priority)}`}>
+                        Priority: {task.priority || 'normal'}
+                      </span>
+                      <span className="flex items-center">
+                        <Calendar size={14} className="mr-1" />
+                        {new Date(task.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    {task.location && (
+                      <div className="flex items-center text-purple-300/80">
+                        <MapPin size={12} className="mr-1" />
+                        <span className="truncate">
+                          {task.location.address || `${task.location.coordinates[1].toFixed(4)}, ${task.location.coordinates[0].toFixed(4)}`}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex justify-end gap-2 mt-auto pt-3 border-t border-white/10">

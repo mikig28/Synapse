@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, Bell } from 'lucide-react';
+import LocationPicker, { LocationData } from '@/components/location/LocationPicker';
 
 // Define a local Task interface, mirroring the one in TasksPage.tsx
 // Or, ideally, import from a shared types file like '@/types/task' if it exists
@@ -22,6 +23,7 @@ interface Task {
   reminderEnabled?: boolean;
   source?: string;
   telegramMessageId?: string;
+  location?: LocationData;
   createdAt: string;
   updatedAt: string;
 }
@@ -39,6 +41,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave }) 
   const [priority, setPriority] = useState<Task['priority'] | undefined>(undefined);
   const [dueDate, setDueDate] = useState('');
   const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [location, setLocation] = useState<LocationData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +54,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave }) 
       setPriority(undefined);
       setDueDate('');
       setReminderEnabled(false);
+      setLocation(null);
       setError(null);
       setIsSubmitting(false);
     }
@@ -72,6 +76,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave }) 
       priority: priority || undefined,
       dueDate: dueDate || undefined,
       reminderEnabled,
+      location: location || undefined,
       // source and telegramMessageId are not set by manual creation by default
     };
 
@@ -192,6 +197,12 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave }) 
                 id="reminderEnabled"
                 checked={reminderEnabled}
                 onCheckedChange={setReminderEnabled}
+                disabled={isSubmitting}
+              />
+            </div>
+            <div className="mb-4">
+              <LocationPicker
+                onLocationSelect={setLocation}
                 disabled={isSubmitting}
               />
             </div>
