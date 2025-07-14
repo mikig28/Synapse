@@ -20,7 +20,7 @@ import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { ExpandableContent } from '@/components/ui/ExpandableContent';
 
 const BookmarksPage: React.FC = () => {
-  const [bookmarks, setBookmarks] = useState<BookmarkItemType[] | null>(null);
+  const [bookmarks, setBookmarks] = useState<BookmarkItemType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all');
@@ -129,7 +129,7 @@ const BookmarksPage: React.FC = () => {
       console.error("[BookmarksPage] No authentication token available");
       setError("You must be logged in to view bookmarks. Please log in and try again.");
       setLoading(false);
-      setBookmarks(null); // Also clear bookmarks if token is lost
+      setBookmarks([]); // Also clear bookmarks if token is lost
       return;
     }
     
@@ -168,7 +168,7 @@ const BookmarksPage: React.FC = () => {
   // This makes the data flow more predictable and avoids potential stale memoized values.
 
   const getFilteredAndSortedBookmarks = () => {
-    if (loading || !Array.isArray(bookmarks)) {
+    if (loading) {
       return [];
     }
 
@@ -241,7 +241,7 @@ const BookmarksPage: React.FC = () => {
   const handleDeleteBookmark = async (bookmarkId: string) => {
     try {
       await deleteBookmarkService(bookmarkId);
-      setBookmarks(prev => prev?.filter(b => b._id !== bookmarkId) || null);
+      setBookmarks(prev => prev.filter(b => b._id !== bookmarkId));
       toast({
         title: "Bookmark Deleted",
         description: "The bookmark has been successfully removed.",
@@ -262,7 +262,7 @@ const BookmarksPage: React.FC = () => {
     try {
       const updatedBookmark = await summarizeBookmarkById(bookmarkId);
       setBookmarks(prevBookmarks =>
-        prevBookmarks?.map(b => b._id === bookmarkId ? { ...updatedBookmark, status: 'summarized' } : b) || null
+        prevBookmarks.map(b => b._id === bookmarkId ? { ...updatedBookmark, status: 'summarized' } : b)
       );
       toast({
         title: "Summary Generated",
@@ -273,9 +273,9 @@ const BookmarksPage: React.FC = () => {
       console.error(`Error summarizing bookmark ${bookmarkId}:`, err);
       const errorMessage = err?.message || "Failed to summarize bookmark.";
       setBookmarks(prevBookmarks =>
-        prevBookmarks?.map(b =>
+        prevBookmarks.map(b =>
           b._id === bookmarkId ? { ...b, status: 'error', summary: `Error: ${errorMessage}` } : b
-        ) || null
+        )
       );
       toast({
         title: "Summarization Error",
@@ -530,19 +530,6 @@ const BookmarksPage: React.FC = () => {
             </Button>
           </CardContent>
         </Card>
-      </div>
-    );
-  }
-
-  // This case should ideally not be hit if API always returns an array for data (even empty)
-  // and if token loss sets an error. But as a fallback:
-  if (bookmarks === null) {
-    console.log("[BookmarksPage] Rendering fallback state: bookmarks is null, not loading, no error.");
-    return (
-      <div className="p-4 md:p-8 min-h-screen flex items-center justify-center bg-background">
-        {/* Minimal indicator, or could be a more specific message */}
-        <Loader2 className="w-12 h-12 animate-spin text-primary opacity-50" />
-        <p className="ml-4 text-muted-foreground">Preparing your bookmarks...</p>
       </div>
     );
   }
