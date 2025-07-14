@@ -168,7 +168,7 @@ const BookmarksPage: React.FC = () => {
   // This makes the data flow more predictable and avoids potential stale memoized values.
 
   const getFilteredAndSortedBookmarks = () => {
-    if (loading) {
+    if (loading || !Array.isArray(bookmarks)) {
       return [];
     }
 
