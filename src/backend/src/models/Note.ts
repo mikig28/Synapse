@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document, Point } from 'mongoose';
+import mongoose, { Schema, Document } from 'mongoose';
 
 export interface INote extends Document {
   userId: mongoose.Types.ObjectId;
