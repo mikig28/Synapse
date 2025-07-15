@@ -26,7 +26,7 @@ export const createTask = async (req: AuthenticatedRequest, res: Response) => {
     if (!userId) {
       return res.status(401).json({ message: 'User not authenticated' });
     }
-    const { title, description, status, priority, dueDate, reminderEnabled, source, telegramMessageId } = req.body;
+    const { title, description, status, priority, dueDate, reminderEnabled, source, telegramMessageId, location } = req.body;
     const newTask = new Task({
       userId: new mongoose.Types.ObjectId(userId),
       title,
@@ -36,6 +36,7 @@ export const createTask = async (req: AuthenticatedRequest, res: Response) => {
       dueDate: dueDate ? new Date(dueDate) : undefined,
       reminderEnabled: reminderEnabled || false,
       source,
+      location,
       ...(telegramMessageId && mongoose.Types.ObjectId.isValid(telegramMessageId) && { telegramMessageId: new mongoose.Types.ObjectId(telegramMessageId) }),
     });
     await newTask.save();
@@ -56,7 +57,7 @@ export const updateTask = async (req: AuthenticatedRequest, res: Response) => {
     if (!mongoose.Types.ObjectId.isValid(taskId)) {
       return res.status(400).json({ message: 'Invalid task ID' });
     }
-    const { title, description, status, priority, dueDate, reminderEnabled } = req.body;
+    const { title, description, status, priority, dueDate, reminderEnabled, location } = req.body;
     const updatedTask = await Task.findOneAndUpdate(
       { _id: taskId, userId: new mongoose.Types.ObjectId(userId) },
       { 
@@ -65,7 +66,8 @@ export const updateTask = async (req: AuthenticatedRequest, res: Response) => {
         status, 
         priority,
         dueDate: dueDate ? new Date(dueDate) : undefined,
-        reminderEnabled
+        reminderEnabled,
+        location
       },
       { new: true, runValidators: true }
     );

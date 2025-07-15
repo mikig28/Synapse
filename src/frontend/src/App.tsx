@@ -14,6 +14,7 @@ import { ReactPlugin } from '@stagewise-plugins/react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AguiNotifications } from './components/AguiNotifications';
 import { Toaster } from '@/components/ui/toaster';
+import { GoogleMapsProvider } from './contexts/GoogleMapsContext';
 
 // Lazy load all pages for better performance
 const DashboardPage = React.lazy(() => import('@/pages/DashboardPage'));
@@ -111,18 +112,20 @@ function AppContent() {
 function App() {
   return (
     <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ""}>
-      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-        <Router>
-          <PWAProvider>
-            <AppContent />
-            <StagewiseToolbar
-              config={{
-                plugins: [ReactPlugin]
-              }}
-            />
-          </PWAProvider>
-        </Router>
-      </ThemeProvider>
+      <GoogleMapsProvider>
+        <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+          <Router>
+            <PWAProvider>
+              <AppContent />
+              <StagewiseToolbar
+                config={{
+                  plugins: [ReactPlugin]
+                }}
+              />
+            </PWAProvider>
+          </Router>
+        </ThemeProvider>
+      </GoogleMapsProvider>
     </GoogleOAuthProvider>
   );
 }

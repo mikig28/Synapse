@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { GoogleMap, LoadScript, Marker, InfoWindow } from '@react-google-maps/api';
+import { GoogleMap, Marker, InfoWindow } from '@react-google-maps/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import useAuthStore from '@/store/authStore';
 import { formatDistanceToNow } from 'date-fns';
 import { locationService } from '@/services/locationService';
 import { BACKEND_ROOT_URL } from '@/services/axiosConfig';
+import { useGoogleMaps } from '@/contexts/GoogleMapsContext';
 
 const mapContainerStyle = {
   width: '100%',
@@ -49,6 +50,7 @@ const MapsPage: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'notes' | 'tasks'>('all');
   
   const { token } = useAuthStore();
+  const { isLoaded } = useGoogleMaps();
 
   // Fetch all geotagged items
   const fetchGeotaggedItems = useCallback(async () => {
@@ -264,7 +266,7 @@ const MapsPage: React.FC = () => {
       {/* Map */}
       <Card>
         <CardContent className="p-0">
-          <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>
+          {isLoaded ? (
             <GoogleMap
               mapContainerStyle={mapContainerStyle}
               center={mapCenter}
@@ -346,7 +348,14 @@ const MapsPage: React.FC = () => {
                 </InfoWindow>
               )}
             </GoogleMap>
-          </LoadScript>
+          ) : (
+            <div className="flex items-center justify-center h-96">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                <p className="text-muted-foreground">Loading Google Maps...</p>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

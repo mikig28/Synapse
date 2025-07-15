@@ -21,12 +21,13 @@ export const createNote = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'User not authenticated' });
-    const { title, content, source, telegramMessageId } = req.body;
+    const { title, content, source, telegramMessageId, location } = req.body;
     const newNote = new Note({
       userId: new mongoose.Types.ObjectId(userId),
       title,
       content,
       source,
+      location,
       ...(telegramMessageId && mongoose.Types.ObjectId.isValid(telegramMessageId) && { telegramMessageId: new mongoose.Types.ObjectId(telegramMessageId) }),
     });
     await newNote.save();
@@ -62,7 +63,7 @@ export const updateNote = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const noteId = req.params.id;
     const userId = req.user?.id;
-    const { title, content, source } = req.body;
+    const { title, content, source, location } = req.body;
 
     if (!userId) {
       return res.status(401).json({ message: 'User not authenticated' });
@@ -87,6 +88,9 @@ export const updateNote = async (req: AuthenticatedRequest, res: Response) => {
     }
     if (source !== undefined) {
       note.source = source;
+    }
+    if (location !== undefined) {
+      note.location = location;
     }
 
     const updatedNote = await note.save();

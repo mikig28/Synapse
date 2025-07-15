@@ -179,7 +179,7 @@ const NotesPage: React.FC = () => {
     setError(null);
   };
 
-  const handleSaveEditNote = async (updatedNoteData: Omit<Note, '_id' | 'createdAt' | 'updatedAt' | 'source'>, noteId: string) => {
+  const handleSaveEditNote = async (updatedNoteData: Omit<Note, '_id' | 'createdAt' | 'updatedAt'>, noteId: string) => {
     if (!token) {
       setError("Authentication token not found. Please log in.");
       return;

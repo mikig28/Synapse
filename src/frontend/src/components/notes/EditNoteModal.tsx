@@ -5,6 +5,7 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { X, AlertCircle } from 'lucide-react';
 import { Note } from '@/pages/NotesPage'; // Assuming Note type is exported
+import LocationPicker, { LocationData } from '@/components/location/LocationPicker';
 
 // Define a local interface for Note data for the modal
 interface Note {
@@ -14,13 +15,14 @@ interface Note {
   createdAt: string;
   updatedAt: string;
   source?: string;
+  location?: LocationData;
 }
 
 export interface EditNoteModalProps {
   isOpen: boolean;
   note: Note; // Note to edit
   onClose: () => void;
-  onSave: (noteData: Omit<Note, '_id' | 'createdAt' | 'updatedAt' | 'source'>, noteId: string) => Promise<void>;
+  onSave: (noteData: Omit<Note, '_id' | 'createdAt' | 'updatedAt'>, noteId: string) => Promise<void>;
   existingError?: string | null;
   clearError?: () => void;
 }
@@ -36,6 +38,7 @@ const EditNoteModal: React.FC<EditNoteModalProps> = ({
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [source, setSource] = useState('');
+  const [location, setLocation] = useState<LocationData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [internalError, setInternalError] = useState<string | null>(null);
 
@@ -44,6 +47,7 @@ const EditNoteModal: React.FC<EditNoteModalProps> = ({
       setTitle(note.title || '');
       setContent(note.content || '');
       setSource(note.source || '');
+      setLocation(note.location || null);
       setInternalError(null);
       setIsSubmitting(false);
       if (existingError && clearError) {
@@ -55,6 +59,7 @@ const EditNoteModal: React.FC<EditNoteModalProps> = ({
       setTitle('');
       setContent('');
       setSource('');
+      setLocation(null);
       setInternalError(null);
       setIsSubmitting(false);
     }
@@ -74,10 +79,11 @@ const EditNoteModal: React.FC<EditNoteModalProps> = ({
     if (clearError) clearError();
     setIsSubmitting(true);
     
-    const updatedNoteData: Omit<Note, '_id' | 'createdAt' | 'updatedAt' | 'source'> = {
+    const updatedNoteData: Omit<Note, '_id' | 'createdAt' | 'updatedAt'> = {
       title: title.trim() || undefined,
       content: content.trim(),
       source: source.trim() || undefined,
+      location: location || undefined,
     };
 
     try {
@@ -155,6 +161,13 @@ const EditNoteModal: React.FC<EditNoteModalProps> = ({
               value={source}
               onChange={(e) => setSource(e.target.value)}
               className="w-full p-2.5 border border-white/20 rounded-lg bg-white/5 text-white placeholder-gray-400 focus:ring-2 focus:ring-lime-500 focus:border-lime-500 transition-colors"
+              disabled={isSubmitting}
+            />
+          </div>
+          <div className="mb-4">
+            <LocationPicker
+              initialLocation={location}
+              onLocationSelect={setLocation}
               disabled={isSubmitting}
             />
           </div>

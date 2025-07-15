@@ -1,10 +1,11 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { GoogleMap, LoadScript, Marker, Autocomplete } from '@react-google-maps/api';
+import { GoogleMap, Marker, Autocomplete } from '@react-google-maps/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { MapPin, Navigation, X, Search } from 'lucide-react';
+import { useGoogleMaps } from '@/contexts/GoogleMapsContext';
 
 const mapContainerStyle = {
   width: '100%',
@@ -28,13 +29,12 @@ interface LocationPickerProps {
   disabled?: boolean;
 }
 
-const libraries: ("places")[] = ["places"];
-
 const LocationPicker: React.FC<LocationPickerProps> = ({ 
   initialLocation, 
   onLocationSelect, 
   disabled = false 
 }) => {
+  const { isLoaded } = useGoogleMaps();
   const [selectedLocation, setSelectedLocation] = useState<{
     lat: number;
     lng: number;
@@ -192,7 +192,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
       </div>
 
       {/* Address search */}
-      <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY} libraries={libraries}>
+      {isLoaded && (
         <Autocomplete
           onLoad={(autocomplete) => {
             autocompleteRef.current = autocomplete;
@@ -209,6 +209,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
             />
           </div>
         </Autocomplete>
+      )}
 
         {/* Selected location display */}
         {selectedLocation && (
@@ -231,7 +232,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
         )}
 
         {/* Map */}
-        {showMap && (
+        {showMap && isLoaded && (
           <Card className="mt-3">
             <CardContent className="p-0">
               <GoogleMap
@@ -266,7 +267,6 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
             </CardContent>
           </Card>
         )}
-      </LoadScript>
     </div>
   );
 };

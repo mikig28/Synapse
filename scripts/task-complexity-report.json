@@ -1,0 +1,211 @@
+{
+  "meta": {
+    "generatedAt": "2025-07-14T19:59:32.455Z",
+    "tasksAnalyzed": 25,
+    "thresholdScore": 5,
+    "projectName": "Your Project Name",
+    "usedResearch": true
+  },
+  "complexityAnalysis": [
+    {
+      "taskId": 1,
+      "taskTitle": "Setup Project Repository and Environment",
+      "complexityScore": 4,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "List the key steps to initialize a new repository, configure code quality tools, set up the development environment, and establish a basic folder structure for a full-stack project.",
+      "reasoning": "This task is foundational but follows well-established patterns and industry standards. While it covers multiple areas (repo setup, environment, code quality, structure), each is straightforward and not algorithmically complex."
+    },
+    {
+      "taskId": 2,
+      "taskTitle": "Implement JWT Authentication System",
+      "complexityScore": 8,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "Break down the implementation of a secure JWT authentication system, including user registration with email verification, token generation/validation, password hashing, session management, multi-factor authentication, and middleware for route protection.",
+      "reasoning": "This task involves security-critical logic, multiple flows (registration, login, session), integration with email, and advanced features like MFA and passwordless auth. Each component has potential pitfalls and requires careful handling to avoid vulnerabilities."
+    },
+    {
+      "taskId": 3,
+      "taskTitle": "Create Dashboard UI Framework",
+      "complexityScore": 7,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Identify the main components and steps to design and implement a responsive dashboard UI with customizable layout, widget system, and sections for recent activity, events, AI suggestions, and statistics.",
+      "reasoning": "Building a flexible, interactive dashboard with custom widgets and responsive design requires solid UI architecture and state management. Customization and data visualization add to the complexity."
+    },
+    {
+      "taskId": 4,
+      "taskTitle": "Implement Basic Knowledge Capture System",
+      "complexityScore": 6,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Outline the steps to design a database schema for multiple content types, implement CRUD API endpoints, and build basic UI for creating and managing notes and bookmarks with rich formatting.",
+      "reasoning": "While the patterns are standard, supporting multiple content types and rich formatting, along with robust API design, increases the complexity beyond a simple CRUD system."
+    },
+    {
+      "taskId": 5,
+      "taskTitle": "Develop Project Management Module",
+      "complexityScore": 8,
+      "recommendedSubtasks": 7,
+      "expansionPrompt": "List the main features and implementation steps for a project management module with Kanban boards, task creation, drag-and-drop, sub-tasks, dependencies, filtering, and progress tracking.",
+      "reasoning": "This module requires complex UI interactions (drag-and-drop), data modeling for dependencies, and real-time updates. It must be robust, scalable, and user-friendly, making it a high-complexity task."
+    },
+    {
+      "taskId": 6,
+      "taskTitle": "Implement Google Calendar Integration",
+      "complexityScore": 8,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "Detail the steps to implement OAuth authentication, event fetching, two-way sync with conflict resolution, recurring event handling, and calendar UI integration.",
+      "reasoning": "Integrating with external APIs, handling authentication, two-way sync, and conflict resolution introduces significant complexity, especially with recurring events and UI synchronization."
+    },
+    {
+      "taskId": 7,
+      "taskTitle": "Develop Markdown/WYSIWYG Note Editor",
+      "complexityScore": 7,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "Break down the creation of a note editor supporting Markdown, WYSIWYG controls, image/file embedding, advanced formatting, auto-save, and version history.",
+      "reasoning": "Building a robust, user-friendly editor with both Markdown and WYSIWYG support, plus features like embedding and versioning, requires careful design and integration of third-party libraries."
+    },
+    {
+      "taskId": 8,
+      "taskTitle": "Implement Bi-directional Linking System",
+      "complexityScore": 7,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "List the steps to implement note linking syntax, backlink tracking, UI for backlinks, link suggestion, and graph data structure for connections.",
+      "reasoning": "This task involves parsing, dynamic relationship management, UI updates, and maintaining a graph structure, which increases cognitive and technical complexity."
+    },
+    {
+      "taskId": 9,
+      "taskTitle": "Develop AI Agents Framework",
+      "complexityScore": 8,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "Identify the main components for designing an AI agent architecture, integrating with AI models, chaining actions, building configuration UI, and implementing error handling and logging.",
+      "reasoning": "Designing a flexible, extensible AI agent system with chaining, error handling, and integration with external models is architecturally complex and requires careful planning."
+    },
+    {
+      "taskId": 10,
+      "taskTitle": "Implement Scheduled Agents System",
+      "complexityScore": 6,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the implementation of a scheduling system for agents, including cron-like scheduling, event triggers, configuration UI, notifications, and logging/history.",
+      "reasoning": "While scheduling and event triggers are well-understood, integrating them with autonomous agents and providing robust UI and notification systems adds moderate complexity."
+    },
+    {
+      "taskId": 11,
+      "taskTitle": "Develop Intelligent Search System",
+      "complexityScore": 9,
+      "recommendedSubtasks": 7,
+      "expansionPrompt": "List the steps to implement full-text and semantic search, natural language query parsing, vector embeddings, context-aware ranking, search UI, and visual previews.",
+      "reasoning": "Combining traditional and semantic search, natural language processing, and advanced ranking requires expertise in search algorithms, ML, and UI/UX, making this highly complex."
+    },
+    {
+      "taskId": 12,
+      "taskTitle": "Implement Document Management System",
+      "complexityScore": 8,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "Detail the steps for file upload, OCR integration, document preview, version history, semantic search for documents, and auto-tagging based on content.",
+      "reasoning": "Supporting multiple file formats, OCR, semantic search, and versioning requires integration of several complex systems and careful handling of large files and metadata."
+    },
+    {
+      "taskId": 13,
+      "taskTitle": "Develop Location-Based Mapping Feature",
+      "complexityScore": 6,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the integration of mapping APIs, geotagging content, interactive map UI, location-based search/filtering, and proximity alerts.",
+      "reasoning": "While mapping APIs are mature, combining geotagging, interactive visualization, and real-time alerts adds moderate complexity, especially for cross-platform support."
+    },
+    {
+      "taskId": 14,
+      "taskTitle": "Implement Content Categorization System",
+      "complexityScore": 8,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "List the steps to implement ML-based topic detection, tagging system, custom rules, category/tag management UI, and batch categorization.",
+      "reasoning": "Automated categorization using ML, combined with manual and rule-based systems, requires expertise in NLP, UI, and scalable data processing."
+    },
+    {
+      "taskId": 15,
+      "taskTitle": "Develop Voice Transcription Feature",
+      "complexityScore": 7,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Identify the main steps for integrating speech-to-text APIs, audio recording/upload, multi-language support, speaker diarization, and transcription editing.",
+      "reasoning": "Integrating speech recognition, handling audio files, and supporting editing and multi-language features involves multiple moving parts and external dependencies."
+    },
+    {
+      "taskId": 16,
+      "taskTitle": "Implement Video Summarization Feature",
+      "complexityScore": 8,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "Break down the implementation of video URL/file processing, AI-based summarization, key timestamp extraction, transcript viewer, video playback, and tagging.",
+      "reasoning": "Processing video content, integrating AI summarization, and synchronizing transcripts with playback are technically demanding and require careful resource management."
+    },
+    {
+      "taskId": 17,
+      "taskTitle": "Develop Web Content Capture System",
+      "complexityScore": 7,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "List the steps to implement URL processing, browser extension, support for text/image/highlight capture, offline reading, clean reader view, and tagging/organization.",
+      "reasoning": "Building a robust web capture system with browser extension, offline support, and content organization involves cross-platform challenges and data consistency concerns."
+    },
+    {
+      "taskId": 18,
+      "taskTitle": "Implement Messaging Platform Integrations",
+      "complexityScore": 7,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the integration with WhatsApp and Telegram APIs, bot functionality, message capture/processing, command handling, notifications, and feed aggregation.",
+      "reasoning": "Integrating with external messaging APIs, handling real-time data, and ensuring secure, reliable bot interactions adds significant complexity."
+    },
+    {
+      "taskId": 19,
+      "taskTitle": "Develop Social Media Integrations",
+      "complexityScore": 7,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "List the steps to integrate with Twitter, Reddit, and LinkedIn APIs, capture and process content, implement sentiment analysis, and create a unified social feed.",
+      "reasoning": "Multiple API integrations, content processing, and sentiment analysis require handling diverse data formats and rate limits, increasing complexity."
+    },
+    {
+      "taskId": 20,
+      "taskTitle": "Implement Knowledge Graph Visualization",
+      "complexityScore": 8,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "Break down the implementation of force-directed graph visualization, node representations, interactive features, filtering/highlighting, sidebar details, and clustering.",
+      "reasoning": "Interactive graph visualization with dynamic data, filtering, and clustering requires advanced UI techniques and efficient data structures."
+    },
+    {
+      "taskId": 21,
+      "taskTitle": "Develop Generative AI Tools",
+      "complexityScore": 8,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "List the steps to implement text summarization, content expansion, brainstorming tools, outline generation, rewriting/style adjustment, and UI integration.",
+      "reasoning": "Developing a suite of generative AI tools involves integrating with AI models, designing intuitive UIs, and ensuring content quality and safety."
+    },
+    {
+      "taskId": 22,
+      "taskTitle": "Implement Habit and Goal Tracking",
+      "complexityScore": 6,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the implementation of habit/goal definition, streak tracking, progress visualization, reminders, and AI insights for patterns.",
+      "reasoning": "While the domain is well-understood, combining tracking, visualization, reminders, and AI insights adds moderate complexity."
+    },
+    {
+      "taskId": 23,
+      "taskTitle": "Develop Email Integration",
+      "complexityScore": 7,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "List the steps to implement OAuth authentication, email fetching/processing, email-to-task/note conversion, auto-reply suggestions, and filtering/organization.",
+      "reasoning": "Email integration involves handling authentication, parsing, conversion to other content types, and automation, all of which require careful error handling and security."
+    },
+    {
+      "taskId": 24,
+      "taskTitle": "Implement Offline Access",
+      "complexityScore": 8,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "Break down the implementation of local caching, sync on reconnect, conflict resolution, PWA functionality, offline UI indicators, and settings for offline behavior.",
+      "reasoning": "Supporting robust offline access with synchronization and conflict resolution is technically challenging, especially for collaborative or real-time features."
+    },
+    {
+      "taskId": 25,
+      "taskTitle": "Develop Analytics Dashboard",
+      "complexityScore": 7,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "List the steps to implement activity tracking, productivity visualizations, reporting, knowledge growth metrics, time tracking, and goal progress visualization.",
+      "reasoning": "Building a comprehensive analytics dashboard requires data collection, aggregation, visualization, and reporting, each with its own technical challenges."
+    }
+  ]
+}
