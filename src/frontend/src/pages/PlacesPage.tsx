@@ -394,36 +394,38 @@ const PlacesPage: React.FC = () => {
                       }}
                       onCloseClick={() => setSelectedItem(null)}
                     >
-                      <div className="p-2 max-w-xs">
+                      <div className="p-3 max-w-xs bg-white rounded-lg shadow-lg" style={{ color: '#374151' }}>
                         <div className="flex items-center gap-2 mb-2">
                           {selectedItem.itemType === 'note' ? (
                             <StickyNote className="h-4 w-4 text-blue-500" />
                           ) : (
                             <CheckSquare className="h-4 w-4 text-orange-500" />
                           )}
-                          <Badge variant="outline">
+                          <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-md font-medium">
                             {selectedItem.itemType}
-                          </Badge>
+                          </span>
                           {selectedItem.itemType === 'task' && selectedItem.status && (
-                            <Badge 
-                              variant={selectedItem.status === 'completed' ? 'default' : 'secondary'}
-                            >
+                            <span className={`px-2 py-1 text-xs rounded-md font-medium ${
+                              selectedItem.status === 'completed' 
+                                ? 'bg-green-100 text-green-700' 
+                                : 'bg-blue-100 text-blue-700'
+                            }`}>
                               {selectedItem.status}
-                            </Badge>
+                            </span>
                           )}
                         </div>
                         
-                        <h3 className="font-semibold mb-1">
+                        <h3 className="font-semibold mb-2 text-gray-900 text-sm">
                           {selectedItem.title || 'Untitled'}
                         </h3>
                         
-                        <p className="text-sm text-gray-600 mb-2">
+                        <p className="text-xs text-gray-600 mb-3" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                           {selectedItem.content || selectedItem.description || 'No description'}
                         </p>
                         
-                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <div className="flex items-center gap-1 text-xs text-gray-500 border-t pt-2" style={{ borderColor: '#e5e7eb' }}>
                           <Calendar className="h-3 w-3" />
-                          {formatDistanceToNow(new Date(selectedItem.createdAt), { addSuffix: true })}
+                          <span>{formatDistanceToNow(new Date(selectedItem.createdAt), { addSuffix: true })}</span>
                         </div>
                       </div>
                     </InfoWindow>
