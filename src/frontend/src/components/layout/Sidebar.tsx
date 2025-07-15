@@ -53,7 +53,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
     { href: "/scheduled-agents", label: "Scheduled Agents", icon: Clock },
     { href: "/calendar", label: "Calendar", icon: CalendarDays }, 
     { href: "/places", label: "Places", icon: MapIcon },
-    { href: "/maps", label: "Maps", icon: MapPin },
     { href: "/planning", label: "Planning", icon: Plane }, 
     { href: "/goals", label: "Goals", icon: Target }, 
     { href: "/habits", label: "Habits", icon: Repeat }, 
