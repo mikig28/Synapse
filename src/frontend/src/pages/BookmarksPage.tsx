@@ -786,7 +786,7 @@ const BookmarksPage: React.FC = () => {
         {!loading && !error && totalPages > 1 && (
           <div className="flex flex-col sm:flex-row justify-center items-center space-y-3 sm:space-y-0 sm:space-x-4 mt-6 sm:mt-8">
             <Button
-              onClick={() => fetchBookmarksCallback(currentPage - 1)}
+              onClick={() => setCurrentPage(currentPage - 1)}
               disabled={currentPage <= 1}
               variant="outline"
               size="sm"
@@ -798,7 +798,7 @@ const BookmarksPage: React.FC = () => {
               Page {currentPage} of {totalPages}
             </span>
             <Button
-              onClick={() => fetchBookmarksCallback(currentPage + 1)}
+              onClick={() => setCurrentPage(currentPage + 1)}
               disabled={currentPage >= totalPages}
               variant="outline"
               size="sm"
