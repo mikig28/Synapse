@@ -4,6 +4,8 @@ export interface LocationData {
   type: 'Point';
   coordinates: [number, number]; // [longitude, latitude]
   address?: string;
+  name?: string;
+  placeId?: string;
 }
 
 export interface GeotagRequest {
@@ -14,6 +16,23 @@ export interface NearbyQuery {
   lat: number;
   lng: number;
   radius?: number; // meters, default 1000
+}
+
+export interface PlaceSearchResult {
+  success: boolean;
+  places?: {
+    placeId: string;
+    name: string;
+    address: string;
+    location: {
+      lat: number;
+      lng: number;
+    };
+    types?: string[];
+    rating?: number;
+    photoUrl?: string;
+  }[];
+  error?: string;
 }
 
 class LocationService {
@@ -91,6 +110,67 @@ class LocationService {
     return this.makeRequest(
       `${this.apiBaseUrl}/tasks/nearby?${params}`,
       { method: 'GET' },
+      token
+    );
+  }
+
+  // Search for places using Google Places API
+  async searchPlaces(query: string, token: string): Promise<PlaceSearchResult> {
+    try {
+      return this.makeRequest<PlaceSearchResult>(
+        `${this.apiBaseUrl}/places/search?q=${encodeURIComponent(query)}`,
+        { method: 'GET' },
+        token
+      );
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  // Create a note with location from voice command
+  async createNoteWithLocation(
+    title: string, 
+    content: string, 
+    location: LocationData, 
+    token: string
+  ): Promise<any> {
+    return this.makeRequest(
+      `${this.apiBaseUrl}/notes`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          title,
+          content,
+          location,
+          source: 'telegram_voice_location'
+        }),
+      },
+      token
+    );
+  }
+
+  // Create a task with location from voice command
+  async createTaskWithLocation(
+    title: string, 
+    description: string, 
+    location: LocationData, 
+    token: string
+  ): Promise<any> {
+    return this.makeRequest(
+      `${this.apiBaseUrl}/tasks`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          title,
+          description,
+          location,
+          status: 'pending',
+          source: 'telegram_voice_location'
+        }),
+      },
       token
     );
   }

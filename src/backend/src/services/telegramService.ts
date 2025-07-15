@@ -11,6 +11,7 @@ import { processTelegramItemForBookmarks } from '../api/controllers/captureContr
 import { processAndCreateVideoItem } from '../api/controllers/videosController'; // Import video processing function
 import { transcribeAudio } from './transcriptionService'; // <-- IMPORT Transcription Service
 import { analyzeTranscription } from './analysisService'; // <-- IMPORT Analysis Service
+import { locationExtractionService } from './locationExtractionService'; // <-- IMPORT Location Extraction Service
 import Task from '../models/Task'; // <-- IMPORT Task model
 import Note from '../models/Note'; // <-- IMPORT Note model
 import Idea from '../models/Idea'; // <-- IMPORT Idea model
@@ -185,28 +186,105 @@ bot.on('message', async (msg: TelegramBot.Message) => {
             console.log(`[TelegramBot]: Transcription result: ${transcribedText}`);
             
             if (synapseUser && transcribedText && voiceMemoTelegramItem) {
-              const { tasks, notes, ideas, raw } = await analyzeTranscription(transcribedText);
-              const userId = synapseUser._id;
-              const source = 'telegram_voice_memo';
-              const originalTelegramMessageId = voiceMemoTelegramItem._id as mongoose.Types.ObjectId;
-              let replyMessage = 'ההודעה נותחה:';
-              if (tasks && tasks.length > 0) {
-                for (const taskTitle of tasks) { await Task.create({ userId, title: taskTitle, source, status: 'pending', rawTranscription: transcribedText, ...(originalTelegramMessageId && { telegramMessageId: originalTelegramMessageId }), }); }
-                replyMessage += `\\n- נוספו ${tasks.length} משימות.`;
-                if (io) io.emit('new_task_item', { userId: userId.toString() });
+              // First, try to extract location information from the transcribed text
+              const locationExtraction = await locationExtractionService.extractLocationFromText(transcribedText);
+              
+              if (locationExtraction.success && locationExtraction.location) {
+                // Handle voice message with location
+                console.log(`[TelegramBot]: Location detected in voice message: ${locationExtraction.extractedText}`);
+                
+                const locationData = locationExtraction.location;
+                const userId = synapseUser._id;
+                const source = 'telegram_voice_location';
+                const originalTelegramMessageId = voiceMemoTelegramItem._id as mongoose.Types.ObjectId;
+                
+                // Create a note with the location
+                const locationNote = await Note.create({
+                  userId,
+                  title: `Location: ${locationData.name || locationData.address}`,
+                  content: `Added via voice: "${transcribedText}"`,
+                  location: locationData,
+                  source,
+                  rawTranscription: transcribedText,
+                  ...(originalTelegramMessageId && { telegramMessageId: originalTelegramMessageId }),
+                });
+
+                // Send confirmation message with location details
+                const locationName = locationData.name || locationData.address || 'Unknown location';
+                const replyMessage = `📍 מיקום נוסף למפה!\n\n🏷️ שם: ${locationName}\n📍 כתובת: ${locationData.address || 'לא זמין'}\n🎤 הודעה קולית: "${transcribedText}"\n\n✅ המיקום נשמר בהצלחה ויופיע במפה שלך.`;
+                
+                await bot.sendMessage(chatId, replyMessage, { 
+                  reply_to_message_id: telegramMessageId,
+                  parse_mode: 'Markdown'
+                });
+
+                // Emit real-time update
+                if (io) {
+                  io.emit('new_location_item', { 
+                    userId: userId.toString(),
+                    location: locationData,
+                    noteId: locationNote._id
+                  });
+                  io.emit('new_note_item', { userId: userId.toString() });
+                }
+                
+              } else {
+                // Handle regular voice message (no location detected)
+                const { tasks, notes, ideas, raw } = await analyzeTranscription(transcribedText);
+                const userId = synapseUser._id;
+                const source = 'telegram_voice_memo';
+                const originalTelegramMessageId = voiceMemoTelegramItem._id as mongoose.Types.ObjectId;
+                let replyMessage = 'ההודעה נותחה:';
+                
+                if (tasks && tasks.length > 0) {
+                  for (const taskTitle of tasks) { 
+                    await Task.create({ 
+                      userId, 
+                      title: taskTitle, 
+                      source, 
+                      status: 'pending', 
+                      rawTranscription: transcribedText, 
+                      ...(originalTelegramMessageId && { telegramMessageId: originalTelegramMessageId }),
+                    }); 
+                  }
+                  replyMessage += `\\n- נוספו ${tasks.length} משימות.`;
+                  if (io) io.emit('new_task_item', { userId: userId.toString() });
+                }
+                
+                if (notes && notes.length > 0) {
+                  for (const noteContent of notes) { 
+                    await Note.create({ 
+                      userId, 
+                      content: noteContent, 
+                      source, 
+                      rawTranscription: transcribedText, 
+                      ...(originalTelegramMessageId && { telegramMessageId: originalTelegramMessageId }),
+                    }); 
+                  }
+                  replyMessage += `\\n- נוספו ${notes.length} הערות.`;
+                  if (io) io.emit('new_note_item', { userId: userId.toString() });
+                }
+                
+                if (ideas && ideas.length > 0) {
+                  for (const ideaContent of ideas) { 
+                    await Idea.create({ 
+                      userId, 
+                      content: ideaContent, 
+                      source, 
+                      rawTranscription: transcribedText, 
+                      ...(originalTelegramMessageId && { telegramMessageId: originalTelegramMessageId }),
+                    }); 
+                  }
+                  replyMessage += `\\n- נוספו ${ideas.length} רעיונות.`;
+                  if (io) io.emit('new_idea_item', { userId: userId.toString() });
+                }
+                
+                if (replyMessage === 'ההודעה נותחה:') { 
+                  replyMessage = 'נותח תמלול אך לא זוהו משימות, הערות או רעיונות ספציפיים.'; 
+                }
+                
+                bot.sendMessage(chatId, replyMessage, { reply_to_message_id: telegramMessageId });
               }
-              if (notes && notes.length > 0) {
-                for (const noteContent of notes) { await Note.create({ userId, content: noteContent, source, rawTranscription: transcribedText, ...(originalTelegramMessageId && { telegramMessageId: originalTelegramMessageId }), }); }
-                replyMessage += `\\n- נוספו ${notes.length} הערות.`;
-                if (io) io.emit('new_note_item', { userId: userId.toString() });
-              }
-              if (ideas && ideas.length > 0) {
-                for (const ideaContent of ideas) { await Idea.create({ userId, content: ideaContent, source, rawTranscription: transcribedText, ...(originalTelegramMessageId && { telegramMessageId: originalTelegramMessageId }), }); }
-                replyMessage += `\\n- נוספו ${ideas.length} רעיונות.`;
-                if (io) io.emit('new_idea_item', { userId: userId.toString() });
-              }
-              if (replyMessage === 'ההודעה נותחה:') { replyMessage = 'נותח תמלול אך לא זוהו משימות, הערות או רעיונות ספציפיים.'; }
-              bot.sendMessage(chatId, replyMessage, { reply_to_message_id: telegramMessageId });
             } else if (transcribedText) {
               bot.sendMessage(chatId, `תמלול (לא נשמר למשתמש): ${transcribedText}`, { reply_to_message_id: telegramMessageId });
             }

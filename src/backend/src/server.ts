@@ -29,6 +29,7 @@ import newsRoutes from './api/routes/newsRoutes'; // Import news routes
 import ttsRoutes from './api/routes/ttsRoutes'; // Import text-to-speech routes
 import calendarEventsRoutes from './api/routes/calendarEventsRoutes'; // Import calendar event routes
 import scheduledAgentsRoutes from './api/routes/scheduledAgents'; // Import scheduled agents routes
+import placesRoutes from './api/routes/placesRoutes'; // Import places routes
 import { initializeTaskReminderScheduler } from './services/taskReminderService'; // Import task reminder service
 import { schedulerService } from './services/schedulerService'; // Import scheduler service
 import { agui } from './services/aguiEmitter'; // Import AG-UI emitter
@@ -216,6 +217,7 @@ app.use('/api/v1/news', newsRoutes); // Use news routes
 app.use('/api/v1/tts', ttsRoutes); // Use TTS proxy route
 app.use('/api/v1/calendar-events', calendarEventsRoutes); // Use calendar event routes
 app.use('/api/v1/scheduled-agents', scheduledAgentsRoutes); // Use scheduled agents routes
+app.use('/api/v1/places', placesRoutes); // Use places routes
 
 // **AG-UI Protocol Endpoints**
 
