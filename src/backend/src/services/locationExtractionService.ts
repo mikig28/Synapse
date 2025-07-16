@@ -116,7 +116,7 @@ class LocationExtractionService {
     try {
       const prompt = `
 Analyze the following voice message transcription and determine if it contains location-related intent.
-Extract any location names, addresses, or place names mentioned.
+The text may be in Hebrew, English, or mixed languages. Extract any location names, addresses, or place names mentioned.
 
 Text: "${text}"
 
@@ -126,13 +126,25 @@ Please respond with a JSON object containing:
 - confidence: "high" | "medium" | "low" (confidence in the location extraction)
 - action: "add" | "search" | "navigate" (what the user wants to do with the location)
 
-Examples:
+Examples in English:
 - "add coffee italia to maps" → {"hasLocationIntent": true, "locationQuery": "coffee italia", "confidence": "high", "action": "add"}
 - "find starbucks near me" → {"hasLocationIntent": true, "locationQuery": "starbucks", "confidence": "high", "action": "search"}  
 - "navigate to 123 main street" → {"hasLocationIntent": true, "locationQuery": "123 main street", "confidence": "high", "action": "navigate"}
-- "how was your day" → {"hasLocationIntent": false, "confidence": "low"}
 
-Focus on restaurant names, business names, addresses, landmarks, and place names.
+Examples in Hebrew:
+- "תוסיף את קפה איטליה למפה" → {"hasLocationIntent": true, "locationQuery": "קפה איטליה", "confidence": "high", "action": "add"}
+- "חפש את סטארבקס" → {"hasLocationIntent": true, "locationQuery": "סטארבקס", "confidence": "high", "action": "search"}
+- "נווט לרחוב הרצל 123" → {"hasLocationIntent": true, "locationQuery": "רחוב הרצל 123", "confidence": "high", "action": "navigate"}
+- "איפה המסעדה הזאת" → {"hasLocationIntent": false, "confidence": "low"}
+
+Hebrew keywords to recognize:
+- תוסיף/הוסף (add), למפה (to map), מפה (map)
+- חפש/מצא (find/search), איפה (where)
+- נווט (navigate), לך ל (go to)
+- מסעדה (restaurant), קפה/בית קפה (cafe), חנות (store)
+- רחוב (street), שדרות (avenue), כיכר (square)
+
+Focus on restaurant names, business names, addresses, landmarks, and place names in both Hebrew and English.
 `;
 
       const response = await axios.post(
@@ -175,34 +187,48 @@ Focus on restaurant names, business names, addresses, landmarks, and place names
   } {
     const lowerText = text.toLowerCase();
     
-    // Location intent keywords
+    // Location intent keywords (English + Hebrew)
     const locationKeywords = [
+      // English keywords
       'add', 'map', 'maps', 'location', 'place', 'restaurant', 'cafe', 'coffee',
       'address', 'street', 'avenue', 'road', 'boulevard', 'find', 'search',
-      'navigate', 'go to', 'show me', 'where is'
+      'navigate', 'go to', 'show me', 'where is',
+      // Hebrew keywords
+      'תוסיף', 'הוסף', 'למפה', 'מפה', 'מיקום', 'מקום', 'מסעדה', 'קפה', 'בית קפה',
+      'כתובת', 'רחוב', 'שדרות', 'דרך', 'כביש', 'חפש', 'מצא', 'נווט', 'לך ל', 'איפה'
     ];
 
     // Check for location intent
-    const hasLocationIntent = locationKeywords.some(keyword => lowerText.includes(keyword));
+    const hasLocationIntent = locationKeywords.some(keyword => 
+      lowerText.includes(keyword) || text.includes(keyword)
+    );
     
     if (!hasLocationIntent) {
       return { hasLocationIntent: false, confidence: 'low' };
     }
 
-    // Extract potential location queries using patterns
+    // Extract potential location queries using patterns (English + Hebrew)
     const patterns = [
-      // "add [location] to maps"
+      // English patterns
       /add\s+(?:the\s+)?([^to]+?)\s+to\s+maps?/i,
-      // "find [location]"
       /find\s+(?:the\s+)?([^.!?]+)/i,
-      // "navigate to [location]"
       /(?:navigate|go)\s+to\s+(?:the\s+)?([^.!?]+)/i,
-      // "[location name]" (quoted or prominent)
       /"([^"]+)"/,
-      // Restaurant/cafe names (commonly contain these words)
-      /([\w\s]+ (?:restaurant|cafe|coffee|restaurant|bar|hotel|store|shop))/i,
-      // Address patterns
-      /(\d+\s+[\w\s]+(?:street|st|avenue|ave|road|rd|boulevard|blvd))/i
+      /([\w\s]+ (?:restaurant|cafe|coffee|bar|hotel|store|shop))/i,
+      /(\d+\s+[\w\s]+(?:street|st|avenue|ave|road|rd|boulevard|blvd))/i,
+      
+      // Hebrew patterns
+      /(?:תוסיף|הוסף)\s+(?:את\s+)?([^ל]+?)\s+למפה/,
+      /(?:חפש|מצא)\s+(?:את\s+)?([^.!?]+)/,
+      /נווט\s+ל(?:\s+)?([^.!?]+)/,
+      /לך\s+ל(?:\s+)?([^.!?]+)/,
+      /([\u0590-\u05FF\w\s]+ (?:מסעדה|קפה|בית קפה|חנות|בר|מלון))/,
+      /רחוב\s+([\u0590-\u05FF\w\s]+\s+\d+)/,
+      /שדרות\s+([\u0590-\u05FF\w\s]+\s+\d+)/,
+      
+      // Mixed patterns (Hebrew + English names)
+      /(?:תוסיף|הוסף)\s+(?:את\s+)?([a-zA-Z\s]+)\s+למפה/,
+      /(?:חפש|מצא)\s+(?:את\s+)?([a-zA-Z\s]+)/
     ];
 
     let locationQuery: string | undefined;
@@ -221,8 +247,13 @@ Focus on restaurant names, business names, addresses, landmarks, and place names
     if (!locationQuery && hasLocationIntent) {
       // Remove common words and extract the main content
       const words = text.split(/\s+/);
+      const commonWords = [
+        'add', 'to', 'maps', 'map', 'the', 'find', 'search', 'for', 'navigate', 'go',
+        'תוסיף', 'הוסף', 'את', 'למפה', 'מפה', 'חפש', 'מצא', 'נווט', 'לך', 'ל', 'איפה'
+      ];
+      
       const filteredWords = words.filter(word => 
-        !['add', 'to', 'maps', 'map', 'the', 'find', 'search', 'for', 'navigate', 'go'].includes(word.toLowerCase())
+        !commonWords.includes(word.toLowerCase()) && !commonWords.includes(word)
       );
       
       if (filteredWords.length > 0) {
@@ -231,11 +262,13 @@ Focus on restaurant names, business names, addresses, landmarks, and place names
       }
     }
 
-    // Determine action
+    // Determine action based on keywords
     let action: 'add' | 'search' | 'navigate' = 'add';
-    if (lowerText.includes('find') || lowerText.includes('search')) {
+    if (lowerText.includes('find') || lowerText.includes('search') || 
+        text.includes('חפש') || text.includes('מצא')) {
       action = 'search';
-    } else if (lowerText.includes('navigate') || lowerText.includes('go to')) {
+    } else if (lowerText.includes('navigate') || lowerText.includes('go to') || 
+               text.includes('נווט') || text.includes('לך ל')) {
       action = 'navigate';
     }
 

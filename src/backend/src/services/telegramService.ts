@@ -187,7 +187,17 @@ bot.on('message', async (msg: TelegramBot.Message) => {
             
             if (synapseUser && transcribedText && voiceMemoTelegramItem) {
               // First, try to extract location information from the transcribed text
+              console.log(`[TelegramBot]: Analyzing transcribed text for location: "${transcribedText}"`);
+              
               const locationExtraction = await locationExtractionService.extractLocationFromText(transcribedText);
+              
+              console.log(`[TelegramBot]: Location extraction result:`, {
+                success: locationExtraction.success,
+                confidence: locationExtraction.confidence,
+                extractedText: locationExtraction.extractedText,
+                hasLocation: !!locationExtraction.location,
+                error: locationExtraction.error
+              });
               
               if (locationExtraction.success && locationExtraction.location) {
                 // Handle voice message with location
@@ -209,9 +219,18 @@ bot.on('message', async (msg: TelegramBot.Message) => {
                   ...(originalTelegramMessageId && { telegramMessageId: originalTelegramMessageId }),
                 });
 
-                // Send confirmation message with location details
+                // Send bilingual confirmation message
                 const locationName = locationData.name || locationData.address || 'Unknown location';
-                const replyMessage = `📍 מיקום נוסף למפה!\n\n🏷️ שם: ${locationName}\n📍 כתובת: ${locationData.address || 'לא זמין'}\n🎤 הודעה קולית: "${transcribedText}"\n\n✅ המיקום נשמר בהצלחה ויופיע במפה שלך.`;
+                const confidence = locationExtraction.confidence;
+                
+                let replyMessage = '';
+                if (transcribedText.match(/[\u0590-\u05FF]/)) {
+                  // Hebrew text detected
+                  replyMessage = `📍 *מיקום נוסף למפה!*\n\n🏷️ שם: ${locationName}\n📍 כתובת: ${locationData.address || 'לא זמין'}\n🎤 הודעה: "${transcribedText}"\n🎯 דיוק: ${confidence}\n\n✅ המיקום נשמר בהצלחה ויופיע במפה שלך.`;
+                } else {
+                  // English text
+                  replyMessage = `📍 *Location Added to Map!*\n\n🏷️ Name: ${locationName}\n📍 Address: ${locationData.address || 'Not available'}\n🎤 Voice: "${transcribedText}"\n🎯 Confidence: ${confidence}\n\n✅ Location saved successfully and will appear on your map.`;
+                }
                 
                 await bot.sendMessage(chatId, replyMessage, { 
                   reply_to_message_id: telegramMessageId,
@@ -228,7 +247,23 @@ bot.on('message', async (msg: TelegramBot.Message) => {
                   io.emit('new_note_item', { userId: userId.toString() });
                 }
                 
+                console.log(`[TelegramBot]: Location note created successfully with ID: ${locationNote._id}`);
+                
               } else {
+                // No location detected - try normal transcription analysis
+                console.log(`[TelegramBot]: No location detected, processing as regular voice message. Reason: ${locationExtraction.error || 'No location intent found'}`);
+                
+                // Add a debug message for the user if location extraction failed with medium/high confidence text
+                if (locationExtraction.extractedText && locationExtraction.confidence !== 'low') {
+                  const debugMsg = transcribedText.match(/[\u0590-\u05FF]/) 
+                    ? `🤔 זיהיתי אולי בקשה למיקום אבל לא הצלחתי למצוא "${locationExtraction.extractedText}". נסה שוב עם שם מדויק יותר.`
+                    : `🤔 I detected a possible location request but couldn't find "${locationExtraction.extractedText}". Try again with a more specific name.`;
+                  
+                  await bot.sendMessage(chatId, debugMsg, { 
+                    reply_to_message_id: telegramMessageId 
+                  });
+                }
+                
                 // Handle regular voice message (no location detected)
                 const { tasks, notes, ideas, raw } = await analyzeTranscription(transcribedText);
                 const userId = synapseUser._id;

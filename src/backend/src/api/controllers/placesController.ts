@@ -86,11 +86,56 @@ export const extractLocationFromText = async (req: Request, res: Response): Prom
       return;
     }
 
+    console.log('[PlacesController]: Extracting location from text:', text);
     const result = await locationExtractionService.extractLocationFromText(text);
+    console.log('[PlacesController]: Location extraction result:', result);
+    
     res.json(result);
 
   } catch (error) {
     console.error('[PlacesController]: Error extracting location:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Internal server error'
+    });
+  }
+};
+
+export const testLocationExtraction = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const testCases = [
+      'תוסיף את קפה איטליה למפה',
+      'הוסף את סטארבקס למפה',
+      'חפש את מקדונלדס',
+      'add coffee italia to maps',
+      'find starbucks near me',
+      'just a regular message'
+    ];
+
+    const results = [];
+    
+    for (const testText of testCases) {
+      console.log(`[PlacesController]: Testing: "${testText}"`);
+      const result = await locationExtractionService.extractLocationFromText(testText);
+      results.push({
+        input: testText,
+        result
+      });
+    }
+
+    res.json({
+      success: true,
+      testResults: results,
+      environment: {
+        hasClaudeKey: !!process.env.ANTHROPIC_API_KEY,
+        hasGoogleMapsKey: !!(process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY),
+        claudeKeyLength: process.env.ANTHROPIC_API_KEY?.length || 0,
+        mapsKeyLength: (process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY)?.length || 0
+      }
+    });
+
+  } catch (error) {
+    console.error('[PlacesController]: Error in test:', error);
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Internal server error'

@@ -1,6 +1,6 @@
 import express from 'express';
 import { protect } from '../middleware/authMiddleware';
-import { searchPlaces, extractLocationFromText } from '../controllers/placesController';
+import { searchPlaces, extractLocationFromText, testLocationExtraction } from '../controllers/placesController';
 
 const router = express.Router();
 
@@ -9,5 +9,8 @@ router.get('/search', protect, searchPlaces);
 
 // Extract location from text using AI
 router.post('/extract-location', protect, extractLocationFromText);
+
+// Test location extraction with predefined cases
+router.get('/test-extraction', protect, testLocationExtraction);
 
 export default router;
