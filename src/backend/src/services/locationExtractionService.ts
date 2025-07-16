@@ -22,17 +22,27 @@ export interface LocationExtractionResult {
 
 class LocationExtractionService {
   private googleMapsApiKey: string;
-  private claudeApiKey: string;
+  private openaiApiKey: string;
 
   constructor() {
     this.googleMapsApiKey = process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || '';
-    this.claudeApiKey = process.env.ANTHROPIC_API_KEY || '';
+    this.openaiApiKey = process.env.OPENAI_API_KEY || '';
+    
+    console.log('[LocationExtraction]: Initializing service...');
+    console.log('[LocationExtraction]: Available environment variables:', {
+      VITE_GOOGLE_MAPS_API_KEY: process.env.VITE_GOOGLE_MAPS_API_KEY ? `Present (${process.env.VITE_GOOGLE_MAPS_API_KEY.length} chars)` : 'Missing',
+      GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY ? `Present (${process.env.GOOGLE_MAPS_API_KEY.length} chars)` : 'Missing',
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY ? `Present (${process.env.OPENAI_API_KEY.length} chars)` : 'Missing',
+      NODE_ENV: process.env.NODE_ENV || 'undefined'
+    });
+    console.log('[LocationExtraction]: Final keys - Google Maps:', this.googleMapsApiKey ? `Present (${this.googleMapsApiKey.length} chars)` : 'Missing');
+    console.log('[LocationExtraction]: Final keys - OpenAI:', this.openaiApiKey ? `Present (${this.openaiApiKey.length} chars)` : 'Missing');
     
     if (!this.googleMapsApiKey) {
       console.warn('[LocationExtraction]: Google Maps API key not found');
     }
-    if (!this.claudeApiKey) {
-      console.warn('[LocationExtraction]: Claude API key not found');
+    if (!this.openaiApiKey) {
+      console.warn('[LocationExtraction]: OpenAI API key not found - will use regex fallback');
     }
   }
 
@@ -42,14 +52,19 @@ class LocationExtractionService {
   async extractLocationFromText(transcribedText: string): Promise<LocationExtractionResult> {
     try {
       console.log(`[LocationExtraction]: Analyzing text: "${transcribedText}"`);
+      console.log(`[LocationExtraction]: Text contains Hebrew:`, /[\u0590-\u05FF]/.test(transcribedText));
 
       // Step 1: Use Claude AI to extract location entities and intent
       const aiAnalysis = await this.analyzeLocationIntent(transcribedText);
       
+      console.log(`[LocationExtraction]: AI Analysis result:`, aiAnalysis);
+      
       if (!aiAnalysis.hasLocationIntent) {
+        console.log(`[LocationExtraction]: No location intent detected by AI, confidence: ${aiAnalysis.confidence}`);
         return {
           success: false,
-          confidence: 'low',
+          confidence: aiAnalysis.confidence,
+          extractedText: aiAnalysis.locationQuery,
           error: 'No location intent detected in message'
         };
       }
@@ -100,7 +115,7 @@ class LocationExtractionService {
   }
 
   /**
-   * Use Claude AI to analyze location intent and extract location queries
+   * Use OpenAI GPT-4o-mini to analyze location intent and extract location queries
    */
   private async analyzeLocationIntent(text: string): Promise<{
     hasLocationIntent: boolean;
@@ -108,70 +123,81 @@ class LocationExtractionService {
     confidence: 'high' | 'medium' | 'low';
     action?: 'add' | 'search' | 'navigate';
   }> {
-    if (!this.claudeApiKey) {
+    if (!this.openaiApiKey) {
       // Fallback to simple regex patterns
       return this.simpleLocationExtraction(text);
     }
 
     try {
-      const prompt = `
-Analyze the following voice message transcription and determine if it contains location-related intent.
-The text may be in Hebrew, English, or mixed languages. Extract any location names, addresses, or place names mentioned.
+      console.log('[LocationExtraction]: Making OpenAI API request...');
+      
+      const systemPrompt = `You are a location extraction AI. Analyze voice message transcriptions (Hebrew/English) and determine if they contain location-related intent. 
 
-Text: "${text}"
-
-Please respond with a JSON object containing:
+Respond ONLY with valid JSON containing:
 - hasLocationIntent: boolean (true if user wants to add/search/navigate to a location)
 - locationQuery: string (the location name/address to search for, if any)
-- confidence: "high" | "medium" | "low" (confidence in the location extraction)
-- action: "add" | "search" | "navigate" (what the user wants to do with the location)
+- confidence: "high" | "medium" | "low" 
+- action: "add" | "search" | "navigate"
 
-Examples in English:
-- "add coffee italia to maps" → {"hasLocationIntent": true, "locationQuery": "coffee italia", "confidence": "high", "action": "add"}
-- "find starbucks near me" → {"hasLocationIntent": true, "locationQuery": "starbucks", "confidence": "high", "action": "search"}  
-- "navigate to 123 main street" → {"hasLocationIntent": true, "locationQuery": "123 main street", "confidence": "high", "action": "navigate"}
+Hebrew keywords: תוסיף/הוסף (add), למפה (to map), חפש/מצא (find), נווט (navigate), מסעדה (restaurant), קפה (cafe), רחוב (street)
 
-Examples in Hebrew:
+Examples:
 - "תוסיף את קפה איטליה למפה" → {"hasLocationIntent": true, "locationQuery": "קפה איטליה", "confidence": "high", "action": "add"}
-- "חפש את סטארבקס" → {"hasLocationIntent": true, "locationQuery": "סטארבקס", "confidence": "high", "action": "search"}
-- "נווט לרחוב הרצל 123" → {"hasLocationIntent": true, "locationQuery": "רחוב הרצל 123", "confidence": "high", "action": "navigate"}
-- "איפה המסעדה הזאת" → {"hasLocationIntent": false, "confidence": "low"}
+- "add coffee italia to maps" → {"hasLocationIntent": true, "locationQuery": "coffee italia", "confidence": "high", "action": "add"}
+- "איפה המסעדה הזאת" → {"hasLocationIntent": false, "confidence": "low"}`;
 
-Hebrew keywords to recognize:
-- תוסיף/הוסף (add), למפה (to map), מפה (map)
-- חפש/מצא (find/search), איפה (where)
-- נווט (navigate), לך ל (go to)
-- מסעדה (restaurant), קפה/בית קפה (cafe), חנות (store)
-- רחוב (street), שדרות (avenue), כיכר (square)
-
-Focus on restaurant names, business names, addresses, landmarks, and place names in both Hebrew and English.
-`;
+      console.log('[LocationExtraction]: OpenAI API request details:', {
+        url: 'https://api.openai.com/v1/chat/completions',
+        model: 'gpt-4o-mini',
+        hasApiKey: !!this.openaiApiKey,
+        apiKeyLength: this.openaiApiKey.length,
+        textToAnalyze: text
+      });
 
       const response = await axios.post(
-        'https://api.anthropic.com/v1/messages',
+        'https://api.openai.com/v1/chat/completions',
         {
-          model: 'claude-3-sonnet-20240229',
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `Analyze this text: "${text}"` }
+          ],
           max_tokens: 200,
-          messages: [{ role: 'user', content: prompt }]
+          temperature: 0.1,
+          response_format: { type: 'json_object' }
         },
         {
           headers: {
             'Content-Type': 'application/json',
-            'x-api-key': this.claudeApiKey,
-            'anthropic-version': '2023-06-01'
+            'Authorization': `Bearer ${this.openaiApiKey}`
           }
         }
       );
 
-      const aiResponse = (response.data as any).content[0].text;
+      console.log('[LocationExtraction]: OpenAI API response status:', response.status);
+      console.log('[LocationExtraction]: OpenAI API response data:', response.data);
+
+      const aiResponse = response.data.choices[0].message.content;
+      console.log('[LocationExtraction]: Raw AI response text:', aiResponse);
+      
       const parsed = JSON.parse(aiResponse);
       
-      console.log('[LocationExtraction]: AI Analysis:', parsed);
+      console.log('[LocationExtraction]: Parsed AI Analysis:', parsed);
       return parsed;
 
     } catch (error) {
-      console.error('[LocationExtraction]: Claude AI analysis failed:', error);
+      console.error('[LocationExtraction]: OpenAI API analysis failed:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('[LocationExtraction]: OpenAI API error details:', {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          headers: error.response?.headers,
+          message: error.message
+        });
+      }
       // Fallback to simple extraction
+      console.log('[LocationExtraction]: Falling back to regex patterns...');
       return this.simpleLocationExtraction(text);
     }
   }
@@ -185,6 +211,8 @@ Focus on restaurant names, business names, addresses, landmarks, and place names
     confidence: 'high' | 'medium' | 'low';
     action?: 'add' | 'search' | 'navigate';
   } {
+    console.log(`[LocationExtraction]: Using regex fallback for: "${text}"`);
+    
     const lowerText = text.toLowerCase();
     
     // Location intent keywords (English + Hebrew)
@@ -194,8 +222,8 @@ Focus on restaurant names, business names, addresses, landmarks, and place names
       'address', 'street', 'avenue', 'road', 'boulevard', 'find', 'search',
       'navigate', 'go to', 'show me', 'where is',
       // Hebrew keywords
-      'תוסיף', 'הוסף', 'למפה', 'מפה', 'מיקום', 'מקום', 'מסעדה', 'קפה', 'בית קפה',
-      'כתובת', 'רחוב', 'שדרות', 'דרך', 'כביש', 'חפש', 'מצא', 'נווט', 'לך ל', 'איפה'
+      'תוסיף', 'הוסף', 'תוסיפי', 'הוסיפי', 'למפה', 'מפה', 'מיקום', 'מקום', 'מסעדה', 'קפה', 'בית קפה',
+      'כתובת', 'רחוב', 'שדרות', 'דרך', 'כביש', 'חפש', 'מצא', 'תחפש', 'תמצא', 'נווט', 'לך ל', 'איפה'
     ];
 
     // Check for location intent
@@ -203,7 +231,12 @@ Focus on restaurant names, business names, addresses, landmarks, and place names
       lowerText.includes(keyword) || text.includes(keyword)
     );
     
+    console.log(`[LocationExtraction]: Found location keywords:`, locationKeywords.filter(k => 
+      lowerText.includes(k) || text.includes(k)
+    ));
+    
     if (!hasLocationIntent) {
+      console.log(`[LocationExtraction]: No location keywords found`);
       return { hasLocationIntent: false, confidence: 'low' };
     }
 
@@ -217,30 +250,44 @@ Focus on restaurant names, business names, addresses, landmarks, and place names
       /([\w\s]+ (?:restaurant|cafe|coffee|bar|hotel|store|shop))/i,
       /(\d+\s+[\w\s]+(?:street|st|avenue|ave|road|rd|boulevard|blvd))/i,
       
-      // Hebrew patterns
-      /(?:תוסיף|הוסף)\s+(?:את\s+)?([^ל]+?)\s+למפה/,
-      /(?:חפש|מצא)\s+(?:את\s+)?([^.!?]+)/,
-      /נווט\s+ל(?:\s+)?([^.!?]+)/,
-      /לך\s+ל(?:\s+)?([^.!?]+)/,
-      /([\u0590-\u05FF\w\s]+ (?:מסעדה|קפה|בית קפה|חנות|בר|מלון))/,
-      /רחוב\s+([\u0590-\u05FF\w\s]+\s+\d+)/,
-      /שדרות\s+([\u0590-\u05FF\w\s]+\s+\d+)/,
+      // Hebrew patterns - improved and more comprehensive
+      /(?:תוסיף|הוסף|תוסיפי|הוסיפי)\s+(?:את\s+)?([^ל]+?)\s+(?:למפה|לmaps?)/,
+      /(?:חפש|מצא|תחפש|תמצא)\s+(?:את\s+)?([^.!?]+)/,
+      /(?:נווט|לך|תלך|נסע|תנווט)\s+(?:ל|אל)\s*([^.!?]+)/,
+      /([\u0590-\u05FF\w\s\-']+ (?:מסעדה|קפה|בית קפה|חנות|בר|מלון|פיצריה|המבורגר))/,
+      /(?:רחוב|שדרות|דרך|כביש)\s+([\u0590-\u05FF\w\s\-']+(?:\s+\d+)?)/,
       
-      // Mixed patterns (Hebrew + English names)
-      /(?:תוסיף|הוסף)\s+(?:את\s+)?([a-zA-Z\s]+)\s+למפה/,
-      /(?:חפש|מצא)\s+(?:את\s+)?([a-zA-Z\s]+)/
+      // Mixed patterns (Hebrew + English names) - common in Israel
+      /(?:תוסיף|הוסף|תוסיפי|הוסיפי)\s+(?:את\s+)?([a-zA-Z\u0590-\u05FF\s\-']+)\s+(?:למפה|לmaps?)/,
+      /(?:חפש|מצא|תחפש|תמצא)\s+(?:את\s+)?([a-zA-Z\u0590-\u05FF\s\-']+)/,
+      
+      // Simple place name extraction when keywords are present
+      /(?:תוסיף|הוסף|למפה|מפה|חפש|מצא|נווט)\s*(?:את\s+)?([a-zA-Z\u0590-\u05FF\s\-']{3,})/,
+      
+      // Fallback: detect quoted text or prominent words
+      /"([^"]+)"/,
+      /'([^']+)'/,
+      /([a-zA-Z\u0590-\u05FF\s\-']{3,}(?:\s+(?:מסעדה|קפה|restaurant|cafe|coffee))?)/
     ];
 
     let locationQuery: string | undefined;
     let confidence: 'high' | 'medium' | 'low' = 'low';
 
-    for (const pattern of patterns) {
+    console.log(`[LocationExtraction]: Testing ${patterns.length} patterns...`);
+
+    for (let i = 0; i < patterns.length; i++) {
+      const pattern = patterns[i];
       const match = text.match(pattern);
       if (match && match[1]) {
         locationQuery = match[1].trim();
         confidence = 'medium';
+        console.log(`[LocationExtraction]: Pattern ${i} matched! Extracted: "${locationQuery}"`);
         break;
       }
+    }
+
+    if (!locationQuery) {
+      console.log(`[LocationExtraction]: No patterns matched, trying context extraction`);
     }
 
     // If no specific pattern matched, try to extract based on context
@@ -285,6 +332,7 @@ Focus on restaurant names, business names, addresses, landmarks, and place names
    */
   async searchPlace(query: string): Promise<LocationExtractionResult> {
     if (!this.googleMapsApiKey) {
+      console.error('[LocationExtraction]: Google Maps API key missing for search');
       return {
         success: false,
         confidence: 'low',
@@ -294,6 +342,7 @@ Focus on restaurant names, business names, addresses, landmarks, and place names
 
     try {
       console.log(`[LocationExtraction]: Searching for place: "${query}"`);
+      console.log(`[LocationExtraction]: Using Google Maps API key: ${this.googleMapsApiKey.substring(0, 10)}...`);
 
       // Use Google Places Text Search API
       const response = await axios.get(
@@ -306,6 +355,9 @@ Focus on restaurant names, business names, addresses, landmarks, and place names
           }
         }
       );
+
+      console.log(`[LocationExtraction]: Google Places API response status: ${response.status}`);
+      console.log(`[LocationExtraction]: Google Places API response:`, response.data);
 
       const results = (response.data as any).results;
       
@@ -339,6 +391,15 @@ Focus on restaurant names, business names, addresses, landmarks, and place names
 
     } catch (error) {
       console.error('[LocationExtraction]: Places API error:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('[LocationExtraction]: Google Places API error details:', {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          message: error.message,
+          query: query
+        });
+      }
       return {
         success: false,
         confidence: 'low',

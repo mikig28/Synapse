@@ -187,17 +187,26 @@ bot.on('message', async (msg: TelegramBot.Message) => {
             
             if (synapseUser && transcribedText && voiceMemoTelegramItem) {
               // First, try to extract location information from the transcribed text
+              console.log(`[TelegramBot]: ==================== VOICE LOCATION ANALYSIS ====================`);
               console.log(`[TelegramBot]: Analyzing transcribed text for location: "${transcribedText}"`);
+              console.log(`[TelegramBot]: Text length: ${transcribedText.length}`);
+              console.log(`[TelegramBot]: Contains Hebrew characters: ${/[\u0590-\u05FF]/.test(transcribedText)}`);
+              console.log(`[TelegramBot]: User ID: ${synapseUser._id}`);
+              console.log(`[TelegramBot]: Chat ID: ${chatId}`);
               
               const locationExtraction = await locationExtractionService.extractLocationFromText(transcribedText);
               
-              console.log(`[TelegramBot]: Location extraction result:`, {
-                success: locationExtraction.success,
-                confidence: locationExtraction.confidence,
-                extractedText: locationExtraction.extractedText,
-                hasLocation: !!locationExtraction.location,
-                error: locationExtraction.error
-              });
+              console.log(`[TelegramBot]: ==================== LOCATION EXTRACTION RESULT ====================`);
+              console.log(`[TelegramBot]: Full location extraction result:`, JSON.stringify(locationExtraction, null, 2));
+              console.log(`[TelegramBot]: Success: ${locationExtraction.success}`);
+              console.log(`[TelegramBot]: Confidence: ${locationExtraction.confidence}`);
+              console.log(`[TelegramBot]: Extracted text: "${locationExtraction.extractedText}"`);
+              console.log(`[TelegramBot]: Has location data: ${!!locationExtraction.location}`);
+              console.log(`[TelegramBot]: Error: ${locationExtraction.error || 'None'}`);
+              if (locationExtraction.location) {
+                console.log(`[TelegramBot]: Location details:`, JSON.stringify(locationExtraction.location, null, 2));
+              }
+              console.log(`[TelegramBot]: =================================================================`);
               
               if (locationExtraction.success && locationExtraction.location) {
                 // Handle voice message with location
