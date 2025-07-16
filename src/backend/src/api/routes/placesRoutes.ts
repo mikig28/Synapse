@@ -1,8 +1,11 @@
 import express from 'express';
 import { protect } from '../middleware/authMiddleware';
-import { searchPlaces, extractLocationFromText, testLocationExtraction } from '../controllers/placesController';
+import { searchPlaces, extractLocationFromText, testLocationExtraction, healthCheck } from '../controllers/placesController';
 
 const router = express.Router();
+
+// Health check endpoint (no auth)
+router.get('/health', healthCheck);
 
 // Search for places using Google Places API
 router.get('/search', protect, searchPlaces);

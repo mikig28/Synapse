@@ -101,6 +101,29 @@ export const extractLocationFromText = async (req: Request, res: Response): Prom
   }
 };
 
+export const healthCheck = async (req: Request, res: Response): Promise<void> => {
+  try {
+    res.json({
+      success: true,
+      message: 'Places API is working',
+      timestamp: new Date().toISOString(),
+      environment: {
+        hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+        hasGoogleMapsKey: !!(process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY),
+        openaiKeyLength: process.env.OPENAI_API_KEY?.length || 0,
+        mapsKeyLength: (process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY)?.length || 0,
+        nodeEnv: process.env.NODE_ENV || 'undefined'
+      }
+    });
+  } catch (error) {
+    console.error('[PlacesController]: Health check error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Health check failed'
+    });
+  }
+};
+
 export const testLocationExtraction = async (req: Request, res: Response): Promise<void> => {
   try {
     const testCases = [
