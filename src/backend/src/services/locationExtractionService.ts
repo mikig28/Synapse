@@ -177,7 +177,7 @@ Examples:
       console.log('[LocationExtraction]: OpenAI API response status:', response.status);
       console.log('[LocationExtraction]: OpenAI API response data:', response.data);
 
-      const aiResponse = response.data.choices[0].message.content;
+      const aiResponse = (response.data as any).choices[0].message.content;
       console.log('[LocationExtraction]: Raw AI response text:', aiResponse);
       
       const parsed = JSON.parse(aiResponse);
@@ -187,13 +187,14 @@ Examples:
 
     } catch (error) {
       console.error('[LocationExtraction]: OpenAI API analysis failed:', error);
-      if (axios.isAxiosError(error)) {
+      if (error && typeof error === 'object' && 'isAxiosError' in error) {
+        const axiosError = error as any;
         console.error('[LocationExtraction]: OpenAI API error details:', {
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: error.response?.data,
-          headers: error.response?.headers,
-          message: error.message
+          status: axiosError.response?.status,
+          statusText: axiosError.response?.statusText,
+          data: axiosError.response?.data,
+          headers: axiosError.response?.headers,
+          message: axiosError.message
         });
       }
       // Fallback to simple extraction
@@ -391,12 +392,13 @@ Examples:
 
     } catch (error) {
       console.error('[LocationExtraction]: Places API error:', error);
-      if (axios.isAxiosError(error)) {
+      if (error && typeof error === 'object' && 'isAxiosError' in error) {
+        const axiosError = error as any;
         console.error('[LocationExtraction]: Google Places API error details:', {
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: error.response?.data,
-          message: error.message,
+          status: axiosError.response?.status,
+          statusText: axiosError.response?.statusText,
+          data: axiosError.response?.data,
+          message: axiosError.message,
           query: query
         });
       }
