@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Bell } from 'lucide-react';
+import LocationPicker, { LocationData } from '@/components/location/LocationPicker';
 
 // Re-using the Task interface, assuming it might be moved to a shared types file later
 interface Task {
@@ -20,6 +21,7 @@ interface Task {
   reminderEnabled?: boolean;
   source?: string;
   telegramMessageId?: string;
+  location?: LocationData;
   createdAt: string;
   updatedAt: string;
 }
@@ -38,6 +40,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, isOpen, onClose, on
   const [priority, setPriority] = useState<Task['priority'] | undefined>('medium');
   const [dueDate, setDueDate] = useState('');
   const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [location, setLocation] = useState<LocationData | null>(null);
 
   useEffect(() => {
     if (task) {
@@ -47,6 +50,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, isOpen, onClose, on
       setPriority(task.priority || 'medium');
       setDueDate(task.dueDate ? task.dueDate.split('T')[0] : ''); // Format for date input
       setReminderEnabled(task.reminderEnabled || false);
+      setLocation(task.location || null);
     } else {
       // Reset form if no task is provided (e.g. modal closed and reopened for a new task later, though not current use case)
       setTitle('');
@@ -55,6 +59,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, isOpen, onClose, on
       setPriority('medium');
       setDueDate('');
       setReminderEnabled(false);
+      setLocation(null);
     }
   }, [task]);
 
@@ -74,6 +79,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, isOpen, onClose, on
       priority,
       dueDate: dueDate || undefined,
       reminderEnabled,
+      location: location || undefined,
     };
     onSave(updatedTaskData);
   };
@@ -156,6 +162,13 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, isOpen, onClose, on
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
                 className="mt-1 bg-background/50 border-border/50 focus:border-primary focus:ring-primary"
+              />
+            </div>
+            
+            <div className="mb-4">
+              <LocationPicker
+                initialLocation={location}
+                onLocationSelect={setLocation}
               />
             </div>
             
