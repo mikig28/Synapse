@@ -144,6 +144,7 @@ const TasksPage: React.FC = () => {
         description: updatedTask.description,
         status: updatedTask.status,
         priority: updatedTask.priority,
+        location: updatedTask.location,
       };
       const response = await axiosInstance.put<Task>(`/tasks/${updatedTask._id}`, payload);
       const savedTask = response.data;

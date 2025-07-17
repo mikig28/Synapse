@@ -81,6 +81,7 @@ const EditTaskModal: React.FC<EditTaskModalProps> = ({ task, isOpen, onClose, on
       reminderEnabled,
       location: location || undefined,
     };
+    
     onSave(updatedTaskData);
   };
 
