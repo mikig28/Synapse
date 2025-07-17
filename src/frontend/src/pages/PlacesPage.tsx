@@ -18,13 +18,16 @@ import {
   Map as MapIcon,
   Clock,
   Target,
-  AlertCircle
+  AlertCircle,
+  Edit
 } from 'lucide-react';
 import useAuthStore from '@/store/authStore';
 import { formatDistanceToNow } from 'date-fns';
 import { locationService } from '@/services/locationService';
 import { BACKEND_ROOT_URL } from '@/services/axiosConfig';
 import { useGoogleMaps } from '@/contexts/GoogleMapsContext';
+import EditTaskModal from '@/components/tasks/EditTaskModal';
+import EditNoteModal from '@/components/notes/EditNoteModal';
 
 const mapContainerStyle = {
   width: '100%',
@@ -35,6 +38,41 @@ const defaultCenter = {
   lat: 40.7128,
   lng: -74.0060 // New York City default
 };
+
+// Task interface for editing
+interface Task {
+  _id: string;
+  title: string;
+  description?: string;
+  status: 'pending' | 'in-progress' | 'completed' | 'deferred';
+  priority?: 'low' | 'medium' | 'high';
+  dueDate?: string;
+  reminderEnabled?: boolean;
+  source?: string;
+  telegramMessageId?: string;
+  location?: {
+    type: 'Point';
+    coordinates: [number, number];
+    address?: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Note interface for editing
+interface Note {
+  _id: string;
+  title?: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  source?: string;
+  location?: {
+    type: 'Point';
+    coordinates: [number, number];
+    address?: string;
+  };
+}
 
 interface GeotaggedItem {
   _id: string;
@@ -64,6 +102,12 @@ const PlacesPage: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'notes' | 'tasks'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('map');
+  
+  // Edit modal states
+  const [showEditTaskModal, setShowEditTaskModal] = useState(false);
+  const [showEditNoteModal, setShowEditNoteModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editingNote, setEditingNote] = useState<Note | null>(null);
   
   const { token } = useAuthStore();
   const { isLoaded } = useGoogleMaps();
@@ -167,6 +211,87 @@ const PlacesPage: React.FC = () => {
     
     return matchesFilter && matchesSearch;
   });
+
+  // Edit handlers
+  const handleEditItem = (item: GeotaggedItem) => {
+    if (item.itemType === 'task') {
+      setEditingTask(item as Task);
+      setShowEditTaskModal(true);
+    } else if (item.itemType === 'note') {
+      setEditingNote(item as Note);
+      setShowEditNoteModal(true);
+    }
+    setSelectedItem(null); // Close info window
+  };
+
+  const handleTaskSave = async (updatedTask: Task) => {
+    if (!token || !updatedTask) return;
+    
+    try {
+      const payload = {
+        title: updatedTask.title,
+        description: updatedTask.description,
+        status: updatedTask.status,
+        priority: updatedTask.priority,
+        location: updatedTask.location,
+        dueDate: updatedTask.dueDate,
+        reminderEnabled: updatedTask.reminderEnabled,
+      };
+      
+      const response = await fetch(`${BACKEND_ROOT_URL}/api/v1/tasks/${updatedTask._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      if (response.ok) {
+        // Refresh the items
+        fetchGeotaggedItems();
+        setShowEditTaskModal(false);
+        setEditingTask(null);
+      } else {
+        console.error('Failed to update task');
+      }
+    } catch (error) {
+      console.error('Error updating task:', error);
+    }
+  };
+
+  const handleNoteSave = async (noteData: Omit<Note, '_id' | 'createdAt' | 'updatedAt'>, noteId: string) => {
+    if (!token) return;
+    
+    try {
+      const response = await fetch(`${BACKEND_ROOT_URL}/api/v1/notes/${noteId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(noteData)
+      });
+      
+      if (response.ok) {
+        // Refresh the items
+        fetchGeotaggedItems();
+        setShowEditNoteModal(false);
+        setEditingNote(null);
+      } else {
+        console.error('Failed to update note');
+      }
+    } catch (error) {
+      console.error('Error updating note:', error);
+    }
+  };
+
+  const handleCloseEditModals = () => {
+    setShowEditTaskModal(false);
+    setShowEditNoteModal(false);
+    setEditingTask(null);
+    setEditingNote(null);
+  };
 
   const getMarkerIcon = (item: GeotaggedItem) => {
     if (item.itemType === 'note') {
@@ -423,9 +548,18 @@ const PlacesPage: React.FC = () => {
                           {selectedItem.content || selectedItem.description || 'No description'}
                         </p>
                         
-                        <div className="flex items-center gap-1 text-xs text-gray-500 border-t pt-2" style={{ borderColor: '#e5e7eb' }}>
-                          <Calendar className="h-3 w-3" />
-                          <span>{formatDistanceToNow(new Date(selectedItem.createdAt), { addSuffix: true })}</span>
+                        <div className="flex items-center justify-between border-t pt-2" style={{ borderColor: '#e5e7eb' }}>
+                          <div className="flex items-center gap-1 text-xs text-gray-500">
+                            <Calendar className="h-3 w-3" />
+                            <span>{formatDistanceToNow(new Date(selectedItem.createdAt), { addSuffix: true })}</span>
+                          </div>
+                          <button
+                            onClick={() => handleEditItem(selectedItem)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                          >
+                            <Edit className="h-3 w-3" />
+                            Edit
+                          </button>
                         </div>
                       </div>
                     </InfoWindow>
@@ -523,22 +657,33 @@ const PlacesPage: React.FC = () => {
                         </div>
                       </div>
                       
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setMapCenter({
-                            lat: item.location.coordinates[1],
-                            lng: item.location.coordinates[0]
-                          });
-                          setSelectedItem(item);
-                          setActiveTab('map');
-                        }}
-                        className="flex items-center gap-1"
-                      >
-                        <MapIcon className="h-3 w-3" />
-                        View on Map
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditItem(item)}
+                          className="flex items-center gap-1"
+                        >
+                          <Edit className="h-3 w-3" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setMapCenter({
+                              lat: item.location.coordinates[1],
+                              lng: item.location.coordinates[0]
+                            });
+                            setSelectedItem(item);
+                            setActiveTab('map');
+                          }}
+                          className="flex items-center gap-1"
+                        >
+                          <MapIcon className="h-3 w-3" />
+                          View on Map
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -547,6 +692,25 @@ const PlacesPage: React.FC = () => {
           )}
         </TabsContent>
       </Tabs>
+      
+      {/* Edit Modals */}
+      {showEditTaskModal && editingTask && (
+        <EditTaskModal
+          isOpen={showEditTaskModal}
+          task={editingTask}
+          onClose={handleCloseEditModals}
+          onSave={handleTaskSave}
+        />
+      )}
+      
+      {showEditNoteModal && editingNote && (
+        <EditNoteModal
+          isOpen={showEditNoteModal}
+          note={editingNote}
+          onClose={handleCloseEditModals}
+          onSave={handleNoteSave}
+        />
+      )}
     </div>
   );
 };
