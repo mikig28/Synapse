@@ -72,6 +72,38 @@ const isYouTubeUrl = (url) => {
         return false;
     }
 };
+// Command handlers for document operations
+bot.onText(/\/search (.+)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const query = match?.[1];
+    if (!query) {
+        await bot.sendMessage(chatId, '❌ Please provide a search query. Example: /search your question');
+        return;
+    }
+    const synapseUser = await User_1.default.findOne({ monitoredTelegramChats: chatId });
+    if (!synapseUser) {
+        await bot.sendMessage(chatId, '❌ This chat is not linked to a Synapse account. Please configure monitoring first.');
+        return;
+    }
+    await bot.sendMessage(chatId, '🔍 Searching your documents...');
+    await (0, exports.handleDocumentSearch)(synapseUser._id.toString(), query, chatId);
+});
+bot.onText(/\/docs/, async (msg) => {
+    const chatId = msg.chat.id;
+    const synapseUser = await User_1.default.findOne({ monitoredTelegramChats: chatId });
+    if (!synapseUser) {
+        await bot.sendMessage(chatId, '❌ This chat is not linked to a Synapse account. Please configure monitoring first.');
+        return;
+    }
+    const helpMessage = `📚 *Document Commands:*\n\n` +
+        `• /search <query> - Search your documents with AI\n` +
+        `• Upload any file - I'll process it automatically\n` +
+        `• /docs - Show this help\n\n` +
+        `*Examples:*\n` +
+        `• /search what is the main topic of my research?\n` +
+        `• /search find information about project deadlines`;
+    await bot.sendMessage(chatId, helpMessage, { parse_mode: 'Markdown' });
+});
 // Basic message listener
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;

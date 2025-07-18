@@ -35,7 +35,11 @@ class VectorDatabaseService {
             }
             // Initialize Chroma for development/testing
             console.log('[VectorDB]: Initializing Chroma for development...');
+<<<<<<< HEAD
             this.chroma = new chromadb_1.ChromaClient({
+=======
+            this.chroma = new chromadb_1.ChromaApi({
+>>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
                 path: this.config.chromaUrl,
             });
             // Initialize OpenAI embedding function for Chroma
@@ -152,6 +156,7 @@ class VectorDatabaseService {
             metadata: {
                 userId: doc.userId,
                 documentId: doc.documentId,
+<<<<<<< HEAD
                 chunkId: doc.chunkId || '',
                 content: doc.content,
                 documentType: doc.metadata.documentType,
@@ -159,6 +164,11 @@ class VectorDatabaseService {
                 title: doc.metadata.title || '',
                 tags: doc.metadata.tags ? doc.metadata.tags.join(',') : '',
                 createdAt: doc.metadata.createdAt ? doc.metadata.createdAt.toISOString() : new Date().toISOString(),
+=======
+                chunkId: doc.chunkId,
+                content: doc.content,
+                ...doc.metadata,
+>>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
             },
         }));
         // Batch upsert (Pinecone recommends batches of 100-1000)
@@ -196,11 +206,15 @@ class VectorDatabaseService {
             userId: doc.userId,
             documentId: doc.documentId,
             chunkId: doc.chunkId || '',
+<<<<<<< HEAD
             documentType: doc.metadata.documentType,
             chunkType: doc.metadata.chunkType || '',
             title: doc.metadata.title || '',
             tags: doc.metadata.tags ? doc.metadata.tags.join(',') : '',
             createdAt: doc.metadata.createdAt.toISOString(),
+=======
+            ...doc.metadata,
+>>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
         }));
         const contents = documents.map(doc => doc.content);
         // Add documents to collection
@@ -255,10 +269,17 @@ class VectorDatabaseService {
         return response.matches?.map(match => ({
             id: match.id,
             score: match.score || 0,
+<<<<<<< HEAD
             content: String(match.metadata?.content || ''),
             metadata: match.metadata || {},
             documentId: String(match.metadata?.documentId || ''),
             chunkId: match.metadata?.chunkId ? String(match.metadata.chunkId) : undefined,
+=======
+            content: match.metadata?.content || '',
+            metadata: match.metadata || {},
+            documentId: match.metadata?.documentId || '',
+            chunkId: match.metadata?.chunkId,
+>>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
         })) || [];
     }
     /**
@@ -428,15 +449,24 @@ class VectorDatabaseService {
             if (this.config.useProduction && this.pinecone) {
                 const stats = await this.pinecone.index(this.config.pineconeIndexName).describeIndexStats();
                 return {
+<<<<<<< HEAD
                     totalDocuments: stats.totalRecordCount || 0,
                     totalChunks: stats.totalRecordCount || 0,
+=======
+                    totalDocuments: stats.totalVectorCount || 0,
+                    totalChunks: stats.totalVectorCount || 0,
+>>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
                     databaseType: 'pinecone',
                     indexStatus: 'ready',
                 };
             }
             else if (this.chroma) {
                 const collections = await this.chroma.listCollections();
+<<<<<<< HEAD
                 const synapseCollection = collections.find((c) => c.name === 'synapse-documents');
+=======
+                const synapseCollection = collections.find(c => c.name === 'synapse-documents');
+>>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
                 if (synapseCollection) {
                     const collection = await this.chroma.getCollection({
                         name: 'synapse-documents',

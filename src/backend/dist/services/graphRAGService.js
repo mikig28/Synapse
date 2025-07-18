@@ -85,7 +85,11 @@ class GraphRAGService {
         const doc = (0, compromise_1.default)(chunk.content);
         // Extract people
         const people = doc.people().out('array');
+<<<<<<< HEAD
         people.forEach((person) => {
+=======
+        people.forEach(person => {
+>>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
             entities.push({
                 id: (0, uuid_1.v4)(),
                 entity: person,
@@ -103,7 +107,11 @@ class GraphRAGService {
         });
         // Extract places
         const places = doc.places().out('array');
+<<<<<<< HEAD
         places.forEach((place) => {
+=======
+        places.forEach(place => {
+>>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
             entities.push({
                 id: (0, uuid_1.v4)(),
                 entity: place,
@@ -121,7 +129,11 @@ class GraphRAGService {
         });
         // Extract organizations
         const organizations = doc.organizations().out('array');
+<<<<<<< HEAD
         organizations.forEach((org) => {
+=======
+        organizations.forEach(org => {
+>>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
             entities.push({
                 id: (0, uuid_1.v4)(),
                 entity: org,

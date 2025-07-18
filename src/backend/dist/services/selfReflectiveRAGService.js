@@ -1,7 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.selfReflectiveRAGService = exports.SelfReflectiveRAGService = void 0;
+<<<<<<< HEAD
 const langgraph_1 = require("@langchain/langgraph");
+=======
+const langgraph_1 = require("langgraph");
+>>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
 const messages_1 = require("@langchain/core/messages");
 const openai_1 = require("@langchain/openai");
 const anthropic_1 = require("@langchain/anthropic");
@@ -26,7 +30,10 @@ const GraphState = langgraph_2.Annotation.Root({
     searchStrategy: (0, langgraph_2.Annotation)(),
     retrievalAttempts: (0, langgraph_2.Annotation)(),
     debugInfo: (0, langgraph_2.Annotation)(),
+<<<<<<< HEAD
     filter: (0, langgraph_2.Annotation)(),
+=======
+>>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
 });
 class SelfReflectiveRAGService {
     constructor() {
@@ -69,6 +76,7 @@ class SelfReflectiveRAGService {
             .addNode('web_search', this.webSearch.bind(this))
             .addNode('final_response', this.finalResponse.bind(this));
         // Define edges and conditional routing
+<<<<<<< HEAD
         // Note: LangGraph API has version compatibility issues
         // These edges are commented out for now
         /*
@@ -98,6 +106,25 @@ class SelfReflectiveRAGService {
           )
           .addEdge('final_response', '__end__');
         */
+=======
+        workflow
+            .addEdge(langgraph_1.START, 'analyze_query')
+            .addEdge('analyze_query', 'retrieve_documents')
+            .addEdge('retrieve_documents', 'grade_documents')
+            .addConditionalEdges('grade_documents', this.routeAfterGrading.bind(this), {
+            'generate': 'generate_response',
+            'reformulate': 'reformulate_query',
+            'web_search': 'web_search',
+        })
+            .addEdge('reformulate_query', 'retrieve_documents')
+            .addEdge('web_search', 'generate_response')
+            .addEdge('generate_response', 'evaluate_response')
+            .addConditionalEdges('evaluate_response', this.routeAfterEvaluation.bind(this), {
+            'final': 'final_response',
+            'retry': 'reformulate_query',
+        })
+            .addEdge('final_response', langgraph_1.END);
+>>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
         return workflow;
     }
     /**
@@ -329,7 +356,11 @@ Answer:
             new messages_1.HumanMessage(prompt),
         ]);
         return {
+<<<<<<< HEAD
             response: typeof response.content === 'string' ? response.content : 'I apologize, but I cannot generate a response at this time.',
+=======
+            response: response.content || 'I apologize, but I cannot generate a response at this time.',
+>>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
             sources: state.retrievedDocuments || [],
         };
     }

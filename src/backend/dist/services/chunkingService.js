@@ -15,7 +15,11 @@ class ChunkingService {
             apiKey: process.env.OPENAI_API_KEY,
         });
         // Initialize tiktoken for token counting
+<<<<<<< HEAD
         this.tiktoken = (0, tiktoken_1.get_encoding)('cl100k_base');
+=======
+        this.tiktoken = tiktoken_1.encode;
+>>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
     }
     /**
      * Main chunking method that routes to appropriate strategy
@@ -48,7 +52,11 @@ class ChunkingService {
      */
     fixedSizeChunking(content, options) {
         const chunks = [];
+<<<<<<< HEAD
         const tokens = this.tiktoken.encode(content);
+=======
+        const tokens = this.tiktoken(content);
+>>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
         let startPos = 0;
         let chunkIndex = 0;
         while (startPos < tokens.length) {
@@ -242,7 +250,11 @@ class ChunkingService {
         }
     }
     getTokenCount(text) {
+<<<<<<< HEAD
         return this.tiktoken.encode(text).length;
+=======
+        return this.tiktoken(text).length;
+>>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
     }
     detokenize(tokens) {
         // Simplified detokenization - in production use proper tiktoken decoder

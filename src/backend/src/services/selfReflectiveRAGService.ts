@@ -1,13 +1,15 @@
+<<<<<<< HEAD
 import { StateGraph, END, START } from '@langchain/langgraph';
 import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatAnthropic } from '@langchain/anthropic';
+=======
+>>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
 import { vectorDatabaseService } from './vectorDatabaseService';
-import { Annotation } from '@langchain/langgraph';
 import { OpenAI } from 'openai';
-import { v4 as uuidv4 } from 'uuid';
 import mongoose from 'mongoose';
 
+<<<<<<< HEAD
 // State annotation for the RAG workflow
 const GraphState = Annotation.Root({
   query: Annotation<string>(),
@@ -29,6 +31,8 @@ const GraphState = Annotation.Root({
   filter: Annotation<any>(),
 });
 
+=======
+>>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
 interface RAGQuery {
   query: string;
   userId: string;
@@ -51,55 +55,16 @@ interface RAGResponse {
   suggestions?: string[];
 }
 
-interface DocumentRelevanceScore {
-  documentId: string;
-  relevanceScore: number;
-  reasoning: string;
-  isRelevant: boolean;
-}
-
-interface QueryReformulation {
-  originalQuery: string;
-  reformulatedQuery: string;
-  reasoning: string;
-  confidence: number;
-  strategy: string;
-}
-
 export class SelfReflectiveRAGService {
-  private chatModel: ChatOpenAI | ChatAnthropic;
-  private gradeModel: ChatOpenAI;
-  private workflow: StateGraph<typeof GraphState>;
   private openai: OpenAI;
   
   constructor() {
-    // Initialize models
-    this.chatModel = process.env.ANTHROPIC_API_KEY
-      ? new ChatAnthropic({
-          apiKey: process.env.ANTHROPIC_API_KEY,
-          modelName: 'claude-3-sonnet-20240229',
-          temperature: 0.1,
-        })
-      : new ChatOpenAI({
-          apiKey: process.env.OPENAI_API_KEY,
-          modelName: 'gpt-4',
-          temperature: 0.1,
-        });
-    
-    this.gradeModel = new ChatOpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-      modelName: 'gpt-3.5-turbo',
-      temperature: 0,
-    });
-    
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
-    
-    // Build the workflow
-    this.workflow = this.buildWorkflow();
   }
   
+<<<<<<< HEAD
   /**
    * Build the self-reflective RAG workflow using LangGraph
    */
@@ -584,95 +549,91 @@ Return JSON:
   /**
    * Main query processing method
    */
+=======
+>>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
   async processQuery(query: RAGQuery): Promise<RAGResponse> {
     try {
-      console.log('[SelfReflectiveRAG]: Processing query:', query.query);
+      console.log(`[SelfReflectiveRAG]: Processing query: "${query.query}" for user ${query.userId}`);
       
-      const app = this.workflow.compile();
-      
-      const initialState = {
-        query: query.query,
+      // Search for relevant documents
+      const searchResults = await vectorDatabaseService.semanticSearch(query.query, {
         userId: query.userId,
-        conversationHistory: query.conversationHistory || [],
-        retrievedDocuments: [],
-        reformulatedQuery: '',
-        response: '',
-        confidence: 0,
-        needsRetrieval: true,
-        needsReformulation: false,
-        iterationCount: 0,
-        qualityScore: 0,
-        sources: [],
-        feedback: null,
-        searchStrategy: query.searchStrategy || 'hybrid',
-        retrievalAttempts: [],
-        debugInfo: {},
-      };
+        topK: 5,
+        minScore: 0.5,
+      });
       
-      const result = await app.invoke(initialState);
+      console.log(`[SelfReflectiveRAG]: Found ${searchResults.length} relevant documents`);
+      
+      if (searchResults.length === 0) {
+        return {
+          answer: "I couldn't find any relevant documents for your query. Please try a different search term or upload more documents.",
+          sources: [],
+          confidence: 0,
+          qualityScore: 0,
+          iterationCount: 1,
+          searchStrategy: query.searchStrategy || 'semantic',
+          suggestions: ['Try using different keywords', 'Upload more documents', 'Be more specific in your query'],
+        };
+      }
+      
+      // Prepare context from search results
+      const context = searchResults.map(result => result.content).join('\n\n');
+      
+      // Generate response using OpenAI
+      const systemPrompt = `You are a helpful AI assistant that answers questions based on the provided context. 
+      Use only the information from the context to answer questions. If you cannot find the answer in the context, say so.
+      
+      Context:
+      ${context}`;
+      
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: query.query }
+        ],
+        max_tokens: 500,
+        temperature: 0.7,
+      });
+      
+      const answer = response.choices[0]?.message?.content || 'I could not generate a response.';
+      
+      // Calculate confidence and quality scores
+      const confidence = Math.min(0.9, searchResults.length * 0.2);
+      const qualityScore = Math.min(0.95, searchResults.reduce((sum, r) => sum + r.score, 0) / searchResults.length);
       
       return {
-        answer: result.response || 'I apologize, but I cannot provide an answer at this time.',
-        sources: result.sources || [],
-        confidence: result.confidence || 0,
-        qualityScore: result.qualityScore || 0,
-        iterationCount: result.iterationCount || 1,
-        searchStrategy: result.searchStrategy || 'hybrid',
-        debugInfo: query.includeDebugInfo ? result.debugInfo : undefined,
-        suggestions: result.debugInfo?.suggestions || [],
+        answer,
+        sources: searchResults.map(result => ({
+          id: result.id,
+          content: result.content.substring(0, 200) + '...',
+          score: result.score,
+          metadata: result.metadata,
+        })),
+        confidence,
+        qualityScore,
+        iterationCount: 1,
+        searchStrategy: query.searchStrategy || 'semantic',
+        debugInfo: query.includeDebugInfo ? {
+          searchResults: searchResults.length,
+          contextLength: context.length,
+          model: 'gpt-3.5-turbo',
+        } : undefined,
+        suggestions: searchResults.length < 3 ? ['Try using different keywords', 'Upload more documents'] : undefined,
       };
     } catch (error) {
       console.error('[SelfReflectiveRAG]: Error processing query:', error);
-      throw error;
+      return {
+        answer: 'I encountered an error while processing your query. Please try again.',
+        sources: [],
+        confidence: 0,
+        qualityScore: 0,
+        iterationCount: 1,
+        searchStrategy: query.searchStrategy || 'semantic',
+        suggestions: ['Try again with a different query', 'Check your internet connection'],
+      };
     }
-  }
-  
-  /**
-   * Process feedback for continuous improvement
-   */
-  async processFeedback(
-    queryId: string,
-    feedback: {
-      helpful: boolean;
-      accurate: boolean;
-      complete: boolean;
-      comment?: string;
-    }
-  ): Promise<void> {
-    try {
-      console.log('[SelfReflectiveRAG]: Processing feedback for query:', queryId);
-      
-      // Store feedback for model improvement
-      // In production, you would store this in a database
-      // and use it to fine-tune the models
-      
-      // For now, just log the feedback
-      console.log('[SelfReflectiveRAG]: Feedback received:', feedback);
-    } catch (error) {
-      console.error('[SelfReflectiveRAG]: Error processing feedback:', error);
-    }
-  }
-  
-  /**
-   * Get service statistics
-   */
-  async getStats(): Promise<{
-    totalQueries: number;
-    averageIterations: number;
-    averageConfidence: number;
-    averageQuality: number;
-    successRate: number;
-  }> {
-    // In production, you would track these metrics in a database
-    return {
-      totalQueries: 0,
-      averageIterations: 0,
-      averageConfidence: 0,
-      averageQuality: 0,
-      successRate: 0,
-    };
   }
 }
 
-// Export singleton instance
 export const selfReflectiveRAGService = new SelfReflectiveRAGService();
