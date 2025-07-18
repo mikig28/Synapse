@@ -36,6 +36,7 @@ const ttsRoutes_1 = __importDefault(require("./api/routes/ttsRoutes")); // Impor
 const calendarEventsRoutes_1 = __importDefault(require("./api/routes/calendarEventsRoutes")); // Import calendar event routes
 const scheduledAgents_1 = __importDefault(require("./api/routes/scheduledAgents")); // Import scheduled agents routes
 const placesRoutes_1 = __importDefault(require("./api/routes/placesRoutes")); // Import places routes
+const documentsRoutes_1 = __importDefault(require("./api/routes/documentsRoutes")); // Import documents routes
 const taskReminderService_1 = require("./services/taskReminderService"); // Import task reminder service
 const schedulerService_1 = require("./services/schedulerService"); // Import scheduler service
 const aguiEmitter_1 = require("./services/aguiEmitter"); // Import AG-UI emitter
@@ -206,6 +207,7 @@ app.use('/api/v1/tts', ttsRoutes_1.default); // Use TTS proxy route
 app.use('/api/v1/calendar-events', calendarEventsRoutes_1.default); // Use calendar event routes
 app.use('/api/v1/scheduled-agents', scheduledAgents_1.default); // Use scheduled agents routes
 app.use('/api/v1/places', placesRoutes_1.default); // Use places routes
+app.use('/api/v1/documents', documentsRoutes_1.default); // Use documents routes
 // **AG-UI Protocol Endpoints**
 // Test endpoint to manually emit AG-UI events for debugging
 app.get('/api/v1/ag-ui/test-event', (req, res) => {
