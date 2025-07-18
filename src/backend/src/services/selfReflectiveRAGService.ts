@@ -26,6 +26,7 @@ const GraphState = Annotation.Root({
   searchStrategy: Annotation<string>(),
   retrievalAttempts: Annotation<number[]>(),
   debugInfo: Annotation<any>(),
+  filter: Annotation<any>(),
 });
 
 interface RAGQuery {
@@ -118,7 +119,7 @@ export class SelfReflectiveRAGService {
     
     // Define edges and conditional routing
     workflow
-      .addEdge(START, 'analyze_query')
+      .addEdge('__start__', 'analyze_query')
       .addEdge('analyze_query', 'retrieve_documents')
       .addEdge('retrieve_documents', 'grade_documents')
       .addConditionalEdges(
@@ -141,7 +142,7 @@ export class SelfReflectiveRAGService {
           'retry': 'reformulate_query',
         }
       )
-      .addEdge('final_response', END);
+      .addEdge('final_response', '__end__');
     
     return workflow;
   }
@@ -403,7 +404,7 @@ Answer:
     ]);
     
     return {
-      response: response.content || 'I apologize, but I cannot generate a response at this time.',
+      response: typeof response.content === 'string' ? response.content : 'I apologize, but I cannot generate a response at this time.',
       sources: state.retrievedDocuments || [],
     };
   }

@@ -1,5 +1,5 @@
 import { OpenAI } from 'openai';
-import { encode } from 'tiktoken';
+import { get_encoding } from 'tiktoken';
 import { v4 as uuidv4 } from 'uuid';
 import { ISmartChunk } from '../models/Document';
 import { vectorDatabaseService } from './vectorDatabaseService';
@@ -42,7 +42,7 @@ export class ChunkingService {
     });
     
     // Initialize tiktoken for token counting
-    this.tiktoken = encode;
+    this.tiktoken = get_encoding('cl100k_base');
   }
   
   /**
@@ -80,7 +80,7 @@ export class ChunkingService {
    */
   private fixedSizeChunking(content: string, options: ChunkingOptions): ISmartChunk[] {
     const chunks: ISmartChunk[] = [];
-    const tokens = this.tiktoken(content);
+    const tokens = this.tiktoken.encode(content);
     
     let startPos = 0;
     let chunkIndex = 0;
@@ -309,7 +309,7 @@ export class ChunkingService {
   }
   
   private getTokenCount(text: string): number {
-    return this.tiktoken(text).length;
+    return this.tiktoken.encode(text).length;
   }
   
   private detokenize(tokens: number[]): string {

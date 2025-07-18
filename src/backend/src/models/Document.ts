@@ -60,6 +60,7 @@ export interface ISmartChunk {
     parentChunkId?: string;
     childChunkIds?: string[];
     keywords?: string[];
+    agenticReason?: string;
   };
 }
 

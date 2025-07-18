@@ -225,6 +225,7 @@ export class VectorDatabaseService {
         chunkId: doc.chunkId,
         content: doc.content,
         ...doc.metadata,
+        createdAt: doc.metadata.createdAt ? doc.metadata.createdAt.toISOString() : undefined,
       },
     }));
     
@@ -332,9 +333,9 @@ export class VectorDatabaseService {
     return response.matches?.map(match => ({
       id: match.id,
       score: match.score || 0,
-      content: match.metadata?.content || '',
+      content: String(match.metadata?.content || ''),
       metadata: match.metadata || {},
-      documentId: match.metadata?.documentId || '',
+      documentId: String(match.metadata?.documentId || ''),
       chunkId: match.metadata?.chunkId,
     })) || [];
   }
@@ -540,14 +541,14 @@ export class VectorDatabaseService {
       if (this.config.useProduction && this.pinecone) {
         const stats = await this.pinecone.index(this.config.pineconeIndexName!).describeIndexStats();
         return {
-          totalDocuments: stats.totalVectorCount || 0,
-          totalChunks: stats.totalVectorCount || 0,
+          totalDocuments: stats.totalRecordCount || 0,
+          totalChunks: stats.totalRecordCount || 0,
           databaseType: 'pinecone',
           indexStatus: 'ready',
         };
       } else if (this.chroma) {
         const collections = await this.chroma.listCollections();
-        const synapseCollection = collections.find(c => c.name === 'synapse-documents');
+        const synapseCollection = collections.find((c: any) => c.name === 'synapse-documents');
         
         if (synapseCollection) {
           const collection = await this.chroma.getCollection({
