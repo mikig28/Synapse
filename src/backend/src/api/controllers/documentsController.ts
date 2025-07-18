@@ -30,7 +30,7 @@ const upload = multer({
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Unsupported file type'), false);
+      cb(new Error('Unsupported file type') as any, false);
     }
   },
 });
@@ -312,7 +312,7 @@ export const updateDocument = async (req: AuthenticatedRequest, res: Response) =
     for (const key of allowedUpdates) {
       if (updates[key] !== undefined) {
         const oldValue = key.includes('.') ? 
-          key.split('.').reduce((obj, k) => obj[k], document) : 
+          key.split('.').reduce((obj: any, k: string) => obj[k], document) : 
           document[key as keyof typeof document];
         
         changes.push({
@@ -569,7 +569,7 @@ async function processDocumentAsync(
     // Extract knowledge graph
     const knowledgeGraph = await graphRAGService.extractKnowledgeGraph(
       chunks,
-      document._id.toString(),
+      (document._id as mongoose.Types.ObjectId).toString(),
       document.title
     );
 
@@ -584,7 +584,7 @@ async function processDocumentAsync(
     // Store in vector database
     await vectorDatabaseService.storeDocumentChunks(
       document.userId.toString(),
-      document._id.toString(),
+      (document._id as mongoose.Types.ObjectId).toString(),
       chunks,
       {
         title: document.title,
@@ -601,7 +601,7 @@ async function processDocumentAsync(
     // Emit real-time update
     if (io) {
       io.emit('document_processed', {
-        documentId: document._id.toString(),
+        documentId: (document._id as mongoose.Types.ObjectId).toString(),
         userId: document.userId.toString(),
         status: 'completed',
       });
@@ -613,15 +613,15 @@ async function processDocumentAsync(
     
     // Update status
     document.metadata.processingStatus = 'failed';
-    document.metadata.processingErrors = [error.message];
+    document.metadata.processingErrors = [(error as Error).message];
     await document.save();
 
     // Emit error
     if (io) {
       io.emit('document_processing_error', {
-        documentId: document._id.toString(),
+        documentId: (document._id as mongoose.Types.ObjectId).toString(),
         userId: document.userId.toString(),
-        error: error.message,
+        error: (error as Error).message,
       });
     }
   } finally {

@@ -35,7 +35,7 @@ class VectorDatabaseService {
             }
             // Initialize Chroma for development/testing
             console.log('[VectorDB]: Initializing Chroma for development...');
-            this.chroma = new chromadb_1.ChromaApi({
+            this.chroma = new chromadb_1.ChromaClient({
                 path: this.config.chromaUrl,
             });
             // Initialize OpenAI embedding function for Chroma
@@ -152,9 +152,13 @@ class VectorDatabaseService {
             metadata: {
                 userId: doc.userId,
                 documentId: doc.documentId,
-                chunkId: doc.chunkId,
+                chunkId: doc.chunkId || '',
                 content: doc.content,
-                ...doc.metadata,
+                documentType: doc.metadata.documentType,
+                chunkType: doc.metadata.chunkType || '',
+                title: doc.metadata.title || '',
+                tags: doc.metadata.tags ? doc.metadata.tags.join(',') : '',
+                createdAt: doc.metadata.createdAt ? doc.metadata.createdAt.toISOString() : new Date().toISOString(),
             },
         }));
         // Batch upsert (Pinecone recommends batches of 100-1000)
@@ -192,7 +196,11 @@ class VectorDatabaseService {
             userId: doc.userId,
             documentId: doc.documentId,
             chunkId: doc.chunkId || '',
-            ...doc.metadata,
+            documentType: doc.metadata.documentType,
+            chunkType: doc.metadata.chunkType || '',
+            title: doc.metadata.title || '',
+            tags: doc.metadata.tags ? doc.metadata.tags.join(',') : '',
+            createdAt: doc.metadata.createdAt.toISOString(),
         }));
         const contents = documents.map(doc => doc.content);
         // Add documents to collection
@@ -247,10 +255,10 @@ class VectorDatabaseService {
         return response.matches?.map(match => ({
             id: match.id,
             score: match.score || 0,
-            content: match.metadata?.content || '',
+            content: String(match.metadata?.content || ''),
             metadata: match.metadata || {},
-            documentId: match.metadata?.documentId || '',
-            chunkId: match.metadata?.chunkId,
+            documentId: String(match.metadata?.documentId || ''),
+            chunkId: match.metadata?.chunkId ? String(match.metadata.chunkId) : undefined,
         })) || [];
     }
     /**
@@ -420,15 +428,15 @@ class VectorDatabaseService {
             if (this.config.useProduction && this.pinecone) {
                 const stats = await this.pinecone.index(this.config.pineconeIndexName).describeIndexStats();
                 return {
-                    totalDocuments: stats.totalVectorCount || 0,
-                    totalChunks: stats.totalVectorCount || 0,
+                    totalDocuments: stats.totalRecordCount || 0,
+                    totalChunks: stats.totalRecordCount || 0,
                     databaseType: 'pinecone',
                     indexStatus: 'ready',
                 };
             }
             else if (this.chroma) {
                 const collections = await this.chroma.listCollections();
-                const synapseCollection = collections.find(c => c.name === 'synapse-documents');
+                const synapseCollection = collections.find((c) => c.name === 'synapse-documents');
                 if (synapseCollection) {
                     const collection = await this.chroma.getCollection({
                         name: 'synapse-documents',

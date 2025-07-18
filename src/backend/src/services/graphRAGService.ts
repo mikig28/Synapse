@@ -166,7 +166,7 @@ export class GraphRAGService {
     
     // Extract people
     const people = doc.people().out('array');
-    people.forEach(person => {
+    people.forEach((person: any) => {
       entities.push({
         id: uuidv4(),
         entity: person,
@@ -185,7 +185,7 @@ export class GraphRAGService {
     
     // Extract places
     const places = doc.places().out('array');
-    places.forEach(place => {
+    places.forEach((place: any) => {
       entities.push({
         id: uuidv4(),
         entity: place,
@@ -204,7 +204,7 @@ export class GraphRAGService {
     
     // Extract organizations
     const organizations = doc.organizations().out('array');
-    organizations.forEach(org => {
+    organizations.forEach((org: any) => {
       entities.push({
         id: uuidv4(),
         entity: org,

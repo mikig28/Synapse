@@ -13,7 +13,7 @@ export const initializeGridFS = () => {
       console.error('[GridFS]: Cannot initialize. Mongoose has no db object.');
       return;
     }
-    bucket = new GridFSBucket(db, {
+    bucket = new GridFSBucket(db as any, {
       bucketName: 'media',
     });
     console.log('[GridFS]: Bucket "media" initialized.');

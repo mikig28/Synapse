@@ -204,7 +204,7 @@ bot.on('message', async (msg) => {
                 if (server_1.io) {
                     server_1.io.emit('document_uploaded', {
                         userId: synapseUser._id.toString(),
-                        documentId: savedDocument._id.toString(),
+                        documentId: savedDocument._id?.toString(),
                         filename: msg.document.file_name,
                         source: 'telegram',
                     });

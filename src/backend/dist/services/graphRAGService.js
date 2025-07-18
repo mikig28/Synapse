@@ -85,7 +85,7 @@ class GraphRAGService {
         const doc = (0, compromise_1.default)(chunk.content);
         // Extract people
         const people = doc.people().out('array');
-        people.forEach(person => {
+        people.forEach((person) => {
             entities.push({
                 id: (0, uuid_1.v4)(),
                 entity: person,
@@ -103,7 +103,7 @@ class GraphRAGService {
         });
         // Extract places
         const places = doc.places().out('array');
-        places.forEach(place => {
+        places.forEach((place) => {
             entities.push({
                 id: (0, uuid_1.v4)(),
                 entity: place,
@@ -121,7 +121,7 @@ class GraphRAGService {
         });
         // Extract organizations
         const organizations = doc.organizations().out('array');
-        organizations.forEach(org => {
+        organizations.forEach((org) => {
             entities.push({
                 id: (0, uuid_1.v4)(),
                 entity: org,

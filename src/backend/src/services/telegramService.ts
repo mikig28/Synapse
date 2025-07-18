@@ -123,7 +123,7 @@ bot.on('message', async (msg: TelegramBot.Message) => {
         });
 
         await new Promise<void>((resolve, reject) => {
-          fileResponse.data.pipe(uploadStream)
+          (fileResponse.data as any).pipe(uploadStream)
             .on('finish', () => {
               mediaGridFsId = uploadStream.id.toString();
               console.log(`[TelegramBot]: Photo ${fileName} saved to GridFS with ID: ${mediaGridFsId}`);
@@ -161,7 +161,7 @@ bot.on('message', async (msg: TelegramBot.Message) => {
         
         // Save file locally
         const writer = fs.createWriteStream(localFilePath);
-        fileResponse.data.pipe(writer);
+        (fileResponse.data as any).pipe(writer);
         await new Promise<void>((resolve, reject) => {
           writer.on('finish', resolve);
           writer.on('error', reject);
@@ -202,7 +202,7 @@ bot.on('message', async (msg: TelegramBot.Message) => {
           searchKeywords: [],
           autoTags: [],
           sourceType: 'telegram',
-          sourceId: voiceMemoTelegramItem?._id,
+          sourceId: (voiceMemoTelegramItem as any)?._id as mongoose.Types.ObjectId,
         });
         
         const savedDocument = await document.save();
@@ -226,7 +226,7 @@ bot.on('message', async (msg: TelegramBot.Message) => {
         if (io) {
           io.emit('document_uploaded', {
             userId: synapseUser._id.toString(),
-            documentId: savedDocument._id.toString(),
+            documentId: savedDocument._id?.toString(),
             filename: msg.document.file_name,
             source: 'telegram',
           });
@@ -253,7 +253,7 @@ bot.on('message', async (msg: TelegramBot.Message) => {
         localFilePath = path.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_voice', fileName);
         if (fileResponse.data) {
           const writer = fs.createWriteStream(localFilePath);
-          fileResponse.data.pipe(writer);
+          (fileResponse.data as any).pipe(writer);
           await new Promise<void>((resolve, reject) => {
             writer.on('finish', resolve);
             writer.on('error', reject);
@@ -695,7 +695,7 @@ async function processDocumentFromTelegram(document: any, filePath: string) {
     
     // Update status
     document.metadata.processingStatus = 'failed';
-    document.metadata.processingErrors = [error.message];
+    document.metadata.processingErrors = [(error as Error).message];
     await document.save();
     
     // Emit error event
@@ -703,7 +703,7 @@ async function processDocumentFromTelegram(document: any, filePath: string) {
       io.emit('document_processing_error', {
         documentId: document._id.toString(),
         userId: document.userId.toString(),
-        error: error.message,
+        error: (error as Error).message,
         source: 'telegram',
       });
     }
