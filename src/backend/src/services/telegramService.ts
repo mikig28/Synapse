@@ -93,7 +93,7 @@ bot.onText(/\/search (.+)/, async (msg, match) => {
   }
   
   await bot.sendMessage(chatId, '🔍 Searching your documents...');
-  await handleDocumentSearch((synapseUser._id as any).toString(), query, chatId);
+  await handleDocumentSearch(synapseUser._id.toString(), query, chatId);
 });
 
 bot.onText(/\/docs/, async (msg) => {
@@ -265,7 +265,7 @@ bot.on('message', async (msg: TelegramBot.Message) => {
         // Emit real-time update
         if (io) {
           io.emit('document_uploaded', {
-            userId: (synapseUser._id as any).toString(),
+            userId: synapseUser._id.toString(),
             documentId: savedDocument._id?.toString(),
             filename: msg.document.file_name,
             source: 'telegram',
@@ -541,7 +541,7 @@ bot.on('message', async (msg: TelegramBot.Message) => {
         for (const url of savedItem.urls) {
             if (isYouTubeUrl(url)) {
                 console.log(`[TelegramBot]: YouTube URL detected: ${url}. Processing as video...`);
-                await processAndCreateVideoItem((synapseUser._id as any).toString(), url, telegramItemIdString);
+                await processAndCreateVideoItem(synapseUser._id.toString(), url, telegramItemIdString);
                 processedAsVideo = true;
             }
         }
@@ -600,7 +600,7 @@ bot.onText(/\/search (.+)/, async (msg, match) => {
       return;
     }
     
-    await handleDocumentSearch((synapseUser._id as any).toString(), query, chatId);
+    await handleDocumentSearch(synapseUser._id.toString(), query, chatId);
     
   } catch (error) {
     console.error('[TelegramBot]: Error in /search command:', error);
@@ -620,13 +620,13 @@ bot.onText(/\/docs/, async (msg) => {
     }
     
     // Get document stats
-    const totalDocs = await Document.countDocuments({ userId: synapseUser._id as any });
+    const totalDocs = await Document.countDocuments({ userId: synapseUser._id });
     const processingDocs = await Document.countDocuments({ 
-      userId: synapseUser._id as any, 
+      userId: synapseUser._id, 
       'metadata.processingStatus': 'processing' 
     });
     const completedDocs = await Document.countDocuments({ 
-      userId: synapseUser._id as any, 
+      userId: synapseUser._id, 
       'metadata.processingStatus': 'completed' 
     });
     

@@ -38,7 +38,7 @@ const upload = multer({
 interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
-    email: string;
+    email?: string;
   };
 }
 

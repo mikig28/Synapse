@@ -1,9 +1,9 @@
 import { OpenAI } from 'openai';
-import { ISmartChunk, IGraphNode } from '../models/Document';
+import { ISmartChunk, IGraphNode, IRelationship } from '../models/Document';
 
 interface KnowledgeGraphResult {
   entities: IGraphNode[];
-  relationships: any[];
+  relationships: IRelationship[];
   confidence: number;
   processingTime: number;
 }
@@ -28,7 +28,7 @@ export class GraphRAGService {
       console.log(`[GraphRAGService]: Extracting knowledge graph for document: ${documentTitle}`);
       
       const entities: IGraphNode[] = [];
-      const relationships: any[] = [];
+      const relationships: IRelationship[] = [];
       
       // Extract entities from each chunk
       for (const chunk of chunks) {
@@ -82,8 +82,10 @@ export class GraphRAGService {
           chunkId: chunk.id,
           position: text.indexOf(match),
           context: this.extractContext(text, match),
+          confidence: 0.7,
         }],
-        relationships: [],
+        aliases: [],
+        attributes: {},
       });
     });
 
@@ -99,8 +101,10 @@ export class GraphRAGService {
           chunkId: chunk.id,
           position: text.indexOf(match),
           context: this.extractContext(text, match),
+          confidence: 0.8,
         }],
-        relationships: [],
+        aliases: [],
+        attributes: {},
       });
     });
 
@@ -116,8 +120,10 @@ export class GraphRAGService {
           chunkId: chunk.id,
           position: text.indexOf(match),
           context: this.extractContext(text, match),
+          confidence: 0.6,
         }],
-        relationships: [],
+        aliases: [],
+        attributes: {},
       });
     });
 
@@ -156,8 +162,8 @@ export class GraphRAGService {
     return uniqueEntities;
   }
 
-  private async extractRelationships(entities: IGraphNode[], chunks: ISmartChunk[]): Promise<any[]> {
-    const relationships: any[] = [];
+  private async extractRelationships(entities: IGraphNode[], chunks: ISmartChunk[]): Promise<IRelationship[]> {
+    const relationships: IRelationship[] = [];
 
     // Simple relationship extraction based on co-occurrence in same chunk
     for (const chunk of chunks) {
@@ -175,7 +181,7 @@ export class GraphRAGService {
             id: `rel_${sourceEntity.id}_${targetEntity.id}`,
             sourceEntityId: sourceEntity.id,
             targetEntityId: targetEntity.id,
-            relationshipType: 'similar',
+            relationshipType: 'co_occurs_with',
             description: `${sourceEntity.entity} and ${targetEntity.entity} appear together`,
             confidence: 0.5,
             evidence: [chunk.content.substring(0, 100) + '...'],
@@ -190,12 +196,12 @@ export class GraphRAGService {
     return relationships;
   }
 
-  private calculateOverallConfidence(entities: IGraphNode[], relationships: any[]): number {
+  private calculateOverallConfidence(entities: IGraphNode[], relationships: IRelationship[]): number {
     if (entities.length === 0) return 0;
 
     const entityConfidence = entities.reduce((sum, e) => sum + e.confidence, 0) / entities.length;
     const relationshipConfidence = relationships.length > 0 
-      ? relationships.reduce((sum, r) => sum + (r.confidence || 0.5), 0) / relationships.length 
+      ? relationships.reduce((sum, r) => sum + r.confidence, 0) / relationships.length 
       : 0;
 
     return (entityConfidence + relationshipConfidence) / 2;
