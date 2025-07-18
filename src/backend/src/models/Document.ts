@@ -190,6 +190,12 @@ export interface IDocument extends MongooseDocument {
     type: 'Point';
     coordinates: [number, number]; // [longitude, latitude]
   };
+
+  // Virtual properties
+  processingProgress: number;
+
+  // Methods
+  addVersion(userId: mongoose.Types.ObjectId, changeType: string, changes: any[], comment?: string): Promise<IDocument>;
 }
 
 const DocumentSchema = new Schema<IDocument>(

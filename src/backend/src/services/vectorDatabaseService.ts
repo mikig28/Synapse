@@ -1,5 +1,5 @@
 import { Pinecone } from '@pinecone-database/pinecone';
-import { ChromaApi, OpenAIEmbeddingFunction } from 'chromadb';
+import { ChromaClient, OpenAIEmbeddingFunction } from 'chromadb';
 import { OpenAI } from 'openai';
 import { v4 as uuidv4 } from 'uuid';
 import { ISmartChunk } from '../models/Document';
@@ -51,7 +51,7 @@ interface SearchOptions {
 
 export class VectorDatabaseService {
   private pinecone: Pinecone | null = null;
-  private chroma: ChromaApi | null = null;
+  private chroma: ChromaClient | null = null;
   private openai: OpenAI;
   private config: VectorConfig;
   private embeddingFunction: OpenAIEmbeddingFunction | null = null;
@@ -88,7 +88,7 @@ export class VectorDatabaseService {
       
       // Initialize Chroma for development/testing
       console.log('[VectorDB]: Initializing Chroma for development...');
-      this.chroma = new ChromaApi({
+      this.chroma = new ChromaClient({
         path: this.config.chromaUrl,
       });
       
@@ -222,10 +222,13 @@ export class VectorDatabaseService {
       metadata: {
         userId: doc.userId,
         documentId: doc.documentId,
-        chunkId: doc.chunkId,
+        chunkId: doc.chunkId || '',
         content: doc.content,
-        ...doc.metadata,
-        createdAt: doc.metadata.createdAt ? doc.metadata.createdAt.toISOString() : undefined,
+        documentType: doc.metadata.documentType,
+        chunkType: doc.metadata.chunkType || '',
+        title: doc.metadata.title || '',
+        tags: doc.metadata.tags ? doc.metadata.tags.join(',') : '',
+        createdAt: doc.metadata.createdAt ? doc.metadata.createdAt.toISOString() : new Date().toISOString(),
       },
     }));
     
@@ -266,7 +269,11 @@ export class VectorDatabaseService {
       userId: doc.userId,
       documentId: doc.documentId,
       chunkId: doc.chunkId || '',
-      ...doc.metadata,
+      documentType: doc.metadata.documentType,
+      chunkType: doc.metadata.chunkType || '',
+      title: doc.metadata.title || '',
+      tags: doc.metadata.tags ? doc.metadata.tags.join(',') : '',
+      createdAt: doc.metadata.createdAt.toISOString(),
     }));
     const contents = documents.map(doc => doc.content);
     
@@ -336,7 +343,7 @@ export class VectorDatabaseService {
       content: String(match.metadata?.content || ''),
       metadata: match.metadata || {},
       documentId: String(match.metadata?.documentId || ''),
-      chunkId: match.metadata?.chunkId,
+      chunkId: match.metadata?.chunkId ? String(match.metadata.chunkId) : undefined,
     })) || [];
   }
   

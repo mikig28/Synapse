@@ -51,7 +51,7 @@ export const protect = async (req: AuthenticatedRequest, res: Response, next: Ne
       }
       
       // Attach user to request object
-      req.user = { id: decoded.id };
+      req.user = { id: decoded.id, email: decoded.email || '' };
       
       console.log('[AuthMiddleware] ✅ Token verified successfully for user:', decoded.id);
       next();

@@ -5,6 +5,7 @@ declare global {
     interface Request {
       user?: {
         id: string;
+        email: string;
       };
       file?: Express.Multer.File;
     }
@@ -14,5 +15,6 @@ declare global {
 export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
+    email: string;
   };
 } 

@@ -202,7 +202,7 @@ bot.on('message', async (msg: TelegramBot.Message) => {
           searchKeywords: [],
           autoTags: [],
           sourceType: 'telegram',
-          sourceId: voiceMemoTelegramItem?._id as mongoose.Types.ObjectId,
+          sourceId: (voiceMemoTelegramItem as any)?._id as mongoose.Types.ObjectId,
         });
         
         const savedDocument = await document.save();
