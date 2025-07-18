@@ -16,7 +16,7 @@ ENV HOME=/home/nodeuser
 COPY src/backend/package*.json ./
 
 # Install dependencies (no browser dependencies needed)
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 # Copy source code and config files from backend directory
 COPY src/backend/src/ ./src/
