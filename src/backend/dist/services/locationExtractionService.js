@@ -1,12 +1,42 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.locationExtractionService = void 0;
-const axios_1 = __importDefault(require("axios"));
-const dotenv_1 = __importDefault(require("dotenv"));
-dotenv_1.default.config();
+const axios = __importStar(require("axios"));
+const dotenv = __importStar(require("dotenv"));
+dotenv.config();
 class LocationExtractionService {
     constructor() {
         this.googleMapsApiKey = process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY || '';
@@ -117,7 +147,7 @@ Examples:
                 apiKeyLength: this.openaiApiKey.length,
                 textToAnalyze: text
             });
-            const response = await axios_1.default.post('https://api.openai.com/v1/chat/completions', {
+            const response = await axios.post('https://api.openai.com/v1/chat/completions', {
                 model: 'gpt-4o-mini',
                 messages: [
                     { role: 'system', content: systemPrompt },
@@ -134,7 +164,8 @@ Examples:
             });
             console.log('[LocationExtraction]: OpenAI API response status:', response.status);
             console.log('[LocationExtraction]: OpenAI API response data:', response.data);
-            const aiResponse = response.data.choices[0].message.content;
+            const openaiResponse = response.data;
+            const aiResponse = openaiResponse.choices[0].message.content;
             console.log('[LocationExtraction]: Raw AI response text:', aiResponse);
             const parsed = JSON.parse(aiResponse);
             console.log('[LocationExtraction]: Parsed AI Analysis:', parsed);
@@ -142,7 +173,7 @@ Examples:
         }
         catch (error) {
             console.error('[LocationExtraction]: OpenAI API analysis failed:', error);
-            if (error && typeof error === 'object' && 'isAxiosError' in error) {
+            if (error && typeof error === 'object' && 'isAxiosError' in error && error.isAxiosError) {
                 const axiosError = error;
                 console.error('[LocationExtraction]: OpenAI API error details:', {
                     status: axiosError.response?.status,
@@ -268,7 +299,7 @@ Examples:
             console.log(`[LocationExtraction]: Searching for place: "${query}"`);
             console.log(`[LocationExtraction]: Using Google Maps API key: ${this.googleMapsApiKey.substring(0, 10)}...`);
             // Use Google Places Text Search API
-            const response = await axios_1.default.get('https://maps.googleapis.com/maps/api/place/textsearch/json', {
+            const response = await axios.get('https://maps.googleapis.com/maps/api/place/textsearch/json', {
                 params: {
                     query: query,
                     key: this.googleMapsApiKey,
@@ -277,7 +308,8 @@ Examples:
             });
             console.log(`[LocationExtraction]: Google Places API response status: ${response.status}`);
             console.log(`[LocationExtraction]: Google Places API response:`, response.data);
-            const results = response.data.results;
+            const placesResponse = response.data;
+            const results = placesResponse.results;
             if (results && results.length > 0) {
                 const place = results[0];
                 const location = {
@@ -306,7 +338,7 @@ Examples:
         }
         catch (error) {
             console.error('[LocationExtraction]: Places API error:', error);
-            if (error && typeof error === 'object' && 'isAxiosError' in error) {
+            if (error && typeof error === 'object' && 'isAxiosError' in error && error.isAxiosError) {
                 const axiosError = error;
                 console.error('[LocationExtraction]: Google Places API error details:', {
                     status: axiosError.response?.status,
@@ -337,13 +369,14 @@ Examples:
         }
         try {
             console.log(`[LocationExtraction]: Geocoding address: "${address}"`);
-            const response = await axios_1.default.get('https://maps.googleapis.com/maps/api/geocode/json', {
+            const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
                 params: {
                     address: address,
                     key: this.googleMapsApiKey
                 }
             });
-            const results = response.data.results;
+            const geocodeResponse = response.data;
+            const results = geocodeResponse.results;
             if (results && results.length > 0) {
                 const result = results[0];
                 const location = {

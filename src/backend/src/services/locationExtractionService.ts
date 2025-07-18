@@ -1,6 +1,6 @@
 import { GoogleAuth } from 'google-auth-library';
-import axios from 'axios';
-import dotenv from 'dotenv';
+import * as axios from 'axios';
+import * as dotenv from 'dotenv';
 
 dotenv.config();
 
@@ -18,6 +18,49 @@ export interface LocationExtractionResult {
   confidence: 'high' | 'medium' | 'low';
   extractedText?: string;
   error?: string;
+}
+
+interface OpenAIChoice {
+  message: {
+    content: string;
+  };
+}
+
+interface OpenAIResponse {
+  choices: OpenAIChoice[];
+}
+
+interface GooglePlacesResult {
+  geometry: {
+    location: {
+      lat: number;
+      lng: number;
+    };
+  };
+  name: string;
+  formatted_address: string;
+  place_id: string;
+}
+
+interface GooglePlacesResponse {
+  results: GooglePlacesResult[];
+  status: string;
+}
+
+interface GoogleGeocodeResult {
+  geometry: {
+    location: {
+      lat: number;
+      lng: number;
+    };
+  };
+  formatted_address: string;
+  place_id: string;
+}
+
+interface GoogleGeocodeResponse {
+  results: GoogleGeocodeResult[];
+  status: string;
 }
 
 class LocationExtractionService {
@@ -177,7 +220,8 @@ Examples:
       console.log('[LocationExtraction]: OpenAI API response status:', response.status);
       console.log('[LocationExtraction]: OpenAI API response data:', response.data);
 
-      const aiResponse = (response.data as any).choices[0].message.content;
+      const openaiResponse = response.data as OpenAIResponse;
+      const aiResponse = openaiResponse.choices[0].message.content;
       console.log('[LocationExtraction]: Raw AI response text:', aiResponse);
       
       const parsed = JSON.parse(aiResponse);
@@ -187,7 +231,7 @@ Examples:
 
     } catch (error) {
       console.error('[LocationExtraction]: OpenAI API analysis failed:', error);
-      if (error && typeof error === 'object' && 'isAxiosError' in error) {
+      if (error && typeof error === 'object' && 'isAxiosError' in error && error.isAxiosError) {
         const axiosError = error as any;
         console.error('[LocationExtraction]: OpenAI API error details:', {
           status: axiosError.response?.status,
@@ -360,7 +404,8 @@ Examples:
       console.log(`[LocationExtraction]: Google Places API response status: ${response.status}`);
       console.log(`[LocationExtraction]: Google Places API response:`, response.data);
 
-      const results = (response.data as any).results;
+      const placesResponse = response.data as GooglePlacesResponse;
+      const results = placesResponse.results;
       
       if (results && results.length > 0) {
         const place = results[0];
@@ -392,7 +437,7 @@ Examples:
 
     } catch (error) {
       console.error('[LocationExtraction]: Places API error:', error);
-      if (error && typeof error === 'object' && 'isAxiosError' in error) {
+      if (error && typeof error === 'object' && 'isAxiosError' in error && error.isAxiosError) {
         const axiosError = error as any;
         console.error('[LocationExtraction]: Google Places API error details:', {
           status: axiosError.response?.status,
@@ -436,7 +481,8 @@ Examples:
         }
       );
 
-      const results = (response.data as any).results;
+      const geocodeResponse = response.data as GoogleGeocodeResponse;
+      const results = geocodeResponse.results;
       
       if (results && results.length > 0) {
         const result = results[0];
