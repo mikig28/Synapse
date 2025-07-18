@@ -169,7 +169,7 @@ const DocsPage: React.FC = () => {
   const fetchDocuments = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/documents', {
+      const response = await fetch('/api/v1/documents', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
@@ -199,7 +199,7 @@ const DocsPage: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('/api/documents/stats', {
+      const response = await fetch('/api/v1/documents/stats', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
@@ -223,7 +223,7 @@ const DocsPage: React.FC = () => {
 
     try {
       setUploadProgress(0);
-      const response = await fetch('/api/documents/upload', {
+      const response = await fetch('/api/v1/documents/upload', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -258,7 +258,7 @@ const DocsPage: React.FC = () => {
 
   const handleCreateDocument = async () => {
     try {
-      const response = await fetch('/api/documents', {
+      const response = await fetch('/api/v1/documents', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -305,7 +305,7 @@ const DocsPage: React.FC = () => {
 
     try {
       setSearchLoading(true);
-      const response = await fetch('/api/documents/search', {
+      const response = await fetch('/api/v1/documents/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
