@@ -1,9 +1,4 @@
 import { OpenAI } from 'openai';
-<<<<<<< HEAD
-import { get_encoding } from 'tiktoken';
-import { v4 as uuidv4 } from 'uuid';
-=======
->>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
 import { ISmartChunk } from '../models/Document';
 
 interface ChunkingOptions {
@@ -22,14 +17,8 @@ export class ChunkingService {
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
-<<<<<<< HEAD
-    
-    // Initialize tiktoken for token counting
-    this.tiktoken = get_encoding('cl100k_base');
-=======
->>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
   }
-  
+
   async chunkDocument(content: string, options: ChunkingOptions): Promise<ISmartChunk[]> {
     try {
       console.log(`[ChunkingService]: Chunking document with strategy: ${options.strategy}`);
@@ -51,23 +40,19 @@ export class ChunkingService {
       return await this.fixedChunking(content, options);
     }
   }
-  
+
   private async fixedChunking(content: string, options: ChunkingOptions): Promise<ISmartChunk[]> {
     const chunks: ISmartChunk[] = [];
-<<<<<<< HEAD
-    const tokens = this.tiktoken.encode(content);
-=======
     const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 0);
->>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
     
     let currentChunk = '';
     let chunkIndex = 0;
     let currentPosition = 0;
-    
+
     for (const sentence of sentences) {
       const trimmedSentence = sentence.trim();
       if (!trimmedSentence) continue;
-      
+
       const potentialChunk = currentChunk + (currentChunk ? '. ' : '') + trimmedSentence;
       
       if (potentialChunk.length > options.maxChunkSize && currentChunk.length > options.minChunkSize) {
@@ -85,9 +70,8 @@ export class ChunkingService {
             keywords: this.extractKeywords(currentChunk),
           },
         };
-        
         chunks.push(chunk);
-        
+
         // Start new chunk with overlap
         const overlapWords = currentChunk.split(' ').slice(-Math.floor(options.chunkOverlap / 10));
         currentChunk = overlapWords.join(' ') + '. ' + trimmedSentence;
@@ -97,7 +81,7 @@ export class ChunkingService {
       
       currentPosition += trimmedSentence.length + 2; // +2 for punctuation and space
     }
-    
+
     // Add remaining content as final chunk
     if (currentChunk.trim().length > options.minChunkSize) {
       const chunk: ISmartChunk = {
@@ -113,14 +97,13 @@ export class ChunkingService {
           keywords: this.extractKeywords(currentChunk),
         },
       };
-      
       chunks.push(chunk);
     }
-    
+
     console.log(`[ChunkingService]: Created ${chunks.length} fixed chunks`);
     return chunks;
   }
-  
+
   private async semanticChunking(content: string, options: ChunkingOptions): Promise<ISmartChunk[]> {
     // For now, use enhanced fixed chunking with semantic analysis
     const baseChunks = await this.fixedChunking(content, options);
@@ -131,12 +114,12 @@ export class ChunkingService {
       semanticScore: this.calculateSemanticScore(chunk.content, index, baseChunks),
     }));
   }
-  
+
   private async agenticChunking(content: string, options: ChunkingOptions): Promise<ISmartChunk[]> {
     // For now, fallback to semantic chunking
     return await this.semanticChunking(content, options);
   }
-  
+
   private async hybridChunking(content: string, options: ChunkingOptions): Promise<ISmartChunk[]> {
     // Combine semantic and fixed strategies
     const semanticChunks = await this.semanticChunking(content, options);
@@ -167,44 +150,14 @@ export class ChunkingService {
         refinedChunks.push(chunk);
       }
     }
-<<<<<<< HEAD
-  }
-  
-  /**
-   * Helper methods
-   */
-  private getSeparators(documentType: string): string[] {
-    switch (documentType) {
-      case 'markdown':
-        return ['\n\n', '\n#', '\n##', '\n###', '\n', ' ', ''];
-      case 'code':
-        return ['\n\nclass ', '\n\nfunction ', '\n\n', '\n', ' ', ''];
-      case 'pdf':
-      case 'text':
-        return ['\n\n', '\n', '. ', ' ', ''];
-      default:
-        return ['\n\n', '\n', '. ', ' ', ''];
-    }
-  }
-  
-  private getTokenCount(text: string): number {
-    return this.tiktoken.encode(text).length;
-  }
-  
-  private detokenize(tokens: number[]): string {
-    // Simplified detokenization - in production use proper tiktoken decoder
-    return tokens.map(t => String.fromCharCode(t)).join('');
-  }
-  
-  private inferChunkType(content: string): ISmartChunk['type'] {
-    const trimmed = content.trim();
-=======
->>>>>>> 89764ec2 (fix: Resolve three critical documentation system bugs)
-    
+
     console.log(`[ChunkingService]: Created ${refinedChunks.length} hybrid chunks`);
     return refinedChunks;
   }
-  
+
+  /**
+   * Helper methods
+   */
   private extractKeywords(text: string): string[] {
     // Simple keyword extraction
     const words = text.toLowerCase()
@@ -224,11 +177,10 @@ export class ChunkingService {
       .slice(0, 5)
       .map(([word]) => word);
   }
-  
+
   private calculateSemanticScore(content: string, index: number, allChunks: ISmartChunk[]): number {
     // Simple semantic scoring based on content overlap with neighboring chunks
     let score = 0.5;
-    
     const contentWords = new Set(content.toLowerCase().split(/\s+/));
     
     // Check previous chunk

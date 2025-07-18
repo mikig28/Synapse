@@ -527,6 +527,63 @@ bot.on('webhook_error', (error) => {
 });
 // Optional: Listen for other events like 'photo', 'document', 'voice', etc.
 // bot.on('photo', (msg) => { /* handle photo */ });
+// Command handlers for document operations
+bot.onText(/\/search (.+)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    const query = match?.[1];
+    if (!query) {
+        await bot.sendMessage(chatId, '❌ Please provide a search query. Usage: /search your question');
+        return;
+    }
+    try {
+        // Find the Synapse user
+        const synapseUser = await User_1.default.findOne({ monitoredTelegramChats: chatId });
+        if (!synapseUser) {
+            await bot.sendMessage(chatId, '❌ This chat is not linked to a Synapse account. Please link your account first.');
+            return;
+        }
+        await (0, exports.handleDocumentSearch)(synapseUser._id.toString(), query, chatId);
+    }
+    catch (error) {
+        console.error('[TelegramBot]: Error in /search command:', error);
+        await bot.sendMessage(chatId, '❌ Sorry, I encountered an error while searching. Please try again later.');
+    }
+});
+bot.onText(/\/docs/, async (msg) => {
+    const chatId = msg.chat.id;
+    try {
+        // Find the Synapse user
+        const synapseUser = await User_1.default.findOne({ monitoredTelegramChats: chatId });
+        if (!synapseUser) {
+            await bot.sendMessage(chatId, '❌ This chat is not linked to a Synapse account. Please link your account first.');
+            return;
+        }
+        // Get document stats
+        const totalDocs = await Document_1.default.countDocuments({ userId: synapseUser._id });
+        const processingDocs = await Document_1.default.countDocuments({
+            userId: synapseUser._id,
+            'metadata.processingStatus': 'processing'
+        });
+        const completedDocs = await Document_1.default.countDocuments({
+            userId: synapseUser._id,
+            'metadata.processingStatus': 'completed'
+        });
+        const replyMessage = `📚 *Your Document Library*\n\n` +
+            `📄 Total Documents: ${totalDocs}\n` +
+            `✅ Completed: ${completedDocs}\n` +
+            `🔄 Processing: ${processingDocs}\n\n` +
+            `💡 *Available Commands:*\n` +
+            `• Send any document to add it to your library\n` +
+            `• /search <query> - Search through your documents\n` +
+            `• /docs - Show this information\n\n` +
+            `🚀 Upload a document or use /search to get started!`;
+        await bot.sendMessage(chatId, replyMessage, { parse_mode: 'Markdown' });
+    }
+    catch (error) {
+        console.error('[TelegramBot]: Error in /docs command:', error);
+        await bot.sendMessage(chatId, '❌ Sorry, I encountered an error. Please try again later.');
+    }
+});
 const initializeTelegramBot = () => {
     // Ensure download directories exist
     const mediaDir = path_1.default.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_media'); // REVERTED to original
