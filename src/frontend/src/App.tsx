@@ -37,6 +37,7 @@ const ScheduledAgentsPage = React.lazy(() => import('@/pages/ScheduledAgentsPage
 const NewsPage = React.lazy(() => import('@/pages/NewsPage'));
 const WhatsAppPage = React.lazy(() => import('@/pages/WhatsAppPage'));
 const PlacesPage = React.lazy(() => import('@/pages/PlacesPage'));
+const DocsPage = React.lazy(() => import('@/pages/DocsPage'));
 
 // Loading component with beautiful animation
 const PageLoader = () => (
@@ -87,6 +88,7 @@ function AppContent() {
               <Route path="/whatsapp" element={isAuthenticated ? <Layout><WhatsAppPage /></Layout> : <Navigate to="/login" />} />
               <Route path="/maps" element={isAuthenticated ? <Navigate to="/places" /> : <Navigate to="/login" />} />
               <Route path="/places" element={isAuthenticated ? <Layout><PlacesPage /></Layout> : <Navigate to="/login" />} />
+              <Route path="/docs" element={isAuthenticated ? <Layout><DocsPage /></Layout> : <Navigate to="/login" />} />
               <Route path="/settings" element={isAuthenticated ? <Layout><SettingsPage /></Layout> : <Navigate to="/login" />} />
             </Routes>
           </Suspense>

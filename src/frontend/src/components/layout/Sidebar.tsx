@@ -24,6 +24,7 @@ import {
   ChevronDown,
   MapPin,
   Map as MapIcon,
+  BookOpen,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -48,6 +49,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
     { href: "/tasks", label: "Tasks", icon: ListChecks },
     { href: "/notes", label: "Notes", icon: FileText },
     { href: "/ideas", label: "Ideas", icon: Lightbulb },
+    { href: "/docs", label: "Docs", icon: BookOpen },
     { href: "/meetings", label: "Meetings", icon: Mic },
     { href: "/agents", label: "AI Agents", icon: Bot },
     { href: "/scheduled-agents", label: "Scheduled Agents", icon: Clock },

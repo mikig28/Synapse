@@ -15,6 +15,10 @@ import { locationExtractionService } from './locationExtractionService'; // <-- 
 import Task from '../models/Task'; // <-- IMPORT Task model
 import Note from '../models/Note'; // <-- IMPORT Note model
 import Idea from '../models/Idea'; // <-- IMPORT Idea model
+import Document from '../models/Document'; // <-- IMPORT Document model
+import { chunkingService } from './chunkingService'; // <-- IMPORT Chunking Service
+import { vectorDatabaseService } from './vectorDatabaseService'; // <-- IMPORT Vector Database Service
+import { selfReflectiveRAGService } from './selfReflectiveRAGService'; // <-- IMPORT RAG Service
 import mongoose from 'mongoose';
 import { getBucket } from '../config/gridfs'; // <-- IMPORT GridFS bucket
 
@@ -139,6 +143,102 @@ bot.on('message', async (msg: TelegramBot.Message) => {
   if (msg.document) {
     messageType = 'document';
     mediaFileId = msg.document.file_id;
+    
+    // Handle document processing for Synapse users
+    if (synapseUser && msg.document) {
+      try {
+        const fileLink = await bot.getFileLink(msg.document.file_id);
+        const fileResponse = await axios({ url: fileLink, responseType: 'stream' });
+        
+        const fileName = msg.document.file_name || `${msg.document.file_id}.${msg.document.mime_type?.split('/')[1] || 'txt'}`;
+        const localFilePath = path.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_documents', fileName);
+        
+        // Ensure directory exists
+        const docDir = path.dirname(localFilePath);
+        if (!fs.existsSync(docDir)) {
+          fs.mkdirSync(docDir, { recursive: true });
+        }
+        
+        // Save file locally
+        const writer = fs.createWriteStream(localFilePath);
+        fileResponse.data.pipe(writer);
+        await new Promise<void>((resolve, reject) => {
+          writer.on('finish', resolve);
+          writer.on('error', reject);
+        });
+        
+        console.log(`[TelegramBot]: Document saved: ${localFilePath}`);
+        
+        // Create document record
+        const document = new Document({
+          userId: synapseUser._id,
+          title: msg.document.file_name || 'Telegram Document',
+          content: '', // Will be populated after processing
+          documentType: getDocumentTypeFromMime(msg.document.mime_type || 'text/plain'),
+          metadata: {
+            originalFilename: msg.document.file_name,
+            fileSize: msg.document.file_size,
+            mimeType: msg.document.mime_type,
+            category: 'telegram',
+            tags: ['telegram', 'upload'],
+            processingStatus: 'pending',
+          },
+          multiModalContent: {
+            text: '',
+            images: [],
+            videos: [],
+            code: [],
+          },
+          embeddings: {
+            text: [],
+            semantic: [],
+          },
+          chunks: [],
+          graphNodes: [],
+          relationships: [],
+          versions: [],
+          currentVersion: '1.0.0',
+          sharedWith: [],
+          searchKeywords: [],
+          autoTags: [],
+          sourceType: 'telegram',
+          sourceId: voiceMemoTelegramItem?._id,
+        });
+        
+        const savedDocument = await document.save();
+        
+        // Process document asynchronously
+        processDocumentFromTelegram(savedDocument, localFilePath);
+        
+        // Send confirmation message
+        const replyMessage = `📄 *Document Received!*\n\n` +
+          `📁 Name: ${msg.document.file_name}\n` +
+          `📊 Size: ${formatFileSize(msg.document.file_size || 0)}\n` +
+          `🔄 Status: Processing...\n\n` +
+          `✅ Document has been added to your knowledge base and will be searchable soon.`;
+        
+        await bot.sendMessage(chatId, replyMessage, { 
+          reply_to_message_id: telegramMessageId,
+          parse_mode: 'Markdown'
+        });
+        
+        // Emit real-time update
+        if (io) {
+          io.emit('document_uploaded', {
+            userId: synapseUser._id.toString(),
+            documentId: savedDocument._id.toString(),
+            filename: msg.document.file_name,
+            source: 'telegram',
+          });
+        }
+        
+      } catch (error) {
+        console.error(`[TelegramBot]: Error processing document:`, error);
+        await bot.sendMessage(chatId, '❌ Sorry, I encountered an error processing your document. Please try again later.', { 
+          reply_to_message_id: telegramMessageId 
+        });
+      }
+    }
   }
   if (msg.voice && synapseUser) {
     messageType = 'voice';
@@ -494,6 +594,197 @@ export const sendAgentReportToTelegram = async (userId: string, reportTitle: str
     }
   } catch (error) {
     console.error('[sendAgentReportToTelegram]: Error sending agent report:', error);
+  }
+};
+
+// Helper function to determine document type from MIME type
+function getDocumentTypeFromMime(mimeType: string): string {
+  const typeMap: Record<string, string> = {
+    'application/pdf': 'pdf',
+    'text/plain': 'text',
+    'text/markdown': 'markdown',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'pdf',
+    'application/msword': 'pdf',
+    'text/html': 'webpage',
+    'application/json': 'code',
+    'text/javascript': 'code',
+    'text/typescript': 'code',
+    'text/css': 'code',
+    'application/javascript': 'code',
+  };
+  return typeMap[mimeType] || 'text';
+}
+
+// Helper function to format file size
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Async document processing function for Telegram uploads
+async function processDocumentFromTelegram(document: any, filePath: string) {
+  try {
+    console.log(`[TelegramBot]: Processing document ${document._id} from Telegram`);
+    
+    // Update status
+    document.metadata.processingStatus = 'processing';
+    await document.save();
+    
+    // Extract content from file
+    const content = await extractContentFromFile(filePath, document.documentType);
+    document.content = content;
+    document.multiModalContent.text = content;
+    
+    // Generate chunks
+    const chunks = await chunkingService.chunkDocument(content, {
+      strategy: 'hybrid',
+      maxChunkSize: 1000,
+      chunkOverlap: 100,
+      minChunkSize: 100,
+      preserveStructure: true,
+      documentType: document.documentType,
+    });
+    
+    // Generate embeddings for chunks
+    for (const chunk of chunks) {
+      chunk.embedding = await vectorDatabaseService.generateEmbedding(chunk.content);
+    }
+    
+    document.chunks = chunks;
+    
+    // Generate document embeddings
+    document.embeddings.text = await vectorDatabaseService.generateEmbedding(content);
+    document.embeddings.semantic = await vectorDatabaseService.generateEmbedding(
+      `${document.title} ${content}`
+    );
+    
+    // Store in vector database
+    await vectorDatabaseService.storeDocumentChunks(
+      document.userId.toString(),
+      document._id.toString(),
+      chunks,
+      {
+        title: document.title,
+        documentType: document.documentType,
+        tags: document.metadata.tags,
+      }
+    );
+    
+    // Update status
+    document.metadata.processingStatus = 'completed';
+    document.metadata.lastProcessedAt = new Date();
+    await document.save();
+    
+    console.log(`[TelegramBot]: Successfully processed document ${document._id}`);
+    
+    // Emit completion event
+    if (io) {
+      io.emit('document_processed', {
+        documentId: document._id.toString(),
+        userId: document.userId.toString(),
+        status: 'completed',
+        source: 'telegram',
+      });
+    }
+    
+  } catch (error) {
+    console.error(`[TelegramBot]: Error processing document ${document._id}:`, error);
+    
+    // Update status
+    document.metadata.processingStatus = 'failed';
+    document.metadata.processingErrors = [error.message];
+    await document.save();
+    
+    // Emit error event
+    if (io) {
+      io.emit('document_processing_error', {
+        documentId: document._id.toString(),
+        userId: document.userId.toString(),
+        error: error.message,
+        source: 'telegram',
+      });
+    }
+  } finally {
+    // Cleanup temporary file
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  }
+}
+
+// Helper function to extract content from file
+async function extractContentFromFile(filePath: string, documentType: string): Promise<string> {
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    
+    // Basic content extraction - in production, use specialized libraries
+    switch (documentType) {
+      case 'pdf':
+        // Use pdf-parse or similar
+        return content;
+      case 'text':
+      case 'markdown':
+      case 'code':
+        return content;
+      default:
+        return content;
+    }
+  } catch (error) {
+    console.error(`[TelegramBot]: Error extracting content from ${filePath}:`, error);
+    return '';
+  }
+}
+
+// Function to handle document search via Telegram
+export const handleDocumentSearch = async (userId: string, query: string, chatId: number): Promise<void> => {
+  try {
+    console.log(`[TelegramBot]: Handling document search for user ${userId}: "${query}"`);
+    
+    // Use the RAG service to search documents
+    const searchResult = await selfReflectiveRAGService.processQuery({
+      query,
+      userId,
+      searchStrategy: 'hybrid',
+      maxIterations: 2,
+      confidenceThreshold: 0.6,
+    });
+    
+    // Format response message
+    let replyMessage = `🔍 *Search Results for: "${query}"*\n\n`;
+    
+    if (searchResult.answer) {
+      replyMessage += `📝 *Answer:*\n${searchResult.answer}\n\n`;
+    }
+    
+    if (searchResult.sources && searchResult.sources.length > 0) {
+      replyMessage += `📚 *Sources (${searchResult.sources.length}):*\n`;
+      searchResult.sources.slice(0, 3).forEach((source, index) => {
+        replyMessage += `${index + 1}. ${source.metadata?.title || 'Unknown'}\n`;
+      });
+      
+      if (searchResult.sources.length > 3) {
+        replyMessage += `... and ${searchResult.sources.length - 3} more sources\n`;
+      }
+      replyMessage += '\n';
+    }
+    
+    // Add confidence and quality scores
+    replyMessage += `🎯 *Confidence:* ${Math.round(searchResult.confidence * 100)}%\n`;
+    replyMessage += `⭐ *Quality:* ${Math.round(searchResult.qualityScore * 100)}%\n`;
+    
+    // Add suggestions if available
+    if (searchResult.suggestions && searchResult.suggestions.length > 0) {
+      replyMessage += `\n💡 *Suggestions:*\n${searchResult.suggestions.join('\n')}`;
+    }
+    
+    await bot.sendMessage(chatId, replyMessage, { parse_mode: 'Markdown' });
+    
+  } catch (error) {
+    console.error(`[TelegramBot]: Error in document search:`, error);
+    await bot.sendMessage(chatId, '❌ Sorry, I encountered an error searching your documents. Please try again later.');
   }
 };
 
