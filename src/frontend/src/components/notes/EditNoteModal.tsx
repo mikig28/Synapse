@@ -107,7 +107,8 @@ const EditNoteModal: React.FC<EditNoteModalProps> = ({
       exit={{ opacity: 0 }} // Ensure exit animation if modal is conditionally rendered with AnimatePresence
       className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
     >
-      <GlassCard className="w-full max-w-md p-6 rounded-xl shadow-2xl text-white border-white/20">
+      <div className="w-full max-w-sm sm:max-w-md lg:max-w-lg max-h-[90vh] overflow-y-auto">
+        <GlassCard className="p-4 sm:p-6 rounded-xl shadow-2xl text-white border-white/20">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-white">Edit Note</h2>
           <motion.button
@@ -171,7 +172,7 @@ const EditNoteModal: React.FC<EditNoteModalProps> = ({
               disabled={isSubmitting}
             />
           </div>
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-2 sticky bottom-0 bg-background/50 backdrop-blur-sm rounded-b-lg -mx-4 sm:-mx-6 px-4 sm:px-6 pb-4">
             <AnimatedButton 
               type="button" 
               onClick={onClose} 
@@ -192,7 +193,8 @@ const EditNoteModal: React.FC<EditNoteModalProps> = ({
             </AnimatedButton>
           </div>
         </form>
-      </GlassCard>
+        </GlassCard>
+      </div>
     </motion.div>
   );
 };

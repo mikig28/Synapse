@@ -90,7 +90,8 @@ const AddNoteModal: React.FC<AddNoteModalProps> = ({ isOpen, onClose, onSave, ex
       animate={{ opacity: 1 }}
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
     >
-      <GlassCard className="w-full max-w-md p-6 rounded-lg shadow-xl text-card-foreground">
+      <div className="w-full max-w-sm sm:max-w-md lg:max-w-lg max-h-[90vh] overflow-y-auto">
+        <GlassCard className="p-4 sm:p-6 rounded-lg shadow-xl text-card-foreground">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Add New Note</h2>
           <button
@@ -148,25 +149,26 @@ const AddNoteModal: React.FC<AddNoteModalProps> = ({ isOpen, onClose, onSave, ex
               disabled={isSubmitting}
             />
           </div>
-          <div className="flex justify-end space-x-3">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 sticky bottom-0 bg-background/50 backdrop-blur-sm rounded-b-lg -mx-4 sm:-mx-6 px-4 sm:px-6 pb-4">
             <button 
               type="button" 
               onClick={onClose} 
               disabled={isSubmitting}
-              className="px-4 py-2 border border-border rounded-md text-sm font-medium text-muted-foreground hover:bg-muted/50 disabled:opacity-50"
+              className="px-4 py-2 border border-border rounded-md text-sm font-medium text-muted-foreground hover:bg-muted/50 disabled:opacity-50 w-full sm:w-auto"
             >
               Cancel
             </button>
             <button 
               type="submit" 
               disabled={isSubmitting}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:bg-primary/70"
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:bg-primary/70 w-full sm:w-auto"
             >
               {isSubmitting ? 'Saving...' : 'Save Note'}
             </button>
           </div>
         </form>
-      </GlassCard>
+        </GlassCard>
+      </div>
     </motion.div>
   );
 };

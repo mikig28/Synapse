@@ -107,9 +107,9 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave }) 
         initial="hidden"
         animate="visible"
         exit="exit"
-        className="w-full max-w-lg" // Increased max-width slightly for better spacing
+        className="w-full max-w-sm sm:max-w-md lg:max-w-lg max-h-[90vh] overflow-y-auto"
       >
-        <GlassCard className="p-6 md:p-8">
+        <GlassCard className="p-4 sm:p-6 md:p-8">
           <h2 className="text-2xl font-semibold mb-6 text-foreground text-center">Add New Task</h2>
           {error && (
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
@@ -144,7 +144,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave }) 
                 disabled={isSubmitting}
               />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="status" className="text-muted-foreground">Status</Label>
                 <Select value={status} onValueChange={(value) => setStatus(value as Task['status'])} disabled={isSubmitting}>
@@ -206,7 +206,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ isOpen, onClose, onSave }) 
                 disabled={isSubmitting}
               />
             </div>
-            <div className="flex justify-end space-x-3 pt-4">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-4 sticky bottom-0 bg-background/50 backdrop-blur-sm rounded-b-lg -mx-4 sm:-mx-6 md:-mx-8 px-4 sm:px-6 md:px-8 pb-4">
               <AnimatedButton 
                 type="button" 
                 onClick={onClose} 

@@ -9,7 +9,7 @@ import { useGoogleMaps } from '@/contexts/GoogleMapsContext';
 
 const mapContainerStyle = {
   width: '100%',
-  height: '300px'
+  height: '100%' // Will be controlled by parent container
 };
 
 const defaultCenter = {
@@ -235,19 +235,20 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
         {showMap && isLoaded && (
           <Card className="mt-3">
             <CardContent className="p-0">
-              <GoogleMap
-                mapContainerStyle={mapContainerStyle}
-                center={mapCenter}
-                zoom={selectedLocation ? 15 : 10}
-                onClick={handleMapClick}
-                options={{
-                  disableDefaultUI: false,
-                  zoomControl: true,
-                  streetViewControl: false,
-                  mapTypeControl: false,
-                  fullscreenControl: false,
-                }}
-              >
+              <div className="h-48 sm:h-56 md:h-64 min-h-[180px] w-full">
+                <GoogleMap
+                  mapContainerStyle={mapContainerStyle}
+                  center={mapCenter}
+                  zoom={selectedLocation ? 15 : 10}
+                  onClick={handleMapClick}
+                  options={{
+                    disableDefaultUI: false,
+                    zoomControl: true,
+                    streetViewControl: false,
+                    mapTypeControl: false,
+                    fullscreenControl: false,
+                  }}
+                >
                 {selectedLocation && (
                   <Marker
                     position={selectedLocation}
@@ -263,7 +264,8 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
                     title={selectedLocation.address}
                   />
                 )}
-              </GoogleMap>
+                </GoogleMap>
+              </div>
             </CardContent>
           </Card>
         )}

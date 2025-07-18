@@ -31,7 +31,7 @@ import EditNoteModal from '@/components/notes/EditNoteModal';
 
 const mapContainerStyle = {
   width: '100%',
-  height: '500px'
+  height: '100%' // Will be controlled by parent container
 };
 
 const defaultCenter = {
@@ -472,13 +472,14 @@ const PlacesPage: React.FC = () => {
         <TabsContent value="map" className="space-y-4">
           <Card>
             <CardContent className="p-0">
-              {isLoaded ? (
-                <GoogleMap
-                  mapContainerStyle={mapContainerStyle}
-                  center={mapCenter}
-                  zoom={13}
-                  onClick={() => setSelectedItem(null)}
-                >
+              <div className="h-64 sm:h-80 md:h-96 min-h-[200px] w-full">
+                {isLoaded ? (
+                  <GoogleMap
+                    mapContainerStyle={mapContainerStyle}
+                    center={mapCenter}
+                    zoom={13}
+                    onClick={() => setSelectedItem(null)}
+                  >
                   {/* User location marker */}
                   {userLocation && (
                     <Marker
@@ -564,15 +565,16 @@ const PlacesPage: React.FC = () => {
                       </div>
                     </InfoWindow>
                   )}
-                </GoogleMap>
-              ) : (
-                <div className="flex items-center justify-center h-96">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-                    <p className="text-muted-foreground">Loading Google Maps...</p>
+                  </GoogleMap>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                      <p className="text-muted-foreground">Loading Google Maps...</p>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
