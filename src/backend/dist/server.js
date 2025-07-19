@@ -127,7 +127,7 @@ app.use((0, cors_1.default)({
         }
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control"],
     credentials: true,
     optionsSuccessStatus: 200,
     preflightContinue: false
@@ -145,7 +145,7 @@ app.use((req, res, next) => {
         res.header('Access-Control-Allow-Origin', origin);
     }
     res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, Accept, Origin');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, Accept, Origin, Cache-Control');
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Max-Age', '3600');
     if (req.method === 'OPTIONS') {
@@ -256,7 +256,7 @@ app.get('/api/v1/ag-ui/events', (req, res) => {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Connection': 'keep-alive',
             'Access-Control-Allow-Origin': origin,
-            'Access-Control-Allow-Headers': 'Cache-Control, Content-Type',
+            'Access-Control-Allow-Headers': 'Cache-Control, Content-Type, Authorization, X-Requested-With, Accept, Origin',
             'Access-Control-Allow-Credentials': 'true',
             'X-Accel-Buffering': 'no', // Disable nginx buffering
             'Content-Encoding': 'identity' // Prevent compression
