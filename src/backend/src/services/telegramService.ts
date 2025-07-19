@@ -93,7 +93,7 @@ bot.onText(/\/search (.+)/, async (msg, match) => {
   }
   
   await bot.sendMessage(chatId, '🔍 Searching your documents...');
-  await handleDocumentSearch(synapseUser._id.toString(), query, chatId);
+  await handleDocumentSearch((synapseUser._id as any).toString(), query, chatId);
 });
 
 bot.onText(/\/docs/, async (msg) => {
@@ -600,7 +600,7 @@ bot.onText(/\/search (.+)/, async (msg, match) => {
       return;
     }
     
-    await handleDocumentSearch(synapseUser._id.toString(), query, chatId);
+    await handleDocumentSearch((synapseUser._id as any).toString(), query, chatId);
     
   } catch (error) {
     console.error('[TelegramBot]: Error in /search command:', error);

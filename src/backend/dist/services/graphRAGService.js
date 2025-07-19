@@ -60,10 +60,8 @@ class GraphRAGService {
                         chunkId: chunk.id,
                         position: text.indexOf(match),
                         context: this.extractContext(text, match),
-                        confidence: 0.7,
                     }],
-                aliases: [],
-                attributes: {},
+                relationships: [],
             });
         });
         // Extract organizations (words ending with common org suffixes)
@@ -78,10 +76,8 @@ class GraphRAGService {
                         chunkId: chunk.id,
                         position: text.indexOf(match),
                         context: this.extractContext(text, match),
-                        confidence: 0.8,
                     }],
-                aliases: [],
-                attributes: {},
+                relationships: [],
             });
         });
         // Extract locations (capitalized place names)
@@ -96,10 +92,8 @@ class GraphRAGService {
                         chunkId: chunk.id,
                         position: text.indexOf(match),
                         context: this.extractContext(text, match),
-                        confidence: 0.6,
                     }],
-                aliases: [],
-                attributes: {},
+                relationships: [],
             });
         });
         return entities;
