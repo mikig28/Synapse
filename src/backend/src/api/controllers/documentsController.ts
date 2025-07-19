@@ -192,11 +192,11 @@ export const uploadDocument = async (req: AuthenticatedRequest, res: Response) =
     console.log('[uploadDocument] Document type:', docType);
 
     console.log('[uploadDocument] Creating document object');
-    // Create document record with minimal required fields
+    // Create document record with all required fields
     const document = new Document({
       userId: userObjectId,
       title: title || file.originalname,
-      content: '',
+      content: 'File uploaded successfully. Content extraction pending.', // Required field
       documentType: docType,
       metadata: {
         originalFilename: file.originalname,
@@ -204,8 +204,26 @@ export const uploadDocument = async (req: AuthenticatedRequest, res: Response) =
         mimeType: file.mimetype,
         category: category || 'general',
         tags: tags ? tags.split(',').map((tag: string) => tag.trim()) : [],
-        processingStatus: 'completed', // Mark as completed since we're not processing
+        processingStatus: 'completed',
       },
+      multiModalContent: {
+        text: '',
+        images: [],
+        videos: [],
+        code: [],
+      },
+      embeddings: {
+        text: [],
+        semantic: [],
+      },
+      chunks: [],
+      graphNodes: [],
+      relationships: [],
+      versions: [],
+      currentVersion: '1.0.0', // Required field
+      sharedWith: [],
+      searchKeywords: [],
+      autoTags: [],
       sourceType: 'upload',
     });
     console.log('[uploadDocument] Document object created successfully');
