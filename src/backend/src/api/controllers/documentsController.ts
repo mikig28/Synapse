@@ -13,7 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 // Configure multer for file uploads
 const upload = multer({
-  dest: 'uploads/',
+  dest: 'public/uploads/',
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB limit
   },
