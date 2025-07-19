@@ -21,6 +21,10 @@ RUN npm ci --legacy-peer-deps
 # Copy source code and config files from backend directory
 COPY src/backend/src/ ./src/
 COPY src/backend/tsconfig.json ./
+COPY src/backend/public/ ./public/
+
+# Create uploads directory
+RUN mkdir -p ./public/uploads
 
 # Build the application
 RUN echo "Starting TypeScript build..." && \
@@ -41,7 +45,8 @@ EXPOSE 3001 10000
 ENV NODE_OPTIONS="--max-old-space-size=2048"
 
 # Change ownership to non-root user
-RUN chown -R nodeuser:nodeuser /app
+RUN chown -R nodeuser:nodeuser /app && \
+    chmod -R 755 /app/public/uploads
 
 # Switch to non-root user for security
 USER nodeuser
