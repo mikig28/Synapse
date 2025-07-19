@@ -64,4 +64,30 @@ export const loginService = async (credentials: any): Promise<AuthResponse> => {
   return data as AuthResponse;
 };
 
+// Google OAuth login service - exchanges Google token for app JWT
+export const googleLoginService = async (googleUserInfo: {
+  email: string;
+  name: string;
+  sub: string;
+  picture?: string;
+}, googleAccessToken: string): Promise<AuthResponse> => {
+  const response = await fetch(`${API_AUTH_URL}/google-login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      googleUserInfo,
+      googleAccessToken
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || 'Failed to authenticate with Google');
+  }
+  return data as AuthResponse;
+};
+
 // You can add other auth services here like logout, fetchUserProfile etc. 

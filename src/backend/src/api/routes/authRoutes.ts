@@ -1,5 +1,5 @@
 import express from 'express';
-import { registerUser, loginUser } from '../controllers/authController'; // Adjust path as necessary
+import { registerUser, loginUser, googleLogin } from '../controllers/authController';
 import { protect } from '../middleware/authMiddleware';
 
 const router = express.Router();
@@ -13,6 +13,11 @@ router.post('/register', registerUser);
 // @desc    Authenticate user & get token
 // @access  Public
 router.post('/login', loginUser);
+
+// @route   POST api/v1/auth/google-login
+// @desc    Authenticate user with Google & get token
+// @access  Public
+router.post('/google-login', googleLogin);
 
 // @route   GET api/v1/auth/me
 // @desc    Get current user info (debug endpoint)

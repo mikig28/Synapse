@@ -90,4 +90,55 @@ export const loginUser = async (req: Request, res: Response) => {
     console.error('[LOGIN_USER_ERROR]', error);
     res.status(500).json({ message: error.message });
   }
+};
+
+export const googleLogin = async (req: Request, res: Response) => {
+  console.log('GOOGLE LOGIN ATTEMPT - Request Body:', JSON.stringify(req.body, null, 2));
+  const { googleUserInfo, googleAccessToken } = req.body;
+
+  if (!googleUserInfo || !googleUserInfo.email || !googleUserInfo.sub) {
+    console.log('GOOGLE LOGIN REJECTED - Missing Google user info');
+    return res.status(400).json({ message: 'Google user information is required' });
+  }
+
+  try {
+    // Check if user already exists by email
+    let user = await User.findOne({ email: googleUserInfo.email });
+
+    if (!user) {
+      // Create new user with Google info
+      user = new User({
+        fullName: googleUserInfo.name,
+        email: googleUserInfo.email,
+        // For Google users, we don't have a password, so we'll create a placeholder
+        // or handle this differently in your User model
+        password: `google_${googleUserInfo.sub}_${Date.now()}`, // Temporary password
+        googleId: googleUserInfo.sub, // Store Google ID for future reference
+      });
+
+      await user.save();
+      console.log(`[googleLogin] New user created for Google login: ${user.email} (ID: ${user.id})`);
+    } else {
+      console.log(`[googleLogin] Existing user found for Google login: ${user.email} (ID: ${user.id})`);
+      // Optionally update Google ID if not set
+      if (!user.googleId) {
+        user.googleId = googleUserInfo.sub;
+        await user.save();
+      }
+    }
+
+    const token = generateToken(user.id);
+    console.log(`[googleLogin] User ${user.email} (ID: ${user.id}) logged in via Google. Token generated.`);
+    
+    res.json({
+      _id: user.id,
+      fullName: user.fullName,
+      email: user.email,
+      token: token,
+    });
+
+  } catch (error: any) {
+    console.error('[GOOGLE_LOGIN_ERROR]', error);
+    res.status(500).json({ message: error.message });
+  }
 }; 

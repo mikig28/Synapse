@@ -45,3 +45,6 @@ tasks/
 
 # Build output
 /src/frontend/dist/ 
+
+# Claude Code project (keep separate)
+claudia/

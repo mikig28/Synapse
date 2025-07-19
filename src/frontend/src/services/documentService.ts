@@ -1,4 +1,4 @@
-import { axiosInstance } from './axiosConfig';
+import axiosInstance from './axiosConfig';
 
 export interface Document {
   _id: string;
@@ -187,34 +187,6 @@ class DocumentService {
     return response.data.data;
   }
 
-  /**
-   * Upload a document file
-   */
-  async uploadDocument(
-    file: File,
-    options: {
-      title?: string;
-      category?: string;
-      tags?: string[];
-      chunkingStrategy?: string;
-    } = {}
-  ): Promise<Document> {
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    if (options.title) formData.append('title', options.title);
-    if (options.category) formData.append('category', options.category);
-    if (options.tags) formData.append('tags', options.tags.join(','));
-    if (options.chunkingStrategy) formData.append('chunkingStrategy', options.chunkingStrategy);
-
-    const response = await axiosInstance.post(`${this.baseUrl}/upload`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    
-    return response.data.data;
-  }
 
   /**
    * Search documents using AI-powered RAG
@@ -456,47 +428,6 @@ class DocumentService {
     await axiosInstance.delete(`${this.baseUrl}/search-history`);
   }
 
-  /**
-   * Search documents using AI-powered semantic search
-   */
-  async searchDocuments(
-    query: string,
-    options: {
-      strategy?: 'semantic' | 'keyword' | 'hybrid';
-      includeDebugInfo?: boolean;
-      limit?: number;
-      filters?: Record<string, any>;
-    } = {}
-  ): Promise<{
-    response: string;
-    sources: any[];
-    debugInfo?: any;
-    queryId?: string;
-  }> {
-    const response = await axiosInstance.post(`${this.baseUrl}/search`, {
-      query,
-      strategy: options.strategy || 'hybrid',
-      includeDebugInfo: options.includeDebugInfo || false,
-      limit: options.limit || 10,
-      filters: options.filters || {},
-    });
-    return response.data.data;
-  }
-
-  /**
-   * Get document statistics
-   */
-  async getDocumentStats(): Promise<{
-    totalDocuments: number;
-    totalSize: number;
-    documentsByType: Record<string, number>;
-    documentsByStatus: Record<string, number>;
-    recentUploads: number;
-    processingQueue: number;
-  }> {
-    const response = await axiosInstance.get(`${this.baseUrl}/stats`);
-    return response.data.data;
-  }
 
   /**
    * Get system health status
