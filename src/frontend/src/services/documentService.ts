@@ -102,7 +102,7 @@ export interface SearchRequest {
 }
 
 class DocumentService {
-  private baseUrl = '/api/documents';
+  private baseUrl = '/api/v1/documents';
 
   /**
    * Get all documents with optional filters and pagination
@@ -149,6 +149,42 @@ class DocumentService {
    */
   async deleteDocument(id: string): Promise<void> {
     await axiosInstance.delete(`${this.baseUrl}/${id}`);
+  }
+
+  /**
+   * Upload a document file
+   */
+  async uploadDocument(
+    file: File, 
+    metadata: {
+      title?: string;
+      category?: string;
+      chunkingStrategy?: string;
+      tags?: string[];
+    } = {},
+    onProgress?: (progress: number) => void
+  ): Promise<Document> {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    if (metadata.title) formData.append('title', metadata.title);
+    if (metadata.category) formData.append('category', metadata.category);
+    if (metadata.chunkingStrategy) formData.append('chunkingStrategy', metadata.chunkingStrategy);
+    if (metadata.tags) formData.append('tags', metadata.tags.join(','));
+
+    const response = await axiosInstance.post(`${this.baseUrl}/upload`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onProgress(percentCompleted);
+        }
+      },
+    });
+    
+    return response.data.data;
   }
 
   /**
@@ -418,6 +454,48 @@ class DocumentService {
    */
   async clearSearchHistory(): Promise<void> {
     await axiosInstance.delete(`${this.baseUrl}/search-history`);
+  }
+
+  /**
+   * Search documents using AI-powered semantic search
+   */
+  async searchDocuments(
+    query: string,
+    options: {
+      strategy?: 'semantic' | 'keyword' | 'hybrid';
+      includeDebugInfo?: boolean;
+      limit?: number;
+      filters?: Record<string, any>;
+    } = {}
+  ): Promise<{
+    response: string;
+    sources: any[];
+    debugInfo?: any;
+    queryId?: string;
+  }> {
+    const response = await axiosInstance.post(`${this.baseUrl}/search`, {
+      query,
+      strategy: options.strategy || 'hybrid',
+      includeDebugInfo: options.includeDebugInfo || false,
+      limit: options.limit || 10,
+      filters: options.filters || {},
+    });
+    return response.data.data;
+  }
+
+  /**
+   * Get document statistics
+   */
+  async getDocumentStats(): Promise<{
+    totalDocuments: number;
+    totalSize: number;
+    documentsByType: Record<string, number>;
+    documentsByStatus: Record<string, number>;
+    recentUploads: number;
+    processingQueue: number;
+  }> {
+    const response = await axiosInstance.get(`${this.baseUrl}/stats`);
+    return response.data.data;
   }
 
   /**

@@ -5,20 +5,25 @@ import useAuthStore from '../store/authStore'; // Adjust path if your store is e
 // Define the root URL for your backend.
 // For local development, it's typically 'http://localhost:3001'.
 // For production, set VITE_BACKEND_ROOT_URL to your backend's base URL (e.g., https://your-backend.onrender.com)
-export const BACKEND_ROOT_URL =
-  import.meta.env.VITE_BACKEND_ROOT_URL ||
-  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001');
+export const BACKEND_ROOT_URL = import.meta.env.VITE_BACKEND_ROOT_URL || 'http://localhost:3001';
 
 // Define the common path for your API endpoints.
 const API_PATH = '/api/v1'; // This can be made configurable via another env var if needed
 
 // Validate backend URL configuration
-const isValidBackendUrl = BACKEND_ROOT_URL && BACKEND_ROOT_URL !== window?.location?.origin;
-if (!isValidBackendUrl && import.meta.env.PROD) {
-  console.error('❌ [AxiosConfig] VITE_BACKEND_ROOT_URL not properly configured for production!');
+const isValidBackendUrl = !!BACKEND_ROOT_URL && BACKEND_ROOT_URL.startsWith('http');
+if (!isValidBackendUrl) {
+  console.error('❌ [AxiosConfig] VITE_BACKEND_ROOT_URL not properly configured!');
   console.error('   Current value:', BACKEND_ROOT_URL);
-  console.error('   Expected: A different URL than the frontend origin');
+  console.error('   Expected: A valid HTTP/HTTPS URL');
   console.error('   Please set VITE_BACKEND_ROOT_URL in your environment variables');
+}
+
+// Additional production validation
+if (import.meta.env.PROD && (!import.meta.env.VITE_BACKEND_ROOT_URL || import.meta.env.VITE_BACKEND_ROOT_URL.includes('localhost'))) {
+  console.error('❌ [AxiosConfig] Production build detected but VITE_BACKEND_ROOT_URL not set properly!');
+  console.error('   Current value:', import.meta.env.VITE_BACKEND_ROOT_URL);
+  console.error('   Expected: Production backend URL (e.g., https://your-backend.onrender.com)');
 }
 
 // Add more detailed logging for debugging
@@ -28,8 +33,33 @@ console.log('[AxiosConfig] BACKEND_ROOT_URL resolved to:', BACKEND_ROOT_URL);
 console.log('[AxiosConfig] Full API Base URL:', `${BACKEND_ROOT_URL}${API_PATH}`);
 console.log('[AxiosConfig] Is valid backend URL:', isValidBackendUrl);
 
+// Suppress Chrome extension errors that might interfere with our app
+if (typeof window !== 'undefined') {
+  const originalError = console.error;
+  console.error = (...args) => {
+    const message = args.join(' ');
+    // Filter out known Chrome extension errors that don't affect our app
+    if (
+      message.includes('Could not establish connection. Receiving end does not exist') ||
+      message.includes('Host validation failed') ||
+      message.includes('Host is not supported') ||
+      message.includes('Host is not valid or supported') ||
+      message.includes('Host is not in insights whitelist')
+    ) {
+      // Silently ignore these extension-related errors
+      return;
+    }
+    originalError.apply(console, args);
+  };
+}
+
 const axiosInstance = axios.create({
   baseURL: `${BACKEND_ROOT_URL}${API_PATH}`, // e.g., http://localhost:3001/api/v1 or https://your-backend.onrender.com/api/v1
+  timeout: 30000, // 30 second timeout
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
 });
 
 // Export the root URL for constructing paths to static assets (like images)
@@ -83,14 +113,30 @@ axiosInstance.interceptors.response.use(
     console.error('[AxiosInterceptor] Response error from:', error.config?.url, 'Status:', error.response?.status);
     console.error('[AxiosInterceptor] Error details:', {
       message: error.message,
-      responseData: error.response?.data ? JSON.stringify(error.response.data, null, 2) : 'No data', // Full response data for debugging
+      responseData: error.response?.data ? JSON.stringify(error.response.data, null, 2) : 'No data',
       requestData: error.config?.data ? JSON.stringify(error.config.data, null, 2) : 'No request data',
       isAxiosError: error.isAxiosError,
       statusCode: error.response?.status,
       headers: error.response?.headers,
       method: error.config?.method?.toUpperCase(),
-      fullUrl: error.config?.url
+      fullUrl: error.config?.url,
+      networkError: !error.response && error.request ? 'Network request failed - backend may be down' : null,
+      timeoutError: error.code === 'ECONNABORTED' ? 'Request timed out' : null
     });
+
+    // Enhanced error messages for common issues
+    if (!error.response && error.request) {
+      console.error('🚨 [AxiosInterceptor] NETWORK ERROR: Unable to reach backend server');
+      console.error('   This could mean:');
+      console.error('   1. Backend server is down or unreachable');
+      console.error('   2. CORS issues (check browser network tab)');
+      console.error('   3. Wrong backend URL configured');
+      console.error('   4. Network connectivity issues');
+    } else if (error.response?.status === 503) {
+      console.error('🚨 [AxiosInterceptor] SERVICE UNAVAILABLE: Backend server is temporarily unavailable');
+    } else if (error.response?.status === 404) {
+      console.error('🚨 [AxiosInterceptor] NOT FOUND: API endpoint does not exist');
+    }
     
     if (error.response && error.response.status === 401) {
       // If unauthorized, check if it's a token expiration issue

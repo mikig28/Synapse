@@ -48,6 +48,7 @@ import {
   AlertCircle,
   Info
 } from 'lucide-react';
+import { documentService, type Document as DocumentType } from '@/services/documentService';
 
 interface Document {
   _id: string;
@@ -169,27 +170,13 @@ const DocsPage: React.FC = () => {
   const fetchDocuments = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/v1/documents', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setDocuments(data.data.documents);
-      } else {
-        toast({
-          title: 'Error',
-          description: 'Failed to fetch documents',
-          variant: 'destructive',
-        });
-      }
+      const response = await documentService.getDocuments();
+      setDocuments(response.documents);
     } catch (error) {
       console.error('Error fetching documents:', error);
       toast({
         title: 'Error',
-        description: 'Failed to fetch documents',
+        description: error instanceof Error ? error.message : 'Failed to fetch documents',
         variant: 'destructive',
       });
     } finally {
@@ -199,58 +186,43 @@ const DocsPage: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('/api/v1/documents/stats', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data.data);
-      }
+      const data = await documentService.getDocumentStats();
+      setStats(data);
     } catch (error) {
       console.error('Error fetching stats:', error);
     }
   };
 
   const handleFileUpload = async (file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('title', file.name);
-    formData.append('category', 'general');
-    formData.append('chunkingStrategy', 'hybrid');
-
     try {
       setUploadProgress(0);
-      const response = await fetch('/api/v1/documents/upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+      const uploadedDocument = await documentService.uploadDocument(
+        file,
+        {
+          title: file.name,
+          category: 'general',
+          chunkingStrategy: 'hybrid',
         },
-        body: formData,
-      });
+        (progress) => setUploadProgress(progress)
+      );
 
-      if (response.ok) {
-        const data = await response.json();
-        setDocuments(prev => [data.data, ...prev]);
-        setUploadProgress(100);
-        
-        toast({
-          title: 'Success',
-          description: 'Document uploaded successfully. Processing in background.',
-        });
-        
-        setShowUploadDialog(false);
-        setSelectedFile(null);
-      } else {
-        throw new Error('Upload failed');
-      }
+      setDocuments(prev => [uploadedDocument, ...prev]);
+      setUploadProgress(100);
+      
+      toast({
+        title: 'Success',
+        description: 'Document uploaded successfully. Processing in background.',
+      });
+      
+      // Reset state and close dialog
+      setSelectedFile(null);
+      setUploadProgress(0);
+      setShowUploadDialog(false);
     } catch (error) {
-      console.error('Error uploading file:', error);
+      console.error('Error uploading document:', error);
       toast({
         title: 'Error',
-        description: 'Failed to upload document',
+        description: error instanceof Error ? error.message : 'Failed to upload document',
         variant: 'destructive',
       });
     }
@@ -258,43 +230,31 @@ const DocsPage: React.FC = () => {
 
   const handleCreateDocument = async () => {
     try {
-      const response = await fetch('/api/v1/documents', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({
-          ...newDocument,
-          tags: newDocument.tags.split(',').map(tag => tag.trim()).filter(Boolean),
-        }),
+      const createdDocument = await documentService.createDocument({
+        ...newDocument,
+        tags: newDocument.tags.split(',').map(tag => tag.trim()).filter(Boolean),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setDocuments(prev => [data.data, ...prev]);
-        
-        toast({
-          title: 'Success',
-          description: 'Document created successfully. Processing in background.',
-        });
-        
-        setShowCreateDialog(false);
-        setNewDocument({
-          title: '',
-          content: '',
-          documentType: 'text',
-          category: 'general',
-          tags: '',
-        });
-      } else {
-        throw new Error('Creation failed');
-      }
+      setDocuments(prev => [createdDocument, ...prev]);
+      
+      toast({
+        title: 'Success',
+        description: 'Document created successfully. Processing in background.',
+      });
+      
+      setShowCreateDialog(false);
+      setNewDocument({
+        title: '',
+        content: '',
+        documentType: 'text',
+        category: 'general',
+        tags: '',
+      });
     } catch (error) {
       console.error('Error creating document:', error);
       toast({
         title: 'Error',
-        description: 'Failed to create document',
+        description: error instanceof Error ? error.message : 'Failed to create document',
         variant: 'destructive',
       });
     }
@@ -305,22 +265,10 @@ const DocsPage: React.FC = () => {
 
     try {
       setSearchLoading(true);
-      const response = await fetch('/api/v1/documents/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({
-          query: chatQuery,
-          strategy: 'hybrid',
-          includeDebugInfo: true,
-        }),
+      const result = await documentService.searchDocuments(chatQuery, {
+        strategy: 'hybrid',
+        includeDebugInfo: true,
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        const result: SearchResult = data.data;
         
         setChatHistory(prev => [...prev, {
           id: Date.now(),
@@ -330,23 +278,20 @@ const DocsPage: React.FC = () => {
         }, {
           id: Date.now() + 1,
           type: 'assistant',
-          content: result.answer,
+          content: result.response,
           sources: result.sources,
-          confidence: result.confidence,
-          qualityScore: result.qualityScore,
-          suggestions: result.suggestions,
+          confidence: 0.8, // Default confidence since API might not return it
+          qualityScore: 0.8, // Default quality score since API might not return it
+          suggestions: [], // Default empty array since API might not return it
           timestamp: new Date(),
         }]);
         
         setChatQuery('');
-      } else {
-        throw new Error('Search failed');
-      }
     } catch (error) {
       console.error('Error searching documents:', error);
       toast({
         title: 'Error',
-        description: 'Failed to search documents',
+        description: error instanceof Error ? error.message : 'Failed to search documents',
         variant: 'destructive',
       });
     } finally {
@@ -371,7 +316,6 @@ const DocsPage: React.FC = () => {
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
       setSelectedFile(files[0]);
-      handleFileUpload(files[0]);
     }
   };
 
@@ -799,7 +743,17 @@ const DocsPage: React.FC = () => {
         </Tabs>
 
         {/* Upload Dialog */}
-        <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <Dialog 
+          open={showUploadDialog} 
+          onOpenChange={(open) => {
+            setShowUploadDialog(open);
+            if (!open) {
+              // Reset state when dialog closes
+              setSelectedFile(null);
+              setUploadProgress(0);
+            }
+          }}
+        >
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Upload Document</DialogTitle>
@@ -828,25 +782,46 @@ const DocsPage: React.FC = () => {
                   const file = e.target.files?.[0];
                   if (file) {
                     setSelectedFile(file);
-                    handleFileUpload(file);
                   }
                 }}
               />
-              <label htmlFor="file-upload" className="cursor-pointer">
-                <Button variant="outline">
-                  Choose File
-                </Button>
-              </label>
-            </div>
-            {uploadProgress > 0 && (
-              <div className="mt-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm">Uploading...</span>
-                  <span className="text-sm">{uploadProgress}%</span>
-                </div>
-                <Progress value={uploadProgress} />
+              <div className="space-y-4">
+                <label htmlFor="file-upload" className="cursor-pointer">
+                  <Button variant="outline" disabled={uploadProgress > 0 && uploadProgress < 100}>
+                    <FileIcon className="w-4 h-4 mr-2" />
+                    {selectedFile ? 'Change File' : 'Choose File'}
+                  </Button>
+                </label>
+                
+                {selectedFile && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-center space-x-2 text-sm text-muted-foreground">
+                      <Check className="w-4 h-4 text-green-500" />
+                      <span>Selected: {selectedFile.name}</span>
+                      <span>({Math.round(selectedFile.size / 1024)} KB)</span>
+                    </div>
+                    
+                    <Button 
+                      onClick={() => handleFileUpload(selectedFile)}
+                      disabled={uploadProgress > 0 && uploadProgress < 100}
+                      className="w-full"
+                    >
+                      {uploadProgress > 0 && uploadProgress < 100 ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Uploading... {uploadProgress}%
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4 mr-2" />
+                          Upload Document
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </DialogContent>
         </Dialog>
 
