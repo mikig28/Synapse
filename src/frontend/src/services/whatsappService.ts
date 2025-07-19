@@ -71,7 +71,7 @@ export interface WhatsAppConfig {
 }
 
 class WhatsAppService {
-  private baseUrl = '/api/v1/whatsapp';
+  private baseUrl = '/whatsapp';
 
   // Get all WhatsApp contacts
   async getContacts(): Promise<WhatsAppContact[]> {

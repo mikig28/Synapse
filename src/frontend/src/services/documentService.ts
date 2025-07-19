@@ -102,7 +102,7 @@ export interface SearchRequest {
 }
 
 class DocumentService {
-  private baseUrl = '/api/v1/documents';
+  private baseUrl = '/documents';
 
   /**
    * Get all documents with optional filters and pagination
