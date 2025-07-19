@@ -11,9 +11,16 @@ import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 
+// Ensure uploads directory exists
+const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log('[DocumentController] Created uploads directory:', uploadsDir);
+}
+
 // Configure multer for file uploads
 const upload = multer({
-  dest: 'public/uploads/',
+  dest: uploadsDir,
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB limit
   },
@@ -697,5 +704,63 @@ function getDocumentType(mimeType: string): string {
 
   return typeMap[mimeType] || 'text';
 }
+
+/**
+ * Simplified upload endpoint for debugging
+ */
+export const uploadDocumentSimple = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    console.log('[uploadDocumentSimple] Starting simple upload process');
+    
+    const userId = req.user?.id;
+    console.log('[uploadDocumentSimple] User ID:', userId);
+    
+    if (!userId) {
+      console.log('[uploadDocumentSimple] No user ID found - unauthorized');
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const file = req.file;
+    console.log('[uploadDocumentSimple] File received:', file ? {
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      path: file.path
+    } : 'No file');
+    
+    if (!file) {
+      console.log('[uploadDocumentSimple] No file uploaded');
+      return res.status(400).json({ success: false, error: 'No file uploaded' });
+    }
+
+    // Just return basic file info without any processing
+    res.json({
+      success: true,
+      message: 'File uploaded successfully (simple test)',
+      file: {
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        path: file.path
+      }
+    });
+    
+    // Clean up the uploaded file
+    if (fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path);
+    }
+    
+  } catch (error) {
+    console.error('[uploadDocumentSimple] Error:', error);
+    console.error('[uploadDocumentSimple] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    res.status(500).json({ 
+      success: false, 
+      error: 'Internal server error',
+      details: errorMessage
+    });
+  }
+};
 
 export { upload };

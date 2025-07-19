@@ -3,6 +3,7 @@ import {
   getDocuments,
   getDocument,
   uploadDocument,
+  uploadDocumentSimple,
   createDocument,
   updateDocument,
   deleteDocument,
@@ -32,7 +33,10 @@ router.post('/test-upload', (req: any, res: any) => {
   res.json({ success: true, message: 'Test endpoint working', user: req.user });
 });
 
-router.post('/upload', upload.single('file'), uploadDocument as any);
+// Simplified upload for debugging
+router.post('/upload-simple', upload.single('file'), uploadDocumentSimple as any);
+
+router.post('/upload', upload.single('file'), uploadDocumentSimple as any);
 router.get('/stats', getDocumentStats as any);
 router.get('/:id', getDocument as any);
 router.put('/:id', updateDocument as any);
