@@ -22,6 +22,16 @@ router.use(protect);
 // Document CRUD operations
 router.get('/', getDocuments as any);
 router.post('/', createDocument as any);
+
+// Test endpoint for debugging
+router.post('/test-upload', (req: any, res: any) => {
+  console.log('[test-upload] Test endpoint hit');
+  console.log('[test-upload] User:', req.user);
+  console.log('[test-upload] Body:', req.body);
+  console.log('[test-upload] Headers:', req.headers);
+  res.json({ success: true, message: 'Test endpoint working', user: req.user });
+});
+
 router.post('/upload', upload.single('file'), uploadDocument as any);
 router.get('/stats', getDocumentStats as any);
 router.get('/:id', getDocument as any);

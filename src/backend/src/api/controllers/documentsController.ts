@@ -150,17 +150,31 @@ export const getDocument = async (req: AuthenticatedRequest, res: Response) => {
  */
 export const uploadDocument = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    console.log('[uploadDocument] Starting upload process');
+    
     const userId = req.user?.id;
+    console.log('[uploadDocument] User ID:', userId);
+    
     if (!userId) {
+      console.log('[uploadDocument] No user ID found - unauthorized');
       return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
 
     const file = req.file;
+    console.log('[uploadDocument] File received:', file ? {
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      path: file.path
+    } : 'No file');
+    
     if (!file) {
+      console.log('[uploadDocument] No file uploaded');
       return res.status(400).json({ success: false, error: 'No file uploaded' });
     }
 
     const { title, category, tags, chunkingStrategy = 'hybrid' } = req.body;
+    console.log('[uploadDocument] Request body:', { title, category, tags, chunkingStrategy });
 
     // Create document record
     const document = new Document({
@@ -208,8 +222,17 @@ export const uploadDocument = async (req: AuthenticatedRequest, res: Response) =
       message: 'Document uploaded successfully. Processing in background.',
     });
   } catch (error) {
-    console.error('Error uploading document:', error);
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    console.error('[uploadDocument] Error uploading document:', error);
+    console.error('[uploadDocument] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('[uploadDocument] Error message:', error instanceof Error ? error.message : String(error));
+    
+    // Return more specific error information
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    res.status(500).json({ 
+      success: false, 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+    });
   }
 };
 
