@@ -786,12 +786,15 @@ const DocsPage: React.FC = () => {
                 }}
               />
               <div className="space-y-4">
-                <label htmlFor="file-upload" className="cursor-pointer">
-                  <Button variant="outline" disabled={uploadProgress > 0 && uploadProgress < 100}>
-                    <FileIcon className="w-4 h-4 mr-2" />
-                    {selectedFile ? 'Change File' : 'Choose File'}
-                  </Button>
-                </label>
+                <Button 
+                  variant="outline" 
+                  disabled={uploadProgress > 0 && uploadProgress < 100}
+                  onClick={() => document.getElementById('file-upload')?.click()}
+                  type="button"
+                >
+                  <FileIcon className="w-4 h-4 mr-2" />
+                  {selectedFile ? 'Change File' : 'Choose File'}
+                </Button>
                 
                 {selectedFile && (
                   <div className="space-y-2">
