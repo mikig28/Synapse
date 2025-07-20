@@ -468,6 +468,38 @@ class DocumentService {
 
 
   /**
+   * Search documents using AI
+   */
+  async searchDocuments(
+    query: string,
+    options: {
+      strategy?: 'semantic' | 'hybrid' | 'keyword';
+      includeDebugInfo?: boolean;
+      maxIterations?: number;
+      confidenceThreshold?: number;
+    } = {}
+  ): Promise<{
+    response: string;
+    sources: any[];
+    confidence?: number;
+    qualityScore?: number;
+    iterationCount?: number;
+    searchStrategy?: string;
+    suggestions?: string[];
+    debugInfo?: any;
+  }> {
+    const response = await axiosInstance.post(`${this.baseUrl}/search`, {
+      query,
+      strategy: options.strategy || 'hybrid',
+      includeDebugInfo: options.includeDebugInfo || false,
+      maxIterations: options.maxIterations,
+      confidenceThreshold: options.confidenceThreshold,
+    });
+    
+    return response.data.data;
+  }
+
+  /**
    * Get system health status
    */
   async getHealthStatus(): Promise<{
