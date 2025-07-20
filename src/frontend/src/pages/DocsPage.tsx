@@ -388,96 +388,99 @@ const DocsPage: React.FC = () => {
 
   return (
     <PageTransition>
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-3xl font-bold gradient-text mb-2">
+      <div className="container mx-auto px-4 py-4 sm:py-8 max-w-7xl">
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <div className="text-center sm:text-left">
+              <h1 className="text-2xl sm:text-3xl font-bold gradient-text mb-2">
                 📚 Documentation Hub
               </h1>
-              <p className="text-muted-foreground">
+              <p className="text-sm sm:text-base text-muted-foreground">
                 Intelligent document management with AI-powered search and organization
               </p>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center justify-center sm:justify-end space-x-2 sm:space-x-3">
               <Button 
                 variant="outline" 
                 size="sm"
                 onClick={() => setShowChatDialog(true)}
+                className="flex-1 sm:flex-none"
               >
-                <MessageSquare className="w-4 h-4 mr-2" />
-                AI Chat
+                <MessageSquare className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">AI Chat</span>
               </Button>
               <Button 
                 variant="outline" 
                 size="sm"
                 onClick={() => setShowCreateDialog(true)}
+                className="flex-1 sm:flex-none"
               >
-                <Plus className="w-4 h-4 mr-2" />
-                Create
+                <Plus className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Create</span>
               </Button>
               <Button 
                 size="sm"
                 onClick={() => setShowUploadDialog(true)}
+                className="flex-1 sm:flex-none"
               >
-                <Upload className="w-4 h-4 mr-2" />
-                Upload
+                <Upload className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Upload</span>
               </Button>
             </div>
           </div>
 
           {/* Stats Cards */}
           {stats && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
               <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Documents</p>
-                      <p className="text-2xl font-bold">{stats.totalDocuments}</p>
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Total Documents</p>
+                      <p className="text-lg sm:text-2xl font-bold">{stats.totalDocuments}</p>
                     </div>
-                    <BookOpen className="w-8 h-8 text-blue-500" />
+                    <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500 shrink-0" />
                   </div>
                 </CardContent>
               </Card>
               
               <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Vector Index</p>
-                      <p className="text-2xl font-bold">{stats.vectorDatabase.totalChunks}</p>
-                      <p className="text-xs text-muted-foreground">{stats.vectorDatabase.databaseType}</p>
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Vector Index</p>
+                      <p className="text-lg sm:text-2xl font-bold">{stats.vectorDatabase.totalChunks}</p>
+                      <p className="text-xs text-muted-foreground truncate">{stats.vectorDatabase.databaseType}</p>
                     </div>
-                    <Network className="w-8 h-8 text-green-500" />
+                    <Network className="w-6 h-6 sm:w-8 sm:h-8 text-green-500 shrink-0" />
                   </div>
                 </CardContent>
               </Card>
               
               <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Processing</p>
-                      <p className="text-2xl font-bold">
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Processing</p>
+                      <p className="text-lg sm:text-2xl font-bold">
                         {stats.statusCounts.find(s => s._id === 'processing')?.count || 0}
                       </p>
                     </div>
-                    <Zap className="w-8 h-8 text-yellow-500" />
+                    <Zap className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-500 shrink-0" />
                   </div>
                 </CardContent>
               </Card>
               
               <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Completed</p>
-                      <p className="text-2xl font-bold">
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">Completed</p>
+                      <p className="text-lg sm:text-2xl font-bold">
                         {stats.statusCounts.find(s => s._id === 'completed')?.count || 0}
                       </p>
                     </div>
-                    <Check className="w-8 h-8 text-green-500" />
+                    <Check className="w-6 h-6 sm:w-8 sm:h-8 text-green-500 shrink-0" />
                   </div>
                 </CardContent>
               </Card>
@@ -486,15 +489,24 @@ const DocsPage: React.FC = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="documents">Documents</TabsTrigger>
-            <TabsTrigger value="search">AI Search</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 h-auto">
+            <TabsTrigger value="documents" className="text-xs sm:text-sm py-2">
+              <span className="hidden sm:inline">Documents</span>
+              <span className="sm:hidden">Docs</span>
+            </TabsTrigger>
+            <TabsTrigger value="search" className="text-xs sm:text-sm py-2">
+              <span className="hidden sm:inline">AI Search</span>
+              <span className="sm:hidden">Search</span>
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="text-xs sm:text-sm py-2">
+              <span className="hidden sm:inline">Analytics</span>
+              <span className="sm:hidden">Stats</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="documents" className="space-y-4">
             {/* Search and Filters */}
-            <div className="flex items-center space-x-4 mb-6">
+            <div className="space-y-3 sm:space-y-0 sm:flex sm:items-center sm:space-x-4 mb-4 sm:mb-6">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -505,41 +517,43 @@ const DocsPage: React.FC = () => {
                 />
               </div>
               
-              <Select value={filters.type} onValueChange={(value) => setFilters(prev => ({ ...prev, type: value }))}>
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="pdf">PDF</SelectItem>
-                  <SelectItem value="text">Text</SelectItem>
-                  <SelectItem value="markdown">Markdown</SelectItem>
-                  <SelectItem value="code">Code</SelectItem>
-                  <SelectItem value="webpage">Web</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <Select value={filters.status} onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}>
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="processing">Processing</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="failed">Failed</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <Button variant="outline" size="sm" onClick={fetchDocuments}>
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Refresh
-              </Button>
+              <div className="flex items-center space-x-2 sm:space-x-4">
+                <Select value={filters.type} onValueChange={(value) => setFilters(prev => ({ ...prev, type: value }))}>
+                  <SelectTrigger className="w-24 sm:w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="pdf">PDF</SelectItem>
+                    <SelectItem value="text">Text</SelectItem>
+                    <SelectItem value="markdown">Markdown</SelectItem>
+                    <SelectItem value="code">Code</SelectItem>
+                    <SelectItem value="webpage">Web</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                <Select value={filters.status} onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}>
+                  <SelectTrigger className="w-24 sm:w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="processing">Processing</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="failed">Failed</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                <Button variant="outline" size="sm" onClick={fetchDocuments} className="shrink-0">
+                  <RefreshCw className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Refresh</span>
+                </Button>
+              </div>
             </div>
 
             {/* Document Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {loading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <Card key={i} className="animate-pulse">
@@ -565,24 +579,29 @@ const DocsPage: React.FC = () => {
               ) : (
                 filteredDocuments.map((doc) => (
                   <Card key={doc._id} className="hover:shadow-lg transition-shadow cursor-pointer">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center space-x-2">
+                    <CardHeader className="pb-2 sm:pb-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center space-x-2 min-w-0 flex-1">
                           {getDocumentIcon(doc.documentType)}
-                          <CardTitle className="text-lg line-clamp-1">{doc.title}</CardTitle>
+                          <CardTitle className="text-sm sm:text-lg line-clamp-1 min-w-0">{doc.title}</CardTitle>
                         </div>
-                        <Badge className={getStatusColor(doc.metadata.processingStatus)}>
-                          {doc.metadata.processingStatus}
+                        <Badge className={`${getStatusColor(doc.metadata.processingStatus)} text-xs shrink-0`}>
+                          <span className="hidden sm:inline">{doc.metadata.processingStatus}</span>
+                          <span className="sm:hidden">
+                            {doc.metadata.processingStatus === 'completed' ? '✓' : 
+                             doc.metadata.processingStatus === 'processing' ? '⟳' : 
+                             doc.metadata.processingStatus === 'pending' ? '⏳' : '✗'}
+                          </span>
                         </Badge>
                       </div>
                     </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                        {doc.summary || doc.content.substring(0, 100) + '...'}
+                    <CardContent className="pt-0">
+                      <p className="text-xs sm:text-sm text-muted-foreground mb-2 sm:mb-3 line-clamp-2">
+                        {doc.summary || doc.content.substring(0, 80) + '...'}
                       </p>
                       
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs text-muted-foreground">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-0 mb-2 sm:mb-3">
+                        <span className="text-xs text-muted-foreground truncate">
                           {formatDate(doc.updatedAt)}
                         </span>
                         {doc.metadata.fileSize && (
@@ -602,34 +621,40 @@ const DocsPage: React.FC = () => {
                         </div>
                       )}
                       
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {doc.metadata.tags.slice(0, 3).map((tag) => (
+                      <div className="flex flex-wrap gap-1 mb-2 sm:mb-3">
+                        {doc.metadata.tags.slice(0, 2).map((tag) => (
                           <Badge key={tag} variant="secondary" className="text-xs">
-                            {tag}
+                            {tag.length > 8 ? `${tag.substring(0, 8)}...` : tag}
                           </Badge>
                         ))}
-                        {doc.metadata.tags.length > 3 && (
+                        {doc.metadata.tags.length > 2 && (
                           <Badge variant="secondary" className="text-xs">
-                            +{doc.metadata.tags.length - 3} more
+                            +{doc.metadata.tags.length - 2}
                           </Badge>
                         )}
                       </div>
                       
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-1 sm:space-x-2 min-w-0 flex-1">
                           {doc.chunks && doc.chunks.length > 0 && (
                             <div className="flex items-center space-x-1">
                               <Network className="w-3 h-3 text-green-500" />
-                              <span className="text-xs text-muted-foreground">
+                              <span className="text-xs text-muted-foreground hidden sm:inline">
                                 {doc.chunks.length} chunks
+                              </span>
+                              <span className="text-xs text-muted-foreground sm:hidden">
+                                {doc.chunks.length}
                               </span>
                             </div>
                           )}
                           {doc.graphNodes && doc.graphNodes.length > 0 && (
                             <div className="flex items-center space-x-1">
                               <Brain className="w-3 h-3 text-blue-500" />
-                              <span className="text-xs text-muted-foreground">
+                              <span className="text-xs text-muted-foreground hidden sm:inline">
                                 {doc.graphNodes.length} entities
+                              </span>
+                              <span className="text-xs text-muted-foreground sm:hidden">
+                                {doc.graphNodes.length}
                               </span>
                             </div>
                           )}
@@ -638,6 +663,7 @@ const DocsPage: React.FC = () => {
                           variant="ghost"
                           size="sm"
                           onClick={() => setSelectedDocument(doc)}
+                          className="shrink-0 p-2"
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
@@ -658,7 +684,7 @@ const DocsPage: React.FC = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center space-x-2 mb-4">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2 sm:space-x-0 mb-4">
                   <Input
                     placeholder="Ask anything about your documents..."
                     value={chatQuery}
@@ -666,34 +692,35 @@ const DocsPage: React.FC = () => {
                     onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                     className="flex-1"
                   />
-                  <Button onClick={handleSearch} disabled={searchLoading}>
+                  <Button onClick={handleSearch} disabled={searchLoading} className="shrink-0">
                     {searchLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin sm:mr-2" />
                     ) : (
-                      <Search className="w-4 h-4" />
+                      <Search className="w-4 h-4 sm:mr-2" />
                     )}
+                    <span className="hidden sm:inline">Search</span>
                   </Button>
                 </div>
                 
-                <ScrollArea className="h-96">
-                  <div className="space-y-4">
+                <ScrollArea className="h-64 sm:h-96">
+                  <div className="space-y-3 sm:space-y-4">
                     {chatHistory.length === 0 ? (
-                      <div className="text-center py-8">
-                        <MessageSquare className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold mb-2">Start a conversation</h3>
-                        <p className="text-muted-foreground">
+                      <div className="text-center py-6 sm:py-8">
+                        <MessageSquare className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-3 sm:mb-4" />
+                        <h3 className="text-base sm:text-lg font-semibold mb-2">Start a conversation</h3>
+                        <p className="text-sm sm:text-base text-muted-foreground px-4">
                           Ask questions about your documents and get intelligent answers
                         </p>
                       </div>
                     ) : (
                       chatHistory.map((message) => (
                         <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[80%] p-3 rounded-lg ${
+                          <div className={`max-w-[85%] sm:max-w-[80%] p-2 sm:p-3 rounded-lg ${
                             message.type === 'user' 
                               ? 'bg-blue-500 text-white' 
                               : 'bg-gray-100 text-gray-900'
                           }`}>
-                            <p className="text-sm">{message.content}</p>
+                            <p className="text-xs sm:text-sm break-words">{message.content}</p>
                             {message.type === 'assistant' && (
                               <div className="mt-2 pt-2 border-t border-gray-200">
                                 <div className="flex items-center space-x-2 text-xs text-gray-600">
@@ -718,39 +745,39 @@ const DocsPage: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
               <Card>
-                <CardHeader>
-                  <CardTitle>Document Types</CardTitle>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base sm:text-lg">Document Types</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pt-0">
                   {stats?.typeCounts.map((type) => (
                     <div key={type._id} className="flex items-center justify-between py-2">
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 min-w-0">
                         {getDocumentIcon(type._id)}
-                        <span className="capitalize">{type._id}</span>
+                        <span className="capitalize text-sm sm:text-base truncate">{type._id}</span>
                       </div>
-                      <Badge variant="secondary">{type.count}</Badge>
+                      <Badge variant="secondary" className="text-xs shrink-0">{type.count}</Badge>
                     </div>
                   ))}
                 </CardContent>
               </Card>
               
               <Card>
-                <CardHeader>
-                  <CardTitle>Processing Status</CardTitle>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base sm:text-lg">Processing Status</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pt-0">
                   {stats?.statusCounts.map((status) => (
                     <div key={status._id} className="flex items-center justify-between py-2">
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 min-w-0">
                         {status._id === 'completed' && <Check className="w-4 h-4 text-green-500" />}
                         {status._id === 'processing' && <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />}
                         {status._id === 'pending' && <Clock className="w-4 h-4 text-yellow-500" />}
                         {status._id === 'failed' && <X className="w-4 h-4 text-red-500" />}
-                        <span className="capitalize">{status._id}</span>
+                        <span className="capitalize text-sm sm:text-base truncate">{status._id}</span>
                       </div>
-                      <Badge variant="secondary">{status.count}</Badge>
+                      <Badge variant="secondary" className="text-xs shrink-0">{status.count}</Badge>
                     </div>
                   ))}
                 </CardContent>
@@ -771,9 +798,9 @@ const DocsPage: React.FC = () => {
             }
           }}
         >
-          <DialogContent>
+          <DialogContent className="max-w-[95vw] w-full sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Upload Document</DialogTitle>
+              <DialogTitle className="text-base sm:text-lg">Upload Document</DialogTitle>
             </DialogHeader>
             <div
               className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
@@ -847,9 +874,9 @@ const DocsPage: React.FC = () => {
 
         {/* Create Document Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-[95vw] w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Create New Document</DialogTitle>
+              <DialogTitle className="text-base sm:text-lg">Create New Document</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div>
@@ -871,7 +898,7 @@ const DocsPage: React.FC = () => {
                 />
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium mb-2 block">Type</label>
                   <Select
@@ -917,11 +944,11 @@ const DocsPage: React.FC = () => {
                 />
               </div>
               
-              <div className="flex justify-end space-x-2">
-                <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-0 sm:space-x-2">
+                <Button variant="outline" onClick={() => setShowCreateDialog(false)} className="order-2 sm:order-1">
                   Cancel
                 </Button>
-                <Button onClick={handleCreateDocument}>
+                <Button onClick={handleCreateDocument} className="order-1 sm:order-2">
                   Create Document
                 </Button>
               </div>
@@ -938,13 +965,18 @@ const DocsPage: React.FC = () => {
             }
           }}
         >
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogContent className="max-w-[95vw] w-full sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
             <DialogHeader>
-              <DialogTitle className="flex items-center space-x-2">
+              <DialogTitle className="flex items-center space-x-2 text-sm sm:text-base">
                 {selectedDocument && getDocumentIcon(selectedDocument.documentType)}
-                <span className="truncate">{selectedDocument?.title}</span>
-                <Badge className={getStatusColor(selectedDocument?.metadata.processingStatus || '')}>
-                  {selectedDocument?.metadata.processingStatus}
+                <span className="truncate min-w-0 flex-1">{selectedDocument?.title}</span>
+                <Badge className={`${getStatusColor(selectedDocument?.metadata.processingStatus || '')} text-xs shrink-0`}>
+                  <span className="hidden sm:inline">{selectedDocument?.metadata.processingStatus}</span>
+                  <span className="sm:hidden">
+                    {selectedDocument?.metadata.processingStatus === 'completed' ? '✓' : 
+                     selectedDocument?.metadata.processingStatus === 'processing' ? '⟳' : 
+                     selectedDocument?.metadata.processingStatus === 'pending' ? '⏳' : '✗'}
+                  </span>
                 </Badge>
               </DialogTitle>
             </DialogHeader>
@@ -952,10 +984,10 @@ const DocsPage: React.FC = () => {
             {selectedDocument && (
               <div className="flex-1 flex flex-col space-y-4 overflow-hidden">
                 {/* Document Metadata */}
-                <div className="flex flex-wrap gap-4 p-4 bg-gray-50 rounded-lg">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
                   <div className="flex items-center space-x-2">
                     <Clock className="w-4 h-4 text-gray-500" />
-                    <span className="text-sm text-gray-600">
+                    <span className="text-xs sm:text-sm text-gray-600">
                       Updated: {formatDate(selectedDocument.updatedAt)}
                     </span>
                   </div>
@@ -963,7 +995,7 @@ const DocsPage: React.FC = () => {
                   {selectedDocument.metadata.fileSize && (
                     <div className="flex items-center space-x-2">
                       <FileIcon className="w-4 h-4 text-gray-500" />
-                      <span className="text-sm text-gray-600">
+                      <span className="text-xs sm:text-sm text-gray-600">
                         {formatFileSize(selectedDocument.metadata.fileSize)}
                       </span>
                     </div>
@@ -971,7 +1003,7 @@ const DocsPage: React.FC = () => {
                   
                   <div className="flex items-center space-x-2">
                     <Tag className="w-4 h-4 text-gray-500" />
-                    <span className="text-sm text-gray-600">
+                    <span className="text-xs sm:text-sm text-gray-600">
                       {selectedDocument.metadata.category}
                     </span>
                   </div>
@@ -979,7 +1011,7 @@ const DocsPage: React.FC = () => {
                   {selectedDocument.chunks && selectedDocument.chunks.length > 0 && (
                     <div className="flex items-center space-x-2">
                       <Network className="w-4 h-4 text-green-500" />
-                      <span className="text-sm text-gray-600">
+                      <span className="text-xs sm:text-sm text-gray-600">
                         {selectedDocument.chunks.length} chunks
                       </span>
                     </div>
@@ -988,7 +1020,7 @@ const DocsPage: React.FC = () => {
                   {selectedDocument.graphNodes && selectedDocument.graphNodes.length > 0 && (
                     <div className="flex items-center space-x-2">
                       <Brain className="w-4 h-4 text-blue-500" />
-                      <span className="text-sm text-gray-600">
+                      <span className="text-xs sm:text-sm text-gray-600">
                         {selectedDocument.graphNodes.length} entities
                       </span>
                     </div>
@@ -1045,30 +1077,31 @@ const DocsPage: React.FC = () => {
                 </div>
                 
                 {/* Action Buttons */}
-                <div className="flex items-center justify-between pt-4 border-t">
-                  <div className="flex items-center space-x-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 pt-4 border-t">
+                  <div className="flex items-center justify-center sm:justify-start space-x-2">
                     <Button 
                       variant="outline" 
                       size="sm"
                       onClick={() => handleDownloadDocument(selectedDocument)}
+                      className="flex-1 sm:flex-none"
                     >
-                      <Download className="w-4 h-4 mr-2" />
-                      Download
+                      <Download className="w-4 h-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Download</span>
                     </Button>
-                    <Button variant="outline" size="sm">
-                      <Share2 className="w-4 h-4 mr-2" />
-                      Share
+                    <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
+                      <Share2 className="w-4 h-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Share</span>
                     </Button>
                   </div>
                   
-                  <div className="flex items-center space-x-2">
-                    <Button variant="outline" size="sm">
-                      <Settings className="w-4 h-4 mr-2" />
-                      Edit
+                  <div className="flex items-center justify-center sm:justify-end space-x-2">
+                    <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
+                      <Settings className="w-4 h-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Edit</span>
                     </Button>
-                    <Button variant="destructive" size="sm">
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete
+                    <Button variant="destructive" size="sm" className="flex-1 sm:flex-none">
+                      <Trash2 className="w-4 h-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Delete</span>
                     </Button>
                   </div>
                 </div>
