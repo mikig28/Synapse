@@ -299,6 +299,23 @@ const DocsPage: React.FC = () => {
     }
   };
 
+  const handleDownloadDocument = async (document: Document) => {
+    try {
+      await documentService.downloadDocument(document._id);
+      toast({
+        title: 'Success',
+        description: 'Document downloaded successfully',
+      });
+    } catch (error) {
+      console.error('Error downloading document:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to download document',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(true);
@@ -1030,7 +1047,11 @@ const DocsPage: React.FC = () => {
                 {/* Action Buttons */}
                 <div className="flex items-center justify-between pt-4 border-t">
                   <div className="flex items-center space-x-2">
-                    <Button variant="outline" size="sm">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleDownloadDocument(selectedDocument)}
+                    >
                       <Download className="w-4 h-4 mr-2" />
                       Download
                     </Button>

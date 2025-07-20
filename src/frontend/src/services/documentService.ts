@@ -226,6 +226,44 @@ class DocumentService {
   }
 
   /**
+   * Download document as file
+   */
+  async downloadDocument(id: string): Promise<void> {
+    try {
+      const response = await axiosInstance.get(`${this.baseUrl}/${id}/download`, {
+        responseType: 'blob',
+      });
+
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'document.txt';
+      
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      // Create blob and download link
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Error downloading document:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get document content in various formats
    */
   async exportDocument(id: string, format: 'pdf' | 'markdown' | 'text' = 'text'): Promise<Blob> {

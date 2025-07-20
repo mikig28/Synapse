@@ -828,4 +828,65 @@ export const uploadDocumentSimple = async (req: AuthenticatedRequest, res: Respo
   }
 };
 
+/**
+ * Download document as file
+ */
+export const downloadDocument = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const document = await Document.findOne({
+      _id: new mongoose.Types.ObjectId(id),
+      userId: new mongoose.Types.ObjectId(userId),
+    });
+
+    if (!document) {
+      return res.status(404).json({ success: false, error: 'Document not found' });
+    }
+
+    // Update last accessed time
+    document.lastAccessedAt = new Date();
+    await document.save();
+
+    // Set appropriate headers for file download
+    const filename = document.metadata.originalFilename || `${document.title}.txt`;
+    const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    
+    res.setHeader('Content-Disposition', `attachment; filename="${sanitizedFilename}"`);
+    res.setHeader('Content-Type', getContentType(document.documentType));
+    res.setHeader('Content-Length', Buffer.byteLength(document.content, 'utf8'));
+
+    // Send the document content
+    res.send(document.content);
+
+  } catch (error) {
+    console.error('Error downloading document:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+/**
+ * Get appropriate content type for download
+ */
+function getContentType(documentType: string): string {
+  switch (documentType) {
+    case 'pdf':
+      return 'application/pdf';
+    case 'markdown':
+      return 'text/markdown';
+    case 'code':
+      return 'text/plain';
+    case 'webpage':
+      return 'text/html';
+    case 'text':
+    default:
+      return 'text/plain';
+  }
+}
+
 export { upload };
