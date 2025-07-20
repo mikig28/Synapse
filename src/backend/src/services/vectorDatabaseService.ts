@@ -545,41 +545,80 @@ export class VectorDatabaseService {
     indexStatus: string;
   }> {
     try {
-      if (this.config.useProduction && this.pinecone) {
-        const stats = await this.pinecone.index(this.config.pineconeIndexName!).describeIndexStats();
-        return {
-          totalDocuments: stats.totalRecordCount || 0,
-          totalChunks: stats.totalRecordCount || 0,
-          databaseType: 'pinecone',
-          indexStatus: 'ready',
-        };
-      } else if (this.chroma) {
-        const collections = await this.chroma.listCollections();
-        const synapseCollection = collections.find((c: any) => c.name === 'synapse-documents');
-        
-        if (synapseCollection) {
-          const collection = await this.chroma.getCollection({
-            name: 'synapse-documents',
-            embeddingFunction: this.embeddingFunction!,
-          });
-          
-          const count = await collection.count();
-          
+      console.log('[VectorDB]: Getting stats...');
+      console.log('[VectorDB]: Config:', {
+        useProduction: this.config.useProduction,
+        hasPinecone: !!this.pinecone,
+        hasChroma: !!this.chroma,
+        embeddingFunction: !!this.embeddingFunction
+      });
+
+      if (this.config.useProduction && this.pinecone && this.config.pineconeIndexName) {
+        console.log('[VectorDB]: Fetching Pinecone stats...');
+        try {
+          const stats = await this.pinecone.index(this.config.pineconeIndexName).describeIndexStats();
+          console.log('[VectorDB]: Pinecone stats:', stats);
           return {
-            totalDocuments: count,
-            totalChunks: count,
-            databaseType: 'chroma',
+            totalDocuments: stats.totalRecordCount || 0,
+            totalChunks: stats.totalRecordCount || 0,
+            databaseType: 'pinecone',
             indexStatus: 'ready',
           };
+        } catch (pineconeError) {
+          console.error('[VectorDB]: Pinecone stats error:', pineconeError);
+          throw pineconeError;
         }
+      } else if (this.chroma && this.embeddingFunction) {
+        console.log('[VectorDB]: Fetching Chroma stats...');
+        try {
+          const collections = await this.chroma.listCollections();
+          console.log('[VectorDB]: Available collections:', collections);
+          
+          const synapseCollection = collections.find((c: any) => c.name === 'synapse-documents');
+          console.log('[VectorDB]: Synapse collection found:', !!synapseCollection);
+          
+          if (synapseCollection) {
+            const collection = await this.chroma.getCollection({
+              name: 'synapse-documents',
+              embeddingFunction: this.embeddingFunction,
+            });
+            
+            const count = await collection.count();
+            console.log('[VectorDB]: Collection count:', count);
+            
+            return {
+              totalDocuments: count,
+              totalChunks: count,
+              databaseType: 'chroma',
+              indexStatus: 'ready',
+            };
+          } else {
+            console.log('[VectorDB]: Synapse collection not found, returning empty stats');
+            return {
+              totalDocuments: 0,
+              totalChunks: 0,
+              databaseType: 'chroma',
+              indexStatus: 'no_collection',
+            };
+          }
+        } catch (chromaError) {
+          console.error('[VectorDB]: Chroma stats error:', chromaError);
+          return {
+            totalDocuments: 0,
+            totalChunks: 0,
+            databaseType: 'chroma',
+            indexStatus: 'connection_error',
+          };
+        }
+      } else {
+        console.log('[VectorDB]: No vector database configured or available');
+        return {
+          totalDocuments: 0,
+          totalChunks: 0,
+          databaseType: 'none',
+          indexStatus: 'not_configured',
+        };
       }
-      
-      return {
-        totalDocuments: 0,
-        totalChunks: 0,
-        databaseType: 'none',
-        indexStatus: 'not_initialized',
-      };
     } catch (error) {
       console.error('[VectorDB]: Error getting stats:', error);
       return {

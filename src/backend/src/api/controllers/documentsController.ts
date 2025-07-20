@@ -204,7 +204,7 @@ export const uploadDocument = async (req: AuthenticatedRequest, res: Response) =
         mimeType: file.mimetype,
         category: category || 'general',
         tags: tags ? tags.split(',').map((tag: string) => tag.trim()) : [],
-        processingStatus: 'completed',
+        processingStatus: 'pending',
       },
       multiModalContent: {
         text: '',
@@ -250,6 +250,35 @@ export const uploadDocument = async (req: AuthenticatedRequest, res: Response) =
     }
 
     console.log('[uploadDocument] Upload process completed successfully');
+
+    // Start background processing asynchronously (non-blocking)
+    setImmediate(async () => {
+      try {
+        console.log('[uploadDocument] Starting background processing for document:', savedDocument._id);
+        
+        // Update status to processing
+        await Document.findByIdAndUpdate(savedDocument._id, {
+          'metadata.processingStatus': 'processing'
+        });
+
+        // Process document in background with error handling
+        await processDocumentAsync(savedDocument, file.path, chunkingStrategy);
+        
+        console.log('[uploadDocument] Background processing completed for document:', savedDocument._id);
+      } catch (processError) {
+        console.error('[uploadDocument] Background processing failed for document:', savedDocument._id, processError);
+        
+        // Update document status to failed
+        try {
+          await Document.findByIdAndUpdate(savedDocument._id, {
+            'metadata.processingStatus': 'failed',
+            'metadata.processingErrors': [(processError as Error).message]
+          });
+        } catch (updateError) {
+          console.error('[uploadDocument] Failed to update document status after processing error:', updateError);
+        }
+      }
+    });
   } catch (error) {
     console.error('[uploadDocument] Error uploading document:', error);
     console.error('[uploadDocument] Error stack:', error instanceof Error ? error.stack : 'No stack trace');

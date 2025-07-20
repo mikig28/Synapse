@@ -911,6 +911,150 @@ const DocsPage: React.FC = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Document Viewer Dialog */}
+        <Dialog 
+          open={!!selectedDocument} 
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedDocument(null);
+            }
+          }}
+        >
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center space-x-2">
+                {selectedDocument && getDocumentIcon(selectedDocument.documentType)}
+                <span className="truncate">{selectedDocument?.title}</span>
+                <Badge className={getStatusColor(selectedDocument?.metadata.processingStatus || '')}>
+                  {selectedDocument?.metadata.processingStatus}
+                </Badge>
+              </DialogTitle>
+            </DialogHeader>
+            
+            {selectedDocument && (
+              <div className="flex-1 flex flex-col space-y-4 overflow-hidden">
+                {/* Document Metadata */}
+                <div className="flex flex-wrap gap-4 p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <Clock className="w-4 h-4 text-gray-500" />
+                    <span className="text-sm text-gray-600">
+                      Updated: {formatDate(selectedDocument.updatedAt)}
+                    </span>
+                  </div>
+                  
+                  {selectedDocument.metadata.fileSize && (
+                    <div className="flex items-center space-x-2">
+                      <FileIcon className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm text-gray-600">
+                        {formatFileSize(selectedDocument.metadata.fileSize)}
+                      </span>
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center space-x-2">
+                    <Tag className="w-4 h-4 text-gray-500" />
+                    <span className="text-sm text-gray-600">
+                      {selectedDocument.metadata.category}
+                    </span>
+                  </div>
+                  
+                  {selectedDocument.chunks && selectedDocument.chunks.length > 0 && (
+                    <div className="flex items-center space-x-2">
+                      <Network className="w-4 h-4 text-green-500" />
+                      <span className="text-sm text-gray-600">
+                        {selectedDocument.chunks.length} chunks
+                      </span>
+                    </div>
+                  )}
+                  
+                  {selectedDocument.graphNodes && selectedDocument.graphNodes.length > 0 && (
+                    <div className="flex items-center space-x-2">
+                      <Brain className="w-4 h-4 text-blue-500" />
+                      <span className="text-sm text-gray-600">
+                        {selectedDocument.graphNodes.length} entities
+                      </span>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Document Tags */}
+                {selectedDocument.metadata.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedDocument.metadata.tags.map((tag) => (
+                      <Badge key={tag} variant="secondary">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Document Content */}
+                <div className="flex-1 overflow-hidden">
+                  <ScrollArea className="h-full w-full">
+                    <div className="p-4 bg-white border rounded-lg">
+                      {selectedDocument.documentType === 'pdf' ? (
+                        <div className="text-center py-8">
+                          <FileText className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                          <h3 className="text-lg font-semibold mb-2">PDF Document</h3>
+                          <p className="text-muted-foreground mb-4">
+                            {selectedDocument.metadata.originalFilename}
+                          </p>
+                          <p className="text-sm text-gray-600 whitespace-pre-wrap">
+                            {selectedDocument.content}
+                          </p>
+                        </div>
+                      ) : selectedDocument.documentType === 'markdown' ? (
+                        <div className="prose max-w-none">
+                          <pre className="whitespace-pre-wrap font-mono text-sm">
+                            {selectedDocument.content}
+                          </pre>
+                        </div>
+                      ) : selectedDocument.documentType === 'code' ? (
+                        <div className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto">
+                          <pre className="text-sm">
+                            <code>{selectedDocument.content}</code>
+                          </pre>
+                        </div>
+                      ) : (
+                        <div className="prose max-w-none">
+                          <p className="text-sm whitespace-pre-wrap">
+                            {selectedDocument.content}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="flex items-center justify-between pt-4 border-t">
+                  <div className="flex items-center space-x-2">
+                    <Button variant="outline" size="sm">
+                      <Download className="w-4 h-4 mr-2" />
+                      Download
+                    </Button>
+                    <Button variant="outline" size="sm">
+                      <Share2 className="w-4 h-4 mr-2" />
+                      Share
+                    </Button>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Button variant="outline" size="sm">
+                      <Settings className="w-4 h-4 mr-2" />
+                      Edit
+                    </Button>
+                    <Button variant="destructive" size="sm">
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </PageTransition>
   );
