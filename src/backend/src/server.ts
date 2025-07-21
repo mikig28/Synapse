@@ -79,27 +79,7 @@ const io = new SocketIOServer(httpServer, {
   // Add connection timeout and ping settings for stability
   pingTimeout: 60000, // 60 seconds
   pingInterval: 25000, // 25 seconds
-  upgradeTimeout: 30000, // 30 seconds
-  allowRequest: (req, callback) => {
-    // Additional validation for Socket.IO connections
-    const origin = req.headers.origin;
-    console.log(`[Socket.IO] Connection request from origin: ${origin}`);
-    
-    const allowedOrigins = [
-      "https://synapse-frontend.onrender.com",
-      "http://localhost:5173",
-      "http://localhost:3000",
-      "http://localhost:5174"
-    ];
-    
-    if (!origin || allowedOrigins.includes(origin)) {
-      console.log(`[Socket.IO] ✅ Connection allowed from: ${origin || 'no origin'}`);
-      callback(null, true);
-    } else {
-      console.log(`[Socket.IO] ❌ Connection rejected from: ${origin}`);
-      callback('Origin not allowed', false);
-    }
-  }
+  upgradeTimeout: 30000 // 30 seconds
 });
 
 // Middleware - Enhanced CORS configuration with production fix

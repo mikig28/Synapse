@@ -638,7 +638,8 @@ async function processDocumentAsync(
       document.multiModalContent.text = content;
     }
 
-    // Generate chunks
+    // Generate chunks (basic processing first)
+    console.log('[DocumentProcessor]: Starting chunking process');
     const chunks = await chunkingService.chunkDocument(document.content, {
       strategy: chunkingStrategy as any,
       maxChunkSize: 1000,
@@ -647,40 +648,60 @@ async function processDocumentAsync(
       preserveStructure: true,
       documentType: document.documentType,
     });
-
-    // Generate embeddings for chunks
-    for (const chunk of chunks) {
-      chunk.embedding = await vectorDatabaseService.generateEmbedding(chunk.content);
-    }
+    console.log(`[DocumentProcessor]: Generated ${chunks.length} chunks`);
 
     document.chunks = chunks;
 
-    // Extract knowledge graph
-    const knowledgeGraph = await graphRAGService.extractKnowledgeGraph(
-      chunks,
-      (document._id as mongoose.Types.ObjectId).toString(),
-      document.title
-    );
-
-    document.graphNodes = graphRAGService.convertToGraphNodes(knowledgeGraph.entities);
-
-    // Generate document embeddings
-    document.embeddings.text = await vectorDatabaseService.generateEmbedding(document.content);
-    document.embeddings.semantic = await vectorDatabaseService.generateEmbedding(
-      `${document.title} ${document.content}`
-    );
-
-    // Store in vector database
-    await vectorDatabaseService.storeDocumentChunks(
-      document.userId.toString(),
-      (document._id as mongoose.Types.ObjectId).toString(),
-      chunks,
-      {
-        title: document.title,
-        documentType: document.documentType,
-        tags: document.metadata.tags,
+    // Try to generate embeddings (may fail if API keys missing)
+    try {
+      console.log('[DocumentProcessor]: Generating embeddings for chunks');
+      for (const chunk of chunks) {
+        chunk.embedding = await vectorDatabaseService.generateEmbedding(chunk.content);
       }
-    );
+      console.log('[DocumentProcessor]: Chunk embeddings generated successfully');
+
+      // Generate document embeddings
+      console.log('[DocumentProcessor]: Generating document embeddings');
+      document.embeddings.text = await vectorDatabaseService.generateEmbedding(document.content);
+      document.embeddings.semantic = await vectorDatabaseService.generateEmbedding(
+        `${document.title} ${document.content}`
+      );
+      console.log('[DocumentProcessor]: Document embeddings generated successfully');
+
+      // Store in vector database
+      console.log('[DocumentProcessor]: Storing in vector database');
+      await vectorDatabaseService.storeDocumentChunks(
+        document.userId.toString(),
+        (document._id as mongoose.Types.ObjectId).toString(),
+        chunks,
+        {
+          title: document.title,
+          documentType: document.documentType,
+          tags: document.metadata.tags,
+        }
+      );
+      console.log('[DocumentProcessor]: Vector database storage successful');
+    } catch (embeddingError) {
+      console.error('[DocumentProcessor]: Embedding/Vector processing failed:', embeddingError);
+      console.log('[DocumentProcessor]: Continuing without embeddings (check OpenAI API key)');
+      // Continue processing without embeddings - document will still be searchable by text
+    }
+
+    // Try knowledge graph extraction (may fail if API keys missing)
+    try {
+      console.log('[DocumentProcessor]: Extracting knowledge graph');
+      const knowledgeGraph = await graphRAGService.extractKnowledgeGraph(
+        chunks,
+        (document._id as mongoose.Types.ObjectId).toString(),
+        document.title
+      );
+      document.graphNodes = graphRAGService.convertToGraphNodes(knowledgeGraph.entities);
+      console.log(`[DocumentProcessor]: Knowledge graph extracted: ${document.graphNodes.length} entities`);
+    } catch (graphError) {
+      console.error('[DocumentProcessor]: Knowledge graph extraction failed:', graphError);
+      console.log('[DocumentProcessor]: Continuing without knowledge graph');
+      // Continue without knowledge graph
+    }
 
     // Update status
     document.metadata.processingStatus = 'completed';
