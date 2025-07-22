@@ -688,12 +688,28 @@ async function processDocumentAsync(
       }
       console.log(`[DocumentProcessor]: Successfully generated embeddings for ${embeddingCount}/${chunks.length} chunks`);
 
-      // Generate document embeddings
+      // Generate document embeddings using a smart strategy for large documents
       console.log('[DocumentProcessor]: Generating document embeddings');
-      document.embeddings.text = await vectorDatabaseService.generateEmbedding(document.content);
-      document.embeddings.semantic = await vectorDatabaseService.generateEmbedding(
-        `${document.title} ${document.content}`
-      );
+      
+      // For text embedding, use the title + first chunk content if document is very large
+      let textForEmbedding = document.content;
+      if (document.content.length > 30000) { // If document is very large
+        const firstChunks = chunks.slice(0, 3).map(chunk => chunk.content).join(' ');
+        textForEmbedding = `${document.title}\n\n${firstChunks}`;
+        console.log('[DocumentProcessor]: Using title + first chunks for text embedding due to large document size');
+      }
+      
+      document.embeddings.text = await vectorDatabaseService.generateEmbedding(textForEmbedding);
+      
+      // For semantic embedding, use title + summary if available, or title + first paragraph
+      let semanticText = `${document.title}`;
+      if (document.summary) {
+        semanticText += `\n\n${document.summary}`;
+      } else if (chunks.length > 0) {
+        semanticText += `\n\n${chunks[0].content}`;
+      }
+      
+      document.embeddings.semantic = await vectorDatabaseService.generateEmbedding(semanticText);
       console.log('[DocumentProcessor]: Document embeddings generated successfully');
 
       // Store in vector database

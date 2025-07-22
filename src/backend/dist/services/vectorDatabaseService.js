@@ -80,13 +80,35 @@ class VectorDatabaseService {
         }
     }
     /**
+     * Truncate text to fit within token limits
+     * Rough estimation: 1 token ≈ 4 characters for English text
+     */
+    truncateTextForEmbedding(text, maxTokens = 8000) {
+        const maxChars = maxTokens * 4; // Rough approximation
+        if (text.length <= maxChars) {
+            return text;
+        }
+        // Truncate and add ellipsis, but try to end at a word boundary
+        const truncated = text.substring(0, maxChars);
+        const lastSpaceIndex = truncated.lastIndexOf(' ');
+        if (lastSpaceIndex > maxChars * 0.8) { // If we can find a space in the last 20%
+            return truncated.substring(0, lastSpaceIndex) + '...';
+        }
+        return truncated + '...';
+    }
+    /**
      * Generate embeddings for text content
      */
     async generateEmbedding(text) {
         try {
+            // Truncate text if it's too long for the model
+            const truncatedText = this.truncateTextForEmbedding(text);
+            if (truncatedText.length < text.length) {
+                console.log(`[VectorDB]: Truncated text from ${text.length} to ${truncatedText.length} characters for embedding`);
+            }
             const response = await this.openai.embeddings.create({
                 model: 'text-embedding-3-small',
-                input: text,
+                input: truncatedText,
             });
             return response.data[0].embedding;
         }
