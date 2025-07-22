@@ -111,6 +111,7 @@ export interface IDocumentMetadata {
   processingStatus: 'pending' | 'processing' | 'completed' | 'failed';
   processingErrors?: string[];
   lastProcessedAt?: Date;
+  filePath?: string; // Path to the uploaded file for processing
 }
 
 // Version control for collaborative editing

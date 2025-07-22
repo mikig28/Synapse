@@ -191,6 +191,12 @@ export const uploadDocument = async (req: AuthenticatedRequest, res: Response) =
     const docType = getDocumentType(file.mimetype);
     console.log('[uploadDocument] Document type:', docType);
 
+    // Move file to permanent location first
+    const permanentPath = path.join(uploadsDir, `${uuidv4()}_${file.originalname}`);
+    console.log('[uploadDocument] Moving file from', file.path, 'to', permanentPath);
+    fs.renameSync(file.path, permanentPath);
+    console.log('[uploadDocument] File moved successfully to:', permanentPath);
+
     console.log('[uploadDocument] Creating document object');
     // Create document record with all required fields
     const document = new Document({
@@ -205,6 +211,7 @@ export const uploadDocument = async (req: AuthenticatedRequest, res: Response) =
         category: category || 'general',
         tags: tags ? tags.split(',').map((tag: string) => tag.trim()) : [],
         processingStatus: 'pending',
+        filePath: permanentPath, // Store the permanent file path
       },
       multiModalContent: {
         text: '',
@@ -239,18 +246,6 @@ export const uploadDocument = async (req: AuthenticatedRequest, res: Response) =
       message: 'Document uploaded successfully.',
     });
 
-    // Clean up the uploaded file
-    try {
-      if (fs.existsSync(file.path)) {
-        fs.unlinkSync(file.path);
-        console.log('[uploadDocument] Cleaned up temporary file:', file.path);
-      }
-    } catch (cleanupError) {
-      console.error('[uploadDocument] Failed to clean up file:', cleanupError);
-    }
-
-    console.log('[uploadDocument] Upload process completed successfully');
-
     // Start background processing asynchronously (non-blocking)
     setImmediate(async () => {
       try {
@@ -262,7 +257,8 @@ export const uploadDocument = async (req: AuthenticatedRequest, res: Response) =
         });
 
         // Process document in background with error handling
-        await processDocumentAsync(savedDocument, file.path, chunkingStrategy);
+        // Use the permanent path for processing
+        await processDocumentAsync(savedDocument, permanentPath, chunkingStrategy);
         
         console.log('[uploadDocument] Background processing completed for document:', savedDocument._id);
       } catch (processError) {
@@ -624,6 +620,8 @@ async function processDocumentAsync(
   filePath: string | null,
   chunkingStrategy: string
 ) {
+  let tempFilePath = filePath;
+
   try {
     console.log(`[DocumentProcessor]: Processing document ${document._id}`);
     
@@ -631,12 +629,28 @@ async function processDocumentAsync(
     document.metadata.processingStatus = 'processing';
     await document.save();
 
-    // Extract content if file upload
-    if (filePath) {
-      const content = await extractContentFromFile(filePath, document.documentType);
+    // If filePath is null, it means the document was created from text
+    // and the content is already in document.content
+    if (tempFilePath) {
+      // For file uploads, extract content from the file
+      const content = await extractContentFromFile(tempFilePath, document.documentType);
       document.content = content;
       document.multiModalContent.text = content;
+    } else if (document.sourceType === 'upload') {
+      // Check if we have a stored file path in metadata
+      const storedPath = document.metadata.filePath;
+      if (storedPath && fs.existsSync(storedPath)) {
+        console.log(`[DocumentProcessor]: Using stored file path: ${storedPath}`);
+        const content = await extractContentFromFile(storedPath, document.documentType);
+        document.content = content;
+        document.multiModalContent.text = content;
+        tempFilePath = storedPath; // Set tempFilePath to avoid cleanup of the permanent file
+      } else if (!document.content || document.content === 'File uploaded successfully. Content extraction pending.') {
+        console.error(`[DocumentProcessor]: File path is missing and no content available for uploaded document ${document._id}`);
+        throw new Error('File path is missing for an uploaded document and no content is available.');
+      }
     }
+
 
     // Generate chunks (basic processing first)
     console.log('[DocumentProcessor]: Starting chunking process');
@@ -654,11 +668,25 @@ async function processDocumentAsync(
 
     // Try to generate embeddings (may fail if API keys missing)
     try {
-      console.log('[DocumentProcessor]: Generating embeddings for chunks');
-      for (const chunk of chunks) {
-        chunk.embedding = await vectorDatabaseService.generateEmbedding(chunk.content);
+      console.log('[DocumentProcessor]: Checking if OpenAI API key is available');
+      if (!process.env.OPENAI_API_KEY) {
+        console.warn('[DocumentProcessor]: No OpenAI API key found, skipping embedding generation');
+        throw new Error('OpenAI API key not configured');
       }
-      console.log('[DocumentProcessor]: Chunk embeddings generated successfully');
+
+      console.log('[DocumentProcessor]: Generating embeddings for chunks');
+      let embeddingCount = 0;
+      for (const chunk of chunks) {
+        try {
+          chunk.embedding = await vectorDatabaseService.generateEmbedding(chunk.content);
+          embeddingCount++;
+          console.log(`[DocumentProcessor]: Generated embedding for chunk ${chunk.id} (${embeddingCount}/${chunks.length})`);
+        } catch (chunkEmbeddingError) {
+          console.error(`[DocumentProcessor]: Failed to generate embedding for chunk ${chunk.id}:`, chunkEmbeddingError);
+          throw chunkEmbeddingError; // Re-throw to handle in outer catch
+        }
+      }
+      console.log(`[DocumentProcessor]: Successfully generated embeddings for ${embeddingCount}/${chunks.length} chunks`);
 
       // Generate document embeddings
       console.log('[DocumentProcessor]: Generating document embeddings');
@@ -683,7 +711,13 @@ async function processDocumentAsync(
       console.log('[DocumentProcessor]: Vector database storage successful');
     } catch (embeddingError) {
       console.error('[DocumentProcessor]: Embedding/Vector processing failed:', embeddingError);
-      console.log('[DocumentProcessor]: Continuing without embeddings (check OpenAI API key)');
+      console.error('[DocumentProcessor]: Error details:', {
+        message: embeddingError instanceof Error ? embeddingError.message : String(embeddingError),
+        hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+        chunksCount: chunks.length,
+        documentContentLength: document.content.length
+      });
+      console.log('[DocumentProcessor]: Continuing without embeddings - document will still be searchable by text');
       // Continue processing without embeddings - document will still be searchable by text
     }
 
@@ -735,9 +769,12 @@ async function processDocumentAsync(
       });
     }
   } finally {
-    // Cleanup temporary file
-    if (filePath && fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    // Cleanup temporary file if it exists and it's not a permanent file
+    if (tempFilePath && fs.existsSync(tempFilePath) && !document.metadata.filePath) {
+      fs.unlinkSync(tempFilePath);
+      console.log(`[DocumentProcessor]: Cleaned up temporary file: ${tempFilePath}`);
+    } else if (tempFilePath && document.metadata.filePath) {
+      console.log(`[DocumentProcessor]: Keeping permanent file: ${tempFilePath}`);
     }
   }
 }
@@ -878,9 +915,9 @@ export const downloadDocument = async (req: AuthenticatedRequest, res: Response)
     const filename = document.metadata.originalFilename || `${document.title}.txt`;
     const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.\-_]/g, '_');
     
-    res.setHeader('Content-Disposition', `attachment; filename="${sanitizedFilename}"`);
-    res.setHeader('Content-Type', getContentType(document.documentType));
-    res.setHeader('Content-Length', Buffer.byteLength(document.content, 'utf8'));
+    res.header('Content-Disposition', `attachment; filename="${sanitizedFilename}"`);
+    res.header('Content-Type', getContentType(document.documentType));
+    res.header('Content-Length', Buffer.byteLength(document.content, 'utf8').toString());
 
     // Send the document content
     res.send(document.content);

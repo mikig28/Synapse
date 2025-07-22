@@ -4,7 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
-const authController_1 = require("../controllers/authController"); // Adjust path as necessary
+const authController_1 = require("../controllers/authController");
 const authMiddleware_1 = require("../middleware/authMiddleware");
 const router = express_1.default.Router();
 // @route   POST api/v1/auth/register
@@ -15,6 +15,10 @@ router.post('/register', authController_1.registerUser);
 // @desc    Authenticate user & get token
 // @access  Public
 router.post('/login', authController_1.loginUser);
+// @route   POST api/v1/auth/google-login
+// @desc    Authenticate user with Google & get token
+// @access  Public
+router.post('/google-login', authController_1.googleLogin);
 // @route   GET api/v1/auth/me
 // @desc    Get current user info (debug endpoint)
 // @access  Private

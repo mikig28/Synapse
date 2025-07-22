@@ -12,8 +12,19 @@ router.use(authMiddleware_1.protect);
 // Document CRUD operations
 router.get('/', documentsController_1.getDocuments);
 router.post('/', documentsController_1.createDocument);
+// Test endpoint for debugging
+router.post('/test-upload', (req, res) => {
+    console.log('[test-upload] Test endpoint hit');
+    console.log('[test-upload] User:', req.user);
+    console.log('[test-upload] Body:', req.body);
+    console.log('[test-upload] Headers:', req.headers);
+    res.json({ success: true, message: 'Test endpoint working', user: req.user });
+});
+// Simplified upload for debugging
+router.post('/upload-simple', documentsController_1.upload.single('file'), documentsController_1.uploadDocumentSimple);
 router.post('/upload', documentsController_1.upload.single('file'), documentsController_1.uploadDocument);
 router.get('/stats', documentsController_1.getDocumentStats);
+router.get('/:id/download', documentsController_1.downloadDocument);
 router.get('/:id', documentsController_1.getDocument);
 router.put('/:id', documentsController_1.updateDocument);
 router.delete('/:id', documentsController_1.deleteDocument);

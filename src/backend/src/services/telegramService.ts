@@ -21,6 +21,7 @@ import { vectorDatabaseService } from './vectorDatabaseService'; // <-- IMPORT V
 import { selfReflectiveRAGService } from './selfReflectiveRAGService'; // <-- IMPORT RAG Service
 import mongoose from 'mongoose';
 import { getBucket } from '../config/gridfs'; // <-- IMPORT GridFS bucket
+import PDFParser from 'pdf-parse'; // <-- IMPORT PDF Parser
 
 dotenv.config();
 
@@ -274,7 +275,20 @@ bot.on('message', async (msg: TelegramBot.Message) => {
         
       } catch (error) {
         console.error(`[TelegramBot]: Error processing document:`, error);
-        await bot.sendMessage(chatId, '❌ Sorry, I encountered an error processing your document. Please try again later.', { 
+        
+        // More specific error message based on the error type
+        let errorMessage = '❌ Sorry, I encountered an error processing your document. Please try again later.';
+        if (error instanceof Error) {
+          if (error.message.includes('pdf') || error.message.includes('PDF')) {
+            errorMessage = '❌ Error processing PDF file. Please ensure the PDF is not corrupted or password-protected.';
+          } else if (error.message.includes('ENOENT') || error.message.includes('file')) {
+            errorMessage = '❌ Error downloading the file. Please try uploading again.';
+          } else if (error.message.includes('timeout')) {
+            errorMessage = '❌ File processing timed out. Please try with a smaller file.';
+          }
+        }
+        
+        await bot.sendMessage(chatId, errorMessage, { 
           reply_to_message_id: telegramMessageId 
         });
       }
@@ -824,19 +838,37 @@ async function processDocumentFromTelegram(document: any, filePath: string) {
 // Helper function to extract content from file
 async function extractContentFromFile(filePath: string, documentType: string): Promise<string> {
   try {
-    const content = fs.readFileSync(filePath, 'utf8');
+    console.log(`[TelegramBot]: Extracting content from ${filePath}, type: ${documentType}`);
     
-    // Basic content extraction - in production, use specialized libraries
     switch (documentType) {
       case 'pdf':
-        // Use pdf-parse or similar
-        return content;
+        // Use pdf-parse for PDF files
+        const pdfBuffer = fs.readFileSync(filePath);
+        const pdfData = await PDFParser(pdfBuffer);
+        console.log(`[TelegramBot]: Extracted ${pdfData.text.length} characters from PDF`);
+        return pdfData.text;
+      
       case 'text':
       case 'markdown':
       case 'code':
-        return content;
+      case 'json':
+      case 'xml':
+      case 'html':
+        // Read as UTF-8 text for text-based files
+        const textContent = fs.readFileSync(filePath, 'utf8');
+        console.log(`[TelegramBot]: Extracted ${textContent.length} characters from text file`);
+        return textContent;
+      
       default:
-        return content;
+        // Try to read as text, fallback to empty string
+        try {
+          const defaultContent = fs.readFileSync(filePath, 'utf8');
+          console.log(`[TelegramBot]: Extracted ${defaultContent.length} characters from unknown file type`);
+          return defaultContent;
+        } catch {
+          console.warn(`[TelegramBot]: Could not read file as text, returning empty content`);
+          return '';
+        }
     }
   } catch (error) {
     console.error(`[TelegramBot]: Error extracting content from ${filePath}:`, error);
