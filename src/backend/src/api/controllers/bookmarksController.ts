@@ -197,14 +197,30 @@ export const getBookmarks = async (req: AuthenticatedRequest, res: Response) => 
 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
+    const search = (req.query.search as string) || '';
     const skip = (page - 1) * limit;
 
-    const bookmarks = await BookmarkItem.find({ userId: new Types.ObjectId(userId) })
+    const filter: any = { userId: new Types.ObjectId(userId) };
+    if (search) {
+      const regex = new RegExp(search, 'i');
+      filter.$or = [
+        { title: regex },
+        { summary: regex },
+        { originalUrl: regex },
+        { fetchedTitle: regex },
+        { fetchedDescription: regex },
+        { redditPostContent: regex },
+        { redditAuthor: regex },
+        { redditSubreddit: regex },
+      ];
+    }
+
+    const bookmarks = await BookmarkItem.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
-    const totalBookmarks = await BookmarkItem.countDocuments({ userId: new Types.ObjectId(userId) });
+    const totalBookmarks = await BookmarkItem.countDocuments(filter);
 
     res.status(200).json({
       data: bookmarks,

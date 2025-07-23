@@ -11,11 +11,15 @@ export interface PaginatedBookmarksResponse {
   totalBookmarks: number;
 }
 
-export const getBookmarks = async (page: number = 1, limit: number = 10): Promise<PaginatedBookmarksResponse> => {
+export const getBookmarks = async (
+  page: number = 1,
+  limit: number = 10,
+  search: string = ''
+): Promise<PaginatedBookmarksResponse> => {
   try {
     // Pass page and limit as query parameters
     const response = await axiosInstance.get<PaginatedBookmarksResponse>('/bookmarks', {
-      params: { page, limit }
+      params: { page, limit, search }
     });
     return response.data; // The entire paginated object is returned
   } catch (error) {
