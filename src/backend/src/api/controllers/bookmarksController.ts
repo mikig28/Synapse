@@ -198,13 +198,60 @@ export const getBookmarks = async (req: AuthenticatedRequest, res: Response) => 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
+    
+    // Extract search and filter parameters
+    const searchTerm = req.query.search as string || '';
+    const filter = req.query.filter as string || 'all';
+    const sortOrder = req.query.sortOrder as string || 'desc';
 
-    const bookmarks = await BookmarkItem.find({ userId: new Types.ObjectId(userId) })
-      .sort({ createdAt: -1 })
+    // Build base query
+    let query: any = { userId: new Types.ObjectId(userId) };
+
+    // Add search functionality
+    if (searchTerm && searchTerm.trim() !== '') {
+      const searchRegex = new RegExp(searchTerm.trim(), 'i'); // Case-insensitive search
+      query.$or = [
+        { title: searchRegex },
+        { fetchedTitle: searchRegex },
+        { summary: searchRegex },
+        { originalUrl: searchRegex },
+        { fetchedDescription: searchRegex },
+        // Reddit-specific search fields
+        { redditPostContent: searchRegex },
+        { redditAuthor: searchRegex },
+        { redditSubreddit: searchRegex }
+      ];
+    }
+
+    // Add date filter functionality
+    if (filter !== 'all') {
+      const now = new Date();
+      let startDate: Date;
+      
+      if (filter === 'week') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+      } else if (filter === 'month') {
+        startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      } else {
+        // If filter is a platform name, filter by sourcePlatform
+        query.sourcePlatform = filter;
+        startDate = new Date(0); // No date filtering
+      }
+      
+      if (filter === 'week' || filter === 'month') {
+        query.createdAt = { $gte: startDate };
+      }
+    }
+
+    // Determine sort order
+    const sortDirection = sortOrder === 'asc' ? 1 : -1;
+
+    const bookmarks = await BookmarkItem.find(query)
+      .sort({ createdAt: sortDirection })
       .skip(skip)
       .limit(limit);
 
-    const totalBookmarks = await BookmarkItem.countDocuments({ userId: new Types.ObjectId(userId) });
+    const totalBookmarks = await BookmarkItem.countDocuments(query);
 
     res.status(200).json({
       data: bookmarks,

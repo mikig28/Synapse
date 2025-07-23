@@ -65,6 +65,17 @@ const BookmarksPage: React.FC = () => {
     });
   }, [bookmarks, loading, error, token, headerInView, controlsInView, listInView]);
 
+  // Add debounced search functionality  
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500); // 500ms debounce
+    
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   // Add a ref to track the last page fetched
   const lastPageFetched = React.useRef<number | null>(null);
   
@@ -73,10 +84,10 @@ const BookmarksPage: React.FC = () => {
       console.log("[BookmarksPage] No token available, skipping API call");
       return;
     }
-    console.log(`[BookmarksPage] Fetching bookmarks for page: ${pageToFetch}...`);
+    console.log(`[BookmarksPage] Fetching bookmarks for page: ${pageToFetch}, search: "${debouncedSearchTerm}", filter: "${filter}", sort: "${sortOrder}"...`);
     setLoading(true);
     try {
-      const response = await getBookmarks(pageToFetch, PAGE_LIMIT);
+      const response = await getBookmarks(pageToFetch, PAGE_LIMIT, debouncedSearchTerm, filter, sortOrder);
       console.log("[BookmarksPage] Fetched data:", JSON.stringify(response.data, null, 2));
       console.log("[BookmarksPage] API response structure:", {
         currentPage: response.currentPage,
@@ -118,8 +129,15 @@ const BookmarksPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [token, toast]);
-  
+  }, [token, toast, debouncedSearchTerm, filter, sortOrder]);
+
+  // Reset to page 1 when search/filter parameters change
+  useEffect(() => {
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    }
+  }, [debouncedSearchTerm, filter, sortOrder]);
+
   // Modify the fetchBookmarks useEffect
   useEffect(() => {
     console.log("[BookmarksPage] useEffect for fetchBookmarks triggered");
@@ -133,27 +151,15 @@ const BookmarksPage: React.FC = () => {
       return;
     }
     
-    // Fetch bookmarks if the page changed, or if bookmarks are not yet loaded for the current view.
-    // The `fetchBookmarksCallback` will handle the actual API call and state updates.
-    // `lastPageFetched.current` helps prevent re-fetching the same page if the effect runs
-    // due to other dependency changes (though `fetchBookmarksCallback` is stable).
-    if (currentPage !== lastPageFetched.current || !bookmarks) {
-      console.log(`[BookmarksPage] Conditions met to fetch. Current page: ${currentPage}, Last fetched: ${lastPageFetched.current}, Bookmarks exist: ${!!bookmarks}`);
-      lastPageFetched.current = currentPage; // Update last fetched page before calling fetch
-      fetchBookmarksCallback(currentPage).catch(err => {
-        console.error("[BookmarksPage] Unhandled error in fetchBookmarks effect:", err);
-        setError(`Failed to load bookmarks: ${err.message || "Unknown error"}`);
-        setLoading(false); // Ensure loading is set to false on error
-      });
-    } else {
-      console.log(`[BookmarksPage] Skipping fetch for page ${currentPage}. lastPageFetched: ${lastPageFetched.current}, Bookmarks loaded: ${!!bookmarks}`);
-      // If we skipped fetch because data is already there, ensure loading is false.
-      // This can happen if token changes but page and data are current.
-      if (loading) {
-        setLoading(false);
-      }
-    }
-  }, [fetchBookmarksCallback, currentPage, token]); // MODIFIED dependencies
+    // Always fetch when search/filter parameters change or when page changes
+    console.log(`[BookmarksPage] Fetching bookmarks for page: ${currentPage}, search: "${debouncedSearchTerm}", filter: "${filter}", sort: "${sortOrder}"`);
+    lastPageFetched.current = currentPage; // Update last fetched page before calling fetch
+    fetchBookmarksCallback(currentPage).catch(err => {
+      console.error("[BookmarksPage] Unhandled error in fetchBookmarks effect:", err);
+      setError(`Failed to load bookmarks: ${err.message || "Unknown error"}`);
+      setLoading(false); // Ensure loading is set to false on error
+    });
+  }, [fetchBookmarksCallback, currentPage, debouncedSearchTerm, filter, sortOrder, token]); // Updated dependencies
 
   // Add a new useEffect specifically for authentication status changes
   useEffect(() => {
@@ -164,58 +170,18 @@ const BookmarksPage: React.FC = () => {
     }
   }, [token]);
 
-  // Remove the useMemo and calculate the filtered/sorted array directly in the render logic
-  // This makes the data flow more predictable and avoids potential stale memoized values.
-
-  const getFilteredAndSortedBookmarks = () => {
+  // Since we're now doing server-side filtering and sorting, we just need to validate the bookmarks
+  const getValidatedBookmarks = () => {
     if (loading || !Array.isArray(bookmarks)) {
       return [];
     }
 
-    const now = new Date();
-    const processedBookmarks = bookmarks.filter(bookmark => {
+    return bookmarks.filter(bookmark => {
       if (!bookmark || typeof bookmark !== 'object' || !bookmark._id) {
         console.warn("[BookmarksPage] Found invalid bookmark in bookmarks array:", bookmark);
         return false;
       }
-      
-      try {
-        const bookmarkDate = new Date(bookmark.createdAt);
-        const matchesFilter = 
-          filter === 'all' ? true :
-          filter === 'week' ? bookmarkDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7) :
-          filter === 'month' ? bookmarkDate >= new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()) :
-          filter === bookmark.sourcePlatform ? true :
-          true;
-
-        const matchesSearch = 
-          searchTerm === '' ? true :
-          bookmark.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          bookmark.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          bookmark.originalUrl?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          bookmark.fetchedTitle?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (bookmark.sourcePlatform === 'Reddit' && (
-            bookmark.redditPostContent?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            bookmark.redditAuthor?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            bookmark.redditSubreddit?.toLowerCase().includes(searchTerm.toLowerCase())
-          ));
-
-        return matchesFilter && matchesSearch;
-      } catch (err) {
-        console.error("[BookmarksPage] Error filtering bookmark:", err, "Bookmark:", bookmark);
-        return false;
-      }
-    });
-
-    return processedBookmarks.sort((a, b) => {
-      try {
-        const dateA = new Date(a.createdAt).getTime();
-        const dateB = new Date(b.createdAt).getTime();
-        return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
-      } catch (err) {
-        console.error("[BookmarksPage] Error sorting bookmarks:", err);
-        return 0;
-      }
+      return true;
     });
   };
 
@@ -535,12 +501,12 @@ const BookmarksPage: React.FC = () => {
   }
 
   // If we reach here, loading is false, error is null, and bookmarks is an array.
-  // The rest of the component rendering logic (calculating filteredAndSortedBookmarks, returning main layout) follows.
-  // Calculate the bookmarks to display on every render for maximum safety
-  const filteredAndSortedBookmarks = getFilteredAndSortedBookmarks();
+  // The rest of the component rendering logic follows.
+  // Get validated bookmarks (server-side filtering/sorting already applied)
+  const validatedBookmarks = getValidatedBookmarks();
 
   console.log("[BookmarksPage] Rendering main content", {
-    filteredBookmarksCount: filteredAndSortedBookmarks.length,
+    validatedBookmarksCount: validatedBookmarks.length,
     loading,
     error: error ? "Error present" : "No error"
   });
@@ -605,17 +571,34 @@ const BookmarksPage: React.FC = () => {
           <Card className="p-3 sm:p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50 mobile-card">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 items-end">
               <div className="lg:col-span-1">
-                <Label htmlFor="bookmarks-search" className="text-sm font-medium text-muted-foreground mb-2 block">Search</Label>
+                <Label htmlFor="bookmarks-search" className="text-sm font-medium text-muted-foreground mb-2 block">
+                  Search Across All Bookmarks
+                  {searchTerm && (
+                    <span className="ml-2 text-xs text-primary bg-primary/10 px-2 py-1 rounded-full">
+                      Active
+                    </span>
+                  )}
+                </Label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
                   <Input
                     id="bookmarks-search"
                     type="text"
-                    placeholder="Search title, URL, summary..."
+                    placeholder="Search title, URL, summary, content..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 text-sm bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200 min-h-[48px] touch-manipulation"
+                    className={`w-full pl-10 pr-4 py-3 text-sm bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200 min-h-[48px] touch-manipulation ${
+                      searchTerm ? 'ring-1 ring-primary/30 border-primary/30' : ''
+                    }`}
                   />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -660,21 +643,33 @@ const BookmarksPage: React.FC = () => {
             </Alert>
           )}
           
-          {!loading && !error && filteredAndSortedBookmarks.length === 0 && (
+          {!loading && !error && validatedBookmarks.length === 0 && (
             <Card className="p-8 my-6 text-center bg-background/80 backdrop-blur-sm border-border/50 mobile-card">
               <BookmarkPlus className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
               <h3 className="text-xl font-semibold text-foreground mb-2">
                 {searchTerm || filter !== 'all' ? 'No Bookmarks Match Your Criteria' : 'No Bookmarks Yet'}
               </h3>
               <p className="text-muted-foreground mb-6">
-                {searchTerm || filter !== 'all' ? 'Try adjusting your search or filters.' : 'Start adding bookmarks to see them here.'}
+                {searchTerm || filter !== 'all' ? 
+                  `Your search "${searchTerm}" didn't match any bookmarks across your entire collection. Try different keywords or adjust your filters.` : 
+                  'Start adding bookmarks to see them here.'
+                }
               </p>
+              {searchTerm && (
+                <Button 
+                  onClick={() => setSearchTerm('')}
+                  variant="outline"
+                  className="hover:scale-105 transition-transform"
+                >
+                  Clear Search
+                </Button>
+              )}
             </Card>
           )}
 
-          {!loading && !error && Array.isArray(filteredAndSortedBookmarks) && filteredAndSortedBookmarks.length > 0 && (
+          {!loading && !error && Array.isArray(validatedBookmarks) && validatedBookmarks.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
-              {filteredAndSortedBookmarks.map((bookmark, index) => {
+              {validatedBookmarks.map((bookmark, index) => {
                 if (!bookmark) {
                   console.warn(`[BookmarksPage] Rendering null bookmark at index ${index}`);
                   return null;
@@ -782,30 +777,53 @@ const BookmarksPage: React.FC = () => {
           )}
         </div>
 
-        {/* Pagination Controls */}
-        {!loading && !error && totalPages > 1 && (
-          <div className="flex flex-col sm:flex-row justify-center items-center space-y-3 sm:space-y-0 sm:space-x-4 mt-6 sm:mt-8">
-            <Button
-              onClick={() => setCurrentPage(currentPage - 1)}
-              disabled={currentPage <= 1}
-              variant="outline"
-              size="sm"
-              className="w-full sm:w-auto min-h-[44px] touch-manipulation mobile-button"
-            >
-              Previous
-            </Button>
-            <span className="text-sm text-muted-foreground px-3 py-2 bg-muted/20 rounded-md">
-              Page {currentPage} of {totalPages}
-            </span>
-            <Button
-              onClick={() => setCurrentPage(currentPage + 1)}
-              disabled={currentPage >= totalPages}
-              variant="outline"
-              size="sm"
-              className="w-full sm:w-auto min-h-[44px] touch-manipulation mobile-button"
-            >
-              Next
-            </Button>
+        {/* Search Results Info and Pagination Controls */}
+        {!loading && !error && (
+          <div className="mt-6 sm:mt-8 space-y-4">
+            {/* Results Summary */}
+            {(searchTerm || filter !== 'all') && totalBookmarks > 0 && (
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground bg-muted/20 rounded-md px-4 py-2 inline-block">
+                  {searchTerm ? (
+                    <>Found <span className="font-semibold text-primary">{totalBookmarks}</span> bookmark{totalBookmarks !== 1 ? 's' : ''} matching "<span className="font-medium">{searchTerm}</span>"{filter !== 'all' ? ` with ${filter} filter` : ''}</>
+                  ) : (
+                    <>Showing <span className="font-semibold text-primary">{totalBookmarks}</span> bookmark{totalBookmarks !== 1 ? 's' : ''} for {filter}</>
+                  )}
+                </p>
+              </div>
+            )}
+            
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row justify-center items-center space-y-3 sm:space-y-0 sm:space-x-4">
+                <Button
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage <= 1}
+                  variant="outline"
+                  size="sm"
+                  className="w-full sm:w-auto min-h-[44px] touch-manipulation mobile-button"
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground px-3 py-2 bg-muted/20 rounded-md">
+                  Page {currentPage} of {totalPages}
+                  {totalBookmarks > 0 && (
+                    <span className="ml-2 text-xs">
+                      ({totalBookmarks} total)
+                    </span>
+                  )}
+                </span>
+                <Button
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage >= totalPages}
+                  variant="outline"
+                  size="sm"
+                  className="w-full sm:w-auto min-h-[44px] touch-manipulation mobile-button"
+                >
+                  Next
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
