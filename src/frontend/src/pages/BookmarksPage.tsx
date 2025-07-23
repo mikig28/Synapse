@@ -76,7 +76,7 @@ const BookmarksPage: React.FC = () => {
     console.log(`[BookmarksPage] Fetching bookmarks for page: ${pageToFetch}...`);
     setLoading(true);
     try {
-      const response = await getBookmarks(pageToFetch, PAGE_LIMIT);
+      const response = await getBookmarks(pageToFetch, PAGE_LIMIT, searchTerm);
       console.log("[BookmarksPage] Fetched data:", JSON.stringify(response.data, null, 2));
       console.log("[BookmarksPage] API response structure:", {
         currentPage: response.currentPage,
@@ -118,7 +118,7 @@ const BookmarksPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [token, toast]);
+  }, [token, toast, searchTerm]);
   
   // Modify the fetchBookmarks useEffect
   useEffect(() => {
@@ -154,6 +154,13 @@ const BookmarksPage: React.FC = () => {
       }
     }
   }, [fetchBookmarksCallback, currentPage, token]); // MODIFIED dependencies
+
+  // Refetch when the search term changes
+  useEffect(() => {
+    if (!token) return;
+    setCurrentPage(1);
+    fetchBookmarksCallback(1);
+  }, [searchTerm, token, fetchBookmarksCallback]);
 
   // Add a new useEffect specifically for authentication status changes
   useEffect(() => {
