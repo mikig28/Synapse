@@ -721,31 +721,52 @@ const PlacesPage: React.FC = () => {
                           <motion.div
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            className="p-4 max-w-xs"
+                            className="p-4 max-w-xs bg-white dark:bg-gray-800 rounded-lg shadow-xl"
+                            style={{ 
+                              minWidth: '280px',
+                              backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                              color: '#1f2937'
+                            }}
                           >
                             <div className="flex items-center gap-2 mb-3">
                               {getItemTypeIcon(selectedItem.itemType)}
-                              <Badge variant="outline" className="text-xs">
+                              <Badge 
+                                variant="outline" 
+                                className="text-xs border-gray-300 text-gray-700"
+                              >
                                 {selectedItem.itemType}
                               </Badge>
                               {selectedItem.itemType === 'task' && selectedItem.status && (
                                 <Badge
-                                  className={`text-xs ${getStatusColor(selectedItem.status)}`}
+                                  className={`text-xs ${
+                                    selectedItem.status === 'completed' 
+                                      ? 'bg-green-100 text-green-800 border-green-200' 
+                                      : selectedItem.status === 'in-progress'
+                                      ? 'bg-blue-100 text-blue-800 border-blue-200'
+                                      : 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                                  }`}
                                 >
                                   {selectedItem.status}
                                 </Badge>
                               )}
                             </div>
                             
-                            <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
+                            <h3 className="font-semibold mb-2 text-gray-900 text-lg">
                               {selectedItem.title || 'Untitled'}
                             </h3>
                             
-                            <p className="text-sm text-gray-600 dark:text-gray-300 mb-3 line-clamp-3">
+                            <p className="text-sm text-gray-600 mb-3 line-clamp-3">
                               {selectedItem.content || selectedItem.description || 'No description'}
                             </p>
+
+                            {selectedItem.location.address && (
+                              <div className="flex items-center gap-1 text-xs text-gray-500 mb-3">
+                                <MapPin className="h-3 w-3" />
+                                <span>{selectedItem.location.address}</span>
+                              </div>
+                            )}
                             
-                            <div className="flex items-center justify-between pt-3 border-t">
+                            <div className="flex items-center justify-between pt-3 border-t border-gray-200">
                               <div className="flex items-center gap-1 text-xs text-gray-500">
                                 <Calendar className="h-3 w-3" />
                                 <span>{formatDistanceToNow(new Date(selectedItem.createdAt), { addSuffix: true })}</span>
@@ -754,6 +775,7 @@ const PlacesPage: React.FC = () => {
                                 variant="primary"
                                 size="sm"
                                 onClick={() => handleEditItem(selectedItem)}
+                                className="bg-blue-500 hover:bg-blue-600 text-white"
                               >
                                 <Edit className="h-3 w-3 mr-1" />
                                 Edit
@@ -769,20 +791,24 @@ const PlacesPage: React.FC = () => {
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.5 }}
-                      className="absolute bottom-4 left-4 p-3 rounded-lg backdrop-blur-md bg-white/10 dark:bg-black/20 border border-white/20"
+                      className="absolute bottom-4 left-4 p-3 rounded-lg backdrop-blur-sm shadow-lg"
+                      style={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        border: '1px solid rgba(0, 0, 0, 0.1)'
+                      }}
                     >
                       <div className="space-y-2 text-sm">
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-primary" />
-                          <span className="text-white">Your Location</span>
+                          <span className="text-gray-800 font-medium">Your Location</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <StickyNote className="h-3 w-3 text-blue-500" />
-                          <span className="text-white">Notes</span>
+                          <span className="text-gray-800 font-medium">Notes</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <CheckSquare className="h-3 w-3 text-orange-500" />
-                          <span className="text-white">Tasks</span>
+                          <span className="text-gray-800 font-medium">Tasks</span>
                         </div>
                       </div>
                     </motion.div>

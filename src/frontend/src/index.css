@@ -858,3 +858,26 @@ code {
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
 }
+
+/* Google Maps InfoWindow Custom Styles */
+.gm-style-iw {
+  border-radius: 12px !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+
+.gm-style-iw-c {
+  padding: 0 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15) !important;
+}
+
+.gm-style-iw-d {
+  overflow: auto !important;
+  max-height: none !important;
+}
+
+.gm-style-iw-t::after {
+  background: linear-gradient(45deg, white 50%, transparent 50%) !important;
+  box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.1) !important;
+}
