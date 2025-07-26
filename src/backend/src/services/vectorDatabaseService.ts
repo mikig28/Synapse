@@ -25,6 +25,24 @@ import axios from 'axios';
 // Embedding provider types
 type EmbeddingProvider = 'voyage' | 'gemini' | 'openai';
 
+// API Response types
+interface VoyageEmbeddingResponse {
+  data: Array<{
+    embedding: number[];
+    index: number;
+  }>;
+  model: string;
+  usage: {
+    total_tokens: number;
+  };
+}
+
+interface GeminiEmbeddingResponse {
+  embedding: {
+    values: number[];
+  };
+}
+
 // Vector database configuration
 interface VectorConfig {
   useProduction: boolean;
@@ -263,7 +281,7 @@ export class VectorDatabaseService {
       throw new Error('Voyage AI API key not configured');
     }
 
-    const response = await axios.post(
+    const response = await axios.post<VoyageEmbeddingResponse>(
       'https://api.voyageai.com/v1/embeddings',
       {
         input: [text],
@@ -293,7 +311,7 @@ export class VectorDatabaseService {
       throw new Error('Gemini API key not configured');
     }
 
-    const response = await axios.post(
+    const response = await axios.post<GeminiEmbeddingResponse>(
       `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${this.config.geminiApiKey}`,
       {
         content: {
