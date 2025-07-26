@@ -1,9 +1,29 @@
+/**
+ * Cost-Efficient Vector Database Service with Multi-Provider Embedding Support
+ * 
+ * Supports the following embedding providers (in order of cost-effectiveness):
+ * 1. Voyage AI - $0.02/1M tokens (voyage-3-lite) - Best cost/performance ratio
+ * 2. Gemini - $0.15/1M tokens (text-embedding-004) - Good performance
+ * 3. OpenAI - $0.02/1M tokens (text-embedding-3-small) - Fallback option
+ * 
+ * Required Environment Variables:
+ * - EMBEDDING_PROVIDER: Primary provider ('voyage' | 'gemini' | 'openai')
+ * - EMBEDDING_FALLBACK_PROVIDERS: Comma-separated fallback providers
+ * - VOYAGE_API_KEY: Voyage AI API key (get from https://www.voyageai.com/)
+ * - GEMINI_API_KEY: Google Gemini API key (get from Google AI Studio)
+ * - OPENAI_API_KEY: OpenAI API key (get from https://platform.openai.com/)
+ */
+
 import { Pinecone } from '@pinecone-database/pinecone';
 import { ChromaClient, OpenAIEmbeddingFunction } from 'chromadb';
 import { OpenAI } from 'openai';
 import { v4 as uuidv4 } from 'uuid';
 import { ISmartChunk } from '../models/Document';
 import mongoose from 'mongoose';
+import axios from 'axios';
+
+// Embedding provider types
+type EmbeddingProvider = 'voyage' | 'gemini' | 'openai';
 
 // Vector database configuration
 interface VectorConfig {
@@ -11,8 +31,13 @@ interface VectorConfig {
   pineconeApiKey?: string;
   pineconeIndexName?: string;
   chromaUrl?: string;
-  embeddingModel: 'openai' | 'cohere' | 'huggingface';
+  embeddingProvider: EmbeddingProvider;
+  fallbackProviders: EmbeddingProvider[];
   dimensionality: number;
+  // Provider-specific configurations
+  voyageApiKey?: string;
+  geminiApiKey?: string;
+  openaiApiKey?: string;
 }
 
 interface VectorDocument {
@@ -57,20 +82,41 @@ export class VectorDatabaseService {
   private embeddingFunction: OpenAIEmbeddingFunction | null = null;
   
   constructor() {
+    const primaryProvider = (process.env.EMBEDDING_PROVIDER as EmbeddingProvider) || 'voyage';
+    const fallbackProviders = (process.env.EMBEDDING_FALLBACK_PROVIDERS || 'gemini,openai').split(',') as EmbeddingProvider[];
+    
     this.config = {
       useProduction: process.env.NODE_ENV === 'production',
       pineconeApiKey: process.env.PINECONE_API_KEY,
       pineconeIndexName: process.env.PINECONE_INDEX_NAME || 'synapse-docs',
       chromaUrl: process.env.CHROMA_URL || 'http://localhost:8000',
-      embeddingModel: (process.env.EMBEDDING_MODEL as any) || 'openai',
-      dimensionality: parseInt(process.env.EMBEDDING_DIMENSION || '1536'),
+      embeddingProvider: primaryProvider,
+      fallbackProviders: fallbackProviders,
+      dimensionality: this.getDimensionalityForProvider(primaryProvider),
+      voyageApiKey: process.env.VOYAGE_API_KEY,
+      geminiApiKey: process.env.GEMINI_API_KEY,
+      openaiApiKey: process.env.OPENAI_API_KEY,
     };
     
+    // Initialize OpenAI (still needed for fallback and some operations)
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
     
+    console.log(`[VectorDB]: Initialized with primary provider: ${primaryProvider}, fallbacks: ${fallbackProviders.join(', ')}`);
     this.initializeVectorDatabases();
+  }
+  
+  private getDimensionalityForProvider(provider: EmbeddingProvider): number {
+    switch (provider) {
+      case 'voyage':
+        return 1024; // voyage-3-lite: 1024 dimensions
+      case 'gemini':
+        return 768; // Using recommended truncated dimension for optimal quality
+      case 'openai':
+      default:
+        return 1536; // OpenAI text-embedding-3-small: 1536 dimensions
+    }
   }
   
   private async initializeVectorDatabases(): Promise<void> {
@@ -162,27 +208,151 @@ export class VectorDatabaseService {
   }
 
   /**
-   * Generate embeddings for text content
+   * Generate embeddings for text content using the configured provider with fallback
    */
   async generateEmbedding(text: string): Promise<number[]> {
-    try {
-      // Truncate text if it's too long for the model
-      const truncatedText = this.truncateTextForEmbedding(text);
-      
-      if (truncatedText.length < text.length) {
-        console.log(`[VectorDB]: Truncated text from ${text.length} to ${truncatedText.length} characters for embedding`);
+    const providers = [this.config.embeddingProvider, ...this.config.fallbackProviders];
+    
+    for (const provider of providers) {
+      try {
+        console.log(`[VectorDB]: Attempting embedding with provider: ${provider}`);
+        const embedding = await this.generateEmbeddingWithProvider(text, provider);
+        console.log(`[VectorDB]: Successfully generated embedding with ${provider} (${embedding.length} dimensions)`);
+        return embedding;
+      } catch (error) {
+        console.error(`[VectorDB]: ${provider} embedding failed:`, error instanceof Error ? error.message : String(error));
+        if (provider === providers[providers.length - 1]) {
+          // Last provider failed, re-throw the error
+          throw error;
+        }
+        console.log(`[VectorDB]: Falling back to next provider...`);
       }
-      
-      const response = await this.openai.embeddings.create({
-        model: 'text-embedding-3-small',
-        input: truncatedText,
-      });
-      
-      return response.data[0].embedding;
-    } catch (error) {
-      console.error('[VectorDB]: Error generating embedding:', error);
-      throw error;
     }
+    
+    throw new Error('All embedding providers failed');
+  }
+
+  /**
+   * Generate embeddings using a specific provider
+   */
+  private async generateEmbeddingWithProvider(text: string, provider: EmbeddingProvider): Promise<number[]> {
+    // Truncate text based on provider limits
+    const truncatedText = this.truncateTextForProvider(text, provider);
+    
+    if (truncatedText.length < text.length) {
+      console.log(`[VectorDB]: Truncated text from ${text.length} to ${truncatedText.length} characters for ${provider}`);
+    }
+
+    switch (provider) {
+      case 'voyage':
+        return await this.generateVoyageEmbedding(truncatedText);
+      case 'gemini':
+        return await this.generateGeminiEmbedding(truncatedText);
+      case 'openai':
+        return await this.generateOpenAIEmbedding(truncatedText);
+      default:
+        throw new Error(`Unsupported embedding provider: ${provider}`);
+    }
+  }
+
+  /**
+   * Voyage AI embedding generation
+   */
+  private async generateVoyageEmbedding(text: string): Promise<number[]> {
+    if (!this.config.voyageApiKey) {
+      throw new Error('Voyage AI API key not configured');
+    }
+
+    const response = await axios.post(
+      'https://api.voyageai.com/v1/embeddings',
+      {
+        input: [text],
+        model: 'voyage-3-lite', // Most cost-effective model
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${this.config.voyageApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 30000,
+      }
+    );
+
+    if (!response.data?.data?.[0]?.embedding) {
+      throw new Error('Invalid response from Voyage AI API');
+    }
+
+    return response.data.data[0].embedding;
+  }
+
+  /**
+   * Google Gemini embedding generation
+   */
+  private async generateGeminiEmbedding(text: string): Promise<number[]> {
+    if (!this.config.geminiApiKey) {
+      throw new Error('Gemini API key not configured');
+    }
+
+    const response = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${this.config.geminiApiKey}`,
+      {
+        content: {
+          parts: [{ text: text }]
+        },
+        taskType: 'RETRIEVAL_DOCUMENT',
+        outputDimensionality: 768, // Use recommended truncated dimension
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        timeout: 30000,
+      }
+    );
+
+    if (!response.data?.embedding?.values) {
+      throw new Error('Invalid response from Gemini API');
+    }
+
+    return response.data.embedding.values;
+  }
+
+  /**
+   * OpenAI embedding generation
+   */
+  private async generateOpenAIEmbedding(text: string): Promise<number[]> {
+    if (!this.config.openaiApiKey) {
+      throw new Error('OpenAI API key not configured');
+    }
+
+    const response = await this.openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: text,
+    });
+
+    return response.data[0].embedding;
+  }
+
+  /**
+   * Truncate text based on provider-specific limits
+   */
+  private truncateTextForProvider(text: string, provider: EmbeddingProvider): string {
+    let maxTokens: number;
+    
+    switch (provider) {
+      case 'voyage':
+        maxTokens = 16000; // Voyage supports up to 16K tokens
+        break;
+      case 'gemini':
+        maxTokens = 2000; // Gemini supports up to 2K tokens
+        break;
+      case 'openai':
+      default:
+        maxTokens = 8000; // OpenAI supports up to 8K tokens
+        break;
+    }
+    
+    return this.truncateTextForEmbedding(text, maxTokens);
   }
   
   /**
@@ -572,6 +742,8 @@ export class VectorDatabaseService {
     totalChunks: number;
     databaseType: string;
     indexStatus: string;
+    embeddingProvider: EmbeddingProvider;
+    embeddingDimensions: number;
   }> {
     try {
       console.log('[VectorDB]: Getting stats...');
@@ -592,6 +764,8 @@ export class VectorDatabaseService {
             totalChunks: stats.totalRecordCount || 0,
             databaseType: 'pinecone',
             indexStatus: 'ready',
+            embeddingProvider: this.config.embeddingProvider,
+            embeddingDimensions: this.config.dimensionality,
           };
         } catch (pineconeError) {
           console.error('[VectorDB]: Pinecone stats error:', pineconeError);
@@ -620,6 +794,8 @@ export class VectorDatabaseService {
               totalChunks: count,
               databaseType: 'chroma',
               indexStatus: 'ready',
+              embeddingProvider: this.config.embeddingProvider,
+              embeddingDimensions: this.config.dimensionality,
             };
           } else {
             console.log('[VectorDB]: Synapse collection not found, returning empty stats');
@@ -628,6 +804,8 @@ export class VectorDatabaseService {
               totalChunks: 0,
               databaseType: 'chroma',
               indexStatus: 'no_collection',
+              embeddingProvider: this.config.embeddingProvider,
+              embeddingDimensions: this.config.dimensionality,
             };
           }
         } catch (chromaError) {
@@ -637,6 +815,8 @@ export class VectorDatabaseService {
             totalChunks: 0,
             databaseType: 'chroma',
             indexStatus: 'connection_error',
+            embeddingProvider: this.config.embeddingProvider,
+            embeddingDimensions: this.config.dimensionality,
           };
         }
       } else {
@@ -646,6 +826,8 @@ export class VectorDatabaseService {
           totalChunks: 0,
           databaseType: 'none',
           indexStatus: 'not_configured',
+          embeddingProvider: this.config.embeddingProvider,
+          embeddingDimensions: this.config.dimensionality,
         };
       }
     } catch (error) {
@@ -655,26 +837,52 @@ export class VectorDatabaseService {
         totalChunks: 0,
         databaseType: 'error',
         indexStatus: 'error',
+        embeddingProvider: this.config.embeddingProvider,
+        embeddingDimensions: this.config.dimensionality,
       };
     }
   }
   
   /**
-   * Health check for vector databases
+   * Health check for vector databases and embedding providers
    */
   async healthCheck(): Promise<{
     pinecone: boolean;
     chroma: boolean;
     embeddings: boolean;
+    embeddingProviders: Record<EmbeddingProvider, { available: boolean; tested: boolean; error?: string }>;
+    primaryProvider: EmbeddingProvider;
+    fallbackProviders: EmbeddingProvider[];
   }> {
     const health = {
       pinecone: false,
       chroma: false,
       embeddings: false,
+      embeddingProviders: {} as Record<EmbeddingProvider, { available: boolean; tested: boolean; error?: string }>,
+      primaryProvider: this.config.embeddingProvider,
+      fallbackProviders: this.config.fallbackProviders,
     };
     
+    // Test each embedding provider
+    const providers: EmbeddingProvider[] = ['voyage', 'gemini', 'openai'];
+    for (const provider of providers) {
+      health.embeddingProviders[provider] = {
+        available: this.isProviderConfigured(provider),
+        tested: false,
+      };
+      
+      if (health.embeddingProviders[provider].available) {
+        try {
+          await this.generateEmbeddingWithProvider('test', provider);
+          health.embeddingProviders[provider].tested = true;
+        } catch (error) {
+          health.embeddingProviders[provider].error = error instanceof Error ? error.message : String(error);
+        }
+      }
+    }
+    
+    // Test overall embedding service
     try {
-      // Test embedding generation
       await this.generateEmbedding('test');
       health.embeddings = true;
     } catch (error) {
@@ -702,6 +910,22 @@ export class VectorDatabaseService {
     }
     
     return health;
+  }
+
+  /**
+   * Check if a provider is properly configured
+   */
+  private isProviderConfigured(provider: EmbeddingProvider): boolean {
+    switch (provider) {
+      case 'voyage':
+        return !!this.config.voyageApiKey;
+      case 'gemini':
+        return !!this.config.geminiApiKey;
+      case 'openai':
+        return !!this.config.openaiApiKey;
+      default:
+        return false;
+    }
   }
 }
 
