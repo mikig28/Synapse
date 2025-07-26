@@ -274,33 +274,58 @@ export class VectorDatabaseService {
   }
 
   /**
-   * Voyage AI embedding generation
+   * Voyage AI embedding generation with rate limiting and retry logic
    */
-  private async generateVoyageEmbedding(text: string): Promise<number[]> {
+  private async generateVoyageEmbedding(text: string, retryCount = 0): Promise<number[]> {
     if (!this.config.voyageApiKey) {
       throw new Error('Voyage AI API key not configured');
     }
 
-    const response = await axios.post<VoyageEmbeddingResponse>(
-      'https://api.voyageai.com/v1/embeddings',
-      {
-        input: [text],
-        model: 'voyage-3-lite', // Most cost-effective model
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${this.config.voyageApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 30000,
+    try {
+      // Add small delay to prevent rate limiting
+      if (retryCount > 0) {
+        const delay = Math.min(1000 * Math.pow(2, retryCount), 10000); // Exponential backoff, max 10s
+        console.log(`[VectorDB]: Retrying Voyage AI request after ${delay}ms delay (attempt ${retryCount + 1})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
-    );
 
-    if (!response.data?.data?.[0]?.embedding) {
-      throw new Error('Invalid response from Voyage AI API');
+      const response = await axios.post<VoyageEmbeddingResponse>(
+        'https://api.voyageai.com/v1/embeddings',
+        {
+          input: [text],
+          model: 'voyage-3-lite', // Most cost-effective model
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.config.voyageApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 30000,
+        }
+      );
+
+      if (!response.data?.data?.[0]?.embedding) {
+        throw new Error('Invalid response from Voyage AI API');
+      }
+
+      return response.data.data[0].embedding;
+      
+    } catch (error: any) {
+      // Handle rate limiting with retry
+      if (error.response?.status === 429 && retryCount < 3) {
+        console.log(`[VectorDB]: Rate limited by Voyage AI (429), retrying in exponential backoff...`);
+        return this.generateVoyageEmbedding(text, retryCount + 1);
+      }
+      
+      // Log rate limit details if available
+      if (error.response?.status === 429) {
+        const resetTime = error.response.headers['x-ratelimit-reset'];
+        const remaining = error.response.headers['x-ratelimit-remaining'];
+        console.error(`[VectorDB]: Voyage AI rate limit exceeded. Remaining: ${remaining}, Reset: ${resetTime}`);
+      }
+      
+      throw error;
     }
-
-    return response.data.data[0].embedding;
   }
 
   /**

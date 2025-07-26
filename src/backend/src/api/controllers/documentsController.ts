@@ -674,16 +674,35 @@ async function processDocumentAsync(
         throw new Error('OpenAI API key not configured');
       }
 
-      console.log('[DocumentProcessor]: Generating embeddings for chunks');
+      console.log('[DocumentProcessor]: Generating embeddings for chunks with rate limiting');
       let embeddingCount = 0;
-      for (const chunk of chunks) {
-        try {
-          chunk.embedding = await vectorDatabaseService.generateEmbedding(chunk.content);
-          embeddingCount++;
-          console.log(`[DocumentProcessor]: Generated embedding for chunk ${chunk.id} (${embeddingCount}/${chunks.length})`);
-        } catch (chunkEmbeddingError) {
-          console.error(`[DocumentProcessor]: Failed to generate embedding for chunk ${chunk.id}:`, chunkEmbeddingError);
-          throw chunkEmbeddingError; // Re-throw to handle in outer catch
+      
+      // Process chunks in smaller batches to avoid rate limiting
+      const batchSize = 5; // Reduce concurrent requests
+      for (let i = 0; i < chunks.length; i += batchSize) {
+        const batch = chunks.slice(i, i + batchSize);
+        
+        // Process batch with small delays between requests
+        for (const chunk of batch) {
+          try {
+            // Add small delay between requests to respect rate limits
+            if (embeddingCount > 0) {
+              await new Promise(resolve => setTimeout(resolve, 200)); // 200ms delay between requests
+            }
+            
+            chunk.embedding = await vectorDatabaseService.generateEmbedding(chunk.content);
+            embeddingCount++;
+            console.log(`[DocumentProcessor]: Generated embedding for chunk ${chunk.id} (${embeddingCount}/${chunks.length})`);
+          } catch (chunkEmbeddingError) {
+            console.error(`[DocumentProcessor]: Failed to generate embedding for chunk ${chunk.id}:`, chunkEmbeddingError);
+            throw chunkEmbeddingError; // Re-throw to handle in outer catch
+          }
+        }
+        
+        // Longer delay between batches
+        if (i + batchSize < chunks.length) {
+          console.log(`[DocumentProcessor]: Completed batch ${Math.floor(i/batchSize) + 1}, pausing before next batch...`);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // 1s delay between batches
         }
       }
       console.log(`[DocumentProcessor]: Successfully generated embeddings for ${embeddingCount}/${chunks.length} chunks`);
