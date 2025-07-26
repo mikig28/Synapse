@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleMap, Marker, InfoWindow } from '@react-google-maps/api';
+import { motion, AnimatePresence } from 'framer-motion';
+import { GlassCard, GlassCardWithGlow } from '@/components/ui/GlassCard';
+import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,7 +22,10 @@ import {
   Clock,
   Target,
   AlertCircle,
-  Edit
+  Edit,
+  Sparkles,
+  Compass,
+  Layers
 } from 'lucide-react';
 import useAuthStore from '@/store/authStore';
 import { formatDistanceToNow } from 'date-fns';
@@ -337,358 +343,613 @@ const PlacesPage: React.FC = () => {
     }
   };
 
+  const getItemTypeIcon = (type: string) => {
+    return type === 'note' ? (
+      <motion.div
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ type: "spring", stiffness: 300 }}
+      >
+        <StickyNote className="h-4 w-4 text-blue-500" />
+      </motion.div>
+    ) : (
+      <motion.div
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ type: "spring", stiffness: 300 }}
+      >
+        <CheckSquare className="h-4 w-4 text-orange-500" />
+      </motion.div>
+    );
+  };
+
+  const pageVariants = {
+    initial: { opacity: 0, y: 20 },
+    in: { opacity: 1, y: 0 },
+    out: { opacity: 0, y: -20 }
+  };
+
+  const pageTransition = {
+    type: 'tween',
+    ease: 'anticipate',
+    duration: 0.5
+  };
+
+  const listItemVariants = {
+    hidden: { opacity: 0, x: -20 },
+    visible: (i: number) => ({
+      opacity: 1,
+      x: 0,
+      transition: {
+        delay: i * 0.05,
+        duration: 0.3
+      }
+    })
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold gradient-text">Places</h1>
-          <p className="text-muted-foreground">
-            All your geotagged notes and tasks in one place
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="text-sm">
-            {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''}
-          </Badge>
+    <motion.div
+      initial="initial"
+      animate="in"
+      exit="out"
+      variants={pageVariants}
+      transition={pageTransition}
+      className="space-y-6"
+    >
+      {/* Hero Section with Gradient */}
+      <div className="relative overflow-hidden rounded-2xl">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-accent/10 to-secondary/10 backdrop-blur-3xl" />
+        <div className="relative z-10 p-8">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="flex items-center justify-between"
+          >
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                >
+                  <Compass className="h-8 w-8 text-primary" />
+                </motion.div>
+                <h1 className="text-4xl font-bold gradient-text">Places</h1>
+              </div>
+              <p className="text-muted-foreground text-lg">
+                Explore your geotagged memories and tasks on an interactive map
+              </p>
+            </div>
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 200, delay: 0.2 }}
+              className="hidden md:flex items-center gap-3"
+            >
+              <Badge variant="secondary" className="text-sm px-4 py-2 backdrop-blur-md">
+                <Sparkles className="h-3 w-3 mr-1" />
+                {filteredItems.length} location{filteredItems.length !== 1 ? 's' : ''}
+              </Badge>
+            </motion.div>
+          </motion.div>
         </div>
       </div>
 
-      {/* Controls */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filters & Search
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Search */}
-          <div className="relative">
+      {/* Mobile Stats */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="flex md:hidden items-center justify-center"
+      >
+        <Badge variant="secondary" className="text-sm px-4 py-2">
+          <Sparkles className="h-3 w-3 mr-1" />
+          {filteredItems.length} location{filteredItems.length !== 1 ? 's' : ''}
+        </Badge>
+      </motion.div>
+
+      {/* Enhanced Controls */}
+      <GlassCardWithGlow className="p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <motion.div
+            animate={{ rotate: [0, 10, -10, 0] }}
+            transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+          >
+            <Filter className="h-5 w-5 text-primary" />
+          </motion.div>
+          <h2 className="text-lg font-semibold">Filters & Search</h2>
+        </div>
+        
+        <div className="space-y-4">
+          {/* Enhanced Search */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="relative"
+          >
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search places, notes, tasks..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
+              className="pl-10 pr-4 py-2 backdrop-blur-md bg-white/50 dark:bg-white/10 border-white/20"
             />
-          </div>
-
-          <div className="flex flex-wrap gap-4 items-center">
-            {/* Filter buttons */}
-            <div className="flex gap-2">
-              <Button
-                variant={filter === 'all' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setFilter('all')}
+            {searchTerm && (
+              <motion.button
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
-                All ({geotaggedItems.length})
-              </Button>
-              <Button
-                variant={filter === 'notes' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setFilter('notes')}
-                className="flex items-center gap-1"
-              >
-                <StickyNote className="h-4 w-4" />
-                Notes ({geotaggedItems.filter(i => i.itemType === 'note').length})
-              </Button>
-              <Button
-                variant={filter === 'tasks' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setFilter('tasks')}
-                className="flex items-center gap-1"
-              >
-                <CheckSquare className="h-4 w-4" />
-                Tasks ({geotaggedItems.filter(i => i.itemType === 'task').length})
-              </Button>
-            </div>
-
-            {/* Location controls */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={getCurrentLocation}
-              className="flex items-center gap-1"
-            >
-              <Navigation className="h-4 w-4" />
-              Find Me
-            </Button>
-
-            {userLocation && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={searchNearby}
-                className="flex items-center gap-1"
-              >
-                <Search className="h-4 w-4" />
-                Search Nearby
-              </Button>
+                ×
+              </motion.button>
             )}
+          </motion.div>
 
-            {/* Reset to all */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchGeotaggedItems}
-              className="flex items-center gap-1"
+          <div className="flex flex-wrap gap-3 items-center">
+            {/* Animated Filter buttons */}
+            <div className="flex gap-2">
+              {['all', 'notes', 'tasks'].map((filterType, index) => {
+                const Icon = filterType === 'notes' ? StickyNote : filterType === 'tasks' ? CheckSquare : Layers;
+                const count = filterType === 'all' 
+                  ? geotaggedItems.length 
+                  : geotaggedItems.filter(i => i.itemType === filterType.slice(0, -1)).length;
+                
+                return (
+                  <motion.div
+                    key={filterType}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 + index * 0.1 }}
+                  >
+                    <AnimatedButton
+                      variant={filter === filterType ? 'gradient' : 'outline'}
+                      size="sm"
+                      onClick={() => setFilter(filterType as any)}
+                    >
+                      {filterType !== 'all' && <Icon className="h-4 w-4 mr-1" />}
+                      {filterType.charAt(0).toUpperCase() + filterType.slice(1)} ({count})
+                    </AnimatedButton>
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {/* Location controls with animations */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.6 }}
+              className="flex gap-2"
             >
-              Show All
-            </Button>
+              <AnimatedButton
+                variant="ghost"
+                size="sm"
+                onClick={getCurrentLocation}
+                className="group"
+              >
+                <Navigation className="h-4 w-4 mr-1 group-hover:animate-pulse" />
+                Find Me
+              </AnimatedButton>
+
+              {userLocation && (
+                <AnimatedButton
+                  variant="ghost"
+                  size="sm"
+                  onClick={searchNearby}
+                >
+                  <Search className="h-4 w-4 mr-1" />
+                  Nearby
+                </AnimatedButton>
+              )}
+
+              <AnimatedButton
+                variant="ghost"
+                size="sm"
+                onClick={fetchGeotaggedItems}
+              >
+                Show All
+              </AnimatedButton>
+            </motion.div>
           </div>
 
-          {/* Search radius */}
-          {userLocation && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Search Radius: {searchRadius[0]}m
-              </label>
-              <Slider
-                value={searchRadius}
-                onValueChange={setSearchRadius}
-                max={5000}
-                min={100}
-                step={100}
-                className="w-60"
-              />
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          {/* Enhanced Search radius */}
+          <AnimatePresence>
+            {userLocation && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-2 overflow-hidden"
+              >
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <Compass className="h-4 w-4 text-muted-foreground" />
+                    Search Radius
+                  </label>
+                  <span className="text-sm font-semibold text-primary">
+                    {searchRadius[0]}m
+                  </span>
+                </div>
+                <Slider
+                  value={searchRadius}
+                  onValueChange={setSearchRadius}
+                  max={5000}
+                  min={100}
+                  step={100}
+                  className="w-full"
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </GlassCardWithGlow>
 
-      {/* Main content */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="map" className="flex items-center gap-2">
+      {/* Enhanced Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-2 p-1 bg-white/10 dark:bg-white/5 backdrop-blur-md">
+          <TabsTrigger
+            value="map"
+            className="flex items-center gap-2 data-[state=active]:bg-white/20 dark:data-[state=active]:bg-white/10"
+          >
             <MapIcon className="h-4 w-4" />
             Map View
           </TabsTrigger>
-          <TabsTrigger value="list" className="flex items-center gap-2">
+          <TabsTrigger
+            value="list"
+            className="flex items-center gap-2 data-[state=active]:bg-white/20 dark:data-[state=active]:bg-white/10"
+          >
             <List className="h-4 w-4" />
             List View
           </TabsTrigger>
         </TabsList>
 
+        {/* Enhanced Map View */}
         <TabsContent value="map" className="space-y-4">
-          <Card>
-            <CardContent className="p-0">
-              <div className="h-64 sm:h-80 md:h-96 min-h-[200px] w-full">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            <GlassCard className="p-0 overflow-hidden">
+              <div className="h-[60vh] min-h-[400px] w-full relative">
                 {isLoaded ? (
-                  <GoogleMap
-                    mapContainerStyle={mapContainerStyle}
-                    center={mapCenter}
-                    zoom={13}
-                    onClick={() => setSelectedItem(null)}
-                  >
-                  {/* User location marker */}
-                  {userLocation && (
-                    <Marker
-                      position={userLocation}
-                      icon={{
-                        url: "data:image/svg+xml," + encodeURIComponent(`
-                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#ef4444">
-                            <circle cx="12" cy="12" r="10"/>
-                            <circle cx="12" cy="12" r="3" fill="white"/>
-                          </svg>
-                        `),
-                        scaledSize: new google.maps.Size(24, 24),
-                        anchor: new google.maps.Point(12, 12)
+                  <>
+                    <GoogleMap
+                      mapContainerStyle={mapContainerStyle}
+                      center={mapCenter}
+                      zoom={13}
+                      onClick={() => setSelectedItem(null)}
+                      options={{
+                        styles: [
+                          {
+                            featureType: "all",
+                            elementType: "geometry",
+                            stylers: [{ color: "#242f3e" }]
+                          },
+                          {
+                            featureType: "all",
+                            elementType: "labels.text.stroke",
+                            stylers: [{ lightness: -80 }]
+                          },
+                          {
+                            featureType: "administrative",
+                            elementType: "labels.text.fill",
+                            stylers: [{ color: "#746855" }]
+                          },
+                          {
+                            featureType: "road",
+                            elementType: "geometry.fill",
+                            stylers: [{ color: "#38414e" }]
+                          },
+                          {
+                            featureType: "road",
+                            elementType: "geometry.stroke",
+                            stylers: [{ color: "#212a37" }]
+                          },
+                          {
+                            featureType: "water",
+                            elementType: "geometry",
+                            stylers: [{ color: "#17263c" }]
+                          }
+                        ],
+                        disableDefaultUI: false,
+                        zoomControl: true,
+                        mapTypeControl: false,
+                        scaleControl: true,
+                        streetViewControl: false,
+                        rotateControl: false,
+                        fullscreenControl: true
                       }}
-                      title="Your Location"
-                    />
-                  )}
-
-                  {/* Item markers */}
-                  {filteredItems.map((item) => (
-                    <Marker
-                      key={item._id}
-                      position={{
-                        lat: item.location.coordinates[1],
-                        lng: item.location.coordinates[0]
-                      }}
-                      icon={getMarkerIcon(item)}
-                      onClick={() => setSelectedItem(item)}
-                    />
-                  ))}
-
-                  {/* Info window */}
-                  {selectedItem && (
-                    <InfoWindow
-                      position={{
-                        lat: selectedItem.location.coordinates[1],
-                        lng: selectedItem.location.coordinates[0]
-                      }}
-                      onCloseClick={() => setSelectedItem(null)}
                     >
-                      <div className="p-3 max-w-xs bg-white rounded-lg shadow-lg" style={{ color: '#374151' }}>
-                        <div className="flex items-center gap-2 mb-2">
-                          {selectedItem.itemType === 'note' ? (
-                            <StickyNote className="h-4 w-4 text-blue-500" />
-                          ) : (
-                            <CheckSquare className="h-4 w-4 text-orange-500" />
-                          )}
-                          <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-md font-medium">
-                            {selectedItem.itemType}
-                          </span>
-                          {selectedItem.itemType === 'task' && selectedItem.status && (
-                            <span className={`px-2 py-1 text-xs rounded-md font-medium ${
-                              selectedItem.status === 'completed' 
-                                ? 'bg-green-100 text-green-700' 
-                                : 'bg-blue-100 text-blue-700'
-                            }`}>
-                              {selectedItem.status}
-                            </span>
-                          )}
-                        </div>
-                        
-                        <h3 className="font-semibold mb-2 text-gray-900 text-sm">
-                          {selectedItem.title || 'Untitled'}
-                        </h3>
-                        
-                        <p className="text-xs text-gray-600 mb-3" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                          {selectedItem.content || selectedItem.description || 'No description'}
-                        </p>
-                        
-                        <div className="flex items-center justify-between border-t pt-2" style={{ borderColor: '#e5e7eb' }}>
-                          <div className="flex items-center gap-1 text-xs text-gray-500">
-                            <Calendar className="h-3 w-3" />
-                            <span>{formatDistanceToNow(new Date(selectedItem.createdAt), { addSuffix: true })}</span>
+                      {/* User location marker with pulsing effect */}
+                      {userLocation && (
+                        <>
+                          <div className="absolute inset-0 pointer-events-none">
+                            <div
+                              className="absolute w-24 h-24 rounded-full bg-primary/20 animate-ping"
+                              style={{
+                                left: '50%',
+                                top: '50%',
+                                transform: 'translate(-50%, -50%)'
+                              }}
+                            />
                           </div>
-                          <button
-                            onClick={() => handleEditItem(selectedItem)}
-                            className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                          <Marker
+                            position={userLocation}
+                            icon={{
+                              url: "data:image/svg+xml," + encodeURIComponent(`
+                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="#6366f1">
+                                  <circle cx="12" cy="12" r="10"/>
+                                  <circle cx="12" cy="12" r="3" fill="white"/>
+                                </svg>
+                              `),
+                              scaledSize: new google.maps.Size(32, 32),
+                              anchor: new google.maps.Point(16, 16)
+                            }}
+                            title="Your Location"
+                          />
+                        </>
+                      )}
+
+                      {/* Item markers */}
+                      {filteredItems.map((item) => (
+                        <Marker
+                          key={item._id}
+                          position={{
+                            lat: item.location.coordinates[1],
+                            lng: item.location.coordinates[0]
+                          }}
+                          icon={getMarkerIcon(item)}
+                          onClick={() => setSelectedItem(item)}
+                        />
+                      ))}
+
+                      {/* Enhanced Info window */}
+                      {selectedItem && (
+                        <InfoWindow
+                          position={{
+                            lat: selectedItem.location.coordinates[1],
+                            lng: selectedItem.location.coordinates[0]
+                          }}
+                          onCloseClick={() => setSelectedItem(null)}
+                        >
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="p-4 max-w-xs"
                           >
-                            <Edit className="h-3 w-3" />
-                            Edit
-                          </button>
+                            <div className="flex items-center gap-2 mb-3">
+                              {getItemTypeIcon(selectedItem.itemType)}
+                              <Badge variant="outline" className="text-xs">
+                                {selectedItem.itemType}
+                              </Badge>
+                              {selectedItem.itemType === 'task' && selectedItem.status && (
+                                <Badge
+                                  className={`text-xs ${getStatusColor(selectedItem.status)}`}
+                                >
+                                  {selectedItem.status}
+                                </Badge>
+                              )}
+                            </div>
+                            
+                            <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
+                              {selectedItem.title || 'Untitled'}
+                            </h3>
+                            
+                            <p className="text-sm text-gray-600 dark:text-gray-300 mb-3 line-clamp-3">
+                              {selectedItem.content || selectedItem.description || 'No description'}
+                            </p>
+                            
+                            <div className="flex items-center justify-between pt-3 border-t">
+                              <div className="flex items-center gap-1 text-xs text-gray-500">
+                                <Calendar className="h-3 w-3" />
+                                <span>{formatDistanceToNow(new Date(selectedItem.createdAt), { addSuffix: true })}</span>
+                              </div>
+                              <AnimatedButton
+                                variant="primary"
+                                size="sm"
+                                onClick={() => handleEditItem(selectedItem)}
+                              >
+                                <Edit className="h-3 w-3 mr-1" />
+                                Edit
+                              </AnimatedButton>
+                            </div>
+                          </motion.div>
+                        </InfoWindow>
+                      )}
+                    </GoogleMap>
+
+                    {/* Map Legend */}
+                    <motion.div
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.5 }}
+                      className="absolute bottom-4 left-4 p-3 rounded-lg backdrop-blur-md bg-white/10 dark:bg-black/20 border border-white/20"
+                    >
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-primary" />
+                          <span className="text-white">Your Location</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <StickyNote className="h-3 w-3 text-blue-500" />
+                          <span className="text-white">Notes</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <CheckSquare className="h-3 w-3 text-orange-500" />
+                          <span className="text-white">Tasks</span>
                         </div>
                       </div>
-                    </InfoWindow>
-                  )}
-                  </GoogleMap>
+                    </motion.div>
+                  </>
                 ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-                      <p className="text-muted-foreground">Loading Google Maps...</p>
-                    </div>
+                  <div className="flex items-center justify-center h-full bg-muted/20">
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="text-center"
+                    >
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                        className="w-12 h-12 border-3 border-primary border-t-transparent rounded-full mx-auto mb-4"
+                      />
+                      <p className="text-muted-foreground">Loading interactive map...</p>
+                    </motion.div>
                   </div>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </GlassCard>
+          </motion.div>
         </TabsContent>
 
+        {/* Enhanced List View */}
         <TabsContent value="list" className="space-y-4">
           {isLoading ? (
             <div className="grid gap-4">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Card key={i} className="p-4">
-                  <div className="animate-pulse space-y-2">
-                    <div className="h-4 bg-muted rounded w-3/4"></div>
-                    <div className="h-3 bg-muted rounded w-1/2"></div>
-                    <div className="h-3 bg-muted rounded w-1/4"></div>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <GlassCard key={i} className="p-6">
+                  <div className="animate-pulse space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 bg-muted rounded-full" />
+                      <div className="h-4 bg-muted rounded w-24" />
+                      <div className="h-4 bg-muted rounded w-16" />
+                    </div>
+                    <div className="h-5 bg-muted rounded w-3/4" />
+                    <div className="h-4 bg-muted rounded w-full" />
+                    <div className="h-4 bg-muted rounded w-2/3" />
+                    <div className="flex items-center justify-between">
+                      <div className="h-3 bg-muted rounded w-32" />
+                      <div className="h-8 bg-muted rounded w-20" />
+                    </div>
                   </div>
-                </Card>
+                </GlassCard>
               ))}
             </div>
           ) : filteredItems.length === 0 ? (
-            <Card>
-              <CardContent className="text-center py-12">
-                <MapPin className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No geotagged items found</h3>
-                <p className="text-muted-foreground">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              <GlassCard className="text-center py-16">
+                <motion.div
+                  animate={{ y: [0, -10, 0] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                >
+                  <MapPin className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                </motion.div>
+                <h3 className="text-xl font-semibold mb-2">No locations found</h3>
+                <p className="text-muted-foreground max-w-sm mx-auto">
                   {searchTerm || filter !== 'all' 
-                    ? 'Try adjusting your search or filters.'
+                    ? 'Try adjusting your search criteria or filters.'
                     : 'Start adding locations to your notes and tasks to see them here.'
                   }
                 </p>
-              </CardContent>
-            </Card>
+              </GlassCard>
+            </motion.div>
           ) : (
             <div className="grid gap-4">
-              {filteredItems.map((item) => (
-                <Card key={item._id} className="hover:shadow-lg transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center gap-2">
-                          {item.itemType === 'note' ? (
-                            <StickyNote className="h-4 w-4 text-blue-500" />
-                          ) : (
-                            <CheckSquare className="h-4 w-4 text-orange-500" />
-                          )}
-                          <Badge variant="outline" className="text-xs">
-                            {item.itemType}
-                          </Badge>
-                          {item.itemType === 'task' && item.status && (
-                            <Badge className={`text-xs ${getStatusColor(item.status)}`}>
-                              {item.status}
+              {filteredItems.map((item, index) => (
+                <motion.div
+                  key={item._id}
+                  custom={index}
+                  initial="hidden"
+                  animate="visible"
+                  variants={listItemVariants}
+                >
+                  <GlassCardWithGlow className="hover:shadow-2xl transition-all duration-300">
+                    <div className="p-6">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 space-y-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {getItemTypeIcon(item.itemType)}
+                            <Badge variant="outline" className="text-xs">
+                              {item.itemType}
                             </Badge>
-                          )}
-                          {item.itemType === 'task' && item.priority && (
-                            <Badge className={`text-xs ${getPriorityColor(item.priority)}`}>
-                              {item.priority}
-                            </Badge>
-                          )}
-                        </div>
-                        
-                        <h3 className="font-semibold text-lg">
-                          {item.title || 'Untitled'}
-                        </h3>
-                        
-                        <p className="text-muted-foreground">
-                          {item.content || item.description || 'No description'}
-                        </p>
-                        
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {item.location.address || `${item.location.coordinates[1].toFixed(4)}, ${item.location.coordinates[0].toFixed(4)}`}
+                            {item.itemType === 'task' && item.status && (
+                              <Badge className={`text-xs ${getStatusColor(item.status)}`}>
+                                {item.status}
+                              </Badge>
+                            )}
+                            {item.itemType === 'task' && item.priority && (
+                              <Badge className={`text-xs ${getPriorityColor(item.priority)}`}>
+                                {item.priority}
+                              </Badge>
+                            )}
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
-                          </div>
-                          {item.itemType === 'task' && item.dueDate && (
+                          
+                          <h3 className="font-semibold text-xl">
+                            {item.title || 'Untitled'}
+                          </h3>
+                          
+                          <p className="text-muted-foreground line-clamp-2">
+                            {item.content || item.description || 'No description'}
+                          </p>
+                          
+                          <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                            <motion.div
+                              whileHover={{ scale: 1.05 }}
+                              className="flex items-center gap-1 cursor-pointer"
+                              onClick={() => {
+                                setMapCenter({
+                                  lat: item.location.coordinates[1],
+                                  lng: item.location.coordinates[0]
+                                });
+                                setSelectedItem(item);
+                                setActiveTab('map');
+                              }}
+                            >
+                              <MapPin className="h-3 w-3" />
+                              <span className="hover:text-primary transition-colors">
+                                {item.location.address || `${item.location.coordinates[1].toFixed(4)}, ${item.location.coordinates[0].toFixed(4)}`}
+                              </span>
+                            </motion.div>
                             <div className="flex items-center gap-1">
-                              <Target className="h-3 w-3" />
-                              Due {formatDistanceToNow(new Date(item.dueDate), { addSuffix: true })}
+                              <Clock className="h-3 w-3" />
+                              {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
                             </div>
-                          )}
+                            {item.itemType === 'task' && item.dueDate && (
+                              <div className="flex items-center gap-1">
+                                <Target className="h-3 w-3" />
+                                Due {formatDistanceToNow(new Date(item.dueDate), { addSuffix: true })}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEditItem(item)}
-                          className="flex items-center gap-1"
-                        >
-                          <Edit className="h-3 w-3" />
-                          Edit
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setMapCenter({
-                              lat: item.location.coordinates[1],
-                              lng: item.location.coordinates[0]
-                            });
-                            setSelectedItem(item);
-                            setActiveTab('map');
-                          }}
-                          className="flex items-center gap-1"
-                        >
-                          <MapIcon className="h-3 w-3" />
-                          View on Map
-                        </Button>
+                        
+                        <div className="flex gap-2 flex-shrink-0">
+                          <AnimatedButton
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditItem(item)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </AnimatedButton>
+                          <AnimatedButton
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setMapCenter({
+                                lat: item.location.coordinates[1],
+                                lng: item.location.coordinates[0]
+                              });
+                              setSelectedItem(item);
+                              setActiveTab('map');
+                            }}
+                          >
+                            <MapIcon className="h-4 w-4" />
+                          </AnimatedButton>
+                        </div>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </GlassCardWithGlow>
+                </motion.div>
               ))}
             </div>
           )}
@@ -696,24 +957,26 @@ const PlacesPage: React.FC = () => {
       </Tabs>
       
       {/* Edit Modals */}
-      {showEditTaskModal && editingTask && (
-        <EditTaskModal
-          isOpen={showEditTaskModal}
-          task={editingTask}
-          onClose={handleCloseEditModals}
-          onSave={handleTaskSave}
-        />
-      )}
-      
-      {showEditNoteModal && editingNote && (
-        <EditNoteModal
-          isOpen={showEditNoteModal}
-          note={editingNote}
-          onClose={handleCloseEditModals}
-          onSave={handleNoteSave}
-        />
-      )}
-    </div>
+      <AnimatePresence>
+        {showEditTaskModal && editingTask && (
+          <EditTaskModal
+            isOpen={showEditTaskModal}
+            task={editingTask}
+            onClose={handleCloseEditModals}
+            onSave={handleTaskSave}
+          />
+        )}
+        
+        {showEditNoteModal && editingNote && (
+          <EditNoteModal
+            isOpen={showEditNoteModal}
+            note={editingNote}
+            onClose={handleCloseEditModals}
+            onSave={handleNoteSave}
+          />
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 };
 
