@@ -37,14 +37,9 @@ import {
   preloadCriticalComponents,
 } from '@/components/LazyComponents';
 
-// Enhanced 3D Dashboard (lazy loaded for performance)
-const LazyEnhanced3DDashboard = React.lazy(() => 
-  import('@/components/3D/Enhanced3DDashboard')
-);
-
-// Safe 3D Dashboard with error handling
-const LazyEnhanced3DDashboardSafe = React.lazy(() => 
-  import('@/components/3D/Enhanced3DDashboardSafe')
+// Production-safe 3D Dashboard with proper error handling
+const ProductionSafeEnhanced3DDashboard = React.lazy(() => 
+  import('@/components/3D/ProductionSafeEnhanced3DDashboard')
 );
 
 // Other imports remain the same
@@ -981,30 +976,24 @@ const AgentsPage: React.FC = memo(() => {
               className="h-[80vh] w-full"
             >
               {/* Enhanced 3D Dashboard */}
-              <Suspense 
-                fallback={
-                  <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-background to-muted rounded-lg">
-                    <div className="text-center space-y-4">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                      <p className="text-lg font-medium">Loading 3D Visualization...</p>
-                      <p className="text-sm text-muted-foreground">Initializing WebGL and 3D components</p>
-                    </div>
-                  </div>
-                }
-              >
-                <LazyEnhanced3DDashboardSafe
-                  agents={convertAgentsFor3D(agents || [])}
-                  theme="studio"
-                  enableEnhancedFeatures={enable3DFeatures}
-                  enableDataVisualization={true}
-                  enablePerformanceMonitoring={true}
-                  enableFormations={true}
-                  onAgentSelect={(agentId) => {
-                    setSelectedAgent3D(agentId);
-                  }}
-                  className="w-full h-full rounded-lg border shadow-lg"
-                />
-              </Suspense>
+              <ProductionSafeEnhanced3DDashboard
+                agents={convertAgentsFor3D(agents || [])}
+                theme={{
+                  primary: '#3b82f6',
+                  secondary: '#8b5cf6', 
+                  accent: '#06b6d4',
+                  background: '#1e293b',
+                  environment: 'studio'
+                }}
+                enableEnhancedFeatures={enable3DFeatures}
+                enableDataVisualization={true}
+                enablePerformanceMonitoring={true}
+                enableFormations={true}
+                onAgentSelect={(agentId) => {
+                  setSelectedAgent3D(agentId);
+                }}
+                className="w-full h-full rounded-lg border shadow-lg"
+              />
               
               {/* 3D View Controls Panel */}
               <div className="absolute bottom-4 right-4 bg-black/80 rounded-lg p-3 text-white">
