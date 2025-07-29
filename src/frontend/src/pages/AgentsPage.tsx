@@ -37,9 +37,9 @@ import {
   preloadCriticalComponents,
 } from '@/components/LazyComponents';
 
-// Production-safe 3D Dashboard with proper error handling
-const ProductionSafeEnhanced3DDashboard = React.lazy(() => 
-  import('@/components/3D/ProductionSafeEnhanced3DDashboard')
+// Production-ready 3D Dashboard following 2025 best practices
+const ProductionReady3DDashboard = React.lazy(() => 
+  import('@/components/3D/ProductionReady3DDashboard')
 );
 
 // Other imports remain the same
@@ -976,7 +976,7 @@ const AgentsPage: React.FC = memo(() => {
               className="h-[80vh] w-full"
             >
               {/* Enhanced 3D Dashboard */}
-              <ProductionSafeEnhanced3DDashboard
+              <ProductionReady3DDashboard
                 agents={convertAgentsFor3D(agents || [])}
                 theme={{
                   primary: '#3b82f6',

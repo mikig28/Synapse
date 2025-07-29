@@ -31,6 +31,10 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // Add Three.js transpilation for production compatibility
+  ssr: {
+    noExternal: ['three', '@react-three/fiber', '@react-three/drei']
+  },
   server: {
     port: 5173,
     strictPort: true, // Exit if port is already in use
@@ -45,6 +49,7 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
+      // Don't externalize in production as it would break the app
       output: {
         manualChunks(id) {
           // Performance optimization: Create strategic chunks for better caching
