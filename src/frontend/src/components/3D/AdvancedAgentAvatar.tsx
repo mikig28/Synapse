@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useMemo, useLayoutEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF, Text, Html, Sphere, Ring, useAnimations, Detailed } from '@react-three/drei';
 import { useSpring, animated } from '@react-spring/three';
