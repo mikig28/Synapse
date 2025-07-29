@@ -60,14 +60,14 @@ export const LazyScreenReaderSupport = lazy(() =>
   import('./accessibility/ScreenReaderSupport').then(module => ({ default: module.ScreenReaderSupport }))
 );
 
-// 3D Components (heaviest components)
-export const LazyCanvas = lazy(() => 
-  import('@react-three/fiber').then(module => ({ default: module.Canvas }))
-);
+// 3D Components (disabled to prevent production errors)
+// export const LazyCanvas = lazy(() => 
+//   import('@react-three/fiber').then(module => ({ default: module.Canvas }))
+// );
 
-export const LazyThreeComponents = lazy(() => 
-  import('./3D/AdvancedAgentAvatar').then(module => ({ default: module.AdvancedAgentAvatar }))
-);
+// export const LazyThreeComponents = lazy(() => 
+//   import('./3D/AdvancedAgentAvatar').then(module => ({ default: module.AdvancedAgentAvatar }))
+// );
 
 // Charts and Analytics
 export const LazyRecharts = lazy(() => 

@@ -59,8 +59,12 @@ export default defineConfig({
             return 'animations';
           }
           
-          // 3D libraries - very large, separate chunk
+          // 3D libraries - very large, separate chunk and conditionally excluded
           if (id.includes('three') || id.includes('@react-three')) {
+            // In production, only include Three.js if specifically needed
+            if (process.env.NODE_ENV === 'production') {
+              return 'three-js-optional';
+            }
             return 'three-js';
           }
           

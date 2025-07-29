@@ -1,6 +1,23 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
-import { OrbitControls, Environment, Center, Text3D } from '@react-three/drei';
+
+// Conditionally import Three.js only when safe
+let Canvas: any = null;
+let OrbitControls: any = null;
+let Environment: any = null;
+let Center: any = null;
+
+// Only import Three.js in development or when explicitly needed
+const isThreeJSSafe = typeof window !== 'undefined' && 
+                      window.navigator && 
+                      !window.navigator.userAgent.includes('HeadlessChrome');
+
+if (isThreeJSSafe) {
+  try {
+    // These will be loaded dynamically when needed
+  } catch (error) {
+    console.warn('Three.js components not available:', error);
+  }
+}
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -50,7 +67,7 @@ interface ProductionSafeEnhanced3DDashboardProps {
   onAgentSelect?: (agentId: string | null) => void;
 }
 
-// Safe 3D Scene Component with proper React context
+// Safe 3D Scene Component with proper React context - only when components are available
 function Safe3DScene({ 
   agents, 
   theme, 
@@ -60,6 +77,11 @@ function Safe3DScene({
   theme: SceneTheme;
   onAgentSelect?: (agentId: string | null) => void;
 }) {
+  // Return null if Three.js components aren't available
+  if (!Canvas || !OrbitControls || !Environment || !Center) {
+    return null;
+  }
+
   // Basic 3D scene without complex dependencies
   return (
     <>
@@ -215,8 +237,8 @@ export function ProductionSafeEnhanced3DDashboard({
     setUse3D(false);
   }, []);
 
-  // If there's an error or 3D is disabled, show fallback
-  if (!use3D || canvasError) {
+  // If there's an error, 3D is disabled, or Three.js components aren't available, show fallback
+  if (!use3D || canvasError || !Canvas) {
     return (
       <Card className={className}>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -272,21 +294,25 @@ export function ProductionSafeEnhanced3DDashboard({
       </CardHeader>
       <CardContent>
         <div className="w-full h-96 rounded-lg overflow-hidden">
-          <Canvas
-            camera={{ position: [10, 10, 10], fov: 50 }}
-            onError={handleCanvasError}
-            gl={{ 
-              antialias: true, 
-              alpha: true,
-              powerPreference: "high-performance"
-            }}
-          >
-            <Safe3DScene 
-              agents={agents} 
-              theme={theme} 
-              onAgentSelect={onAgentSelect}
-            />
-          </Canvas>
+          {Canvas ? (
+            <Canvas
+              camera={{ position: [10, 10, 10], fov: 50 }}
+              onError={handleCanvasError}
+              gl={{ 
+                antialias: true, 
+                alpha: true,
+                powerPreference: "high-performance"
+              }}
+            >
+              <Safe3DScene 
+                agents={agents} 
+                theme={theme} 
+                onAgentSelect={onAgentSelect}
+              />
+            </Canvas>
+          ) : (
+            <FallbackDashboard agents={agents} onAgentSelect={onAgentSelect} />
+          )}
         </div>
       </CardContent>
     </Card>

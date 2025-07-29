@@ -30,7 +30,8 @@ import {
   Box
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { AgentVisualization3D } from './AgentVisualization3D';
+// Removed problematic 3D import - replaced with safe version
+// import { AgentVisualization3D } from './AgentVisualization3D';
 
 interface AguiLiveDashboardProps {
   className?: string;
@@ -283,10 +284,25 @@ export const AguiLiveDashboard: React.FC<AguiLiveDashboardProps> = ({ className 
 
           <TabsContent value="3d" className="mt-4">
             <div className={isExpanded ? "h-[450px]" : "h-[280px]"}>
-              <AgentVisualization3D 
-                agents={mockAgents} 
-                className="w-full h-full rounded-lg overflow-hidden"
-              />
+              <Card className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/20 border-2 border-dashed border-blue-200 dark:border-blue-700">
+                <CardContent className="text-center">
+                  <Box className="h-16 w-16 text-blue-500 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    3D View Temporarily Disabled
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Use the main Agents page for 3D visualization
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-4"
+                    onClick={() => window.location.href = '/agents'}
+                  >
+                    Go to Agents Page
+                  </Button>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 
