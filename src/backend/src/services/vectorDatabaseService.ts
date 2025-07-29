@@ -251,9 +251,12 @@ export class VectorDatabaseService {
   }
 
   /**
-   * Generate embeddings using a specific provider
+   * Generate embeddings using a specific provider with rate limiting
    */
   private async generateEmbeddingWithProvider(text: string, provider: EmbeddingProvider): Promise<number[]> {
+    // Add small delay for all providers to prevent overwhelming APIs
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     // Truncate text based on provider limits
     const truncatedText = this.truncateTextForProvider(text, provider);
     
@@ -536,20 +539,27 @@ export class VectorDatabaseService {
     options: SearchOptions = {}
   ): Promise<SearchResult[]> {
     try {
+      console.log(`[VectorDB]: Starting semantic search for query: "${query}"`);
+      console.log(`[VectorDB]: Using production: ${this.config.useProduction}, Pinecone available: ${!!this.pinecone}, ChromaDB available: ${!!this.chroma}`);
+      
       // Generate query embedding
       const queryEmbedding = await this.generateEmbedding(query);
+      console.log(`[VectorDB]: Generated embedding with ${queryEmbedding.length} dimensions`);
       
       // Search in appropriate database
       if (this.config.useProduction && this.pinecone) {
+        console.log('[VectorDB]: Searching in Pinecone');
         return await this.searchInPinecone(queryEmbedding, options);
       } else if (this.chroma) {
+        console.log('[VectorDB]: Searching in ChromaDB');
         return await this.searchInChroma(queryEmbedding, options);
       }
       
+      console.warn('[VectorDB]: No vector database available for search');
       return [];
     } catch (error) {
       console.error('[VectorDB]: Error in semantic search:', error);
-      throw error;
+      throw new Error(`Vector search failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
   

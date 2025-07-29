@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useState, useCallback, useRef, memo, Suspense } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,17 +7,80 @@ import { useToast } from '@/hooks/use-toast';
 import { agentService } from '../services/agentService';
 import { Agent, AgentRun } from '../types/agent';
 import { ErrorHandler } from '@/utils/errorHandler';
-import { AgentLogViewer } from '@/components/AgentLogViewer';
-import AgentActivityDashboard from '@/components/AgentActivityDashboard';
-import AgentStepTimeline from '@/components/AgentStepTimeline';
-import DebugPanel from '@/components/DebugPanel';
-import { CrewExecutionDashboard } from '@/components/CrewExecutionDashboard';
-import { DashboardHealthCheck } from '@/components/DashboardHealthCheck';
-import { DashboardEmptyState } from '@/components/DashboardEmptyState';
-import { AguiStatusBar } from '@/components/AguiStatusBar';
-import { AguiLiveDashboard } from '@/components/AguiLiveDashboard';
 import { useNavigate } from 'react-router-dom';
 import { useAgui } from '../contexts/AguiContext';
+import { EnhancedAgentCard } from '@/components/EnhancedAgentCard';
+import { MobileAgentCard } from '@/components/MobileAgentCard';
+import { useIsMobile } from '@/hooks/useMobileDetection';
+import { StatusGrid, LiveActivityIndicator } from '@/components/AgentStatusIndicator';
+
+// Performance optimized imports
+import { VirtualizedAgentGrid } from '@/components/VirtualizedAgentGrid';
+import { PerformanceMonitor } from '@/components/PerformanceMonitor';
+import { 
+  useOptimizedAgents, 
+  useOptimizedAgentRuns, 
+  useCacheManagement,
+  useBackgroundSync 
+} from '@/hooks/useOptimizedData';
+
+// Lazy-loaded components for code splitting
+import {
+  LazyMetricsDashboard,
+  LazyAgentCreationWizard,
+  LazyAguiLiveDashboard,
+  LazyAgentActivityDashboard,
+  LazyAgentStepTimeline,
+  LazyDebugPanel,
+  LoadingFallback,
+  LazyWrapper,
+  preloadCriticalComponents,
+} from '@/components/LazyComponents';
+
+// Enhanced 3D Dashboard (lazy loaded for performance)
+const LazyEnhanced3DDashboard = React.lazy(() => 
+  import('@/components/3D/Enhanced3DDashboard')
+);
+
+// Safe 3D Dashboard with error handling
+const LazyEnhanced3DDashboardSafe = React.lazy(() => 
+  import('@/components/3D/Enhanced3DDashboardSafe')
+);
+
+// Other imports remain the same
+import { DashboardHealthCheck } from '@/components/DashboardHealthCheck';
+import { AguiStatusBar } from '@/components/AguiStatusBar';
+import { 
+  containerVariants, 
+  fabVariants, 
+  modalVariants,
+  cardVariants,
+  statusVariants,
+  slideVariants,
+  loadingVariants,
+  animationConfig,
+  springPhysics,
+  pageVariants 
+} from '@/utils/animations';
+import { 
+  useStaggeredAnimation, 
+  useScrollAnimation,
+  useAnimatedCounter,
+  useFeedbackAnimation 
+} from '@/hooks/useAnimations';
+import { AnimatedButton, FloatingActionButton } from '@/components/animations/AnimatedButton';
+import { AnimatedStatusIndicator, ConnectionStatus } from '@/components/animations/AnimatedStatusIndicator';
+import { AgentCardSkeleton, SkeletonGrid } from '@/components/animations/LoadingAnimations';
+import { PageTransitionManager } from '@/components/animations/PageTransitionManager';
+import { 
+  typography, 
+  spacing, 
+  shadows,
+  getAgentStatusColor,
+  getAgentTypeColor,
+  agentColors,
+  borderRadius 
+} from '@/utils/designSystem';
 import {
   Bot,
   Plus,
@@ -37,65 +100,108 @@ import {
   RotateCcw,
   Wifi,
   WifiOff,
+  BarChart3,
+  Grid3X3,
+  Box,
 } from 'lucide-react';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AguiTestButton } from '@/components/AguiTestButton';
 
-const AgentsPage: React.FC = () => {
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [recentRuns, setRecentRuns] = useState<AgentRun[]>([]);
+// Memoized component for better performance
+const AgentsPage: React.FC = memo(() => {
   const { isConnected, connectionState, eventCount } = useAgui();
-  const [loading, setLoading] = useState(true);
-  const [executingAgents, setExecutingAgents] = useState<Set<string>>(new Set());
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showDebugPanel, setShowDebugPanel] = useState(false);
-  const [schedulerStatus, setSchedulerStatus] = useState<{ isRunning: boolean; scheduledAgentsCount: number } | null>(null);
-  const [isDashboardHealthy, setIsDashboardHealthy] = useState(true);
+  const isMobile = useIsMobile();
   const { toast } = useToast();
   const navigate = useNavigate();
+  
+  // Performance optimized data hooks
+  const {
+    agents,
+    loading: agentsLoading,
+    error: agentsError,
+    refresh: refreshAgents,
+    updateAgentOptimistically,
+    addAgentOptimistically,
+    removeAgentOptimistically,
+  } = useOptimizedAgents({
+    pollingInterval: 30000, // 30 seconds
+    enableRealtime: true,
+    staleWhileRevalidate: true,
+  });
+
+  const {
+    runs: recentRuns,
+    loading: runsLoading,
+    refresh: refreshRuns,
+  } = useOptimizedAgentRuns({
+    limit: 20,
+    pollingInterval: 15000, // 15 seconds
+  });
+
+  // Cache management
+  const { clearAllCaches, getCacheStats } = useCacheManagement();
+  
+  // Background sync for offline support
+  const { isOnline, pendingOperations } = useBackgroundSync();
+
+  // Local state
+  const [executingAgents, setExecutingAgents] = useState<Set<string>>(new Set());
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(false);
+  const [schedulerStatus, setSchedulerStatus] = useState<{ isRunning: boolean; scheduledAgentsCount: number } | null>(null);
+  const [isDashboardHealthy, setIsDashboardHealthy] = useState(true);
   
   // Debouncing for execution calls
   const executionTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
-  // Form state for creating new agent
-  const [newAgent, setNewAgent] = useState({
-    name: '',
-    type: 'twitter' as 'twitter' | 'news' | 'crewai_news' | 'custom',
-    description: '',
-    configuration: {
-      keywords: '',
-      minLikes: 10,
-      minRetweets: 5,
-      excludeReplies: true,
-      newsSources: '',
-      categories: '',
-      language: 'en',
-      topics: '',
-      crewaiSources: {
-        reddit: true,
-        linkedin: true,
-        telegram: true,
-        news_websites: true,
-      },
-      schedule: '0 */6 * * *',
-      maxItemsPerRun: 10,
-    },
-  });
+  // Wizard state
+  const [showCreateWizard, setShowCreateWizard] = useState(false);
+  
+  // View state - toggle between agent cards, analytics dashboard, and 3D visualization
+  const [currentView, setCurrentView] = useState<'agents' | 'analytics' | '3d'>('agents');
+  const [enable3DFeatures, setEnable3DFeatures] = useState(true);
+  const [selectedAgent3D, setSelectedAgent3D] = useState<string | null>(null);
+
+  // Preload critical components on mount
+  useEffect(() => {
+    preloadCriticalComponents();
+  }, []);
+
+  // Convert Agent data to format expected by 3D components
+  const convertAgentsFor3D = useCallback((agentList: Agent[]) => {
+    return agentList.map(agent => ({
+      id: agent._id,
+      name: agent.name,
+      type: agent.type || 'agent',
+      status: agent.isActive ? 'running' : agent.lastExecutionResult?.status === 'error' ? 'error' : 
+              agent.lastExecutionResult?.status === 'success' ? 'completed' : 'idle',
+      performance: {
+        tasksCompleted: agent.stats?.totalExecutions || 0,
+        successRate: agent.stats?.successRate || 0,
+        avgResponseTime: agent.stats?.averageExecutionTime || 0
+      }
+    }));
+  }, []);
+
+  // Fetch scheduler status (not optimized since it's less frequent)
+  const fetchSchedulerStatus = useCallback(async () => {
+    try {
+      const statusData = await agentService.getSchedulerStatus();
+      setSchedulerStatus(statusData);
+    } catch (error) {
+      // Silently handle backend connection issues in development
+      // Only log if it's not a network error
+      if (error.code !== 'ERR_NETWORK') {
+        console.warn('Failed to fetch scheduler status:', error);
+      }
+    }
+  }, []);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchSchedulerStatus();
+  }, [fetchSchedulerStatus]);
 
   // Cleanup timeouts on unmount
   useEffect(() => {
@@ -105,88 +211,19 @@ const AgentsPage: React.FC = () => {
     };
   }, []);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [agentsData, runsData, statusData] = await Promise.all([
-        agentService.getAgents(),
-        agentService.getUserAgentRuns(20),
-        agentService.getSchedulerStatus(),
-      ]);
-      
-      setAgents(agentsData || []);
-      setRecentRuns(runsData || []);
-      setSchedulerStatus(statusData);
-    } catch (error: any) {
-      setAgents([]);
-      setRecentRuns([]);
-      setSchedulerStatus(null);
-      
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch agents data',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Combined loading state
+  const loading = agentsLoading || runsLoading;
 
-  const handleCreateAgent = async () => {
-    console.log('🚀 Create Agent button clicked!', newAgent);
-    try {
-      const agentData = {
-        name: newAgent.name,
-        type: newAgent.type,
-        description: newAgent.description,
-        configuration: {
-          ...newAgent.configuration,
-          keywords: newAgent.configuration.keywords ? newAgent.configuration.keywords.split(',').map(k => k.trim()) : [],
-          newsSources: newAgent.configuration.newsSources ? newAgent.configuration.newsSources.split(',').map(s => s.trim()) : [],
-          categories: newAgent.configuration.categories ? newAgent.configuration.categories.split(',').map(c => c.trim()) : [],
-          topics: newAgent.configuration.topics ? newAgent.configuration.topics.split(',').map(t => t.trim()) : [],
-        },
-      };
-
-      const createdAgent = await agentService.createAgent(agentData);
-      setAgents(prev => [createdAgent, ...(prev || [])]);
-      setShowCreateDialog(false);
-      setNewAgent({
-        name: '',
-        type: 'twitter',
-        description: '',
-        configuration: {
-          keywords: '',
-          minLikes: 10,
-          minRetweets: 5,
-          excludeReplies: true,
-          newsSources: '',
-          categories: '',
-          language: 'en',
-          topics: '',
-          crewaiSources: {
-            reddit: true,
-            linkedin: true,
-            telegram: true,
-            news_websites: true,
-          },
-          schedule: '0 */6 * * *',
-          maxItemsPerRun: 10,
-        },
-      });
-
-      toast({
-        title: 'Success',
-        description: 'Agent created successfully',
-      });
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to create agent',
-        variant: 'destructive',
-      });
-    }
-  };
+  const handleAgentCreated = useCallback((createdAgent: Agent) => {
+    // Optimistic update
+    addAgentOptimistically(createdAgent);
+    setShowCreateWizard(false);
+    
+    // Refresh data in background to ensure consistency
+    setTimeout(() => {
+      refreshAgents();
+    }, 1000);
+  }, [addAgentOptimistically, refreshAgents]);
 
   // Debounced execution function to prevent rapid multiple clicks
   const debouncedExecuteAgent = useCallback((agentId: string, force: boolean = false) => {
@@ -325,7 +362,12 @@ const AgentsPage: React.FC = () => {
     }
   };
 
-  const handleToggleAgent = async (agent: Agent) => {
+  const handleToggleAgent = useCallback(async (agent: Agent) => {
+    const newStatus = !agent.isActive;
+    
+    // Optimistic update
+    updateAgentOptimistically(agent._id, { isActive: newStatus });
+    
     try {
       if (agent.isActive) {
         await agentService.pauseAgent(agent._id);
@@ -334,34 +376,40 @@ const AgentsPage: React.FC = () => {
         await agentService.resumeAgent(agent._id);
         toast({ title: 'Success', description: 'Agent resumed' });
       }
-      
-      fetchData();
     } catch (error: any) {
+      // Revert optimistic update on error
+      updateAgentOptimistically(agent._id, { isActive: agent.isActive });
+      
       toast({
         title: 'Error',
         description: error.message || 'Failed to toggle agent',
         variant: 'destructive',
       });
     }
-  };
+  }, [updateAgentOptimistically, toast]);
 
-  const handleDeleteAgent = async (agentId: string) => {
+  const handleDeleteAgent = useCallback(async (agentId: string) => {
+    // Optimistic update
+    removeAgentOptimistically(agentId);
+    
     try {
       await agentService.deleteAgent(agentId);
-      setAgents(prev => (prev || []).filter(a => a._id !== agentId));
       
       toast({
         title: 'Success',
         description: 'Agent deleted successfully',
       });
     } catch (error: any) {
+      // Revert optimistic update on error
+      refreshAgents();
+      
       toast({
         title: 'Error',
         description: error.message || 'Failed to delete agent',
         variant: 'destructive',
       });
     }
-  };
+  }, [removeAgentOptimistically, refreshAgents, toast]);
 
   const getAgentIcon = (type: string) => {
     switch (type) {
@@ -420,17 +468,101 @@ const AgentsPage: React.FC = () => {
     return `${diffDays}d ago`;
   };
 
+  // Enhanced loading skeleton using our animation components
+  const LoadingSkeleton = () => (
+    <PageTransitionManager showLoadingOverlay={false}>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 relative overflow-hidden"
+      >
+        <div className="relative z-10 container mx-auto p-4 md:p-8 space-y-6">
+          {/* Header Skeleton */}
+          <motion.div
+            className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4"
+            variants={slideVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-14 h-14 bg-muted/50 rounded-full animate-pulse" />
+              <div className="space-y-2">
+                <div className="h-8 w-64 bg-muted/50 rounded animate-pulse" />
+                <div className="h-4 w-96 bg-muted/50 rounded animate-pulse" />
+              </div>
+            </div>
+            <div className="w-32 h-10 bg-muted/50 rounded animate-pulse" />
+          </motion.div>
+          
+          {/* Enhanced Cards Skeleton Grid */}
+          <SkeletonGrid
+            items={6}
+            columns={isMobile ? 1 : 3}
+            renderItem={(index) => (
+              <AgentCardSkeleton
+                key={index}
+                animation="wave"
+                className="h-full"
+              />
+            )}
+          />
+        </div>
+      </motion.div>
+    </PageTransitionManager>
+  );
+
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <LoadingSkeleton />;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 relative overflow-hidden">
-      <div className="relative z-10 container mx-auto p-4 md:p-8 space-y-6">
+    <PageTransitionManager>
+      <motion.div 
+        className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 relative overflow-hidden"
+        variants={pageVariants}
+        initial="initial"
+        animate="in"
+        exit="out"
+      >
+      {/* Animated Background Pattern */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <motion.div
+          className="absolute top-1/4 -right-32 w-96 h-96 rounded-full opacity-5"
+          animate={{
+            scale: [1, 1.2, 1],
+            rotate: [0, 180, 360],
+          }}
+          transition={{
+            duration: 20,
+            repeat: Infinity,
+            ease: 'linear',
+          }}
+          style={{
+            background: `radial-gradient(circle, ${agentColors.running.primary}, transparent 70%)`,
+          }}
+        />
+        <motion.div
+          className="absolute bottom-1/4 -left-32 w-80 h-80 rounded-full opacity-5"
+          animate={{
+            scale: [1.2, 1, 1.2],
+            rotate: [360, 180, 0],
+          }}
+          transition={{
+            duration: 25,
+            repeat: Infinity,
+            ease: 'linear',
+          }}
+          style={{
+            background: `radial-gradient(circle, ${agentColors.completed.primary}, transparent 70%)`,
+          }}
+        />
+      </div>
+      <motion.div 
+        className="relative z-10 container mx-auto p-4 md:p-8 space-y-8"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
         {/* Health Check - Always visible for system monitoring */}
         <DashboardHealthCheck onHealthChange={setIsDashboardHealthy} />
         
@@ -440,577 +572,559 @@ const AgentsPage: React.FC = () => {
         {/* AG-UI Test Panel for debugging */}
         <AguiTestButton />
         
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full">
-              <Bot className="w-8 h-8 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-primary">
+        {/* Enhanced Header with Design System */}
+        <motion.div
+          variants={slideVariants}
+          initial="hidden"
+          animate="visible"
+          className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6"
+        >
+          <div className="flex items-center gap-4">
+            <motion.div 
+              whileHover={{ scale: 1.05, rotate: 5 }}
+              className="p-4 bg-gradient-to-br from-primary/20 via-accent/20 to-primary/10 rounded-2xl"
+              style={{ 
+                boxShadow: shadows.glow(agentColors.running.glow),
+                borderRadius: borderRadius.xl 
+              }}
+            >
+              <Bot className="w-10 h-10 text-primary" />
+            </motion.div>
+            <div className="space-y-2">
+              <motion.h1 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{
+                  ...typography.hero,
+                  background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)))',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text'
+                }}
+                className="flex items-center gap-3"
+              >
                 Multi AI Agents
                 {!isDashboardHealthy && (
-                  <span className="text-sm text-red-500 font-normal ml-2">• System Issues</span>
+                  <motion.span 
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="text-sm font-normal text-red-500"
+                    style={typography.small}
+                  >
+                    • System Issues
+                  </motion.span>
                 )}
-              </h1>
-              <p className="text-muted-foreground">
+              </motion.h1>
+              
+              <motion.p 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="text-muted-foreground"
+                style={typography.body}
+              >
                 Automated content curation agents working 24/7
                 {!isDashboardHealthy && (
                   <span className="text-red-500 ml-2">• Check system health above</span>
                 )}
-              </p>
+              </motion.p>
               
-              {/* AG-UI Connection Status */}
-              <div className="flex items-center gap-2 mt-2">
-                {isConnected ? (
-                  <>
-                    <Wifi className="w-4 h-4 text-green-500" />
-                    <span className="text-sm text-green-600">Live streaming connected</span>
-                    <Badge variant="outline" className="text-xs">
-                      {eventCount} events received
-                    </Badge>
-                  </>
-                ) : (
-                  <>
-                    <WifiOff className="w-4 h-4 text-yellow-500" />
-                    <span className="text-sm text-yellow-600">
-                      Connecting to live stream... ({connectionState})
+              {/* Enhanced AG-UI Connection Status */}
+              <motion.div 
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+                className="flex items-center gap-3 mt-3"
+              >
+                <ConnectionStatus
+                  isConnected={isConnected}
+                  showBandwidth={isConnected}
+                  bandwidth={85}
+                />
+                {isConnected && (
+                  <motion.div
+                    variants={statusVariants.completed}
+                    animate="completed"
+                    className="px-2 py-1 rounded-md"
+                    style={{ 
+                      backgroundColor: agentColors.completed.bg,
+                      border: `1px solid ${agentColors.completed.border}` 
+                    }}
+                  >
+                    <span 
+                      className="text-xs font-medium"
+                      style={{ color: agentColors.completed.text, ...typography.caption }}
+                    >
+                      {eventCount} events
                     </span>
-                  </>
+                  </motion.div>
                 )}
-              </div>
+              </motion.div>
             </div>
           </div>
 
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-            <DialogTrigger asChild>
-              <Button 
-                size="lg" 
-                className="hover:scale-105 transition-all duration-200"
-                onClick={() => {
-                  console.log('Create Agent button clicked');
-                  setShowCreateDialog(true);
-                }}
+          <div className="flex items-center gap-4">
+            {/* View Toggle */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3 }}
+              className="flex items-center bg-muted/50 rounded-lg p-1"
+            >
+              <AnimatedButton
+                variant={currentView === 'agents' ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setCurrentView('agents')}
+                className="h-8 px-3 text-sm"
+                rippleEffect
               >
-                <Plus className="w-5 h-5 mr-2" />
-                Create Agent
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
-              <DialogHeader>
-                <DialogTitle>Create New Agent</DialogTitle>
-                <DialogDescription>
-                  Configure a new AI agent to automatically curate content for you.
-                </DialogDescription>
-              </DialogHeader>
-              
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="name">Agent Name</Label>
-                    <Input
-                      id="name"
-                      value={newAgent.name}
-                      onChange={(e) => setNewAgent(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="My Twitter Agent"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="type">Agent Type</Label>
-                    <Select value={newAgent.type} onValueChange={(value: 'twitter' | 'news' | 'crewai_news' | 'custom') => setNewAgent(prev => ({ ...prev, type: value }))}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="twitter">Twitter Agent</SelectItem>
-                        <SelectItem value="news">News Agent</SelectItem>
-                        <SelectItem value="crewai_news">🤖 CrewAI 2025 Multi-Agent (Any Topic)</SelectItem>
-                        <SelectItem value="custom">Custom Agent</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+                <Grid3X3 className="w-4 h-4 mr-2" />
+                Agents
+              </AnimatedButton>
+              <AnimatedButton
+                variant={currentView === 'analytics' ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setCurrentView('analytics')}
+                className="h-8 px-3 text-sm"
+                rippleEffect
+              >
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Analytics
+              </AnimatedButton>
+              <AnimatedButton
+                variant={currentView === '3d' ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setCurrentView('3d')}
+                className="h-8 px-3 text-sm"
+                rippleEffect
+              >
+                <Box className="w-4 h-4 mr-2" />
+                3D View
+              </AnimatedButton>
+            </motion.div>
 
-                <div>
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={newAgent.description}
-                    onChange={(e) => setNewAgent(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Describe what this agent should do..."
-                  />
-                </div>
+            {/* Enhanced Create Agent Button */}
+            <AnimatedButton
+              size="lg" 
+              className="relative overflow-hidden group"
+              style={{
+                background: `linear-gradient(135deg, ${agentColors.running.primary}, ${agentColors.completed.primary})`,
+                border: 'none',
+                color: 'white',
+                fontWeight: typography.cardTitle.fontWeight,
+                fontSize: typography.body.fontSize,
+                padding: `${spacing.md} ${spacing.xl}`,
+                borderRadius: borderRadius.lg,
+                boxShadow: shadows.md
+              }}
+              onClick={() => {
+                console.log('Create Agent button clicked');
+                setShowCreateWizard(true);
+              }}
+              glowEffect
+              rippleEffect
+              hapticFeedback
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              Create Agent
+            </AnimatedButton>
+          </div>
+        </motion.div>
 
-                {newAgent.type === 'twitter' && (
-                  <div className="space-y-3">
-                    <Label>Twitter Configuration</Label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label htmlFor="keywords">Keywords (comma-separated)</Label>
-                        <Input
-                          id="keywords"
-                          value={newAgent.configuration.keywords}
-                          onChange={(e) => setNewAgent(prev => ({ 
-                            ...prev, 
-                            configuration: { ...prev.configuration, keywords: e.target.value }
-                          }))}
-                          placeholder="AI, technology, startup"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="minLikes">Minimum Likes</Label>
-                        <Input
-                          id="minLikes"
-                          type="number"
-                          value={newAgent.configuration.minLikes}
-                          onChange={(e) => setNewAgent(prev => ({ 
-                            ...prev, 
-                            configuration: { ...prev.configuration, minLikes: parseInt(e.target.value) || 0 }
-                          }))}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {newAgent.type === 'news' && (
-                  <div className="space-y-3">
-                    <Label>News Configuration</Label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label htmlFor="categories">Categories (comma-separated)</Label>
-                        <Input
-                          id="categories"
-                          value={newAgent.configuration.categories}
-                          onChange={(e) => setNewAgent(prev => ({ 
-                            ...prev, 
-                            configuration: { ...prev.configuration, categories: e.target.value }
-                          }))}
-                          placeholder="technology, business"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="language">Language</Label>
-                        <Select value={newAgent.configuration.language} onValueChange={(value) => setNewAgent(prev => ({ 
-                          ...prev, 
-                          configuration: { ...prev.configuration, language: value }
-                        }))}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="en">English</SelectItem>
-                            <SelectItem value="es">Spanish</SelectItem>
-                            <SelectItem value="fr">French</SelectItem>
-                            <SelectItem value="de">German</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {newAgent.type === 'crewai_news' && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Label className="text-base font-medium">CrewAI 2025 Multi-Agent Configuration</Label>
-                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                        Enhanced
-                      </Badge>
-                    </div>
-                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-4">
-                      <div className="flex items-start gap-2">
-                        <Bot className="w-4 h-4 text-purple-600 mt-0.5" />
-                        <div className="text-sm text-purple-800">
-                          <p className="font-medium mb-1">Advanced Multi-Agent System</p>
-                          <p className="text-xs">
-                            ✅ Works with ANY topic/domain • ✅ Strict content filtering • ✅ Source validation • ✅ CrewAI 2025 compliant
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      <div>
-                        <Label htmlFor="topics" className="flex items-center gap-2">
-                          Topics/Goals (comma-separated)
-                          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
-                            Topic-Agnostic
-                          </Badge>
-                        </Label>
-                        <Input
-                          id="topics"
-                          value={newAgent.configuration.topics}
-                          onChange={(e) => setNewAgent(prev => ({ 
-                            ...prev, 
-                            configuration: { ...prev.configuration, topics: e.target.value }
-                          }))}
-                          placeholder="sports, finance, health, travel, cooking, gaming, politics, science..."
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">
-                          🎯 <strong>Any topics you want!</strong> The CrewAI 2025 system works with any domain - sports, business, entertainment, science, hobbies, etc. Uses advanced filtering to find only relevant, high-quality content.
-                        </p>
-                      </div>
-                      
-                      <div>
-                        <Label className="flex items-center gap-2">
-                          Content Sources
-                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                            Multi-Platform
-                          </Badge>
-                        </Label>
-                        <p className="text-xs text-muted-foreground mb-2">
-                          🔍 Select sources for intelligent content discovery across multiple platforms with quality validation
-                        </p>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              id="reddit"
-                              checked={newAgent.configuration.crewaiSources?.reddit}
-                              onChange={(e) => setNewAgent(prev => ({
-                                ...prev,
-                                configuration: {
-                                  ...prev.configuration,
-                                  crewaiSources: {
-                                    ...prev.configuration.crewaiSources,
-                                    reddit: e.target.checked
-                                  }
-                                }
-                              }))}
-                              className="rounded"
-                            />
-                            <label htmlFor="reddit" className="text-sm font-medium">
-                              Reddit Discussions
-                            </label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              id="linkedin"
-                              checked={newAgent.configuration.crewaiSources?.linkedin}
-                              onChange={(e) => setNewAgent(prev => ({
-                                ...prev,
-                                configuration: {
-                                  ...prev.configuration,
-                                  crewaiSources: {
-                                    ...prev.configuration.crewaiSources,
-                                    linkedin: e.target.checked
-                                  }
-                                }
-                              }))}
-                              className="rounded"
-                            />
-                            <label htmlFor="linkedin" className="text-sm font-medium">
-                              LinkedIn Insights
-                            </label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              id="telegram"
-                              checked={newAgent.configuration.crewaiSources?.telegram}
-                              onChange={(e) => setNewAgent(prev => ({
-                                ...prev,
-                                configuration: {
-                                  ...prev.configuration,
-                                  crewaiSources: {
-                                    ...prev.configuration.crewaiSources,
-                                    telegram: e.target.checked
-                                  }
-                                }
-                              }))}
-                              className="rounded"
-                            />
-                            <label htmlFor="telegram" className="text-sm font-medium">
-                              Telegram Channels
-                            </label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              id="news_websites"
-                              checked={newAgent.configuration.crewaiSources?.news_websites}
-                              onChange={(e) => setNewAgent(prev => ({
-                                ...prev,
-                                configuration: {
-                                  ...prev.configuration,
-                                  crewaiSources: {
-                                    ...prev.configuration.crewaiSources,
-                                    news_websites: e.target.checked
-                                  }
-                                }
-                              }))}
-                              className="rounded"
-                            />
-                            <label htmlFor="news_websites" className="text-sm font-medium">
-                              News Websites
-                            </label>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="schedule">Schedule (Cron)</Label>
-                    <Input
-                      id="schedule"
-                      value={newAgent.configuration.schedule}
-                      onChange={(e) => setNewAgent(prev => ({ 
-                        ...prev, 
-                        configuration: { ...prev.configuration, schedule: e.target.value }
-                      }))}
-                      placeholder="0 */6 * * *"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="maxItems">Max Items Per Run</Label>
-                    <Input
-                      id="maxItems"
-                      type="number"
-                      value={newAgent.configuration.maxItemsPerRun}
-                      onChange={(e) => setNewAgent(prev => ({ 
-                        ...prev, 
-                        configuration: { ...prev.configuration, maxItemsPerRun: parseInt(e.target.value) || 10 }
-                      }))}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleCreateAgent} disabled={!newAgent.name || !newAgent.type}>
-                    Create Agent
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        {/* Scheduler Status */}
+        {/* Enhanced Scheduler Status */}
         {schedulerStatus && (
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Activity className={`w-5 h-5 ${schedulerStatus.isRunning ? 'text-green-500' : 'text-red-500'}`} />
-                  <div>
-                    <p className="font-medium">Agent Scheduler</p>
-                    <p className="text-sm text-muted-foreground">
-                      {schedulerStatus.isRunning ? 'Running' : 'Stopped'} • {schedulerStatus.scheduledAgentsCount} agents scheduled
-                    </p>
+          <motion.div
+            variants={cardVariants}
+            initial="hidden"
+            animate="visible"
+            whileHover="hover"
+          >
+            <Card 
+              className="border-0 overflow-hidden relative"
+              style={{
+                backgroundColor: schedulerStatus.isRunning ? agentColors.running.bg : agentColors.error.bg,
+                border: `1px solid ${schedulerStatus.isRunning ? agentColors.running.border : agentColors.error.border}`,
+                borderRadius: borderRadius.xl,
+                boxShadow: shadows.md
+              }}
+            >
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <motion.div
+                      variants={statusVariants[schedulerStatus.isRunning ? 'running' : 'error']}
+                      animate={schedulerStatus.isRunning ? 'running' : 'error'}
+                      className="p-2 rounded-full"
+                      style={{
+                        backgroundColor: schedulerStatus.isRunning ? agentColors.running.bgDark : agentColors.error.bgDark
+                      }}
+                    >
+                      <Activity 
+                        className="w-5 h-5"
+                        style={{ 
+                          color: schedulerStatus.isRunning ? agentColors.running.primary : agentColors.error.primary 
+                        }} 
+                      />
+                    </motion.div>
+                    <div className="space-y-1">
+                      <p 
+                        className="font-semibold"
+                        style={{ 
+                          ...typography.cardTitle,
+                          color: schedulerStatus.isRunning ? agentColors.running.text : agentColors.error.text
+                        }}
+                      >
+                        Agent Scheduler
+                      </p>
+                      <p 
+                        className="text-muted-foreground"
+                        style={{
+                          ...typography.small,
+                          color: schedulerStatus.isRunning ? agentColors.running.text : agentColors.error.text,
+                          opacity: 0.8
+                        }}
+                      >
+                        {schedulerStatus.isRunning ? 'Running' : 'Stopped'} • {schedulerStatus.scheduledAgentsCount} agents scheduled
+                      </p>
+                    </div>
                   </div>
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.2, type: 'spring' }}
+                  >
+                    <Badge 
+                      className="px-3 py-1 font-medium border-0"
+                      style={{
+                        backgroundColor: schedulerStatus.isRunning ? agentColors.running.primary : agentColors.error.primary,
+                        color: 'white',
+                        ...typography.caption
+                      }}
+                    >
+                      {schedulerStatus.isRunning ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </motion.div>
                 </div>
-                <Badge variant={schedulerStatus.isRunning ? 'default' : 'destructive'}>
-                  {schedulerStatus.isRunning ? 'Active' : 'Inactive'}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </motion.div>
         )}
 
-        {/* Agents Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {(agents || []).map((agent) => (
+        {/* Main Content - Conditional View */}
+        <AnimatePresence mode="wait">
+          {currentView === 'agents' ? (
             <motion.div
-              key={agent._id}
+              key="agents-view"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="group"
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-8"
             >
-              <Card className="h-full hover:shadow-lg transition-all duration-300 hover:border-primary/30">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      {getAgentIcon(agent.type)}
-                      <div>
-                        <CardTitle className="text-lg">{agent.name}</CardTitle>
-                        <CardDescription className="flex items-center gap-2">
-                          {getAgentDisplayName(agent.type)}
-                          {agent.type === 'crewai_news' && (
-                            <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
-                              Enhanced
-                            </Badge>
-                          )}
-                        </CardDescription>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {getStatusIcon(agent.status)}
-                      <Badge variant={agent.isActive ? 'default' : 'secondary'} className="text-xs">
-                        {agent.isActive ? 'Active' : 'Paused'}
-                      </Badge>
-                    </div>
-                  </div>
-                </CardHeader>
+              {/* Performance Optimized Virtualized Agents Grid */}
+              <VirtualizedAgentGrid
+                agents={agents || []}
+                executingAgents={executingAgents}
+                onExecute={handleExecuteAgent}
+                onToggle={handleToggleAgent}
+                onDelete={handleDeleteAgent}
+                onReset={handleResetAgentStatus}
+                formatTimeAgo={formatTimeAgo}
+                loading={loading}
+                className="w-full"
+              />
 
-                <CardContent className="space-y-4">
-                  {agent.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {agent.description}
-                    </p>
-                  )}
-
-                  {/* Statistics */}
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="text-center p-2 bg-muted/30 rounded">
-                      <p className="font-medium">{agent.statistics.totalRuns}</p>
-                      <p className="text-xs text-muted-foreground">Total Runs</p>
-                    </div>
-                    <div className="text-center p-2 bg-muted/30 rounded">
-                      <p className="font-medium">{agent.statistics.totalItemsAdded}</p>
-                      <p className="text-xs text-muted-foreground">Items Added</p>
-                    </div>
-                  </div>
-
-                  {/* Last Run */}
-                  {agent.lastRun && (
-                    <div className="text-xs text-muted-foreground">
-                      Last run: {formatTimeAgo(agent.lastRun)}
-                    </div>
-                  )}
-
-                  {/* Error message */}
-                  {agent.status === 'error' && agent.errorMessage && (
-                    <div className="p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-300">
-                      {agent.errorMessage}
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleExecuteAgent(agent._id)}
-                        disabled={executingAgents.has(agent._id) || agent.status === 'running'}
-                        className="flex-1"
+              {/* Enhanced Empty State */}
+              {(agents || []).length === 0 && !loading && (
+                <motion.div
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="visible"
+                  className="flex flex-col items-center justify-center py-20 px-4"
+                >
+                  <motion.div
+                    variants={cardVariants}
+                    className="text-center space-y-6 max-w-md mx-auto"
+                  >
+                    <motion.div
+                      variants={statusVariants.idle}
+                      animate="idle"
+                      className="mx-auto p-6 rounded-full"
+                      style={{
+                        backgroundColor: agentColors.idle.bg,
+                        border: `2px solid ${agentColors.idle.border}`
+                      }}
+                    >
+                      <Bot 
+                        className="w-16 h-16 mx-auto"
+                        style={{ color: agentColors.idle.primary }}
+                      />
+                    </motion.div>
+                    
+                    <div className="space-y-3">
+                      <motion.h3 
+                        variants={cardVariants}
+                        style={{
+                          ...typography.heading,
+                          color: agentColors.idle.text
+                        }}
                       >
-                        {executingAgents.has(agent._id) ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Play className="w-4 h-4" />
-                        )}
-                        Run
-                      </Button>
-
-                      {agent.status === 'error' && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleResetAgentStatus(agent._id)}
-                          title="Reset agent status"
-                        >
-                          <RotateCcw className="w-4 h-4" />
-                        </Button>
-                      )}
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleToggleAgent(agent)}
+                        No AI Agents Yet
+                      </motion.h3>
+                      <motion.p 
+                        variants={cardVariants}
+                        className="text-muted-foreground leading-relaxed"
+                        style={typography.body}
                       >
-                        {agent.isActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => navigate(`/agents/${agent._id}/settings`)}
-                        title="Agent Settings"
-                      >
-                        <Settings className="w-4 h-4" />
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDeleteAgent(agent._id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                        Create your first AI agent to start automating content curation. 
+                        Choose from Twitter monitoring, news aggregation, or powerful CrewAI multi-agent systems.
+                      </motion.p>
                     </div>
                     
-                    <div className="flex gap-2">
-                      <AgentLogViewer
+                    <AnimatedButton
+                      size="lg"
+                      onClick={() => setShowCreateWizard(true)}
+                      className="group relative overflow-hidden"
+                      style={{
+                        background: `linear-gradient(135deg, ${agentColors.running.primary}, ${agentColors.completed.primary})`,
+                        border: 'none',
+                        color: 'white',
+                        fontWeight: typography.cardTitle.fontWeight,
+                        padding: `${spacing.md} ${spacing.xl}`,
+                        borderRadius: borderRadius.lg,
+                        boxShadow: shadows.lg
+                      }}
+                      glowEffect
+                      rippleEffect
+                      hapticFeedback
+                      magneticEffect
+                    >
+                      <Plus className="w-5 h-5 mr-2" />
+                      Create Your First Agent
+                    </AnimatedButton>
+                  </motion.div>
+                </motion.div>
+              )}
+
+              {/* Enhanced Agent Activity Dashboard - Lazy Loaded */}
+              <LazyWrapper 
+                fallbackProps={{ 
+                  type: 'skeleton', 
+                  message: 'Loading activity dashboard...', 
+                  height: 300 
+                }}
+              >
+                <LazyAgentActivityDashboard
+                  agents={agents || []}
+                  onAgentExecute={handleExecuteAgent}
+                  onAgentToggle={handleToggleAgent}
+                />
+              </LazyWrapper>
+
+              {/* Enhanced Live Agent Execution Timelines - Lazy Loaded */}
+              <AnimatePresence>
+                {agents?.filter(agent => agent.status === 'running').map(agent => (
+                  <motion.div
+                    key={`timeline-${agent._id}`}
+                    variants={slideVariants}
+                    initial="hidden"
+                    animate="visible"
+                    exit="hidden"
+                    custom="up"
+                  >
+                    <LazyWrapper 
+                      fallbackProps={{ 
+                        type: 'skeleton', 
+                        message: 'Loading timeline...', 
+                        height: 200 
+                      }}
+                    >
+                      <LazyAgentStepTimeline 
                         agentId={agent._id}
                         agentName={agent.name}
-                        isRunning={agent.status === 'running' || executingAgents.has(agent._id)}
+                        showMessages={true}
                       />
-                      
-                      {/* Show Crew Dashboard for CrewAI agents */}
-                      {agent.type === 'crewai_news' && (
-                        <CrewExecutionDashboard
-                          agentId={agent._id}
-                          agentName={agent.name}
-                          isRunning={agent.status === 'running' || executingAgents.has(agent._id)}
-                          onExecuteAgent={() => handleExecuteAgent(agent._id)}
-                          onPauseAgent={() => handleToggleAgent(agent)}
-                        />
-                      )}
+                    </LazyWrapper>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </motion.div>
+          ) : currentView === 'analytics' ? (
+            <motion.div
+              key="analytics-view"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              {/* Analytics Dashboard - Lazy Loaded */}
+              <LazyWrapper 
+                fallbackProps={{ 
+                  type: 'cards', 
+                  message: 'Loading analytics dashboard...',
+                  height: 600 
+                }}
+              >
+                <LazyMetricsDashboard 
+                  agents={agents || []}
+                  recentRuns={recentRuns || []}
+                />
+              </LazyWrapper>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="3d-view"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.4 }}
+              className="h-[80vh] w-full"
+            >
+              {/* Enhanced 3D Dashboard */}
+              <Suspense 
+                fallback={
+                  <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-background to-muted rounded-lg">
+                    <div className="text-center space-y-4">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+                      <p className="text-lg font-medium">Loading 3D Visualization...</p>
+                      <p className="text-sm text-muted-foreground">Initializing WebGL and 3D components</p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                }
+              >
+                <LazyEnhanced3DDashboardSafe
+                  agents={convertAgentsFor3D(agents || [])}
+                  theme="studio"
+                  enableEnhancedFeatures={enable3DFeatures}
+                  enableDataVisualization={true}
+                  enablePerformanceMonitoring={true}
+                  enableFormations={true}
+                  onAgentSelect={(agentId) => {
+                    setSelectedAgent3D(agentId);
+                  }}
+                  className="w-full h-full rounded-lg border shadow-lg"
+                />
+              </Suspense>
+              
+              {/* 3D View Controls Panel */}
+              <div className="absolute bottom-4 right-4 bg-black/80 rounded-lg p-3 text-white">
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={enable3DFeatures}
+                      onChange={(e) => setEnable3DFeatures(e.target.checked)}
+                      className="rounded"
+                    />
+                    Enhanced Features
+                  </label>
+                  {selectedAgent3D && (
+                    <span className="text-xs bg-blue-600 px-2 py-1 rounded">
+                      Selected: {agents?.find(a => a.id === selectedAgent3D)?.name}
+                    </span>
+                  )}
+                </div>
+              </div>
             </motion.div>
-          ))}
-        </div>
+          )}
+        </AnimatePresence>
 
-        {(agents || []).length === 0 && !loading && (
-          <DashboardEmptyState 
-            onCreateAgent={() => setShowCreateDialog(true)}
-          />
-        )}
+      </motion.div>
 
-        {/* Agent Activity Dashboard */}
-        <AgentActivityDashboard
-          agents={agents || []}
-          onAgentExecute={handleExecuteAgent}
-          onAgentToggle={handleToggleAgent}
-        />
-
-        {/* Live Agent Execution Timelines */}
-        {agents?.filter(agent => agent.status === 'running').map(agent => (
-          <AgentStepTimeline 
-            key={`timeline-${agent._id}`}
-            agentId={agent._id}
-            agentName={agent.name}
-            showMessages={true}
-          />
-        ))}
-      </div>
-
-      {/* Debug Panel - only shows in development */}
+      {/* Enhanced Debug Panel - only shows in development */}
       {import.meta.env.DEV && (
         <>
-          {/* Floating Debug Button */}
-          <Button
-            className="fixed bottom-4 right-4 z-40 rounded-full w-12 h-12 p-0"
-            variant="outline"
+          {/* Enhanced Floating Debug Button */}
+          <FloatingActionButton
+            icon={<span className="text-lg">🐛</span>}
+            position="bottom-right"
+            tooltip="Open Debug Panel"
             onClick={() => setShowDebugPanel(true)}
-            title="Open Debug Panel"
-          >
-            🐛
-          </Button>
+            style={{
+              background: `linear-gradient(135deg, ${agentColors.idle.primary}, ${agentColors.completed.primary})`,
+              boxShadow: shadows.coloredGlow(agentColors.idle.glow)
+            }}
+          />
+
+          {/* Performance Monitor Button */}
+          <FloatingActionButton
+            icon={<span className="text-lg">⚡</span>}
+            position="bottom-left"
+            tooltip="Performance Monitor"
+            onClick={() => setShowPerformanceMonitor(true)}
+            style={{
+              background: `linear-gradient(135deg, ${agentColors.running.primary}, ${agentColors.warning.primary})`,
+              boxShadow: shadows.coloredGlow(agentColors.running.glow)
+            }}
+          />
           
-          <DebugPanel 
-            isVisible={showDebugPanel}
-            onClose={() => setShowDebugPanel(false)}
+          <LazyWrapper 
+            fallbackProps={{ 
+              type: 'spinner', 
+              message: 'Loading debug panel...' 
+            }}
+          >
+            <LazyDebugPanel 
+              isVisible={showDebugPanel}
+              onClose={() => setShowDebugPanel(false)}
+            />
+          </LazyWrapper>
+
+          <PerformanceMonitor
+            isVisible={showPerformanceMonitor}
+            onClose={() => setShowPerformanceMonitor(false)}
+            position="bottom-left"
           />
         </>
       )}
 
-      {/* AG-UI Live Dashboard - Only show when there's actual activity */}
-      <AguiLiveDashboard />
-    </div>
+      {/* AG-UI Live Dashboard - Lazy Loaded */}
+      <LazyWrapper 
+        fallbackProps={{ 
+          type: 'spinner', 
+          message: 'Loading live dashboard...' 
+        }}
+      >
+        <LazyAguiLiveDashboard />
+      </LazyWrapper>
+
+      {/* Agent Creation Wizard - Lazy Loaded */}
+      <LazyWrapper 
+        fallbackProps={{ 
+          type: 'skeleton', 
+          message: 'Loading creation wizard...',
+          height: 500 
+        }}
+      >
+        <LazyAgentCreationWizard 
+          open={showCreateWizard}
+          onOpenChange={setShowCreateWizard}
+          onSuccess={handleAgentCreated}
+        />
+      </LazyWrapper>
+
+      {/* Offline/Online Status Indicator */}
+      {!isOnline && (
+        <motion.div
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50"
+        >
+          <div className="bg-yellow-500 text-white px-4 py-2 rounded-lg shadow-lg">
+            <div className="flex items-center gap-2">
+              <WifiOff className="w-4 h-4" />
+              <span className="text-sm font-medium">
+                Offline - {pendingOperations} operations queued
+              </span>
+            </div>
+          </div>
+        </motion.div>
+      )}
+      </motion.div>
+    </PageTransitionManager>
   );
-};
+});
+
+AgentsPage.displayName = 'AgentsPage';
 
 export default AgentsPage;

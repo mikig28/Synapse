@@ -129,11 +129,14 @@ const DocsPage: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [activeTab, setActiveTab] = useState('documents');
+  const [systemHealth, setSystemHealth] = useState<any>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
 
   // Fetch documents on component mount
   useEffect(() => {
     fetchDocuments();
     fetchStats();
+    fetchHealthStatus();
   }, []);
 
   // Filter documents based on search and filters
@@ -190,6 +193,18 @@ const DocsPage: React.FC = () => {
       setStats(data);
     } catch (error) {
       console.error('Error fetching stats:', error);
+    }
+  };
+
+  const fetchHealthStatus = async () => {
+    try {
+      setHealthLoading(true);
+      const health = await documentService.getHealthStatus();
+      setSystemHealth(health);
+    } catch (error) {
+      console.error('Error fetching health status:', error);
+    } finally {
+      setHealthLoading(false);
     }
   };
 
@@ -278,22 +293,42 @@ const DocsPage: React.FC = () => {
         }, {
           id: Date.now() + 1,
           type: 'assistant',
-          content: result.response,
-          sources: result.sources,
-          confidence: 0.8, // Default confidence since API might not return it
-          qualityScore: 0.8, // Default quality score since API might not return it
-          suggestions: [], // Default empty array since API might not return it
+          content: result.response || result.answer || 'No response available',
+          sources: result.sources || [],
+          confidence: result.confidence || 0.7,
+          qualityScore: result.qualityScore || 0.7,
+          suggestions: result.suggestions || [],
           timestamp: new Date(),
         }]);
         
         setChatQuery('');
     } catch (error) {
       console.error('Error searching documents:', error);
+      
+      // Add error message to chat history
+      setChatHistory(prev => [...prev, {
+        id: Date.now(),
+        type: 'user',
+        content: chatQuery,
+        timestamp: new Date(),
+      }, {
+        id: Date.now() + 1,
+        type: 'assistant',
+        content: `❌ Search failed: ${error instanceof Error ? error.message : 'Unable to search documents. Please check your connection and try again.'}`,
+        sources: [],
+        confidence: 0,
+        qualityScore: 0,
+        suggestions: ['Try a simpler query', 'Check if documents are uploaded', 'Refresh the page'],
+        timestamp: new Date(),
+      }]);
+      
       toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to search documents',
+        title: 'Search Error',
+        description: error instanceof Error ? error.message : 'Failed to search documents. Please try again.',
         variant: 'destructive',
       });
+      
+      setChatQuery('');
     } finally {
       setSearchLoading(false);
     }
@@ -678,9 +713,29 @@ const DocsPage: React.FC = () => {
           <TabsContent value="search" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Brain className="w-5 h-5 mr-2" />
-                  AI-Powered Document Search
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <Brain className="w-5 h-5 mr-2" />
+                    AI-Powered Document Search
+                  </div>
+                  {systemHealth && (
+                    <div className="flex items-center space-x-2 text-sm">
+                      <div className={`w-2 h-2 rounded-full ${
+                        systemHealth.aiServices && systemHealth.vectorDatabase 
+                          ? 'bg-green-500' 
+                          : systemHealth.aiServices 
+                          ? 'bg-yellow-500' 
+                          : 'bg-red-500'
+                      }`} />
+                      <span className="text-muted-foreground hidden sm:inline">
+                        {systemHealth.aiServices && systemHealth.vectorDatabase 
+                          ? 'Online' 
+                          : systemHealth.aiServices 
+                          ? 'Limited' 
+                          : 'Offline'}
+                      </span>
+                    </div>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>

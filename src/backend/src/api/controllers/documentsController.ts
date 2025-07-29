@@ -572,6 +572,67 @@ export const getSimilarDocuments = async (req: AuthenticatedRequest, res: Respon
 };
 
 /**
+ * Get system health status
+ */
+export const getHealthStatus = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const healthStatus = {
+      vectorDatabase: false,
+      aiServices: false,
+      processingQueue: 0,
+      systemLoad: 0.5,
+      embedding: {
+        provider: process.env.EMBEDDING_PROVIDER || 'voyage',
+        available: false,
+      },
+      databases: {
+        mongodb: false,
+        vectorDb: false,
+      },
+      apiKeys: {
+        openai: !!process.env.OPENAI_API_KEY,
+        anthropic: !!process.env.ANTHROPIC_API_KEY,
+        voyage: !!process.env.VOYAGE_API_KEY,
+        gemini: !!process.env.GEMINI_API_KEY,
+      }
+    };
+
+    // Check vector database health
+    try {
+      const vectorHealth = await vectorDatabaseService.healthCheck();
+      healthStatus.vectorDatabase = true;
+      healthStatus.databases.vectorDb = true;
+      healthStatus.embedding.available = vectorHealth.embeddingProviders?.openai?.available || 
+                                        vectorHealth.embeddingProviders?.voyage?.available || 
+                                        vectorHealth.embeddingProviders?.gemini?.available || false;
+    } catch (error) {
+      console.error('Vector database health check failed:', error);
+    }
+
+    // Check AI services
+    healthStatus.aiServices = healthStatus.apiKeys.openai || healthStatus.apiKeys.anthropic;
+
+    // Check MongoDB connection
+    try {
+      const pendingDocs = await Document.countDocuments({ 'metadata.processingStatus': 'pending' });
+      const processingDocs = await Document.countDocuments({ 'metadata.processingStatus': 'processing' });
+      healthStatus.processingQueue = pendingDocs + processingDocs;
+      healthStatus.databases.mongodb = true;
+    } catch (error) {
+      console.error('MongoDB health check failed:', error);
+    }
+
+    res.json({
+      success: true,
+      data: healthStatus,
+    });
+  } catch (error) {
+    console.error('Error getting health status:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+/**
  * Get document statistics
  */
 export const getDocumentStats = async (req: AuthenticatedRequest, res: Response) => {
@@ -752,8 +813,14 @@ async function processDocumentAsync(
         chunksCount: chunks.length,
         documentContentLength: document.content.length
       });
-      console.log('[DocumentProcessor]: Continuing without embeddings - document will still be searchable by text');
-      // Continue processing without embeddings - document will still be searchable by text
+      
+      // Store processing error but don't fail the entire process
+      document.metadata.processingErrors = document.metadata.processingErrors || [];
+      document.metadata.processingErrors.push(`Embedding generation failed: ${embeddingError instanceof Error ? embeddingError.message : String(embeddingError)}`);
+      
+      // Set status to completed with errors rather than failed
+      // This allows the document to be searchable via text search even if semantic search fails
+      console.log('[DocumentProcessor]: Continuing with text-only processing due to embedding failure');
     }
 
     // Try knowledge graph extraction (may fail if API keys missing)

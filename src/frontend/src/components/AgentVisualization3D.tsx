@@ -1,16 +1,24 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Environment, Html } from '@react-three/drei';
+import { Html } from '@react-three/drei';
 import { Agent3DAvatar } from './Agent3DAvatar';
+import { Enhanced3DContainer } from './3D/Enhanced3DContainer';
 import { ThreeErrorBoundary } from './ThreeErrorBoundary';
 import { AgentStatus } from '../types/aguiTypes';
+import { SceneConfig, SceneTheme, PerformanceMetrics } from './3D/types';
 import { detectWebGLSupport, getWebGLInfo } from '../utils/webglSupport';
-import { AlertCircle, Box, RefreshCw, Monitor } from 'lucide-react';
+import { runDeviceTests, applyDeviceOptimizations } from './3D/utils/deviceTesting';
+import { AlertCircle, Box, RefreshCw, Monitor, Settings, Zap } from 'lucide-react';
 import Agent2DFallback from './Agent2DFallback';
 
 interface AgentVisualization3DProps {
   agents: AgentStatus[];
   className?: string;
+  enableEnhanced3D?: boolean;
+  theme?: SceneTheme;
+  enablePerformanceMonitoring?: boolean;
+  enableAccessibility?: boolean;
+  onAgentSelect?: (agentId: string | null) => void;
 }
 
 function Loading() {
@@ -21,16 +29,49 @@ function Loading() {
   );
 }
 
-export function AgentVisualization3D({ agents, className }: AgentVisualization3DProps) {
+export function AgentVisualization3D({ 
+  agents, 
+  className, 
+  enableEnhanced3D = true,
+  theme = 'studio',
+  enablePerformanceMonitoring = true,
+  enableAccessibility = false,
+  onAgentSelect
+}: AgentVisualization3DProps) {
   const [webglSupported, setWebglSupported] = useState<boolean | null>(null);
   const [webglInfo, setWebglInfo] = useState<any>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetrics | null>(null);
+  const [currentTheme, setCurrentTheme] = useState<SceneTheme>(theme);
+  const [showPerformancePanel, setShowPerformancePanel] = useState(false);
 
-  const checkWebGLSupport = () => {
+  const checkWebGLSupport = async () => {
     const supported = detectWebGLSupport();
     const info = getWebGLInfo();
     
     console.log('WebGL Support Check:', { supported, info });
+    
+    // Run comprehensive device tests if enhanced 3D is enabled
+    if (supported && enableEnhanced3D) {
+      try {
+        const deviceTests = await runDeviceTests();
+        console.log('Device Test Results:', deviceTests);
+        
+        // Apply device-specific optimizations
+        const optimizations = applyDeviceOptimizations(deviceTests.capabilities);
+        
+        // Update scene configuration based on device capabilities
+        setCurrentTheme(optimizations.sceneConfig.theme as SceneTheme);
+        
+        // Show warnings if any
+        if (deviceTests.recommendations.warnings.length > 0) {
+          console.warn('Device Performance Warnings:', deviceTests.recommendations.warnings);
+        }
+      } catch (error) {
+        console.error('Device testing failed:', error);
+      }
+    }
     
     setWebglSupported(supported);
     setWebglInfo(info);
@@ -118,20 +159,93 @@ export function AgentVisualization3D({ agents, className }: AgentVisualization3D
     );
   }
 
+  // Handle agent selection
+  const handleAgentSelect = (agentId: string | null) => {
+    setSelectedAgent(agentId);
+    onAgentSelect?.(agentId);
+  };
+
+  // Handle performance metrics updates
+  const handlePerformanceChange = (level: any, metrics: PerformanceMetrics) => {
+    if (enablePerformanceMonitoring) {
+      setPerformanceMetrics(metrics);
+    }
+  };
+
+  // Scene configuration
+  const sceneConfig: SceneConfig = {
+    theme: currentTheme,
+    enableParticles: true,
+    enablePostProcessing: true,
+    enableShadows: true,
+    enableEnvironment: true,
+    performanceMode: 'high'
+  };
+
   return (
-    <div className={`w-full h-full ${className}`}>
+    <div className={`w-full h-full relative ${className}`}>
+      {/* Enhanced 3D Controls Panel */}
+      {enableEnhanced3D && (
+        <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
+          {/* Theme Selector */}
+          <div className="bg-black/80 rounded-lg p-2 text-white">
+            <select
+              value={currentTheme}
+              onChange={(e) => setCurrentTheme(e.target.value as SceneTheme)}
+              className="bg-transparent text-sm outline-none"
+            >
+              <option value="studio">Studio</option>
+              <option value="cyber">Cyber</option>
+              <option value="space">Space</option>
+              <option value="minimal">Minimal</option>
+            </select>
+          </div>
+
+          {/* Performance Toggle */}
+          {enablePerformanceMonitoring && (
+            <button
+              onClick={() => setShowPerformancePanel(!showPerformancePanel)}
+              className="bg-black/80 p-2 rounded-lg text-white hover:bg-black/90 transition-colors"
+              title="Toggle Performance Panel"
+            >
+              <Zap className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Performance Panel */}
+      {showPerformancePanel && performanceMetrics && (
+        <div className="absolute top-4 left-4 z-10 bg-black/90 rounded-lg p-3 text-white text-sm">
+          <h3 className="font-semibold mb-2">Performance</h3>
+          <div className="space-y-1">
+            <div>FPS: {performanceMetrics.fps}</div>
+            <div>Draw Calls: {performanceMetrics.drawCalls}</div>
+            <div>Theme: {currentTheme}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Agent Selection Info */}
+      {selectedAgent && (
+        <div className="absolute bottom-4 left-4 z-10 bg-black/90 rounded-lg p-3 text-white">
+          <h3 className="font-semibold">Selected Agent</h3>
+          <p className="text-sm text-gray-300">{selectedAgent}</p>
+        </div>
+      )}
+
       <ThreeErrorBoundary>
         <Canvas
           camera={{ position: [0, 5, 10], fov: 45 }}
-          style={{ background: 'linear-gradient(to bottom, #1a1a2e, #16213e)' }}
           gl={{ 
             antialias: true, 
             alpha: false,
             preserveDrawingBuffer: false,
-            powerPreference: 'default',
+            powerPreference: 'high-performance',
             failIfMajorPerformanceCaveat: false
           }}
           dpr={[1, 2]}
+          shadows
           onCreated={() => {
             console.log('Three.js Canvas created successfully');
           }}
@@ -140,56 +254,58 @@ export function AgentVisualization3D({ agents, className }: AgentVisualization3D
           }}
         >
           <Suspense fallback={<Loading />}>
-          {/* Lighting */}
-          <ambientLight intensity={0.5} />
-          <directionalLight 
-            position={[10, 10, 5]} 
-            intensity={1} 
-            castShadow
-            shadow-mapSize-width={2048}
-            shadow-mapSize-height={2048}
-          />
-          <pointLight position={[-10, -10, -10]} intensity={0.3} />
-          
-          {/* Environment */}
-          <Environment preset="city" />
-          
-          {/* Agent Avatars */}
-          {agents.map((agent, index) => (
-            <Agent3DAvatar
-              key={agent.id}
-              agent={agent}
-              position={[
-                (index % 3) * 4 - 4, // X position in grid
-                0,
-                Math.floor(index / 3) * 4 - 4 // Z position in grid
-              ]}
-            />
-          ))}
-          
-          {/* Ground plane */}
-          <mesh 
-            rotation={[-Math.PI / 2, 0, 0]} 
-            position={[0, -2, 0]}
-            receiveShadow
-          >
-            <planeGeometry args={[50, 50]} />
-            <meshStandardMaterial 
-              color="#2a2a2a" 
-              transparent 
-              opacity={0.3}
-            />
-          </mesh>
-          
-          {/* Controls */}
-          <OrbitControls
-            enablePan={true}
-            enableZoom={true}
-            enableRotate={true}
-            minDistance={5}
-            maxDistance={50}
-            maxPolarAngle={Math.PI / 2}
-          />
+            {enableEnhanced3D ? (
+              // Enhanced 3D Scene
+              <Enhanced3DContainer
+                agents={agents}
+                config={sceneConfig}
+                selectedAgent={selectedAgent}
+                enableAccessibility={enableAccessibility}
+                onAgentSelect={handleAgentSelect}
+                onPerformanceChange={handlePerformanceChange}
+              />
+            ) : (
+              // Basic 3D Scene (Legacy)
+              <>
+                {/* Basic Lighting */}
+                <ambientLight intensity={0.5} />
+                <directionalLight 
+                  position={[10, 10, 5]} 
+                  intensity={1} 
+                  castShadow
+                  shadow-mapSize-width={2048}
+                  shadow-mapSize-height={2048}
+                />
+                <pointLight position={[-10, -10, -10]} intensity={0.3} />
+                
+                {/* Basic Agent Avatars */}
+                {agents.map((agent, index) => (
+                  <Agent3DAvatar
+                    key={agent.id}
+                    agent={agent}
+                    position={[
+                      (index % 3) * 4 - 4, // X position in grid
+                      0,
+                      Math.floor(index / 3) * 4 - 4 // Z position in grid
+                    ]}
+                  />
+                ))}
+                
+                {/* Ground plane */}
+                <mesh 
+                  rotation={[-Math.PI / 2, 0, 0]} 
+                  position={[0, -2, 0]}
+                  receiveShadow
+                >
+                  <planeGeometry args={[50, 50]} />
+                  <meshStandardMaterial 
+                    color="#2a2a2a" 
+                    transparent 
+                    opacity={0.3}
+                  />
+                </mesh>
+              </>
+            )}
           </Suspense>
         </Canvas>
       </ThreeErrorBoundary>

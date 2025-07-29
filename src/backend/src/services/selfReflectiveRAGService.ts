@@ -12,6 +12,7 @@ interface RAGQuery {
 
 interface RAGResponse {
   answer: string;
+  response: string; // For compatibility with frontend expectations
   sources: any[];
   confidence: number;
   qualityScore: number;
@@ -47,8 +48,10 @@ export class SelfReflectiveRAGService {
       console.log(`[SelfReflectiveRAG]: Found ${searchResults.length} relevant documents`);
 
       if (searchResults.length === 0) {
+        const noResultsMessage = "I couldn't find any relevant documents for your query. Please try a different search term or upload more documents.";
         return {
-          answer: "I couldn't find any relevant documents for your query. Please try a different search term or upload more documents.",
+          answer: noResultsMessage,
+          response: noResultsMessage,
           sources: [],
           confidence: 0,
           qualityScore: 0,
@@ -86,6 +89,7 @@ export class SelfReflectiveRAGService {
 
       return {
         answer,
+        response: answer, // Add both for compatibility
         sources: searchResults.map(result => ({
           id: result.id,
           content: result.content.substring(0, 200) + '...',
@@ -96,24 +100,65 @@ export class SelfReflectiveRAGService {
         qualityScore,
         iterationCount: 1,
         searchStrategy: query.searchStrategy || 'semantic',
+        suggestions: searchResults.length > 0 ? [
+          'Ask more specific questions',
+          'Try different keywords',
+          'Search for related topics'
+        ] : [
+          'Upload more documents',
+          'Try different search terms',
+          'Check document processing status'
+        ],
         debugInfo: query.includeDebugInfo ? {
           searchResults: searchResults.length,
           contextLength: context.length,
           model: 'gpt-3.5-turbo',
         } : undefined,
-        suggestions: searchResults.length < 3 ? ['Try using different keywords', 'Upload more documents'] : undefined,
       };
 
     } catch (error) {
       console.error('[SelfReflectiveRAG]: Error processing query:', error);
+      
+      // Provide more specific error messages based on the error type
+      let errorMessage = 'I encountered an error while processing your query.';
+      let suggestions = ['Try again with a different query', 'Check if documents are uploaded'];
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Vector search failed')) {
+          errorMessage = 'Vector search is currently unavailable. This may be due to missing API keys or database connection issues.';
+          suggestions = [
+            'Documents may not be properly indexed yet',
+            'Try uploading documents first',
+            'Contact support if the issue persists'
+          ];
+        } else if (error.message.includes('API key')) {
+          errorMessage = 'AI services are currently unavailable due to missing API configuration.';
+          suggestions = [
+            'API keys may need to be configured',
+            'Try again later',
+            'Contact administrator'
+          ];
+        } else if (error.message.includes('rate limit') || error.message.includes('429')) {
+          errorMessage = 'AI services are temporarily rate limited. Please try again in a moment.';
+          suggestions = [
+            'Wait a few seconds and try again',
+            'Try a shorter query',
+            'Reduce search frequency'
+          ];
+        }
+      }
+      
+      const errorResponse = `❌ ${errorMessage}`;
+      
       return {
-        answer: 'I encountered an error while processing your query. Please try again.',
+        answer: errorResponse,
+        response: errorResponse,
         sources: [],
         confidence: 0,
         qualityScore: 0,
         iterationCount: 1,
         searchStrategy: query.searchStrategy || 'semantic',
-        suggestions: ['Try again with a different query', 'Check your internet connection'],
+        suggestions,
       };
     }
   }

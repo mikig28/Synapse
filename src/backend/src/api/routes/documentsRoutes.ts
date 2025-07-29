@@ -12,6 +12,7 @@ import {
   getProcessingStatus,
   getSimilarDocuments,
   getDocumentStats,
+  getHealthStatus,
   upload,
 } from '../controllers/documentsController';
 import { protect } from '../middleware/authMiddleware';
@@ -39,6 +40,7 @@ router.post('/upload-simple', upload.single('file'), uploadDocumentSimple as any
 
 router.post('/upload', upload.single('file'), uploadDocument as any);
 router.get('/stats', getDocumentStats as any);
+router.get('/health', getHealthStatus as any);
 router.get('/:id/download', downloadDocument as any);
 router.get('/:id', getDocument as any);
 router.put('/:id', updateDocument as any);

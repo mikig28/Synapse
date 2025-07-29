@@ -468,9 +468,9 @@ class DocumentService {
 
 
   /**
-   * Search documents using AI
+   * Search documents using AI with enhanced options
    */
-  async searchDocuments(
+  async searchDocumentsEnhanced(
     query: string,
     options: {
       strategy?: 'semantic' | 'hybrid' | 'keyword';
@@ -496,7 +496,26 @@ class DocumentService {
       confidenceThreshold: options.confidenceThreshold,
     });
     
-    return response.data.data;
+    // Validate and normalize response
+    const data = response.data.data;
+    if (!data) {
+      throw new Error('Invalid response from search API');
+    }
+    
+    // Ensure all required fields exist
+    const normalizedResponse = {
+      response: data.answer || data.response || 'No answer available',
+      answer: data.answer || data.response || 'No answer available',
+      sources: Array.isArray(data.sources) ? data.sources : [],
+      confidence: typeof data.confidence === 'number' ? data.confidence : 0.5,
+      qualityScore: typeof data.qualityScore === 'number' ? data.qualityScore : 0.5,
+      iterationCount: data.iterationCount || 1,
+      searchStrategy: data.searchStrategy || options.strategy || 'hybrid',
+      suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
+      debugInfo: data.debugInfo || null,
+    };
+    
+    return normalizedResponse;
   }
 
   /**

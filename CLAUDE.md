@@ -43,8 +43,11 @@ npm run preview          # Preview production build
 ### AI Integration
 - **Anthropic Claude SDK** for main AI processing
 - **OpenAI SDK** for additional AI capabilities  
-- **Google Gemini** for video summarization
+- **Google Gemini** for video summarization and embeddings
+- **Voyage AI** for cost-efficient embeddings
+- **Cohere AI** and **Replicate** for additional AI services
 - **Python transcription service** (separate Docker service)
+- **Vector Databases**: Pinecone and ChromaDB support
 
 ### Frontend Architecture
 - **React 18** with TypeScript and strict mode
@@ -53,6 +56,9 @@ npm run preview          # Preview production build
 - **Zustand** for state management
 - **React Router** for navigation
 - **Framer Motion** for animations
+- **Three.js** with React Three Fiber for 3D graphics and agent avatars
+- **PWA capabilities** with service worker and install prompts
+- **Drag & Drop** with @dnd-kit for sortable interfaces
 
 ### Backend Architecture
 - **Express.js** with TypeScript
@@ -65,8 +71,9 @@ npm run preview          # Preview production build
 ### Key Services
 - **TranscriptionService**: Audio/video transcription using Python service (src/backend/transcription_service/)
 - **VideoSummarizationService**: AI-powered video analysis with Gemini integration
+- **VectorDatabaseService**: Multi-provider embedding system (Voyage AI, Gemini, OpenAI) with cost optimization and rate limiting
 - **TelegramService**: Telegram bot integration for message capture
-- **WhatsAppService**: WhatsApp integration using Baileys for message monitoring
+- **WhatsAppService**: WhatsApp integration using Baileys for message monitoring with container-aware Puppeteer configuration
 - **AnalysisService**: Content analysis and insights generation
 - **AgentService**: CrewAI agent orchestration and execution
 - **GoogleCalendarService**: Calendar integration and event management
@@ -149,9 +156,29 @@ NODE_ENV=development
 PORT=3000                         # Backend server port
 API_BASE_URL=http://localhost:3000
 
+# Vector Database & Embedding Services
+VOYAGE_API_KEY=your_key           # For cost-efficient Voyage AI embeddings
+EMBEDDING_PROVIDER=openai         # Primary provider ('voyage' | 'gemini' | 'openai')
+EMBEDDING_FALLBACK_PROVIDERS=voyage,gemini  # Comma-separated fallback providers
+PINECONE_API_KEY=your_key         # For Pinecone vector database
+
 # Social Media Integration
 TELEGRAM_BOT_TOKEN=your_token     # For Telegram bot integration
 TWITTER_API_KEY=your_key          # For Twitter/X integration
+
+# WhatsApp Integration
+WHATSAPP_AUTO_REPLY_ENABLED=false # Enable/disable WhatsApp auto-reply
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome  # Chrome path for containers
+PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true  # Skip Chromium download in containers
+
+# Deployment & URLs
+RENDER=true                       # Render.com deployment flag
+FRONTEND_URL=http://localhost:3000 # Frontend URL for CORS
+CREWAI_SERVICE_URL=your_crewai_url # CrewAI service endpoint
+
+# Optional Services
+FIRECRAWL_API_KEY=your_key        # For web scraping via Firecrawl
+TASK_REMINDER_TIME=09:00          # Daily task reminder time
 ```
 
 ## Memory Bank System
@@ -177,10 +204,17 @@ npm run parse-prd               # Parse requirements document to create initial 
 
 ### Task Management Process
 1. **Start Session**: Always run `npm run list` to see current tasks
-2. **Plan Work**: Use Task Master to analyze complexity and expand tasks
+2. **Plan Work**: Use Task Master to analyze complexity and expand tasks with research-backed insights
 3. **Implement**: Follow task dependencies and update progress systematically
 4. **Document**: Log implementation details and discoveries in task notes
 5. **Validate**: Test according to task strategies before marking complete
+
+### Advanced Task Master Features
+- **Complexity Analysis**: Automatic difficulty assessment and time estimation
+- **Research Integration**: Perplexity AI-powered task expansion with real-world insights
+- **Dependency Management**: Automatic validation and fixing of task dependencies
+- **Priority System**: Smart prioritization based on dependencies and complexity
+- **Subtask Management**: Hierarchical task breakdown with progress tracking
 
 ### Core Development Rules
 1. Read memory bank files for project context before starting work
@@ -239,3 +273,34 @@ This project includes comprehensive Cursor rules in `.cursor/rules/` directory:
 - Log detailed implementation notes during development for learning
 - Update Cursor rules when new patterns emerge
 - Follow iterative subtask implementation with progress logging
+
+## Vector Database & Embedding Architecture
+
+This project implements a multi-provider embedding system for cost optimization and reliability:
+
+### Embedding Providers
+- **Voyage AI**: Cost-efficient primary option with rate limiting and retry logic
+- **OpenAI**: Reliable fallback with generous rate limits
+- **Google Gemini**: Alternative provider for diversified embedding strategies
+
+### Rate Limiting Strategy
+- 100ms delay between requests to prevent API overwhelming
+- Exponential backoff for 429 rate limit responses
+- Automatic fallback between providers on failure
+- Provider-specific text truncation based on context limits
+
+### Configuration
+Set `EMBEDDING_PROVIDER=openai` for better rate limits during development. Use `voyage` for production cost optimization once API limits are properly configured.
+
+## Container & Deployment Support
+
+### Render.com Deployment
+- Automatic Chrome/Puppeteer configuration for containers
+- Environment variable detection (`RENDER=true`)
+- Container-optimized WhatsApp service with Baileys
+
+### PWA & 3D Features
+- Service worker registration for offline capabilities  
+- Install prompts for PWA functionality
+- Three.js integration for 3D agent avatars with WebGL detection
+- Agent 3D Avatar system with robot models

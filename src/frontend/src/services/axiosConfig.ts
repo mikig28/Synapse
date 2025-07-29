@@ -68,32 +68,20 @@ export const STATIC_ASSETS_BASE_URL = BACKEND_ROOT_URL;
 
 // Request interceptor to add token to headers
 axiosInstance.interceptors.request.use(
-  (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
+  (config: InternalAxiosRequestConfig) => {
     const token = useAuthStore.getState().token;
-    const authState = useAuthStore.getState();
-    console.log('[AxiosInterceptor] Auth State Debug:', {
-      hasToken: !!token,
-      tokenLength: token ? token.length : 0,
-      tokenStart: token ? token.substring(0, 10) + '...' : 'None',
-      isAuthenticated: authState.isAuthenticated,
-      hasUser: !!authState.user,
-      userId: authState.user?.id || 'None'
-    });
-    console.log('[AxiosInterceptor] Full request config:', {
-      url: config.url,
-      method: config.method,
-      baseURL: config.baseURL,
-      params: config.params,
-      data: config.data ? 'Has data' : 'No data'
-    });
+    
+    // Only log in development for debugging, but less verbose
+    if (import.meta.env.DEV) {
+      console.log('[AxiosInterceptor] Request to:', config.url);
+    }
     
     if (token && config.headers) {
       config.headers['Authorization'] = `Bearer ${token}`;
-      console.log('[AxiosInterceptor] Authorization header SET'); // Confirm header set
-    } else {
-      console.log('[AxiosInterceptor] No token found in store, Authorization header NOT SET');
+      if (import.meta.env.DEV) {
+        console.log('[AxiosInterceptor] Authorization header SET');
+      }
     }
-    console.log('[AxiosInterceptor] Making request to:', config.url); // Log target URL
     return config;
   },
   (error: AxiosError) => {
@@ -105,37 +93,45 @@ axiosInstance.interceptors.request.use(
 // Optional: Response interceptor for global error handling (e.g., 401 for logout)
 axiosInstance.interceptors.response.use(
   (response: AxiosResponse) => {
-    console.log('[AxiosInterceptor] Response from:', response.config.url, 'Status:', response.status);
-    console.log('[AxiosInterceptor] Response data:', response.data ? JSON.stringify(response.data).slice(0, 200) + '...' : 'No data');
+    // Only log successful responses in development if needed
+    if (import.meta.env.DEV && response.config.url?.includes('debug')) {
+      console.log('[AxiosInterceptor] Response from:', response.config.url, 'Status:', response.status);
+    }
     return response;
   },
   (error: AxiosError) => {
-    console.error('[AxiosInterceptor] Response error from:', error.config?.url, 'Status:', error.response?.status);
-    console.error('[AxiosInterceptor] Error details:', {
-      message: error.message,
-      responseData: error.response?.data ? JSON.stringify(error.response.data, null, 2) : 'No data',
-      requestData: error.config?.data ? JSON.stringify(error.config.data, null, 2) : 'No request data',
-      isAxiosError: error.isAxiosError,
-      statusCode: error.response?.status,
-      headers: error.response?.headers,
-      method: error.config?.method?.toUpperCase(),
-      fullUrl: error.config?.url,
-      networkError: !error.response && error.request ? 'Network request failed - backend may be down' : null,
-      timeoutError: error.code === 'ECONNABORTED' ? 'Request timed out' : null
-    });
+    // Only log detailed errors in production or for non-network errors
+    const isNetworkError = !error.response && error.request;
+    const isDevelopment = import.meta.env.DEV;
+    
+    if (!isDevelopment || !isNetworkError) {
+      console.error('[AxiosInterceptor] Response error from:', error.config?.url, 'Status:', error.response?.status);
+      console.error('[AxiosInterceptor] Error details:', {
+        message: error.message,
+        responseData: error.response?.data ? JSON.stringify(error.response.data, null, 2) : 'No data',
+        requestData: error.config?.data ? JSON.stringify(error.config.data, null, 2) : 'No request data',
+        isAxiosError: error.isAxiosError,
+        statusCode: error.response?.status,
+        headers: error.response?.headers,
+        method: error.config?.method?.toUpperCase(),
+        fullUrl: error.config?.url,
+        networkError: !error.response && error.request ? 'Network request failed - backend may be down' : null,
+        timeoutError: error.code === 'ECONNABORTED' ? 'Request timed out' : null
+      });
 
-    // Enhanced error messages for common issues
-    if (!error.response && error.request) {
-      console.error('🚨 [AxiosInterceptor] NETWORK ERROR: Unable to reach backend server');
-      console.error('   This could mean:');
-      console.error('   1. Backend server is down or unreachable');
-      console.error('   2. CORS issues (check browser network tab)');
-      console.error('   3. Wrong backend URL configured');
-      console.error('   4. Network connectivity issues');
-    } else if (error.response?.status === 503) {
-      console.error('🚨 [AxiosInterceptor] SERVICE UNAVAILABLE: Backend server is temporarily unavailable');
-    } else if (error.response?.status === 404) {
-      console.error('🚨 [AxiosInterceptor] NOT FOUND: API endpoint does not exist');
+      // Enhanced error messages for common issues (only in production or non-network errors)
+      if (!error.response && error.request) {
+        console.error('🚨 [AxiosInterceptor] NETWORK ERROR: Unable to reach backend server');
+        console.error('   This could mean:');
+        console.error('   1. Backend server is down or unreachable');
+        console.error('   2. CORS issues (check browser network tab)');
+        console.error('   3. Wrong backend URL configured');
+        console.error('   4. Network connectivity issues');
+      } else if (error.response?.status === 503) {
+        console.error('🚨 [AxiosInterceptor] SERVICE UNAVAILABLE: Backend server is temporarily unavailable');
+      } else if (error.response?.status === 404) {
+        console.error('🚨 [AxiosInterceptor] NOT FOUND: API endpoint does not exist');
+      }
     }
     
     if (error.response && error.response.status === 401) {
