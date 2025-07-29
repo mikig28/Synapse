@@ -37,9 +37,9 @@ import {
   preloadCriticalComponents,
 } from '@/components/LazyComponents';
 
-// Production-ready 3D Dashboard following 2025 best practices
-const ProductionReady3DDashboard = React.lazy(() => 
-  import('@/components/3D/ProductionReady3DDashboard')
+// Production-safe 2D Dashboard with zero Three.js dependencies
+const ProductionSafe2DDashboard = React.lazy(() => 
+  import('@/components/3D/ProductionSafe2DDashboard')
 );
 
 // Other imports remain the same
@@ -154,18 +154,18 @@ const AgentsPage: React.FC = memo(() => {
   // Wizard state
   const [showCreateWizard, setShowCreateWizard] = useState(false);
   
-  // View state - toggle between agent cards, analytics dashboard, and 3D visualization
-  const [currentView, setCurrentView] = useState<'agents' | 'analytics' | '3d'>('agents');
-  const [enable3DFeatures, setEnable3DFeatures] = useState(true);
-  const [selectedAgent3D, setSelectedAgent3D] = useState<string | null>(null);
+  // View state - toggle between agent cards, analytics dashboard, and dashboard visualization
+  const [currentView, setCurrentView] = useState<'agents' | 'analytics' | 'dashboard'>('agents');
+  const [enableDashboardFeatures, setEnableDashboardFeatures] = useState(true);
+  const [selectedAgentDashboard, setSelectedAgentDashboard] = useState<string | null>(null);
 
   // Preload critical components on mount
   useEffect(() => {
     preloadCriticalComponents();
   }, []);
 
-  // Convert Agent data to format expected by 3D components
-  const convertAgentsFor3D = useCallback((agentList: Agent[]) => {
+  // Convert Agent data to format expected by dashboard components
+  const convertAgentsForDashboard = useCallback((agentList: Agent[]) => {
     return agentList.map(agent => ({
       id: agent._id,
       name: agent.name,
@@ -687,14 +687,14 @@ const AgentsPage: React.FC = memo(() => {
                 Analytics
               </AnimatedButton>
               <AnimatedButton
-                variant={currentView === '3d' ? "default" : "ghost"}
+                variant={currentView === 'dashboard' ? "default" : "ghost"}
                 size="sm"
-                onClick={() => setCurrentView('3d')}
+                onClick={() => setCurrentView('dashboard')}
                 className="h-8 px-3 text-sm"
                 rippleEffect
               >
                 <Box className="w-4 h-4 mr-2" />
-                3D View
+                Dashboard
               </AnimatedButton>
             </motion.div>
 
@@ -968,16 +968,16 @@ const AgentsPage: React.FC = memo(() => {
             </motion.div>
           ) : (
             <motion.div
-              key="3d-view"
+              key="dashboard-view"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.4 }}
-              className="h-[80vh] w-full"
+              className="min-h-[80vh] w-full"
             >
-              {/* Enhanced 3D Dashboard */}
-              <ProductionReady3DDashboard
-                agents={convertAgentsFor3D(agents || [])}
+              {/* Enhanced 2D Dashboard */}
+              <ProductionSafe2DDashboard
+                agents={convertAgentsForDashboard(agents || [])}
                 theme={{
                   primary: '#3b82f6',
                   secondary: '#8b5cf6', 
@@ -985,31 +985,31 @@ const AgentsPage: React.FC = memo(() => {
                   background: '#1e293b',
                   environment: 'studio'
                 }}
-                enableEnhancedFeatures={enable3DFeatures}
+                enableEnhancedFeatures={enableDashboardFeatures}
                 enableDataVisualization={true}
                 enablePerformanceMonitoring={true}
                 enableFormations={true}
                 onAgentSelect={(agentId) => {
-                  setSelectedAgent3D(agentId);
+                  setSelectedAgentDashboard(agentId);
                 }}
                 className="w-full h-full rounded-lg border shadow-lg"
               />
               
-              {/* 3D View Controls Panel */}
+              {/* Dashboard Controls Panel */}
               <div className="absolute bottom-4 right-4 bg-black/80 rounded-lg p-3 text-white">
                 <div className="flex items-center gap-3">
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
-                      checked={enable3DFeatures}
-                      onChange={(e) => setEnable3DFeatures(e.target.checked)}
+                      checked={enableDashboardFeatures}
+                      onChange={(e) => setEnableDashboardFeatures(e.target.checked)}
                       className="rounded"
                     />
                     Enhanced Features
                   </label>
-                  {selectedAgent3D && (
+                  {selectedAgentDashboard && (
                     <span className="text-xs bg-blue-600 px-2 py-1 rounded">
-                      Selected: {agents?.find(a => a.id === selectedAgent3D)?.name}
+                      Selected: {agents?.find(a => a._id === selectedAgentDashboard)?.name}
                     </span>
                   )}
                 </div>

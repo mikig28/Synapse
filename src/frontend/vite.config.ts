@@ -31,9 +31,9 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  // Add Three.js transpilation for production compatibility
+  // SSR configuration for production compatibility
   ssr: {
-    noExternal: ['three', '@react-three/fiber', '@react-three/drei']
+    noExternal: []
   },
   server: {
     port: 5173,
@@ -55,7 +55,7 @@ export default defineConfig({
           // Performance optimization: Create strategic chunks for better caching
           
           // React core - stable, rarely changes
-          if (id.includes('react') && !id.includes('react-router') && !id.includes('@react-three')) {
+          if (id.includes('react') && !id.includes('react-router')) {
             return 'react-core';
           }
           
@@ -64,14 +64,6 @@ export default defineConfig({
             return 'animations';
           }
           
-          // 3D libraries - very large, separate chunk and conditionally excluded
-          if (id.includes('three') || id.includes('@react-three')) {
-            // In production, only include Three.js if specifically needed
-            if (process.env.NODE_ENV === 'production') {
-              return 'three-js-optional';
-            }
-            return 'three-js';
-          }
           
           // Charts library - large and not always needed
           if (id.includes('recharts')) {
@@ -197,10 +189,6 @@ export default defineConfig({
       '@radix-ui/react-toast',
       'framer-motion',
       
-      // 3D libraries (large but stable)
-      'three',
-      '@react-three/fiber',
-      '@react-three/drei',
       
       // Utility libraries
       'clsx',

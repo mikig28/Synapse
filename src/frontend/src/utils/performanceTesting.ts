@@ -265,7 +265,6 @@ export const createAgentPerformanceTests = (): PerformanceTestSuite => ({
         const bundleEstimates = {
           'react-core': 45, // KB
           'animations': 120,
-          'three-js': 580,
           'charts': 280,
           'virtualization': 25,
           'icons': 40,

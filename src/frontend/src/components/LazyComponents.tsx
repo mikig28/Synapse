@@ -60,14 +60,7 @@ export const LazyScreenReaderSupport = lazy(() =>
   import('./accessibility/ScreenReaderSupport').then(module => ({ default: module.ScreenReaderSupport }))
 );
 
-// 3D Components (disabled to prevent production errors)
-// export const LazyCanvas = lazy(() => 
-//   import('@react-three/fiber').then(module => ({ default: module.Canvas }))
-// );
-
-// export const LazyThreeComponents = lazy(() => 
-//   import('./3D/AdvancedAgentAvatar').then(module => ({ default: module.AdvancedAgentAvatar }))
-// );
+// 3D Components have been removed to eliminate production errors
 
 // Charts and Analytics
 export const LazyRecharts = lazy(() => 
@@ -781,8 +774,6 @@ export default {
   LazyAgentActivityDashboard,
   LazyAgentStepTimeline,
   LazyDebugPanel,
-  LazyCanvas,
-  LazyThreeComponents,
   LazyRecharts,
   LoadingFallback,
   LazyWrapper,
