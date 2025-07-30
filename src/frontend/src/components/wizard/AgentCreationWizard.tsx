@@ -343,7 +343,7 @@ export const AgentCreationWizard: React.FC<AgentCreationWizardProps> = ({
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent 
-        className="max-w-4xl max-h-[95vh] overflow-hidden border-0"
+        className="max-w-4xl h-[90vh] max-h-[90vh] overflow-hidden border-0 flex flex-col p-0"
         style={{
           backgroundColor: 'rgba(255, 255, 255, 0.98)',
           backdropFilter: 'blur(20px)',
@@ -361,10 +361,10 @@ export const AgentCreationWizard: React.FC<AgentCreationWizardProps> = ({
           initial="hidden"
           animate="visible"
           exit="exit"
-          className="h-full flex flex-col"
+          className="h-full flex flex-col p-6"
         >
           {/* Header */}
-          <DialogHeader className="space-y-4 pb-6 border-b border-border/20">
+          <DialogHeader className="space-y-4 pb-6 border-b border-border/20 flex-shrink-0">
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
@@ -426,7 +426,7 @@ export const AgentCreationWizard: React.FC<AgentCreationWizardProps> = ({
 
           {/* Step Content */}
           <div 
-            className="flex-1 overflow-y-auto py-6"
+            className="flex-1 overflow-y-auto py-6 min-h-0"
             role="main"
             aria-live="polite"
             aria-label={`Step ${currentStep + 1} of ${WIZARD_STEPS.length}: ${currentStepData?.title}`}
@@ -465,7 +465,7 @@ export const AgentCreationWizard: React.FC<AgentCreationWizardProps> = ({
 
           {/* Navigation Footer */}
           <motion.div 
-            className="flex justify-between items-center pt-6 border-t border-border/20"
+            className="flex justify-between items-center pt-6 border-t border-border/20 flex-shrink-0"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
