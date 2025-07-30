@@ -620,7 +620,7 @@ const NewsPage: React.FC = () => {
         {/* Gamification System - Show user progress and achievements */}
         <GamificationSystem
           userStats={{
-            reportsRead: filteredNewsItems.filter(item => item.isRead).length,
+            reportsRead: newsItems.filter(item => item.isRead).length,
             totalReadingTime: 3600, // Demo: 1 hour
             sectionsCompleted: 15,
             topicsExplored: 8,
@@ -756,7 +756,7 @@ const NewsPage: React.FC = () => {
 
         {/* Advanced Filtering and Search */}
         <AdvancedFilterSearch
-          reports={filteredNewsItems.map(item => ({
+          reports={newsItems.map(item => ({
             id: item._id,
             title: item.title,
             content: item.content || item.summary || '',
