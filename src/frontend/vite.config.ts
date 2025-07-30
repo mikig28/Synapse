@@ -29,6 +29,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      'react': path.resolve('./node_modules/react'),
+      'react-dom': path.resolve('./node_modules/react-dom'),
     },
   },
   // SSR configuration for production compatibility
@@ -54,9 +56,9 @@ export default defineConfig({
         manualChunks(id) {
           // Performance optimization: Create strategic chunks for better caching
           
-          // React core - stable, rarely changes
-          if (id.includes('react') && !id.includes('react-router')) {
-            return 'react-core';
+          // Keep React and React-DOM together in vendor chunk to avoid import issues
+          if (id.includes('react') || id.includes('react-dom')) {
+            return 'vendor';
           }
           
           // Animation libraries - large but stable
@@ -179,6 +181,7 @@ export default defineConfig({
       // Core dependencies that should be pre-bundled
       'react',
       'react-dom',
+      'react-dom/client',
       'react-router-dom',
       'zustand',
       
@@ -221,7 +224,5 @@ export default defineConfig({
     drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
     // Target modern browsers
     target: 'es2020',
-    // Optimize for speed
-    minify: process.env.NODE_ENV === 'production',
   },
 }) 
