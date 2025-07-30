@@ -141,14 +141,13 @@ const InteractiveReportDashboard: React.FC<InteractiveReportDashboardProps> = ({
     return Math.ceil(wordsCount / 200); // Average reading speed
   }, [reportData]);
 
-  // Track reading time
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setReadingTime(prev => prev + 1);
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
+  // Track reading time - disabled to prevent blinking/re-renders
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     setReadingTime(prev => prev + 1);
+  //   }, 1000);
+  //   return () => clearInterval(interval);
+  // }, []);
 
   // Progress tracker sections
   const trackerSections = useMemo(() => [
@@ -211,6 +210,7 @@ const InteractiveReportDashboard: React.FC<InteractiveReportDashboardProps> = ({
   // Report header component
   const ReportHeader = () => (
     <motion.div
+      layoutId="report-header"
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       className="mb-6"
