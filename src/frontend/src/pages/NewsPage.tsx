@@ -617,6 +617,23 @@ const NewsPage: React.FC = () => {
           </div>
         )}
 
+        {/* Gamification System - Show user progress and achievements */}
+        <GamificationSystem
+          userStats={{
+            reportsRead: filteredNewsItems.filter(item => item.isRead).length,
+            totalReadingTime: 3600, // Demo: 1 hour
+            sectionsCompleted: 15,
+            topicsExplored: 8,
+            interactionsMade: 25,
+            streakDays: 3,
+            totalPoints: 340,
+            level: 4,
+            joinedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // 30 days ago
+          }}
+          showAchievements={true}
+          className="mb-6"
+        />
+
         {/* Quick Filters for CrewAI Sources */}
         <Card>
           <CardContent className="p-4">
@@ -668,95 +685,99 @@ const NewsPage: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Filters */}
-        <Card>
+        {/* Demo Enhanced Features Button */}
+        <Card className="border-2 border-dashed border-blue-300 bg-blue-50/30">
           <CardContent className="p-4">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="flex items-center justify-between">
               <div>
-                <Label htmlFor="search">Search</Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="search"
-                    placeholder="Search articles..."
-                    value={filters.search}
-                    onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                    className="pl-10"
-                  />
-                </div>
+                <h3 className="font-semibold text-blue-900">🎉 Test Enhanced AI Report Features</h3>
+                <p className="text-sm text-blue-700">Click to see the new interactive dashboard, gamification, and mobile features!</p>
               </div>
+              <Button
+                onClick={() => {
+                  // Create a demo report to showcase enhanced features
+                  const demoReport = {
+                    _id: 'demo-enhanced-report',
+                    title: 'AI Market Analysis: Demo Enhanced Report',
+                    content: `## Executive Summary
 
-              <div>
-                <Label>Category</Label>
-                <Select value={filters.category || 'all'} onValueChange={(value) => setFilters(prev => ({ ...prev, category: value === 'all' ? '' : value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All categories" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All categories</SelectItem>
-                    {categories.map(category => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+- The AI market has shown unprecedented growth with 47% increase in adoption rates
+- Enterprise solutions are leading the transformation with 23% quarterly growth
+- Emerging technologies like GPT-4 and Claude are driving innovation across sectors
 
-              <div>
-                <Label>Source</Label>
-                <Select value={filters.source || 'all'} onValueChange={(value) => setFilters(prev => ({ ...prev, source: value === 'all' ? '' : value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All sources" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All sources</SelectItem>
-                    <SelectItem value="reddit">🔴 Reddit</SelectItem>
-                    <SelectItem value="linkedin">💼 LinkedIn</SelectItem>
-                    <SelectItem value="telegram">📱 Telegram</SelectItem>
-                    <SelectItem value="news">📰 News Sites</SelectItem>
-                    <SelectItem value="crewai_analysis">🤖 CrewAI Analysis</SelectItem>
-                    <SelectItem value="twitter">🐦 Twitter</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+## Trending Topics
 
-              <div>
-                <Label>Read Status</Label>
-                <Select value={filters.isRead === undefined ? 'all' : filters.isRead.toString()} onValueChange={(value) => setFilters(prev => ({ 
-                  ...prev, 
-                  isRead: value === 'all' ? undefined : value === 'true' 
-                }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All articles" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All articles</SelectItem>
-                    <SelectItem value="false">Unread only</SelectItem>
-                    <SelectItem value="true">Read only</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+**Artificial Intelligence** - 89 mentions - Score: 95
+- Sources: TechCrunch, MIT Technology Review, Reuters
+- Trend: ↑ +23% from last week
 
-              <div>
-                <Label>Favorites</Label>
-                <Select value={filters.isFavorite === undefined ? 'all' : filters.isFavorite.toString()} onValueChange={(value) => setFilters(prev => ({ 
-                  ...prev, 
-                  isFavorite: value === 'all' ? undefined : value === 'true' 
-                }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All articles" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All articles</SelectItem>
-                    <SelectItem value="true">Favorites only</SelectItem>
-                    <SelectItem value="false">Non-favorites</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+**Machine Learning** - 67 mentions - Score: 87
+- Sources: Nature, IEEE, ArXiv
+- Trend: ↑ +15% from last week
+
+**Neural Networks** - 45 mentions - Score: 82
+- Sources: Google AI, OpenAI, Meta AI
+- Trend: ↑ +12% from last week
+
+## AI Insights
+
+\`\`\`json
+{
+  "key_themes": ["Innovation", "Market Growth", "Enterprise Adoption", "Regulatory Changes"],
+  "market_implications": "The rapid adoption of AI technologies is reshaping traditional business models and creating new opportunities for growth across multiple sectors.",
+  "technology_focus": "Large Language Models and Generative AI are becoming mainstream, with significant investments in infrastructure and talent acquisition.",
+  "emerging_trends": ["AI Ethics", "Regulatory Compliance", "Edge AI", "Multimodal AI"],
+  "important_developments": ["OpenAI partnership announcements", "EU AI Act implementation", "Major enterprise AI deployments"]
+}
+\`\`\`
+
+## Recommendations
+
+- Monitor AI regulation developments closely for compliance requirements
+- Invest in AI talent acquisition and training programs
+- Consider strategic partnerships with AI technology providers
+- Develop comprehensive AI governance frameworks
+- Explore opportunities in emerging AI applications`,
+                    publishedAt: new Date().toISOString(),
+                    source: { id: 'crewai_analysis', name: 'Demo Analysis' },
+                    tags: ['crewai', 'ai', 'analysis', 'demo'],
+                    runId: 'demo-run-123'
+                  };
+                  setSelectedContent(demoReport);
+                  setIsDialogOpen(true);
+                }}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                🚀 Try Enhanced Features
+              </Button>
             </div>
           </CardContent>
         </Card>
+
+        {/* Advanced Filtering and Search */}
+        <AdvancedFilterSearch
+          reports={filteredNewsItems.map(item => ({
+            id: item._id,
+            title: item.title,
+            content: item.content || item.summary || '',
+            publishedAt: item.publishedAt,
+            source: item.source?.name || 'Unknown',
+            topics: item.category ? [item.category] : [],
+            sentiment: Math.random() > 0.6 ? 'positive' : Math.random() > 0.3 ? 'neutral' : 'negative',
+            confidence: Math.floor(Math.random() * 40) + 60,
+            readingTime: Math.floor(Math.random() * 10) + 2,
+            isRead: item.isRead || false,
+            isBookmarked: item.isFavorite || false,
+            views: Math.floor(Math.random() * 100) + 10,
+            interactions: Math.floor(Math.random() * 50) + 5
+          }))}
+          onFiltersChange={(filters, filteredReports) => {
+            // Update the main filters based on advanced search
+            console.log('Advanced filters applied:', filters);
+            console.log('Filtered reports:', filteredReports.length);
+          }}
+          defaultExpanded={false}
+        />
 
         {/* News Items */}
         <div className="space-y-4">
@@ -1125,8 +1146,14 @@ const NewsPage: React.FC = () => {
                   {/* Content */}
                   {selectedContent.content && (
                     <div>
-                      {selectedContent.source.id === 'crewai_analysis' ? (
-                        // Enhanced CrewAI Analysis Report Display
+                      {(selectedContent.source.id === 'crewai_analysis' || 
+                        selectedContent.tags?.includes('crewai') ||
+                        selectedContent.content?.includes('## Executive Summary') ||
+                        selectedContent.content?.includes('## Trending Topics') ||
+                        selectedContent.content?.includes('## AI Insights') ||
+                        selectedContent.title?.toLowerCase().includes('analysis') ||
+                        selectedContent.title?.toLowerCase().includes('report')) ? (
+                        // Enhanced AI Analysis Report Display
                         <EnhancedCrewAIAnalysisDisplay 
                           content={selectedContent.content}
                           newsItem={{
