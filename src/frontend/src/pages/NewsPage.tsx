@@ -48,6 +48,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import TelegramCard from '@/components/ui/TelegramCard';
+import EnhancedCrewAIAnalysisDisplay from '@/components/news/EnhancedCrewAIAnalysisDisplay';
 
 // Enhanced CrewAI Analysis Display Component
 const CrewAIAnalysisDisplay: React.FC<{ content: string }> = ({ content }) => {
@@ -1124,7 +1125,19 @@ const NewsPage: React.FC = () => {
                     <div>
                       {selectedContent.source.id === 'crewai_analysis' ? (
                         // Enhanced CrewAI Analysis Report Display
-                        <CrewAIAnalysisDisplay content={selectedContent.content} />
+                        <EnhancedCrewAIAnalysisDisplay 
+                          content={selectedContent.content}
+                          newsItem={{
+                            _id: selectedContent._id,
+                            title: selectedContent.title,
+                            publishedAt: selectedContent.publishedAt,
+                            runId: selectedContent.runId
+                          }}
+                          onAnalysisInteraction={(action, data) => {
+                            console.log('Analysis interaction:', action, data);
+                            // Handle analysis interactions (bookmarks, shares, etc.)
+                          }}
+                        />
                       ) : (
                         // Standard content display for other types
                         <div className="prose prose-sm max-w-none dark:prose-invert">
