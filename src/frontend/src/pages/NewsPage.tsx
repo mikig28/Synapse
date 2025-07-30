@@ -744,7 +744,7 @@ const NewsPage: React.FC = () => {
                     runId: 'demo-run-123'
                   };
                   setSelectedContent(demoReport);
-                  setIsDialogOpen(true);
+                  setContentModalOpen(true);
                 }}
                 className="bg-blue-600 hover:bg-blue-700"
               >
