@@ -107,7 +107,9 @@ const InteractiveReportDashboard: React.FC<InteractiveReportDashboardProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [readSections, setReadSections] = useState<Set<string>>(new Set());
-  const [isExpanded, setIsExpanded] = useState<{ [key: string]: boolean }>({});
+  const [isExpanded, setIsExpanded] = useState<{ [key: string]: boolean }>({
+    summary: true // Start with summary expanded to prevent animation issues
+  });
   const [readingTime, setReadingTime] = useState(0);
   const [trackerMinimized, setTrackerMinimized] = useState(false);
 
@@ -320,32 +322,21 @@ const InteractiveReportDashboard: React.FC<InteractiveReportDashboardProps> = ({
             {isExpanded.summary ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </CardTitle>
         </CardHeader>
-        <AnimatePresence>
-          {(isExpanded.summary !== false) && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-            >
-              <CardContent className="pt-0">
-                <div className="space-y-3">
-                  {reportData.summary.map((point, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg"
-                    >
-                      <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
-                      <p className="text-sm leading-relaxed">{point}</p>
-                    </motion.div>
-                  ))}
+        {(isExpanded.summary !== false) && (
+          <CardContent className="pt-0">
+            <div className="space-y-3">
+              {reportData.summary.map((point, index) => (
+                <div
+                  key={`summary-${index}`}
+                  className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg"
+                >
+                  <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
+                  <p className="text-sm leading-relaxed">{point}</p>
                 </div>
-              </CardContent>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              ))}
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       {/* Key Insights Cards */}
