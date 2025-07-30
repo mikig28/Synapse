@@ -49,6 +49,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import TelegramCard from '@/components/ui/TelegramCard';
 import EnhancedCrewAIAnalysisDisplay from '@/components/news/EnhancedCrewAIAnalysisDisplay';
+import GamificationSystem from '@/components/news/GamificationSystem';
+import AdvancedFilterSearch from '@/components/news/AdvancedFilterSearch';
 
 // Enhanced CrewAI Analysis Display Component
 const CrewAIAnalysisDisplay: React.FC<{ content: string }> = ({ content }) => {

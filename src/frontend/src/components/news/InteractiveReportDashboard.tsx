@@ -37,6 +37,7 @@ import { cn } from '@/lib/utils';
 import TrendingTopicsChart from './TrendingTopicsChart';
 import SourceDistributionChart from './SourceDistributionChart';
 import SentimentIndicator from './SentimentIndicator';
+import ReportProgressTracker from './ReportProgressTracker';
 
 interface ReportData {
   id: string;
@@ -108,6 +109,7 @@ const InteractiveReportDashboard: React.FC<InteractiveReportDashboardProps> = ({
   const [readSections, setReadSections] = useState<Set<string>>(new Set());
   const [isExpanded, setIsExpanded] = useState<{ [key: string]: boolean }>({});
   const [readingTime, setReadingTime] = useState(0);
+  const [trackerMinimized, setTrackerMinimized] = useState(false);
 
   // Calculate reading progress
   const totalSections = 6; // overview, trends, sources, sentiment, insights, recommendations
@@ -147,6 +149,64 @@ const InteractiveReportDashboard: React.FC<InteractiveReportDashboardProps> = ({
 
     return () => clearInterval(interval);
   }, []);
+
+  // Progress tracker sections
+  const trackerSections = useMemo(() => [
+    {
+      id: 'overview',
+      title: 'Overview',
+      icon: <FileText className="w-4 h-4" />,
+      estimatedTime: 60,
+      completed: readSections.has('overview'),
+      currentlyReading: activeTab === 'overview'
+    },
+    {
+      id: 'trends',
+      title: 'Trending Topics',
+      icon: <TrendingUp className="w-4 h-4" />,
+      estimatedTime: 90,
+      completed: readSections.has('trends'),
+      currentlyReading: activeTab === 'trends'
+    },
+    {
+      id: 'sources',
+      title: 'Sources',
+      icon: <Users className="w-4 h-4" />,
+      estimatedTime: 70,
+      completed: readSections.has('sources'),
+      currentlyReading: activeTab === 'sources'
+    },
+    {
+      id: 'sentiment',
+      title: 'Sentiment',
+      icon: <Heart className="w-4 h-4" />,
+      estimatedTime: 50,
+      completed: readSections.has('sentiment'),
+      currentlyReading: activeTab === 'sentiment'
+    },
+    {
+      id: 'insights',
+      title: 'Insights',
+      icon: <Lightbulb className="w-4 h-4" />,
+      estimatedTime: 120,
+      completed: readSections.has('insights'),
+      currentlyReading: activeTab === 'insights'
+    },
+    {
+      id: 'recommendations',
+      title: 'Actions',
+      icon: <Target className="w-4 h-4" />,
+      estimatedTime: 80,
+      completed: readSections.has('recommendations'),
+      currentlyReading: activeTab === 'recommendations'
+    }
+  ], [readSections, activeTab]);
+
+  // Handle section navigation from progress tracker
+  const handleTrackerSectionClick = (sectionId: string) => {
+    setActiveTab(sectionId);
+    markSectionAsRead(sectionId);
+  };
 
   // Report header component
   const ReportHeader = () => (
@@ -551,6 +611,17 @@ const InteractiveReportDashboard: React.FC<InteractiveReportDashboardProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Progress Tracker */}
+      <ReportProgressTracker
+        sections={trackerSections}
+        currentSection={activeTab}
+        totalProgress={readProgress}
+        readingTime={readingTime}
+        onSectionClick={handleTrackerSectionClick}
+        onToggleMinimize={() => setTrackerMinimized(!trackerMinimized)}
+        minimized={trackerMinimized}
+      />
     </div>
   );
 };
