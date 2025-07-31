@@ -142,30 +142,57 @@ export class VectorDatabaseService {
       // Initialize Pinecone for production
       if (this.config.useProduction && this.config.pineconeApiKey) {
         console.log('[VectorDB]: Initializing Pinecone for production...');
-        this.pinecone = new Pinecone({
-          apiKey: this.config.pineconeApiKey,
-        });
-        
-        // Verify/create index
-        await this.initializePineconeIndex();
+        try {
+          this.pinecone = new Pinecone({
+            apiKey: this.config.pineconeApiKey,
+          });
+          
+          // Verify/create index
+          await this.initializePineconeIndex();
+          console.log('[VectorDB]: Pinecone initialized successfully');
+        } catch (pineconeError) {
+          console.warn('[VectorDB]: Failed to initialize Pinecone:', pineconeError);
+          this.pinecone = null;
+        }
+      } else {
+        console.log('[VectorDB]: Pinecone not configured - missing API key or not in production mode');
       }
       
       // Initialize Chroma for development/testing
-      console.log('[VectorDB]: Initializing Chroma for development...');
-      this.chroma = new ChromaClient({
-        path: this.config.chromaUrl,
-      });
+      try {
+        console.log('[VectorDB]: Initializing Chroma for development...');
+        this.chroma = new ChromaClient({
+          path: this.config.chromaUrl,
+        });
+        
+        // Test connection
+        await this.chroma.heartbeat();
+        
+        // Initialize OpenAI embedding function for Chroma if OpenAI key is available
+        if (process.env.OPENAI_API_KEY) {
+          this.embeddingFunction = new OpenAIEmbeddingFunction({
+            openai_api_key: process.env.OPENAI_API_KEY,
+            openai_model: 'text-embedding-3-small',
+          });
+          console.log('[VectorDB]: ChromaDB with OpenAI embeddings initialized successfully');
+        } else {
+          console.warn('[VectorDB]: ChromaDB initialized but OpenAI API key missing for embeddings');
+        }
+      } catch (chromaError) {
+        console.warn('[VectorDB]: Failed to initialize ChromaDB:', chromaError);
+        this.chroma = null;
+        this.embeddingFunction = null;
+      }
       
-      // Initialize OpenAI embedding function for Chroma
-      this.embeddingFunction = new OpenAIEmbeddingFunction({
-        openai_api_key: process.env.OPENAI_API_KEY || '',
-        openai_model: 'text-embedding-3-small',
-      });
-      
-      console.log('[VectorDB]: Vector databases initialized successfully');
+      // Check if any vector database is available
+      if (!this.pinecone && !this.chroma) {
+        console.warn('[VectorDB]: No vector databases available - search functionality will be limited');
+      } else {
+        console.log('[VectorDB]: Vector databases initialized with available providers');
+      }
     } catch (error) {
-      console.error('[VectorDB]: Error initializing vector databases:', error);
-      throw error;
+      console.error('[VectorDB]: Error during vector database initialization:', error);
+      // Don't throw error - allow service to continue with limited functionality
     }
   }
   
