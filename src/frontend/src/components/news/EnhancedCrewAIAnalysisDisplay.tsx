@@ -213,19 +213,19 @@ const EnhancedCrewAIAnalysisDisplay: React.FC<EnhancedCrewAIAnalysisDisplayProps
     };
   }, [content, newsItem]);
 
-  // Track reading sessions
+  // Track reading sessions - timer disabled to prevent refreshing
   useEffect(() => {
     const sessionId = Date.now().toString();
     setReadingSessions(prev => [...prev, sessionId]);
     
-    const timer = setInterval(() => {
-      setAnalysisMetrics(prev => ({
-        ...prev,
-        timeSpent: prev.timeSpent + 1
-      }));
-    }, 1000);
-
-    return () => clearInterval(timer);
+    // Timer disabled to prevent constant re-renders
+    // const timer = setInterval(() => {
+    //   setAnalysisMetrics(prev => ({
+    //     ...prev,
+    //     timeSpent: prev.timeSpent + 1
+    //   }));
+    // }, 1000);
+    // return () => clearInterval(timer);
   }, []);
 
   // Handle various interactions
