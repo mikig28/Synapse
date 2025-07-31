@@ -280,7 +280,8 @@ const DocsPage: React.FC = () => {
 
     try {
       setSearchLoading(true);
-      const result = await documentService.searchDocuments(chatQuery, {
+      const result = await documentService.searchDocuments({
+        query: chatQuery,
         strategy: 'hybrid',
         includeDebugInfo: true,
       });
