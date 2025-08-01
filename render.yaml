@@ -38,7 +38,15 @@ services:
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
         value: "false"
       - key: PUPPETEER_EXECUTABLE_PATH
-        value: "/usr/bin/google-chrome-stable" 
+        value: "/usr/bin/google-chrome-stable"
+      - key: EMBEDDING_PROVIDER
+        value: voyage
+      - key: VOYAGE_API_KEY
+        sync: false
+      - key: PINECONE_API_KEY
+        sync: false
+      - key: PINECONE_INDEX_NAME
+        value: synapse-docs 
 
   - type: web
     name: synapse-crewai

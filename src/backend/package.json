@@ -75,6 +75,7 @@
     "twitter-api-v2": "^1.17.2",
     "typescript": "^5.0.0",
     "uuid": "^10.0.0",
+    "voyageai": "^0.0.5",
     "whatsapp-web.js": "^1.23.0"
   },
   "devDependencies": {
