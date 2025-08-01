@@ -280,11 +280,17 @@ class UltraThinkingOrchestrator:
         elif reasoning_chain.chain_type == ReasoningChainType.PARALLEL:
             execution_results = await self._execute_parallel_chain(reasoning_chain, step_outputs)
         elif reasoning_chain.chain_type == ReasoningChainType.HIERARCHICAL:
-            execution_results = await self._execute_hierarchical_chain(reasoning_chain, step_outputs)
+            # Disable hierarchical chain due to performance issues
+            logger.warning("Ultra-thinking hierarchical chain disabled due to performance issues")
+            execution_results = {"error": "Hierarchical chain disabled", "status": "disabled"}
         elif reasoning_chain.chain_type == ReasoningChainType.ITERATIVE:
-            execution_results = await self._execute_iterative_chain(reasoning_chain, step_outputs)
+            # Disable iterative chain due to performance issues
+            logger.warning("Ultra-thinking iterative chain disabled due to performance issues")
+            execution_results = {"error": "Iterative chain disabled", "status": "disabled"}
         elif reasoning_chain.chain_type == ReasoningChainType.DEBATE:
-            execution_results = await self._execute_debate_chain(reasoning_chain, step_outputs)
+            # Disable debate chain due to performance issues
+            logger.warning("Ultra-thinking debate chain disabled due to performance issues")
+            execution_results = {"error": "Debate chain disabled", "status": "disabled"}
         
         # Update reasoning chain with results
         reasoning_chain.synthesis_result = execution_results

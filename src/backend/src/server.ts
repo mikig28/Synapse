@@ -311,6 +311,12 @@ app.get('/api/v1/ag-ui/events', (req: Request, res: Response) => {
       }
     };
 
+    // Add connection timeout (30 seconds for initial setup)
+    const connectionTimeout = setTimeout(() => {
+      console.log('[AG-UI SSE] Initial connection timeout, closing');
+      cleanup();
+    }, 30000);
+
     try {
       subscription = agui.subscribe((event) => {
         if (!isAlive || req.destroyed || res.destroyed) {
@@ -359,6 +365,7 @@ app.get('/api/v1/ag-ui/events', (req: Request, res: Response) => {
       }, 30000);
 
       console.log('[AG-UI SSE] Connection established successfully');
+      clearTimeout(connectionTimeout); // Clear initial connection timeout
 
     } catch (subscriptionError) {
       console.error('[AG-UI SSE] Error setting up subscription:', subscriptionError);

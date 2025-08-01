@@ -165,8 +165,13 @@ export class VectorDatabaseService {
           path: this.config.chromaUrl,
         });
         
-        // Test connection
-        await this.chroma.heartbeat();
+        // Test connection with timeout
+        const heartbeatPromise = this.chroma.heartbeat();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('ChromaDB heartbeat timeout')), 10000)
+        );
+        
+        await Promise.race([heartbeatPromise, timeoutPromise]);
         
         // Initialize OpenAI embedding function for Chroma if OpenAI key is available
         if (process.env.OPENAI_API_KEY) {
@@ -673,11 +678,18 @@ export class VectorDatabaseService {
         Object.assign(where, options.filter);
       }
       
-      const results = await collection.query({
+      // Add timeout to query operation
+      const queryPromise = collection.query({
         queryEmbeddings: [queryEmbedding],
         nResults: options.topK || 10,
         where: Object.keys(where).length > 0 ? where : undefined,
       });
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('ChromaDB query timeout')), 15000)
+      );
+      
+      const results = await Promise.race([queryPromise, timeoutPromise]);
       
       const searchResults: SearchResult[] = [];
       
