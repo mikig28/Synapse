@@ -209,7 +209,8 @@ class WAHAService extends EventEmitter {
         return `data:image/png;base64,${base64}`;
       } catch (fallbackError) {
         console.error(`[WAHA Service] ❌ Both QR endpoints failed:`, fallbackError);
-        throw new Error(`Failed to get QR code: ${error.message}`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to get QR code: ${errorMessage}`);
       }
     }
   }
