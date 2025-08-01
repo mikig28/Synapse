@@ -126,20 +126,26 @@ class WAHAService extends EventEmitter {
    */
   async healthCheck(): Promise<boolean> {
     try {
-      // Try different health check endpoints
-      let response;
-      try {
-        response = await this.httpClient.get('/');
-      } catch {
-        // Fallback to sessions endpoint
-        response = await this.httpClient.get('/api/sessions');
-      }
+      // Use /api/version instead of /health (which requires Plus license)
+      const response = await this.httpClient.get('/api/version');
       
-      console.log('[WAHA Service] ✅ Health check passed');
-      return true;
+      if (response.data && response.status === 200) {
+        console.log('[WAHA Service] ✅ Health check passed (using /api/version)');
+        return true;
+      } else {
+        throw new Error('Invalid version response');
+      }
     } catch (error) {
       console.error('[WAHA Service] ❌ Health check failed:', error);
-      throw new Error('WAHA service is not available');
+      // Try fallback to sessions endpoint
+      try {
+        await this.httpClient.get('/api/sessions');
+        console.log('[WAHA Service] ✅ Health check passed (using /api/sessions fallback)');
+        return true;
+      } catch (fallbackError) {
+        console.error('[WAHA Service] ❌ All health checks failed');
+        throw new Error('WAHA service is not available');
+      }
     }
   }
 
@@ -346,6 +352,8 @@ class WAHAService extends EventEmitter {
       switch (payload.event) {
         case 'message':
           this.emit('message', payload.data);
+          // Process image messages for group monitoring
+          this.processImageForGroupMonitoring(payload.data);
           break;
         case 'session.status':
           this.connectionStatus = payload.data.status;
@@ -357,6 +365,49 @@ class WAHAService extends EventEmitter {
       }
     } catch (error) {
       console.error('[WAHA Service] ❌ Webhook handling error:', error);
+    }
+  }
+
+  /**
+   * Process image messages for group monitoring
+   */
+  private async processImageForGroupMonitoring(messageData: any): Promise<void> {
+    try {
+      // Check if message is an image and from a group
+      if (!messageData.isMedia || 
+          messageData.type !== 'image' || 
+          !messageData.isGroup ||
+          !messageData.mediaUrl) {
+        return;
+      }
+
+      console.log('[WAHA Service] Processing image for group monitoring:', {
+        messageId: messageData.id,
+        groupId: messageData.chatId,
+        groupName: messageData.groupName,
+        from: messageData.from,
+        mediaUrl: messageData.mediaUrl
+      });
+
+      // Send to group monitor webhook (fire and forget)
+      const axios = require('axios');
+      const baseUrl = process.env.FRONTEND_URL || 'https://synapse-backend-7lq6.onrender.com';
+      
+      axios.post(`${baseUrl}/api/v1/group-monitor/webhook/whatsapp-message`, {
+        messageId: messageData.id,
+        groupId: messageData.chatId,
+        senderId: messageData.from,
+        senderName: messageData.contactName || messageData.from,
+        imageUrl: messageData.mediaUrl,
+        caption: messageData.body
+      }, {
+        timeout: 5000
+      }).catch((error: any) => {
+        console.error('[WAHA Service] ❌ Failed to send image to group monitor:', error.message);
+      });
+
+    } catch (error) {
+      console.error('[WAHA Service] ❌ Error processing image for group monitoring:', error);
     }
   }
 }

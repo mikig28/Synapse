@@ -54,6 +54,7 @@ services:
     name: synapse-waha
     runtime: docker
     dockerImage: devlikeapro/waha:latest
+    healthCheckPath: /api/version
     startupTimeout: 600
     envVars:
       - key: PORT
