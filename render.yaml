@@ -54,15 +54,14 @@ services:
     name: synapse-waha
     runtime: docker
     dockerImage: devlikeapro/waha:latest
-    healthCheckPath: /
-    startupTimeout: 300
+    startupTimeout: 600
     envVars:
       - key: PORT
         value: 3000
       - key: WAHA_LOG_LEVEL
         value: info
-      - key: NODE_ENV
-        value: production
+      - key: WAHA_PRINT_QR
+        value: "false"
     disk:
       name: waha-sessions
       mountPath: /app/.wwebjs_auth
