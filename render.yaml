@@ -45,8 +45,26 @@ services:
         sync: false
       - key: PINECONE_API_KEY
         sync: false
-      - key: PINECONE_INDEX_NAME
-        value: synapse-docs 
+            - key: PINECONE_INDEX_NAME
+        value: synapse-docs
+      - key: WAHA_SERVICE_URL
+        value: https://synapse-waha.onrender.com
+
+  - type: web
+    name: synapse-waha
+    runtime: docker
+    dockerImage: devlikeapro/waha
+    envVars:
+      - key: WAHA_HTTP_PORT
+        value: 3000
+      - key: WAHA_LOG_LEVEL
+        value: info
+      - key: WAHA_SESSIONS_ON_START
+        value: '["default"]'
+    disk:
+      name: waha-sessions
+      mountPath: /app/.wwebjs_auth
+      sizeGB: 1
 
   - type: web
     name: synapse-crewai

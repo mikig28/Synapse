@@ -4,7 +4,8 @@ import cors from 'cors';
 import mongoose from 'mongoose'; // Import mongoose to check connection state
 import http from 'http'; // Import http module
 import { Server as SocketIOServer } from 'socket.io'; // Import Server from socket.io
-import whatsappRoutes from './api/routes/whatsappRoutes'; // Import WhatsApp routes
+import whatsappRoutes from './api/routes/whatsappRoutes'; // Import WhatsApp routes (legacy)
+import wahaRoutes from './api/routes/wahaRoutes'; // Import WAHA routes (modern)
 import { connectToDatabase } from './config/database'; // Import database connection
 import authRoutes from './api/routes/authRoutes'; // Import auth routes
 import { initializeTelegramBot } from './services/telegramService'; // Import Telegram Bot initializer
@@ -12,7 +13,8 @@ import { AgentService } from './services/agentService'; // Import agent service
 import { AgentScheduler } from './services/agentScheduler'; // Import agent scheduler
 import { initializeAgentServices } from './api/controllers/agentsController'; // Import agent services initializer
 import { registerAgentExecutors } from './services/agents'; // Import agent executors registry
-import WhatsAppBaileysService from './services/whatsappBaileysService'; // Import WhatsApp Baileys service
+import WhatsAppBaileysService from './services/whatsappBaileysService'; // Import WhatsApp Baileys service (legacy)
+import WAHAService from './services/wahaService'; // Import WAHA service (modern)
 import captureRoutes from './api/routes/captureRoutes'; // Import capture routes
 import path from 'path'; // <-- Import path module
 import fs from 'fs'; // <-- Import fs module
@@ -186,7 +188,8 @@ console.log(`[Static Files] Serving static files from /public mapped to physical
 app.use('/public', express.static(publicDir)); // Serve files under /public URL path
 
 // API Routes
-app.use('/api/v1/whatsapp', whatsappRoutes);
+app.use('/api/v1/whatsapp', whatsappRoutes); // Legacy WhatsApp routes
+app.use('/api/v1/waha', wahaRoutes); // Modern WAHA routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/capture', captureRoutes); // Use capture routes
 app.use('/api/v1/bookmarks', bookmarkRoutes); // Use bookmark routes
@@ -612,14 +615,25 @@ const startServer = async () => {
     await connectToDatabase(); // Calls the Mongoose connection logic
     initializeTelegramBot(); // Initialize and start the Telegram bot polling
 
-    // Initialize WhatsApp Baileys service with error handling
+    // Initialize WAHA service (modern WhatsApp implementation)
+    try {
+      const wahaService = WAHAService.getInstance();
+      await wahaService.initialize();
+      console.log('[Server] ✅ WAHA service initialized successfully');
+    } catch (wahaError) {
+      console.error('[Server] ❌ WAHA service initialization failed:', wahaError);
+      console.log('[Server] Continuing without WAHA service (will retry later)...');
+      // Don't crash the server if WAHA fails (it might not be deployed yet)
+    }
+
+    // Legacy: Initialize WhatsApp Baileys service (fallback - will be removed)
     try {
     const whatsappService = WhatsAppBaileysService.getInstance();
     whatsappService.initialize(); // Note: This is async and doesn't wait for actual connection
-    console.log('[Server] WhatsApp Baileys service initialization started (no browser required!)');
+    console.log('[Server] WhatsApp Baileys service initialization started (LEGACY - will be removed)');
     } catch (whatsappError) {
       console.error('[Server] WhatsApp Baileys service failed to start initialization:', whatsappError);
-      console.log('[Server] Continuing without WhatsApp service...');
+      console.log('[Server] Continuing without legacy WhatsApp service...');
       // Don't crash the server if WhatsApp fails
     }
 
