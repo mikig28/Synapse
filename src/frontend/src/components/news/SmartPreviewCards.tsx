@@ -1,7 +1,7 @@
-"""
-Smart Preview Cards for Ultra-Thinking Analysis
-Auto-accessible key insights without expansion - directly addresses user accessibility requirements.
-"""
+/**
+ * Smart Preview Cards for Ultra-Thinking Analysis
+ * Auto-accessible key insights without expansion - directly addresses user accessibility requirements.
+ */
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
