@@ -2,7 +2,7 @@
  * Cost-Efficient Vector Database Service with Multi-Provider Embedding Support
  * 
  * Supports the following embedding providers (in order of cost-effectiveness):
- * 1. Voyage AI - $0.02/1M tokens (voyage-3-lite) - Best cost/performance ratio
+ * 1. Voyage AI - $0.02/1M tokens (voyage-3-lite, 512-dim) - Best cost/performance ratio
  * 2. Gemini - $0.15/1M tokens (text-embedding-004) - Good performance
  * 3. OpenAI - $0.02/1M tokens (text-embedding-3-small) - Fallback option
  * 
@@ -128,7 +128,7 @@ export class VectorDatabaseService {
   private getDimensionalityForProvider(provider: EmbeddingProvider): number {
     switch (provider) {
       case 'voyage':
-        return 1024; // voyage-3-lite: 1024 dimensions
+        return 512; // voyage-3-lite actually produces 512 dimensions, not 1024
       case 'gemini':
         return 768; // Using recommended truncated dimension for optimal quality
       case 'openai':
@@ -201,11 +201,11 @@ export class VectorDatabaseService {
     
     try {
       const existingIndexes = await this.pinecone.listIndexes();
-      const indexExists = existingIndexes.indexes?.some(
+      const existingIndex = existingIndexes.indexes?.find(
         index => index.name === this.config.pineconeIndexName
       );
       
-      if (!indexExists) {
+      if (!existingIndex) {
         console.log(`[VectorDB]: Creating Pinecone index: ${this.config.pineconeIndexName}`);
         await this.pinecone.createIndex({
           name: this.config.pineconeIndexName,
@@ -221,9 +221,31 @@ export class VectorDatabaseService {
         
         // Wait for index to be ready
         await new Promise(resolve => setTimeout(resolve, 10000));
+      } else {
+        // Check if existing index has the right dimensions
+        const indexDimension = existingIndex.dimension;
+        const expectedDimension = this.config.dimensionality;
+        
+        if (indexDimension !== expectedDimension) {
+          console.warn(`[VectorDB]: Dimension mismatch! Index has ${indexDimension} dimensions but embedding provider ${this.config.embeddingProvider} produces ${expectedDimension} dimensions`);
+          console.warn(`[VectorDB]: Consider either:`);
+          console.warn(`[VectorDB]: 1. Recreating the index with correct dimensions`);
+          console.warn(`[VectorDB]: 2. Switching to an embedding provider that matches the index dimensions`);
+          
+          // Suggest provider that matches existing index
+          if (indexDimension === 1536) {
+            console.warn(`[VectorDB]: Suggestion: Use EMBEDDING_PROVIDER=openai to match existing index`);
+          } else if (indexDimension === 768) {
+            console.warn(`[VectorDB]: Suggestion: Use EMBEDDING_PROVIDER=gemini to match existing index`);
+          } else if (indexDimension === 512) {
+            console.warn(`[VectorDB]: Suggestion: Use EMBEDDING_PROVIDER=voyage to match existing index`);
+          }
+          
+          throw new Error(`Pinecone index dimension mismatch: expected ${expectedDimension}, got ${indexDimension}. Please fix configuration or recreate index.`);
+        }
       }
       
-      console.log(`[VectorDB]: Pinecone index ${this.config.pineconeIndexName} is ready`);
+      console.log(`[VectorDB]: Pinecone index ${this.config.pineconeIndexName} is ready with ${this.config.dimensionality} dimensions`);
     } catch (error) {
       console.error('[VectorDB]: Error initializing Pinecone index:', error);
       throw error;
@@ -923,6 +945,53 @@ export class VectorDatabaseService {
     }
   }
   
+  /**
+   * Recreate Pinecone index with correct dimensions (WARNING: This deletes all existing data)
+   */
+  async recreatePineconeIndex(): Promise<void> {
+    if (!this.pinecone || !this.config.pineconeIndexName) {
+      throw new Error('Pinecone not configured');
+    }
+    
+    try {
+      console.log(`[VectorDB]: WARNING: Recreating Pinecone index ${this.config.pineconeIndexName} - this will delete all existing data!`);
+      
+      // Delete existing index if it exists
+      try {
+        await this.pinecone.deleteIndex(this.config.pineconeIndexName);
+        console.log(`[VectorDB]: Deleted existing index ${this.config.pineconeIndexName}`);
+        
+        // Wait for deletion to complete
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      } catch (error) {
+        console.log(`[VectorDB]: Index ${this.config.pineconeIndexName} didn't exist or couldn't be deleted`);
+      }
+      
+      // Create new index with correct dimensions
+      await this.pinecone.createIndex({
+        name: this.config.pineconeIndexName,
+        dimension: this.config.dimensionality,
+        metric: 'cosine',
+        spec: {
+          serverless: {
+            cloud: 'aws',
+            region: 'us-east-1',
+          },
+        },
+      });
+      
+      console.log(`[VectorDB]: Created new Pinecone index ${this.config.pineconeIndexName} with ${this.config.dimensionality} dimensions`);
+      
+      // Wait for index to be ready
+      await new Promise(resolve => setTimeout(resolve, 10000));
+      
+      console.log(`[VectorDB]: Pinecone index is ready for use`);
+    } catch (error) {
+      console.error('[VectorDB]: Error recreating Pinecone index:', error);
+      throw error;
+    }
+  }
+
   /**
    * Health check for vector databases and embedding providers
    */
