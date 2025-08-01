@@ -616,6 +616,9 @@ const startServer = async () => {
     initializeTelegramBot(); // Initialize and start the Telegram bot polling
 
     // Initialize WAHA service (modern WhatsApp implementation)
+    // TEMPORARILY DISABLED: Let WAHA service deploy first, then re-enable
+    console.log('[Server] ⏳ WAHA initialization temporarily disabled during deployment...');
+    /* 
     try {
       const wahaService = WAHAService.getInstance();
       await wahaService.initialize();
@@ -625,6 +628,7 @@ const startServer = async () => {
       console.log('[Server] Continuing without WAHA service (will retry later)...');
       // Don't crash the server if WAHA fails (it might not be deployed yet)
     }
+    */
 
     // Legacy: Initialize WhatsApp Baileys service (fallback - will be removed)
     try {
