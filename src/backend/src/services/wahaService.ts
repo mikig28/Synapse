@@ -126,7 +126,15 @@ class WAHAService extends EventEmitter {
    */
   async healthCheck(): Promise<boolean> {
     try {
-      const response = await this.httpClient.get('/api/health');
+      // Try different health check endpoints
+      let response;
+      try {
+        response = await this.httpClient.get('/');
+      } catch {
+        // Fallback to sessions endpoint
+        response = await this.httpClient.get('/api/sessions');
+      }
+      
       console.log('[WAHA Service] ✅ Health check passed');
       return true;
     } catch (error) {
