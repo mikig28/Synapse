@@ -3,7 +3,8 @@
  * Replaces the complex WhatsAppBaileysService with simple HTTP calls to WAHA microservice
  */
 
-import axios, { AxiosInstance } from 'axios';
+import axios from 'axios';
+import type { AxiosInstance } from 'axios';
 import { EventEmitter } from 'events';
 
 export interface WAHAMessage {
@@ -66,17 +67,17 @@ class WAHAService extends EventEmitter {
     });
 
     // Setup request interceptors for logging
-    this.httpClient.interceptors.request.use((config) => {
+    this.httpClient.interceptors.request.use((config: any) => {
       console.log(`[WAHA API] ${config.method?.toUpperCase()} ${config.url}`);
       return config;
     });
 
     this.httpClient.interceptors.response.use(
-      (response) => {
+      (response: any) => {
         console.log(`[WAHA API] ✅ ${response.status} ${response.config.url}`);
         return response;
       },
-      (error) => {
+      (error: any) => {
         console.error(`[WAHA API] ❌ ${error.response?.status || 'NETWORK_ERROR'} ${error.config?.url}:`, error.message);
         return Promise.reject(error);
       }
