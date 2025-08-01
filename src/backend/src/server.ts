@@ -615,16 +615,17 @@ const startServer = async () => {
     await connectToDatabase(); // Calls the Mongoose connection logic
     initializeTelegramBot(); // Initialize and start the Telegram bot polling
 
-    // Initialize WAHA service (modern WhatsApp implementation)
-    try {
-      const wahaService = WAHAService.getInstance();
-      await wahaService.initialize();
-      console.log('[Server] ✅ WAHA service initialized successfully');
-    } catch (wahaError) {
-      console.error('[Server] ❌ WAHA service initialization failed:', wahaError);
-      console.log('[Server] Continuing without WAHA service (will retry later)...');
-      // Don't crash the server if WAHA fails (it might not be deployed yet)
-    }
+    // Initialize WAHA service (modern WhatsApp implementation) - TEMPORARILY DISABLED
+    // try {
+    //   const wahaService = WAHAService.getInstance();
+    //   await wahaService.initialize();
+    //   console.log('[Server] ✅ WAHA service initialized successfully');
+    // } catch (wahaError) {
+    //   console.error('[Server] ❌ WAHA service initialization failed:', wahaError);
+    //   console.log('[Server] Continuing without WAHA service (will retry later)...');
+    //   // Don't crash the server if WAHA fails (it might not be deployed yet)
+    // }
+    console.log('[Server] WAHA service temporarily disabled for debugging');
 
     // Legacy: Initialize WhatsApp Baileys service (fallback - will be removed)
     try {
