@@ -76,10 +76,14 @@ const io = new SocketIOServer(httpServer, {
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true
   },
-  // Add connection timeout and ping settings for stability
-  pingTimeout: 60000, // 60 seconds
-  pingInterval: 25000, // 25 seconds
-  upgradeTimeout: 30000 // 30 seconds
+  // Render.com optimized settings for better WebSocket stability
+  transports: ['polling', 'websocket'], // Start with polling, upgrade to WebSocket
+  allowEIO3: true, // Allow Engine.IO v3 for compatibility
+  pingTimeout: 120000, // 2 minutes (longer for Render.com)
+  pingInterval: 60000, // 1 minute (less frequent pings)
+  upgradeTimeout: 60000, // 1 minute for WebSocket upgrade
+  maxHttpBufferSize: 1e6, // 1MB
+  allowUpgrades: true // Allow transport upgrades
 });
 
 // Middleware - Enhanced CORS configuration with production fix
@@ -473,9 +477,19 @@ app.get('/', (req: Request, res: Response) => {
   res.send(`Synapse Backend is running! MongoDB (Mongoose) status: ${dbStatus}`);
 });
 
-// Socket.IO connection handler
+// Socket.IO connection handler with enhanced error handling
 io.on('connection', (socket) => {
-  console.log(`[Socket.IO]: Client connected: ${socket.id}`);
+  console.log(`[Socket.IO]: Client connected: ${socket.id} from ${socket.handshake.address}`);
+
+  // Handle connection errors
+  socket.on('connect_error', (error) => {
+    console.error(`[Socket.IO]: Connection error for ${socket.id}:`, error);
+  });
+
+  // Handle disconnection with reason
+  socket.on('disconnect', (reason) => {
+    console.log(`[Socket.IO]: Client disconnected: ${socket.id}, reason: ${reason}`);
+  });
 
   // Handle user room joining
   socket.on('join', (room: string) => {
