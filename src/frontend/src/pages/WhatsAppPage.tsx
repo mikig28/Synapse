@@ -266,7 +266,7 @@ const WhatsAppPage: React.FC = () => {
   const fetchStatus = async () => {
     try {
       // Try WAHA endpoint first
-      const response = await api.get('/api/v1/waha/status');
+      const response = await api.get('/waha/status');
       if (response.data.success) {
         setStatus(response.data.data);
       }
@@ -347,7 +347,7 @@ const WhatsAppPage: React.FC = () => {
       // Try WAHA endpoint first
       let response;
       try {
-        response = await api.get('/api/v1/waha/qr');
+        response = await api.get('/waha/qr');
       } catch (error) {
         console.error('WAHA QR failed, trying legacy:', error);
         // Fallback to legacy endpoint

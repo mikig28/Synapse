@@ -72,7 +72,7 @@ export interface WhatsAppConfig {
 
 class WhatsAppService {
   private baseUrl = '/whatsapp';    // Legacy API endpoint
-  private wahaUrl = '/api/v1/waha'; // Modern WAHA API endpoint
+  private wahaUrl = '/waha'; // Modern WAHA API endpoint (api.baseURL already includes /api/v1)
 
   // Get all WhatsApp contacts
   async getContacts(): Promise<WhatsAppContact[]> {
