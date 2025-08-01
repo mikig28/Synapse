@@ -33,6 +33,7 @@ import calendarEventsRoutes from './api/routes/calendarEventsRoutes'; // Import 
 import scheduledAgentsRoutes from './api/routes/scheduledAgents'; // Import scheduled agents routes
 import placesRoutes from './api/routes/placesRoutes'; // Import places routes
 import documentsRoutes from './api/routes/documentsRoutes'; // Import documents routes
+import groupMonitorRoutes from './api/routes/groupMonitorRoutes'; // Import group monitor routes
 import { initializeTaskReminderScheduler } from './services/taskReminderService'; // Import task reminder service
 import { schedulerService } from './services/schedulerService'; // Import scheduler service
 import { agui } from './services/aguiEmitter'; // Import AG-UI emitter
@@ -207,6 +208,7 @@ app.use('/api/v1/calendar-events', calendarEventsRoutes); // Use calendar event 
 app.use('/api/v1/scheduled-agents', scheduledAgentsRoutes); // Use scheduled agents routes
 app.use('/api/v1/places', placesRoutes); // Use places routes
 app.use('/api/v1/documents', documentsRoutes); // Use documents routes
+app.use('/api/v1/group-monitor', groupMonitorRoutes); // Use group monitor routes
 
 // **AG-UI Protocol Endpoints**
 
@@ -616,9 +618,6 @@ const startServer = async () => {
     initializeTelegramBot(); // Initialize and start the Telegram bot polling
 
     // Initialize WAHA service (modern WhatsApp implementation)
-    // TEMPORARILY DISABLED: Let WAHA service deploy first, then re-enable
-    console.log('[Server] ⏳ WAHA initialization temporarily disabled during deployment...');
-    /* 
     try {
       const wahaService = WAHAService.getInstance();
       await wahaService.initialize();
@@ -628,7 +627,6 @@ const startServer = async () => {
       console.log('[Server] Continuing without WAHA service (will retry later)...');
       // Don't crash the server if WAHA fails (it might not be deployed yet)
     }
-    */
 
     // Legacy: Initialize WhatsApp Baileys service (fallback - will be removed)
     try {
