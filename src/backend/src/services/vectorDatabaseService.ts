@@ -167,7 +167,7 @@ export class VectorDatabaseService {
         
         // Test connection with timeout
         const heartbeatPromise = this.chroma.heartbeat();
-        const timeoutPromise = new Promise((_, reject) => 
+        const timeoutPromise = new Promise<never>((_, reject) => 
           setTimeout(() => reject(new Error('ChromaDB heartbeat timeout')), 10000)
         );
         
@@ -685,7 +685,7 @@ export class VectorDatabaseService {
         where: Object.keys(where).length > 0 ? where : undefined,
       });
       
-      const timeoutPromise = new Promise((_, reject) => 
+      const timeoutPromise = new Promise<never>((_, reject) => 
         setTimeout(() => reject(new Error('ChromaDB query timeout')), 15000)
       );
       
