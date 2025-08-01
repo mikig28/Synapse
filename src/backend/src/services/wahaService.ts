@@ -154,6 +154,17 @@ class WAHAService extends EventEmitter {
    */
   async startSession(sessionName: string = this.defaultSession): Promise<WAHASession> {
     try {
+      // First, try to get existing session
+      try {
+        const existingSession = await this.httpClient.get(`/api/sessions/${sessionName}`);
+        console.log(`[WAHA Service] ✅ Session '${sessionName}' already exists`);
+        return existingSession.data;
+      } catch (getError) {
+        // Session doesn't exist, create it
+        console.log(`[WAHA Service] Creating new session '${sessionName}'...`);
+      }
+
+      // Create new session
       const response = await this.httpClient.post('/api/sessions', {
         name: sessionName,
         config: {
@@ -165,9 +176,31 @@ class WAHAService extends EventEmitter {
         }
       });
       
-      console.log(`[WAHA Service] ✅ Session '${sessionName}' started`);
+      console.log(`[WAHA Service] ✅ Session '${sessionName}' created successfully`);
+      
+      // Start the session
+      try {
+        await this.httpClient.post(`/api/sessions/${sessionName}/start`);
+        console.log(`[WAHA Service] ✅ Session '${sessionName}' started successfully`);
+      } catch (startError) {
+        console.error(`[WAHA Service] ⚠️ Failed to start session '${sessionName}':`, startError);
+        // Continue anyway, session might already be started
+      }
+      
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
+      // Handle "already exists" error gracefully
+      if (error.response?.status === 422 && error.response?.data?.message?.includes('already exists')) {
+        console.log(`[WAHA Service] ✅ Session '${sessionName}' already exists (422 handled)`);
+        // Try to get the existing session
+        try {
+          const existingSession = await this.httpClient.get(`/api/sessions/${sessionName}`);
+          return existingSession.data;
+        } catch (getError) {
+          console.error(`[WAHA Service] ❌ Could not retrieve existing session:`, getError);
+        }
+      }
+      
       console.error(`[WAHA Service] ❌ Failed to start session '${sessionName}':`, error);
       throw error;
     }
