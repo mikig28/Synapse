@@ -61,6 +61,8 @@ services:
         value: info
       - key: WAHA_SESSIONS_ON_START
         value: '["default"]'
+      - key: NODE_ENV
+        value: production
     disk:
       name: waha-sessions
       mountPath: /app/.wwebjs_auth
