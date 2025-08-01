@@ -265,12 +265,22 @@ const WhatsAppPage: React.FC = () => {
 
   const fetchStatus = async () => {
     try {
-      const response = await api.get('/whatsapp/status');
+      // Try WAHA endpoint first
+      const response = await api.get('/api/v1/waha/status');
       if (response.data.success) {
         setStatus(response.data.data);
       }
     } catch (error) {
-      console.error('Error fetching WhatsApp status:', error);
+      console.error('Error fetching WAHA status, trying legacy:', error);
+      // Fallback to legacy endpoint
+      try {
+        const fallbackResponse = await api.get('/whatsapp/status');
+        if (fallbackResponse.data.success) {
+          setStatus(fallbackResponse.data.data);
+        }
+      } catch (fallbackError) {
+        console.error('Error fetching WhatsApp status:', fallbackError);
+      }
     } finally {
       setLoading(false);
     }
@@ -334,11 +344,18 @@ const WhatsAppPage: React.FC = () => {
         });
       }
       
-      const endpoint = force 
-        ? '/whatsapp/qr?force=true'
-        : '/whatsapp/qr';
-        
-      const response = await api.get(endpoint);
+      // Try WAHA endpoint first
+      let response;
+      try {
+        response = await api.get('/api/v1/waha/qr');
+      } catch (error) {
+        console.error('WAHA QR failed, trying legacy:', error);
+        // Fallback to legacy endpoint
+        const endpoint = force 
+          ? '/whatsapp/qr?force=true'
+          : '/whatsapp/qr';
+        response = await api.get(endpoint);
+      }
       const data = response.data;
       
       if (data.success && data.data.qrCode) {

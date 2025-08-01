@@ -71,7 +71,8 @@ export interface WhatsAppConfig {
 }
 
 class WhatsAppService {
-  private baseUrl = '/whatsapp';
+  private baseUrl = '/whatsapp';    // Legacy API endpoint
+  private wahaUrl = '/api/v1/waha'; // Modern WAHA API endpoint
 
   // Get all WhatsApp contacts
   async getContacts(): Promise<WhatsAppContact[]> {
@@ -138,18 +139,29 @@ class WhatsAppService {
     }
   }
 
-  // Get connection status
+  // Get connection status (using WAHA)
   async getConnectionStatus(): Promise<WhatsAppConnectionStatus> {
     try {
-      const response = await api.get(`${this.baseUrl}/status`);
+      const response = await api.get(`${this.wahaUrl}/status`);
       const data = response.data.data;
       return {
         ...data,
-        lastHeartbeat: new Date(data.lastHeartbeat)
+        lastHeartbeat: new Date(data.lastHeartbeat || Date.now())
       };
     } catch (error) {
       console.error('Failed to fetch WhatsApp connection status:', error);
-      throw error;
+      // Fallback to legacy endpoint
+      try {
+        const fallbackResponse = await api.get(`${this.baseUrl}/status`);
+        const fallbackData = fallbackResponse.data.data;
+        return {
+          ...fallbackData,
+          lastHeartbeat: new Date(fallbackData.lastHeartbeat)
+        };
+      } catch (fallbackError) {
+        console.error('Legacy endpoint also failed:', fallbackError);
+        throw error;
+      }
     }
   }
 
