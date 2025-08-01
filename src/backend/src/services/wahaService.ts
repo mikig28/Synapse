@@ -185,8 +185,11 @@ class WAHAService extends EventEmitter {
    */
   async getQRCode(sessionName: string = this.defaultSession): Promise<string> {
     try {
-      const response = await this.httpClient.get(`/api/screenshot`, {
-        params: { session: sessionName },
+      // First ensure session is started
+      await this.startSession(sessionName);
+      
+      // Get QR code using WAHA's auth endpoint
+      const response = await this.httpClient.get(`/api/${sessionName}/auth/qr`, {
         responseType: 'arraybuffer'
       });
       
@@ -194,7 +197,20 @@ class WAHAService extends EventEmitter {
       return `data:image/png;base64,${base64}`;
     } catch (error) {
       console.error(`[WAHA Service] ❌ Failed to get QR code for '${sessionName}':`, error);
-      throw error;
+      // Try alternative screenshot endpoint as fallback
+      try {
+        console.log('[WAHA Service] Trying screenshot endpoint as fallback...');
+        const response = await this.httpClient.get(`/api/screenshot`, {
+          params: { session: sessionName },
+          responseType: 'arraybuffer'
+        });
+        
+        const base64 = Buffer.from(response.data).toString('base64');
+        return `data:image/png;base64,${base64}`;
+      } catch (fallbackError) {
+        console.error(`[WAHA Service] ❌ Both QR endpoints failed:`, fallbackError);
+        throw new Error(`Failed to get QR code: ${error.message}`);
+      }
     }
   }
 
