@@ -4,7 +4,6 @@
  */
 
 import axios from 'axios';
-import type { AxiosInstance } from 'axios';
 import { EventEmitter } from 'events';
 
 export interface WAHAMessage {
@@ -47,7 +46,7 @@ export interface WAHASession {
 
 class WAHAService extends EventEmitter {
   private static instance: WAHAService | null = null;
-  private httpClient: AxiosInstance;
+  private httpClient: any;
   private wahaBaseUrl: string;
   private defaultSession: string = 'default';
   private isReady = false;
