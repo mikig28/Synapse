@@ -37,11 +37,13 @@ import groupMonitorRoutes from './api/routes/groupMonitorRoutes'; // Import grou
 import searchRoutes from './api/routes/searchRoutes'; // Import search routes
 import exportRoutes from './api/routes/exportRoutes'; // Import export routes
 import feedbackRoutes from './api/routes/feedbackRoutes'; // Import feedback routes
+import usageRoutes from './api/routes/usageRoutes'; // Import usage routes
 import { initializeTaskReminderScheduler } from './services/taskReminderService'; // Import task reminder service
 import { schedulerService } from './services/schedulerService'; // Import scheduler service
 import { agui } from './services/aguiEmitter'; // Import AG-UI emitter
 import { createAgentCommandEvent } from './services/aguiMapper'; // Import AG-UI mapper
 import { initializeSearchIndexes } from './config/searchIndexes'; // Import search indexes initializer
+import { trackApiUsage } from './middleware/usageTracking'; // Import usage tracking middleware
 
 dotenv.config();
 
@@ -160,6 +162,9 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Usage tracking middleware (should be after auth but before routes)
+app.use(trackApiUsage);
+
 // Global request logger for API v1 routes
 app.use('/api/v1', (req: Request, res: Response, next: NextFunction) => {
   console.log(`[API Logger] Path: ${req.path}, Method: ${req.method}`);
@@ -217,6 +222,7 @@ app.use('/api/v1/group-monitor', groupMonitorRoutes); // Use group monitor route
 app.use('/api/v1/search', searchRoutes); // Use search routes
 app.use('/api/v1/export', exportRoutes); // Use export routes
 app.use('/api/v1/feedback', feedbackRoutes); // Use feedback routes
+app.use('/api/v1/usage', usageRoutes); // Use usage routes
 
 // **AG-UI Protocol Endpoints**
 
