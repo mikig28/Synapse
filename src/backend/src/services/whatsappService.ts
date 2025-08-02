@@ -716,7 +716,13 @@ class WhatsAppService extends EventEmitter {
       this.qrString = null;
       this.qrDataUrl = null;
       
-      this.emit('status', { ready: true, message: 'WhatsApp connected successfully!' });
+      this.emit('status', { 
+        ready: true, 
+        authenticated: true,
+        connected: true,
+        message: 'WhatsApp connected successfully!',
+        authMethod: 'qr'
+      });
       this.emit('ready', { status: 'connected' });
       
       console.log('🎯 WhatsApp monitoring keywords:', this.monitoredKeywords.join(', '));

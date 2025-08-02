@@ -473,6 +473,7 @@ export const getConnectionStatus = async (req: Request, res: Response) => {
     
     const status = {
       connected: serviceStatus.isReady && serviceStatus.isClientReady,
+      authenticated: serviceStatus.isReady && serviceStatus.isClientReady, // Add authenticated field
       lastHeartbeat: new Date(),
       serviceStatus: serviceStatus.status,
       isReady: serviceStatus.isReady,
@@ -898,6 +899,7 @@ export const sendPhoneAuthCode = async (req: Request, res: Response) => {
       });
     }
     
+    // Check if WAHA service is available first
     const whatsappService = getWhatsAppService();
     initializeWhatsAppService();
     
@@ -914,17 +916,39 @@ export const sendPhoneAuthCode = async (req: Request, res: Response) => {
         }
       });
     } else {
-      res.status(400).json({
-        success: false,
-        error: result.error || 'Failed to send verification code'
-      });
+      // Check if it's a known "not supported" error
+      if (result.error?.includes('not available') || result.error?.includes('not supported')) {
+        console.log('[WhatsApp] Phone auth not supported by WAHA service, directing user to QR method');
+        res.status(422).json({
+          success: false,
+          error: 'Phone number authentication is not available with the current WhatsApp configuration. Please use QR code authentication instead.',
+          fallbackMethod: 'qr',
+          code: 'PHONE_AUTH_NOT_SUPPORTED'
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          error: result.error || 'Failed to send verification code'
+        });
+      }
     }
   } catch (error: any) {
     console.error('[WhatsApp] Error sending phone auth code:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to send verification code: ' + error.message
-    });
+    
+    // Check if it's a network/connection error to WAHA service
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.response?.status >= 500) {
+      res.status(503).json({
+        success: false,
+        error: 'WhatsApp service is temporarily unavailable. Please try QR code authentication instead.',
+        fallbackMethod: 'qr',
+        code: 'SERVICE_UNAVAILABLE'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to send verification code: ' + error.message
+      });
+    }
   }
 };
 

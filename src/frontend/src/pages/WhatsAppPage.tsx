@@ -83,6 +83,7 @@ const WhatsAppPage: React.FC = () => {
   const [verificationCode, setVerificationCode] = useState('');
   const [isWaitingForCode, setIsWaitingForCode] = useState(false);
   const [phoneAuthStep, setPhoneAuthStep] = useState<'phone' | 'code'>('phone');
+  const [phoneAuthSupported, setPhoneAuthSupported] = useState(true);
   const [loading, setLoading] = useState(true);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [monitoredKeywords, setMonitoredKeywords] = useState<string[]>([]);
@@ -135,12 +136,24 @@ const WhatsAppPage: React.FC = () => {
     fetchMessages();
     fetchMonitoredKeywords();
     
-    const statusInterval = setInterval(fetchStatus, 5000);
+    // Set up status monitoring with authentication detection
+    const statusInterval = setInterval(async () => {
+      const prevAuthenticated = status?.authenticated;
+      await fetchStatus();
+      
+      // Check if we just became authenticated (polling fallback)
+      if (!prevAuthenticated && status?.authenticated) {
+        console.log('[WhatsApp Status Polling] Authentication detected, fetching chats...');
+        fetchGroups();
+        fetchPrivateChats();
+        fetchMessages();
+      }
+    }, 10000); // Check every 10 seconds for faster detection
     
     return () => {
       clearInterval(statusInterval);
     };
-  }, []);
+  }, [status?.authenticated]); // Watch for authentication state changes
 
   // Socket.io connection setup
   useEffect(() => {
@@ -247,7 +260,39 @@ const WhatsAppPage: React.FC = () => {
 
     newSocket.on('whatsapp:status', (statusData: any) => {
       console.log('[WhatsApp Socket.IO] Status updated:', statusData);
+      const wasAuthenticated = status?.authenticated;
+      const isNowAuthenticated = statusData.authenticated;
+      
       setStatus(prevStatus => ({ ...prevStatus, ...statusData }));
+      
+      // If WhatsApp just became authenticated, fetch chats and groups
+      if (!wasAuthenticated && isNowAuthenticated) {
+        console.log('[WhatsApp Socket.IO] Authentication successful, fetching chats...');
+        toast({
+          title: "WhatsApp Connected",
+          description: "Loading your chats and groups...",
+        });
+        
+        // Fetch data after authentication
+        setTimeout(() => {
+          fetchGroups();
+          fetchPrivateChats();
+          fetchMessages();
+        }, 1000); // Small delay to ensure backend is ready
+        
+        // Close auth modal if open
+        setShowAuth(false);
+        setShowQR(false);
+      }
+      
+      // If connection was lost, show notification
+      if (wasAuthenticated && !isNowAuthenticated) {
+        toast({
+          title: "WhatsApp Disconnected", 
+          description: "Connection to WhatsApp was lost",
+          variant: "destructive",
+        });
+      }
     });
 
     newSocket.on('whatsapp:chats_updated', (chatsData: any) => {
@@ -382,6 +427,7 @@ const WhatsAppPage: React.FC = () => {
     setIsWaitingForCode(false);
     setPhoneNumber('');
     setVerificationCode('');
+    setPhoneAuthSupported(true); // Reset phone auth support when opening modal
   };
 
   const sendPhoneAuth = async () => {
@@ -415,11 +461,43 @@ const WhatsAppPage: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error sending phone auth:', error);
-      toast({
-        title: "Error",
-        description: error.response?.data?.error || "Failed to send verification code",
-        variant: "destructive",
-      });
+      const errorData = error.response?.data;
+      
+      // Check if phone auth is not supported and should fallback to QR
+      if (errorData?.code === 'PHONE_AUTH_NOT_SUPPORTED' || errorData?.fallbackMethod === 'qr') {
+        setPhoneAuthSupported(false); // Disable phone auth option
+        toast({
+          title: "Phone Authentication Not Available",
+          description: "Phone authentication isn't supported. Switching to QR code method...",
+          variant: "destructive",
+        });
+        
+        // Auto-switch to QR code authentication
+        setTimeout(() => {
+          setAuthMethod('qr');
+          fetchQRCode();
+        }, 2000);
+        
+      } else if (errorData?.code === 'SERVICE_UNAVAILABLE') {
+        toast({
+          title: "Service Temporarily Unavailable",
+          description: "WhatsApp service is down. Please try QR code authentication instead.",
+          variant: "destructive",
+        });
+        
+        // Auto-switch to QR code authentication
+        setTimeout(() => {
+          setAuthMethod('qr');
+          fetchQRCode();
+        }, 2000);
+        
+      } else {
+        toast({
+          title: "Error",
+          description: errorData?.error || "Failed to send verification code",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -436,7 +514,7 @@ const WhatsAppPage: React.FC = () => {
     try {
       const response = await api.post('/whatsapp/auth/verify', {
         phoneNumber: phoneNumber.replace(/\D/g, ''),
-        verificationCode: verificationCode
+        code: verificationCode
       });
 
       if (response.data.success) {
@@ -1659,16 +1737,20 @@ const WhatsAppPage: React.FC = () => {
                         </div>
                       </button>
                       <button
-                        onClick={() => setAuthMethod('phone')}
+                        onClick={() => phoneAuthSupported && setAuthMethod('phone')}
+                        disabled={!phoneAuthSupported}
                         className={`flex-1 py-3 px-4 rounded-md text-sm font-medium transition-all ${
-                          authMethod === 'phone'
+                          !phoneAuthSupported
+                            ? 'bg-gray-500/30 text-gray-400 cursor-not-allowed'
+                            : authMethod === 'phone'
                             ? 'bg-green-500/70 text-white shadow-lg'
                             : 'text-blue-200/70 hover:text-white hover:bg-white/10'
                         }`}
+                        title={!phoneAuthSupported ? 'Phone authentication is not supported' : ''}
                       >
                         <div className="flex items-center justify-center gap-2">
                           <Phone className="w-4 h-4" />
-                          <span>Phone</span>
+                          <span>Phone{!phoneAuthSupported ? ' (Not Available)' : ''}</span>
                         </div>
                       </button>
                     </div>

@@ -22,6 +22,7 @@ export const getStatus = async (req: Request, res: Response) => {
     // Convert WAHA status to format expected by frontend
     const status = {
       connected: wahaStatus.isReady,
+      authenticated: wahaStatus.isReady, // Add authenticated field
       lastHeartbeat: new Date(),
       serviceStatus: wahaStatus.status,
       isReady: wahaStatus.isReady,
