@@ -663,7 +663,6 @@ const startServer = async () => {
         console.log('[Server] Stopped WAHA background retries after 10 minutes');
       }, 600000);
     }
-    }
 
     // Legacy: Initialize WhatsApp Baileys service (fallback - will be removed)
     try {

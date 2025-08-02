@@ -71,30 +71,27 @@ class WAHAService extends events_1.EventEmitter {
      * Health check - verify WAHA service is running
      */
     async healthCheck() {
-        try {
-            // Use /api/version instead of /health (which requires Plus license)
-            const response = await this.httpClient.get('/api/version');
-            if (response.data && response.status === 200) {
-                console.log('[WAHA Service] ✅ Health check passed (using /api/version)');
-                return true;
-            }
-            else {
-                throw new Error('Invalid version response');
-            }
-        }
-        catch (error) {
-            console.error('[WAHA Service] ❌ Health check failed:', error);
-            // Try fallback to sessions endpoint
+        console.log('[WAHA Service] 🔍 Starting health check...');
+        // Try multiple health check endpoints with longer timeouts for network stability
+        const healthEndpoints = ['/api/version', '/api/sessions', '/ping'];
+        for (const endpoint of healthEndpoints) {
             try {
-                await this.httpClient.get('/api/sessions');
-                console.log('[WAHA Service] ✅ Health check passed (using /api/sessions fallback)');
-                return true;
+                console.log(`[WAHA Service] Trying health check: ${endpoint}`);
+                const response = await this.httpClient.get(endpoint, {
+                    timeout: 15000, // 15 second timeout for Render.com network delays
+                });
+                if (response.status === 200) {
+                    console.log(`[WAHA Service] ✅ Health check passed using ${endpoint}`);
+                    return true;
+                }
             }
-            catch (fallbackError) {
-                console.error('[WAHA Service] ❌ All health checks failed');
-                throw new Error('WAHA service is not available');
+            catch (error) {
+                console.log(`[WAHA Service] Health check ${endpoint} failed:`, error?.response?.status || error.code);
+                // Continue to next endpoint
             }
         }
+        console.error('[WAHA Service] ❌ All health check endpoints failed');
+        throw new Error('WAHA service is not responding to any health checks');
     }
     /**
      * Start a WhatsApp session
@@ -199,6 +196,9 @@ class WAHAService extends events_1.EventEmitter {
             console.log(`[WAHA Service] Ensuring session '${sessionName}' is started...`);
             await this.startSession(sessionName);
             console.log(`[WAHA Service] Session '${sessionName}' is ready`);
+            // Wait for session to be in SCAN_QR_CODE state
+            console.log(`[WAHA Service] Waiting for session '${sessionName}' to be ready for QR...`);
+            await this.waitForSessionState(sessionName, ['SCAN_QR_CODE'], 30000); // 30 second timeout
             // Get QR code using WAHA's auth endpoint
             console.log(`[WAHA Service] Requesting QR code from /api/${sessionName}/auth/qr`);
             const response = await this.httpClient.get(`/api/${sessionName}/auth/qr`, {
@@ -413,6 +413,33 @@ class WAHAService extends events_1.EventEmitter {
         catch (error) {
             console.error('[WAHA Service] ❌ Error processing image for group monitoring:', error);
         }
+    }
+    /**
+     * Wait for session to reach expected state
+     */
+    async waitForSessionState(sessionName, expectedStates, timeoutMs = 30000) {
+        const startTime = Date.now();
+        const pollInterval = 2000; // Check every 2 seconds
+        while (Date.now() - startTime < timeoutMs) {
+            try {
+                const sessionStatus = await this.getSessionStatus(sessionName);
+                console.log(`[WAHA Service] Session '${sessionName}' current state: ${sessionStatus.status}`);
+                if (expectedStates.includes(sessionStatus.status)) {
+                    console.log(`[WAHA Service] ✅ Session '${sessionName}' reached expected state: ${sessionStatus.status}`);
+                    return;
+                }
+                if (sessionStatus.status === 'FAILED' || sessionStatus.status === 'STOPPED') {
+                    throw new Error(`Session failed or stopped: ${sessionStatus.status}`);
+                }
+                console.log(`[WAHA Service] Waiting for session '${sessionName}' to transition from ${sessionStatus.status} to one of [${expectedStates.join(', ')}]...`);
+                await new Promise(resolve => setTimeout(resolve, pollInterval));
+            }
+            catch (error) {
+                console.error(`[WAHA Service] Error checking session state:`, error);
+                await new Promise(resolve => setTimeout(resolve, pollInterval));
+            }
+        }
+        throw new Error(`Timeout waiting for session '${sessionName}' to reach state [${expectedStates.join(', ')}]`);
     }
 }
 WAHAService.instance = null;
