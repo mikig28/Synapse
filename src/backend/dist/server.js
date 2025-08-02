@@ -570,16 +570,51 @@ const startServer = async () => {
         await mongoose_1.default.connect(mongoUri);
         await (0, database_1.connectToDatabase)(); // Calls the Mongoose connection logic
         (0, telegramService_1.initializeTelegramBot)(); // Initialize and start the Telegram bot polling
-        // Initialize WAHA service (modern WhatsApp implementation)
-        try {
-            const wahaService = wahaService_1.default.getInstance();
-            await wahaService.initialize();
-            console.log('[Server] ✅ WAHA service initialized successfully');
+        // Initialize WAHA service (modern WhatsApp implementation) with retry logic
+        console.log('[Server] 🔄 Initializing WAHA service with network retry...');
+        let wahaInitialized = false;
+        // Try WAHA initialization with retries (network issues on Render.com)
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                console.log(`[Server] WAHA initialization attempt ${attempt}/3...`);
+                const wahaService = wahaService_1.default.getInstance();
+                await wahaService.initialize();
+                console.log('[Server] ✅ WAHA service initialized successfully');
+                wahaInitialized = true;
+                break;
+            }
+            catch (wahaError) {
+                console.error(`[Server] ❌ WAHA attempt ${attempt} failed:`, wahaError);
+                if (attempt < 3) {
+                    console.log(`[Server] Retrying WAHA in ${attempt * 5} seconds...`);
+                    await new Promise(resolve => setTimeout(resolve, attempt * 5000)); // 5s, 10s delays
+                }
+                else {
+                    console.log('[Server] ⚠️ WAHA initialization failed after 3 attempts');
+                    console.log('[Server] Using Baileys fallback (WAHA will retry in background)');
+                }
+            }
         }
-        catch (wahaError) {
-            console.error('[Server] ❌ WAHA service initialization failed:', wahaError);
-            console.log('[Server] Continuing without WAHA service (will retry later)...');
-            // Don't crash the server if WAHA fails (it might not be deployed yet)
+        // If WAHA failed, set up background retry
+        if (!wahaInitialized) {
+            console.log('[Server] 🔄 Setting up WAHA background retry (every 30 seconds)...');
+            const backgroundRetry = setInterval(async () => {
+                try {
+                    console.log('[Server] 🔄 Background WAHA retry...');
+                    const wahaService = wahaService_1.default.getInstance();
+                    await wahaService.initialize();
+                    console.log('[Server] ✅ WAHA service connected via background retry!');
+                    clearInterval(backgroundRetry);
+                }
+                catch (error) {
+                    console.log('[Server] Background WAHA retry failed, will try again...');
+                }
+            }, 30000); // Every 30 seconds
+            // Stop trying after 10 minutes
+            setTimeout(() => {
+                clearInterval(backgroundRetry);
+                console.log('[Server] Stopped WAHA background retries after 10 minutes');
+            }, 600000);
         }
         // Legacy: Initialize WhatsApp Baileys service (fallback - will be removed)
         try {
