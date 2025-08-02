@@ -767,44 +767,44 @@ const WhatsAppPage: React.FC = () => {
                 <h1 className="text-xl sm:text-3xl font-bold text-white">WhatsApp</h1>
               </div>
               
-              {!isMobile && (
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <StatusIcon className={`w-5 h-5 ${getStatusColor()}`} />
-                    <span className={`text-sm ${getStatusColor()}`}>
-                      {status?.connected && status?.isReady && status?.isClientReady 
-                        ? 'Connected' 
-                        : status?.qrAvailable 
-                        ? 'QR Available' 
-                        : 'Disconnected'
-                      }
-                    </span>
-                  </div>
+              <div className={`flex items-center gap-2 sm:gap-4 ${isMobile ? 'flex-wrap' : ''}`}>
+                <div className="flex items-center gap-2">
+                  <StatusIcon className={`w-4 h-4 sm:w-5 sm:h-5 ${getStatusColor()}`} />
+                  <span className={`text-xs sm:text-sm ${getStatusColor()}`}>
+                    {status?.connected && status?.isReady && status?.isClientReady 
+                      ? 'Connected' 
+                      : status?.qrAvailable 
+                      ? 'QR Available' 
+                      : 'Disconnected'
+                    }
+                  </span>
+                </div>
 
-                  {/* Service Type Indicator */}
-                  {activeService && (
-                    <div className="flex items-center gap-2">
-                      <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        activeService === 'waha' 
-                          ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                          : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                      }`}>
-                        {activeService === 'waha' ? '🚀 WAHA' : '⚡ Baileys'}
-                      </div>
+                {/* Service Type Indicator */}
+                {activeService && (
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      activeService === 'waha' 
+                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                        : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                    }`}>
+                      {activeService === 'waha' ? '🚀 WAHA' : '⚡ Baileys'}
+                    </div>
+                    {!isMobile && (
                       <span className="text-xs text-blue-200/50">
                         {activeService === 'waha' ? 'Modern' : 'Legacy'}
                       </span>
-                    </div>
-                  )}
-                  
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${isSocketConnected ? 'bg-green-400' : 'bg-red-400'}`} />
-                    <span className="text-xs text-blue-200/70">
-                      {isSocketConnected ? 'Real-time' : 'Offline'}
-                    </span>
+                    )}
                   </div>
+                )}
+                
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${isSocketConnected ? 'bg-green-400' : 'bg-red-400'}`} />
+                  <span className="text-xs text-blue-200/70">
+                    {isSocketConnected ? 'Real-time' : 'Offline'}
+                  </span>
                 </div>
-              )}
+              </div>
             </div>
             
             <div className="flex items-center gap-1 sm:gap-3">
@@ -994,10 +994,7 @@ const WhatsAppPage: React.FC = () => {
                           whileTap={{ scale: 0.99 }}
                           onClick={() => {
                             setSelectedChat(group);
-                            if (isMobile) {
-                              setShowChatList(false);
-                            }
-                            // Don't fetch messages immediately, let them load from cache or real-time
+                            // Keep chat list visible on mobile for easy navigation
                           }}
                           className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
                             selectedChat?.id === group.id
@@ -1048,10 +1045,7 @@ const WhatsAppPage: React.FC = () => {
                           whileTap={{ scale: 0.99 }}
                           onClick={() => {
                             setSelectedChat(chat);
-                            if (isMobile) {
-                              setShowChatList(false);
-                            }
-                            // Don't fetch messages immediately, let them load from cache or real-time
+                            // Keep chat list visible on mobile for easy navigation
                           }}
                           className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
                             selectedChat?.id === chat.id
