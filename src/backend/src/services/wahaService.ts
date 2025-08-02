@@ -125,28 +125,30 @@ class WAHAService extends EventEmitter {
    * Health check - verify WAHA service is running
    */
   async healthCheck(): Promise<boolean> {
-    try {
-      // Use /api/version instead of /health (which requires Plus license)
-      const response = await this.httpClient.get('/api/version');
-      
-      if (response.data && response.status === 200) {
-        console.log('[WAHA Service] ✅ Health check passed (using /api/version)');
-        return true;
-      } else {
-        throw new Error('Invalid version response');
-      }
-    } catch (error) {
-      console.error('[WAHA Service] ❌ Health check failed:', error);
-      // Try fallback to sessions endpoint
+    console.log('[WAHA Service] 🔍 Starting health check...');
+    
+    // Try multiple health check endpoints with longer timeouts for network stability
+    const healthEndpoints = ['/api/version', '/api/sessions', '/ping'];
+    
+    for (const endpoint of healthEndpoints) {
       try {
-        await this.httpClient.get('/api/sessions');
-        console.log('[WAHA Service] ✅ Health check passed (using /api/sessions fallback)');
-        return true;
-      } catch (fallbackError) {
-        console.error('[WAHA Service] ❌ All health checks failed');
-        throw new Error('WAHA service is not available');
+        console.log(`[WAHA Service] Trying health check: ${endpoint}`);
+        const response = await this.httpClient.get(endpoint, {
+          timeout: 15000, // 15 second timeout for Render.com network delays
+        });
+        
+        if (response.status === 200) {
+          console.log(`[WAHA Service] ✅ Health check passed using ${endpoint}`);
+          return true;
+        }
+      } catch (error: any) {
+        console.log(`[WAHA Service] Health check ${endpoint} failed:`, error?.response?.status || error.code);
+        // Continue to next endpoint
       }
     }
+    
+    console.error('[WAHA Service] ❌ All health check endpoints failed');
+    throw new Error('WAHA service is not responding to any health checks');
   }
 
   /**
