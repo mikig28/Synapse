@@ -383,6 +383,15 @@ class WAHAService extends EventEmitter {
     try {
       console.log(`[WAHA Service] Getting chats for session '${sessionName}'...`);
       
+      // Check session status first
+      const sessionStatus = await this.getSessionStatus(sessionName);
+      console.log(`[WAHA Service] Session '${sessionName}' status: ${sessionStatus.status}`);
+      
+      if (sessionStatus.status !== 'WORKING') {
+        console.log(`[WAHA Service] Session not in WORKING status (${sessionStatus.status}), returning empty chats`);
+        return [];
+      }
+      
       // WAHA API endpoint structure: /api/{session}/chats
       const response = await this.httpClient.get(`/api/${sessionName}/chats`);
       
@@ -398,6 +407,13 @@ class WAHAService extends EventEmitter {
       }));
     } catch (error: any) {
       console.error(`[WAHA Service] ❌ Failed to get chats for '${sessionName}':`, error.response?.status, error.response?.data);
+      
+      // Handle specific 422 error for session not ready
+      if (error.response?.status === 422) {
+        console.log(`[WAHA Service] Session not ready (422), returning empty chats`);
+        return [];
+      }
+      
       // Return empty array instead of throwing to prevent 500 errors
       return [];
     }
@@ -409,6 +425,15 @@ class WAHAService extends EventEmitter {
   async getMessages(chatId: string, limit: number = 50, sessionName: string = this.defaultSession): Promise<WAHAMessage[]> {
     try {
       console.log(`[WAHA Service] Getting messages for chat '${chatId}' in session '${sessionName}'...`);
+      
+      // Check session status first
+      const sessionStatus = await this.getSessionStatus(sessionName);
+      console.log(`[WAHA Service] Session '${sessionName}' status: ${sessionStatus.status}`);
+      
+      if (sessionStatus.status !== 'WORKING') {
+        console.log(`[WAHA Service] Session not in WORKING status (${sessionStatus.status}), returning empty messages`);
+        return [];
+      }
       
       // WAHA API endpoint structure: /api/{session}/chats/{chatId}/messages
       const response = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(chatId)}/messages`, {
@@ -432,6 +457,13 @@ class WAHAService extends EventEmitter {
       }));
     } catch (error: any) {
       console.error(`[WAHA Service] ❌ Failed to get messages for ${chatId}:`, error.response?.status, error.response?.data);
+      
+      // Handle specific 422 error for session not ready
+      if (error.response?.status === 422) {
+        console.log(`[WAHA Service] Session not ready (422), returning empty messages`);
+        return [];
+      }
+      
       // Return empty array instead of throwing to prevent 500 errors
       return [];
     }
@@ -453,13 +485,28 @@ class WAHAService extends EventEmitter {
   /**
    * Get service status (compatible with old interface)
    */
-  getStatus(): WAHAStatus {
-    return {
-      status: this.connectionStatus,
-      isReady: this.isReady,
-      qrAvailable: this.connectionStatus === 'SCAN_QR_CODE',
-      timestamp: new Date().toISOString()
-    };
+  async getStatus(): Promise<WAHAStatus> {
+    try {
+      // Get real-time session status from WAHA
+      const sessionStatus = await this.getSessionStatus();
+      this.connectionStatus = sessionStatus.status;
+      this.isReady = sessionStatus.status === 'WORKING';
+      
+      return {
+        status: sessionStatus.status,
+        isReady: sessionStatus.status === 'WORKING',
+        qrAvailable: sessionStatus.status === 'SCAN_QR_CODE',
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('[WAHA Service] Error getting status:', error);
+      return {
+        status: 'FAILED',
+        isReady: false,
+        qrAvailable: false,
+        timestamp: new Date().toISOString()
+      };
+    }
   }
 
   /**

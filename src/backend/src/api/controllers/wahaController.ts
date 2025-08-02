@@ -21,7 +21,7 @@ export const getStatus = async (req: Request, res: Response) => {
     // Try to get status with connection test
     let wahaStatus;
     try {
-      wahaStatus = wahaService.getStatus();
+      wahaStatus = await wahaService.getStatus();
       
       // If service claims to be ready but we haven't tested recently, verify connection
       if (wahaStatus.isReady) {
@@ -199,9 +199,11 @@ export const getMessages = async (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 50;
     
     if (!chatId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing chatId parameter'
+      // If no chatId provided, return empty messages array instead of error
+      console.log('[WAHA Controller] No chatId provided, returning empty messages');
+      return res.json({
+        success: true,
+        data: []
       });
     }
 
