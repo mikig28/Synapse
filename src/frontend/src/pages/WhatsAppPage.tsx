@@ -60,10 +60,12 @@ interface WhatsAppStatus {
   qrAvailable: boolean;
   timestamp: string;
   monitoredKeywords: string[];
+  serviceType?: 'waha' | 'baileys'; // Track which service is being used
 }
 
 const WhatsAppPage: React.FC = () => {
   const [status, setStatus] = useState<WhatsAppStatus | null>(null);
+  const [activeService, setActiveService] = useState<'waha' | 'baileys' | null>(null);
   const [groups, setGroups] = useState<WhatsAppChat[]>([]);
   const [privateChats, setPrivateChats] = useState<WhatsAppChat[]>([]);
   const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
@@ -268,7 +270,9 @@ const WhatsAppPage: React.FC = () => {
       // Try WAHA endpoint first
       const response = await api.get('/waha/status');
       if (response.data.success) {
-        setStatus(response.data.data);
+        setStatus({ ...response.data.data, serviceType: 'waha' });
+        setActiveService('waha');
+        console.log('✅ Using WAHA service (modern)');
       }
     } catch (error) {
       console.error('Error fetching WAHA status, trying legacy:', error);
@@ -276,10 +280,13 @@ const WhatsAppPage: React.FC = () => {
       try {
         const fallbackResponse = await api.get('/whatsapp/status');
         if (fallbackResponse.data.success) {
-          setStatus(fallbackResponse.data.data);
+          setStatus({ ...fallbackResponse.data.data, serviceType: 'baileys' });
+          setActiveService('baileys');
+          console.log('⚠️ Using Baileys service (fallback)');
         }
       } catch (fallbackError) {
         console.error('Error fetching WhatsApp status:', fallbackError);
+        setActiveService(null);
       }
     } finally {
       setLoading(false);
@@ -346,8 +353,11 @@ const WhatsAppPage: React.FC = () => {
       
       // Try WAHA endpoint first
       let response;
+      let usedService: 'waha' | 'baileys' = 'waha';
       try {
         response = await api.get('/waha/qr');
+        setActiveService('waha');
+        console.log('✅ QR code generated using WAHA service');
       } catch (error) {
         console.error('WAHA QR failed, trying legacy:', error);
         // Fallback to legacy endpoint
@@ -355,6 +365,9 @@ const WhatsAppPage: React.FC = () => {
           ? '/whatsapp/qr?force=true'
           : '/whatsapp/qr';
         response = await api.get(endpoint);
+        setActiveService('baileys');
+        usedService = 'baileys';
+        console.log('⚠️ QR code generated using Baileys service (fallback)');
       }
       const data = response.data;
       
@@ -362,7 +375,7 @@ const WhatsAppPage: React.FC = () => {
         setQrCode(data.data.qrCode);
         toast({
           title: "QR Code Ready",
-          description: data.data.message || "QR code available for scanning",
+          description: `${data.data.message || "QR code available for scanning"} (${usedService === 'waha' ? 'WAHA Modern' : 'Baileys Legacy'})`,
         });
       } else {
         // Check if we can force generate
@@ -723,6 +736,22 @@ const WhatsAppPage: React.FC = () => {
                     }
                   </span>
                 </div>
+
+                {/* Service Type Indicator */}
+                {activeService && (
+                  <div className="flex items-center gap-2">
+                    <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      activeService === 'waha' 
+                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                        : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                    }`}>
+                      {activeService === 'waha' ? '🚀 WAHA' : '⚡ Baileys'}
+                    </div>
+                    <span className="text-xs text-blue-200/50">
+                      {activeService === 'waha' ? 'Modern' : 'Legacy'}
+                    </span>
+                  </div>
+                )}
                 
                 <div className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${isSocketConnected ? 'bg-green-400' : 'bg-red-400'}`} />
