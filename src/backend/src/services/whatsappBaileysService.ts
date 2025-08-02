@@ -1544,7 +1544,7 @@ class WhatsAppBaileysService extends EventEmitter {
   public async requestPhoneCode(phoneNumber: string): Promise<{ success: boolean; error?: string }> {
     try {
       if (!this.socket) {
-        await this.connectToWhatsApp();
+        await this.initialize();
       }
       
       if (!this.socket) {

@@ -15,12 +15,26 @@ router.post('/session/stop', wahaController_1.stopSession);
 router.get('/status', wahaController_1.getStatus);
 // Authentication
 router.get('/qr', wahaController_1.getQR);
+router.post('/auth/phone', wahaController_1.sendPhoneAuthCode);
+router.post('/auth/verify', wahaController_1.verifyPhoneAuthCode);
 // Messaging
 router.post('/send', wahaController_1.sendMessage);
 router.post('/send-media', wahaController_1.sendMedia);
 // Chat management
 router.get('/chats', wahaController_1.getChats);
+router.get('/groups', wahaController_1.getGroups);
+router.get('/private-chats', wahaController_1.getPrivateChats);
 router.get('/messages/:chatId', wahaController_1.getMessages);
+router.get('/messages', wahaController_1.getMessages); // Support query param format
+router.post('/refresh-chats', wahaController_1.refreshChats);
+// Session management
+router.post('/restart', wahaController_1.restartSession);
+router.post('/force-restart', wahaController_1.forceRestart);
+router.post('/force-history-sync', wahaController_1.forceHistorySync);
+// Monitoring
+router.get('/monitored-keywords', wahaController_1.getMonitoredKeywords);
+router.post('/monitored-keywords', wahaController_1.addMonitoredKeyword);
+router.delete('/monitored-keywords/:keyword', wahaController_1.removeMonitoredKeyword);
 // Webhook for WAHA events
 router.post('/webhook', wahaController_1.webhook);
 // Legacy compatibility routes (for gradual migration)

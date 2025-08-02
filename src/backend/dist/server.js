@@ -177,9 +177,10 @@ if (!fs_1.default.existsSync(telegramMediaDir))
 console.log(`[Static Files] Serving static files from /public mapped to physical directory: ${publicDir}`); // ADDED THIS LINE
 // Serve static files from the 'public' directory
 app.use('/public', express_1.default.static(publicDir)); // Serve files under /public URL path
-// API Routes
-app.use('/api/v1/whatsapp', whatsappRoutes_1.default); // Legacy WhatsApp routes
-app.use('/api/v1/waha', wahaRoutes_1.default); // Modern WAHA routes
+// API Routes - WhatsApp (WAHA as primary service)
+app.use('/api/v1/whatsapp', wahaRoutes_1.default); // Primary WAHA routes
+app.use('/api/v1/whatsapp-legacy', whatsappRoutes_1.default); // Legacy Baileys routes (fallback)
+app.use('/api/v1/waha', wahaRoutes_1.default); // Keep WAHA routes for direct access
 app.use('/api/v1/auth', authRoutes_1.default);
 app.use('/api/v1/capture', captureRoutes_1.default); // Use capture routes
 app.use('/api/v1/bookmarks', bookmarksRoutes_1.default); // Use bookmark routes

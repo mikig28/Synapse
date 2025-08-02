@@ -25,6 +25,9 @@ router.get('/status', whatsappController_1.getConnectionStatus);
 // WhatsApp Web.js service management
 router.get('/qr', whatsappController_1.getQRCode);
 router.post('/restart', whatsappController_1.restartWhatsAppService);
+// Phone number authentication
+router.post('/auth/phone', whatsappController_1.sendPhoneAuthCode);
+router.post('/auth/verify', whatsappController_1.verifyPhoneAuthCode);
 // Groups and chats
 router.get('/groups', whatsappController_1.getWhatsAppGroups);
 router.get('/private-chats', whatsappController_1.getWhatsAppPrivateChats);
