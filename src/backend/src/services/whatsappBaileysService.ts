@@ -1540,6 +1540,59 @@ class WhatsAppBaileysService extends EventEmitter {
     }, this.MEMORY_CLEANUP_INTERVAL);
   }
 
+  // Request phone authentication code
+  public async requestPhoneCode(phoneNumber: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      if (!this.socket) {
+        await this.connectToWhatsApp();
+      }
+      
+      if (!this.socket) {
+        return { success: false, error: 'Failed to initialize WhatsApp connection' };
+      }
+      
+      // Format phone number for Baileys (ensure it includes country code)
+      let formattedPhone = phoneNumber.replace(/\D/g, '');
+      if (!formattedPhone.startsWith('1') && formattedPhone.length === 10) {
+        formattedPhone = '1' + formattedPhone; // Add US country code if missing
+      }
+      
+      console.log(`📱 Requesting phone verification code for: ${formattedPhone}`);
+      
+      // Note: Baileys doesn't directly support phone number authentication like WhatsApp Web
+      // This would typically require a different WhatsApp Business API or custom implementation
+      // For now, we'll return an error indicating this feature needs WhatsApp Business API
+      
+      return { 
+        success: false, 
+        error: 'Phone number authentication requires WhatsApp Business API. Please use QR code authentication instead.' 
+      };
+      
+    } catch (error: any) {
+      console.error('❌ Error requesting phone code:', error.message);
+      return { success: false, error: error.message };
+    }
+  }
+  
+  // Verify phone authentication code
+  public async verifyPhoneCode(phoneNumber: string, code: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log(`📱 Verifying phone code for: ${phoneNumber}`);
+      
+      // Note: Baileys doesn't directly support phone number authentication
+      // This would require WhatsApp Business API integration
+      
+      return { 
+        success: false, 
+        error: 'Phone number authentication requires WhatsApp Business API. Please use QR code authentication instead.' 
+      };
+      
+    } catch (error: any) {
+      console.error('❌ Error verifying phone code:', error.message);
+      return { success: false, error: error.message };
+    }
+  }
+
   // Cleanup method for graceful shutdown
   private cleanup(): void {
     console.log('🧹 Cleaning up WhatsApp service...');

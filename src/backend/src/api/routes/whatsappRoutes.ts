@@ -19,7 +19,9 @@ import {
   clearWhatsAppAuth,
   getDiagnostics,
   forceRestart,
-  forceHistorySync
+  forceHistorySync,
+  sendPhoneAuthCode,
+  verifyPhoneAuthCode
 } from '../controllers/whatsappController';
 import { authMiddleware } from '../middleware/authMiddleware';
 
@@ -49,6 +51,10 @@ router.get('/status', getConnectionStatus);
 // WhatsApp Web.js service management
 router.get('/qr', getQRCode);
 router.post('/restart', restartWhatsAppService);
+
+// Phone number authentication
+router.post('/auth/phone', sendPhoneAuthCode);
+router.post('/auth/verify', verifyPhoneAuthCode);
 
 // Groups and chats
 router.get('/groups', getWhatsAppGroups);

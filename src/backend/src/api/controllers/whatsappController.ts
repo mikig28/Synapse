@@ -874,4 +874,115 @@ export const forceHistorySync = async (req: Request, res: Response) => {
       error: (error as Error).message
     });
   }
+};
+
+// Send phone authentication code
+export const sendPhoneAuthCode = async (req: Request, res: Response) => {
+  try {
+    const { phoneNumber } = req.body;
+    
+    if (!phoneNumber || typeof phoneNumber !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Phone number is required and must be a string'
+      });
+    }
+    
+    // Clean phone number (remove non-digits and add country code if needed)
+    const cleanedPhone = phoneNumber.replace(/\D/g, '');
+    
+    if (cleanedPhone.length < 10) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid phone number format'
+      });
+    }
+    
+    const whatsappService = getWhatsAppService();
+    initializeWhatsAppService();
+    
+    // Request phone authentication code from WhatsApp
+    const result = await whatsappService.requestPhoneCode(cleanedPhone);
+    
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Verification code sent to your phone',
+        data: {
+          phoneNumber: cleanedPhone,
+          codeRequested: true
+        }
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error || 'Failed to send verification code'
+      });
+    }
+  } catch (error: any) {
+    console.error('[WhatsApp] Error sending phone auth code:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to send verification code: ' + error.message
+    });
+  }
+};
+
+// Verify phone authentication code
+export const verifyPhoneAuthCode = async (req: Request, res: Response) => {
+  try {
+    const { phoneNumber, code } = req.body;
+    
+    if (!phoneNumber || !code) {
+      return res.status(400).json({
+        success: false,
+        error: 'Phone number and verification code are required'
+      });
+    }
+    
+    if (typeof code !== 'string' || code.length !== 6) {
+      return res.status(400).json({
+        success: false,
+        error: 'Verification code must be 6 digits'
+      });
+    }
+    
+    const whatsappService = getWhatsAppService();
+    
+    // Verify the code with WhatsApp
+    const result = await whatsappService.verifyPhoneCode(phoneNumber, code);
+    
+    if (result.success) {
+      // Emit connection status update to frontend
+      const io_instance = (global as any).io;
+      if (io_instance) {
+        io_instance.emit('whatsapp:status', {
+          connected: true,
+          authenticated: true,
+          authMethod: 'phone',
+          phoneNumber: phoneNumber
+        });
+      }
+      
+      res.json({
+        success: true,
+        message: 'Phone verification successful - WhatsApp connected',
+        data: {
+          authenticated: true,
+          phoneNumber: phoneNumber
+        }
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error || 'Invalid verification code'
+      });
+    }
+  } catch (error: any) {
+    console.error('[WhatsApp] Error verifying phone auth code:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to verify code: ' + error.message
+    });
+  }
 }; 

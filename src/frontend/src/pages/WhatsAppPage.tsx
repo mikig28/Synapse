@@ -77,6 +77,12 @@ const WhatsAppPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [showQR, setShowQR] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
+  const [authMethod, setAuthMethod] = useState<'qr' | 'phone'>('qr');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [isWaitingForCode, setIsWaitingForCode] = useState(false);
+  const [phoneAuthStep, setPhoneAuthStep] = useState<'phone' | 'code'>('phone');
   const [loading, setLoading] = useState(true);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [monitoredKeywords, setMonitoredKeywords] = useState<string[]>([]);
@@ -369,9 +375,101 @@ const WhatsAppPage: React.FC = () => {
     }
   };
 
+  const openAuthModal = () => {
+    setShowAuth(true);
+    setAuthMethod('qr');
+    setPhoneAuthStep('phone');
+    setIsWaitingForCode(false);
+    setPhoneNumber('');
+    setVerificationCode('');
+  };
+
+  const sendPhoneAuth = async () => {
+    if (!phoneNumber.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid phone number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await api.post('/whatsapp/auth/phone', {
+        phoneNumber: phoneNumber.replace(/\D/g, '') // Remove non-digits
+      });
+
+      if (response.data.success) {
+        setPhoneAuthStep('code');
+        setIsWaitingForCode(true);
+        toast({
+          title: "Verification Code Sent",
+          description: "Please check your WhatsApp mobile app for the verification code",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: response.data.error || "Failed to send verification code",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error sending phone auth:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to send verification code",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const verifyPhoneAuth = async () => {
+    if (!verificationCode.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter the verification code",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await api.post('/whatsapp/auth/verify', {
+        phoneNumber: phoneNumber.replace(/\D/g, ''),
+        verificationCode: verificationCode
+      });
+
+      if (response.data.success) {
+        setShowAuth(false);
+        setIsWaitingForCode(false);
+        toast({
+          title: "Authentication Successful",
+          description: "WhatsApp connected successfully via phone number",
+        });
+        // Refresh status after successful auth
+        setTimeout(fetchStatus, 2000);
+      } else {
+        toast({
+          title: "Verification Failed",
+          description: response.data.error || "Invalid verification code",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error verifying phone auth:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to verify code",
+        variant: "destructive",
+      });
+    }
+  };
+
   const fetchQRCode = async (force = false) => {
     try {
       setShowQR(true);
+      setShowAuth(true);
+      setAuthMethod('qr');
       
       if (force) {
         toast({
@@ -820,19 +918,23 @@ const WhatsAppPage: React.FC = () => {
               ) : (
                 <>
                   <AnimatedButton
-                    onClick={() => fetchQRCode(false)}
+                    onClick={openAuthModal}
                     variant="outline"
                     size="sm"
                     className="border-yellow-400/30 text-yellow-200 hover:bg-yellow-500/10"
                   >
                     <QrCode className="w-4 h-4 mr-2" />
-                    Show QR
+                    Connect
                   </AnimatedButton>
                   
                   {/* Show Force QR button when there are connection issues */}
                   {(!status?.connected || !status?.isReady) && (
                     <AnimatedButton
-                      onClick={() => fetchQRCode(true)}
+                      onClick={() => {
+                        setShowAuth(true);
+                        setAuthMethod('qr');
+                        fetchQRCode(true);
+                      }}
                       variant="outline"
                       size="sm"
                       className="border-orange-400/30 text-orange-200 hover:bg-orange-500/10"
@@ -1295,14 +1397,14 @@ const WhatsAppPage: React.FC = () => {
                   <div className="space-y-3">
                     <AnimatedButton
                       onClick={() => {
-                        fetchQRCode(false);
+                        openAuthModal();
                         setShowMobileMenu(false);
                       }}
                       variant="outline"
                       className="w-full border-yellow-400/30 text-yellow-200 hover:bg-yellow-500/10"
                     >
                       <QrCode className="w-4 h-4 mr-2" />
-                      Show QR Code
+                      Connect WhatsApp
                     </AnimatedButton>
                     
                     {(!status?.connected || !status?.isReady) && (
@@ -1497,52 +1599,173 @@ const WhatsAppPage: React.FC = () => {
           )}
         </AnimatePresence>
 
-        {/* QR Code Modal */}
+        {/* WhatsApp Authentication Modal */}
         <AnimatePresence>
-          {showQR && (
+          {showAuth && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-              onClick={() => setShowQR(false)}
+              onClick={() => {
+                setShowAuth(false);
+                setShowQR(false);
+                setPhoneAuthStep('phone');
+                setIsWaitingForCode(false);
+              }}
             >
               <motion.div
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
                 onClick={(e) => e.stopPropagation()}
-                className="max-w-md w-full"
+                className="max-w-md w-full mx-3 sm:mx-0"
               >
-                <GlassCard className="p-6 sm:p-8 text-center">
-                  <QrCode className="w-8 h-8 text-yellow-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-white mb-4">WhatsApp QR Code</h3>
-                  
-                  {qrCode ? (
-                    <div className="mb-4">
-                      <img 
-                        src={qrCode} 
-                        alt="WhatsApp QR Code" 
-                        className="mx-auto rounded-lg bg-white p-2 max-w-full"
-                      />
-                      <p className="text-sm text-blue-200/70 mt-2">
-                        Scan this QR code with your WhatsApp mobile app
-                      </p>
+                <GlassCard className="p-4 sm:p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg sm:text-xl font-semibold text-white">Connect WhatsApp</h3>
+                    <Button
+                      onClick={() => {
+                        setShowAuth(false);
+                        setShowQR(false);
+                        setPhoneAuthStep('phone');
+                        setIsWaitingForCode(false);
+                      }}
+                      variant="ghost"
+                      size="sm"
+                      className="p-2"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  {/* Authentication Method Selection */}
+                  <div className="mb-6">
+                    <div className="flex bg-white/10 rounded-lg p-1 gap-1">
+                      <button
+                        onClick={() => {
+                          setAuthMethod('qr');
+                          if (!qrCode) fetchQRCode(false);
+                        }}
+                        className={`flex-1 py-3 px-4 rounded-md text-sm font-medium transition-all ${
+                          authMethod === 'qr'
+                            ? 'bg-violet-500/70 text-white shadow-lg'
+                            : 'text-blue-200/70 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="flex items-center justify-center gap-2">
+                          <QrCode className="w-4 h-4" />
+                          <span>QR Code</span>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setAuthMethod('phone')}
+                        className={`flex-1 py-3 px-4 rounded-md text-sm font-medium transition-all ${
+                          authMethod === 'phone'
+                            ? 'bg-green-500/70 text-white shadow-lg'
+                            : 'text-blue-200/70 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="flex items-center justify-center gap-2">
+                          <Phone className="w-4 h-4" />
+                          <span>Phone</span>
+                        </div>
+                      </button>
                     </div>
-                  ) : (
-                    <div className="mb-4">
-                      <RefreshCw className="w-8 h-8 text-blue-300 animate-spin mx-auto mb-2" />
-                      <p className="text-blue-200/70">Loading QR code...</p>
+                  </div>
+
+                  {/* QR Code Method */}
+                  {authMethod === 'qr' && (
+                    <div className="text-center">
+                      {qrCode ? (
+                        <div className="mb-4">
+                          <img 
+                            src={qrCode} 
+                            alt="WhatsApp QR Code" 
+                            className="mx-auto rounded-lg bg-white p-2 max-w-full h-auto"
+                          />
+                          <p className="text-xs sm:text-sm text-blue-200/70 mt-3">
+                            Scan this QR code with your WhatsApp mobile app
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="mb-4">
+                          <RefreshCw className="w-8 h-8 text-blue-300 animate-spin mx-auto mb-2" />
+                          <p className="text-blue-200/70 text-sm">Loading QR code...</p>
+                        </div>
+                      )}
                     </div>
                   )}
-                  
-                  <Button 
-                    onClick={() => setShowQR(false)}
-                    variant="outline"
-                    className="border-white/30 text-white hover:bg-white/10"
-                  >
-                    Close
-                  </Button>
+
+                  {/* Phone Number Method */}
+                  {authMethod === 'phone' && (
+                    <div className="space-y-4">
+                      {phoneAuthStep === 'phone' ? (
+                        <>
+                          <div>
+                            <label className="block text-sm font-medium text-blue-200 mb-2">
+                              Phone Number
+                            </label>
+                            <Input
+                              type="tel"
+                              placeholder="+1234567890"
+                              value={phoneNumber}
+                              onChange={(e) => setPhoneNumber(e.target.value)}
+                              className="bg-white/10 border-white/20 text-white placeholder:text-blue-300"
+                            />
+                            <p className="text-xs text-blue-200/60 mt-1">
+                              Enter your WhatsApp phone number with country code
+                            </p>
+                          </div>
+                          <Button 
+                            onClick={sendPhoneAuth}
+                            disabled={!phoneNumber.trim()}
+                            className="w-full bg-green-500 hover:bg-green-600"
+                          >
+                            Send Verification Code
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <div>
+                            <label className="block text-sm font-medium text-blue-200 mb-2">
+                              Verification Code
+                            </label>
+                            <Input
+                              type="text"
+                              placeholder="Enter 6-digit code"
+                              value={verificationCode}
+                              onChange={(e) => setVerificationCode(e.target.value)}
+                              className="bg-white/10 border-white/20 text-white placeholder:text-blue-300"
+                              maxLength={6}
+                            />
+                            <p className="text-xs text-blue-200/60 mt-1">
+                              Check your WhatsApp mobile app for the verification code
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button 
+                              onClick={() => {
+                                setPhoneAuthStep('phone');
+                                setVerificationCode('');
+                              }}
+                              variant="outline"
+                              className="flex-1 border-white/30 text-white hover:bg-white/10"
+                            >
+                              Back
+                            </Button>
+                            <Button 
+                              onClick={verifyPhoneAuth}
+                              disabled={!verificationCode.trim()}
+                              className="flex-1 bg-green-500 hover:bg-green-600"
+                            >
+                              Verify
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </GlassCard>
               </motion.div>
             </motion.div>
