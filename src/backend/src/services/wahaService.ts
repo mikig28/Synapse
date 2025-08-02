@@ -241,7 +241,7 @@ class WAHAService extends EventEmitter {
       const base64 = Buffer.from(response.data).toString('base64');
       console.log(`[WAHA Service] QR code converted to base64, length: ${base64.length}`);
       return `data:image/png;base64,${base64}`;
-    } catch (error) {
+    } catch (error: any) {
       console.error(`[WAHA Service] ❌ Failed to get QR code for '${sessionName}':`, error);
       console.error(`[WAHA Service] Error details:`, {
         status: error?.response?.status,
