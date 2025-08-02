@@ -139,6 +139,14 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isAuthenticated } = useAuthStore();
 
+  // Helper function to convert relative URLs to absolute URLs
+  const getAbsoluteImageUrl = (url: string): string => {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+    return `${baseUrl}${url}`;
+  };
+
   useEffect(() => {
     if (isAuthenticated) {
       fetchAllData();
@@ -224,7 +232,11 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
         });
         
         if (response.data.success) {
-          return response.data.data.url;
+          // Convert relative URL to absolute URL
+          const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+          const relativeUrl = response.data.data.url;
+          const absoluteUrl = relativeUrl.startsWith('http') ? relativeUrl : `${baseUrl}${relativeUrl}`;
+          return absoluteUrl;
         }
         throw new Error('Upload failed');
       });
@@ -682,9 +694,13 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
                         {person.trainingImages.slice(0, 3).map((imageUrl, index) => (
                           <img
                             key={index}
-                            src={imageUrl}
+                            src={getAbsoluteImageUrl(imageUrl)}
                             alt={`${person.name} training ${index + 1}`}
                             className="w-full h-16 object-cover rounded-lg bg-white/10"
+                            onError={(e) => {
+                              console.error('Failed to load image:', imageUrl);
+                              e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjMzMzIi8+Cjx0ZXh0IHg9IjMyIiB5PSIzNiIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEwIiBmaWxsPSIjNzc3IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5JbWFnZSBFcnJvcjwvdGV4dD4KPC9zdmc+';
+                            }}
                           />
                         ))}
                         {person.trainingImages.length > 3 && (
@@ -807,9 +823,13 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
                   <GlassCard className="p-4">
                     <div className="relative mb-4">
                       <img
-                        src={image.imageUrl}
+                        src={getAbsoluteImageUrl(image.imageUrl)}
                         alt="Filtered content"
                         className="w-full h-48 object-cover rounded-lg"
+                        onError={(e) => {
+                          console.error('Failed to load image:', image.imageUrl);
+                          e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjMzMzIi8+Cjx0ZXh0IHg9IjMyIiB5PSIzNiIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEwIiBmaWxsPSIjNzc3IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5JbWFnZSBFcnJvcjwvdGV4dD4KPC9zdmc+';
+                        }}
                       />
                       {!image.isArchived && (
                         <Button
@@ -946,9 +966,13 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
                           {personForm.trainingImages.map((url, index) => (
                             <div key={index} className="relative">
                               <img
-                                src={url}
+                                src={getAbsoluteImageUrl(url)}
                                 alt={`Training ${index + 1}`}
                                 className="w-full h-16 object-cover rounded"
+                                onError={(e) => {
+                                  console.error('Failed to load image:', url);
+                                  e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjMzMzIi8+Cjx0ZXh0IHg9IjMyIiB5PSIzNiIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEwIiBmaWxsPSIjNzc3IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5JbWFnZSBFcnJvcjwvdGV4dD4KPC9zdmc+';
+                                }}
                               />
                               <Button
                                 onClick={() => setPersonForm(prev => ({
