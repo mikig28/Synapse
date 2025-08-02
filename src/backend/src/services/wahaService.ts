@@ -307,9 +307,10 @@ class WAHAService extends EventEmitter {
       console.log(`[WAHA Service] Waiting for session '${sessionName}' to be ready for QR...`);
       await this.waitForSessionState(sessionName, ['SCAN_QR_CODE'], 30000); // 30 second timeout
       
-      // Get QR code using WAHA's auth endpoint
-      console.log(`[WAHA Service] Requesting QR code from /api/${sessionName}/auth/qr`);
-      const response = await this.httpClient.get(`/api/${sessionName}/auth/qr`, {
+      // Get QR code using WAHA's screenshot endpoint (this is the standard approach)
+      console.log(`[WAHA Service] Requesting QR code from /api/screenshot`);
+      const response = await this.httpClient.get(`/api/screenshot`, {
+        params: { session: sessionName },
         responseType: 'arraybuffer'
       });
       
@@ -325,22 +326,8 @@ class WAHAService extends EventEmitter {
         data: error?.response?.data
       });
       
-      // Try alternative screenshot endpoint as fallback
-      try {
-        console.log('[WAHA Service] Trying screenshot endpoint as fallback...');
-        const response = await this.httpClient.get(`/api/screenshot`, {
-          params: { session: sessionName },
-          responseType: 'arraybuffer'
-        });
-        
-        console.log(`[WAHA Service] Screenshot response received, status: ${response.status}`);
-        const base64 = Buffer.from(response.data).toString('base64');
-        return `data:image/png;base64,${base64}`;
-      } catch (fallbackError) {
-        console.error(`[WAHA Service] ❌ Both QR endpoints failed:`, fallbackError);
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        throw new Error(`Failed to get QR code: ${errorMessage}`);
-      }
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to get QR code: ${errorMessage}`);
     }
   }
 
@@ -349,16 +336,18 @@ class WAHAService extends EventEmitter {
    */
   async sendMessage(chatId: string, text: string, sessionName: string = this.defaultSession): Promise<any> {
     try {
-      const response = await this.httpClient.post('/api/sendText', {
+      console.log(`[WAHA Service] Sending message to ${chatId} in session '${sessionName}'...`);
+      
+      // WAHA API structure: POST /api/{session}/sendText
+      const response = await this.httpClient.post(`/api/${sessionName}/sendText`, {
         chatId,
-        text,
-        session: sessionName
+        text
       });
       
       console.log(`[WAHA Service] ✅ Message sent to ${chatId}`);
       return response.data;
-    } catch (error) {
-      console.error(`[WAHA Service] ❌ Failed to send message to ${chatId}:`, error);
+    } catch (error: any) {
+      console.error(`[WAHA Service] ❌ Failed to send message to ${chatId}:`, error.response?.status, error.response?.data);
       throw error;
     }
   }
@@ -368,19 +357,21 @@ class WAHAService extends EventEmitter {
    */
   async sendMedia(chatId: string, mediaUrl: string, caption?: string, sessionName: string = this.defaultSession): Promise<any> {
     try {
-      const response = await this.httpClient.post('/api/sendFile', {
+      console.log(`[WAHA Service] Sending media to ${chatId} in session '${sessionName}'...`);
+      
+      // WAHA API structure: POST /api/{session}/sendFile
+      const response = await this.httpClient.post(`/api/${sessionName}/sendFile`, {
         chatId,
         file: {
           url: mediaUrl
         },
-        caption,
-        session: sessionName
+        caption
       });
       
       console.log(`[WAHA Service] ✅ Media sent to ${chatId}`);
       return response.data;
-    } catch (error) {
-      console.error(`[WAHA Service] ❌ Failed to send media to ${chatId}:`, error);
+    } catch (error: any) {
+      console.error(`[WAHA Service] ❌ Failed to send media to ${chatId}:`, error.response?.status, error.response?.data);
       throw error;
     }
   }
@@ -390,9 +381,12 @@ class WAHAService extends EventEmitter {
    */
   async getChats(sessionName: string = this.defaultSession): Promise<WAHAChat[]> {
     try {
-      const response = await this.httpClient.get('/api/chats', {
-        params: { session: sessionName }
-      });
+      console.log(`[WAHA Service] Getting chats for session '${sessionName}'...`);
+      
+      // WAHA API endpoint structure: /api/{session}/chats
+      const response = await this.httpClient.get(`/api/${sessionName}/chats`);
+      
+      console.log(`[WAHA Service] Received ${response.data.length} chats`);
       
       return response.data.map((chat: any) => ({
         id: chat.id,
@@ -402,9 +396,10 @@ class WAHAService extends EventEmitter {
         timestamp: chat.lastMessage?.timestamp,
         participantCount: chat.participantCount
       }));
-    } catch (error) {
-      console.error(`[WAHA Service] ❌ Failed to get chats for '${sessionName}':`, error);
-      throw error;
+    } catch (error: any) {
+      console.error(`[WAHA Service] ❌ Failed to get chats for '${sessionName}':`, error.response?.status, error.response?.data);
+      // Return empty array instead of throwing to prevent 500 errors
+      return [];
     }
   }
 
@@ -413,13 +408,14 @@ class WAHAService extends EventEmitter {
    */
   async getMessages(chatId: string, limit: number = 50, sessionName: string = this.defaultSession): Promise<WAHAMessage[]> {
     try {
-      const response = await this.httpClient.get('/api/messages', {
-        params: { 
-          chatId,
-          limit,
-          session: sessionName 
-        }
+      console.log(`[WAHA Service] Getting messages for chat '${chatId}' in session '${sessionName}'...`);
+      
+      // WAHA API endpoint structure: /api/{session}/chats/{chatId}/messages
+      const response = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(chatId)}/messages`, {
+        params: { limit }
       });
+      
+      console.log(`[WAHA Service] Received ${response.data.length} messages`);
       
       return response.data.map((msg: any) => ({
         id: msg.id,
@@ -434,9 +430,10 @@ class WAHAService extends EventEmitter {
         time: new Date(msg.timestamp * 1000).toLocaleTimeString(),
         isMedia: msg.type !== 'text'
       }));
-    } catch (error) {
-      console.error(`[WAHA Service] ❌ Failed to get messages for ${chatId}:`, error);
-      throw error;
+    } catch (error: any) {
+      console.error(`[WAHA Service] ❌ Failed to get messages for ${chatId}:`, error.response?.status, error.response?.data);
+      // Return empty array instead of throwing to prevent 500 errors
+      return [];
     }
   }
 

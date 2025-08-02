@@ -194,7 +194,8 @@ export const getChats = async (req: Request, res: Response) => {
  */
 export const getMessages = async (req: Request, res: Response) => {
   try {
-    const { chatId } = req.params;
+    // Support both URL param and query param for chatId
+    const chatId = req.params.chatId || req.query.chatId as string;
     const limit = parseInt(req.query.limit as string) || 50;
     
     if (!chatId) {
