@@ -101,47 +101,72 @@ class WAHAService extends events_1.EventEmitter {
      */
     async startSession(sessionName = this.defaultSession) {
         try {
-            // First, try to get existing session
+            console.log(`[WAHA Service] Starting session management for '${sessionName}'`);
+            // First, try to get existing session and check its status
+            let sessionExists = false;
+            let sessionData = null;
             try {
                 const existingSession = await this.httpClient.get(`/api/sessions/${sessionName}`);
-                console.log(`[WAHA Service] ✅ Session '${sessionName}' already exists`);
-                return existingSession.data;
+                sessionExists = true;
+                sessionData = existingSession.data;
+                console.log(`[WAHA Service] Session '${sessionName}' exists with status: ${sessionData?.status || 'unknown'}`);
+                // If session is stopped, we need to start it
+                if (sessionData?.status === 'STOPPED') {
+                    console.log(`[WAHA Service] Session '${sessionName}' is stopped, attempting to start...`);
+                    await this.httpClient.post(`/api/sessions/${sessionName}/start`);
+                    console.log(`[WAHA Service] ✅ Session '${sessionName}' started from stopped state`);
+                    return sessionData;
+                }
+                else if (sessionData?.status === 'WORKING' || sessionData?.status === 'SCAN_QR_CODE') {
+                    console.log(`[WAHA Service] ✅ Session '${sessionName}' is already active`);
+                    return sessionData;
+                }
             }
             catch (getError) {
-                // Session doesn't exist, create it
-                console.log(`[WAHA Service] Creating new session '${sessionName}'...`);
+                console.log(`[WAHA Service] Session '${sessionName}' doesn't exist, will create new one`);
+                sessionExists = false;
             }
-            // Create new session
-            const response = await this.httpClient.post('/api/sessions', {
-                name: sessionName,
-                config: {
-                    webhook: {
-                        url: `${process.env.FRONTEND_URL || 'https://synapse-backend-7lq6.onrender.com'}/api/v1/whatsapp/webhook`,
-                        events: ['message', 'session.status'],
-                        retries: 3,
+            // If session doesn't exist, create it
+            if (!sessionExists) {
+                console.log(`[WAHA Service] Creating new session '${sessionName}'...`);
+                const response = await this.httpClient.post('/api/sessions', {
+                    name: sessionName,
+                    config: {
+                        webhook: {
+                            url: `${process.env.FRONTEND_URL || 'https://synapse-backend-7lq6.onrender.com'}/api/v1/whatsapp/webhook`,
+                            events: ['message', 'session.status'],
+                            retries: 3,
+                        }
                     }
-                }
-            });
-            console.log(`[WAHA Service] ✅ Session '${sessionName}' created successfully`);
-            // Start the session
+                });
+                console.log(`[WAHA Service] ✅ Session '${sessionName}' created successfully`);
+                sessionData = response.data;
+            }
+            // Always try to start the session after creation
             try {
                 await this.httpClient.post(`/api/sessions/${sessionName}/start`);
                 console.log(`[WAHA Service] ✅ Session '${sessionName}' started successfully`);
             }
             catch (startError) {
                 console.error(`[WAHA Service] ⚠️ Failed to start session '${sessionName}':`, startError);
-                // Continue anyway, session might already be started
+                // Don't throw here, session might already be starting
             }
-            return response.data;
+            return sessionData;
         }
         catch (error) {
             // Handle "already exists" error gracefully
             if (error.response?.status === 422 && error.response?.data?.message?.includes('already exists')) {
                 console.log(`[WAHA Service] ✅ Session '${sessionName}' already exists (422 handled)`);
-                // Try to get the existing session
+                // Try to get the existing session and start it if needed
                 try {
                     const existingSession = await this.httpClient.get(`/api/sessions/${sessionName}`);
-                    return existingSession.data;
+                    const sessionData = existingSession.data;
+                    // If it's stopped, start it
+                    if (sessionData?.status === 'STOPPED') {
+                        await this.httpClient.post(`/api/sessions/${sessionName}/start`);
+                        console.log(`[WAHA Service] ✅ Restarted stopped session '${sessionName}'`);
+                    }
+                    return sessionData;
                 }
                 catch (getError) {
                     console.error(`[WAHA Service] ❌ Could not retrieve existing session:`, getError);

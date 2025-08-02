@@ -1,9 +1,85 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const gridfs_1 = require("../../config/gridfs");
 const mongodb_1 = require("mongodb");
+const multer_1 = __importDefault(require("multer"));
+const stream_1 = require("stream");
 const router = (0, express_1.Router)();
+// Configure multer for memory storage (we'll stream directly to GridFS)
+const upload = (0, multer_1.default)({
+    storage: multer_1.default.memoryStorage(),
+    limits: {
+        fileSize: 10 * 1024 * 1024 // 10MB limit
+    },
+    fileFilter: (req, file, cb) => {
+        // Allow images only
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        }
+        else {
+            cb(new Error('Only image files are allowed'));
+        }
+    }
+});
+// POST /upload - Upload image to GridFS
+router.post('/upload', upload.single('image'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                error: 'No image file provided'
+            });
+        }
+        const bucket = (0, gridfs_1.getBucket)();
+        const uploadStream = bucket.openUploadStream(req.file.originalname, {
+            contentType: req.file.mimetype,
+            metadata: {
+                uploadedAt: new Date(),
+                originalName: req.file.originalname,
+                size: req.file.size
+            }
+        });
+        // Create a readable stream from the buffer
+        const readableStream = new stream_1.Readable();
+        readableStream.push(req.file.buffer);
+        readableStream.push(null);
+        // Handle upload completion
+        uploadStream.on('finish', () => {
+            const fileUrl = `/api/v1/media/${uploadStream.id}`;
+            res.json({
+                success: true,
+                data: {
+                    id: uploadStream.id.toString(),
+                    url: fileUrl,
+                    filename: req.file?.originalname,
+                    contentType: req.file?.mimetype,
+                    size: req.file?.size
+                }
+            });
+        });
+        // Handle upload errors
+        uploadStream.on('error', (error) => {
+            console.error('Error uploading to GridFS:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to upload image'
+            });
+        });
+        // Pipe the file buffer to GridFS
+        readableStream.pipe(uploadStream);
+    }
+    catch (error) {
+        console.error('Error in media upload:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Internal server error'
+        });
+    }
+});
 router.get('/:id', async (req, res) => {
     try {
         const bucket = (0, gridfs_1.getBucket)();
