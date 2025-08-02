@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const authMiddleware_1 = require("../middleware/authMiddleware");
+const usageTracking_1 = require("../../middleware/usageTracking");
 const meetingsController_1 = require("../controllers/meetingsController");
 const router = (0, express_1.Router)();
 // Apply authentication middleware to all routes
@@ -11,7 +12,7 @@ router.get('/stats', meetingsController_1.getMeetingStats);
 // GET /api/v1/meetings - Get all meetings for user
 router.get('/', meetingsController_1.getMeetings);
 // POST /api/v1/meetings - Create a new meeting
-router.post('/', meetingsController_1.createMeeting);
+router.post('/', (0, usageTracking_1.trackContentCreation)('meeting'), meetingsController_1.createMeeting);
 // GET /api/v1/meetings/:id - Get specific meeting
 router.get('/:id', meetingsController_1.getMeeting);
 // PUT /api/v1/meetings/:id - Update meeting

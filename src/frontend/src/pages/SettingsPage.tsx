@@ -4,8 +4,9 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import LinkTelegramChat from '@/components/settings/LinkTelegramChat';
 import DataExport from '@/components/settings/DataExport';
+import { UsageDashboard } from '@/components/usage/UsageDashboard';
 import { FloatingParticles } from '@/components/common/FloatingParticles';
-import { Settings, Sparkles, User, Shield, Bell, Palette, Download } from 'lucide-react';
+import { Settings, Sparkles, User, Shield, Bell, Palette, Download, BarChart3 } from 'lucide-react';
 
 // Assuming you might have other settings components or sections
 // import OtherSettingsSection from '@/components/settings/OtherSettingsSection';
@@ -44,6 +45,13 @@ const SettingsPage: React.FC = () => {
       title: "Data Export",
       description: "Export your data for backup, migration, or analysis purposes.",
       content: <DataExport />
+    },
+    {
+      icon: <BarChart3 className="w-6 h-6 text-orange-400" />,
+      iconBg: "bg-orange-500/20",
+      title: "Usage & Billing",
+      description: "Monitor your platform usage, limits, and billing information.",
+      content: <UsageDashboard />
     },
     {
       icon: <User className="w-6 h-6 text-emerald-400" />,

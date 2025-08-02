@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const authMiddleware_1 = require("../middleware/authMiddleware");
+const usageTracking_1 = require("../../middleware/usageTracking");
 const agentsController_1 = require("../controllers/agentsController");
 const AgentRun_1 = __importDefault(require("../../models/AgentRun"));
 const router = express_1.default.Router();
@@ -30,7 +31,7 @@ router.delete('/:agentId', agentsController_1.deleteAgent);
 router.get('/:agentId/status', agentsController_1.getAgentStatus);
 router.post('/:agentId/reset-status', agentsController_1.resetAgentStatus);
 router.get('/:agentId/crew-progress', agentsController_1.getCrewProgress);
-router.post('/:agentId/execute', agentsController_1.executeAgent);
+router.post('/:agentId/execute', (0, usageTracking_1.rateLimitByUsage)('agent'), usageTracking_1.trackAgentExecution, agentsController_1.executeAgent);
 router.post('/:agentId/pause', agentsController_1.pauseAgent);
 router.post('/:agentId/resume', agentsController_1.resumeAgent);
 // Agent runs and statistics

@@ -6,6 +6,7 @@ import {
   getExportHistory
 } from '../controllers/exportController';
 import { protect } from '../middleware/authMiddleware';
+import { trackExport, rateLimitByUsage } from '../../middleware/usageTracking';
 
 const router = express.Router();
 
@@ -13,7 +14,7 @@ const router = express.Router();
 router.use(protect);
 
 // Create new export job
-router.post('/', createExportJob as any);
+router.post('/', rateLimitByUsage('export'), trackExport, createExportJob as any);
 
 // Get export history for user
 router.get('/history', getExportHistory as any);

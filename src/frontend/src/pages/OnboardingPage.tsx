@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { 
   ChevronLeft, 
   ChevronRight, 
-  Skip, 
+  SkipForward, 
   X,
   Home
 } from 'lucide-react';
@@ -299,7 +299,7 @@ const OnboardingPage: React.FC = () => {
                 disabled={isTransitioning}
                 className="text-muted-foreground hover:text-foreground"
               >
-                <Skip className="w-4 h-4 mr-2" />
+                                  <SkipForward className="w-4 h-4 mr-2" />
                 Skip
               </Button>
             )}

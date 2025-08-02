@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 // Usage tracking for beta pricing model
-export interface IUsage extends Document {
+export interface IUsageDocument {
   userId: mongoose.Types.ObjectId;
   
   // Time period for usage tracking
@@ -126,6 +126,13 @@ export interface IUsage extends Document {
   
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface IUsage extends IUsageDocument, Document {
+  totalUsageScore: number;
+  checkUsageLimits(): string[];
+  getTierLimits(): any;
+  calculateEstimatedCost(): number;
 }
 
 const UsageSchema = new Schema<IUsage>({
@@ -347,7 +354,7 @@ UsageSchema.methods.getTierLimits = function() {
     }
   };
   
-  return tierLimits[this.billing.tier] || tierLimits.free;
+  return tierLimits[this.billing.tier as keyof typeof tierLimits] || tierLimits.free;
 };
 
 // Method to calculate estimated cost
@@ -372,5 +379,6 @@ UsageSchema.methods.calculateEstimatedCost = function() {
   return this.billing.estimatedCost;
 };
 
-export const Usage = mongoose.model<IUsage>('Usage', UsageSchema);
+const Usage = mongoose.model<IUsage>('Usage', UsageSchema);
+export { Usage };
 export default Usage;

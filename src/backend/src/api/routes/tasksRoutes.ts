@@ -9,11 +9,12 @@ import {
   getNearbyTasks
 } from '../controllers/tasksController'; // Adjust path as necessary
 import { protect } from '../middleware/authMiddleware'; // Assuming you have auth middleware
+import { trackContentCreation } from '../../middleware/usageTracking';
 
 const router = express.Router();
 
 router.get('/', protect, getTasks);
-router.post('/', protect, createTask);
+router.post('/', protect, trackContentCreation('task'), createTask);
 router.put('/:id', protect, updateTask);
 router.delete('/:id', protect, deleteTask);
 router.post('/send-reminder', protect, sendTaskReminder);

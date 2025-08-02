@@ -6,11 +6,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const exportController_1 = require("../controllers/exportController");
 const authMiddleware_1 = require("../middleware/authMiddleware");
+const usageTracking_1 = require("../../middleware/usageTracking");
 const router = express_1.default.Router();
 // Protect all routes
 router.use(authMiddleware_1.protect);
 // Create new export job
-router.post('/', exportController_1.createExportJob);
+router.post('/', (0, usageTracking_1.rateLimitByUsage)('export'), usageTracking_1.trackExport, exportController_1.createExportJob);
 // Get export history for user
 router.get('/history', exportController_1.getExportHistory);
 // Get export job status

@@ -1,4 +1,10 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema, Document, Model } from 'mongoose';
+
+// Interface for static methods
+export interface IFeedbackModel extends Model<IFeedback> {
+  getFeedbackStats(): Promise<any[]>;
+  getTopIssues(limit?: number): Promise<IFeedback[]>;
+}
 
 export interface IFeedback extends Document {
   userId?: mongoose.Types.ObjectId;
@@ -293,6 +299,6 @@ FeedbackSchema.statics.getTopIssues = function(limit = 10) {
   .populate('userId', 'name email');
 };
 
-const Feedback = mongoose.model<IFeedback>('Feedback', FeedbackSchema);
+const Feedback = mongoose.model<IFeedback, IFeedbackModel>('Feedback', FeedbackSchema);
 
 export default Feedback;

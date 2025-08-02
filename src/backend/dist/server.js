@@ -42,10 +42,13 @@ const documentsRoutes_1 = __importDefault(require("./api/routes/documentsRoutes"
 const groupMonitorRoutes_1 = __importDefault(require("./api/routes/groupMonitorRoutes")); // Import group monitor routes
 const searchRoutes_1 = __importDefault(require("./api/routes/searchRoutes")); // Import search routes
 const exportRoutes_1 = __importDefault(require("./api/routes/exportRoutes")); // Import export routes
+const feedbackRoutes_1 = __importDefault(require("./api/routes/feedbackRoutes")); // Import feedback routes
+const usageRoutes_1 = __importDefault(require("./api/routes/usageRoutes")); // Import usage routes
 const taskReminderService_1 = require("./services/taskReminderService"); // Import task reminder service
 const schedulerService_1 = require("./services/schedulerService"); // Import scheduler service
 const aguiEmitter_1 = require("./services/aguiEmitter"); // Import AG-UI emitter
 const searchIndexes_1 = require("./config/searchIndexes"); // Import search indexes initializer
+const usageTracking_1 = require("./middleware/usageTracking"); // Import usage tracking middleware
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const rawPort = process.env.PORT || '3001'; // Read as string
@@ -148,6 +151,8 @@ app.use((req, res, next) => {
 });
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
+// Usage tracking middleware (should be after auth but before routes)
+app.use(usageTracking_1.trackApiUsage);
 // Global request logger for API v1 routes
 app.use('/api/v1', (req, res, next) => {
     console.log(`[API Logger] Path: ${req.path}, Method: ${req.method}`);
@@ -204,6 +209,8 @@ app.use('/api/v1/documents', documentsRoutes_1.default); // Use documents routes
 app.use('/api/v1/group-monitor', groupMonitorRoutes_1.default); // Use group monitor routes
 app.use('/api/v1/search', searchRoutes_1.default); // Use search routes
 app.use('/api/v1/export', exportRoutes_1.default); // Use export routes
+app.use('/api/v1/feedback', feedbackRoutes_1.default); // Use feedback routes
+app.use('/api/v1/usage', usageRoutes_1.default); // Use usage routes
 // **AG-UI Protocol Endpoints**
 // Test endpoint to manually emit AG-UI events for debugging
 app.get('/api/v1/ag-ui/test-event', (req, res) => {

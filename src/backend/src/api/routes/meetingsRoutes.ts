@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { protect } from '../middleware/authMiddleware';
+import { trackContentCreation } from '../../middleware/usageTracking';
 import {
   getMeetings,
   getMeeting,
@@ -24,7 +25,7 @@ router.get('/stats', getMeetingStats);
 router.get('/', getMeetings);
 
 // POST /api/v1/meetings - Create a new meeting
-router.post('/', createMeeting);
+router.post('/', trackContentCreation('meeting'), createMeeting);
 
 // GET /api/v1/meetings/:id - Get specific meeting
 router.get('/:id', getMeeting);

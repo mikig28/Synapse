@@ -8,7 +8,7 @@ import {
   getTierPricing,
   simulateTierUpgrade
 } from '../controllers/usageController';
-import { authenticateToken } from '../../middleware/auth';
+import { protect as authenticateToken } from '../middleware/authMiddleware';
 
 const router = express.Router();
 

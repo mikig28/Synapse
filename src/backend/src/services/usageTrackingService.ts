@@ -66,7 +66,7 @@ export class UsageTrackingService {
     periodType: 'daily' | 'weekly' | 'monthly',
     date: Date,
     data: UsageEventData
-  ): Promise<IUsage> {
+  ): Promise<any> {
     const { start, end } = this.getPeriodBounds(date, periodType);
     
     // Find existing record or create new one
@@ -136,11 +136,11 @@ export class UsageTrackingService {
       usage.patterns.mostUsedFeatures.push(featureKey);
     }
     
-    // Calculate estimated cost
-    usage.calculateEstimatedCost();
+    // Calculate estimated cost (manual calculation)
+    this.calculateCost(usage);
     
-    // Check usage limits
-    usage.checkUsageLimits();
+    // Check usage limits (manual check)
+    this.checkLimits(usage);
     
     // Update flags
     await this.updateUserFlags(usage);
@@ -235,11 +235,119 @@ export class UsageTrackingService {
   }
 
   /**
+   * Manual cost calculation
+   */
+  private calculateCost(usage: any): void {
+    const pricing = {
+      searchCost: 0.001, // $0.001 per search
+      agentExecutionCost: 0.01, // $0.01 per agent execution
+      storageCost: 0.000001, // $0.000001 per byte per month
+      apiRequestCost: 0.0001, // $0.0001 per API request
+      aiSummaryCost: 0.05 // $0.05 per AI summary
+    };
+    
+    const cost = (
+      (usage.features.searches.count * pricing.searchCost) +
+      (usage.features.agents.executionsCount * pricing.agentExecutionCost) +
+      (usage.features.data.totalStorageUsed * pricing.storageCost) +
+      (usage.api.totalRequests * pricing.apiRequestCost) +
+      (usage.features.advanced.aiSummariesGenerated * pricing.aiSummaryCost)
+    );
+    
+    usage.billing.estimatedCost = Math.round(cost * 100) / 100; // Round to 2 decimal places
+  }
+
+  /**
+   * Manual limits checking
+   */
+  private checkLimits(usage: any): void {
+    const limits = this.getTierLimits(usage.billing.tier);
+    const overages: string[] = [];
+    
+    // Check various limits based on tier
+    if (usage.features.searches.count > limits.searches) {
+      overages.push('searches');
+    }
+    
+    if (usage.features.agents.executionsCount > limits.agentExecutions) {
+      overages.push('agent_executions');
+    }
+    
+    if (usage.features.data.totalStorageUsed > limits.storage) {
+      overages.push('storage');
+    }
+    
+    if (usage.api.totalRequests > limits.apiRequests) {
+      overages.push('api_requests');
+    }
+    
+    usage.billing.overageFlags = overages;
+    usage.flags.hasHitLimits = overages.length > 0;
+  }
+
+  /**
+   * Calculate total usage score
+   */
+  private calculateUsageScore(usage: any): number {
+    const features = usage.features;
+    return (
+      features.searches.count +
+      features.agents.executionsCount +
+      features.data.documentsUploaded +
+      features.integrations.whatsappMessages +
+      features.integrations.telegramMessages +
+      features.content.notesCreated +
+      features.content.ideasCreated +
+      features.content.tasksCreated +
+      features.advanced.vectorSearchQueries +
+      features.advanced.aiSummariesGenerated
+    );
+  }
+
+  /**
+   * Get tier limits
+   */
+  private getTierLimits(tier: string) {
+    const tierLimits = {
+      free: {
+        searches: 100,
+        agentExecutions: 10,
+        storage: 100 * 1024 * 1024, // 100MB
+        apiRequests: 1000,
+        exportJobs: 3
+      },
+      starter: {
+        searches: 1000,
+        agentExecutions: 100,
+        storage: 1024 * 1024 * 1024, // 1GB
+        apiRequests: 10000,
+        exportJobs: 10
+      },
+      pro: {
+        searches: 10000,
+        agentExecutions: 1000,
+        storage: 10 * 1024 * 1024 * 1024, // 10GB
+        apiRequests: 100000,
+        exportJobs: 50
+      },
+      enterprise: {
+        searches: Infinity,
+        agentExecutions: Infinity,
+        storage: Infinity,
+        apiRequests: Infinity,
+        exportJobs: Infinity
+      }
+    };
+    
+    return tierLimits[tier as keyof typeof tierLimits] || tierLimits.free;
+  }
+
+  /**
    * Update user behavior flags
    */
-  private async updateUserFlags(usage: IUsage): Promise<void> {
+  private async updateUserFlags(usage: any): Promise<void> {
     // Check if power user (high usage across multiple features)
-    const totalScore = usage.totalUsageScore;
+    const totalScore = this.calculateUsageScore(usage);
     usage.flags.isPowerUser = totalScore > 100; // Threshold for power user
     
     // Check if new user (first 30 days)
@@ -249,7 +357,7 @@ export class UsageTrackingService {
     // Check churn risk (declining usage pattern)
     if (usage.period.type === 'weekly') {
       const previousWeekUsage = await this.getPreviousPeriodUsage(usage.userId, 'weekly', usage.period.start);
-      if (previousWeekUsage && totalScore < previousWeekUsage.totalUsageScore * 0.5) {
+      if (previousWeekUsage && totalScore < this.calculateUsageScore(previousWeekUsage) * 0.5) {
         usage.flags.isChurnRisk = true;
       }
     }
@@ -308,7 +416,7 @@ export class UsageTrackingService {
     userId: string, 
     periodType: 'daily' | 'weekly' | 'monthly' = 'monthly',
     date: Date = new Date()
-  ): Promise<IUsage | null> {
+  ): Promise<any> {
     const userObjectId = new mongoose.Types.ObjectId(userId);
     const { start, end } = this.getPeriodBounds(date, periodType);
     
@@ -469,7 +577,7 @@ export class UsageTrackingService {
       return { allowed: true }; // No usage record = new user, allow action
     }
     
-    const limits = usage.getTierLimits();
+    const limits = this.getTierLimits(usage.billing.tier);
     
     switch (feature) {
       case 'search':

@@ -1,5 +1,6 @@
 import express from 'express';
 import { authMiddleware } from '../middleware/authMiddleware';
+import { trackAgentExecution, rateLimitByUsage } from '../../middleware/usageTracking';
 import {
   getAgents,
   getAgentById,
@@ -56,7 +57,7 @@ router.delete('/:agentId', deleteAgent);
 router.get('/:agentId/status', getAgentStatus);
 router.post('/:agentId/reset-status', resetAgentStatus);
 router.get('/:agentId/crew-progress', getCrewProgress);
-router.post('/:agentId/execute', executeAgent);
+router.post('/:agentId/execute', rateLimitByUsage('agent'), trackAgentExecution, executeAgent);
 router.post('/:agentId/pause', pauseAgent);
 router.post('/:agentId/resume', resumeAgent);
 

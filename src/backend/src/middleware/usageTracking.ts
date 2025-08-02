@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { usageTrackingService } from '../services/usageTrackingService';
-import { AuthenticatedRequest } from './auth';
+import { AuthenticatedRequest } from '../api/middleware/authMiddleware';
 
 interface UsageTrackingOptions {
   feature: string;

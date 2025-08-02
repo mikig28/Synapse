@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { usageTrackingService } from '../../services/usageTrackingService';
-import { AuthenticatedRequest } from '../../middleware/auth';
+import { AuthenticatedRequest } from '../middleware/authMiddleware';
 
 /**
  * Get current user's usage statistics
@@ -226,9 +226,22 @@ export const getUserUsageHistory = async (req: AuthenticatedRequest, res: Respon
       const usage = await usageTrackingService.getUserUsage(userId, periodType, date);
       
       if (usage) {
+        const totalUsage = (
+          usage.features.searches.count +
+          usage.features.agents.executionsCount +
+          usage.features.data.documentsUploaded +
+          usage.features.integrations.whatsappMessages +
+          usage.features.integrations.telegramMessages +
+          usage.features.content.notesCreated +
+          usage.features.content.ideasCreated +
+          usage.features.content.tasksCreated +
+          usage.features.advanced.vectorSearchQueries +
+          usage.features.advanced.aiSummariesGenerated
+        );
+        
         history.push({
           period: usage.period,
-          totalUsage: usage.totalUsageScore,
+          totalUsage,
           features: usage.features,
           billing: usage.billing,
           flags: usage.flags

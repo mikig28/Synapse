@@ -5,6 +5,7 @@ import {
   getSearchStats
 } from '../controllers/searchController';
 import { protect } from '../middleware/authMiddleware';
+import { trackSearch, rateLimitByUsage } from '../../middleware/usageTracking';
 
 const router = express.Router();
 
@@ -12,7 +13,7 @@ const router = express.Router();
 router.use(protect);
 
 // Universal search across all content types
-router.post('/universal', universalSearch as any);
+router.post('/universal', rateLimitByUsage('search'), trackSearch, universalSearch as any);
 
 // Get search suggestions
 router.get('/suggestions', getSearchSuggestions as any);
