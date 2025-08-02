@@ -188,9 +188,10 @@ console.log(`[Static Files] Serving static files from /public mapped to physical
 // Serve static files from the 'public' directory
 app.use('/public', express.static(publicDir)); // Serve files under /public URL path
 
-// API Routes
-app.use('/api/v1/whatsapp', whatsappRoutes); // Legacy WhatsApp routes
-app.use('/api/v1/waha', wahaRoutes); // Modern WAHA routes
+// API Routes - WhatsApp (WAHA as primary service)
+app.use('/api/v1/whatsapp', wahaRoutes); // Primary WAHA routes
+app.use('/api/v1/whatsapp-legacy', whatsappRoutes); // Legacy Baileys routes (fallback)
+app.use('/api/v1/waha', wahaRoutes); // Keep WAHA routes for direct access
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/capture', captureRoutes); // Use capture routes
 app.use('/api/v1/bookmarks', bookmarkRoutes); // Use bookmark routes

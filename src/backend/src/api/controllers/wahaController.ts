@@ -17,7 +17,22 @@ const getWAHAService = () => {
 export const getStatus = async (req: Request, res: Response) => {
   try {
     const wahaService = getWAHAService();
-    const status = wahaService.getStatus();
+    const wahaStatus = wahaService.getStatus();
+    
+    // Convert WAHA status to format expected by frontend
+    const status = {
+      connected: wahaStatus.isReady,
+      lastHeartbeat: new Date(),
+      serviceStatus: wahaStatus.status,
+      isReady: wahaStatus.isReady,
+      isClientReady: wahaStatus.isReady,
+      groupsCount: 0,
+      privateChatsCount: 0,
+      messagesCount: 0,
+      qrAvailable: wahaStatus.qrAvailable,
+      timestamp: wahaStatus.timestamp,
+      monitoredKeywords: []
+    };
     
     res.json({
       success: true,
@@ -47,8 +62,8 @@ export const getQR = async (req: Request, res: Response) => {
     res.json({
       success: true,
       data: {
-        qr: qrDataUrl,
-        available: true
+        qrCode: qrDataUrl,
+        message: 'QR code available for scanning'
       }
     });
   } catch (error) {
@@ -239,6 +254,314 @@ export const webhook = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: 'Failed to handle webhook'
+    });
+  }
+};
+
+/**
+ * Send phone authentication code
+ */
+export const sendPhoneAuthCode = async (req: Request, res: Response) => {
+  try {
+    const { phoneNumber } = req.body;
+    
+    if (!phoneNumber || typeof phoneNumber !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Phone number is required and must be a string'
+      });
+    }
+    
+    // Clean phone number (remove non-digits)
+    const cleanedPhone = phoneNumber.replace(/\D/g, '');
+    
+    if (cleanedPhone.length < 10) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid phone number format'
+      });
+    }
+    
+    const wahaService = getWAHAService();
+    const result = await wahaService.requestPhoneCode(cleanedPhone);
+    
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Verification code sent to your phone',
+        data: {
+          phoneNumber: cleanedPhone,
+          codeRequested: true
+        }
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error || 'Failed to send verification code'
+      });
+    }
+  } catch (error: any) {
+    console.error('[WAHA Controller] Error sending phone auth code:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to send verification code: ' + error.message
+    });
+  }
+};
+
+/**
+ * Verify phone authentication code
+ */
+export const verifyPhoneAuthCode = async (req: Request, res: Response) => {
+  try {
+    const { phoneNumber, code } = req.body;
+    
+    if (!phoneNumber || !code) {
+      return res.status(400).json({
+        success: false,
+        error: 'Phone number and verification code are required'
+      });
+    }
+    
+    if (typeof code !== 'string' || code.length !== 6) {
+      return res.status(400).json({
+        success: false,
+        error: 'Verification code must be 6 digits'
+      });
+    }
+    
+    const wahaService = getWAHAService();
+    const result = await wahaService.verifyPhoneCode(phoneNumber, code);
+    
+    if (result.success) {
+      // Emit connection status update to frontend
+      const io_instance = (global as any).io;
+      if (io_instance) {
+        io_instance.emit('whatsapp:status', {
+          connected: true,
+          authenticated: true,
+          authMethod: 'phone',
+          phoneNumber: phoneNumber
+        });
+      }
+      
+      res.json({
+        success: true,
+        message: 'Phone verification successful - WhatsApp connected',
+        data: {
+          authenticated: true,
+          phoneNumber: phoneNumber
+        }
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error || 'Invalid verification code'
+      });
+    }
+  } catch (error: any) {
+    console.error('[WAHA Controller] Error verifying phone auth code:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to verify code: ' + error.message
+    });
+  }
+};
+
+/**
+ * Get WhatsApp groups  
+ */
+export const getGroups = async (req: Request, res: Response) => {
+  try {
+    const wahaService = getWAHAService();
+    const chats = await wahaService.getChats();
+    
+    // Filter only groups
+    const groups = chats.filter(chat => chat.isGroup);
+    
+    res.json({
+      success: true,
+      data: groups
+    });
+  } catch (error) {
+    console.error('[WAHA Controller] Error getting groups:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get WhatsApp groups'
+    });
+  }
+};
+
+/**
+ * Get WhatsApp private chats
+ */
+export const getPrivateChats = async (req: Request, res: Response) => {
+  try {
+    const wahaService = getWAHAService();
+    const chats = await wahaService.getChats();
+    
+    // Filter only private chats
+    const privateChats = chats.filter(chat => !chat.isGroup);
+    
+    res.json({
+      success: true,
+      data: privateChats
+    });
+  } catch (error) {
+    console.error('[WAHA Controller] Error getting private chats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get WhatsApp private chats'
+    });
+  }
+};
+
+/**
+ * Restart WhatsApp session
+ */
+export const restartSession = async (req: Request, res: Response) => {
+  try {
+    const wahaService = getWAHAService();
+    
+    // Stop and start the session
+    await wahaService.stopSession();
+    await wahaService.startSession();
+    
+    res.json({
+      success: true,
+      message: 'WhatsApp service restart initiated'
+    });
+  } catch (error) {
+    console.error('[WAHA Controller] Error restarting session:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to restart WhatsApp service'
+    });
+  }
+};
+
+/**
+ * Force restart WhatsApp session
+ */
+export const forceRestart = async (req: Request, res: Response) => {
+  try {
+    const wahaService = getWAHAService();
+    
+    // Force stop and start the session
+    await wahaService.stopSession();
+    await wahaService.startSession();
+    
+    res.json({
+      success: true,
+      message: 'WhatsApp service force restart initiated'
+    });
+  } catch (error) {
+    console.error('[WAHA Controller] Error force restarting session:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to force restart WhatsApp service'
+    });
+  }
+};
+
+/**
+ * Refresh WhatsApp chats
+ */
+export const refreshChats = async (req: Request, res: Response) => {
+  try {
+    const wahaService = getWAHAService();
+    
+    // Get fresh chats data
+    await wahaService.getChats();
+    
+    res.json({
+      success: true,
+      message: 'WhatsApp chats refreshed successfully'
+    });
+  } catch (error) {
+    console.error('[WAHA Controller] Error refreshing chats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to refresh WhatsApp chats'
+    });
+  }
+};
+
+/**
+ * Force history sync (placeholder for compatibility)
+ */
+export const forceHistorySync = async (req: Request, res: Response) => {
+  try {
+    res.json({
+      success: true,
+      message: 'History sync is automatically handled by WAHA service'
+    });
+  } catch (error) {
+    console.error('[WAHA Controller] Error in force history sync:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to sync history'
+    });
+  }
+};
+
+/**
+ * Get monitored keywords (placeholder for compatibility)
+ */
+export const getMonitoredKeywords = async (req: Request, res: Response) => {
+  try {
+    // For now, return empty array since WAHA handles monitoring differently
+    res.json({
+      success: true,
+      data: []
+    });
+  } catch (error) {
+    console.error('[WAHA Controller] Error getting monitored keywords:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get monitored keywords'
+    });
+  }
+};
+
+/**
+ * Add monitored keyword (placeholder for compatibility)
+ */
+export const addMonitoredKeyword = async (req: Request, res: Response) => {
+  try {
+    const { keyword } = req.body;
+    
+    res.json({
+      success: true,
+      message: `Keyword "${keyword}" monitoring is handled by WAHA service`,
+      monitoredKeywords: []
+    });
+  } catch (error) {
+    console.error('[WAHA Controller] Error adding monitored keyword:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to add monitored keyword'
+    });
+  }
+};
+
+/**
+ * Remove monitored keyword (placeholder for compatibility)
+ */
+export const removeMonitoredKeyword = async (req: Request, res: Response) => {
+  try {
+    const { keyword } = req.params;
+    
+    res.json({
+      success: true,
+      message: `Keyword "${keyword}" monitoring is handled by WAHA service`,
+      monitoredKeywords: []
+    });
+  } catch (error) {
+    console.error('[WAHA Controller] Error removing monitored keyword:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to remove monitored keyword'
     });
   }
 };

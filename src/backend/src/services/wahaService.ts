@@ -55,7 +55,7 @@ class WAHAService extends EventEmitter {
   private constructor() {
     super();
     
-    this.wahaBaseUrl = process.env.WAHA_SERVICE_URL || 'http://localhost:3000';
+    this.wahaBaseUrl = process.env.WAHA_SERVICE_URL || 'https://synapse-waha.onrender.com';
     
     this.httpClient = axios.create({
       baseURL: this.wahaBaseUrl,
@@ -491,6 +491,83 @@ class WAHAService extends EventEmitter {
 
     } catch (error) {
       console.error('[WAHA Service] ❌ Error processing image for group monitoring:', error);
+    }
+  }
+
+  /**
+   * Request phone authentication code (using WAHA API)
+   */
+  async requestPhoneCode(phoneNumber: string, sessionName: string = this.defaultSession): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log(`[WAHA Service] Requesting phone verification code for: ${phoneNumber}`);
+      
+      // Ensure session is created first
+      await this.startSession(sessionName);
+      
+      // Use WAHA's phone authentication endpoint
+      const response = await this.httpClient.post(`/api/${sessionName}/auth/phone/request`, {
+        phoneNumber: phoneNumber.replace(/\D/g, '') // Remove non-digits
+      });
+      
+      if (response.data.success) {
+        console.log(`[WAHA Service] ✅ Phone verification code requested successfully`);
+        return { success: true };
+      } else {
+        console.error(`[WAHA Service] ❌ Phone code request failed:`, response.data.message);
+        return { success: false, error: response.data.message || 'Failed to request phone code' };
+      }
+      
+    } catch (error: any) {
+      console.error(`[WAHA Service] ❌ Error requesting phone code:`, error);
+      
+      // Check if it's a known error that means phone auth is not supported
+      if (error.response?.status === 404 || error.response?.status === 501) {
+        return { 
+          success: false, 
+          error: 'Phone number authentication is not available with the current WAHA configuration. Please use QR code authentication instead.' 
+        };
+      }
+      
+      return { success: false, error: error.message || 'Failed to request phone code' };
+    }
+  }
+  
+  /**
+   * Verify phone authentication code (using WAHA API)
+   */
+  async verifyPhoneCode(phoneNumber: string, code: string, sessionName: string = this.defaultSession): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log(`[WAHA Service] Verifying phone code for: ${phoneNumber}`);
+      
+      // Use WAHA's phone verification endpoint
+      const response = await this.httpClient.post(`/api/${sessionName}/auth/phone/verify`, {
+        phoneNumber: phoneNumber.replace(/\D/g, ''),
+        code: code
+      });
+      
+      if (response.data.success) {
+        console.log(`[WAHA Service] ✅ Phone verification successful`);
+        this.connectionStatus = 'WORKING';
+        this.isReady = true;
+        this.emit('authenticated', { method: 'phone', phoneNumber });
+        return { success: true };
+      } else {
+        console.error(`[WAHA Service] ❌ Phone verification failed:`, response.data.message);
+        return { success: false, error: response.data.message || 'Invalid verification code' };
+      }
+      
+    } catch (error: any) {
+      console.error(`[WAHA Service] ❌ Error verifying phone code:`, error);
+      
+      // Check if it's a known error that means phone auth is not supported
+      if (error.response?.status === 404 || error.response?.status === 501) {
+        return { 
+          success: false, 
+          error: 'Phone number authentication is not available with the current WAHA configuration. Please use QR code authentication instead.' 
+        };
+      }
+      
+      return { success: false, error: error.message || 'Failed to verify phone code' };
     }
   }
 

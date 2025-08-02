@@ -14,7 +14,18 @@ import {
   startSession,
   stopSession,
   webhook,
-  healthCheck
+  healthCheck,
+  sendPhoneAuthCode,
+  verifyPhoneAuthCode,
+  getGroups,
+  getPrivateChats,
+  restartSession,
+  forceRestart,
+  refreshChats,
+  forceHistorySync,
+  getMonitoredKeywords,
+  addMonitoredKeyword,
+  removeMonitoredKeyword
 } from '../controllers/wahaController';
 
 const router = Router();
@@ -29,6 +40,8 @@ router.get('/status', getStatus);
 
 // Authentication
 router.get('/qr', getQR);
+router.post('/auth/phone', sendPhoneAuthCode);
+router.post('/auth/verify', verifyPhoneAuthCode);
 
 // Messaging
 router.post('/send', sendMessage);
@@ -36,7 +49,21 @@ router.post('/send-media', sendMedia);
 
 // Chat management
 router.get('/chats', getChats);
+router.get('/groups', getGroups);
+router.get('/private-chats', getPrivateChats);
 router.get('/messages/:chatId', getMessages);
+router.get('/messages', getMessages); // Support query param format
+router.post('/refresh-chats', refreshChats);
+
+// Session management
+router.post('/restart', restartSession);
+router.post('/force-restart', forceRestart);
+router.post('/force-history-sync', forceHistorySync);
+
+// Monitoring
+router.get('/monitored-keywords', getMonitoredKeywords);
+router.post('/monitored-keywords', addMonitoredKeyword);
+router.delete('/monitored-keywords/:keyword', removeMonitoredKeyword);
 
 // Webhook for WAHA events
 router.post('/webhook', webhook);
