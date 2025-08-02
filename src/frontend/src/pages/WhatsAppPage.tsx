@@ -18,7 +18,10 @@ import {
   Wifi,
   WifiOff,
   History,
-  Download
+  Download,
+  ArrowLeft,
+  Menu,
+  X
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { io, Socket } from 'socket.io-client';
@@ -81,9 +84,35 @@ const WhatsAppPage: React.FC = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isSocketConnected, setIsSocketConnected] = useState(false);
   const [fetchingHistory, setFetchingHistory] = useState(false);
+  
+  // Mobile-specific states
+  const [isMobile, setIsMobile] = useState(false);
+  const [showChatList, setShowChatList] = useState(true);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showMonitoring, setShowMonitoring] = useState(false);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const { isAuthenticated, token } = useAuthStore();
+
+  // Detect mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Auto-hide chat list on mobile when a chat is selected
+  useEffect(() => {
+    if (isMobile && selectedChat) {
+      setShowChatList(false);
+    }
+  }, [isMobile, selectedChat]);
 
   // Socket.io setup - declare early to avoid hoisting issues
   const SOCKET_SERVER_URL = import.meta.env.VITE_BACKEND_ROOT_URL || 'https://synapse-backend-7lq6.onrender.com';
@@ -711,125 +740,154 @@ const WhatsAppPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 p-3 sm:p-6">
       <div className="max-w-7xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
+          className="mb-4 sm:mb-8"
         >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3">
-                <MessageCircle className="w-8 h-8 text-green-400" />
-                <h1 className="text-3xl font-bold text-white">WhatsApp</h1>
+            <div className="flex items-center gap-2 sm:gap-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                {isMobile && selectedChat && !showChatList && (
+                  <AnimatedButton
+                    onClick={() => {
+                      setShowChatList(true);
+                      setSelectedChat(null);
+                    }}
+                    variant="ghost"
+                    size="sm"
+                    className="p-2 text-white hover:bg-white/10"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </AnimatedButton>
+                )}
+                <MessageCircle className="w-6 h-6 sm:w-8 sm:h-8 text-green-400" />
+                <h1 className="text-xl sm:text-3xl font-bold text-white">WhatsApp</h1>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <StatusIcon className={`w-5 h-5 ${getStatusColor()}`} />
-                  <span className={`text-sm ${getStatusColor()}`}>
-                    {status?.connected && status?.isReady && status?.isClientReady 
-                      ? 'Connected' 
-                      : status?.qrAvailable 
-                      ? 'QR Available' 
-                      : 'Disconnected'
-                    }
-                  </span>
-                </div>
-
-                {/* Service Type Indicator */}
-                {activeService && (
+              
+              {!isMobile && (
+                <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
-                    <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      activeService === 'waha' 
-                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                        : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                    }`}>
-                      {activeService === 'waha' ? '🚀 WAHA' : '⚡ Baileys'}
-                    </div>
-                    <span className="text-xs text-blue-200/50">
-                      {activeService === 'waha' ? 'Modern' : 'Legacy'}
+                    <StatusIcon className={`w-5 h-5 ${getStatusColor()}`} />
+                    <span className={`text-sm ${getStatusColor()}`}>
+                      {status?.connected && status?.isReady && status?.isClientReady 
+                        ? 'Connected' 
+                        : status?.qrAvailable 
+                        ? 'QR Available' 
+                        : 'Disconnected'
+                      }
                     </span>
                   </div>
-                )}
-                
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${isSocketConnected ? 'bg-green-400' : 'bg-red-400'}`} />
-                  <span className="text-xs text-blue-200/70">
-                    {isSocketConnected ? 'Real-time' : 'Offline'}
-                  </span>
+
+                  {/* Service Type Indicator */}
+                  {activeService && (
+                    <div className="flex items-center gap-2">
+                      <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        activeService === 'waha' 
+                          ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                          : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                      }`}>
+                        {activeService === 'waha' ? '🚀 WAHA' : '⚡ Baileys'}
+                      </div>
+                      <span className="text-xs text-blue-200/50">
+                        {activeService === 'waha' ? 'Modern' : 'Legacy'}
+                      </span>
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${isSocketConnected ? 'bg-green-400' : 'bg-red-400'}`} />
+                    <span className="text-xs text-blue-200/70">
+                      {isSocketConnected ? 'Real-time' : 'Offline'}
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
             
-            <div className="flex items-center gap-3">
-              <AnimatedButton
-                onClick={() => fetchQRCode(false)}
-                variant="outline"
-                size="sm"
-                className="border-yellow-400/30 text-yellow-200 hover:bg-yellow-500/10"
-              >
-                <QrCode className="w-4 h-4 mr-2" />
-                Show QR
-              </AnimatedButton>
-              
-              {/* Show Force QR button when there are connection issues */}
-              {(!status?.connected || !status?.isReady) && (
+            <div className="flex items-center gap-1 sm:gap-3">
+              {isMobile ? (
                 <AnimatedButton
-                  onClick={() => fetchQRCode(true)}
+                  onClick={() => setShowMobileMenu(true)}
                   variant="outline"
                   size="sm"
-                  className="border-orange-400/30 text-orange-200 hover:bg-orange-500/10"
+                  className="border-blue-400/30 text-blue-200 hover:bg-blue-500/10 p-2"
                 >
-                  <QrCode className="w-4 h-4 mr-2" />
-                  Force QR
+                  <Menu className="w-4 h-4" />
                 </AnimatedButton>
+              ) : (
+                <>
+                  <AnimatedButton
+                    onClick={() => fetchQRCode(false)}
+                    variant="outline"
+                    size="sm"
+                    className="border-yellow-400/30 text-yellow-200 hover:bg-yellow-500/10"
+                  >
+                    <QrCode className="w-4 h-4 mr-2" />
+                    Show QR
+                  </AnimatedButton>
+                  
+                  {/* Show Force QR button when there are connection issues */}
+                  {(!status?.connected || !status?.isReady) && (
+                    <AnimatedButton
+                      onClick={() => fetchQRCode(true)}
+                      variant="outline"
+                      size="sm"
+                      className="border-orange-400/30 text-orange-200 hover:bg-orange-500/10"
+                    >
+                      <QrCode className="w-4 h-4 mr-2" />
+                      Force QR
+                    </AnimatedButton>
+                  )}
+                  
+                  <AnimatedButton
+                    onClick={refreshChats}
+                    variant="outline"
+                    size="sm"
+                    className="border-blue-400/30 text-blue-200 hover:bg-blue-500/10"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Refresh
+                  </AnimatedButton>
+                  
+                  <AnimatedButton
+                    onClick={forceHistorySync}
+                    variant="outline"
+                    size="sm"
+                    disabled={fetchingHistory}
+                    className="border-purple-400/30 text-purple-200 hover:bg-purple-500/10"
+                  >
+                    {fetchingHistory ? (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <History className="w-4 h-4 mr-2" />
+                    )}
+                    Sync History
+                  </AnimatedButton>
+                  
+                  <AnimatedButton
+                    onClick={restartService}
+                    variant="outline"
+                    size="sm"
+                    className="border-red-400/30 text-red-200 hover:bg-red-500/10"
+                  >
+                    <Settings className="w-4 h-4 mr-2" />
+                    Restart
+                  </AnimatedButton>
+                  
+                  <AnimatedButton
+                    onClick={forceRestart}
+                    variant="outline"
+                    size="sm"
+                    className="border-red-600/30 text-red-300 hover:bg-red-600/10"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Force Restart
+                  </AnimatedButton>
+                </>
               )}
-              
-              <AnimatedButton
-                onClick={refreshChats}
-                variant="outline"
-                size="sm"
-                className="border-blue-400/30 text-blue-200 hover:bg-blue-500/10"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Refresh
-              </AnimatedButton>
-              
-              <AnimatedButton
-                onClick={forceHistorySync}
-                variant="outline"
-                size="sm"
-                disabled={fetchingHistory}
-                className="border-purple-400/30 text-purple-200 hover:bg-purple-500/10"
-              >
-                {fetchingHistory ? (
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <History className="w-4 h-4 mr-2" />
-                )}
-                Sync History
-              </AnimatedButton>
-              
-              <AnimatedButton
-                onClick={restartService}
-                variant="outline"
-                size="sm"
-                className="border-red-400/30 text-red-200 hover:bg-red-500/10"
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                Restart
-              </AnimatedButton>
-              
-              <AnimatedButton
-                onClick={forceRestart}
-                variant="outline"
-                size="sm"
-                className="border-red-600/30 text-red-300 hover:bg-red-600/10"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Force Restart
-              </AnimatedButton>
             </div>
           </div>
         </motion.div>
@@ -837,53 +895,79 @@ const WhatsAppPage: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8"
+          className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6 mb-4 sm:mb-8"
         >
-          <GlassCard className="p-6">
-            <div className="flex items-center gap-3">
-              <Users className="w-8 h-8 text-green-400" />
-              <div>
-                <p className="text-sm text-blue-100/70">Groups</p>
-                <p className="text-2xl font-bold text-white">{status?.groupsCount || 0}</p>
+          <GlassCard className="p-3 sm:p-6">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Users className="w-6 h-6 sm:w-8 sm:h-8 text-green-400 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-blue-100/70">Groups</p>
+                <p className="text-lg sm:text-2xl font-bold text-white">{status?.groupsCount || 0}</p>
               </div>
             </div>
           </GlassCard>
           
-          <GlassCard className="p-6">
-            <div className="flex items-center gap-3">
-              <Phone className="w-8 h-8 text-violet-400" />
-              <div>
-                <p className="text-sm text-blue-100/70">Private Chats</p>
-                <p className="text-2xl font-bold text-white">{status?.privateChatsCount || 0}</p>
+          <GlassCard className="p-3 sm:p-6">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Phone className="w-6 h-6 sm:w-8 sm:h-8 text-violet-400 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-blue-100/70">Private Chats</p>
+                <p className="text-lg sm:text-2xl font-bold text-white">{status?.privateChatsCount || 0}</p>
               </div>
             </div>
           </GlassCard>
           
-          <GlassCard className="p-6">
-            <div className="flex items-center gap-3">
-              <MessageCircle className="w-8 h-8 text-blue-400" />
-              <div>
-                <p className="text-sm text-blue-100/70">Messages</p>
-                <p className="text-2xl font-bold text-white">{status?.messagesCount || 0}</p>
+          <GlassCard className="p-3 sm:p-6">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <MessageCircle className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-blue-100/70">Messages</p>
+                <p className="text-lg sm:text-2xl font-bold text-white">{status?.messagesCount || 0}</p>
               </div>
             </div>
           </GlassCard>
           
-          <GlassCard className="p-6">
-            <div className="flex items-center gap-3">
-              <Eye className="w-8 h-8 text-amber-400" />
-              <div>
-                <p className="text-sm text-blue-100/70">Monitored</p>
-                <p className="text-2xl font-bold text-white">{monitoredKeywords.length}</p>
+          <GlassCard className="p-3 sm:p-6">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Eye className="w-6 h-6 sm:w-8 sm:h-8 text-amber-400 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-blue-100/70">Monitored</p>
+                <p className="text-lg sm:text-2xl font-bold text-white">{monitoredKeywords.length}</p>
               </div>
             </div>
           </GlassCard>
         </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <div className="lg:col-span-1">
-            <GlassCard className="p-6 h-[600px] flex flex-col">
+        <div className={`${isMobile ? 'flex flex-col' : 'grid grid-cols-1 lg:grid-cols-4'} gap-3 sm:gap-6`}>
+          {/* Chat List - Mobile: Full screen overlay, Desktop: Sidebar */}
+          <div className={`
+            ${isMobile 
+              ? `${showChatList ? 'flex' : 'hidden'} fixed inset-0 z-40 bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 flex-col p-3`
+              : 'lg:col-span-1'
+            }
+          `}
+          onClick={(e) => {
+            // Close chat list when clicking outside the content area on mobile
+            if (isMobile && e.target === e.currentTarget) {
+              setShowChatList(false);
+            }
+          }}>
+            <GlassCard className={`${isMobile ? 'h-full mt-16' : 'h-[600px]'} p-4 sm:p-6 flex flex-col`}>
               <div className="mb-4">
+                {isMobile && (
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-white">Chats</h2>
+                    <Button
+                      onClick={() => setShowMonitoring(true)}
+                      variant="outline"
+                      size="sm"
+                      className="border-amber-400/30 text-amber-200 hover:bg-amber-500/10"
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      Monitor
+                    </Button>
+                  </div>
+                )}
                 <div className="relative">
                   <Search className="absolute left-3 top-3 w-4 h-4 text-blue-300" />
                   <Input
@@ -906,10 +990,13 @@ const WhatsAppPage: React.FC = () => {
                       {filteredGroups.map((group) => (
                         <motion.div
                           key={group.id}
-                          whileHover={{ scale: 1.01 }}
+                          whileHover={{ scale: isMobile ? 1 : 1.01 }}
                           whileTap={{ scale: 0.99 }}
                           onClick={() => {
                             setSelectedChat(group);
+                            if (isMobile) {
+                              setShowChatList(false);
+                            }
                             // Don't fetch messages immediately, let them load from cache or real-time
                           }}
                           className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
@@ -957,10 +1044,13 @@ const WhatsAppPage: React.FC = () => {
                       {filteredPrivateChats.map((chat) => (
                         <motion.div
                           key={chat.id}
-                          whileHover={{ scale: 1.01 }}
+                          whileHover={{ scale: isMobile ? 1 : 1.01 }}
                           whileTap={{ scale: 0.99 }}
                           onClick={() => {
                             setSelectedChat(chat);
+                            if (isMobile) {
+                              setShowChatList(false);
+                            }
                             // Don't fetch messages immediately, let them load from cache or real-time
                           }}
                           className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
@@ -1015,8 +1105,14 @@ const WhatsAppPage: React.FC = () => {
             </GlassCard>
           </div>
 
-          <div className="lg:col-span-2">
-            <GlassCard className="p-6 h-[600px] flex flex-col">
+          {/* Chat Interface - Mobile: Full screen, Desktop: Main content */}
+          <div className={`
+            ${isMobile 
+              ? `${!showChatList ? 'flex' : 'hidden'} fixed inset-0 z-30 bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 flex-col p-3 pt-20`
+              : 'lg:col-span-2'
+            }
+          `}>
+            <GlassCard className={`${isMobile ? 'h-full' : 'h-[600px]'} p-4 sm:p-6 flex flex-col`}>
               {selectedChat ? (
                 <>
                   <div className="flex items-center justify-between pb-4 border-b border-white/20">
@@ -1026,8 +1122,8 @@ const WhatsAppPage: React.FC = () => {
                       ) : (
                         <Phone className="w-6 h-6 text-violet-400" />
                       )}
-                      <div>
-                        <h3 className="font-semibold text-white">{selectedChat.name}</h3>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-white truncate">{selectedChat.name}</h3>
                         <p className="text-sm text-blue-200/70">
                           {selectedChat.isGroup 
                             ? `${selectedChat.participantCount} members`
@@ -1042,14 +1138,14 @@ const WhatsAppPage: React.FC = () => {
                       variant="outline"
                       size="sm"
                       disabled={fetchingHistory}
-                      className="border-orange-400/30 text-orange-200 hover:bg-orange-500/10"
+                      className="border-orange-400/30 text-orange-200 hover:bg-orange-500/10 flex-shrink-0"
                     >
                       {fetchingHistory ? (
                         <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
                       ) : (
                         <Download className="w-4 h-4 mr-1" />
                       )}
-                      Load History
+                      {!isMobile && 'Load History'}
                     </AnimatedButton>
                   </div>
                   
@@ -1062,7 +1158,7 @@ const WhatsAppPage: React.FC = () => {
                         className={`flex ${message.fromMe ? 'justify-end' : 'justify-start'}`}
                       >
                         <div
-                          className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                          className={`max-w-[85%] sm:max-w-xs lg:max-w-md px-3 sm:px-4 py-2 rounded-lg ${
                             message.fromMe
                               ? 'bg-violet-500/70 text-white'
                               : 'bg-white/20 text-white'
@@ -1079,19 +1175,20 @@ const WhatsAppPage: React.FC = () => {
                     <div ref={messagesEndRef} />
                   </div>
                   
-                  <div className="flex gap-3">
+                  <div className="flex gap-2 sm:gap-3">
                     <Input
                       placeholder="Type a message..."
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                      className="flex-1 bg-white/10 border-white/20 text-white placeholder:text-blue-300"
+                      onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                      className="flex-1 bg-white/10 border-white/20 text-white placeholder:text-blue-300 text-base"
                       disabled={sendingMessage}
                     />
                     <Button
                       onClick={sendMessage}
                       disabled={!newMessage.trim() || sendingMessage}
-                      className="bg-green-500 hover:bg-green-600"
+                      className="bg-green-500 hover:bg-green-600 p-3 sm:px-4"
+                      size={isMobile ? "sm" : "default"}
                     >
                       {sendingMessage ? (
                         <RefreshCw className="w-4 h-4 animate-spin" />
@@ -1112,62 +1209,301 @@ const WhatsAppPage: React.FC = () => {
             </GlassCard>
           </div>
 
-          <div className="lg:col-span-1">
-            <GlassCard className="p-6 h-[600px] flex flex-col">
-              <h3 className="text-lg font-semibold text-white mb-4">Monitoring</h3>
-              
-              <div className="mb-4">
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Add keyword..."
-                    value={newKeyword}
-                    onChange={(e) => setNewKeyword(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && addKeyword()}
-                    className="flex-1 bg-white/10 border-white/20 text-white placeholder:text-blue-300"
-                  />
-                  <Button
-                    onClick={addKeyword}
-                    disabled={!newKeyword.trim()}
-                    size="sm"
-                    className="bg-green-500 hover:bg-green-600"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-white/10 hover:scrollbar-thumb-white/50">
-                <h4 className="text-sm font-medium text-blue-200">Monitored Keywords</h4>
-                {monitoredKeywords.map((keyword) => (
-                  <motion.div
-                    key={keyword}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="flex items-center justify-between p-2 bg-white/10 rounded-lg"
-                  >
-                    <span className="text-sm text-white">{keyword}</span>
-                    <Button
-                      onClick={() => removeKeyword(keyword)}
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 w-6 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/20"
-                    >
-                      <EyeOff className="w-3 h-3" />
-                    </Button>
-                  </motion.div>
-                ))}
+          {/* Monitoring Panel - Mobile: Modal, Desktop: Sidebar */}
+          {!isMobile && (
+            <div className="lg:col-span-1">
+              <GlassCard className="p-6 h-[600px] flex flex-col">
+                <h3 className="text-lg font-semibold text-white mb-4">Monitoring</h3>
                 
-                {monitoredKeywords.length === 0 && (
-                  <div className="text-center py-8">
-                    <Eye className="w-8 h-8 text-blue-300/50 mx-auto mb-2" />
-                    <p className="text-sm text-blue-200/70">No keywords monitored</p>
+                <div className="mb-4">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Add keyword..."
+                      value={newKeyword}
+                      onChange={(e) => setNewKeyword(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && addKeyword()}
+                      className="flex-1 bg-white/10 border-white/20 text-white placeholder:text-blue-300"
+                    />
+                    <Button
+                      onClick={addKeyword}
+                      disabled={!newKeyword.trim()}
+                      size="sm"
+                      className="bg-green-500 hover:bg-green-600"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
                   </div>
-                )}
-              </div>
-            </GlassCard>
-          </div>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-white/10 hover:scrollbar-thumb-white/50">
+                  <h4 className="text-sm font-medium text-blue-200">Monitored Keywords</h4>
+                  {monitoredKeywords.map((keyword) => (
+                    <motion.div
+                      key={keyword}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="flex items-center justify-between p-2 bg-white/10 rounded-lg"
+                    >
+                      <span className="text-sm text-white">{keyword}</span>
+                      <Button
+                        onClick={() => removeKeyword(keyword)}
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                      >
+                        <EyeOff className="w-3 h-3" />
+                      </Button>
+                    </motion.div>
+                  ))}
+                  
+                  {monitoredKeywords.length === 0 && (
+                    <div className="text-center py-8">
+                      <Eye className="w-8 h-8 text-blue-300/50 mx-auto mb-2" />
+                      <p className="text-sm text-blue-200/70">No keywords monitored</p>
+                    </div>
+                  )}
+                </div>
+              </GlassCard>
+            </div>
+          )}
         </div>
 
+        {/* Mobile Menu Modal */}
+        <AnimatePresence>
+          {showMobileMenu && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              onClick={() => setShowMobileMenu(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="max-w-sm w-full"
+              >
+                <GlassCard className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-semibold text-white">WhatsApp Actions</h3>
+                    <Button
+                      onClick={() => setShowMobileMenu(false)}
+                      variant="ghost"
+                      size="sm"
+                      className="p-2"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <AnimatedButton
+                      onClick={() => {
+                        fetchQRCode(false);
+                        setShowMobileMenu(false);
+                      }}
+                      variant="outline"
+                      className="w-full border-yellow-400/30 text-yellow-200 hover:bg-yellow-500/10"
+                    >
+                      <QrCode className="w-4 h-4 mr-2" />
+                      Show QR Code
+                    </AnimatedButton>
+                    
+                    {(!status?.connected || !status?.isReady) && (
+                      <AnimatedButton
+                        onClick={() => {
+                          fetchQRCode(true);
+                          setShowMobileMenu(false);
+                        }}
+                        variant="outline"
+                        className="w-full border-orange-400/30 text-orange-200 hover:bg-orange-500/10"
+                      >
+                        <QrCode className="w-4 h-4 mr-2" />
+                        Force Generate QR
+                      </AnimatedButton>
+                    )}
+                    
+                    <AnimatedButton
+                      onClick={() => {
+                        refreshChats();
+                        setShowMobileMenu(false);
+                      }}
+                      variant="outline"
+                      className="w-full border-blue-400/30 text-blue-200 hover:bg-blue-500/10"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Refresh Chats
+                    </AnimatedButton>
+                    
+                    <AnimatedButton
+                      onClick={() => {
+                        forceHistorySync();
+                        setShowMobileMenu(false);
+                      }}
+                      variant="outline"
+                      disabled={fetchingHistory}
+                      className="w-full border-purple-400/30 text-purple-200 hover:bg-purple-500/10"
+                    >
+                      {fetchingHistory ? (
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <History className="w-4 h-4 mr-2" />
+                      )}
+                      Sync History
+                    </AnimatedButton>
+                    
+                    <AnimatedButton
+                      onClick={() => {
+                        restartService();
+                        setShowMobileMenu(false);
+                      }}
+                      variant="outline"
+                      className="w-full border-red-400/30 text-red-200 hover:bg-red-500/10"
+                    >
+                      <Settings className="w-4 h-4 mr-2" />
+                      Restart Service
+                    </AnimatedButton>
+                    
+                    <AnimatedButton
+                      onClick={() => {
+                        forceRestart();
+                        setShowMobileMenu(false);
+                      }}
+                      variant="outline"
+                      className="w-full border-red-600/30 text-red-300 hover:bg-red-600/10"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Force Restart
+                    </AnimatedButton>
+                  </div>
+                  
+                  {/* Mobile Status Info */}
+                  <div className="mt-6 p-4 bg-white/5 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <StatusIcon className={`w-4 h-4 ${getStatusColor()}`} />
+                      <span className={`text-sm ${getStatusColor()}`}>
+                        {status?.connected && status?.isReady && status?.isClientReady 
+                          ? 'Connected' 
+                          : status?.qrAvailable 
+                          ? 'QR Available' 
+                          : 'Disconnected'
+                        }
+                      </span>
+                    </div>
+                    
+                    {activeService && (
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={`px-2 py-1 rounded text-xs font-medium ${
+                          activeService === 'waha' 
+                            ? 'bg-green-500/20 text-green-400'
+                            : 'bg-yellow-500/20 text-yellow-400'
+                        }`}>
+                          {activeService === 'waha' ? '🚀 WAHA' : '⚡ Baileys'}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${isSocketConnected ? 'bg-green-400' : 'bg-red-400'}`} />
+                      <span className="text-xs text-blue-200/70">
+                        {isSocketConnected ? 'Real-time updates' : 'Offline'}
+                      </span>
+                    </div>
+                  </div>
+                </GlassCard>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Mobile Monitoring Modal */}
+        <AnimatePresence>
+          {showMonitoring && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              onClick={() => setShowMonitoring(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="max-w-md w-full max-h-[80vh]"
+              >
+                <GlassCard className="p-6 flex flex-col max-h-full">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-white">Keyword Monitoring</h3>
+                    <Button
+                      onClick={() => setShowMonitoring(false)}
+                      variant="ghost"
+                      size="sm"
+                      className="p-2"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Add keyword..."
+                        value={newKeyword}
+                        onChange={(e) => setNewKeyword(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && addKeyword()}
+                        className="flex-1 bg-white/10 border-white/20 text-white placeholder:text-blue-300"
+                      />
+                      <Button
+                        onClick={addKeyword}
+                        disabled={!newKeyword.trim()}
+                        size="sm"
+                        className="bg-green-500 hover:bg-green-600"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+                    <h4 className="text-sm font-medium text-blue-200">Monitored Keywords</h4>
+                    {monitoredKeywords.map((keyword) => (
+                      <motion.div
+                        key={keyword}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="flex items-center justify-between p-3 bg-white/10 rounded-lg"
+                      >
+                        <span className="text-sm text-white">{keyword}</span>
+                        <Button
+                          onClick={() => removeKeyword(keyword)}
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                        >
+                          <EyeOff className="w-4 h-4" />
+                        </Button>
+                      </motion.div>
+                    ))}
+                    
+                    {monitoredKeywords.length === 0 && (
+                      <div className="text-center py-8">
+                        <Eye className="w-12 h-12 text-blue-300/50 mx-auto mb-3" />
+                        <p className="text-sm text-blue-200/70">No keywords monitored</p>
+                        <p className="text-xs text-blue-200/50 mt-1">Add keywords to monitor group messages</p>
+                      </div>
+                    )}
+                  </div>
+                </GlassCard>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* QR Code Modal */}
         <AnimatePresence>
           {showQR && (
             <motion.div
@@ -1184,7 +1520,7 @@ const WhatsAppPage: React.FC = () => {
                 onClick={(e) => e.stopPropagation()}
                 className="max-w-md w-full"
               >
-                <GlassCard className="p-8 text-center">
+                <GlassCard className="p-6 sm:p-8 text-center">
                   <QrCode className="w-8 h-8 text-yellow-400 mx-auto mb-4" />
                   <h3 className="text-xl font-semibold text-white mb-4">WhatsApp QR Code</h3>
                   
@@ -1193,7 +1529,7 @@ const WhatsAppPage: React.FC = () => {
                       <img 
                         src={qrCode} 
                         alt="WhatsApp QR Code" 
-                        className="mx-auto rounded-lg bg-white p-2"
+                        className="mx-auto rounded-lg bg-white p-2 max-w-full"
                       />
                       <p className="text-sm text-blue-200/70 mt-2">
                         Scan this QR code with your WhatsApp mobile app

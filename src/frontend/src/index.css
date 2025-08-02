@@ -9,6 +9,35 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Mobile-friendly touch improvements */
+@media (max-width: 1024px) {
+  /* Improve touch targets on mobile */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Prevent zoom on input focus on iOS */
+  input, textarea, select {
+    font-size: 16px;
+  }
+  
+  /* Better mobile scrolling */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Disable text selection on interactive elements */
+  button, .cursor-pointer {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+}
+
 /* Custom scrollbar styles for WhatsApp chat lists */
 .scrollbar-thin {
   scrollbar-width: thin;
