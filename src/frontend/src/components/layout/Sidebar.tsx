@@ -25,6 +25,7 @@ import {
   MapPin,
   Map as MapIcon,
   BookOpen,
+  Camera,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -60,6 +61,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
     { href: "/habits", label: "Habits", icon: Repeat }, 
     { href: "/automations", label: "Automations", icon: Repeat }, 
     { href: "/whatsapp", label: "WhatsApp", icon: MessageSquare }, 
+    { href: "/whatsapp-monitor", label: "WhatsApp Monitor", icon: Camera }, 
     { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
     { href: "/videos", label: "Videos", icon: Youtube },
     { href: "/news", label: "News", icon: Newspaper }, 

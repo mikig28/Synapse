@@ -39,8 +39,11 @@ exports.getStatus = getStatus;
  */
 const getQR = async (req, res) => {
     try {
+        console.log('[WAHA Controller] QR code request received');
         const wahaService = getWAHAService();
+        console.log('[WAHA Controller] WAHA service instance obtained');
         const qrDataUrl = await wahaService.getQRCode();
+        console.log('[WAHA Controller] QR code generated successfully');
         res.json({
             success: true,
             data: {
@@ -51,9 +54,14 @@ const getQR = async (req, res) => {
     }
     catch (error) {
         console.error('[WAHA Controller] Error getting QR code:', error);
+        console.error('[WAHA Controller] Error details:', {
+            message: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+            type: typeof error
+        });
         res.status(500).json({
             success: false,
-            error: 'Failed to get QR code'
+            error: error instanceof Error ? error.message : 'Failed to get QR code'
         });
     }
 };
