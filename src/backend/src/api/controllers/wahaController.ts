@@ -17,7 +17,31 @@ const getWAHAService = () => {
 export const getStatus = async (req: Request, res: Response) => {
   try {
     const wahaService = getWAHAService();
-    const wahaStatus = wahaService.getStatus();
+    
+    // Try to get status with connection test
+    let wahaStatus;
+    try {
+      wahaStatus = wahaService.getStatus();
+      
+      // If service claims to be ready but we haven't tested recently, verify connection
+      if (wahaStatus.isReady) {
+        try {
+          await wahaService.healthCheck();
+        } catch (healthError) {
+          console.warn('[WAHA Controller] Health check failed during status request:', healthError);
+          wahaStatus.isReady = false;
+          wahaStatus.status = 'disconnected';
+        }
+      }
+    } catch (serviceError) {
+      console.error('[WAHA Controller] WAHA service error:', serviceError);
+      wahaStatus = {
+        isReady: false,
+        status: 'error',
+        qrAvailable: false,
+        timestamp: new Date().toISOString()
+      };
+    }
     
     // Convert WAHA status to format expected by frontend
     const status = {
@@ -32,7 +56,8 @@ export const getStatus = async (req: Request, res: Response) => {
       messagesCount: 0,
       qrAvailable: wahaStatus.qrAvailable,
       timestamp: wahaStatus.timestamp,
-      monitoredKeywords: []
+      monitoredKeywords: [],
+      serviceType: 'waha'
     };
     
     res.json({
