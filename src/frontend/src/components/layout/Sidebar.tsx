@@ -2,6 +2,7 @@ import React from 'react';
 import {
   LayoutDashboard,
   Inbox,
+  Search,
   Aperture,
   Briefcase,
   ListChecks,
@@ -42,6 +43,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
 
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/search", label: "Search", icon: Search },
     { href: "/inbox", label: "Inbox", icon: Inbox },
     { href: "/settings", label: "Settings", icon: SettingsIcon },
     { href: "/images", label: "Images", icon: ImageIcon },

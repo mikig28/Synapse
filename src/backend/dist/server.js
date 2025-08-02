@@ -40,9 +40,12 @@ const scheduledAgents_1 = __importDefault(require("./api/routes/scheduledAgents"
 const placesRoutes_1 = __importDefault(require("./api/routes/placesRoutes")); // Import places routes
 const documentsRoutes_1 = __importDefault(require("./api/routes/documentsRoutes")); // Import documents routes
 const groupMonitorRoutes_1 = __importDefault(require("./api/routes/groupMonitorRoutes")); // Import group monitor routes
+const searchRoutes_1 = __importDefault(require("./api/routes/searchRoutes")); // Import search routes
+const exportRoutes_1 = __importDefault(require("./api/routes/exportRoutes")); // Import export routes
 const taskReminderService_1 = require("./services/taskReminderService"); // Import task reminder service
 const schedulerService_1 = require("./services/schedulerService"); // Import scheduler service
 const aguiEmitter_1 = require("./services/aguiEmitter"); // Import AG-UI emitter
+const searchIndexes_1 = require("./config/searchIndexes"); // Import search indexes initializer
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const rawPort = process.env.PORT || '3001'; // Read as string
@@ -199,6 +202,8 @@ app.use('/api/v1/scheduled-agents', scheduledAgents_1.default); // Use scheduled
 app.use('/api/v1/places', placesRoutes_1.default); // Use places routes
 app.use('/api/v1/documents', documentsRoutes_1.default); // Use documents routes
 app.use('/api/v1/group-monitor', groupMonitorRoutes_1.default); // Use group monitor routes
+app.use('/api/v1/search', searchRoutes_1.default); // Use search routes
+app.use('/api/v1/export', exportRoutes_1.default); // Use export routes
 // **AG-UI Protocol Endpoints**
 // Test endpoint to manually emit AG-UI events for debugging
 app.get('/api/v1/ag-ui/test-event', (req, res) => {
@@ -570,6 +575,15 @@ const startServer = async () => {
         }
         await mongoose_1.default.connect(mongoUri);
         await (0, database_1.connectToDatabase)(); // Calls the Mongoose connection logic
+        // Initialize search indexes for optimal search performance
+        try {
+            await (0, searchIndexes_1.initializeSearchIndexes)();
+            console.log('[Server] ✅ Search indexes initialized successfully');
+        }
+        catch (error) {
+            console.error('[Server] ❌ Failed to initialize search indexes:', error);
+            // Don't exit - search will still work without optimal indexes
+        }
         (0, telegramService_1.initializeTelegramBot)(); // Initialize and start the Telegram bot polling
         // Initialize WAHA service (modern WhatsApp implementation) with retry logic
         console.log('[Server] 🔄 Initializing WAHA service with network retry...');

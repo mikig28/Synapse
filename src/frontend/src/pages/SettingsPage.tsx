@@ -3,8 +3,9 @@ import { motion } from 'framer-motion';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import LinkTelegramChat from '@/components/settings/LinkTelegramChat';
+import DataExport from '@/components/settings/DataExport';
 import { FloatingParticles } from '@/components/common/FloatingParticles';
-import { Settings, Sparkles, User, Shield, Bell, Palette } from 'lucide-react';
+import { Settings, Sparkles, User, Shield, Bell, Palette, Download } from 'lucide-react';
 
 // Assuming you might have other settings components or sections
 // import OtherSettingsSection from '@/components/settings/OtherSettingsSection';
@@ -36,6 +37,13 @@ const SettingsPage: React.FC = () => {
       title: "Telegram Integration",
       description: "Connect your Telegram account to receive notifications and capture content.",
       content: <LinkTelegramChat />
+    },
+    {
+      icon: <Download className="w-6 h-6 text-green-400" />,
+      iconBg: "bg-green-500/20",
+      title: "Data Export",
+      description: "Export your data for backup, migration, or analysis purposes.",
+      content: <DataExport />
     },
     {
       icon: <User className="w-6 h-6 text-emerald-400" />,

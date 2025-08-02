@@ -34,10 +34,13 @@ import scheduledAgentsRoutes from './api/routes/scheduledAgents'; // Import sche
 import placesRoutes from './api/routes/placesRoutes'; // Import places routes
 import documentsRoutes from './api/routes/documentsRoutes'; // Import documents routes
 import groupMonitorRoutes from './api/routes/groupMonitorRoutes'; // Import group monitor routes
+import searchRoutes from './api/routes/searchRoutes'; // Import search routes
+import exportRoutes from './api/routes/exportRoutes'; // Import export routes
 import { initializeTaskReminderScheduler } from './services/taskReminderService'; // Import task reminder service
 import { schedulerService } from './services/schedulerService'; // Import scheduler service
 import { agui } from './services/aguiEmitter'; // Import AG-UI emitter
 import { createAgentCommandEvent } from './services/aguiMapper'; // Import AG-UI mapper
+import { initializeSearchIndexes } from './config/searchIndexes'; // Import search indexes initializer
 
 dotenv.config();
 
@@ -210,6 +213,8 @@ app.use('/api/v1/scheduled-agents', scheduledAgentsRoutes); // Use scheduled age
 app.use('/api/v1/places', placesRoutes); // Use places routes
 app.use('/api/v1/documents', documentsRoutes); // Use documents routes
 app.use('/api/v1/group-monitor', groupMonitorRoutes); // Use group monitor routes
+app.use('/api/v1/search', searchRoutes); // Use search routes
+app.use('/api/v1/export', exportRoutes); // Use export routes
 
 // **AG-UI Protocol Endpoints**
 
@@ -616,6 +621,16 @@ const startServer = async () => {
 
     await mongoose.connect(mongoUri);
     await connectToDatabase(); // Calls the Mongoose connection logic
+    
+    // Initialize search indexes for optimal search performance
+    try {
+      await initializeSearchIndexes();
+      console.log('[Server] ✅ Search indexes initialized successfully');
+    } catch (error) {
+      console.error('[Server] ❌ Failed to initialize search indexes:', error);
+      // Don't exit - search will still work without optimal indexes
+    }
+    
     initializeTelegramBot(); // Initialize and start the Telegram bot polling
 
     // Initialize WAHA service (modern WhatsApp implementation) with retry logic

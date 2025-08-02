@@ -42,6 +42,7 @@ const WhatsAppPage = React.lazy(() => import('@/pages/WhatsAppPage'));
 const WhatsAppGroupMonitorPage = React.lazy(() => import('@/pages/WhatsAppGroupMonitorPage'));
 const PlacesPage = React.lazy(() => import('@/pages/PlacesPage'));
 const DocsPage = React.lazy(() => import('@/pages/DocsPage'));
+const SearchPage = React.lazy(() => import('@/pages/SearchPage'));
 
 // Loading component with beautiful animation
 const PageLoader = () => (
@@ -79,6 +80,7 @@ function AppContent() {
                     
                     {/* Protected routes */}
                     <Route path="/dashboard" element={isAuthenticated ? <Layout><DashboardPage /></Layout> : <Navigate to="/login" />} />
+                    <Route path="/search" element={isAuthenticated ? <Layout><SearchPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/inbox" element={isAuthenticated ? <Layout><InboxPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/calendar" element={isAuthenticated ? <Layout><CalendarPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/tasks" element={isAuthenticated ? <Layout><TasksPage /></Layout> : <Navigate to="/login" />} />
