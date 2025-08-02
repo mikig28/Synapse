@@ -499,7 +499,7 @@ export const forceRestart = async (req: Request, res: Response) => {
 export const refreshChats = async (req: Request, res: Response) => {
   try {
     const wahaService = getWAHAService();
-    const status = wahaService.getStatus();
+    const status = await wahaService.getStatus();
     
     // Check if WAHA service is ready
     if (!status.isReady) {

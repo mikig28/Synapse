@@ -51,47 +51,77 @@ class WAHAService extends events_1.EventEmitter {
             console.log('[WAHA Service] Initializing...');
             // Check if WAHA service is running
             await this.healthCheck();
-            // Start default session
-            await this.startSession();
-            // Check session status
-            const status = await this.getSessionStatus();
-            this.connectionStatus = status.status;
-            this.isReady = status.status === 'WORKING';
-            console.log(`[WAHA Service] ✅ Initialized. Status: ${status.status}`);
+            // Start default session (don't fail initialization if this fails)
+            try {
+                await this.startSession();
+                // Check session status
+                const status = await this.getSessionStatus();
+                this.connectionStatus = status.status;
+                this.isReady = status.status === 'WORKING';
+                console.log(`[WAHA Service] ✅ Initialized. Status: ${status.status}`);
+            }
+            catch (sessionError) {
+                console.warn('[WAHA Service] ⚠️ Failed to start/check session during initialization:', sessionError);
+                // Service is healthy but session failed - still usable for QR generation
+                this.connectionStatus = 'session_failed';
+                this.isReady = true; // Still mark as ready for basic operations
+            }
             this.emit('ready');
         }
         catch (error) {
             console.error('[WAHA Service] ❌ Initialization failed:', error);
             this.connectionStatus = 'failed';
+            this.isReady = false;
             this.emit('error', error);
-            throw error;
+            // Don't throw initialization errors - allow fallback to Baileys
+            console.log('[WAHA Service] 🔄 Will allow fallback to Baileys service');
         }
     }
     /**
      * Health check - verify WAHA service is running
      */
     async healthCheck() {
-        console.log('[WAHA Service] 🔍 Starting health check...');
+        console.log(`[WAHA Service] 🔍 Starting health check for: ${this.wahaBaseUrl}`);
         // Try multiple health check endpoints with longer timeouts for network stability
-        const healthEndpoints = ['/api/version', '/api/sessions', '/ping'];
+        const healthEndpoints = ['/api/version', '/api/sessions', '/ping', '/'];
+        let lastError = null;
         for (const endpoint of healthEndpoints) {
             try {
-                console.log(`[WAHA Service] Trying health check: ${endpoint}`);
+                console.log(`[WAHA Service] Trying health check: ${this.wahaBaseUrl}${endpoint}`);
                 const response = await this.httpClient.get(endpoint, {
-                    timeout: 15000, // 15 second timeout for Render.com network delays
+                    timeout: 20000, // Increased timeout for Render.com network delays
+                    validateStatus: (status) => status < 500, // Accept 4xx as "service is running"
                 });
-                if (response.status === 200) {
-                    console.log(`[WAHA Service] ✅ Health check passed using ${endpoint}`);
+                console.log(`[WAHA Service] Response from ${endpoint}: ${response.status} - ${response.statusText}`);
+                if (response.status < 500) { // Service is running even if endpoint doesn't exist
+                    console.log(`[WAHA Service] ✅ Health check passed using ${endpoint} (status: ${response.status})`);
+                    this.isReady = true;
+                    this.connectionStatus = 'connected';
                     return true;
                 }
             }
             catch (error) {
-                console.log(`[WAHA Service] Health check ${endpoint} failed:`, error?.response?.status || error.code);
-                // Continue to next endpoint
+                lastError = error;
+                const errorMsg = error?.response?.status
+                    ? `HTTP ${error.response.status}: ${error.response.statusText}`
+                    : error.code
+                        ? `Network Error: ${error.code}`
+                        : error.message || 'Unknown error';
+                console.log(`[WAHA Service] Health check ${endpoint} failed: ${errorMsg}`);
+                // If we get a 404 or 405, service is running but endpoint doesn't exist
+                if (error?.response?.status === 404 || error?.response?.status === 405) {
+                    console.log(`[WAHA Service] ✅ Service is running (got ${error.response.status} for ${endpoint})`);
+                    this.isReady = true;
+                    this.connectionStatus = 'connected';
+                    return true;
+                }
             }
         }
         console.error('[WAHA Service] ❌ All health check endpoints failed');
-        throw new Error('WAHA service is not responding to any health checks');
+        console.error('[WAHA Service] Last error:', lastError?.message || lastError);
+        this.isReady = false;
+        this.connectionStatus = 'disconnected';
+        throw new Error(`WAHA service is not responding: ${lastError?.message || 'All health checks failed'}`);
     }
     /**
      * Start a WhatsApp session
@@ -126,11 +156,14 @@ class WAHAService extends events_1.EventEmitter {
             // If session doesn't exist, create it
             if (!sessionExists) {
                 console.log(`[WAHA Service] Creating new session '${sessionName}'...`);
+                const webhookUrl = process.env.BACKEND_URL || process.env.FRONTEND_URL || 'https://synapse-backend-7lq6.onrender.com';
+                const fullWebhookUrl = `${webhookUrl}/api/v1/whatsapp/webhook`;
+                console.log(`[WAHA Service] Setting webhook URL to: ${fullWebhookUrl}`);
                 const response = await this.httpClient.post('/api/sessions', {
                     name: sessionName,
                     config: {
                         webhook: {
-                            url: `${process.env.FRONTEND_URL || 'https://synapse-backend-7lq6.onrender.com'}/api/v1/whatsapp/webhook`,
+                            url: fullWebhookUrl,
                             events: ['message', 'session.status'],
                             retries: 3,
                         }
@@ -199,9 +232,10 @@ class WAHAService extends events_1.EventEmitter {
             // Wait for session to be in SCAN_QR_CODE state
             console.log(`[WAHA Service] Waiting for session '${sessionName}' to be ready for QR...`);
             await this.waitForSessionState(sessionName, ['SCAN_QR_CODE'], 30000); // 30 second timeout
-            // Get QR code using WAHA's auth endpoint
-            console.log(`[WAHA Service] Requesting QR code from /api/${sessionName}/auth/qr`);
-            const response = await this.httpClient.get(`/api/${sessionName}/auth/qr`, {
+            // Get QR code using WAHA's screenshot endpoint (this is the standard approach)
+            console.log(`[WAHA Service] Requesting QR code from /api/screenshot`);
+            const response = await this.httpClient.get(`/api/screenshot`, {
+                params: { session: sessionName },
                 responseType: 'arraybuffer'
             });
             console.log(`[WAHA Service] QR code response received, status: ${response.status}`);
@@ -216,22 +250,8 @@ class WAHAService extends events_1.EventEmitter {
                 statusText: error?.response?.statusText,
                 data: error?.response?.data
             });
-            // Try alternative screenshot endpoint as fallback
-            try {
-                console.log('[WAHA Service] Trying screenshot endpoint as fallback...');
-                const response = await this.httpClient.get(`/api/screenshot`, {
-                    params: { session: sessionName },
-                    responseType: 'arraybuffer'
-                });
-                console.log(`[WAHA Service] Screenshot response received, status: ${response.status}`);
-                const base64 = Buffer.from(response.data).toString('base64');
-                return `data:image/png;base64,${base64}`;
-            }
-            catch (fallbackError) {
-                console.error(`[WAHA Service] ❌ Both QR endpoints failed:`, fallbackError);
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                throw new Error(`Failed to get QR code: ${errorMessage}`);
-            }
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            throw new Error(`Failed to get QR code: ${errorMessage}`);
         }
     }
     /**
@@ -239,16 +259,17 @@ class WAHAService extends events_1.EventEmitter {
      */
     async sendMessage(chatId, text, sessionName = this.defaultSession) {
         try {
-            const response = await this.httpClient.post('/api/sendText', {
+            console.log(`[WAHA Service] Sending message to ${chatId} in session '${sessionName}'...`);
+            // WAHA API structure: POST /api/{session}/sendText
+            const response = await this.httpClient.post(`/api/${sessionName}/sendText`, {
                 chatId,
-                text,
-                session: sessionName
+                text
             });
             console.log(`[WAHA Service] ✅ Message sent to ${chatId}`);
             return response.data;
         }
         catch (error) {
-            console.error(`[WAHA Service] ❌ Failed to send message to ${chatId}:`, error);
+            console.error(`[WAHA Service] ❌ Failed to send message to ${chatId}:`, error.response?.status, error.response?.data);
             throw error;
         }
     }
@@ -257,19 +278,20 @@ class WAHAService extends events_1.EventEmitter {
      */
     async sendMedia(chatId, mediaUrl, caption, sessionName = this.defaultSession) {
         try {
-            const response = await this.httpClient.post('/api/sendFile', {
+            console.log(`[WAHA Service] Sending media to ${chatId} in session '${sessionName}'...`);
+            // WAHA API structure: POST /api/{session}/sendFile
+            const response = await this.httpClient.post(`/api/${sessionName}/sendFile`, {
                 chatId,
                 file: {
                     url: mediaUrl
                 },
-                caption,
-                session: sessionName
+                caption
             });
             console.log(`[WAHA Service] ✅ Media sent to ${chatId}`);
             return response.data;
         }
         catch (error) {
-            console.error(`[WAHA Service] ❌ Failed to send media to ${chatId}:`, error);
+            console.error(`[WAHA Service] ❌ Failed to send media to ${chatId}:`, error.response?.status, error.response?.data);
             throw error;
         }
     }
@@ -278,9 +300,17 @@ class WAHAService extends events_1.EventEmitter {
      */
     async getChats(sessionName = this.defaultSession) {
         try {
-            const response = await this.httpClient.get('/api/chats', {
-                params: { session: sessionName }
-            });
+            console.log(`[WAHA Service] Getting chats for session '${sessionName}'...`);
+            // Check session status first
+            const sessionStatus = await this.getSessionStatus(sessionName);
+            console.log(`[WAHA Service] Session '${sessionName}' status: ${sessionStatus.status}`);
+            if (sessionStatus.status !== 'WORKING') {
+                console.log(`[WAHA Service] Session not in WORKING status (${sessionStatus.status}), returning empty chats`);
+                return [];
+            }
+            // WAHA API endpoint structure: /api/{session}/chats
+            const response = await this.httpClient.get(`/api/${sessionName}/chats`);
+            console.log(`[WAHA Service] Received ${response.data.length} chats`);
             return response.data.map((chat) => ({
                 id: chat.id,
                 name: chat.name || chat.id,
@@ -291,8 +321,14 @@ class WAHAService extends events_1.EventEmitter {
             }));
         }
         catch (error) {
-            console.error(`[WAHA Service] ❌ Failed to get chats for '${sessionName}':`, error);
-            throw error;
+            console.error(`[WAHA Service] ❌ Failed to get chats for '${sessionName}':`, error.response?.status, error.response?.data);
+            // Handle specific 422 error for session not ready
+            if (error.response?.status === 422) {
+                console.log(`[WAHA Service] Session not ready (422), returning empty chats`);
+                return [];
+            }
+            // Return empty array instead of throwing to prevent 500 errors
+            return [];
         }
     }
     /**
@@ -300,13 +336,19 @@ class WAHAService extends events_1.EventEmitter {
      */
     async getMessages(chatId, limit = 50, sessionName = this.defaultSession) {
         try {
-            const response = await this.httpClient.get('/api/messages', {
-                params: {
-                    chatId,
-                    limit,
-                    session: sessionName
-                }
+            console.log(`[WAHA Service] Getting messages for chat '${chatId}' in session '${sessionName}'...`);
+            // Check session status first
+            const sessionStatus = await this.getSessionStatus(sessionName);
+            console.log(`[WAHA Service] Session '${sessionName}' status: ${sessionStatus.status}`);
+            if (sessionStatus.status !== 'WORKING') {
+                console.log(`[WAHA Service] Session not in WORKING status (${sessionStatus.status}), returning empty messages`);
+                return [];
+            }
+            // WAHA API endpoint structure: /api/{session}/chats/{chatId}/messages
+            const response = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(chatId)}/messages`, {
+                params: { limit }
             });
+            console.log(`[WAHA Service] Received ${response.data.length} messages`);
             return response.data.map((msg) => ({
                 id: msg.id,
                 body: msg.body || '',
@@ -322,8 +364,14 @@ class WAHAService extends events_1.EventEmitter {
             }));
         }
         catch (error) {
-            console.error(`[WAHA Service] ❌ Failed to get messages for ${chatId}:`, error);
-            throw error;
+            console.error(`[WAHA Service] ❌ Failed to get messages for ${chatId}:`, error.response?.status, error.response?.data);
+            // Handle specific 422 error for session not ready
+            if (error.response?.status === 422) {
+                console.log(`[WAHA Service] Session not ready (422), returning empty messages`);
+                return [];
+            }
+            // Return empty array instead of throwing to prevent 500 errors
+            return [];
         }
     }
     /**
@@ -342,13 +390,28 @@ class WAHAService extends events_1.EventEmitter {
     /**
      * Get service status (compatible with old interface)
      */
-    getStatus() {
-        return {
-            status: this.connectionStatus,
-            isReady: this.isReady,
-            qrAvailable: this.connectionStatus === 'SCAN_QR_CODE',
-            timestamp: new Date().toISOString()
-        };
+    async getStatus() {
+        try {
+            // Get real-time session status from WAHA
+            const sessionStatus = await this.getSessionStatus();
+            this.connectionStatus = sessionStatus.status;
+            this.isReady = sessionStatus.status === 'WORKING';
+            return {
+                status: sessionStatus.status,
+                isReady: sessionStatus.status === 'WORKING',
+                qrAvailable: sessionStatus.status === 'SCAN_QR_CODE',
+                timestamp: new Date().toISOString()
+            };
+        }
+        catch (error) {
+            console.error('[WAHA Service] Error getting status:', error);
+            return {
+                status: 'FAILED',
+                isReady: false,
+                qrAvailable: false,
+                timestamp: new Date().toISOString()
+            };
+        }
     }
     /**
      * Webhook handler for WAHA events

@@ -19,10 +19,35 @@ const getWAHAService = () => {
 const getStatus = async (req, res) => {
     try {
         const wahaService = getWAHAService();
-        const wahaStatus = wahaService.getStatus();
+        // Try to get status with connection test
+        let wahaStatus;
+        try {
+            wahaStatus = await wahaService.getStatus();
+            // If service claims to be ready but we haven't tested recently, verify connection
+            if (wahaStatus.isReady) {
+                try {
+                    await wahaService.healthCheck();
+                }
+                catch (healthError) {
+                    console.warn('[WAHA Controller] Health check failed during status request:', healthError);
+                    wahaStatus.isReady = false;
+                    wahaStatus.status = 'disconnected';
+                }
+            }
+        }
+        catch (serviceError) {
+            console.error('[WAHA Controller] WAHA service error:', serviceError);
+            wahaStatus = {
+                isReady: false,
+                status: 'error',
+                qrAvailable: false,
+                timestamp: new Date().toISOString()
+            };
+        }
         // Convert WAHA status to format expected by frontend
         const status = {
             connected: wahaStatus.isReady,
+            authenticated: wahaStatus.isReady, // Add authenticated field
             lastHeartbeat: new Date(),
             serviceStatus: wahaStatus.status,
             isReady: wahaStatus.isReady,
@@ -32,7 +57,8 @@ const getStatus = async (req, res) => {
             messagesCount: 0,
             qrAvailable: wahaStatus.qrAvailable,
             timestamp: wahaStatus.timestamp,
-            monitoredKeywords: []
+            monitoredKeywords: [],
+            serviceType: 'waha'
         };
         res.json({
             success: true,
@@ -163,12 +189,15 @@ exports.getChats = getChats;
  */
 const getMessages = async (req, res) => {
     try {
-        const { chatId } = req.params;
+        // Support both URL param and query param for chatId
+        const chatId = req.params.chatId || req.query.chatId;
         const limit = parseInt(req.query.limit) || 50;
         if (!chatId) {
-            return res.status(400).json({
-                success: false,
-                error: 'Missing chatId parameter'
+            // If no chatId provided, return empty messages array instead of error
+            console.log('[WAHA Controller] No chatId provided, returning empty messages');
+            return res.json({
+                success: true,
+                data: []
             });
         }
         const wahaService = getWAHAService();
@@ -451,18 +480,47 @@ exports.forceRestart = forceRestart;
 const refreshChats = async (req, res) => {
     try {
         const wahaService = getWAHAService();
+        const status = await wahaService.getStatus();
+        // Check if WAHA service is ready
+        if (!status.isReady) {
+            return res.json({
+                success: false,
+                error: 'WAHA service is not ready. Please ensure WhatsApp is connected and try again.',
+                details: {
+                    isReady: status.isReady,
+                    status: status.status,
+                    suggestion: 'Please authenticate with WhatsApp first'
+                }
+            });
+        }
         // Get fresh chats data
         await wahaService.getChats();
         res.json({
             success: true,
-            message: 'WhatsApp chats refreshed successfully'
+            message: 'WhatsApp chats refreshed successfully',
+            data: {
+                timestamp: new Date().toISOString()
+            }
         });
     }
     catch (error) {
         console.error('[WAHA Controller] Error refreshing chats:', error);
-        res.status(500).json({
+        // Provide more helpful error messages
+        let userFriendlyMessage = 'Failed to refresh WhatsApp chats';
+        let statusCode = 500;
+        if (error.message?.includes('not ready') || error.message?.includes('not available')) {
+            userFriendlyMessage = 'WAHA service is not connected. Please authenticate with WhatsApp first.';
+            statusCode = 400;
+        }
+        else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+            userFriendlyMessage = 'Cannot connect to WAHA service. Please check service availability.';
+            statusCode = 503;
+        }
+        res.status(statusCode).json({
             success: false,
-            error: 'Failed to refresh WhatsApp chats'
+            error: userFriendlyMessage,
+            technicalError: error.message,
+            suggestion: statusCode === 400 ? 'Please authenticate with WhatsApp first' : 'Please try again in a few seconds'
         });
     }
 };

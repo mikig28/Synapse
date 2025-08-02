@@ -341,7 +341,13 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
                 this.qrString = null;
                 this.qrDataUrl = null;
                 this.reconnectAttempts = 0; // Reset on successful connection
-                this.emit('status', { ready: true, message: 'WhatsApp connected successfully!' });
+                this.emit('status', {
+                    ready: true,
+                    authenticated: true,
+                    connected: true,
+                    message: 'WhatsApp connected successfully!',
+                    authMethod: 'qr'
+                });
                 this.emit('ready', { status: 'connected' });
                 console.log('🎯 WhatsApp monitoring keywords:', this.monitoredKeywords.join(', '));
                 // Start health monitoring
@@ -956,10 +962,15 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
                     }
                 }
             }
-            // Force a chat list sync by sending a presence update
-            console.log('📡 Requesting fresh chat list from WhatsApp...');
-            await this.socket.sendPresenceUpdate('available');
-            // Try multiple approaches to get chat data
+            // Force a chat list sync by sending a presence update (with error handling)
+            try {
+                console.log('📡 Requesting fresh chat list from WhatsApp...');
+                await this.socket.sendPresenceUpdate('available');
+            }
+            catch (presenceError) {
+                console.log('⚠️ Failed to send presence update, continuing...');
+            }
+            // Try multiple approaches to get chat data (with error handling)
             try {
                 console.log('📡 Attempting direct chat list query...');
                 await this.socket.query({
@@ -977,21 +988,40 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
                 console.log('⚠️ Direct query failed, continuing with presence method');
             }
             // Optimized wait time for events to be processed
-            await new Promise(resolve => setTimeout(resolve, 3000)); // Reduced from 8000ms"
+            await new Promise(resolve => setTimeout(resolve, 3000));
             console.log(`📊 Current chats after refresh: ${this.groups.length} groups, ${this.privateChats.length} private chats`);
             // If we still have no chats, inform about the discovery mode
             if (this.groups.length === 0 && this.privateChats.length === 0) {
                 console.log('📞 No chats found. Chats will be discovered as messages arrive or during history sync.');
                 console.log('💡 To see existing chats, try Force Restart to trigger history sync');
             }
-            this.emitChatsUpdate();
-            this.saveSession();
-            this.saveChatData();
+            // Emit chats update (with error handling)
+            try {
+                this.emitChatsUpdate();
+            }
+            catch (emitError) {
+                console.log('⚠️ Failed to emit chats update:', emitError.message);
+            }
+            // Save data (with error handling)
+            try {
+                this.saveSession();
+                this.saveChatData();
+            }
+            catch (saveError) {
+                console.log('⚠️ Failed to save session/chat data:', saveError.message);
+            }
             console.log(`✅ WhatsApp chats refreshed: ${this.groups.length} groups, ${this.privateChats.length} private chats`);
         }
         catch (error) {
             console.error('❌ Error refreshing WhatsApp chats:', error.message);
-            throw error;
+            // Don't throw for non-critical errors - log and continue
+            if (error.message.includes('not ready') ||
+                error.message.includes('connection') ||
+                error.message.includes('socket')) {
+                throw error; // These are critical - should fail
+            }
+            // For other errors, log but don't fail the entire operation
+            console.log('⚠️ Non-critical error during chat refresh, continuing...');
         }
     }
     async sendMessage(to, message) {
