@@ -471,19 +471,51 @@ export const forceRestart = async (req: Request, res: Response) => {
 export const refreshChats = async (req: Request, res: Response) => {
   try {
     const wahaService = getWAHAService();
+    const status = wahaService.getStatus();
+    
+    // Check if WAHA service is ready
+    if (!status.isReady) {
+      return res.json({
+        success: false,
+        error: 'WAHA service is not ready. Please ensure WhatsApp is connected and try again.',
+        details: {
+          isReady: status.isReady,
+          status: status.status,
+          suggestion: 'Please authenticate with WhatsApp first'
+        }
+      });
+    }
     
     // Get fresh chats data
     await wahaService.getChats();
     
     res.json({
       success: true,
-      message: 'WhatsApp chats refreshed successfully'
+      message: 'WhatsApp chats refreshed successfully',
+      data: {
+        timestamp: new Date().toISOString()
+      }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[WAHA Controller] Error refreshing chats:', error);
-    res.status(500).json({
+    
+    // Provide more helpful error messages
+    let userFriendlyMessage = 'Failed to refresh WhatsApp chats';
+    let statusCode = 500;
+    
+    if (error.message?.includes('not ready') || error.message?.includes('not available')) {
+      userFriendlyMessage = 'WAHA service is not connected. Please authenticate with WhatsApp first.';
+      statusCode = 400;
+    } else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      userFriendlyMessage = 'Cannot connect to WAHA service. Please check service availability.';
+      statusCode = 503;
+    }
+    
+    res.status(statusCode).json({
       success: false,
-      error: 'Failed to refresh WhatsApp chats'
+      error: userFriendlyMessage,
+      technicalError: error.message,
+      suggestion: statusCode === 400 ? 'Please authenticate with WhatsApp first' : 'Please try again in a few seconds'
     });
   }
 };

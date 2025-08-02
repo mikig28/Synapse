@@ -678,25 +678,41 @@ export const refreshWhatsAppChats = async (req: Request, res: Response) => {
     
     await whatsappService.refreshChats();
     
+    // Get updated status after refresh
+    const updatedStatus = whatsappService.getStatus();
+    
     res.json({
       success: true,
-      message: 'WhatsApp chats refreshed successfully'
+      message: 'WhatsApp chats refreshed successfully',
+      data: {
+        groupsCount: updatedStatus.groupsCount || 0,
+        privateChatsCount: updatedStatus.privateChatsCount || 0,
+        timestamp: new Date().toISOString()
+      }
     });
   } catch (error: any) {
     console.error('[WhatsApp] Error refreshing chats:', error);
     
     // Provide more helpful error messages
     let userFriendlyMessage = 'Failed to refresh WhatsApp chats';
+    let statusCode = 500;
+    
     if (error.message.includes('not ready')) {
       userFriendlyMessage = 'WhatsApp is not connected. Please scan the QR code first.';
+      statusCode = 400;
+    } else if (error.message.includes('connection') || error.message.includes('socket')) {
+      userFriendlyMessage = 'WhatsApp connection is unstable. Please try again in a moment.';
+      statusCode = 503;
     } else if (error.message.includes('browser')) {
       userFriendlyMessage = 'WhatsApp service is having technical difficulties. Please try restarting the service.';
+      statusCode = 503;
     }
     
-    res.status(500).json({
+    res.status(statusCode).json({
       success: false,
       error: userFriendlyMessage,
-      technicalError: error.message
+      technicalError: error.message,
+      suggestion: statusCode === 400 ? 'Please authenticate with WhatsApp first' : 'Please try again in a few seconds'
     });
   }
 };

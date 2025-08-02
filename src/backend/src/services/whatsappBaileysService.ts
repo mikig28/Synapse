@@ -1070,11 +1070,15 @@ class WhatsAppBaileysService extends EventEmitter {
         }
       }
       
-      // Force a chat list sync by sending a presence update
-      console.log('📡 Requesting fresh chat list from WhatsApp...');
-      await this.socket.sendPresenceUpdate('available');
+      // Force a chat list sync by sending a presence update (with error handling)
+      try {
+        console.log('📡 Requesting fresh chat list from WhatsApp...');
+        await this.socket.sendPresenceUpdate('available');
+      } catch (presenceError) {
+        console.log('⚠️ Failed to send presence update, continuing...');
+      }
       
-      // Try multiple approaches to get chat data
+      // Try multiple approaches to get chat data (with error handling)
       try {
         console.log('📡 Attempting direct chat list query...');
         await this.socket.query({
@@ -1092,7 +1096,7 @@ class WhatsAppBaileysService extends EventEmitter {
       }
       
       // Optimized wait time for events to be processed
-      await new Promise(resolve => setTimeout(resolve, 3000)); // Reduced from 8000ms"
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
       console.log(`📊 Current chats after refresh: ${this.groups.length} groups, ${this.privateChats.length} private chats`);
       
@@ -1102,15 +1106,35 @@ class WhatsAppBaileysService extends EventEmitter {
         console.log('💡 To see existing chats, try Force Restart to trigger history sync');
       }
       
-      this.emitChatsUpdate();
-      this.saveSession();
-      this.saveChatData();
+      // Emit chats update (with error handling)
+      try {
+        this.emitChatsUpdate();
+      } catch (emitError) {
+        console.log('⚠️ Failed to emit chats update:', (emitError as Error).message);
+      }
+      
+      // Save data (with error handling)
+      try {
+        this.saveSession();
+        this.saveChatData();
+      } catch (saveError) {
+        console.log('⚠️ Failed to save session/chat data:', (saveError as Error).message);
+      }
       
       console.log(`✅ WhatsApp chats refreshed: ${this.groups.length} groups, ${this.privateChats.length} private chats`);
       
     } catch (error) {
       console.error('❌ Error refreshing WhatsApp chats:', (error as Error).message);
-      throw error;
+      
+      // Don't throw for non-critical errors - log and continue
+      if ((error as Error).message.includes('not ready') || 
+          (error as Error).message.includes('connection') ||
+          (error as Error).message.includes('socket')) {
+        throw error; // These are critical - should fail
+      }
+      
+      // For other errors, log but don't fail the entire operation
+      console.log('⚠️ Non-critical error during chat refresh, continuing...');
     }
   }
 
