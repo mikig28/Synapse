@@ -261,6 +261,10 @@ class WAHAService extends EventEmitter {
       await this.startSession(sessionName);
       console.log(`[WAHA Service] Session '${sessionName}' is ready`);
       
+      // Wait for session to be in SCAN_QR_CODE state
+      console.log(`[WAHA Service] Waiting for session '${sessionName}' to be ready for QR...`);
+      await this.waitForSessionState(sessionName, ['SCAN_QR_CODE'], 30000); // 30 second timeout
+      
       // Get QR code using WAHA's auth endpoint
       console.log(`[WAHA Service] Requesting QR code from /api/${sessionName}/auth/qr`);
       const response = await this.httpClient.get(`/api/${sessionName}/auth/qr`, {
@@ -486,6 +490,38 @@ class WAHAService extends EventEmitter {
     } catch (error) {
       console.error('[WAHA Service] ❌ Error processing image for group monitoring:', error);
     }
+  }
+
+  /**
+   * Wait for session to reach expected state
+   */
+  private async waitForSessionState(sessionName: string, expectedStates: string[], timeoutMs: number = 30000): Promise<void> {
+    const startTime = Date.now();
+    const pollInterval = 2000; // Check every 2 seconds
+    
+    while (Date.now() - startTime < timeoutMs) {
+      try {
+        const sessionStatus = await this.getSessionStatus(sessionName);
+        console.log(`[WAHA Service] Session '${sessionName}' current state: ${sessionStatus.status}`);
+        
+        if (expectedStates.includes(sessionStatus.status)) {
+          console.log(`[WAHA Service] ✅ Session '${sessionName}' reached expected state: ${sessionStatus.status}`);
+          return;
+        }
+        
+        if (sessionStatus.status === 'FAILED' || sessionStatus.status === 'STOPPED') {
+          throw new Error(`Session failed or stopped: ${sessionStatus.status}`);
+        }
+        
+        console.log(`[WAHA Service] Waiting for session '${sessionName}' to transition from ${sessionStatus.status} to one of [${expectedStates.join(', ')}]...`);
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      } catch (error) {
+        console.error(`[WAHA Service] Error checking session state:`, error);
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      }
+    }
+    
+    throw new Error(`Timeout waiting for session '${sessionName}' to reach state [${expectedStates.join(', ')}]`);
   }
 }
 
