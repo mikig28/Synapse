@@ -36,6 +36,7 @@ import documentsRoutes from './api/routes/documentsRoutes'; // Import documents 
 import groupMonitorRoutes from './api/routes/groupMonitorRoutes'; // Import group monitor routes
 import searchRoutes from './api/routes/searchRoutes'; // Import search routes
 import exportRoutes from './api/routes/exportRoutes'; // Import export routes
+import feedbackRoutes from './api/routes/feedbackRoutes'; // Import feedback routes
 import { initializeTaskReminderScheduler } from './services/taskReminderService'; // Import task reminder service
 import { schedulerService } from './services/schedulerService'; // Import scheduler service
 import { agui } from './services/aguiEmitter'; // Import AG-UI emitter
@@ -215,6 +216,7 @@ app.use('/api/v1/documents', documentsRoutes); // Use documents routes
 app.use('/api/v1/group-monitor', groupMonitorRoutes); // Use group monitor routes
 app.use('/api/v1/search', searchRoutes); // Use search routes
 app.use('/api/v1/export', exportRoutes); // Use export routes
+app.use('/api/v1/feedback', feedbackRoutes); // Use feedback routes
 
 // **AG-UI Protocol Endpoints**
 

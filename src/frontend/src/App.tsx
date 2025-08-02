@@ -2,6 +2,7 @@ import React, { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import useAuthStore from '@/store/authStore';
+import { useOnboardingStore } from '@/store/onboardingStore';
 import { ThemeProvider } from "@/components/theme-provider";
 import { PageTransition } from '@/components/animations';
 import { CommandPalette, useCommandPalette } from '@/components/animations';
@@ -13,6 +14,7 @@ import { StagewiseToolbar } from '@stagewise/toolbar-react';
 import { ReactPlugin } from '@stagewise-plugins/react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AguiNotifications } from './components/AguiNotifications';
+import { FeedbackWidget } from './components/feedback/FeedbackWidget';
 import { Toaster } from '@/components/ui/toaster';
 import { GoogleMapsProvider } from './contexts/GoogleMapsContext';
 import { AccessibilityProvider } from './contexts/AccessibilityContext';
@@ -43,6 +45,7 @@ const WhatsAppGroupMonitorPage = React.lazy(() => import('@/pages/WhatsAppGroupM
 const PlacesPage = React.lazy(() => import('@/pages/PlacesPage'));
 const DocsPage = React.lazy(() => import('@/pages/DocsPage'));
 const SearchPage = React.lazy(() => import('@/pages/SearchPage'));
+const OnboardingPage = React.lazy(() => import('@/pages/OnboardingPage'));
 
 // Loading component with beautiful animation
 const PageLoader = () => (
@@ -62,8 +65,15 @@ const PageLoader = () => (
 
 function AppContent() {
   const { isAuthenticated } = useAuthStore();
+  const { isOnboarding, progress } = useOnboardingStore();
   const location = useLocation();
   const commandPalette = useCommandPalette();
+
+  // Check if user needs onboarding (first time users or incomplete onboarding)
+  const needsOnboarding = isAuthenticated && (
+    progress.completedSteps.length === 0 || 
+    (isOnboarding && progress.completedSteps.length < progress.totalSteps)
+  );
 
   return (
     <AccessibilityProvider>
@@ -74,12 +84,15 @@ function AppContent() {
               <PageTransition key={location.pathname}>
                 <Suspense fallback={<PageLoader />}>
                   <Routes>
-                    <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" /> : <HomePage />} />
+                    <Route path="/" element={isAuthenticated ? (needsOnboarding ? <Navigate to="/onboarding" /> : <Navigate to="/dashboard" />) : <HomePage />} />
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/register" element={<RegisterPage />} />
                     
+                    {/* Onboarding route */}
+                    <Route path="/onboarding" element={isAuthenticated ? <OnboardingPage /> : <Navigate to="/login" />} />
+                    
                     {/* Protected routes */}
-                    <Route path="/dashboard" element={isAuthenticated ? <Layout><DashboardPage /></Layout> : <Navigate to="/login" />} />
+                    <Route path="/dashboard" element={isAuthenticated ? (needsOnboarding ? <Navigate to="/onboarding" /> : <Layout><DashboardPage /></Layout>) : <Navigate to="/login" />} />
                     <Route path="/search" element={isAuthenticated ? <Layout><SearchPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/inbox" element={isAuthenticated ? <Layout><InboxPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/calendar" element={isAuthenticated ? <Layout><CalendarPage /></Layout> : <Navigate to="/login" />} />
@@ -112,6 +125,11 @@ function AppContent() {
 
               {/* AG-UI Notifications */}
               <AguiNotifications />
+
+              {/* Feedback Widget (only show on protected routes) */}
+              {isAuthenticated && !needsOnboarding && (
+                <FeedbackWidget position="bottom-right" showQuickActions={true} />
+              )}
               
               {/* Toast Container */}
               <Toaster />
