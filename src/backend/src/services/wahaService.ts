@@ -147,7 +147,7 @@ class WAHAService extends EventEmitter {
         console.log(`[WAHA Service] Trying health check: ${this.wahaBaseUrl}${endpoint}`);
         const response = await this.httpClient.get(endpoint, {
           timeout: 20000, // Increased timeout for Render.com network delays
-          validateStatus: (status) => status < 500, // Accept 4xx as "service is running"
+          validateStatus: (status: number) => status < 500, // Accept 4xx as "service is running"
         });
         
         console.log(`[WAHA Service] Response from ${endpoint}: ${response.status} - ${response.statusText}`);
