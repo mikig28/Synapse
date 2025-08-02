@@ -34,7 +34,7 @@ import {
   Zap,
   HardDrive,
   DollarSign,
-  Upgrade
+  ArrowUp
 } from 'lucide-react';
 
 interface UsageDashboardProps {
@@ -480,7 +480,7 @@ export const UsageDashboard: React.FC<UsageDashboardProps> = ({ className = '' }
                     variant={usage.billing.tier === 'free' ? 'default' : 'outline'}
                     disabled={usage.billing.tier !== 'free'}
                   >
-                    <Upgrade className="w-4 h-4 mr-2" />
+                    <ArrowUp className="w-4 h-4 mr-2" />
                     Starter Plan - $29/month
                   </Button>
                   <Button 
@@ -489,7 +489,7 @@ export const UsageDashboard: React.FC<UsageDashboardProps> = ({ className = '' }
                     variant={['free', 'starter'].includes(usage.billing.tier) ? 'default' : 'outline'}
                     disabled={!['free', 'starter'].includes(usage.billing.tier)}
                   >
-                    <Upgrade className="w-4 h-4 mr-2" />
+                    <ArrowUp className="w-4 h-4 mr-2" />
                     Pro Plan - $99/month
                   </Button>
                   <Button 
@@ -498,7 +498,7 @@ export const UsageDashboard: React.FC<UsageDashboardProps> = ({ className = '' }
                     variant={usage.billing.tier !== 'enterprise' ? 'default' : 'outline'}
                     disabled={usage.billing.tier === 'enterprise'}
                   >
-                    <Upgrade className="w-4 h-4 mr-2" />
+                    <ArrowUp className="w-4 h-4 mr-2" />
                     Enterprise Plan - $299/month
                   </Button>
                 </div>
