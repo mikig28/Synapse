@@ -618,14 +618,18 @@ const startServer = async () => {
     initializeTelegramBot(); // Initialize and start the Telegram bot polling
 
     // Initialize WAHA service (modern WhatsApp implementation)
-    try {
-      const wahaService = WAHAService.getInstance();
-      await wahaService.initialize();
-      console.log('[Server] ✅ WAHA service initialized successfully');
-    } catch (wahaError) {
-      console.error('[Server] ❌ WAHA service initialization failed:', wahaError);
-      console.log('[Server] Continuing without WAHA service (will retry later)...');
-      // Don't crash the server if WAHA fails (it might not be deployed yet)
+    // TEMPORARILY DISABLED - WAHA service returning 502 errors
+    console.log('[Server] ⚠️ WAHA service initialization temporarily disabled due to 502 errors');
+    console.log('[Server] Using Baileys fallback for WhatsApp functionality');
+    
+    // try {
+    //   const wahaService = WAHAService.getInstance();
+    //   await wahaService.initialize();
+    //   console.log('[Server] ✅ WAHA service initialized successfully');
+    // } catch (wahaError) {
+    //   console.error('[Server] ❌ WAHA service initialization failed:', wahaError);
+    //   console.log('[Server] Continuing without WAHA service (will retry later)...');
+    //   // Don't crash the server if WAHA fails (it might not be deployed yet)
     }
 
     // Legacy: Initialize WhatsApp Baileys service (fallback - will be removed)
