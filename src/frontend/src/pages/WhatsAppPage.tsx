@@ -585,23 +585,24 @@ const WhatsAppPage: React.FC = () => {
       setShowQR(true);
       setShowAuth(true);
       setAuthMethod('qr');
+      setQrCode(null); // Clear old QR immediately to show loading
       
-      if (force) {
-        toast({
-          title: "Generating QR Code",
-          description: "Force generating new QR code, this may take a moment...",
-        });
-      }
+      // Show immediate loading feedback
+      toast({
+        title: force ? "Force Generating QR Code" : "Generating QR Code",
+        description: "Please wait while we prepare your WhatsApp QR code...",
+      });
       
-      // Try WAHA endpoint first
+      // Try WAHA endpoint first - skip status check for faster QR generation
       let response;
       let usedService: 'waha' | 'baileys' = 'waha';
       try {
-        // First check if WAHA session needs to be started
-        const statusResponse = await api.get('/waha/status');
-        console.log('WAHA status check:', statusResponse.data);
-        
-        response = await api.get('/waha/qr');
+        // Direct QR generation with optimized timeout
+        console.log('🚀 Generating QR code directly via WAHA...');
+        response = await api.get('/waha/qr', { 
+          timeout: 15000, // 15 second timeout for QR generation
+          headers: { 'Cache-Control': 'no-cache' } // Prevent caching for fresh QR
+        });
         setActiveService('waha');
         console.log('✅ QR code generated using WAHA service');
       } catch (error) {

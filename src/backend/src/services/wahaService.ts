@@ -378,19 +378,29 @@ class WAHAService extends EventEmitter {
     console.log(`[WAHA Service] Starting QR code generation for session '${sessionName}'`);
     
     try {
-      // First ensure session is created and started
-      console.log(`[WAHA Service] Ensuring session '${sessionName}' is created and started...`);
-      await this.startSession(sessionName);
-      console.log(`[WAHA Service] Session '${sessionName}' is ready`);
+      // Quick session status check first - if already ready, skip setup
+      let sessionReady = false;
+      try {
+        const sessionStatus = await this.httpClient.get(`/api/sessions/${sessionName}`);
+        sessionReady = sessionStatus.data?.status === 'SCAN_QR_CODE';
+        console.log(`[WAHA Service] Session '${sessionName}' status: ${sessionStatus.data?.status} (ready: ${sessionReady})`);
+      } catch (statusError) {
+        console.log(`[WAHA Service] Could not check session status, will ensure session setup`);
+      }
       
-      // Wait for session to be in SCAN_QR_CODE state
-      console.log(`[WAHA Service] Waiting for session '${sessionName}' to be ready for QR...`);
-      await this.waitForSessionState(sessionName, ['SCAN_QR_CODE'], 30000); // 30 second timeout
+      // Only do expensive session setup if not already ready
+      if (!sessionReady) {
+        console.log(`[WAHA Service] Session not ready, ensuring setup...`);
+        await this.startSession(sessionName);
+        await this.waitForSessionState(sessionName, ['SCAN_QR_CODE'], 15000); // Reduced to 15 seconds
+        console.log(`[WAHA Service] Session '${sessionName}' is now ready`);
+      }
       
       // Get QR code using WAHA's proper endpoint: GET /api/{session}/auth/qr
       console.log(`[WAHA Service] Requesting QR code from /api/${sessionName}/auth/qr`);
       const response = await this.httpClient.get(`/api/${sessionName}/auth/qr`, {
-        responseType: 'arraybuffer'
+        responseType: 'arraybuffer',
+        timeout: 10000 // 10 second timeout for QR generation
       });
       
       console.log(`[WAHA Service] QR code response received, status: ${response.status}`);
