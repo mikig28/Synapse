@@ -69,6 +69,14 @@ services:
         value: https://synapse-backend-7lq6.onrender.com/api/v1/waha/webhook
       - key: WAHA_SESSION_STORE_TYPE
         value: MEMORY
+      - key: WHATSAPP_RESTART_ALL_SESSIONS
+        value: "true"
+      - key: WHATSAPP_HOOK_URL
+        value: https://synapse-backend-7lq6.onrender.com/api/v1/waha/webhook
+      - key: WHATSAPP_HOOK_EVENTS
+        value: "session.status,message"
+      - key: DEBUG
+        value: "waha:*"
 
   - type: web
     name: synapse-crewai
