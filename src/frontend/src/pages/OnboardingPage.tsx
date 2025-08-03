@@ -196,10 +196,10 @@ const OnboardingPage: React.FC = () => {
       animate="animate"
       exit="exit"
     >
-      {/* Background Elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {/* Background Elements - Reduced opacity and proper z-index */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <motion.div
-          className="absolute w-96 h-96 bg-gradient-to-r from-primary/10 to-accent/10 rounded-full blur-3xl"
+          className="absolute w-96 h-96 bg-gradient-to-r from-primary/5 to-accent/5 rounded-full blur-3xl"
           style={{ top: '10%', right: '10%' }}
           animate={{
             x: [0, -30, 0],
@@ -213,7 +213,7 @@ const OnboardingPage: React.FC = () => {
           }}
         />
         <motion.div
-          className="absolute w-80 h-80 bg-gradient-to-r from-secondary/10 to-primary/10 rounded-full blur-3xl"
+          className="absolute w-80 h-80 bg-gradient-to-r from-secondary/5 to-primary/5 rounded-full blur-3xl"
           style={{ bottom: '20%', left: '10%' }}
           animate={{
             x: [0, 30, 0],

@@ -42,9 +42,9 @@ export const ConnectDataStep: React.FC = () => {
   const dataSources: DataSource[] = [
     {
       id: 'whatsapp',
-      name: 'WhatsApp',
+      name: 'WhatsApp (Demo)',
       icon: <MessageSquare className="w-6 h-6 text-green-500" />,
-      description: 'Capture important messages and media from your WhatsApp conversations',
+      description: 'Demo: Shows how WhatsApp integration would work. In production, this captures messages and media.',
       difficulty: 'easy',
       timeToSetup: '2 minutes',
       benefits: ['Auto-capture messages', 'Media backup', 'Keyword monitoring'],
@@ -52,9 +52,9 @@ export const ConnectDataStep: React.FC = () => {
     },
     {
       id: 'telegram',
-      name: 'Telegram',
+      name: 'Telegram (Demo)',
       icon: <Send className="w-6 h-6 text-blue-500" />,
-      description: 'Connect your Telegram to receive notifications and capture content',
+      description: 'Demo: Shows how Telegram bot would work. In production, this provides real-time notifications.',
       difficulty: 'easy',
       timeToSetup: '1 minute',
       benefits: ['Real-time notifications', 'Bot commands', 'File sharing'],
@@ -78,40 +78,55 @@ export const ConnectDataStep: React.FC = () => {
     // Update status to connecting
     updateIntegrationStatus(sourceId as any, { status: 'connecting' });
 
-    // Simulate connection process
+    // Handle real connection processes
     if (sourceId === 'whatsapp') {
       setShowQRCode(true);
-      // Simulate QR code scan
+      // For demo purposes, show instructions but don't auto-complete
+      // In production, this would integrate with WhatsApp Web API
       setTimeout(() => {
-        updateIntegrationStatus('whatsapp', { 
-          status: 'connected',
-          messagesCount: 0
-        });
         setShowQRCode(false);
-        showAchievement('🎉 WhatsApp connected successfully!');
-        completeStep('connect-data');
+        updateIntegrationStatus('whatsapp', { status: 'disconnected' });
+        // Don't show celebration or complete step automatically
+        alert('WhatsApp integration is not available in demo mode. This would normally connect to WhatsApp Web API.');
       }, 3000);
     } else if (sourceId === 'telegram') {
-      // Simulate Telegram connection
+      // For demo purposes, show instructions but don't auto-complete
+      // In production, this would open Telegram bot setup
       setTimeout(() => {
-        updateIntegrationStatus('telegram', { 
-          status: 'connected',
-          chatId: '@synapse_bot',
-          messagesCount: 0
-        });
-        showAchievement('🎉 Telegram connected successfully!');
-        completeStep('connect-data');
+        updateIntegrationStatus('telegram', { status: 'disconnected' });
+        alert('Telegram integration is not available in demo mode. This would normally redirect to @synapse_bot setup.');
       }, 2000);
     } else if (sourceId === 'documents') {
-      // Simulate document upload
-      setTimeout(() => {
-        updateIntegrationStatus('documents', { 
-          uploadedCount: 1,
-          lastUpload: new Date()
-        });
-        showAchievement('🎉 Document uploaded successfully!');
-        completeStep('connect-data');
-      }, 1500);
+      // Create a real file input for document upload
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = '.pdf,.doc,.docx,.txt,.md';
+      fileInput.multiple = true;
+      
+      fileInput.onchange = (e) => {
+        const files = (e.target as HTMLInputElement).files;
+        if (files && files.length > 0) {
+          // Simulate upload process
+          updateIntegrationStatus('documents', { status: 'connecting' });
+          
+          setTimeout(() => {
+            updateIntegrationStatus('documents', { 
+              uploadedCount: files.length,
+              lastUpload: new Date()
+            });
+            showAchievement(`🎉 ${files.length} document(s) uploaded successfully!`);
+            completeStep('connect-data');
+          }, 1500);
+        } else {
+          updateIntegrationStatus('documents', { status: 'disconnected' });
+        }
+      };
+      
+      fileInput.oncancel = () => {
+        updateIntegrationStatus('documents', { status: 'disconnected' });
+      };
+      
+      fileInput.click();
     }
   }, [updateIntegrationStatus, showAchievement, completeStep]);
 
@@ -294,27 +309,46 @@ export const ConnectDataStep: React.FC = () => {
               <div className="text-center space-y-6">
                 <div className="text-4xl">📱</div>
                 <h3 className="text-xl font-semibold text-foreground">
-                  Connect WhatsApp
+                  WhatsApp Integration
                 </h3>
                 <p className="text-muted-foreground">
-                  Scan this QR code with your WhatsApp to connect
+                  This is a demo QR code. In production, this would be a real WhatsApp Web connection.
                 </p>
                 
                 {/* Simulated QR Code */}
-                <div className="bg-white p-4 rounded-lg mx-auto w-48 h-48 flex items-center justify-center">
+                <div className="bg-white p-4 rounded-lg mx-auto w-48 h-48 flex items-center justify-center relative">
                   <QrCode className="w-32 h-32 text-black" />
+                  <div className="absolute inset-0 bg-red-500/20 rounded-lg flex items-center justify-center">
+                    <span className="bg-red-500 text-white px-2 py-1 rounded text-xs font-semibold">
+                      DEMO
+                    </span>
+                  </div>
                 </div>
                 
                 <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Waiting for connection...
+                  Demo mode - connection will timeout
                 </div>
                 
-                <div className="text-xs text-muted-foreground space-y-1">
+                <div className="text-xs text-muted-foreground space-y-1 bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
+                  <p className="font-semibold text-yellow-300">Production Setup:</p>
                   <p>1. Open WhatsApp on your phone</p>
                   <p>2. Go to Settings → Linked Devices</p>
-                  <p>3. Tap "Link a device" and scan this code</p>
+                  <p>3. Tap "Link a device" and scan the real QR code</p>
+                  <p>4. Grant necessary permissions</p>
                 </div>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowQRCode(false);
+                    updateIntegrationStatus('whatsapp', { status: 'disconnected' });
+                  }}
+                  className="mt-4"
+                >
+                  Cancel
+                </Button>
               </div>
             </motion.div>
           </motion.div>
@@ -323,11 +357,27 @@ export const ConnectDataStep: React.FC = () => {
 
       {/* Help Section */}
       <motion.div
-        className="text-center"
+        className="text-center space-y-4"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.8 }}
       >
+        {/* Skip Option */}
+        {!hasConnectedSource && (
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => {
+              showAchievement('👋 Skipped data source connection - you can set this up later!');
+              completeStep('connect-data');
+            }}
+            className="mb-4"
+          >
+            Skip for now - I'll connect later
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
+        )}
+        
         <GlassCard className="p-6 bg-muted/30">
           <div className="flex items-center justify-center gap-2 mb-3">
             <Smartphone className="w-5 h-5 text-primary" />
