@@ -1,0 +1,53 @@
+[1mdiff --git a/src/frontend/src/pages/WhatsAppPage.tsx b/src/frontend/src/pages/WhatsAppPage.tsx[m
+[1mindex f558f331..ae47f739 100644[m
+[1m--- a/src/frontend/src/pages/WhatsAppPage.tsx[m
+[1m+++ b/src/frontend/src/pages/WhatsAppPage.tsx[m
+[36m@@ -465,6 +465,9 @@[m [mconst WhatsAppPage: React.FC = () => {[m
+     setPhoneNumber('');[m
+     setVerificationCode('');[m
+     setPhoneAuthSupported(true); // Reset phone auth support when opening modal[m
+[32m+[m[41m    [m
+[32m+[m[32m    // Actually generate the QR code when opening the modal[m[41m[m
+[32m+[m[32m    fetchQRCode();[m[41m[m
+   };[m
+ [m
+   const sendPhoneAuth = async () => {[m
+[36m@@ -594,8 +597,9 @@[m [mconst WhatsAppPage: React.FC = () => {[m
+       });[m
+       [m
+       // Try WAHA endpoint first - skip status check for faster QR generation[m
+[31m-      let response;[m
+[32m+[m[32m      let response: any;[m[41m[m
+       let usedService: 'waha' | 'baileys' = 'waha';[m
+[32m+[m[41m      [m
+       try {[m
+         // Direct QR generation with optimized timeout[m
+         console.log('🚀 Generating QR code directly via WAHA...');[m
+[36m@@ -628,14 +632,20 @@[m [mconst WhatsAppPage: React.FC = () => {[m
+         }[m
+         [m
+         // Fallback to legacy endpoint[m
+[31m-        const endpoint = force [m
+[31m-          ? '/whatsapp/qr?force=true'[m
+[31m-          : '/whatsapp/qr';[m
+[31m-        response = await api.get(endpoint);[m
+[31m-        setActiveService('baileys');[m
+[31m-        usedService = 'baileys';[m
+[31m-        console.log('⚠️ QR code generated using Baileys service (fallback)');[m
+[32m+[m[32m        try {[m[41m[m
+[32m+[m[32m          const endpoint = force[m[41m [m
+[32m+[m[32m            ? '/whatsapp/qr?force=true'[m[41m[m
+[32m+[m[32m            : '/whatsapp/qr';[m[41m[m
+[32m+[m[32m          response = await api.get(endpoint);[m[41m[m
+[32m+[m[32m          setActiveService('baileys');[m[41m[m
+[32m+[m[32m          usedService = 'baileys';[m[41m[m
+[32m+[m[32m          console.log('⚠️ QR code generated using Baileys service (fallback)');[m[41m[m
+[32m+[m[32m        } catch (fallbackError) {[m[41m[m
+[32m+[m[32m          console.error('Both WAHA and legacy QR generation failed:', fallbackError);[m[41m[m
+[32m+[m[32m          throw fallbackError;[m[41m[m
+[32m+[m[32m        }[m[41m[m
+       }[m
+[32m+[m[41m      [m
+       const data = response.data;[m
+       [m
+       if (data.success && data.data.qrCode) {[m
