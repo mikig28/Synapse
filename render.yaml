@@ -67,14 +67,8 @@ services:
         value: https://synapse-waha.onrender.com
       - key: WAHA_WEBHOOK_URL
         value: https://synapse-backend-7lq6.onrender.com/api/v1/waha/webhook
-      - key: WAHA_SESSION_STORE_PATH
-        value: /app/sessions
       - key: WAHA_SESSION_STORE_TYPE
-        value: LOCAL
-    disk:
-      name: waha-sessions
-      mountPath: /app/sessions
-      sizeGB: 2
+        value: MEMORY
 
   - type: web
     name: synapse-crewai
