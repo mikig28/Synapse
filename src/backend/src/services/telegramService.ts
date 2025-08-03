@@ -27,17 +27,18 @@ dotenv.config();
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
-if (!TELEGRAM_BOT_TOKEN) {
-  console.error('Error: TELEGRAM_BOT_TOKEN is not defined in .env file');
-  // process.exit(1); // Consider if you want to exit or just log and disable bot functionality
-  throw new Error('TELEGRAM_BOT_TOKEN is not defined. Bot cannot start.');
+// Bot instance - will be initialized conditionally
+let bot: TelegramBot | null = null;
+
+// Helper function to set up all bot listeners
+function setupBotListeners() {
+  if (!bot) return;
+
+  // Set up all bot listeners here...
+  setupCommandListeners();
+  setupMessageListener();
+  setupErrorListeners();
 }
-
-// Create a bot that uses 'polling' to fetch new updates
-// Alternatively, you can use webhooks for a production environment
-const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
-
-console.log('[TelegramBot]: Bot instance created. Polling for messages...');
 
 // Helper to extract URLs from text and entities
 const extractUrls = (text?: string, entities?: TelegramBot.MessageEntity[]): string[] => {
@@ -97,28 +98,36 @@ bot.onText(/\/search (.+)/, async (msg, match) => {
   await handleDocumentSearch((synapseUser._id as any).toString(), query, chatId);
 });
 
-bot.onText(/\/docs/, async (msg) => {
-  const chatId = msg.chat.id;
-  const synapseUser = await User.findOne({ monitoredTelegramChats: chatId });
-  
-  if (!synapseUser) {
-    await bot.sendMessage(chatId, '❌ This chat is not linked to a Synapse account. Please configure monitoring first.');
-    return;
-  }
-  
-  const helpMessage = `📚 *Document Commands:*\n\n` +
-    `• /search <query> - Search your documents with AI\n` +
-    `• Upload any file - I'll process it automatically\n` +
-    `• /docs - Show this help\n\n` +
-    `*Examples:*\n` +
-    `• /search what is the main topic of my research?\n` +
-    `• /search find information about project deadlines`;
-  
-  await bot.sendMessage(chatId, helpMessage, { parse_mode: 'Markdown' });
-});
+// Function to set up command listeners
+function setupCommandListeners() {
+  if (!bot) return;
 
-// Basic message listener
-bot.on('message', async (msg: TelegramBot.Message) => {
+  bot.onText(/\/docs/, async (msg) => {
+    const chatId = msg.chat.id;
+    const synapseUser = await User.findOne({ monitoredTelegramChats: chatId });
+    
+    if (!synapseUser) {
+      await bot!.sendMessage(chatId, '❌ This chat is not linked to a Synapse account. Please configure monitoring first.');
+      return;
+    }
+    
+    const helpMessage = `📚 *Document Commands:*\n\n` +
+      `• /search <query> - Search your documents with AI\n` +
+      `• Upload any file - I'll process it automatically\n` +
+      `• /docs - Show this help\n\n` +
+      `*Examples:*\n` +
+      `• /search what is the main topic of my research?\n` +
+      `• /search find information about project deadlines`;
+    
+    await bot!.sendMessage(chatId, helpMessage, { parse_mode: 'Markdown' });
+  });
+}
+
+// Function to set up message listener
+function setupMessageListener() {
+  if (!bot) return;
+
+  bot.on('message', async (msg: TelegramBot.Message) => {
   const chatId = msg.chat.id;
   const telegramMessageId = msg.message_id;
   const fromUserId = msg.from?.id;
@@ -663,21 +672,38 @@ bot.onText(/\/docs/, async (msg) => {
 });
 
 export const initializeTelegramBot = () => {
-  // Ensure download directories exist
-  const mediaDir = path.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_media'); // REVERTED to original
-  const voiceDir = path.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_voice'); // REVERTED to original
-
-  if (!fs.existsSync(mediaDir)) {
-    fs.mkdirSync(mediaDir, { recursive: true });
-    console.log(`[TelegramBot]: Created media download directory: ${mediaDir}`);
-  }
-  if (!fs.existsSync(voiceDir)) {
-    fs.mkdirSync(voiceDir, { recursive: true });
-    console.log(`[TelegramBot]: Created voice download directory: ${voiceDir}`);
+  // Check if token is available
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.log('[TelegramBot]: ⚠️ TELEGRAM_BOT_TOKEN not configured - Telegram bot disabled');
+    return;
   }
 
-  // This function is mainly to ensure this module is loaded and the bot starts listening.
-  // The bot instance is already created and listeners attached above.
+  try {
+    // Create a bot that uses 'polling' to fetch new updates
+    bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
+    console.log('[TelegramBot]: ✅ Bot instance created. Polling for messages...');
+
+    // Set up all the bot listeners here
+    setupBotListeners();
+    
+    // Ensure download directories exist
+    const mediaDir = path.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_media');
+    const voiceDir = path.join(__dirname, '..', '..', 'public', 'uploads', 'telegram_voice');
+
+    if (!fs.existsSync(mediaDir)) {
+      fs.mkdirSync(mediaDir, { recursive: true });
+      console.log(`[TelegramBot]: Created media download directory: ${mediaDir}`);
+    }
+    if (!fs.existsSync(voiceDir)) {
+      fs.mkdirSync(voiceDir, { recursive: true });
+      console.log(`[TelegramBot]: Created voice download directory: ${voiceDir}`);
+    }
+
+  } catch (error) {
+    console.error('[TelegramBot]: ❌ Failed to initialize bot:', error);
+    console.log('[TelegramBot]: Continuing without Telegram bot...');
+    bot = null;
+  }
   console.log('[TelegramBot]: Telegram Bot service initialized.');
   // You could return the bot instance if needed elsewhere, but for now, it operates globally in this module.
 };

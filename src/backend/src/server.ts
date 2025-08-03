@@ -639,7 +639,12 @@ const startServer = async () => {
       // Don't exit - search will still work without optimal indexes
     }
     
-    initializeTelegramBot(); // Initialize and start the Telegram bot polling
+    // Initialize Telegram bot only if token is configured
+    try {
+      initializeTelegramBot();
+    } catch (error) {
+      console.log('[Server] ⚠️ Telegram bot initialization skipped -', error);
+    }
 
     // Initialize WAHA service (modern WhatsApp implementation) with retry logic
     console.log('[Server] 🔄 Initializing WAHA service with network retry...');
