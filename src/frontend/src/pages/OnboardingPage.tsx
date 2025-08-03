@@ -230,24 +230,15 @@ const OnboardingPage: React.FC = () => {
 
       <OnboardingLayout>
         {/* Header */}
-        <div className="relative z-10 flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <motion.h1 
-              className="text-2xl md:text-3xl font-bold gradient-text"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              Welcome to Synapse
-            </motion.h1>
-            <motion.div
-              initial={{ opacity: 0, scale: 0 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.4, type: "spring" }}
-            >
-              <OnboardingProgress />
-            </motion.div>
-          </div>
+        <div className="relative z-10 flex items-center justify-between mb-6">
+          <motion.h1 
+            className="text-2xl md:text-3xl font-bold gradient-text"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            Welcome to Synapse
+          </motion.h1>
           
           <Button
             variant="ghost"
@@ -259,6 +250,16 @@ const OnboardingPage: React.FC = () => {
             Exit
           </Button>
         </div>
+
+        {/* Progress Bar at Top */}
+        <motion.div
+          className="relative z-10 flex justify-center mb-8 pb-6 border-b border-border/30"
+          initial={{ opacity: 0, scale: 0 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.4, type: "spring" }}
+        >
+          <OnboardingProgress />
+        </motion.div>
 
         {/* Step Content */}
         <AnimatePresence mode="wait">

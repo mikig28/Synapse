@@ -88,8 +88,8 @@ function AppContent() {
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/register" element={<RegisterPage />} />
                     
-                    {/* Onboarding route */}
-                    <Route path="/onboarding" element={isAuthenticated ? <OnboardingPage /> : <Navigate to="/login" />} />
+                    {/* Onboarding route - temporarily accessible without auth for testing */}
+                    <Route path="/onboarding" element={<OnboardingPage />} />
                     
                     {/* Protected routes */}
                     <Route path="/dashboard" element={isAuthenticated ? (needsOnboarding ? <Navigate to="/onboarding" /> : <Layout><DashboardPage /></Layout>) : <Navigate to="/login" />} />

@@ -239,12 +239,12 @@ export const ConnectDataStep: React.FC = () => {
 
               {/* Action Button */}
               <Button
-                className={`w-full ${
+                className={`w-full font-medium text-white ${
                   source.status === 'connected'
                     ? 'bg-green-600 hover:bg-green-700'
                     : source.status === 'connecting'
                     ? 'bg-blue-600 hover:bg-blue-700'
-                    : ''
+                    : 'bg-blue-600 hover:bg-blue-700'
                 }`}
                 disabled={source.status === 'connecting'}
                 onClick={(e) => {
@@ -254,19 +254,17 @@ export const ConnectDataStep: React.FC = () => {
                   }
                 }}
               >
-                {source.status === 'connected' && (
+                {source.status === 'connected' ? (
                   <>
                     <CheckCircle className="w-4 h-4 mr-2" />
                     Connected
                   </>
-                )}
-                {source.status === 'connecting' && (
+                ) : source.status === 'connecting' ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Connecting...
                   </>
-                )}
-                {source.status === 'available' && (
+                ) : (
                   <>
                     Connect {source.name}
                     <ArrowRight className="w-4 h-4 ml-2" />

@@ -10,7 +10,7 @@ export const OnboardingProgress: React.FC = () => {
   const completionPercentage = (progress.completedSteps.length / steps.length) * 100;
 
   return (
-    <div className="w-full max-w-md">
+    <div className="w-full max-w-2xl">
       {/* Progress Bar */}
       <div className="mb-4">
         <div className="flex items-center justify-between mb-2">
@@ -28,7 +28,7 @@ export const OnboardingProgress: React.FC = () => {
       </div>
 
       {/* Step Indicators */}
-      <div className="flex items-center justify-between gap-2 overflow-x-auto pb-2">
+      <div className="flex items-center justify-center gap-3 overflow-x-auto pb-2 px-2">
         {steps.map((step, index) => {
           const isCompleted = step.completed;
           const isCurrent = index === currentStep;
@@ -38,7 +38,7 @@ export const OnboardingProgress: React.FC = () => {
           return (
             <motion.div
               key={step.id}
-              className="flex flex-col items-center min-w-0 flex-1"
+              className="flex flex-col items-center min-w-[80px] max-w-[100px] relative"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: index * 0.1 }}
@@ -46,7 +46,7 @@ export const OnboardingProgress: React.FC = () => {
               {/* Step Circle */}
               <motion.div
                 className={`
-                  relative w-8 h-8 rounded-full flex items-center justify-center mb-2
+                  relative w-8 h-8 rounded-full flex items-center justify-center mb-2 z-10
                   transition-all duration-300 ease-in-out
                   ${isCompleted 
                     ? 'bg-green-500 text-white' 
@@ -79,10 +79,10 @@ export const OnboardingProgress: React.FC = () => {
               </motion.div>
 
               {/* Step Title */}
-              <div className="text-center min-w-0">
+              <div className="text-center min-w-0 w-full px-1">
                 <div 
                   className={`
-                    text-xs font-medium truncate max-w-20
+                    text-xs font-medium text-center leading-tight
                     ${isCurrent
                       ? 'text-primary'
                       : isCompleted
@@ -93,6 +93,11 @@ export const OnboardingProgress: React.FC = () => {
                     }
                   `}
                   title={step.title}
+                  style={{ 
+                    wordBreak: 'break-word',
+                    hyphens: 'auto',
+                    lineHeight: '1.2'
+                  }}
                 >
                   {step.title}
                 </div>
@@ -106,10 +111,10 @@ export const OnboardingProgress: React.FC = () => {
 
               {/* Connection Line */}
               {index < steps.length - 1 && (
-                <div className="absolute top-4 left-8 w-full">
+                <div className="absolute top-4 left-[60px] right-[-60px] z-0">
                   <div 
                     className={`
-                      h-0.5 
+                      h-0.5 w-[calc(100%-20px)]
                       ${isPast || isCompleted
                         ? 'bg-green-500'
                         : 'bg-border'

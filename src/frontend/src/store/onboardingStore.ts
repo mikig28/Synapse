@@ -139,7 +139,7 @@ const initialSteps: OnboardingStep[] = [
     title: 'Welcome to Synapse',
     description: 'Discover how Synapse transforms your knowledge management',
     completed: false,
-    optional: false,
+    optional: true,
     unlocked: true
   },
   {
@@ -394,11 +394,7 @@ export const useOnboardingStore = create<OnboardingState>()(
             }
           });
           
-          // Auto-advance to next step if all required steps in current step are complete
-          const currentStep = updatedSteps[state.currentStep];
-          if (currentStep && currentStep.completed) {
-            setTimeout(() => get().nextStep(), 1000);
-          }
+          // Note: Removed auto-advance behavior - users now manually control progression
         }
       },
       

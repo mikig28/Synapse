@@ -18,14 +18,9 @@ import {
 export const WelcomeStep: React.FC = () => {
   const { completeStep } = useOnboardingStore();
 
-  useEffect(() => {
-    // Auto-complete welcome step after a short delay
-    const timer = setTimeout(() => {
-      completeStep('welcome');
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [completeStep]);
+  const handleMarkAsRead = () => {
+    completeStep('welcome');
+  };
 
   const features = [
     {
@@ -250,17 +245,29 @@ export const WelcomeStep: React.FC = () => {
           </p>
 
           <motion.div
-            className="flex items-center justify-center gap-2 text-sm text-muted-foreground"
+            className="flex flex-col items-center gap-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 2 }}
           >
-            <motion.div
-              className="w-2 h-2 bg-primary rounded-full"
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-            />
-            <span>Setting up your journey...</span>
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <motion.div
+                className="w-2 h-2 bg-primary rounded-full"
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+              />
+              <span>Ready to begin your journey...</span>
+            </div>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleMarkAsRead}
+              className="text-xs border-2"
+              style={{ color: 'inherit', borderColor: 'currentColor' }}
+            >
+              <span style={{ color: 'inherit' }}>Mark as Read ✓</span>
+            </Button>
           </motion.div>
         </GlassCard>
       </motion.div>
