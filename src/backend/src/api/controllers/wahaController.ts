@@ -20,8 +20,18 @@ export const getStatus = async (req: Request, res: Response) => {
     
     // Try to get status with connection test
     let wahaStatus;
+    let sessionDetails;
     try {
       wahaStatus = await wahaService.getStatus();
+      
+      // Get detailed session information to properly determine authentication
+      try {
+        sessionDetails = await wahaService.getSessionStatus();
+        console.log('[WAHA Controller] Session details:', sessionDetails);
+      } catch (sessionError) {
+        console.warn('[WAHA Controller] Could not get session details:', sessionError);
+        sessionDetails = null;
+      }
       
       // If service claims to be ready but we haven't tested recently, verify connection
       if (wahaStatus.isReady) {
@@ -41,24 +51,59 @@ export const getStatus = async (req: Request, res: Response) => {
         qrAvailable: false,
         timestamp: new Date().toISOString()
       };
+      sessionDetails = null;
     }
+    
+    // Determine authentication status based on session details
+    const isAuthenticated = sessionDetails?.status === 'WORKING';
+    const isConnected = wahaStatus.isReady && isAuthenticated;
+    const qrAvailable = sessionDetails?.status === 'SCAN_QR_CODE';
+    
+    console.log('[WAHA Controller] Status determination:', {
+      sessionStatus: sessionDetails?.status,
+      wahaReady: wahaStatus.isReady,
+      isAuthenticated,
+      isConnected,
+      qrAvailable
+    });
     
     // Convert WAHA status to format expected by frontend
     const status = {
-      connected: wahaStatus.isReady,
-      authenticated: wahaStatus.isReady, // Add authenticated field
+      connected: isConnected,
+      authenticated: isAuthenticated,
       lastHeartbeat: new Date(),
-      serviceStatus: wahaStatus.status,
-      isReady: wahaStatus.isReady,
-      isClientReady: wahaStatus.isReady,
+      serviceStatus: sessionDetails?.status || wahaStatus.status,
+      isReady: isConnected,
+      isClientReady: isConnected,
       groupsCount: 0,
       privateChatsCount: 0,
       messagesCount: 0,
-      qrAvailable: wahaStatus.qrAvailable,
+      qrAvailable: qrAvailable,
       timestamp: wahaStatus.timestamp,
       monitoredKeywords: [],
       serviceType: 'waha'
     };
+    
+    // Check if we need to emit authentication status change via Socket.IO
+    const io_instance = (global as any).io;
+    if (io_instance && isAuthenticated) {
+      // Only emit if we detect a new authentication (this prevents spam)
+      const currentTime = Date.now();
+      const lastEmit = (global as any).lastAuthStatusEmit || 0;
+      
+      if (currentTime - lastEmit > 10000) { // Only emit every 10 seconds max
+        console.log('[WAHA Controller] Emitting authentication status via Socket.IO');
+        io_instance.emit('whatsapp:status', {
+          connected: true,
+          authenticated: true,
+          isReady: true,
+          authMethod: 'qr',
+          serviceType: 'waha',
+          timestamp: new Date().toISOString()
+        });
+        (global as any).lastAuthStatusEmit = currentTime;
+      }
+    }
     
     res.json({
       success: true,
@@ -270,12 +315,56 @@ export const stopSession = async (req: Request, res: Response) => {
 };
 
 /**
- * Webhook handler for WAHA events
+ * Webhook handler for WAHA events (following WAHA documentation structure)
  */
 export const webhook = async (req: Request, res: Response) => {
   try {
+    console.log('[WAHA Controller] WAHA webhook received:', req.body);
     const wahaService = getWAHAService();
+    
+    // Handle the webhook through the service
     wahaService.handleWebhook(req.body);
+    
+    // Additional Socket.IO broadcasting for session status changes
+    // WAHA event structure: { id, timestamp, event, session, payload }
+    if (req.body.event === 'session.status') {
+      const io_instance = (global as any).io;
+      if (io_instance) {
+        const eventData = req.body.payload;
+        const sessionName = req.body.session;
+        const sessionStatus = eventData.status;
+        const isAuthenticated = sessionStatus === 'WORKING';
+        
+        console.log('[WAHA Controller] Broadcasting session status change via Socket.IO:', {
+          sessionName,
+          sessionStatus,
+          isAuthenticated,
+          eventId: req.body.id
+        });
+        
+        io_instance.emit('whatsapp:status', {
+          connected: isAuthenticated,
+          authenticated: isAuthenticated,
+          isReady: isAuthenticated,
+          authMethod: 'qr',
+          serviceType: 'waha',
+          sessionName: sessionName,
+          sessionStatus: sessionStatus,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Also emit general status update when authenticated
+        if (isAuthenticated) {
+          console.log('[WAHA Controller] 🎉 Authentication successful! Broadcasting to all clients');
+          io_instance.emit('whatsapp:authenticated', {
+            method: 'qr',
+            serviceType: 'waha',
+            sessionName: sessionName,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+    }
     
     res.status(200).json({ success: true });
   } catch (error) {

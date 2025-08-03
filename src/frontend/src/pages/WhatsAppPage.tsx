@@ -139,16 +139,31 @@ const WhatsAppPage: React.FC = () => {
     // Set up status monitoring with authentication detection
     const statusInterval = setInterval(async () => {
       const prevAuthenticated = status?.authenticated;
+      const prevConnected = status?.connected;
       await fetchStatus();
       
       // Check if we just became authenticated (polling fallback)
       if (!prevAuthenticated && status?.authenticated) {
         console.log('[WhatsApp Status Polling] Authentication detected, fetching chats...');
-        fetchGroups();
-        fetchPrivateChats();
-        fetchMessages();
+        toast({
+          title: "WhatsApp Connected",
+          description: "Authentication successful! Loading your chats...",
+        });
+        
+        // Fetch data with a small delay to ensure backend is ready
+        setTimeout(() => {
+          fetchGroups();
+          fetchPrivateChats();
+          fetchMessages();
+        }, 1000);
       }
-    }, 10000); // Check every 10 seconds for faster detection
+      
+      // Also check for connection changes
+      if (!prevConnected && status?.connected) {
+        console.log('[WhatsApp Status Polling] Connection detected, updating UI...');
+        fetchMonitoredKeywords();
+      }
+    }, 5000); // Check every 5 seconds for faster detection
     
     return () => {
       clearInterval(statusInterval);
@@ -313,6 +328,27 @@ const WhatsAppPage: React.FC = () => {
       }
     });
 
+    newSocket.on('whatsapp:authenticated', (authData: any) => {
+      console.log('[WhatsApp Socket.IO] 🎉 Authentication event received:', authData);
+      toast({
+        title: "WhatsApp Authentication Successful",
+        description: `Connected via ${authData.method} method`,
+      });
+      
+      // Immediately fetch status and data
+      setTimeout(() => {
+        fetchStatus();
+        fetchGroups();
+        fetchPrivateChats();
+        fetchMessages();
+        fetchMonitoredKeywords();
+      }, 500);
+      
+      // Close auth modals
+      setShowAuth(false);
+      setShowQR(false);
+    });
+
     return () => {
       console.log('[WhatsApp Socket.IO] Cleaning up socket connection');
       newSocket.off('connect');
@@ -321,6 +357,7 @@ const WhatsAppPage: React.FC = () => {
       newSocket.off('whatsapp:qr');
       newSocket.off('whatsapp:status');
       newSocket.off('whatsapp:chats_updated');
+      newSocket.off('whatsapp:authenticated');
       if (newSocket.connected) {
         newSocket.close();
       }
