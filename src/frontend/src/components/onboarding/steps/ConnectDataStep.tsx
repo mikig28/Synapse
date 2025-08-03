@@ -72,69 +72,54 @@ export const ConnectDataStep: React.FC = () => {
     }
   ];
 
-  const handleConnectSource = useCallback((sourceId: string) => {
-    console.log('handleConnectSource called with:', sourceId);
+  const handleConnectSource = (sourceId: string) => {
+    console.log('=== BUTTON CLICKED ===', sourceId);
+    alert(`Button clicked for ${sourceId}!`); // This should always show if button works
+    
     setSelectedSource(sourceId);
 
-    try {
-      // Handle real connection processes
-      if (sourceId === 'whatsapp') {
-        console.log('Processing WhatsApp connection...');
-        // Update status to connecting for whatsapp
-        updateIntegrationStatus('whatsapp', { status: 'connecting' });
-        setShowQRCode(true);
-        
-        // For demo purposes, show instructions but don't auto-complete
-        // In production, this would integrate with WhatsApp Web API
-        setTimeout(() => {
-          setShowQRCode(false);
-          updateIntegrationStatus('whatsapp', { status: 'disconnected' });
-          alert('WhatsApp integration is not available in demo mode. This would normally connect to WhatsApp Web API.');
-        }, 3000);
-      } else if (sourceId === 'telegram') {
-        console.log('Processing Telegram connection...');
-        // Update status to connecting for telegram
-        updateIntegrationStatus('telegram', { status: 'connecting' });
-        
-        // For demo purposes, show instructions but don't auto-complete
-        // In production, this would open Telegram bot setup
-        setTimeout(() => {
-          updateIntegrationStatus('telegram', { status: 'disconnected' });
-          alert('Telegram integration is not available in demo mode. This would normally redirect to @synapse_bot setup.');
-        }, 2000);
-      } else if (sourceId === 'documents') {
-        console.log('Processing document upload...');
-        // Create a real file input for document upload
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = '.pdf,.doc,.docx,.txt,.md';
-        fileInput.multiple = true;
-        
-        fileInput.onchange = (e) => {
-          console.log('Files selected:', (e.target as HTMLInputElement).files);
-          const files = (e.target as HTMLInputElement).files;
-          if (files && files.length > 0) {
-            // Update document count - documents doesn't have status field
+    if (sourceId === 'whatsapp') {
+      console.log('Processing WhatsApp connection...');
+      setShowQRCode(true);
+      
+      setTimeout(() => {
+        setShowQRCode(false);
+        alert('WhatsApp demo completed!');
+      }, 3000);
+    } else if (sourceId === 'telegram') {
+      console.log('Processing Telegram connection...');
+      alert('Telegram demo - this would normally open bot setup!');
+    } else if (sourceId === 'documents') {
+      console.log('Processing document upload...');
+      // Create a real file input for document upload
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = '.pdf,.doc,.docx,.txt,.md';
+      fileInput.multiple = true;
+      
+      fileInput.onchange = (e) => {
+        const files = (e.target as HTMLInputElement).files;
+        if (files && files.length > 0) {
+          alert(`${files.length} file(s) selected successfully!`);
+          // Only update status if store functions work
+          try {
             updateIntegrationStatus('documents', { 
               uploadedCount: files.length,
               lastUpload: new Date()
             });
             showAchievement(`🎉 ${files.length} document(s) uploaded successfully!`);
             completeStep('connect-data');
+          } catch (error) {
+            console.error('Store update failed:', error);
           }
-        };
-        
-        fileInput.oncancel = () => {
-          console.log('File selection cancelled');
-        };
-        
-        // Immediately trigger file picker
-        fileInput.click();
-      }
-    } catch (error) {
-      console.error('Error in handleConnectSource:', error);
+        } else {
+          alert('No files selected');
+        }
+      };
+      
+      fileInput.click();
     }
-  }, [updateIntegrationStatus, showAchievement, completeStep]);
+  };
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
@@ -270,15 +255,11 @@ export const ConnectDataStep: React.FC = () => {
                     ? 'bg-blue-600 hover:bg-blue-700'
                     : 'bg-blue-600 hover:bg-blue-700'
                 }`}
-                disabled={source.status === 'connecting'}
+                disabled={false}
                 onClick={(e) => {
-                  console.log('Button clicked for source:', source.id, 'Status:', source.status);
                   e.stopPropagation();
-                  if (source.status === 'available') {
-                    handleConnectSource(source.id);
-                  } else {
-                    console.log('Button not clickable, status is:', source.status);
-                  }
+                  console.log('=== BUTTON CLICK EVENT ===', source.id);
+                  handleConnectSource(source.id);
                 }}
               >
                 {source.status === 'connected' ? (
@@ -367,6 +348,13 @@ export const ConnectDataStep: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* Test Buttons */}
+      <div className="flex justify-center gap-4 mb-6">
+        <Button onClick={() => alert('Test button 1 works!')}>Test Button 1</Button>
+        <Button onClick={() => handleConnectSource('whatsapp')}>Test WhatsApp</Button>
+        <Button onClick={() => handleConnectSource('documents')}>Test Documents</Button>
+      </div>
+
       {/* Help Section */}
       <motion.div
         className="text-center space-y-4"
@@ -380,8 +368,13 @@ export const ConnectDataStep: React.FC = () => {
             variant="outline"
             size="lg"
             onClick={() => {
-              showAchievement('👋 Skipped data source connection - you can set this up later!');
-              completeStep('connect-data');
+              alert('Skip button clicked!');
+              try {
+                showAchievement('👋 Skipped data source connection - you can set this up later!');
+                completeStep('connect-data');
+              } catch (error) {
+                console.error('Skip button error:', error);
+              }
             }}
             className="mb-4"
           >
