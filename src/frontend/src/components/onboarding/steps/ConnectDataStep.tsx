@@ -72,25 +72,26 @@ export const ConnectDataStep: React.FC = () => {
     }
   ];
 
-  const handleConnectSource = (sourceId: string) => {
-    console.log('=== BUTTON CLICKED ===', sourceId);
-    alert(`Button clicked for ${sourceId}!`); // This should always show if button works
-    
+  const handleConnectSource = useCallback((sourceId: string) => {
     setSelectedSource(sourceId);
 
     if (sourceId === 'whatsapp') {
-      console.log('Processing WhatsApp connection...');
+      updateIntegrationStatus('whatsapp', { status: 'connecting' });
       setShowQRCode(true);
       
       setTimeout(() => {
         setShowQRCode(false);
-        alert('WhatsApp demo completed!');
+        updateIntegrationStatus('whatsapp', { status: 'disconnected' });
+        showAchievement('📱 WhatsApp demo completed! In production, this would connect to your WhatsApp.');
       }, 3000);
     } else if (sourceId === 'telegram') {
-      console.log('Processing Telegram connection...');
-      alert('Telegram demo - this would normally open bot setup!');
+      updateIntegrationStatus('telegram', { status: 'connecting' });
+      
+      setTimeout(() => {
+        updateIntegrationStatus('telegram', { status: 'disconnected' });
+        showAchievement('💬 Telegram demo completed! In production, this would connect to @synapse_bot.');
+      }, 2000);
     } else if (sourceId === 'documents') {
-      console.log('Processing document upload...');
       // Create a real file input for document upload
       const fileInput = document.createElement('input');
       fileInput.type = 'file';
@@ -100,26 +101,18 @@ export const ConnectDataStep: React.FC = () => {
       fileInput.onchange = (e) => {
         const files = (e.target as HTMLInputElement).files;
         if (files && files.length > 0) {
-          alert(`${files.length} file(s) selected successfully!`);
-          // Only update status if store functions work
-          try {
-            updateIntegrationStatus('documents', { 
-              uploadedCount: files.length,
-              lastUpload: new Date()
-            });
-            showAchievement(`🎉 ${files.length} document(s) uploaded successfully!`);
-            completeStep('connect-data');
-          } catch (error) {
-            console.error('Store update failed:', error);
-          }
-        } else {
-          alert('No files selected');
+          updateIntegrationStatus('documents', { 
+            uploadedCount: files.length,
+            lastUpload: new Date()
+          });
+          showAchievement(`🎉 ${files.length} document(s) uploaded successfully!`);
+          completeStep('connect-data');
         }
       };
       
       fileInput.click();
     }
-  };
+  }, [updateIntegrationStatus, showAchievement, completeStep]);
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
@@ -201,8 +194,9 @@ export const ConnectDataStep: React.FC = () => {
                   : 'hover:border-primary/50'
               }`}
               onClick={() => {
-                console.log('Card clicked for source:', source.id, 'Status:', source.status);
-                source.status === 'available' && handleConnectSource(source.id);
+                if (source.status !== 'connecting' && source.status !== 'connected') {
+                  handleConnectSource(source.id);
+                }
               }}
             >
               {/* Header */}
@@ -255,11 +249,12 @@ export const ConnectDataStep: React.FC = () => {
                     ? 'bg-blue-600 hover:bg-blue-700'
                     : 'bg-blue-600 hover:bg-blue-700'
                 }`}
-                disabled={false}
+                disabled={source.status === 'connecting'}
                 onClick={(e) => {
                   e.stopPropagation();
-                  console.log('=== BUTTON CLICK EVENT ===', source.id);
-                  handleConnectSource(source.id);
+                  if (source.status !== 'connecting') {
+                    handleConnectSource(source.id);
+                  }
                 }}
               >
                 {source.status === 'connected' ? (
@@ -348,13 +343,6 @@ export const ConnectDataStep: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Test Buttons */}
-      <div className="flex justify-center gap-4 mb-6">
-        <Button onClick={() => alert('Test button 1 works!')}>Test Button 1</Button>
-        <Button onClick={() => handleConnectSource('whatsapp')}>Test WhatsApp</Button>
-        <Button onClick={() => handleConnectSource('documents')}>Test Documents</Button>
-      </div>
-
       {/* Help Section */}
       <motion.div
         className="text-center space-y-4"
@@ -368,13 +356,8 @@ export const ConnectDataStep: React.FC = () => {
             variant="outline"
             size="lg"
             onClick={() => {
-              alert('Skip button clicked!');
-              try {
-                showAchievement('👋 Skipped data source connection - you can set this up later!');
-                completeStep('connect-data');
-              } catch (error) {
-                console.error('Skip button error:', error);
-              }
+              showAchievement('👋 Skipped data source connection - you can set this up later!');
+              completeStep('connect-data');
             }}
             className="mb-4"
           >
