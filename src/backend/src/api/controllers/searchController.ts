@@ -211,7 +211,7 @@ export const universalSearch = async (req: AuthenticatedRequest, res: Response) 
             title: task.title,
             content: task.description || '',
             excerpt: (task.description || '').substring(0, 200) + '...',
-            score: calculateTextScore(query, task.description || '', task.title),
+            score: calculateTextScore(query, task.title + ' ' + (task.description || '')),
             createdAt: task.createdAt,
             metadata: {
               status: task.status,
@@ -478,65 +478,32 @@ export const universalSearch = async (req: AuthenticatedRequest, res: Response) 
 };
 
 /**
- * Enhanced relevance scoring with multiple factors
+ * Simple text relevance scoring
  */
-function calculateTextScore(query: string, text: string, title?: string, tags?: string[]): number {
+function calculateTextScore(query: string, text: string): number {
   if (!text || !query) return 0;
   
   const queryLower = query.toLowerCase();
   const textLower = text.toLowerCase();
-  const titleLower = title?.toLowerCase() || '';
-  
-  let score = 0;
-  let maxScore = 0;
   
   // Exact phrase match gets highest score
   if (textLower.includes(queryLower)) {
-    score += 3;
+    return 1.0;
   }
-  maxScore += 3;
   
-  // Title match bonus (higher priority)
-  if (titleLower.includes(queryLower)) {
-    score += 4;
-  }
-  maxScore += 4;
-  
-  // Word matches with position weighting
+  // Word matches
   const queryWords = queryLower.split(/\s+/);
   const textWords = textLower.split(/\s+/);
-  const titleWords = titleLower.split(/\s+/);
   
-  let wordMatchScore = 0;
+  let matchCount = 0;
   for (const queryWord of queryWords) {
-    // Title word matches (highest priority)
-    if (titleWords.some(titleWord => titleWord.includes(queryWord))) {
-      wordMatchScore += 2;
-    }
-    // Content word matches
-    else if (textWords.some(textWord => textWord.includes(queryWord))) {
-      wordMatchScore += 1;
+    if (textWords.some(textWord => textWord.includes(queryWord))) {
+      matchCount++;
     }
   }
-  score += wordMatchScore;
-  maxScore += queryWords.length * 2; // Max possible word score
   
-  // Tag matching bonus
-  if (tags && tags.length > 0) {
-    const tagMatches = tags.filter(tag => 
-      tag.toLowerCase().includes(queryLower) ||
-      queryWords.some(word => tag.toLowerCase().includes(word))
-    ).length;
-    score += tagMatches * 1.5;
-    maxScore += tags.length * 1.5;
-  }
-  
-  // Length penalty for very long content (prioritize concise matches)
-  const lengthPenalty = Math.min(text.length / 1000, 0.2);
-  score = Math.max(0, score - lengthPenalty);
-  
-  // Normalize score (0-1)
-  return maxScore > 0 ? Math.min(score / maxScore, 1) : 0;
+  // Score based on percentage of query words found
+  return matchCount / queryWords.length;
 }
 
 /**
