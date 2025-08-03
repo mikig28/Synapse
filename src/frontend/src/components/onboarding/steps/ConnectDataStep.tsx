@@ -73,60 +73,66 @@ export const ConnectDataStep: React.FC = () => {
   ];
 
   const handleConnectSource = useCallback((sourceId: string) => {
+    console.log('handleConnectSource called with:', sourceId);
     setSelectedSource(sourceId);
-    
-    // Update status to connecting
-    updateIntegrationStatus(sourceId as any, { status: 'connecting' });
 
-    // Handle real connection processes
-    if (sourceId === 'whatsapp') {
-      setShowQRCode(true);
-      // For demo purposes, show instructions but don't auto-complete
-      // In production, this would integrate with WhatsApp Web API
-      setTimeout(() => {
-        setShowQRCode(false);
-        updateIntegrationStatus('whatsapp', { status: 'disconnected' });
-        // Don't show celebration or complete step automatically
-        alert('WhatsApp integration is not available in demo mode. This would normally connect to WhatsApp Web API.');
-      }, 3000);
-    } else if (sourceId === 'telegram') {
-      // For demo purposes, show instructions but don't auto-complete
-      // In production, this would open Telegram bot setup
-      setTimeout(() => {
-        updateIntegrationStatus('telegram', { status: 'disconnected' });
-        alert('Telegram integration is not available in demo mode. This would normally redirect to @synapse_bot setup.');
-      }, 2000);
-    } else if (sourceId === 'documents') {
-      // Create a real file input for document upload
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.accept = '.pdf,.doc,.docx,.txt,.md';
-      fileInput.multiple = true;
-      
-      fileInput.onchange = (e) => {
-        const files = (e.target as HTMLInputElement).files;
-        if (files && files.length > 0) {
-          // Simulate upload process
-          updateIntegrationStatus('documents', { status: 'connecting' });
-          
-          setTimeout(() => {
+    try {
+      // Handle real connection processes
+      if (sourceId === 'whatsapp') {
+        console.log('Processing WhatsApp connection...');
+        // Update status to connecting for whatsapp
+        updateIntegrationStatus('whatsapp', { status: 'connecting' });
+        setShowQRCode(true);
+        
+        // For demo purposes, show instructions but don't auto-complete
+        // In production, this would integrate with WhatsApp Web API
+        setTimeout(() => {
+          setShowQRCode(false);
+          updateIntegrationStatus('whatsapp', { status: 'disconnected' });
+          alert('WhatsApp integration is not available in demo mode. This would normally connect to WhatsApp Web API.');
+        }, 3000);
+      } else if (sourceId === 'telegram') {
+        console.log('Processing Telegram connection...');
+        // Update status to connecting for telegram
+        updateIntegrationStatus('telegram', { status: 'connecting' });
+        
+        // For demo purposes, show instructions but don't auto-complete
+        // In production, this would open Telegram bot setup
+        setTimeout(() => {
+          updateIntegrationStatus('telegram', { status: 'disconnected' });
+          alert('Telegram integration is not available in demo mode. This would normally redirect to @synapse_bot setup.');
+        }, 2000);
+      } else if (sourceId === 'documents') {
+        console.log('Processing document upload...');
+        // Create a real file input for document upload
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.pdf,.doc,.docx,.txt,.md';
+        fileInput.multiple = true;
+        
+        fileInput.onchange = (e) => {
+          console.log('Files selected:', (e.target as HTMLInputElement).files);
+          const files = (e.target as HTMLInputElement).files;
+          if (files && files.length > 0) {
+            // Update document count - documents doesn't have status field
             updateIntegrationStatus('documents', { 
               uploadedCount: files.length,
               lastUpload: new Date()
             });
             showAchievement(`🎉 ${files.length} document(s) uploaded successfully!`);
             completeStep('connect-data');
-          }, 1500);
-        } else {
-          updateIntegrationStatus('documents', { status: 'disconnected' });
-        }
-      };
-      
-      fileInput.oncancel = () => {
-        updateIntegrationStatus('documents', { status: 'disconnected' });
-      };
-      
-      fileInput.click();
+          }
+        };
+        
+        fileInput.oncancel = () => {
+          console.log('File selection cancelled');
+        };
+        
+        // Immediately trigger file picker
+        fileInput.click();
+      }
+    } catch (error) {
+      console.error('Error in handleConnectSource:', error);
     }
   }, [updateIntegrationStatus, showAchievement, completeStep]);
 
@@ -209,7 +215,10 @@ export const ConnectDataStep: React.FC = () => {
                   ? 'border-blue-500/50 bg-blue-500/5'
                   : 'hover:border-primary/50'
               }`}
-              onClick={() => source.status === 'available' && handleConnectSource(source.id)}
+              onClick={() => {
+                console.log('Card clicked for source:', source.id, 'Status:', source.status);
+                source.status === 'available' && handleConnectSource(source.id);
+              }}
             >
               {/* Header */}
               <div className="flex items-center justify-between mb-4">
@@ -263,9 +272,12 @@ export const ConnectDataStep: React.FC = () => {
                 }`}
                 disabled={source.status === 'connecting'}
                 onClick={(e) => {
+                  console.log('Button clicked for source:', source.id, 'Status:', source.status);
                   e.stopPropagation();
                   if (source.status === 'available') {
                     handleConnectSource(source.id);
+                  } else {
+                    console.log('Button not clickable, status is:', source.status);
                   }
                 }}
               >
