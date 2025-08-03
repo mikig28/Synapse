@@ -465,6 +465,9 @@ const WhatsAppPage: React.FC = () => {
     setPhoneNumber('');
     setVerificationCode('');
     setPhoneAuthSupported(true); // Reset phone auth support when opening modal
+    
+    // Actually generate the QR code when opening the modal
+    fetchQRCode();
   };
 
   const sendPhoneAuth = async () => {
@@ -594,8 +597,9 @@ const WhatsAppPage: React.FC = () => {
       });
       
       // Try WAHA endpoint first - skip status check for faster QR generation
-      let response;
+      let response: any;
       let usedService: 'waha' | 'baileys' = 'waha';
+      
       try {
         // Direct QR generation with optimized timeout
         console.log('🚀 Generating QR code directly via WAHA...');
@@ -628,14 +632,20 @@ const WhatsAppPage: React.FC = () => {
         }
         
         // Fallback to legacy endpoint
-        const endpoint = force 
-          ? '/whatsapp/qr?force=true'
-          : '/whatsapp/qr';
-        response = await api.get(endpoint);
-        setActiveService('baileys');
-        usedService = 'baileys';
-        console.log('⚠️ QR code generated using Baileys service (fallback)');
+        try {
+          const endpoint = force 
+            ? '/whatsapp/qr?force=true'
+            : '/whatsapp/qr';
+          response = await api.get(endpoint);
+          setActiveService('baileys');
+          usedService = 'baileys';
+          console.log('⚠️ QR code generated using Baileys service (fallback)');
+        } catch (fallbackError) {
+          console.error('Both WAHA and legacy QR generation failed:', fallbackError);
+          throw fallbackError;
+        }
       }
+      
       const data = response.data;
       
       if (data.success && data.data.qrCode) {
