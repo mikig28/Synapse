@@ -597,11 +597,35 @@ const WhatsAppPage: React.FC = () => {
       let response;
       let usedService: 'waha' | 'baileys' = 'waha';
       try {
+        // First check if WAHA session needs to be started
+        const statusResponse = await api.get('/waha/status');
+        console.log('WAHA status check:', statusResponse.data);
+        
         response = await api.get('/waha/qr');
         setActiveService('waha');
         console.log('✅ QR code generated using WAHA service');
       } catch (error) {
         console.error('WAHA QR failed, trying legacy:', error);
+        // If WAHA fails, show more helpful error message
+        if (error.response?.status === 422) {
+          toast({
+            title: "WAHA Session Issue",
+            description: "Session needs to be restarted. Please wait while we fix this...",
+            variant: "destructive",
+          });
+          // Try to restart session
+          try {
+            await api.post('/waha/restart');
+            toast({
+              title: "Session Restarted",
+              description: "Please try generating QR code again in a few seconds.",
+            });
+            return;
+          } catch (restartError) {
+            console.error('Failed to restart WAHA session:', restartError);
+          }
+        }
+        
         // Fallback to legacy endpoint
         const endpoint = force 
           ? '/whatsapp/qr?force=true'
