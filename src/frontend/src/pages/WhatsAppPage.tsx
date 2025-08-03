@@ -601,9 +601,9 @@ const WhatsAppPage: React.FC = () => {
       let usedService: 'waha' | 'baileys' = 'waha';
       
       try {
-        // Direct QR generation with optimized timeout
-        console.log('🚀 Generating QR code directly via WAHA...');
-        response = await api.get('/waha/qr', { 
+        // Direct QR generation with WAHA-compliant POST method (per official docs)
+        console.log('🚀 Generating QR code directly via WAHA (POST /auth/qr)...');
+        response = await api.post('/waha/auth/qr', {}, { 
           timeout: 15000, // 15 second timeout for QR generation
           headers: { 'Cache-Control': 'no-cache' } // Prevent caching for fresh QR
         });

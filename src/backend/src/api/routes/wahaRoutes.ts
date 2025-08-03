@@ -38,8 +38,9 @@ router.post('/session/start', startSession);
 router.post('/session/stop', stopSession);
 router.get('/status', getStatus);
 
-// Authentication
-router.get('/qr', getQR);
+// Authentication - WAHA compliant endpoints
+router.post('/auth/qr', getQR);
+router.get('/qr', getQR); // Legacy support during transition
 router.post('/auth/phone', sendPhoneAuthCode);
 router.post('/auth/verify', verifyPhoneAuthCode);
 
