@@ -282,13 +282,18 @@ class WAHAService extends EventEmitter {
           await this.httpClient.post(`/api/sessions/${sessionName}/start`);
           console.log(`[WAHA Service] ✅ Session '${sessionName}' started from stopped state`);
           return sessionData;
-        } else if (sessionData?.status === 'WORKING' || sessionData?.status === 'SCAN_QR_CODE') {
-          console.log(`[WAHA Service] ✅ Session '${sessionName}' is already active`);
+        } else if (sessionData?.status === 'WORKING' || sessionData?.status === 'SCAN_QR_CODE' || sessionData?.status === 'STARTING') {
+          console.log(`[WAHA Service] ✅ Session '${sessionName}' is already active (${sessionData?.status})`);
           return sessionData;
         }
-      } catch (getError) {
-        console.log(`[WAHA Service] Session '${sessionName}' doesn't exist, will create new one`);
-        sessionExists = false;
+      } catch (getError: any) {
+        if (getError.response?.status === 404) {
+          console.log(`[WAHA Service] Session '${sessionName}' doesn't exist, will create new one`);
+          sessionExists = false;
+        } else {
+          console.error(`[WAHA Service] Unexpected error checking session:`, getError);
+          throw getError;
+        }
       }
 
       // If session doesn't exist, create it
@@ -365,7 +370,15 @@ class WAHAService extends EventEmitter {
     try {
       const response = await this.httpClient.get(`/api/sessions/${sessionName}`);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
+      // If session doesn't exist (404), return a default status indicating it needs to be created
+      if (error.response?.status === 404) {
+        console.log(`[WAHA Service] Session '${sessionName}' does not exist, needs to be created`);
+        return {
+          name: sessionName,
+          status: 'STOPPED'
+        };
+      }
       console.error(`[WAHA Service] ❌ Failed to get session status for '${sessionName}':`, error);
       throw error;
     }

@@ -127,6 +127,16 @@ export const getQR = async (req: Request, res: Response) => {
     const wahaService = getWAHAService();
     console.log('[WAHA Controller] WAHA service instance obtained');
     
+    // First ensure session exists and is properly initialized
+    try {
+      console.log('[WAHA Controller] Ensuring session is initialized...');
+      await wahaService.startSession();
+      console.log('[WAHA Controller] Session initialization completed');
+    } catch (sessionError) {
+      console.error('[WAHA Controller] Session initialization failed:', sessionError);
+      // Continue anyway - the getQRCode method will handle session creation
+    }
+    
     const qrDataUrl = await wahaService.getQRCode();
     console.log('[WAHA Controller] QR code generated successfully');
     
@@ -542,12 +552,22 @@ export const restartSession = async (req: Request, res: Response) => {
     const wahaService = getWAHAService();
     
     // Stop and start the session
-    await wahaService.stopSession();
-    await wahaService.startSession();
+    try {
+      await wahaService.stopSession();
+    } catch (stopError) {
+      console.log('[WAHA Controller] Stop session failed (session may not exist):', stopError);
+    }
+    
+    // Always try to start/create session
+    const session = await wahaService.startSession();
     
     res.json({
       success: true,
-      message: 'WhatsApp service restart initiated'
+      message: 'WhatsApp service restart initiated',
+      data: {
+        sessionStatus: session.status,
+        sessionName: session.name
+      }
     });
   } catch (error) {
     console.error('[WAHA Controller] Error restarting session:', error);
