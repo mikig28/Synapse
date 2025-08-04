@@ -48,7 +48,7 @@ class WAHAService extends EventEmitter {
   private static instance: WAHAService | null = null;
   private httpClient: any;
   private wahaBaseUrl: string;
-  private defaultSession: string = 'default';
+  private defaultSession: string = 'synapse-session-1';
   private isReady = false;
   private connectionStatus = 'disconnected';
   private statusMonitorInterval: NodeJS.Timeout | null = null;
