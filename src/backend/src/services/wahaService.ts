@@ -325,64 +325,110 @@ class WAHAService extends EventEmitter {
       if (!sessionExists) {
         console.log(`[WAHA Service] Creating new session '${sessionName}'...`);
         
-        const webhookUrl = process.env.BACKEND_URL || process.env.FRONTEND_URL || 'https://synapse-backend-7lq6.onrender.com';
+        // CRITICAL FIX: Use BACKEND URL, not frontend URL for webhooks!
+        const webhookUrl = process.env.BACKEND_URL || 'https://synapse-backend-7lq6.onrender.com';
         const fullWebhookUrl = `${webhookUrl}/api/v1/waha/webhook`;
         
+        console.log(`[WAHA Service] 🔧 FIXED: Using BACKEND webhook URL: ${fullWebhookUrl}`);
+        
         console.log(`[WAHA Service] Setting webhook URL to: ${fullWebhookUrl}`);
-        console.log(`[WAHA Service] Making POST request to /api/sessions with payload:`, {
-          name: sessionName,
-          config: {
-            webhooks: [
-              {
-                url: fullWebhookUrl,
-                events: ['session.status', 'message'],
-                hmac: null,
-                retries: {
-                  delaySeconds: 2,
-                  attempts: 15
-                }
-              }
-            ]
-          }
+        console.log(`[WAHA Service] Making POST request to /api/sessions with simplified payload:`, {
+          name: sessionName
         });
         
-        // Create session with proper WAHA API format
+        // ULTRA-FIX: Create session with simplified payload first, add webhooks later
         const response = await this.httpClient.post('/api/sessions', {
-          name: sessionName,
-          config: {
-            webhooks: [
-              {
-                url: fullWebhookUrl,
-                events: ['session.status', 'message'],
-                hmac: null,
-                retries: {
-                  delaySeconds: 2,
-                  attempts: 15
-                }
-              }
-            ]
-          }
+          name: sessionName
+          // Don't add webhooks during creation - add them later to avoid issues
         });
         
-        console.log(`[WAHA Service] ✅ Session creation response:`, response.status, response.data);
+        console.log(`[WAHA Service] ✅ Session creation response:`, response.status);
+        console.log(`[WAHA Service] 📋 Full response data:`, JSON.stringify(response.data, null, 2));
         sessionData = response.data;
         sessionExists = true;
+        
+        // CRITICAL: Wait for WAHA to initialize the session
+        console.log(`[WAHA Service] ⏳ Waiting 3 seconds for WAHA to initialize session...`);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // Verify session was actually created by listing all sessions
+        try {
+          const allSessions = await this.httpClient.get('/api/sessions');
+          console.log(`[WAHA Service] 📋 All sessions after creation:`, allSessions.data);
+        } catch (listError) {
+          console.log(`[WAHA Service] ⚠️ Could not list sessions:`, listError);
+        }
       }
       
-      // Always try to start the session after creation
+      // Always try to start the session after creation with retry logic
       if (sessionExists) {
+        let startSuccess = false;
+        let attempts = 0;
+        const maxAttempts = 3;
+        
+        while (!startSuccess && attempts < maxAttempts) {
+          attempts++;
+          try {
+            console.log(`[WAHA Service] 🚀 Starting session '${sessionName}' (attempt ${attempts}/${maxAttempts}) with POST /api/sessions/${sessionName}/start`);
+            
+            // First verify session exists before starting
+            const sessionCheck = await this.httpClient.get(`/api/sessions/${sessionName}`);
+            console.log(`[WAHA Service] ✅ Session exists before start attempt:`, sessionCheck.data);
+            
+            const startResponse = await this.httpClient.post(`/api/sessions/${sessionName}/start`);
+            console.log(`[WAHA Service] ✅ Session '${sessionName}' start response:`, startResponse.status, startResponse.data);
+            startSuccess = true;
+            
+          } catch (startError: any) {
+            console.error(`[WAHA Service] ❌ Failed to start session '${sessionName}' (attempt ${attempts}):`, startError.message);
+            console.error(`[WAHA Service] Start error details:`, {
+              status: startError?.response?.status,
+              statusText: startError?.response?.statusText,
+              data: startError?.response?.data
+            });
+            
+            if (attempts < maxAttempts) {
+              console.log(`[WAHA Service] ⏳ Waiting 2 seconds before retry...`);
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+          }
+        }
+        
+        if (!startSuccess) {
+          console.error(`[WAHA Service] ❌ Failed to start session after ${maxAttempts} attempts`);
+        } else {
+          // After successful start, add webhooks
+          try {
+            console.log(`[WAHA Service] 🔗 Adding webhooks to session '${sessionName}'...`);
+            await this.httpClient.post(`/api/sessions/${sessionName}/config`, {
+              webhooks: [
+                {
+                  url: fullWebhookUrl,
+                  events: ['session.status', 'message'],
+                  hmac: null,
+                  retries: {
+                    delaySeconds: 2,
+                    attempts: 15
+                  }
+                }
+              ]
+            });
+            console.log(`[WAHA Service] ✅ Webhooks added successfully`);
+          } catch (webhookError) {
+            console.error(`[WAHA Service] ⚠️ Failed to add webhooks (non-critical):`, webhookError);
+          }
+        }
+      }
+      
+      // Ensure we return proper session data
+      if (!sessionData || !sessionData.name) {
+        console.log(`[WAHA Service] ⚠️ Session data incomplete, fetching fresh status...`);
         try {
-          console.log(`[WAHA Service] Starting session '${sessionName}' with POST /api/sessions/${sessionName}/start`);
-          const startResponse = await this.httpClient.post(`/api/sessions/${sessionName}/start`);
-          console.log(`[WAHA Service] ✅ Session '${sessionName}' start response:`, startResponse.status, startResponse.data);
-        } catch (startError: any) {
-          console.error(`[WAHA Service] ⚠️ Failed to start session '${sessionName}':`, startError);
-          console.error(`[WAHA Service] Start error details:`, {
-            status: startError?.response?.status,
-            statusText: startError?.response?.statusText,
-            data: startError?.response?.data
-          });
-          // Don't throw here, session might already be starting
+          sessionData = await this.getSessionStatus(sessionName);
+        } catch (fetchError) {
+          console.error(`[WAHA Service] ❌ Could not fetch session status:`, fetchError);
+          // Return minimal session data
+          sessionData = { name: sessionName, status: 'STARTING' };
         }
       }
       
