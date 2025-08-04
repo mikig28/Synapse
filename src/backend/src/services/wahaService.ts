@@ -291,6 +291,11 @@ class WAHAService extends EventEmitter {
     try {
       console.log(`[WAHA Service] Starting session management for '${sessionName}'`);
       
+      // Prepare webhook URL at the top level to avoid scope issues
+      const webhookUrl = process.env.BACKEND_URL || 'https://synapse-backend-7lq6.onrender.com';
+      const fullWebhookUrl = `${webhookUrl}/api/v1/waha/webhook`;
+      console.log(`[WAHA Service] 🔧 FIXED: Using BACKEND webhook URL: ${fullWebhookUrl}`);
+      
       // First, try to get existing session and check its status
       let sessionExists = false;
       let sessionData = null;
@@ -324,14 +329,6 @@ class WAHAService extends EventEmitter {
       // If session doesn't exist, create it
       if (!sessionExists) {
         console.log(`[WAHA Service] Creating new session '${sessionName}'...`);
-        
-        // CRITICAL FIX: Use BACKEND URL, not frontend URL for webhooks!
-        const webhookUrl = process.env.BACKEND_URL || 'https://synapse-backend-7lq6.onrender.com';
-        const fullWebhookUrl = `${webhookUrl}/api/v1/waha/webhook`;
-        
-        console.log(`[WAHA Service] 🔧 FIXED: Using BACKEND webhook URL: ${fullWebhookUrl}`);
-        
-        console.log(`[WAHA Service] Setting webhook URL to: ${fullWebhookUrl}`);
         console.log(`[WAHA Service] Making POST request to /api/sessions with simplified payload:`, {
           name: sessionName
         });
