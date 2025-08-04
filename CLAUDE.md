@@ -166,7 +166,9 @@ PINECONE_API_KEY=your_key         # For Pinecone vector database
 TELEGRAM_BOT_TOKEN=your_token     # For Telegram bot integration
 TWITTER_API_KEY=your_key          # For Twitter/X integration
 
-# WhatsApp Integration
+# WhatsApp Integration (WAHA Service)
+WAHA_API_KEY=your_waha_api_key    # Required for WAHA service authentication
+WAHA_SERVICE_URL=https://synapse-waha.onrender.com  # WAHA service endpoint
 WHATSAPP_AUTO_REPLY_ENABLED=false # Enable/disable WhatsApp auto-reply
 PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome  # Chrome path for containers
 PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true  # Skip Chromium download in containers

@@ -58,12 +58,25 @@ class WAHAService extends EventEmitter {
     
     this.wahaBaseUrl = process.env.WAHA_SERVICE_URL || 'https://synapse-waha.onrender.com';
     
+    // Get WAHA API key from environment variables
+    const wahaApiKey = process.env.WAHA_API_KEY;
+    
+    const headers: any = {
+      'Content-Type': 'application/json',
+    };
+    
+    // Add API key authentication if provided
+    if (wahaApiKey) {
+      headers['X-API-Key'] = wahaApiKey;
+      console.log('[WAHA Service] ✅ API key authentication configured');
+    } else {
+      console.warn('[WAHA Service] ⚠️ No WAHA_API_KEY found - API requests may fail with 401');
+    }
+
     this.httpClient = axios.create({
       baseURL: this.wahaBaseUrl,
       timeout: 30000,
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
     });
 
     // Setup request interceptors for logging
