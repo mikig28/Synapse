@@ -15,6 +15,7 @@ import {
   stopSession,
   webhook,
   healthCheck,
+  initializeSession,
   sendPhoneAuthCode,
   verifyPhoneAuthCode,
   getGroups,
@@ -36,6 +37,7 @@ router.get('/health', healthCheck);
 // Session management
 router.post('/session/start', startSession);
 router.post('/session/stop', stopSession);
+router.post('/session/initialize', initializeSession);
 router.get('/status', getStatus);
 
 // Authentication - WAHA compliant endpoints

@@ -166,6 +166,9 @@ class WAHAService extends EventEmitter {
       // Start status monitoring after successful initialization
       this.startStatusMonitoring();
       
+      // Try to initialize default session immediately
+      this.initializeDefaultSession();
+      
     } catch (error) {
       console.error('[WAHA Service] ❌ Initialization failed:', error);
       this.connectionStatus = 'failed';
@@ -202,6 +205,28 @@ class WAHAService extends EventEmitter {
       console.log('[WAHA Service] Stopping periodic status monitoring');
       clearInterval(this.statusMonitorInterval);
       this.statusMonitorInterval = null;
+    }
+  }
+
+  /**
+   * Initialize default session (create if doesn't exist)
+   */
+  private async initializeDefaultSession(): Promise<void> {
+    try {
+      console.log('[WAHA Service] Initializing default session...');
+      
+      // Wait a moment for WAHA service to be fully ready
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const session = await this.startSession();
+      console.log(`[WAHA Service] ✅ Default session initialized with status: ${session.status}`);
+    } catch (error) {
+      console.error('[WAHA Service] ⚠️ Could not initialize default session (will try again later):', error);
+      
+      // Retry after 10 seconds
+      setTimeout(() => {
+        this.initializeDefaultSession();
+      }, 10000);
     }
   }
 
@@ -590,9 +615,22 @@ class WAHAService extends EventEmitter {
   async getStatus(): Promise<WAHAStatus> {
     try {
       // Get real-time session status from WAHA
-      const sessionStatus = await this.getSessionStatus();
+      let sessionStatus = await this.getSessionStatus();
       const previousConnectionStatus = this.connectionStatus;
       const previousIsReady = this.isReady;
+      
+      // If session doesn't exist (STOPPED status from our 404 handler), try to create it
+      if (sessionStatus.status === 'STOPPED' && sessionStatus.name === this.defaultSession) {
+        console.log('[WAHA Service] Session is STOPPED, attempting to create and start...');
+        try {
+          const createdSession = await this.startSession();
+          sessionStatus = createdSession;
+          console.log(`[WAHA Service] Session created/started with status: ${sessionStatus.status}`);
+        } catch (createError) {
+          console.error('[WAHA Service] Failed to create/start session:', createError);
+          // Continue with STOPPED status
+        }
+      }
       
       this.connectionStatus = sessionStatus.status;
       this.isReady = sessionStatus.status === 'WORKING';

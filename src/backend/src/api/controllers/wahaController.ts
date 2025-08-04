@@ -759,3 +759,30 @@ export const healthCheck = async (req: Request, res: Response) => {
     });
   }
 };
+
+/**
+ * Initialize/Create session endpoint
+ */
+export const initializeSession = async (req: Request, res: Response) => {
+  try {
+    console.log('[WAHA Controller] Session initialization request received');
+    const wahaService = getWAHAService();
+    
+    const session = await wahaService.startSession();
+    
+    res.json({
+      success: true,
+      data: {
+        sessionName: session.name,
+        sessionStatus: session.status,
+        message: 'Session initialized successfully'
+      }
+    });
+  } catch (error) {
+    console.error('[WAHA Controller] Error initializing session:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to initialize session'
+    });
+  }
+};
