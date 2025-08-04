@@ -765,24 +765,45 @@ export const healthCheck = async (req: Request, res: Response) => {
  */
 export const initializeSession = async (req: Request, res: Response) => {
   try {
-    console.log('[WAHA Controller] Session initialization request received');
+    console.log('[WAHA Controller] 🚀 MANUAL session initialization request received');
     const wahaService = getWAHAService();
     
+    // First check current session status
+    let currentStatus;
+    try {
+      currentStatus = await wahaService.getSessionStatus();
+      console.log('[WAHA Controller] Current session status before creation:', currentStatus);
+    } catch (statusError) {
+      console.log('[WAHA Controller] Session status check failed (expected for new session):', statusError);
+    }
+    
     const session = await wahaService.startSession();
+    console.log('[WAHA Controller] ✅ Session creation completed:', session);
     
     res.json({
       success: true,
       data: {
         sessionName: session.name,
         sessionStatus: session.status,
+        currentStatus: currentStatus,
         message: 'Session initialized successfully'
       }
     });
-  } catch (error) {
-    console.error('[WAHA Controller] Error initializing session:', error);
+  } catch (error: any) {
+    console.error('[WAHA Controller] ❌ Error initializing session:', error);
+    console.error('[WAHA Controller] Error details:', {
+      status: error?.response?.status,
+      statusText: error?.response?.statusText,
+      data: error?.response?.data,
+      message: error?.message
+    });
     res.status(500).json({
       success: false,
-      error: 'Failed to initialize session'
+      error: error?.message || 'Failed to initialize session',
+      details: {
+        status: error?.response?.status,
+        data: error?.response?.data
+      }
     });
   }
 };

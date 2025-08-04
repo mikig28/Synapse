@@ -329,6 +329,22 @@ class WAHAService extends EventEmitter {
         const fullWebhookUrl = `${webhookUrl}/api/v1/waha/webhook`;
         
         console.log(`[WAHA Service] Setting webhook URL to: ${fullWebhookUrl}`);
+        console.log(`[WAHA Service] Making POST request to /api/sessions with payload:`, {
+          name: sessionName,
+          config: {
+            webhooks: [
+              {
+                url: fullWebhookUrl,
+                events: ['session.status', 'message'],
+                hmac: null,
+                retries: {
+                  delaySeconds: 2,
+                  attempts: 15
+                }
+              }
+            ]
+          }
+        });
         
         // Create session with proper WAHA API format
         const response = await this.httpClient.post('/api/sessions', {
@@ -348,17 +364,26 @@ class WAHAService extends EventEmitter {
           }
         });
         
-        console.log(`[WAHA Service] ✅ Session '${sessionName}' created successfully`);
+        console.log(`[WAHA Service] ✅ Session creation response:`, response.status, response.data);
         sessionData = response.data;
+        sessionExists = true;
       }
       
       // Always try to start the session after creation
-      try {
-        await this.httpClient.post(`/api/sessions/${sessionName}/start`);
-        console.log(`[WAHA Service] ✅ Session '${sessionName}' started successfully`);
-      } catch (startError) {
-        console.error(`[WAHA Service] ⚠️ Failed to start session '${sessionName}':`, startError);
-        // Don't throw here, session might already be starting
+      if (sessionExists) {
+        try {
+          console.log(`[WAHA Service] Starting session '${sessionName}' with POST /api/sessions/${sessionName}/start`);
+          const startResponse = await this.httpClient.post(`/api/sessions/${sessionName}/start`);
+          console.log(`[WAHA Service] ✅ Session '${sessionName}' start response:`, startResponse.status, startResponse.data);
+        } catch (startError: any) {
+          console.error(`[WAHA Service] ⚠️ Failed to start session '${sessionName}':`, startError);
+          console.error(`[WAHA Service] Start error details:`, {
+            status: startError?.response?.status,
+            statusText: startError?.response?.statusText,
+            data: startError?.response?.data
+          });
+          // Don't throw here, session might already be starting
+        }
       }
       
       return sessionData;
@@ -621,13 +646,19 @@ class WAHAService extends EventEmitter {
       
       // If session doesn't exist (STOPPED status from our 404 handler), try to create it
       if (sessionStatus.status === 'STOPPED' && sessionStatus.name === this.defaultSession) {
-        console.log('[WAHA Service] Session is STOPPED, attempting to create and start...');
+        console.log('[WAHA Service] 🚀 Session is STOPPED (404), FORCE creating session now...');
         try {
           const createdSession = await this.startSession();
           sessionStatus = createdSession;
-          console.log(`[WAHA Service] Session created/started with status: ${sessionStatus.status}`);
-        } catch (createError) {
-          console.error('[WAHA Service] Failed to create/start session:', createError);
+          console.log(`[WAHA Service] ✅ FORCE session created/started with status: ${sessionStatus.status}`);
+        } catch (createError: any) {
+          console.error('[WAHA Service] ❌ FORCE session creation failed:', createError);
+          console.error('[WAHA Service] Create error details:', {
+            status: createError?.response?.status,
+            statusText: createError?.response?.statusText,
+            data: createError?.response?.data,
+            message: createError?.message
+          });
           // Continue with STOPPED status
         }
       }
