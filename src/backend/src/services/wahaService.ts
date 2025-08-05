@@ -515,9 +515,9 @@ class WAHAService extends EventEmitter {
         console.log(`[WAHA Service] Session '${sessionName}' is now ready`);
       }
       
-      // Get QR code using WAHA's proper endpoint: POST /api/{session}/auth/qr (per official docs)
-      console.log(`[WAHA Service] Requesting QR code from POST /api/${sessionName}/auth/qr`);
-      const response = await this.httpClient.post(`/api/${sessionName}/auth/qr`, {}, {
+      // Get QR code using WAHA's proper endpoint: GET /api/{session}/auth/qr (per official docs)
+      console.log(`[WAHA Service] Requesting QR code from GET /api/${sessionName}/auth/qr`);
+      const response = await this.httpClient.get(`/api/${sessionName}/auth/qr`, {
         responseType: 'arraybuffer',
         timeout: 10000 // 10 second timeout for QR generation
       });
