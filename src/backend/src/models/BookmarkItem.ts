@@ -23,6 +23,7 @@ export interface IBookmarkItem extends Document { // Renaming to IBookmarkItem f
   redditUpvotes?: number;
   redditNumComments?: number;
   redditCreatedUtc?: number;
+  createdAt: Date;
   // createdAt and updatedAt are automatically added by timestamps: true
 }
 

@@ -75,7 +75,7 @@ interface VectorDocument {
   embedding: number[];
 }
 
-interface SearchResult {
+export interface SearchResult {
   id: string;
   score: number;
   content: string;
@@ -84,7 +84,7 @@ interface SearchResult {
   chunkId?: string;
 }
 
-interface SearchOptions {
+export interface SearchOptions {
   topK?: number;
   minScore?: number;
   filter?: Record<string, any>;
