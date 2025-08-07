@@ -49,34 +49,42 @@ services:
         value: synapse-docs
       - key: WAHA_SERVICE_URL
         value: https://synapse-waha.onrender.com
+      - key: WAHA_API_KEY
+        sync: false
 
   - type: web
     name: synapse-waha
     runtime: docker
     dockerImage: devlikeapro/waha:latest
-    healthCheckPath: /api/version
+    healthCheckPath: /api/sessions
     startupTimeout: 600
     envVars:
       - key: PORT
         value: 3000
       - key: WAHA_LOG_LEVEL
-        value: debug
+        value: info
       - key: WAHA_PRINT_QR
-        value: "true"
+        value: "false"
       - key: WAHA_BASE_URL
         value: https://synapse-waha.onrender.com
-      - key: WAHA_WEBHOOK_URL
-        value: https://synapse-backend-7lq6.onrender.com/api/v1/waha/webhook
+      - key: WAHA_API_KEY
+        sync: false
       - key: WAHA_SESSION_STORE_TYPE
-        value: MEMORY
+        value: FILE
+      - key: WAHA_SESSION_STORE_CONFIG_PATH
+        value: /app/sessions
+      - key: WHATSAPP_DEFAULT_ENGINE
+        value: WEBJS
       - key: WHATSAPP_RESTART_ALL_SESSIONS
-        value: "true"
+        value: "false"
+      - key: WHATSAPP_START_SESSION
+        value: "default"
       - key: WHATSAPP_HOOK_URL
-        value: https://synapse-backend-7lq6.onrender.com/api/v1/waha/webhook
+        value: https://synapse-backend.onrender.com/api/v1/waha/webhook
       - key: WHATSAPP_HOOK_EVENTS
         value: "session.status,message"
       - key: DEBUG
-        value: "waha:*"
+        value: "waha:session,waha:api"
 
   - type: web
     name: synapse-crewai
