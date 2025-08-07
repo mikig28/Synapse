@@ -9,6 +9,7 @@ import WhatsAppMessage, { IWhatsAppMessage } from '../models/WhatsAppMessage';
 import TelegramItem, { ITelegramItem } from '../models/TelegramItem';
 import Meeting, { IMeeting } from '../models/Meeting';
 import { ISmartChunk } from '../models/Document';
+import mongoose from 'mongoose';
 
 class SearchIndexingService {
   public async indexNote(note: INote): Promise<void> {
@@ -17,10 +18,10 @@ class SearchIndexingService {
       const embedding = await vectorDatabaseService.generateEmbedding(content);
 
       const chunk: ISmartChunk = {
-        id: note._id.toString(),
+        id: (note._id as mongoose.Types.ObjectId).toString(),
         content: content,
         embedding: embedding,
-        type: 'full_document',
+        type: 'paragraph',
         level: 0,
         semanticScore: 1,
         startIndex: 0,
@@ -32,12 +33,11 @@ class SearchIndexingService {
 
       await vectorDatabaseService.storeDocumentChunks(
         note.userId.toString(),
-        note._id.toString(),
+        (note._id as mongoose.Types.ObjectId).toString(),
         [chunk],
         {
           documentType: 'note',
           title: note.title,
-          tags: note.tags,
           createdAt: note.createdAt,
         }
       );
@@ -53,10 +53,10 @@ class SearchIndexingService {
       const embedding = await vectorDatabaseService.generateEmbedding(content);
 
       const chunk: ISmartChunk = {
-          id: bookmark._id.toString(),
+          id: (bookmark._id as mongoose.Types.ObjectId).toString(),
           content: content,
           embedding: embedding,
-          type: 'full_document',
+          type: 'paragraph',
           level: 0,
           semanticScore: 1,
           startIndex: 0,
@@ -68,7 +68,7 @@ class SearchIndexingService {
 
       await vectorDatabaseService.storeDocumentChunks(
         bookmark.userId.toString(),
-        bookmark._id.toString(),
+        (bookmark._id as mongoose.Types.ObjectId).toString(),
         [chunk],
         {
           documentType: 'bookmark',
@@ -90,10 +90,10 @@ class SearchIndexingService {
         const embedding = await vectorDatabaseService.generateEmbedding(content);
 
         const chunk: ISmartChunk = {
-            id: task._id.toString(),
+            id: (task._id as mongoose.Types.ObjectId).toString(),
             content: content,
             embedding: embedding,
-            type: 'full_document',
+            type: 'paragraph',
             level: 0,
             semanticScore: 1,
             startIndex: 0,
@@ -105,7 +105,7 @@ class SearchIndexingService {
 
         await vectorDatabaseService.storeDocumentChunks(
             task.userId.toString(),
-            task._id.toString(),
+            (task._id as mongoose.Types.ObjectId).toString(),
             [chunk],
             {
                 documentType: 'task',
