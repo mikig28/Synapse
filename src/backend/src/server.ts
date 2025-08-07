@@ -44,6 +44,7 @@ import { agui } from './services/aguiEmitter'; // Import AG-UI emitter
 import { createAgentCommandEvent } from './services/aguiMapper'; // Import AG-UI mapper
 import { initializeSearchIndexes } from './config/searchIndexes'; // Import search indexes initializer
 import { trackApiUsage } from './middleware/usageTracking'; // Import usage tracking middleware
+import './services/searchIndexingService'; // Import to initialize search indexing hooks
 
 dotenv.config();
 
@@ -99,13 +100,13 @@ const io = new SocketIOServer(httpServer, {
 app.use(cors({
   origin: function (requestOrigin, callback) {
     console.log(`[CORS] Request from origin: ${requestOrigin}`);
-    
+
     // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!requestOrigin) {
       console.log(`[CORS] No origin header - allowing`);
       return callback(null, true);
     }
-    
+
     const allowedOrigins = [
       "https://synapse-frontend.onrender.com",
       "https://synapse-backend-7lq6.onrender.com", // Backend for Socket.IO
@@ -114,9 +115,9 @@ app.use(cors({
       "http://localhost:5174",  // Vite alternative port
       "http://localhost:3001",  // Backend local
     ];
-    
+
     console.log(`[CORS] Checking origin ${requestOrigin} against allowed origins:`, allowedOrigins);
-    
+
     if (allowedOrigins.includes(requestOrigin)) {
       console.log(`[CORS] ✅ Origin ${requestOrigin} explicitly allowed`);
       return callback(null, true);
@@ -135,7 +136,7 @@ app.use(cors({
 // Add explicit CORS headers middleware
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  
+
   // Always set CORS headers for Socket.IO compatibility
   if (origin && [
     "https://synapse-frontend.onrender.com",
@@ -145,18 +146,18 @@ app.use((req, res, next) => {
   ].includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
   }
-  
+
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, Accept, Origin, Cache-Control');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Max-Age', '3600');
-  
+
   if (req.method === 'OPTIONS') {
     console.log(`[CORS] Handling preflight OPTIONS for ${req.path} from ${origin}`);
     res.status(200).end();
     return;
   }
-  
+
   next();
 });
 app.use(express.json());
@@ -230,7 +231,7 @@ app.use('/api/v1/usage', usageRoutes); // Use usage routes
 app.get('/api/v1/ag-ui/test-event', (req: Request, res: Response) => {
   try {
     console.log('[AG-UI Test] Manually emitting test event');
-    
+
     // Emit a test event using proper AG-UI event structure
     agui.emitEvent({
       type: 'TEXT_MESSAGE_CONTENT',
@@ -262,7 +263,7 @@ app.get('/api/v1/ag-ui/test-event', (req: Request, res: Response) => {
 // Server-Sent Events endpoint for AG-UI protocol
 app.get('/api/v1/ag-ui/events', (req: Request, res: Response) => {
   console.log('[AG-UI SSE] Client connected to events stream');
-  
+
   // Check if connection was already closed
   if (req.destroyed || res.headersSent) {
     console.log('[AG-UI SSE] Connection already closed');
@@ -272,7 +273,7 @@ app.get('/api/v1/ag-ui/events', (req: Request, res: Response) => {
   try {
     // Set SSE headers with proper CORS
     const origin = req.headers.origin || 'https://synapse-frontend.onrender.com';
-    
+
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -311,7 +312,7 @@ app.get('/api/v1/ag-ui/events', (req: Request, res: Response) => {
       isAlive = false;
 
       console.log('[AG-UI SSE] Cleaning up connection');
-      
+
       if (subscription) {
         try {
           subscription.unsubscribe();
@@ -319,7 +320,7 @@ app.get('/api/v1/ag-ui/events', (req: Request, res: Response) => {
           console.error('[AG-UI SSE] Error unsubscribing:', error);
         }
       }
-      
+
       if (heartbeatInterval) {
         clearInterval(heartbeatInterval);
       }
@@ -350,11 +351,11 @@ app.get('/api/v1/ag-ui/events', (req: Request, res: Response) => {
           // Filter events by user/session if specified
           const eventUserId = (event as any).userId;
           const eventSessionId = (event as any).sessionId;
-          
+
           if (userId && eventUserId && eventUserId !== userId) {
             return; // Skip events not for this user
           }
-          
+
           if (sessionId && eventSessionId && eventSessionId !== sessionId) {
             return; // Skip events not for this session
           }
@@ -430,7 +431,7 @@ app.get('/api/v1/ag-ui/events', (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('[AG-UI SSE] Error setting up SSE endpoint:', error);
-    
+
     if (!res.headersSent) {
       res.status(500).json({
         success: false,
@@ -447,7 +448,7 @@ app.get('/health', (req: Request, res: Response) => {
     const readyState = mongoose.connection.readyState;
     let dbStatus = 'Unknown';
     let isHealthy = true;
-    
+
     // Check database connection status
     switch (readyState) {
       case 0: dbStatus = 'Disconnected'; isHealthy = false; break;
@@ -456,7 +457,7 @@ app.get('/health', (req: Request, res: Response) => {
       case 3: dbStatus = 'Disconnecting'; isHealthy = false; break;
       default: dbStatus = `Unknown state: ${readyState}`; isHealthy = false;
     }
-    
+
     const healthStatus = {
       status: isHealthy ? 'healthy' : 'degraded',
       timestamp: new Date().toISOString(),
@@ -468,7 +469,7 @@ app.get('/health', (req: Request, res: Response) => {
       memory: process.memoryUsage(),
       version: process.version
     };
-    
+
     // Return 200 even if degraded to prevent restart loops
     res.status(200).json(healthStatus);
   } catch (error) {
@@ -520,9 +521,9 @@ io.on('connection', (socket) => {
   socket.on('ag_ui_cmd', async (commandData) => {
     try {
       console.log(`[Socket.IO AG-UI]: Received command:`, commandData);
-      
+
       const { command, agentId, userId } = commandData;
-      
+
       if (!command || !agentId) {
         console.warn('[Socket.IO AG-UI]: Invalid command data');
         return;
@@ -530,14 +531,14 @@ io.on('connection', (socket) => {
 
       // Get agent service instance from global scope (set during startup)
       const agentService = (global as any).agentService;
-      
+
       if (!agentService) {
         console.error('[Socket.IO AG-UI]: Agent service not available');
         return;
       }
 
       let result = null;
-      
+
       // Execute the command
       switch (command) {
         case 'pause':
@@ -597,7 +598,7 @@ process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
   // Don't exit the process for WhatsApp-related errors
   if (error.message && (
-    error.message.includes('WhatsApp') || 
+    error.message.includes('WhatsApp') ||
     error.message.includes('baileys') ||
     error.message.includes('Connection Closed') ||
     error.message.includes('Stream Errored')
@@ -612,14 +613,14 @@ process.on('uncaughtException', (error) => {
 const startServer = async () => {
   try {
     const mongoUri = process.env.MONGODB_URI;
-    
+
     // Debug: Log environment variables for troubleshooting
     console.log('[Server] Environment Variables Check:', {
       NODE_ENV: process.env.NODE_ENV,
       FRONTEND_URL: process.env.FRONTEND_URL,
       CREWAI_SERVICE_URL: process.env.CREWAI_SERVICE_URL
     });
-    
+
     // Force redeploy with Puppeteer fix - v2
 
     if (!mongoUri) {
@@ -629,7 +630,7 @@ const startServer = async () => {
 
     await mongoose.connect(mongoUri);
     await connectToDatabase(); // Calls the Mongoose connection logic
-    
+
     // Initialize search indexes for optimal search performance
     try {
       await initializeSearchIndexes();
@@ -638,13 +639,13 @@ const startServer = async () => {
       console.error('[Server] ❌ Failed to initialize search indexes:', error);
       // Don't exit - search will still work without optimal indexes
     }
-    
+
     initializeTelegramBot(); // Initialize and start the Telegram bot polling
 
     // Initialize WAHA service (modern WhatsApp implementation) with retry logic
     console.log('[Server] 🔄 Initializing WAHA service with network retry...');
     let wahaInitialized = false;
-    
+
     // Try WAHA initialization with retries (network issues on Render.com)
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
@@ -665,7 +666,7 @@ const startServer = async () => {
         }
       }
     }
-    
+
     // If WAHA failed, set up background retry
     if (!wahaInitialized) {
       console.log('[Server] 🔄 Setting up WAHA background retry (every 30 seconds)...');
@@ -680,7 +681,7 @@ const startServer = async () => {
           console.log('[Server] Background WAHA retry failed, will try again...');
         }
       }, 30000); // Every 30 seconds
-      
+
       // Stop trying after 10 minutes
       setTimeout(() => {
         clearInterval(backgroundRetry);
@@ -702,18 +703,18 @@ const startServer = async () => {
     // Initialize agent services
     const agentService = new AgentService();
     const agentScheduler = new AgentScheduler(agentService);
-    
+
     // Register agent executors
     registerAgentExecutors(agentService);
-    
+
     // Initialize scheduler service with the configured agent service
     schedulerService.setAgentService(agentService);
     await schedulerService.initializeExistingSchedules();
     console.log('[Server] Scheduler service initialized with AgentService');
-    
+
     // Initialize agent controller dependencies
     initializeAgentServices(agentService, agentScheduler);
-    
+
     // Start the agent scheduler
     await agentScheduler.start();
     console.log('[Server] Agent scheduler started successfully');
@@ -724,17 +725,17 @@ const startServer = async () => {
 
     // Make io available globally for real-time updates
     (global as any).io = io;
-    
+
     // Make agent service available globally for AG-UI commands
     (global as any).agentService = agentService;
-    
+
     // **AG-UI Protocol: Bridge AG-UI events to Socket.IO**
     agui.subscribe((event) => {
       try {
         // Emit AG-UI events to all connected Socket.IO clients
         const eventUserId = (event as any).userId;
         const eventSessionId = (event as any).sessionId;
-        
+
         if (eventUserId) {
           // Send to specific user
           io.to(`user_${eventUserId}`).emit('ag_ui_event', event);
@@ -745,13 +746,13 @@ const startServer = async () => {
           // Broadcast to all connected clients
           io.emit('ag_ui_event', event);
         }
-        
+
         console.log(`[AG-UI Bridge] Bridged event ${event.type} via Socket.IO`);
       } catch (error) {
         console.error('[AG-UI Bridge] Error bridging event to Socket.IO:', error);
       }
     });
-    
+
     console.log('[AG-UI] Protocol initialized and bridged to Socket.IO');
 
     httpServer.listen(PORT, '0.0.0.0', () => {
