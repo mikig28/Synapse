@@ -110,6 +110,22 @@ const SearchPage: React.FC = () => {
       setStats(statsData);
     } catch (error) {
       console.error('Failed to load search stats:', error);
+      // Set default stats if backend is not available
+      setStats({
+        totalSearchableItems: 0,
+        byType: {
+          documents: 0,
+          notes: 0,
+          bookmarks: 0,
+          tasks: 0,
+          ideas: 0,
+          videos: 0,
+          news: 0,
+          telegram: 0,
+          meetings: 0,
+          whatsapp: 0
+        }
+      });
     }
   };
 
@@ -145,7 +161,30 @@ const SearchPage: React.FC = () => {
       setResults(searchResults);
       setShowSuggestions(false);
     } catch (error: any) {
-      setError(error.message || 'Search failed');
+      console.error('Search error details:', error);
+      
+      // Provide more detailed error messages based on the error type
+      let errorMessage = 'Search failed';
+      
+      if (error.message?.includes('Network Error') || error.code === 'ERR_NETWORK') {
+        errorMessage = 'Unable to connect to search service. Please ensure the backend server is running.';
+      } else if (error.message?.includes('404')) {
+        errorMessage = 'Search service not found. The backend may not be properly configured.';
+      } else if (error.message?.includes('500')) {
+        errorMessage = 'Search service is experiencing issues. Please check if the vector database is running.';
+      } else if (error.message?.includes('timeout')) {
+        errorMessage = 'Search request timed out. The service may be overloaded.';
+      } else if (error.message?.includes('CORS')) {
+        errorMessage = 'Cross-origin request blocked. Please check CORS configuration.';
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Authentication required. Please log in to use search.';
+      } else if (error.response?.status === 403) {
+        errorMessage = 'Access denied. You may not have permission to search.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
       setResults(null);
     } finally {
       setLoading(false);
@@ -434,9 +473,21 @@ const SearchPage: React.FC = () => {
             className="max-w-4xl mx-auto"
           >
             <GlassCard className="p-6 border-red-500/50">
-              <div className="flex items-center gap-3 text-red-400">
-                <AlertCircle className="w-5 h-5" />
-                <span>{error}</span>
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="text-red-400 font-semibold mb-2">Search Service Unavailable</h3>
+                  <p className="text-red-300 mb-4">{error}</p>
+                  <div className="text-sm text-red-200 bg-red-900/20 p-3 rounded border border-red-500/30">
+                    <p className="font-medium mb-2">Troubleshooting steps:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>Check if the backend server is running on port 3001</li>
+                      <li>Verify that ChromaDB is running on port 8000</li>
+                      <li>Ensure MongoDB is accessible</li>
+                      <li>Check console logs for detailed error information</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </GlassCard>
           </motion.div>
