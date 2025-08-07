@@ -158,35 +158,39 @@ export class VectorDatabaseService {
         console.log('[VectorDB]: Pinecone not configured - missing API key or not in production mode');
       }
       
-      // Initialize Chroma for development/testing
-      try {
-        console.log('[VectorDB]: Initializing Chroma for development...');
-        this.chroma = new ChromaClient({
-          path: this.config.chromaUrl,
-        });
-        
-        // Test connection with timeout
-        const heartbeatPromise = this.chroma.heartbeat();
-        const timeoutPromise = new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('ChromaDB heartbeat timeout')), 10000)
-        );
-        
-        await Promise.race([heartbeatPromise, timeoutPromise]);
-        
-        // Initialize OpenAI embedding function for Chroma if OpenAI key is available
-        if (process.env.OPENAI_API_KEY) {
-          this.embeddingFunction = new OpenAIEmbeddingFunction({
-            openai_api_key: process.env.OPENAI_API_KEY,
-            openai_model: 'text-embedding-3-small',
+      // Initialize Chroma for development/testing (only if not in production)
+      if (!this.config.useProduction) {
+        try {
+          console.log('[VectorDB]: Initializing Chroma for development...');
+          this.chroma = new ChromaClient({
+            path: this.config.chromaUrl,
           });
-          console.log('[VectorDB]: ChromaDB with OpenAI embeddings initialized successfully');
-        } else {
-          console.warn('[VectorDB]: ChromaDB initialized but OpenAI API key missing for embeddings');
+          
+          // Test connection with timeout
+          const heartbeatPromise = this.chroma.heartbeat();
+          const timeoutPromise = new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('ChromaDB heartbeat timeout')), 10000)
+          );
+          
+          await Promise.race([heartbeatPromise, timeoutPromise]);
+          
+          // Initialize OpenAI embedding function for Chroma if OpenAI key is available
+          if (process.env.OPENAI_API_KEY) {
+            this.embeddingFunction = new OpenAIEmbeddingFunction({
+              openai_api_key: process.env.OPENAI_API_KEY,
+              openai_model: 'text-embedding-3-small',
+            });
+            console.log('[VectorDB]: ChromaDB with OpenAI embeddings initialized successfully');
+          } else {
+            console.warn('[VectorDB]: ChromaDB initialized but OpenAI API key missing for embeddings');
+          }
+        } catch (chromaError) {
+          console.warn('[VectorDB]: Failed to initialize ChromaDB (expected in production):', chromaError);
+          this.chroma = null;
+          this.embeddingFunction = null;
         }
-      } catch (chromaError) {
-        console.warn('[VectorDB]: Failed to initialize ChromaDB:', chromaError);
-        this.chroma = null;
-        this.embeddingFunction = null;
+      } else {
+        console.log('[VectorDB]: Skipping ChromaDB initialization in production mode');
       }
       
       // Check if any vector database is available

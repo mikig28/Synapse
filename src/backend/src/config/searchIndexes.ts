@@ -17,6 +17,14 @@ export async function initializeSearchIndexes(): Promise<void> {
   console.log('[SearchIndexes] Initializing search indexes...');
   
   try {
+    // Documents - Drop existing conflicting index first
+    try {
+      await Document.collection.dropIndex('title_text_content_text_summary_text');
+      console.log('[SearchIndexes] Dropped conflicting text index');
+    } catch (error) {
+      // Index might not exist, which is fine
+    }
+    
     // Documents - Text indexes for title, content, and metadata
     await Document.collection.createIndex(
       { 
