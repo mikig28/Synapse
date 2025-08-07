@@ -8,9 +8,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: VITE_BACKEND_ROOT_URL
-        value: https://synapse-backend.onrender.com
+        value: https://synapse-backend-7lq6.onrender.com
       - key: VITE_API_BASE_URL
-        value: https://synapse-backend.onrender.com/api/v1
+        value: https://synapse-backend-7lq6.onrender.com/api/v1
 
   - type: web
     name: synapse-backend
@@ -33,6 +33,8 @@ services:
         value: https://synapse-transcription.onrender.com
       - key: FRONTEND_URL
         value: https://synapse-frontend.onrender.com
+      - key: BACKEND_URL
+        value: https://synapse-backend-7lq6.onrender.com
       - key: CREWAI_SERVICE_URL
         value: https://synapse-crewai.onrender.com
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
@@ -50,7 +52,7 @@ services:
       - key: WAHA_SERVICE_URL
         value: https://synapse-waha.onrender.com
       - key: WAHA_API_KEY
-        sync: false
+        value: waha-synapse-2025-secure
 
   - type: web
     name: synapse-waha
@@ -61,30 +63,34 @@ services:
     envVars:
       - key: PORT
         value: 3000
+      - key: WAHA_API_KEY
+        value: waha-synapse-2025-secure
+      - key: WAHA_AUTO_START_DELAY_SECONDS
+        value: "10"
+      - key: WAHA_DASHBOARD_PASSWORD
+        sync: false
+      - key: WAHA_DASHBOARD_USERNAME
+        value: admin
+      - key: WAHA_LOG_FORMAT
+        value: JSON
       - key: WAHA_LOG_LEVEL
         value: info
       - key: WAHA_PRINT_QR
         value: "false"
-      - key: WAHA_BASE_URL
-        value: https://synapse-waha.onrender.com
-      - key: WAHA_API_KEY
-        sync: false
-      - key: WAHA_SESSION_STORE_TYPE
-        value: FILE
-      - key: WAHA_SESSION_STORE_CONFIG_PATH
-        value: /app/sessions
-      - key: WHATSAPP_DEFAULT_ENGINE
-        value: WEBJS
+      - key: WAHA_WORKER_RESTART_SESSIONS
+        value: "true"
+      - key: WHATSAPP_API_HOSTNAME
+        value: 0.0.0.0
+      - key: WHATSAPP_API_PORT
+        value: 3000
       - key: WHATSAPP_RESTART_ALL_SESSIONS
-        value: "false"
-      - key: WHATSAPP_START_SESSION
-        value: "default"
+        value: "true"
+      - key: WHATSAPP_SESSIONS_MONGO_URL
+        sync: false
       - key: WHATSAPP_HOOK_URL
-        value: https://synapse-backend.onrender.com/api/v1/waha/webhook
+        value: https://synapse-backend-7lq6.onrender.com/api/v1/waha/webhook
       - key: WHATSAPP_HOOK_EVENTS
         value: "session.status,message"
-      - key: DEBUG
-        value: "waha:session,waha:api"
 
   - type: web
     name: synapse-crewai
