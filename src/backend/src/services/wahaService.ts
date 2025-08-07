@@ -196,7 +196,7 @@ class WAHAService extends EventEmitter {
   /**
    * Start periodic status monitoring
    */
-  private startStatusMonitoring(): void {
+  public startStatusMonitoring(): void {
     // Clear any existing monitor
     this.stopStatusMonitoring();
     
@@ -213,7 +213,7 @@ class WAHAService extends EventEmitter {
   /**
    * Stop periodic status monitoring
    */
-  private stopStatusMonitoring(): void {
+  public stopStatusMonitoring(): void {
     if (this.statusMonitorInterval) {
       console.log('[WAHA Service] Stopping periodic status monitoring');
       clearInterval(this.statusMonitorInterval);
@@ -497,42 +497,47 @@ class WAHAService extends EventEmitter {
     console.log(`[WAHA Service] Starting QR code generation for session '${sessionName}'`);
     
     try {
-      // Quick session status check first - if already ready, skip setup
-      let sessionReady = false;
-      try {
-        const sessionStatus = await this.httpClient.get(`/api/sessions/${sessionName}`);
-        sessionReady = sessionStatus.data?.status === 'SCAN_QR_CODE';
-        console.log(`[WAHA Service] Session '${sessionName}' status: ${sessionStatus.data?.status} (ready: ${sessionReady})`);
-      } catch (statusError) {
-        console.log(`[WAHA Service] Could not check session status, will ensure session setup`);
-      }
+      // First ensure session exists and is properly configured
+      console.log(`[WAHA Service] Ensuring session '${sessionName}' exists and is configured...`);
+      await this.startSession(sessionName);
       
-      // Only do expensive session setup if not already ready
-      if (!sessionReady) {
-        console.log(`[WAHA Service] Session not ready, ensuring setup...`);
-        await this.startSession(sessionName);
-        await this.waitForSessionState(sessionName, ['SCAN_QR_CODE'], 15000); // Reduced to 15 seconds
-        console.log(`[WAHA Service] Session '${sessionName}' is now ready`);
-      }
+      // Wait for session to reach SCAN_QR_CODE state with longer timeout
+      console.log(`[WAHA Service] Waiting for session '${sessionName}' to reach QR ready state...`);
+      await this.waitForSessionState(sessionName, ['SCAN_QR_CODE'], 30000); // 30 seconds for stability
       
       // Get QR code using WAHA's proper endpoint: GET /api/{session}/auth/qr (per official docs)
       console.log(`[WAHA Service] Requesting QR code from GET /api/${sessionName}/auth/qr`);
       const response = await this.httpClient.get(`/api/${sessionName}/auth/qr`, {
         responseType: 'arraybuffer',
-        timeout: 10000 // 10 second timeout for QR generation
+        timeout: 15000, // 15 second timeout for QR generation
+        validateStatus: (status: number) => status === 200 // Only accept 200 status
       });
       
       console.log(`[WAHA Service] QR code response received, status: ${response.status}`);
-      const base64 = Buffer.from(response.data).toString('base64');
-      console.log(`[WAHA Service] QR code converted to base64, length: ${base64.length}`);
-      return `data:image/png;base64,${base64}`;
+      
+      if (response.data && response.data.byteLength > 0) {
+        const base64 = Buffer.from(response.data).toString('base64');
+        console.log(`[WAHA Service] ✅ QR code converted to base64, length: ${base64.length}`);
+        return `data:image/png;base64,${base64}`;
+      } else {
+        throw new Error('Empty QR code response from WAHA service');
+      }
     } catch (error: any) {
       console.error(`[WAHA Service] ❌ Failed to get QR code for '${sessionName}':`, error);
       console.error(`[WAHA Service] Error details:`, {
         status: error?.response?.status,
         statusText: error?.response?.statusText,
-        data: error?.response?.data
+        data: error?.response?.data?.toString?.() || error?.response?.data
       });
+      
+      // Handle specific error cases
+      if (error?.response?.status === 422) {
+        throw new Error('Session is not ready for QR code generation. Please restart the session.');
+      } else if (error?.response?.status === 404) {
+        throw new Error('QR code endpoint not found. Please check WAHA service configuration.');
+      } else if (error?.response?.status === 502) {
+        throw new Error('WAHA service is not responding. Please check service availability.');
+      }
       
       const errorMessage = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to get QR code: ${errorMessage}`);
@@ -684,8 +689,46 @@ class WAHAService extends EventEmitter {
     try {
       await this.httpClient.delete(`/api/sessions/${sessionName}`);
       console.log(`[WAHA Service] ✅ Session '${sessionName}' stopped`);
-    } catch (error) {
+      this.connectionStatus = 'disconnected';
+      this.isReady = false;
+    } catch (error: any) {
+      // Don't throw error if session doesn't exist (404)
+      if (error?.response?.status === 404) {
+        console.log(`[WAHA Service] Session '${sessionName}' was already deleted`);
+        this.connectionStatus = 'disconnected';
+        this.isReady = false;
+        return;
+      }
       console.error(`[WAHA Service] ❌ Failed to stop session '${sessionName}':`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Restart session by stopping and starting it
+   */
+  async restartSession(sessionName: string = this.defaultSession): Promise<WAHASession> {
+    try {
+      console.log(`[WAHA Service] Restarting session '${sessionName}'...`);
+      
+      // Stop existing session (ignore errors if it doesn't exist)
+      try {
+        await this.stopSession(sessionName);
+        console.log(`[WAHA Service] Session '${sessionName}' stopped for restart`);
+      } catch (stopError) {
+        console.log(`[WAHA Service] Stop failed during restart (session may not exist):`, stopError);
+      }
+      
+      // Wait a moment for cleanup
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Start new session
+      const newSession = await this.startSession(sessionName);
+      console.log(`[WAHA Service] ✅ Session '${sessionName}' restarted with status: ${newSession.status}`);
+      
+      return newSession;
+    } catch (error) {
+      console.error(`[WAHA Service] ❌ Failed to restart session '${sessionName}':`, error);
       throw error;
     }
   }

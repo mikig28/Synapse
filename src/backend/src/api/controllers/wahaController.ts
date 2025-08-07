@@ -125,38 +125,54 @@ export const getQR = async (req: Request, res: Response) => {
   try {
     console.log('[WAHA Controller] QR code request received');
     const wahaService = getWAHAService();
-    console.log('[WAHA Controller] WAHA service instance obtained');
     
-    // First ensure session exists and is properly initialized
+    // Check service health first
     try {
-      console.log('[WAHA Controller] Ensuring session is initialized...');
-      await wahaService.startSession();
-      console.log('[WAHA Controller] Session initialization completed');
-    } catch (sessionError) {
-      console.error('[WAHA Controller] Session initialization failed:', sessionError);
-      // Continue anyway - the getQRCode method will handle session creation
+      await wahaService.healthCheck();
+      console.log('[WAHA Controller] Service health check passed');
+    } catch (healthError) {
+      console.error('[WAHA Controller] Service health check failed:', healthError);
+      return res.status(503).json({
+        success: false,
+        error: 'WAHA service is not available. Please check service status.',
+        suggestion: 'Try restarting the WAHA service'
+      });
     }
     
     const qrDataUrl = await wahaService.getQRCode();
-    console.log('[WAHA Controller] QR code generated successfully');
+    console.log('[WAHA Controller] ✅ QR code generated successfully');
     
     res.json({
       success: true,
       data: {
         qrCode: qrDataUrl,
-        message: 'QR code available for scanning'
+        message: 'QR code ready for scanning with WhatsApp mobile app'
       }
     });
   } catch (error) {
-    console.error('[WAHA Controller] Error getting QR code:', error);
-    console.error('[WAHA Controller] Error details:', {
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      type: typeof error
-    });
-    res.status(500).json({
+    console.error('[WAHA Controller] ❌ Error getting QR code:', error);
+    
+    // Provide more specific error messages based on the error type
+    let statusCode = 500;
+    let userMessage = 'Failed to generate QR code';
+    
+    if (error instanceof Error) {
+      if (error.message.includes('not ready') || error.message.includes('422')) {
+        statusCode = 422;
+        userMessage = 'Session needs to be restarted. Please try again.';
+      } else if (error.message.includes('not responding') || error.message.includes('502')) {
+        statusCode = 502;
+        userMessage = 'WhatsApp service is not responding. Please check service availability.';
+      } else if (error.message.includes('timeout')) {
+        statusCode = 408;
+        userMessage = 'QR code generation timed out. Please try again.';
+      }
+    }
+    
+    res.status(statusCode).json({
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to get QR code'
+      error: userMessage,
+      technical: error instanceof Error ? error.message : String(error)
     });
   }
 };
@@ -549,31 +565,28 @@ export const getPrivateChats = async (req: Request, res: Response) => {
  */
 export const restartSession = async (req: Request, res: Response) => {
   try {
+    console.log('[WAHA Controller] Restart session request received');
     const wahaService = getWAHAService();
     
-    // Stop and start the session
-    try {
-      await wahaService.stopSession();
-    } catch (stopError) {
-      console.log('[WAHA Controller] Stop session failed (session may not exist):', stopError);
-    }
-    
-    // Always try to start/create session
-    const session = await wahaService.startSession();
+    const session = await wahaService.restartSession();
+    console.log('[WAHA Controller] ✅ Session restarted successfully');
     
     res.json({
       success: true,
-      message: 'WhatsApp service restart initiated',
+      message: 'WhatsApp session restarted successfully',
       data: {
         sessionStatus: session.status,
-        sessionName: session.name
+        sessionName: session.name,
+        isReady: session.status === 'WORKING',
+        qrAvailable: session.status === 'SCAN_QR_CODE'
       }
     });
   } catch (error) {
-    console.error('[WAHA Controller] Error restarting session:', error);
+    console.error('[WAHA Controller] ❌ Error restarting session:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to restart WhatsApp service'
+      error: error instanceof Error ? error.message : 'Failed to restart WhatsApp service',
+      suggestion: 'Please check WAHA service availability and try again'
     });
   }
 };
@@ -583,21 +596,35 @@ export const restartSession = async (req: Request, res: Response) => {
  */
 export const forceRestart = async (req: Request, res: Response) => {
   try {
+    console.log('[WAHA Controller] Force restart session request received');
     const wahaService = getWAHAService();
     
-    // Force stop and start the session
-    await wahaService.stopSession();
-    await wahaService.startSession();
+    // Stop monitoring during restart
+    wahaService.stopStatusMonitoring();
+    
+    // Force restart the session
+    const session = await wahaService.restartSession();
+    console.log('[WAHA Controller] ✅ Force restart completed');
+    
+    // Resume monitoring
+    wahaService.startStatusMonitoring();
     
     res.json({
       success: true,
-      message: 'WhatsApp service force restart initiated'
+      message: 'WhatsApp service force restart completed',
+      data: {
+        sessionStatus: session.status,
+        sessionName: session.name,
+        isReady: session.status === 'WORKING',
+        qrAvailable: session.status === 'SCAN_QR_CODE'
+      }
     });
   } catch (error) {
-    console.error('[WAHA Controller] Error force restarting session:', error);
+    console.error('[WAHA Controller] ❌ Error force restarting session:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to force restart WhatsApp service'
+      error: error instanceof Error ? error.message : 'Failed to force restart WhatsApp service',
+      suggestion: 'Please check WAHA service availability and try again'
     });
   }
 };

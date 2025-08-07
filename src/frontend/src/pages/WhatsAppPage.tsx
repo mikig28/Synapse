@@ -601,10 +601,10 @@ const WhatsAppPage: React.FC = () => {
       let usedService: 'waha' | 'baileys' = 'waha';
       
       try {
-        // Direct QR generation with WAHA-compliant POST method (per official docs)
-        console.log('🚀 Generating QR code directly via WAHA (POST /auth/qr)...');
-        response = await api.post('/waha/auth/qr', {}, { 
-          timeout: 15000, // 15 second timeout for QR generation
+        // Use correct WAHA QR endpoint: GET /waha/qr (not POST /waha/auth/qr)
+        console.log('🚀 Generating QR code via WAHA GET /waha/qr...');
+        response = await api.get('/waha/qr', { 
+          timeout: 20000, // 20 second timeout for QR generation
           headers: { 'Cache-Control': 'no-cache' } // Prevent caching for fresh QR
         });
         setActiveService('waha');
@@ -618,14 +618,18 @@ const WhatsAppPage: React.FC = () => {
             description: "Session needs to be restarted. Please wait while we fix this...",
             variant: "destructive",
           });
-          // Try to restart session
+          // Try to restart session and wait a bit
           try {
-            await api.post('/waha/restart');
-            toast({
-              title: "Session Restarted",
-              description: "Please try generating QR code again in a few seconds.",
-            });
-            return;
+            const restartResponse = await api.post('/waha/restart');
+            if (restartResponse.data.success) {
+              toast({
+                title: "Session Restarted",
+                description: "Session restarted. Generating new QR code...",
+              });
+              // Wait for session to stabilize, then retry QR generation
+              await new Promise(resolve => setTimeout(resolve, 3000));
+              return fetchQRCode(force); // Retry QR generation
+            }
           } catch (restartError) {
             console.error('Failed to restart WAHA session:', restartError);
           }
@@ -719,20 +723,32 @@ const WhatsAppPage: React.FC = () => {
 
   const restartService = async () => {
     try {
-      const response = await api.post('/whatsapp/restart');
+      // Use WAHA service if available, otherwise fallback to legacy
+      let response: any;
+      try {
+        response = await api.post('/waha/restart');
+        console.log('✅ Using WAHA restart endpoint');
+      } catch (wahaError) {
+        console.log('⚠️ WAHA restart failed, trying legacy endpoint');
+        response = await api.post('/whatsapp/restart');
+      }
+      
       const data = response.data;
       if (data.success) {
         toast({
           title: "Success",
-          description: "WhatsApp service restart initiated",
+          description: data.message || "WhatsApp service restart initiated",
         });
-        setTimeout(fetchStatus, 3000);
+        // Wait a bit longer for WAHA sessions to stabilize
+        setTimeout(fetchStatus, 5000);
+      } else {
+        throw new Error(data.error || 'Restart failed');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error restarting service:', error);
       toast({
         title: "Error",
-        description: "Failed to restart WhatsApp service",
+        description: error?.response?.data?.error || error?.message || "Failed to restart WhatsApp service",
         variant: "destructive",
       });
     }
@@ -744,18 +760,33 @@ const WhatsAppPage: React.FC = () => {
     }
     
     try {
-      const response = await api.post('/whatsapp/force-restart');
+      // Use WAHA service if available, otherwise fallback to legacy
+      let response: any;
+      try {
+        response = await api.post('/waha/force-restart');
+        console.log('✅ Using WAHA force restart endpoint');
+      } catch (wahaError) {
+        console.log('⚠️ WAHA force restart failed, trying legacy endpoint');
+        response = await api.post('/whatsapp/force-restart');
+      }
+      
       const data = response.data;
       
       if (data.success) {
         toast({
-          title: "Force Restart Initiated",
-          description: "WhatsApp service is restarting with clean state. Please wait and scan QR code when it appears.",
+          title: "Force Restart Completed",
+          description: data.message || "WhatsApp service is restarting with clean state. Please wait and scan QR code when it appears.",
         });
         
         // Wait a bit then refresh status
         setTimeout(() => {
           fetchStatus();
+          // Auto-show QR if session is ready
+          setTimeout(() => {
+            if (status?.qrAvailable || (data.data?.qrAvailable)) {
+              openAuthModal();
+            }
+          }, 2000);
         }, 5000);
       } else {
         throw new Error(data.error || 'Failed to force restart');
