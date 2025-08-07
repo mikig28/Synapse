@@ -98,6 +98,7 @@ export class VectorDatabaseService {
   private openai: OpenAI;
   private config: VectorConfig;
   private embeddingFunction: OpenAIEmbeddingFunction | null = null;
+  private memoryStore: Map<string, VectorDocument[]> = new Map(); // In-memory fallback
   
   constructor() {
     const primaryProvider = (process.env.EMBEDDING_PROVIDER as EmbeddingProvider) || 'voyage';
@@ -158,12 +159,23 @@ export class VectorDatabaseService {
         console.log('[VectorDB]: Pinecone not configured - missing API key or not in production mode');
       }
       
-      // Initialize Chroma for development/testing (only if not in production)
-      if (!this.config.useProduction) {
+      // Initialize Chroma for development/testing OR as production fallback
+      if (!this.config.useProduction || !this.pinecone) {
         try {
-          console.log('[VectorDB]: Initializing Chroma for development...');
+          console.log(this.config.useProduction 
+            ? '[VectorDB]: Initializing ChromaDB as production fallback...' 
+            : '[VectorDB]: Initializing Chroma for development...'
+          );
+          
+          // Try to connect to external ChromaDB service or local instance
+          const chromaUrl = this.config.useProduction 
+            ? (process.env.CHROMA_URL || 'https://synapse-chromadb.onrender.com')
+            : this.config.chromaUrl;
+            
+          console.log(`[VectorDB]: Attempting to connect to ChromaDB at: ${chromaUrl}`);
+          
           this.chroma = new ChromaClient({
-            path: this.config.chromaUrl,
+            path: chromaUrl,
           });
           
           // Test connection with timeout
@@ -185,19 +197,25 @@ export class VectorDatabaseService {
             console.warn('[VectorDB]: ChromaDB initialized but OpenAI API key missing for embeddings');
           }
         } catch (chromaError) {
-          console.warn('[VectorDB]: Failed to initialize ChromaDB (expected in production):', chromaError);
+          console.warn(`[VectorDB]: Failed to initialize ChromaDB: ${chromaError}`);
           this.chroma = null;
           this.embeddingFunction = null;
         }
       } else {
-        console.log('[VectorDB]: Skipping ChromaDB initialization in production mode');
+        console.log('[VectorDB]: Skipping ChromaDB initialization - Pinecone is available for production');
       }
       
       // Check if any vector database is available
       if (!this.pinecone && !this.chroma) {
-        console.warn('[VectorDB]: No vector databases available - search functionality will be limited');
+        console.error('[VectorDB]: ❌ NO VECTOR DATABASES AVAILABLE - Search functionality will not work');
+        console.error('[VectorDB]: Please configure at least one of: Pinecone (production) or ChromaDB (fallback)');
+        console.error('[VectorDB]: Required environment variables:');
+        console.error('[VectorDB]:   - PINECONE_API_KEY (for production)');
+        console.error('[VectorDB]:   - OPENAI_API_KEY or VOYAGE_API_KEY (for embeddings)');
+        console.error('[VectorDB]:   - CHROMA_URL (for ChromaDB fallback)');
       } else {
-        console.log('[VectorDB]: Vector databases initialized with available providers');
+        console.log('[VectorDB]: ✅ Vector databases initialized successfully');
+        console.log(`[VectorDB]: Available: Pinecone=${!!this.pinecone}, ChromaDB=${!!this.chroma}`);
       }
     } catch (error) {
       console.error('[VectorDB]: Error during vector database initialization:', error);
@@ -502,6 +520,10 @@ export class VectorDatabaseService {
         await this.storeToPinecone(vectorDocuments);
       } else if (this.chroma) {
         await this.storeToChroma(vectorDocuments);
+      } else {
+        // Fallback to in-memory store if no external DBs are available
+        this.memoryStore.set(documentId, vectorDocuments);
+        console.log(`[VectorDB]: Stored ${vectorDocuments.length} chunks for document ${documentId} in memory`);
       }
       
       console.log(`[VectorDB]: Stored ${vectorDocuments.length} chunks for document ${documentId}`);
@@ -611,6 +633,12 @@ export class VectorDatabaseService {
       } else if (this.chroma) {
         console.log('[VectorDB]: Searching in ChromaDB');
         return await this.searchInChroma(queryEmbedding, options);
+      } else {
+        // Fallback to in-memory search if no external DBs are available
+        console.log('[VectorDB]: Searching in in-memory store');
+        const memoryResults = this.searchInMemory(queryEmbedding, options);
+        console.log(`[VectorDB]: Found ${memoryResults.length} results in memory`);
+        return memoryResults;
       }
       
       console.warn('[VectorDB]: No vector database available for search');
@@ -720,6 +748,51 @@ export class VectorDatabaseService {
       return [];
     }
   }
+
+  /**
+   * Search in in-memory store
+   */
+  private searchInMemory(
+    queryEmbedding: number[],
+    options: SearchOptions
+  ): SearchResult[] {
+    const results: SearchResult[] = [];
+    this.memoryStore.forEach(chunks => {
+      chunks.forEach(chunk => {
+        const score = 1 - (this.cosineSimilarity(queryEmbedding, chunk.embedding) || 0);
+        if (score >= (options.minScore || 0)) {
+          results.push({
+            id: chunk.id,
+            score,
+            content: chunk.content,
+            metadata: chunk.metadata,
+            documentId: chunk.documentId,
+            chunkId: chunk.chunkId,
+          });
+        }
+      });
+    });
+    return results.sort((a, b) => b.score - a.score).slice(0, options.topK || 10);
+  }
+
+  /**
+   * Calculate cosine similarity between two vectors
+   */
+  private cosineSimilarity(vec1: number[], vec2: number[]): number {
+    if (vec1.length !== vec2.length) {
+      return 0;
+    }
+    let dotProduct = 0;
+    let norm1 = 0;
+    let norm2 = 0;
+    for (let i = 0; i < vec1.length; i++) {
+      dotProduct += vec1[i] * vec2[i];
+      norm1 += vec1[i] * vec1[i];
+      norm2 += vec2[i] * vec2[i];
+    }
+    const denominator = Math.sqrt(norm1) * Math.sqrt(norm2);
+    return denominator === 0 ? 0 : dotProduct / denominator;
+  }
   
   /**
    * Hybrid search combining semantic and keyword search
@@ -813,6 +886,10 @@ export class VectorDatabaseService {
         await this.deleteFromPinecone(documentId);
       } else if (this.chroma) {
         await this.deleteFromChroma(documentId);
+      } else {
+        // Fallback to in-memory deletion
+        this.memoryStore.delete(documentId);
+        console.log(`[VectorDB]: Deleted document ${documentId} from in-memory store`);
       }
       
       console.log(`[VectorDB]: Deleted document ${documentId} from vector database`);

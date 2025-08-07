@@ -53,6 +53,11 @@ services:
         value: https://synapse-waha.onrender.com
       - key: WAHA_API_KEY
         value: waha-synapse-2025-secure
+      # Search and Vector Database Configuration
+      - key: CHROMA_URL
+        value: http://localhost:8000
+      - key: SEARCH_FALLBACK_MODE
+        value: "true"
 
   - type: web
     name: synapse-waha

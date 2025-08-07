@@ -167,13 +167,13 @@ const SearchPage: React.FC = () => {
       let errorMessage = 'Search failed';
       
       if (error.message?.includes('Network Error') || error.code === 'ERR_NETWORK') {
-        errorMessage = 'Unable to connect to search service. Please ensure the backend server is running.';
+        errorMessage = 'Unable to connect to search service. The backend server may be starting up or temporarily unavailable.';
       } else if (error.message?.includes('404')) {
         errorMessage = 'Search service not found. The backend may not be properly configured.';
       } else if (error.message?.includes('500')) {
-        errorMessage = 'Search service is experiencing issues. Please check if the vector database is running.';
+        errorMessage = 'Search service is experiencing issues. Vector database may be unavailable, but basic search should still work.';
       } else if (error.message?.includes('timeout')) {
-        errorMessage = 'Search request timed out. The service may be overloaded.';
+        errorMessage = 'Search request timed out. The service may be overloaded or starting up.';
       } else if (error.message?.includes('CORS')) {
         errorMessage = 'Cross-origin request blocked. Please check CORS configuration.';
       } else if (error.response?.status === 401) {
@@ -481,10 +481,10 @@ const SearchPage: React.FC = () => {
                   <div className="text-sm text-red-200 bg-red-900/20 p-3 rounded border border-red-500/30">
                     <p className="font-medium mb-2">Troubleshooting steps:</p>
                     <ul className="list-disc list-inside space-y-1">
-                      <li>Check if the backend server is running on port 3001</li>
-                      <li>Verify that ChromaDB is running on port 8000</li>
-                      <li>Ensure MongoDB is accessible</li>
-                      <li>Check console logs for detailed error information</li>
+                      <li>Wait a few minutes - the backend service may be starting up</li>
+                      <li>Check if the backend server is running at: <a href="https://synapse-backend-7lq6.onrender.com/api/v1/health" target="_blank" rel="noopener noreferrer" className="underline">synapse-backend-7lq6.onrender.com</a></li>
+                      <li>Vector search may be unavailable, but basic search should work</li>
+                      <li>Check browser console for detailed error information</li>
                     </ul>
                   </div>
                 </div>

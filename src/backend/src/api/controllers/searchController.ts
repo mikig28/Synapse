@@ -40,6 +40,101 @@ interface UniversalSearchResponse {
 }
 
 /**
+ * Fallback search using MongoDB text search when vector databases are unavailable
+ */
+async function performFallbackSearch(
+  userId: string, 
+  query: string, 
+  contentTypes: string[], 
+  limit: number, 
+  offset: number
+): Promise<SearchResult[]> {
+  const userObjectId = new mongoose.Types.ObjectId(userId);
+  const searchRegex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+  const results: SearchResult[] = [];
+
+  // Define content type mappings
+  const typeQueries = contentTypes.includes('all') ? [
+    { model: Document, type: 'document' },
+    { model: Note, type: 'note' },
+    { model: BookmarkItem, type: 'bookmark' },
+    { model: Task, type: 'task' },
+    { model: Idea, type: 'idea' },
+    { model: VideoItem, type: 'video' },
+    { model: NewsItem, type: 'news' },
+    { model: TelegramItem, type: 'telegram' },
+    { model: Meeting, type: 'meeting' },
+    { model: WhatsAppMessage, type: 'whatsapp' }
+  ] : contentTypes.map(type => {
+    switch (type) {
+      case 'document': return { model: Document, type: 'document' };
+      case 'note': return { model: Note, type: 'note' };
+      case 'bookmark': return { model: BookmarkItem, type: 'bookmark' };
+      case 'task': return { model: Task, type: 'task' };
+      case 'idea': return { model: Idea, type: 'idea' };
+      case 'video': return { model: VideoItem, type: 'video' };
+      case 'news': return { model: NewsItem, type: 'news' };
+      case 'telegram': return { model: TelegramItem, type: 'telegram' };
+      case 'meeting': return { model: Meeting, type: 'meeting' };
+      case 'whatsapp': return { model: WhatsAppMessage, type: 'whatsapp' };
+      default: return null;
+    }
+  }).filter(Boolean);
+
+  // Search across all content types
+  for (const { model, type } of typeQueries) {
+    try {
+      const query_filter = type === 'whatsapp' ? {} : { userId: userObjectId };
+      const searchFields = ['title', 'content', 'description', 'summary'].filter(field => {
+        // Check if model has the field
+        return model.schema.paths[field] !== undefined;
+      });
+
+      if (searchFields.length === 0) continue;
+
+      const orConditions = searchFields.map(field => ({ [field]: searchRegex }));
+      
+      const items = await model.find({
+        ...query_filter,
+        $or: orConditions
+      })
+      .limit(Math.ceil(limit / typeQueries.length))
+      .sort({ createdAt: -1 })
+      .lean();
+
+      for (const item of items) {
+        const title = item.title || item.content?.substring(0, 50) || 'Untitled';
+        const content = item.content || item.description || item.summary || '';
+        const excerpt = content.substring(0, 200) + (content.length > 200 ? '...' : '');
+        
+        // Calculate simple relevance score based on query matches
+        const titleMatches = (title.toLowerCase().match(new RegExp(query.toLowerCase(), 'g')) || []).length;
+        const contentMatches = (content.toLowerCase().match(new RegExp(query.toLowerCase(), 'g')) || []).length;
+        const score = Math.min(0.9, 0.1 + (titleMatches * 0.3) + (contentMatches * 0.05));
+
+        results.push({
+          id: item._id.toString(),
+          type,
+          title,
+          content,
+          excerpt,
+          score,
+          createdAt: item.createdAt || new Date(),
+          metadata: { fallbackSearch: true, type }
+        });
+      }
+    } catch (error) {
+      console.error(`[FallbackSearch] Error searching ${type}:`, error);
+    }
+  }
+
+  // Sort by score and apply pagination
+  return results
+    .sort((a, b) => b.score - a.score)
+    .slice(offset, offset + limit);
+}
+
+/**
  * Universal search across all content types using Vector Search
  */
 export const universalSearch = async (req: AuthenticatedRequest, res: Response) => {
@@ -64,6 +159,31 @@ export const universalSearch = async (req: AuthenticatedRequest, res: Response) 
     }
 
     console.log(`[UniversalSearch] Searching for: "${query}" with strategy: ${strategy} for user: ${userId}`);
+
+    // Check if vector database service is available
+    const vectorHealth = await vectorDatabaseService.healthCheck();
+    if (!vectorHealth.pinecone && !vectorHealth.chroma && !vectorHealth.hasPinecone && !vectorHealth.hasChroma) {
+      console.warn('[UniversalSearch] No vector databases available, using fallback search');
+      // Fallback to basic text search in MongoDB
+      const fallbackResults = await performFallbackSearch(userId, query, contentTypes, limit, offset);
+      const searchTime = Date.now() - startTime;
+      
+      return res.json({
+        success: true,
+        data: {
+          query,
+          totalResults: fallbackResults.length,
+          results: fallbackResults,
+          resultsByType: fallbackResults.reduce((acc, result) => {
+            acc[result.type] = (acc[result.type] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>),
+          searchTime,
+          strategy: 'fallback_text_search',
+          notice: 'Vector search unavailable, using basic text search'
+        },
+      });
+    }
 
     const searchOptions: SearchOptions = {
         topK: limit + offset, // Fetch enough results for pagination
