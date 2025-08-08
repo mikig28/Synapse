@@ -18,6 +18,7 @@ interface AuthState {
   checkAuthState: () => boolean; // New method to validate auth state
   // You can add more actions like setLoading, setError, etc.
   _resetAuthIfInconsistent: () => void; // Internal action
+  hasHydrated: boolean; // NEW: indicates whether persisted auth state has hydrated
 }
 
 // Debug helper for auth state
@@ -36,6 +37,7 @@ const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       user: null,
       token: null,
+      hasHydrated: false,
       login: (userData) => {
         console.log('[AuthStore] Login action called. Payload:', userData); // Log payload to login
         if (!userData.token) {
@@ -143,6 +145,8 @@ const useAuthStore = create<AuthState>()(
           setTimeout(() => {
             const currentState = useAuthStore.getState();
             currentState.checkAuthState();
+            // Mark hydration complete so the app can render protected routes without flicker
+            useAuthStore.setState({ hasHydrated: true });
           }, 0);
         };
       },
