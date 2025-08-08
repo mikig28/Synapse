@@ -64,10 +64,15 @@ const PageLoader = () => (
 );
 
 function AppContent() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, hasHydrated } = useAuthStore();
   const { isOnboarding, progress } = useOnboardingStore();
   const location = useLocation();
   const commandPalette = useCommandPalette();
+
+  // Wait for auth hydration before deciding routes to avoid flicker/redirects on mobile
+  if (!hasHydrated) {
+    return <PageLoader />;
+  }
 
   // Check if user needs onboarding (first time users or incomplete onboarding)
   const needsOnboarding = isAuthenticated && (
