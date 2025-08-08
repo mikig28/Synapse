@@ -35,7 +35,7 @@ export interface SearchStats {
 }
 
 class SearchService {
-  private baseUrl = '/api/v1/search';
+  private baseUrl = '/search';
 
   /**
    * Perform universal search across all content types

@@ -97,7 +97,7 @@ export interface TierPricing {
 }
 
 class UsageService {
-  private baseUrl = '/api/v1/usage';
+  private baseUrl = '/usage';
 
   /**
    * Get current user's usage data

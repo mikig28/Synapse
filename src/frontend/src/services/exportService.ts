@@ -27,7 +27,7 @@ export interface ExportRequest {
 }
 
 class ExportService {
-  private baseUrl = '/api/v1/export';
+  private baseUrl = '/export';
 
   /**
    * Create a new export job

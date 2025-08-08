@@ -68,7 +68,7 @@ export interface FeedbackStats {
 }
 
 class FeedbackService {
-  private baseUrl = '/api/v1/feedback';
+  private baseUrl = '/feedback';
 
   /**
    * Get browser and context information
