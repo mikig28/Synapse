@@ -58,13 +58,23 @@ services:
     name: synapse-waha
     runtime: docker
     dockerImage: devlikeapro/waha:latest
-    healthCheckPath: /api/sessions
+    # WAHA enforces API key on /api/*; Render health checks cannot send headers,
+    # so probing /api/sessions causes 401 and the service is marked unhealthy → 502.
+    # Use the public Swagger root which returns 200 without auth.
+    healthCheckPath: /
     startupTimeout: 600
     envVars:
       - key: PORT
         value: 3000
       - key: WAHA_API_KEY
         value: waha-synapse-2025-secure
+      # Route WAHA traffic through a regional residential proxy (set in Render dashboard)
+      - key: HTTP_PROXY
+        sync: false
+      - key: HTTPS_PROXY
+        sync: false
+      - key: NO_PROXY
+        value: localhost,127.0.0.1
       - key: WAHA_AUTO_START_DELAY_SECONDS
         value: "10"
       - key: WAHA_DASHBOARD_PASSWORD

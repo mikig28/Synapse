@@ -485,6 +485,15 @@ class WAHAService extends EventEmitter {
           status: 'STOPPED'
         };
       }
+      // Treat transient upstream failures (5xx, network errors) as non-fatal: report STOPPED
+      const statusCode = error.response?.status;
+      if (!statusCode || statusCode >= 500) {
+        console.warn(`[WAHA Service] ⚠️ Transient error getting session '${sessionName}' (status: ${statusCode || 'NETWORK_ERROR'}) → returning STOPPED`);
+        return {
+          name: sessionName,
+          status: 'STOPPED'
+        };
+      }
       console.error(`[WAHA Service] ❌ Failed to get session status for '${sessionName}':`, error);
       throw error;
     }

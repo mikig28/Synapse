@@ -412,9 +412,19 @@ const WhatsAppPage: React.FC = () => {
 
   const fetchGroups = async () => {
     try {
-      const response = await api.get('/whatsapp/groups');
-      if (response.data.success) {
-        setGroups(response.data.data);
+      // Prefer WAHA modern endpoint; fallback to legacy
+      try {
+        const wahaRes = await api.get('/waha/groups');
+        if (wahaRes.data.success) {
+          setGroups(wahaRes.data.data);
+          return;
+        }
+      } catch (e) {
+        // swallow and fallback
+      }
+      const legacyRes = await api.get('/whatsapp/groups');
+      if (legacyRes.data.success) {
+        setGroups(legacyRes.data.data);
       }
     } catch (error) {
       console.error('Error fetching WhatsApp groups:', error);
@@ -423,9 +433,19 @@ const WhatsAppPage: React.FC = () => {
 
   const fetchPrivateChats = async () => {
     try {
-      const response = await api.get('/whatsapp/private-chats');
-      if (response.data.success) {
-        setPrivateChats(response.data.data);
+      // Prefer WAHA modern endpoint; fallback to legacy
+      try {
+        const wahaRes = await api.get('/waha/private-chats');
+        if (wahaRes.data.success) {
+          setPrivateChats(wahaRes.data.data);
+          return;
+        }
+      } catch (e) {
+        // swallow and fallback
+      }
+      const legacyRes = await api.get('/whatsapp/private-chats');
+      if (legacyRes.data.success) {
+        setPrivateChats(legacyRes.data.data);
       }
     } catch (error) {
       console.error('Error fetching WhatsApp private chats:', error);
@@ -434,12 +454,25 @@ const WhatsAppPage: React.FC = () => {
 
   const fetchMessages = async (chatId?: string) => {
     try {
-      const endpoint = chatId 
+      // Prefer WAHA modern endpoint; fallback to legacy
+      try {
+        const wahaEndpoint = chatId
+          ? `/waha/messages?chatId=${encodeURIComponent(chatId)}&limit=50`
+          : '/waha/messages';
+        const wahaRes = await api.get(wahaEndpoint);
+        if (wahaRes.data.success) {
+          setMessages(wahaRes.data.data);
+          return;
+        }
+      } catch (e) {
+        // swallow and fallback
+      }
+      const legacyEndpoint = chatId 
         ? `/whatsapp/messages?groupId=${chatId}`
         : '/whatsapp/messages';
-      const response = await api.get(endpoint);
-      if (response.data.success) {
-        setMessages(response.data.data);
+      const legacyRes = await api.get(legacyEndpoint);
+      if (legacyRes.data.success) {
+        setMessages(legacyRes.data.data);
       }
     } catch (error) {
       console.error('Error fetching WhatsApp messages:', error);
@@ -686,9 +719,15 @@ const WhatsAppPage: React.FC = () => {
 
   const refreshChats = async () => {
     try {
-      const response = await api.post('/whatsapp/refresh-chats');
-      const data = response.data;
-      
+      let data: any;
+      // Try WAHA first, then legacy
+      try {
+        const waha = await api.post('/waha/refresh-chats');
+        data = waha.data;
+      } catch (e) {
+        const legacy = await api.post('/whatsapp/refresh-chats');
+        data = legacy.data;
+      }
       if (data.success) {
         await fetchGroups();
         await fetchPrivateChats();
@@ -697,14 +736,11 @@ const WhatsAppPage: React.FC = () => {
           description: "Chats refreshed successfully",
         });
       } else {
-        // Handle specific error cases from the backend
         let title = "WhatsApp Not Ready";
         let description = data.error || "Failed to refresh chats";
-        
         if (data.details?.suggestion) {
           description += `. ${data.details.suggestion}`;
         }
-        
         toast({
           title,
           description,
