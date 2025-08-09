@@ -518,10 +518,13 @@ export const verifyPhoneAuthCode = async (req: Request, res: Response) => {
 export const getGroups = async (req: Request, res: Response) => {
   try {
     const wahaService = getWAHAService();
-    const chats = await wahaService.getChats();
-    
-    // Filter only groups
-    const groups = chats.filter(chat => chat.isGroup);
+    // Try WAHA-compliant groups endpoint first
+    let groups = await wahaService.getGroups();
+    if (!groups || groups.length === 0) {
+      // Ask WAHA to refresh then try again quickly
+      await wahaService.refreshGroups();
+      groups = await wahaService.getGroups();
+    }
     
     res.json({
       success: true,
@@ -544,8 +547,8 @@ export const getPrivateChats = async (req: Request, res: Response) => {
     const wahaService = getWAHAService();
     const chats = await wahaService.getChats();
     
-    // Filter only private chats
-    const privateChats = chats.filter(chat => !chat.isGroup);
+    // Filter only private chats (not @g.us)
+    const privateChats = chats.filter(chat => !chat.isGroup && !(typeof chat.id === 'string' && chat.id.includes('@g.us')));
     
     res.json({
       success: true,

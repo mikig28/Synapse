@@ -614,15 +614,23 @@ class WAHAService extends EventEmitter {
         return [];
       }
       
-      // WAHA API endpoint structure: /api/{session}/chats
-      const response = await this.httpClient.get(`/api/${sessionName}/chats`);
+      // Prefer overview endpoint first for richer data (per WAHA docs)
+      let response: any;
+      try {
+        response = await this.httpClient.get(`/api/${sessionName}/chats/overview`);
+        console.log(`[WAHA Service] Using chats overview endpoint`);
+      } catch (e) {
+        console.log(`[WAHA Service] Chats overview not available, falling back to /chats`);
+        response = await this.httpClient.get(`/api/${sessionName}/chats`);
+      }
       
       console.log(`[WAHA Service] Received ${response.data.length} chats`);
       
       return response.data.map((chat: any) => ({
         id: chat.id,
-        name: chat.name || chat.id,
-        isGroup: chat.isGroup || false,
+        name: chat.name || chat.subject || chat.title || chat.id,
+        // Robust group detection: WAHA may omit isGroup. Treat *@g.us as group.
+        isGroup: Boolean(chat.isGroup) || (typeof chat.id === 'string' && chat.id.includes('@g.us')),
         lastMessage: chat.lastMessage?.body,
         timestamp: chat.lastMessage?.timestamp,
         participantCount: chat.participantCount
@@ -638,6 +646,54 @@ class WAHAService extends EventEmitter {
       
       // Return empty array instead of throwing to prevent 500 errors
       return [];
+    }
+  }
+
+  /**
+   * Get groups using WAHA groups endpoint (compliant), fallback to filtering chats
+   */
+  async getGroups(sessionName: string = this.defaultSession): Promise<WAHAChat[]> {
+    try {
+      // Ensure session is working
+      const sessionStatus = await this.getSessionStatus(sessionName);
+      if (sessionStatus.status !== 'WORKING') {
+        return [];
+      }
+      try {
+        const res = await this.httpClient.get(`/api/${sessionName}/groups`);
+        console.log(`[WAHA Service] Received ${res.data.length} groups`);
+        return res.data.map((g: any) => ({
+          id: g.id || g.chatId || g.groupId,
+          name: g.name || g.subject || g.title || g.id,
+          isGroup: true,
+          lastMessage: g.lastMessage?.body,
+          timestamp: g.lastMessage?.timestamp,
+          participantCount: g.participants?.length || g.participantCount
+        }));
+      } catch (e: any) {
+        if (e.response?.status === 404) {
+          console.log(`[WAHA Service] /groups endpoint not available, falling back to chats filter`);
+        } else {
+          console.warn(`[WAHA Service] Groups endpoint error, falling back to chats filter`, e.message);
+        }
+        const chats = await this.getChats(sessionName);
+        return chats.filter(c => c.isGroup || (typeof c.id === 'string' && c.id.includes('@g.us')));
+      }
+    } catch (err) {
+      console.error('[WAHA Service] Failed to get groups:', err);
+      return [];
+    }
+  }
+
+  /**
+   * Request WAHA to refresh groups (best effort)
+   */
+  async refreshGroups(sessionName: string = this.defaultSession): Promise<void> {
+    try {
+      await this.httpClient.post(`/api/${sessionName}/groups/refresh`);
+      console.log('[WAHA Service] Groups refresh requested');
+    } catch (e) {
+      console.log('[WAHA Service] Groups refresh not available, skipping');
     }
   }
 
