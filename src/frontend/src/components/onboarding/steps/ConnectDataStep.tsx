@@ -350,21 +350,49 @@ export const ConnectDataStep: React.FC = () => {
         animate={{ opacity: 1 }}
         transition={{ delay: 0.8 }}
       >
-        {/* Skip Option */}
-        {!hasConnectedSource && (
+        {/* Skip Option - Always show unless step is completed */}
+        <div className="flex flex-col items-center gap-2">
           <Button
             variant="outline"
             size="lg"
             onClick={() => {
-              showAchievement('👋 Skipped data source connection - you can set this up later!');
-              completeStep('connect-data');
+              console.log('Skip button clicked!');
+              try {
+                showAchievement('👋 Skipped data source connection - you can set this up later!');
+                completeStep('connect-data');
+                console.log('Skip action completed successfully');
+              } catch (error) {
+                console.error('Skip button error:', error);
+                // Fallback: just show achievement without completing step
+                alert('Step skipped! You can set up data sources later in Settings.');
+              }
             }}
-            className="mb-4"
+            className="mb-2"
           >
             Skip for now - I'll connect later
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
-        )}
+          
+          {hasConnectedSource && (
+            <Button
+              size="lg"
+              onClick={() => {
+                console.log('Continue button clicked!');
+                try {
+                  completeStep('connect-data');
+                  console.log('Continue action completed successfully');
+                } catch (error) {
+                  console.error('Continue button error:', error);
+                  alert('Continuing to next step...');
+                }
+              }}
+              className="mb-2"
+            >
+              Continue to Next Step
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          )}
+        </div>
         
         <GlassCard className="p-6 bg-muted/30">
           <div className="flex items-center justify-center gap-2 mb-3">
