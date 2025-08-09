@@ -12,9 +12,11 @@ router.get('/health', wahaController_1.healthCheck);
 // Session management
 router.post('/session/start', wahaController_1.startSession);
 router.post('/session/stop', wahaController_1.stopSession);
+router.post('/session/initialize', wahaController_1.initializeSession);
 router.get('/status', wahaController_1.getStatus);
-// Authentication
-router.get('/qr', wahaController_1.getQR);
+// Authentication - WAHA compliant endpoints
+router.post('/auth/qr', wahaController_1.getQR);
+router.get('/qr', wahaController_1.getQR); // Legacy support during transition
 router.post('/auth/phone', wahaController_1.sendPhoneAuthCode);
 router.post('/auth/verify', wahaController_1.verifyPhoneAuthCode);
 // Messaging

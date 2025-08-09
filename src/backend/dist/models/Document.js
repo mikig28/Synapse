@@ -236,7 +236,7 @@ DocumentSchema.index({ 'metadata.tags': 1 });
 DocumentSchema.index({ 'metadata.category': 1 });
 DocumentSchema.index({ searchKeywords: 1 });
 DocumentSchema.index({ autoTags: 1 });
-DocumentSchema.index({ title: 'text', content: 'text', summary: 'text' });
+// Text search index will be created by searchIndexes.ts to avoid conflicts
 DocumentSchema.index({ location: '2dsphere' });
 // Vector search indexes (for when we implement vector database)
 DocumentSchema.index({ 'embeddings.text': 1 });

@@ -231,6 +231,22 @@ class UsageTrackingService {
         usage.flags.hasHitLimits = overages.length > 0;
     }
     /**
+     * Calculate total usage score
+     */
+    calculateUsageScore(usage) {
+        const features = usage.features;
+        return (features.searches.count +
+            features.agents.executionsCount +
+            features.data.documentsUploaded +
+            features.integrations.whatsappMessages +
+            features.integrations.telegramMessages +
+            features.content.notesCreated +
+            features.content.ideasCreated +
+            features.content.tasksCreated +
+            features.advanced.vectorSearchQueries +
+            features.advanced.aiSummariesGenerated);
+    }
+    /**
      * Get tier limits
      */
     getTierLimits(tier) {
@@ -271,7 +287,7 @@ class UsageTrackingService {
      */
     async updateUserFlags(usage) {
         // Check if power user (high usage across multiple features)
-        const totalScore = usage.totalUsageScore;
+        const totalScore = this.calculateUsageScore(usage);
         usage.flags.isPowerUser = totalScore > 100; // Threshold for power user
         // Check if new user (first 30 days)
         const accountAge = Date.now() - usage.createdAt.getTime();
@@ -279,7 +295,7 @@ class UsageTrackingService {
         // Check churn risk (declining usage pattern)
         if (usage.period.type === 'weekly') {
             const previousWeekUsage = await this.getPreviousPeriodUsage(usage.userId, 'weekly', usage.period.start);
-            if (previousWeekUsage && totalScore < previousWeekUsage.totalUsageScore * 0.5) {
+            if (previousWeekUsage && totalScore < this.calculateUsageScore(previousWeekUsage) * 0.5) {
                 usage.flags.isChurnRisk = true;
             }
         }
@@ -454,7 +470,7 @@ class UsageTrackingService {
         if (!usage) {
             return { allowed: true }; // No usage record = new user, allow action
         }
-        const limits = usage.getTierLimits();
+        const limits = this.getTierLimits(usage.billing.tier);
         switch (feature) {
             case 'search':
                 if (usage.features.searches.count >= limits.searches) {
