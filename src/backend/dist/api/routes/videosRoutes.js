@@ -15,6 +15,12 @@ router.get('/', authMiddleware_1.protect, videosController_1.getVideos);
 router.put('/:id/status', authMiddleware_1.protect, videosController_1.updateVideoStatus);
 // POST /api/v1/videos/:id/summarize - Generate AI summary for a video
 router.post('/:id/summarize', authMiddleware_1.protect, videosController_1.summarizeVideo);
+// POST /api/v1/videos/:id/index - Index video captions into Upstash Search
+router.post('/:id/index', authMiddleware_1.protect, videosController_1.indexVideo);
+// GET /api/v1/videos/:id/index - Check if video captions are indexed
+router.get('/:id/index', authMiddleware_1.protect, videosController_1.checkVideoIndex);
+// POST /api/v1/videos/:id/search - Search moments in a video's captions
+router.post('/:id/search', authMiddleware_1.protect, videosController_1.searchVideoMoments);
 // DELETE /api/v1/videos/:id - Delete a specific video
 router.delete('/:id', authMiddleware_1.protect, videosController_1.deleteVideo);
 exports.default = router;

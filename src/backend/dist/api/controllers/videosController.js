@@ -3,11 +3,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.summarizeVideo = exports.deleteVideo = exports.updateVideoStatus = exports.getVideos = exports.createVideoFromTelegram = exports.processAndCreateVideoItem = void 0;
+exports.searchVideoMoments = exports.indexVideo = exports.checkVideoIndex = exports.summarizeVideo = exports.deleteVideo = exports.updateVideoStatus = exports.getVideos = exports.createVideoFromTelegram = exports.processAndCreateVideoItem = void 0;
 const VideoItem_1 = __importDefault(require("../../models/VideoItem"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const axios_1 = __importDefault(require("axios")); // For oEmbed
 const videoSummarizationService_1 = require("../../services/videoSummarizationService");
+const upstashVideoSearchService_1 = require("../../services/upstashVideoSearchService");
 const extractYouTubeVideoId = (url) => {
     let videoId = null;
     try {
@@ -244,3 +245,77 @@ const summarizeVideo = async (req, res) => {
     }
 };
 exports.summarizeVideo = summarizeVideo;
+const checkVideoIndex = async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) {
+            return res.status(401).json({ message: 'User not authenticated' });
+        }
+        const videoId = req.params.id;
+        if (!mongoose_1.default.Types.ObjectId.isValid(videoId)) {
+            return res.status(400).json({ message: 'Invalid video ID' });
+        }
+        const video = await VideoItem_1.default.findOne({ _id: videoId, userId: new mongoose_1.default.Types.ObjectId(userId) });
+        if (!video) {
+            return res.status(404).json({ message: 'Video not found or user not authorized' });
+        }
+        const exists = await (0, upstashVideoSearchService_1.checkVideoIndexExists)(video.videoId);
+        return res.status(200).json({ exists });
+    }
+    catch (error) {
+        console.error('[VideoController] Error checking video index:', error);
+        return res.status(500).json({ message: 'Failed to check video index' });
+    }
+};
+exports.checkVideoIndex = checkVideoIndex;
+const indexVideo = async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) {
+            return res.status(401).json({ message: 'User not authenticated' });
+        }
+        const videoId = req.params.id;
+        if (!mongoose_1.default.Types.ObjectId.isValid(videoId)) {
+            return res.status(400).json({ message: 'Invalid video ID' });
+        }
+        const video = await VideoItem_1.default.findOne({ _id: videoId, userId: new mongoose_1.default.Types.ObjectId(userId) });
+        if (!video) {
+            return res.status(404).json({ message: 'Video not found or user not authorized' });
+        }
+        const canonicalUrl = `https://www.youtube.com/watch?v=${video.videoId}`;
+        await (0, upstashVideoSearchService_1.indexVideoCaptions)(canonicalUrl, video.videoId);
+        return res.status(200).json({ message: 'Video indexed successfully' });
+    }
+    catch (error) {
+        console.error('[VideoController] Error indexing video captions:', error);
+        return res.status(500).json({ message: 'Failed to index video captions' });
+    }
+};
+exports.indexVideo = indexVideo;
+const searchVideoMoments = async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) {
+            return res.status(401).json({ message: 'User not authenticated' });
+        }
+        const videoId = req.params.id;
+        const { query } = req.body;
+        if (!query || query.trim().length === 0) {
+            return res.status(400).json({ message: 'Query is required' });
+        }
+        if (!mongoose_1.default.Types.ObjectId.isValid(videoId)) {
+            return res.status(400).json({ message: 'Invalid video ID' });
+        }
+        const video = await VideoItem_1.default.findOne({ _id: videoId, userId: new mongoose_1.default.Types.ObjectId(userId) });
+        if (!video) {
+            return res.status(404).json({ message: 'Video not found or user not authorized' });
+        }
+        const results = await (0, upstashVideoSearchService_1.searchVideoCaptions)(video.videoId, query);
+        return res.status(200).json({ results });
+    }
+    catch (error) {
+        console.error('[VideoController] Error searching video moments:', error);
+        return res.status(500).json({ message: 'Failed to search video moments' });
+    }
+};
+exports.searchVideoMoments = searchVideoMoments;

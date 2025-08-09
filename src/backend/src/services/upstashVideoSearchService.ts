@@ -53,7 +53,7 @@ export async function checkVideoIndexExists(videoId: string): Promise<boolean> {
   return allIndexes.includes(videoId);
 }
 
-async function upsertCaptionsBatch(formattedData: FormattedDocument[], index: ReturnType<typeof searchClient.index>) {
+async function upsertCaptionsBatch(formattedData: FormattedDocument[], index: any) {
   const batchSize = 100;
   for (let i = 0; i < formattedData.length; i += batchSize) {
     const batch = formattedData.slice(i, i + batchSize);
@@ -74,14 +74,12 @@ export async function indexVideoCaptions(url: string, videoId: string): Promise<
   })) as unknown as TranscriptInput;
 
   const formattedData = formatTranscriptData(transcriptResult, url);
-  // @ts-ignore generic "{ text: string }" is fine per Upstash example
-  const searchIndex = searchClient.index<{ text: string }>(videoId);
+  const searchIndex: any = searchClient.index<{ text: string }>(videoId);
   await upsertCaptionsBatch(formattedData, searchIndex);
 }
 
 export async function searchVideoCaptions(videoId: string, query: string) {
-  // @ts-ignore generic "{ text: string }" is fine per Upstash example
-  const searchIndex = searchClient.index<{ text: string }>(videoId);
+  const searchIndex: any = searchClient.index<{ text: string }>(videoId);
   const results = await searchIndex.search({
     query,
     limit: 10,
