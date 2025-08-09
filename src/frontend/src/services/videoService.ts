@@ -46,4 +46,25 @@ export const summarizeVideoService = async (videoId: string): Promise<{ message:
     console.error(`Error summarizing video ${videoId}:`, error);
     throw error;
   }
+};
+
+export interface VideoMomentResult {
+  id: string;
+  content: { text: string };
+  metadata: { start_time: number };
+}
+
+export const checkVideoIndexService = async (videoId: string): Promise<boolean> => {
+  const response = await axiosInstance.get<{ exists: boolean }>(`/videos/${videoId}/index`);
+  return response.data.exists;
+};
+
+export const indexVideoCaptionsService = async (videoId: string): Promise<{ message: string }> => {
+  const response = await axiosInstance.post<{ message: string }>(`/videos/${videoId}/index`);
+  return response.data;
+};
+
+export const searchVideoMomentsService = async (videoId: string, query: string): Promise<VideoMomentResult[]> => {
+  const response = await axiosInstance.post<{ results: VideoMomentResult[] }>(`/videos/${videoId}/search`, { query });
+  return response.data.results;
 }; 
