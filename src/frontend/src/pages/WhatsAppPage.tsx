@@ -1322,6 +1322,8 @@ const WhatsAppPage: React.FC = () => {
                           whileTap={{ scale: 0.99 }}
                           onClick={() => {
                             setSelectedChat(group);
+                            // Fetch messages immediately for selected group
+                            fetchMessages(group.id);
                             // Keep chat list visible on mobile for easy navigation
                           }}
                           className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
@@ -1373,6 +1375,8 @@ const WhatsAppPage: React.FC = () => {
                           whileTap={{ scale: 0.99 }}
                           onClick={() => {
                             setSelectedChat(chat);
+                            // Fetch messages immediately for selected private chat
+                            fetchMessages(chat.id);
                             // Keep chat list visible on mobile for easy navigation
                           }}
                           className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
