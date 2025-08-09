@@ -37,14 +37,19 @@ class SelfReflectiveRAGService {
             }
             // Prepare context from search results
             const context = searchResults.map(result => result.content).join('\n\n');
-            // Generate response using OpenAI
+            // If no OpenAI API key is configured, provide a deterministic fallback answer
+            if (!process.env.OPENAI_API_KEY) {
+                const fallback = this.buildFallbackAnswer(query.query, searchResults);
+                return fallback;
+            }
+            // Generate response using OpenAI (use a current, supported model)
             const systemPrompt = `You are a helpful AI assistant that answers questions based on the provided context. 
       Use only the information from the context to answer questions. If you cannot find the answer in the context, say so.
       
       Context:
       ${context}`;
             const response = await this.openai.chat.completions.create({
-                model: 'gpt-3.5-turbo',
+                model: 'gpt-4o-mini',
                 messages: [
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: query.query }
@@ -52,7 +57,12 @@ class SelfReflectiveRAGService {
                 max_tokens: 500,
                 temperature: 0.7,
             });
-            const answer = response.choices[0]?.message?.content || 'I could not generate a response.';
+            let answer = response.choices[0]?.message?.content || '';
+            // If the model returned an empty answer, fall back to a deterministic summary
+            if (!answer.trim()) {
+                const fallback = this.buildFallbackAnswer(query.query, searchResults);
+                return fallback;
+            }
             // Calculate confidence and quality scores
             const confidence = Math.min(0.9, searchResults.length * 0.2);
             const qualityScore = Math.min(0.95, searchResults.reduce((sum, r) => sum + r.score, 0) / searchResults.length);
@@ -81,7 +91,7 @@ class SelfReflectiveRAGService {
                 debugInfo: query.includeDebugInfo ? {
                     searchResults: searchResults.length,
                     contextLength: context.length,
-                    model: 'gpt-3.5-turbo',
+                    model: 'gpt-4o-mini',
                 } : undefined,
             };
         }
@@ -128,6 +138,42 @@ class SelfReflectiveRAGService {
                 suggestions,
             };
         }
+    }
+    buildFallbackAnswer(userQuery, searchResults) {
+        // Take top 3 results and extract the most relevant snippets
+        const top = searchResults
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 3);
+        const bulletPoints = top.map((r, idx) => {
+            const snippet = r.content.length > 300 ? r.content.slice(0, 300) + '...' : r.content;
+            return `${idx + 1}. ${snippet}`;
+        }).join('\n');
+        const answerText = `Based on your documents, here is what I found related to "${userQuery}":\n\n${bulletPoints}\n\nIf you need deeper analysis, configure an AI key to enable full answers.`;
+        const confidence = Math.min(0.8, top.length * 0.25);
+        const qualityScore = Math.min(0.85, top.reduce((sum, r) => sum + r.score, 0) / (top.length || 1));
+        return {
+            answer: answerText,
+            response: answerText,
+            sources: top.map(r => ({
+                id: r.id,
+                content: r.content.substring(0, 200) + '...',
+                score: r.score,
+                metadata: r.metadata,
+            })),
+            confidence,
+            qualityScore,
+            iterationCount: 1,
+            searchStrategy: 'semantic',
+            suggestions: [
+                'Ask a more specific question',
+                'Upload more relevant documents',
+                'Provide additional context in your query'
+            ],
+            debugInfo: {
+                fallbackUsed: true,
+                reason: process.env.OPENAI_API_KEY ? 'Empty LLM response' : 'Missing OPENAI_API_KEY',
+            }
+        };
     }
 }
 exports.SelfReflectiveRAGService = SelfReflectiveRAGService;

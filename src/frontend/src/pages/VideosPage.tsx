@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { VideoItemType } from '../types/video';
-import { getVideosService, updateVideoStatusService, deleteVideoService, summarizeVideoService } from '../services/videoService';
+import { getVideosService, updateVideoStatusService, deleteVideoService, summarizeVideoService, searchVideoMomentsService, checkVideoIndexService, indexVideoCaptionsService, VideoMomentResult } from '../services/videoService';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ExternalLink, Info, Eye, PlayCircle, CheckCircle, HelpCircle, Trash2, Film, FileText, Loader2, ChevronDown, ChevronUp, Volume2, VolumeX, Pause } from 'lucide-react';
@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
+import { Input } from '@/components/ui/input';
 
 
 const VideosPage: React.FC = () => {
@@ -18,11 +19,17 @@ const VideosPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
+  const [playingStartSeconds, setPlayingStartSeconds] = useState<number>(0);
   const [summarizingVideoId, setSummarizingVideoId] = useState<string | null>(null);
   const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set());
   const [readingVideoId, setReadingVideoId] = useState<string | null>(null);
   const [speechSynthesis, setSpeechSynthesis] = useState<SpeechSynthesis | null>(null);
   const [currentUtterance, setCurrentUtterance] = useState<SpeechSynthesisUtterance | null>(null);
+  const [indexingVideoId, setIndexingVideoId] = useState<string | null>(null);
+  const [indexedMap, setIndexedMap] = useState<Record<string, boolean>>({});
+  const [searchQueries, setSearchQueries] = useState<Record<string, string>>({});
+  const [searchResults, setSearchResults] = useState<Record<string, VideoMomentResult[]>>({});
+  const [searchLoadingMap, setSearchLoadingMap] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
 
   // Initialize speech synthesis
@@ -54,6 +61,20 @@ const VideosPage: React.FC = () => {
       const data = await getVideosService();
       setVideos(data);
       setError(null);
+      // Pre-check index status for listed videos
+      const indexStatuses = await Promise.all(
+        data.map(async (v) => {
+          try {
+            const exists = await checkVideoIndexService(v._id);
+            return [v._id, exists] as const;
+          } catch {
+            return [v._id, false] as const;
+          }
+        })
+      );
+      const map: Record<string, boolean> = {};
+      indexStatuses.forEach(([id, exists]) => (map[id] = exists));
+      setIndexedMap(map);
     } catch (err) {
       setError('Failed to load videos. Please ensure the backend is running and refresh.');
       console.error('Error fetching videos:', err);
@@ -132,6 +153,35 @@ const VideosPage: React.FC = () => {
       });
     } finally {
       setSummarizingVideoId(null);
+    }
+  };
+
+  const handleIndexCaptions = async (videoId: string) => {
+    try {
+      setIndexingVideoId(videoId);
+      await indexVideoCaptionsService(videoId);
+      setIndexedMap((prev) => ({ ...prev, [videoId]: true }));
+      toast({ title: 'Indexed', description: 'Video captions indexed successfully.' });
+    } catch (e) {
+      toast({ title: 'Indexing failed', description: 'Unable to index captions.', variant: 'destructive' });
+    } finally {
+      setIndexingVideoId(null);
+    }
+  };
+
+  const handleSearchMoments = async (videoId: string, query: string) => {
+    if (!query) {
+      setSearchResults((prev) => ({ ...prev, [videoId]: [] }));
+      return;
+    }
+    setSearchLoadingMap((prev) => ({ ...prev, [videoId]: true }));
+    try {
+      const results = await searchVideoMomentsService(videoId, query);
+      setSearchResults((prev) => ({ ...prev, [videoId]: results }));
+    } catch (e) {
+      setSearchResults((prev) => ({ ...prev, [videoId]: [] }));
+    } finally {
+      setSearchLoadingMap((prev) => ({ ...prev, [videoId]: false }));
     }
   };
 
@@ -344,7 +394,7 @@ const VideosPage: React.FC = () => {
               <iframe
                 width="100%"
                 height="100%"
-                src={`https://www.youtube.com/embed/${playingVideoId}?autoplay=1`}
+                src={`https://www.youtube.com/embed/${playingVideoId}?autoplay=1&start=${playingStartSeconds}`}
                 title="YouTube video player"
                 frameBorder="0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -486,6 +536,63 @@ const VideosPage: React.FC = () => {
                             </div>
                           </CardContent>
                         )}
+
+                        {/* Search Moments Section */}
+                        <CardContent className="p-3 md:p-4 pt-0">
+                          <div className="bg-slate-800/50 rounded-lg border border-purple-700/30 overflow-hidden">
+                            <div className="w-full flex items-center justify-between p-3">
+                              <span className="text-xs font-medium text-purple-300">Search Moments</span>
+                              {indexedMap[video._id] ? (
+                                <span className="text-[10px] text-green-400">Indexed</span>
+                              ) : (
+                                <AnimatedButton
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={indexingVideoId === video._id}
+                                  onClick={() => handleIndexCaptions(video._id)}
+                                  className="text-xs"
+                                >
+                                  {indexingVideoId === video._id ? 'Indexing...' : 'Index Captions'}
+                                </AnimatedButton>
+                              )}
+                            </div>
+                            {indexedMap[video._id] && (
+                              <div className="p-3 pt-0 space-y-3">
+                                <Input
+                                  placeholder="Search moments..."
+                                  value={searchQueries[video._id] || ''}
+                                  onChange={(e) => {
+                                    const q = e.target.value;
+                                    setSearchQueries((prev) => ({ ...prev, [video._id]: q }));
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      handleSearchMoments(video._id, searchQueries[video._id] || '');
+                                    }
+                                  }}
+                                />
+                                <div className="space-y-2 max-h-48 overflow-auto pr-1">
+                                  {(searchResults[video._id] || []).map((item) => (
+                                    <button
+                                      key={item.id}
+                                      onClick={() => {
+                                        setPlayingVideoId(video.videoId);
+                                        setPlayingStartSeconds(item.metadata?.start_time ?? 0);
+                                      }}
+                                      className="w-full text-left text-xs bg-slate-900/40 hover:bg-slate-900/70 rounded p-2 border border-purple-700/30"
+                                    >
+                                      <div className="text-purple-200 line-clamp-2">{item.content.text.trim()}</div>
+                                      <div className="text-[10px] text-purple-400/70">t= {item.metadata?.start_time ?? 0}s</div>
+                                    </button>
+                                  ))}
+                                  {searchLoadingMap[video._id] && (
+                                    <div className="text-xs text-purple-300">Searching...</div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
                         
                         <CardFooter className="p-3 md:p-4 pt-2 border-t border-purple-800/50">
                           <div className="flex flex-col w-full gap-2">

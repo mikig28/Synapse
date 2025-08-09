@@ -4,7 +4,10 @@ import {
   getVideos,
   updateVideoStatus,
   deleteVideo,
-  summarizeVideo
+  summarizeVideo,
+  checkVideoIndex,
+  indexVideo,
+  searchVideoMoments
 } from '../controllers/videosController';
 import { protect } from '../middleware/authMiddleware'; // Assuming you have this
 
@@ -21,6 +24,15 @@ router.put('/:id/status', protect, updateVideoStatus);
 
 // POST /api/v1/videos/:id/summarize - Generate AI summary for a video
 router.post('/:id/summarize', protect, summarizeVideo);
+
+// POST /api/v1/videos/:id/index - Index video captions into Upstash Search
+router.post('/:id/index', protect, indexVideo);
+
+// GET /api/v1/videos/:id/index - Check if video captions are indexed
+router.get('/:id/index', protect, checkVideoIndex);
+
+// POST /api/v1/videos/:id/search - Search moments in a video's captions
+router.post('/:id/search', protect, searchVideoMoments);
 
 // DELETE /api/v1/videos/:id - Delete a specific video
 router.delete('/:id', protect, deleteVideo);

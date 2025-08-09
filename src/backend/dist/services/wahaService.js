@@ -15,13 +15,25 @@ class WAHAService extends events_1.EventEmitter {
         this.defaultSession = 'default';
         this.isReady = false;
         this.connectionStatus = 'disconnected';
+        this.statusMonitorInterval = null;
         this.wahaBaseUrl = process.env.WAHA_SERVICE_URL || 'https://synapse-waha.onrender.com';
+        // Get WAHA API key from environment variables
+        const wahaApiKey = process.env.WAHA_API_KEY;
+        const headers = {
+            'Content-Type': 'application/json',
+        };
+        // Add API key authentication if provided
+        if (wahaApiKey) {
+            headers['X-API-Key'] = wahaApiKey;
+            console.log('[WAHA Service] ✅ API key authentication configured');
+        }
+        else {
+            console.warn('[WAHA Service] ⚠️ No WAHA_API_KEY found - API requests may fail with 401');
+        }
         this.httpClient = axios_1.default.create({
             baseURL: this.wahaBaseUrl,
             timeout: 30000,
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers,
         });
         // Setup request interceptors for logging
         this.httpClient.interceptors.request.use((config) => {
@@ -36,6 +48,41 @@ class WAHAService extends events_1.EventEmitter {
             return Promise.reject(error);
         });
         console.log(`[WAHA Service] Initialized with base URL: ${this.wahaBaseUrl}`);
+        // Set up event listeners for authentication
+        this.on('authenticated', this.handleAuthentication.bind(this));
+    }
+    /**
+     * Handle authentication event - fetch chats automatically
+     */
+    async handleAuthentication(authData) {
+        try {
+            console.log('[WAHA Service] 🎉 Handling authentication event:', authData);
+            // Wait a moment for the session to stabilize
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Try to fetch chats to verify the connection is working
+            console.log('[WAHA Service] Fetching chats after authentication...');
+            const chats = await this.getChats();
+            console.log(`[WAHA Service] Successfully fetched ${chats.length} chats after authentication`);
+            // Emit chats updated event
+            this.emit('chats_updated', {
+                groups: chats.filter(chat => chat.isGroup),
+                privateChats: chats.filter(chat => !chat.isGroup),
+                totalCount: chats.length
+            });
+            // Broadcast via Socket.IO if available
+            const io_instance = global.io;
+            if (io_instance) {
+                console.log('[WAHA Service] Broadcasting chats update via Socket.IO');
+                io_instance.emit('whatsapp:chats_updated', {
+                    groups: chats.filter(chat => chat.isGroup),
+                    privateChats: chats.filter(chat => !chat.isGroup),
+                    totalCount: chats.length
+                });
+            }
+        }
+        catch (error) {
+            console.error('[WAHA Service] ❌ Error handling authentication:', error);
+        }
     }
     static getInstance() {
         if (!WAHAService.instance) {
@@ -67,6 +114,10 @@ class WAHAService extends events_1.EventEmitter {
                 this.isReady = true; // Still mark as ready for basic operations
             }
             this.emit('ready');
+            // Start status monitoring after successful initialization
+            this.startStatusMonitoring();
+            // Try to initialize default session immediately
+            this.initializeDefaultSession();
         }
         catch (error) {
             console.error('[WAHA Service] ❌ Initialization failed:', error);
@@ -75,6 +126,51 @@ class WAHAService extends events_1.EventEmitter {
             this.emit('error', error);
             // Don't throw initialization errors - allow fallback to Baileys
             console.log('[WAHA Service] 🔄 Will allow fallback to Baileys service');
+        }
+    }
+    /**
+     * Start periodic status monitoring
+     */
+    startStatusMonitoring() {
+        // Clear any existing monitor
+        this.stopStatusMonitoring();
+        console.log('[WAHA Service] Starting periodic status monitoring');
+        this.statusMonitorInterval = setInterval(async () => {
+            try {
+                await this.getStatus(); // This will emit events if status changes
+            }
+            catch (error) {
+                console.error('[WAHA Service] Error during status monitoring:', error);
+            }
+        }, 5000); // Check every 5 seconds
+    }
+    /**
+     * Stop periodic status monitoring
+     */
+    stopStatusMonitoring() {
+        if (this.statusMonitorInterval) {
+            console.log('[WAHA Service] Stopping periodic status monitoring');
+            clearInterval(this.statusMonitorInterval);
+            this.statusMonitorInterval = null;
+        }
+    }
+    /**
+     * Initialize default session (create if doesn't exist)
+     */
+    async initializeDefaultSession() {
+        try {
+            console.log('[WAHA Service] Initializing default session...');
+            // Wait a moment for WAHA service to be fully ready
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            const session = await this.startSession();
+            console.log(`[WAHA Service] ✅ Default session initialized with status: ${session.status}`);
+        }
+        catch (error) {
+            console.error('[WAHA Service] ⚠️ Could not initialize default session (will try again later):', error);
+            // Retry after 10 seconds
+            setTimeout(() => {
+                this.initializeDefaultSession();
+            }, 10000);
         }
     }
     /**
@@ -129,6 +225,10 @@ class WAHAService extends events_1.EventEmitter {
     async startSession(sessionName = this.defaultSession) {
         try {
             console.log(`[WAHA Service] Starting session management for '${sessionName}'`);
+            // Prepare webhook URL at the top level to avoid scope issues
+            const webhookUrl = process.env.BACKEND_URL || 'https://synapse-backend-7lq6.onrender.com';
+            const fullWebhookUrl = `${webhookUrl}/api/v1/waha/webhook`;
+            console.log(`[WAHA Service] 🔧 FIXED: Using BACKEND webhook URL: ${fullWebhookUrl}`);
             // First, try to get existing session and check its status
             let sessionExists = false;
             let sessionData = null;
@@ -144,42 +244,115 @@ class WAHAService extends events_1.EventEmitter {
                     console.log(`[WAHA Service] ✅ Session '${sessionName}' started from stopped state`);
                     return sessionData;
                 }
-                else if (sessionData?.status === 'WORKING' || sessionData?.status === 'SCAN_QR_CODE') {
-                    console.log(`[WAHA Service] ✅ Session '${sessionName}' is already active`);
+                else if (sessionData?.status === 'WORKING' || sessionData?.status === 'SCAN_QR_CODE' || sessionData?.status === 'STARTING') {
+                    console.log(`[WAHA Service] ✅ Session '${sessionName}' is already active (${sessionData?.status})`);
                     return sessionData;
                 }
             }
             catch (getError) {
-                console.log(`[WAHA Service] Session '${sessionName}' doesn't exist, will create new one`);
-                sessionExists = false;
+                if (getError.response?.status === 404) {
+                    console.log(`[WAHA Service] Session '${sessionName}' doesn't exist, will create new one`);
+                    sessionExists = false;
+                }
+                else {
+                    console.error(`[WAHA Service] Unexpected error checking session:`, getError);
+                    throw getError;
+                }
             }
             // If session doesn't exist, create it
             if (!sessionExists) {
                 console.log(`[WAHA Service] Creating new session '${sessionName}'...`);
-                const webhookUrl = process.env.BACKEND_URL || process.env.FRONTEND_URL || 'https://synapse-backend-7lq6.onrender.com';
-                const fullWebhookUrl = `${webhookUrl}/api/v1/whatsapp/webhook`;
-                console.log(`[WAHA Service] Setting webhook URL to: ${fullWebhookUrl}`);
+                console.log(`[WAHA Service] Making POST request to /api/sessions with simplified payload:`, {
+                    name: sessionName
+                });
+                // ULTRA-FIX: Create session with simplified payload first, add webhooks later
                 const response = await this.httpClient.post('/api/sessions', {
-                    name: sessionName,
-                    config: {
-                        webhook: {
-                            url: fullWebhookUrl,
-                            events: ['message', 'session.status'],
-                            retries: 3,
+                    name: sessionName
+                    // Don't add webhooks during creation - add them later to avoid issues
+                });
+                console.log(`[WAHA Service] ✅ Session creation response:`, response.status);
+                console.log(`[WAHA Service] 📋 Full response data:`, JSON.stringify(response.data, null, 2));
+                sessionData = response.data;
+                sessionExists = true;
+                // CRITICAL: Wait for WAHA to initialize the session
+                console.log(`[WAHA Service] ⏳ Waiting 3 seconds for WAHA to initialize session...`);
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                // Verify session was actually created by listing all sessions
+                try {
+                    const allSessions = await this.httpClient.get('/api/sessions');
+                    console.log(`[WAHA Service] 📋 All sessions after creation:`, allSessions.data);
+                }
+                catch (listError) {
+                    console.log(`[WAHA Service] ⚠️ Could not list sessions:`, listError);
+                }
+            }
+            // Always try to start the session after creation with retry logic
+            if (sessionExists) {
+                let startSuccess = false;
+                let attempts = 0;
+                const maxAttempts = 3;
+                while (!startSuccess && attempts < maxAttempts) {
+                    attempts++;
+                    try {
+                        console.log(`[WAHA Service] 🚀 Starting session '${sessionName}' (attempt ${attempts}/${maxAttempts}) with POST /api/sessions/${sessionName}/start`);
+                        // First verify session exists before starting
+                        const sessionCheck = await this.httpClient.get(`/api/sessions/${sessionName}`);
+                        console.log(`[WAHA Service] ✅ Session exists before start attempt:`, sessionCheck.data);
+                        const startResponse = await this.httpClient.post(`/api/sessions/${sessionName}/start`);
+                        console.log(`[WAHA Service] ✅ Session '${sessionName}' start response:`, startResponse.status, startResponse.data);
+                        startSuccess = true;
+                    }
+                    catch (startError) {
+                        console.error(`[WAHA Service] ❌ Failed to start session '${sessionName}' (attempt ${attempts}):`, startError.message);
+                        console.error(`[WAHA Service] Start error details:`, {
+                            status: startError?.response?.status,
+                            statusText: startError?.response?.statusText,
+                            data: startError?.response?.data
+                        });
+                        if (attempts < maxAttempts) {
+                            console.log(`[WAHA Service] ⏳ Waiting 2 seconds before retry...`);
+                            await new Promise(resolve => setTimeout(resolve, 2000));
                         }
                     }
-                });
-                console.log(`[WAHA Service] ✅ Session '${sessionName}' created successfully`);
-                sessionData = response.data;
+                }
+                if (!startSuccess) {
+                    console.error(`[WAHA Service] ❌ Failed to start session after ${maxAttempts} attempts`);
+                }
+                else {
+                    // After successful start, add webhooks
+                    try {
+                        console.log(`[WAHA Service] 🔗 Adding webhooks to session '${sessionName}'...`);
+                        await this.httpClient.post(`/api/sessions/${sessionName}/config`, {
+                            webhooks: [
+                                {
+                                    url: fullWebhookUrl,
+                                    events: ['session.status', 'message'],
+                                    hmac: null,
+                                    retries: {
+                                        delaySeconds: 2,
+                                        attempts: 15
+                                    }
+                                }
+                            ]
+                        });
+                        console.log(`[WAHA Service] ✅ Webhooks added successfully`);
+                    }
+                    catch (webhookError) {
+                        console.error(`[WAHA Service] ⚠️ Failed to add webhooks (non-critical):`, webhookError);
+                    }
+                }
             }
-            // Always try to start the session after creation
-            try {
-                await this.httpClient.post(`/api/sessions/${sessionName}/start`);
-                console.log(`[WAHA Service] ✅ Session '${sessionName}' started successfully`);
-            }
-            catch (startError) {
-                console.error(`[WAHA Service] ⚠️ Failed to start session '${sessionName}':`, startError);
-                // Don't throw here, session might already be starting
+            // Ensure we return proper session data
+            if (!sessionData || !sessionData.name) {
+                console.log(`[WAHA Service] ⚠️ Session data incomplete, fetching fresh status...`);
+                try {
+                    sessionData = await this.getSessionStatus(sessionName);
+                }
+                catch (fetchError) {
+                    console.error(`[WAHA Service] ❌ Could not fetch session status:`, fetchError);
+                    // Return minimal session data
+                    sessionData = { name: sessionName, status: 'STARTING' };
+                }
             }
             return sessionData;
         }
@@ -215,41 +388,64 @@ class WAHAService extends events_1.EventEmitter {
             return response.data;
         }
         catch (error) {
+            // If session doesn't exist (404), return a default status indicating it needs to be created
+            if (error.response?.status === 404) {
+                console.log(`[WAHA Service] Session '${sessionName}' does not exist, needs to be created`);
+                return {
+                    name: sessionName,
+                    status: 'STOPPED'
+                };
+            }
             console.error(`[WAHA Service] ❌ Failed to get session status for '${sessionName}':`, error);
             throw error;
         }
     }
     /**
-     * Get QR code for session
+     * Get QR code for session (following WAHA API documentation)
      */
     async getQRCode(sessionName = this.defaultSession) {
         console.log(`[WAHA Service] Starting QR code generation for session '${sessionName}'`);
         try {
-            // First ensure session is started
-            console.log(`[WAHA Service] Ensuring session '${sessionName}' is started...`);
+            // First ensure session exists and is properly configured
+            console.log(`[WAHA Service] Ensuring session '${sessionName}' exists and is configured...`);
             await this.startSession(sessionName);
-            console.log(`[WAHA Service] Session '${sessionName}' is ready`);
-            // Wait for session to be in SCAN_QR_CODE state
-            console.log(`[WAHA Service] Waiting for session '${sessionName}' to be ready for QR...`);
-            await this.waitForSessionState(sessionName, ['SCAN_QR_CODE'], 30000); // 30 second timeout
-            // Get QR code using WAHA's screenshot endpoint (this is the standard approach)
-            console.log(`[WAHA Service] Requesting QR code from /api/screenshot`);
-            const response = await this.httpClient.get(`/api/screenshot`, {
-                params: { session: sessionName },
-                responseType: 'arraybuffer'
+            // Wait for session to reach SCAN_QR_CODE state with longer timeout
+            console.log(`[WAHA Service] Waiting for session '${sessionName}' to reach QR ready state...`);
+            await this.waitForSessionState(sessionName, ['SCAN_QR_CODE'], 30000); // 30 seconds for stability
+            // Get QR code using WAHA's proper endpoint: GET /api/{session}/auth/qr (per official docs)
+            console.log(`[WAHA Service] Requesting QR code from GET /api/${sessionName}/auth/qr`);
+            const response = await this.httpClient.get(`/api/${sessionName}/auth/qr`, {
+                responseType: 'arraybuffer',
+                timeout: 15000, // 15 second timeout for QR generation
+                validateStatus: (status) => status === 200 // Only accept 200 status
             });
             console.log(`[WAHA Service] QR code response received, status: ${response.status}`);
-            const base64 = Buffer.from(response.data).toString('base64');
-            console.log(`[WAHA Service] QR code converted to base64, length: ${base64.length}`);
-            return `data:image/png;base64,${base64}`;
+            if (response.data && response.data.byteLength > 0) {
+                const base64 = Buffer.from(response.data).toString('base64');
+                console.log(`[WAHA Service] ✅ QR code converted to base64, length: ${base64.length}`);
+                return `data:image/png;base64,${base64}`;
+            }
+            else {
+                throw new Error('Empty QR code response from WAHA service');
+            }
         }
         catch (error) {
             console.error(`[WAHA Service] ❌ Failed to get QR code for '${sessionName}':`, error);
             console.error(`[WAHA Service] Error details:`, {
                 status: error?.response?.status,
                 statusText: error?.response?.statusText,
-                data: error?.response?.data
+                data: error?.response?.data?.toString?.() || error?.response?.data
             });
+            // Handle specific error cases
+            if (error?.response?.status === 422) {
+                throw new Error('Session is not ready for QR code generation. Please restart the session.');
+            }
+            else if (error?.response?.status === 404) {
+                throw new Error('QR code endpoint not found. Please check WAHA service configuration.');
+            }
+            else if (error?.response?.status === 502) {
+                throw new Error('WAHA service is not responding. Please check service availability.');
+            }
             const errorMessage = error instanceof Error ? error.message : String(error);
             throw new Error(`Failed to get QR code: ${errorMessage}`);
         }
@@ -381,9 +577,44 @@ class WAHAService extends events_1.EventEmitter {
         try {
             await this.httpClient.delete(`/api/sessions/${sessionName}`);
             console.log(`[WAHA Service] ✅ Session '${sessionName}' stopped`);
+            this.connectionStatus = 'disconnected';
+            this.isReady = false;
         }
         catch (error) {
+            // Don't throw error if session doesn't exist (404)
+            if (error?.response?.status === 404) {
+                console.log(`[WAHA Service] Session '${sessionName}' was already deleted`);
+                this.connectionStatus = 'disconnected';
+                this.isReady = false;
+                return;
+            }
             console.error(`[WAHA Service] ❌ Failed to stop session '${sessionName}':`, error);
+            throw error;
+        }
+    }
+    /**
+     * Restart session by stopping and starting it
+     */
+    async restartSession(sessionName = this.defaultSession) {
+        try {
+            console.log(`[WAHA Service] Restarting session '${sessionName}'...`);
+            // Stop existing session (ignore errors if it doesn't exist)
+            try {
+                await this.stopSession(sessionName);
+                console.log(`[WAHA Service] Session '${sessionName}' stopped for restart`);
+            }
+            catch (stopError) {
+                console.log(`[WAHA Service] Stop failed during restart (session may not exist):`, stopError);
+            }
+            // Wait a moment for cleanup
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Start new session
+            const newSession = await this.startSession(sessionName);
+            console.log(`[WAHA Service] ✅ Session '${sessionName}' restarted with status: ${newSession.status}`);
+            return newSession;
+        }
+        catch (error) {
+            console.error(`[WAHA Service] ❌ Failed to restart session '${sessionName}':`, error);
             throw error;
         }
     }
@@ -393,9 +624,47 @@ class WAHAService extends events_1.EventEmitter {
     async getStatus() {
         try {
             // Get real-time session status from WAHA
-            const sessionStatus = await this.getSessionStatus();
+            let sessionStatus = await this.getSessionStatus();
+            const previousConnectionStatus = this.connectionStatus;
+            const previousIsReady = this.isReady;
+            // If session doesn't exist (STOPPED status from our 404 handler), try to create it
+            if (sessionStatus.status === 'STOPPED' && sessionStatus.name === this.defaultSession) {
+                console.log('[WAHA Service] 🚀 Session is STOPPED (404), FORCE creating session now...');
+                try {
+                    const createdSession = await this.startSession();
+                    sessionStatus = createdSession;
+                    console.log(`[WAHA Service] ✅ FORCE session created/started with status: ${sessionStatus.status}`);
+                }
+                catch (createError) {
+                    console.error('[WAHA Service] ❌ FORCE session creation failed:', createError);
+                    console.error('[WAHA Service] Create error details:', {
+                        status: createError?.response?.status,
+                        statusText: createError?.response?.statusText,
+                        data: createError?.response?.data,
+                        message: createError?.message
+                    });
+                    // Continue with STOPPED status
+                }
+            }
             this.connectionStatus = sessionStatus.status;
             this.isReady = sessionStatus.status === 'WORKING';
+            // Detect authentication state change
+            if (!previousIsReady && this.isReady && sessionStatus.status === 'WORKING') {
+                console.log('[WAHA Service] 🎉 Authentication detected! Session transitioned to WORKING');
+                this.emit('authenticated', {
+                    method: 'qr',
+                    sessionStatus: sessionStatus.status,
+                    timestamp: new Date().toISOString()
+                });
+                // Also emit general status change
+                this.emit('status_change', {
+                    status: sessionStatus.status,
+                    authenticated: true,
+                    connected: true,
+                    isReady: true,
+                    timestamp: new Date().toISOString()
+                });
+            }
             return {
                 status: sessionStatus.status,
                 isReady: sessionStatus.status === 'WORKING',
@@ -414,24 +683,73 @@ class WAHAService extends events_1.EventEmitter {
         }
     }
     /**
-     * Webhook handler for WAHA events
+     * Webhook handler for WAHA events (following WAHA documentation event structure)
      */
     handleWebhook(payload) {
         try {
-            console.log('[WAHA Service] Webhook received:', payload.event);
-            switch (payload.event) {
+            console.log('[WAHA Service] Webhook received:', payload);
+            // WAHA event structure: { id, timestamp, event, session, payload }
+            const eventType = payload.event;
+            const sessionName = payload.session;
+            const eventData = payload.payload;
+            const eventId = payload.id;
+            const eventTimestamp = payload.timestamp;
+            console.log(`[WAHA Service] Processing event '${eventType}' for session '${sessionName}'`);
+            switch (eventType) {
                 case 'message':
-                    this.emit('message', payload.data);
+                    this.emit('message', eventData);
                     // Process image messages for group monitoring
-                    this.processImageForGroupMonitoring(payload.data);
+                    this.processImageForGroupMonitoring(eventData);
                     break;
                 case 'session.status':
-                    this.connectionStatus = payload.data.status;
-                    this.isReady = payload.data.status === 'WORKING';
-                    this.emit('status_change', payload.data);
+                    const previousIsReady = this.isReady;
+                    const newStatus = eventData.status;
+                    this.connectionStatus = newStatus;
+                    this.isReady = newStatus === 'WORKING';
+                    console.log('[WAHA Service] Session status change:', {
+                        eventId,
+                        sessionName,
+                        previousIsReady,
+                        newStatus,
+                        isNowReady: this.isReady,
+                        timestamp: eventTimestamp
+                    });
+                    // Emit authentication event if we just became authenticated
+                    if (!previousIsReady && this.isReady && newStatus === 'WORKING') {
+                        console.log('[WAHA Service] 🎉 Authentication detected via webhook! Session is now WORKING');
+                        this.emit('authenticated', {
+                            method: 'qr',
+                            sessionStatus: newStatus,
+                            sessionName: sessionName,
+                            eventId: eventId,
+                            timestamp: new Date().toISOString()
+                        });
+                        // Broadcast to Socket.IO if available
+                        const io_instance = global.io;
+                        if (io_instance) {
+                            console.log('[WAHA Service] Broadcasting authentication via Socket.IO');
+                            io_instance.emit('whatsapp:status', {
+                                connected: true,
+                                authenticated: true,
+                                isReady: true,
+                                authMethod: 'qr',
+                                serviceType: 'waha',
+                                sessionName: sessionName,
+                                timestamp: new Date().toISOString()
+                            });
+                        }
+                    }
+                    this.emit('status_change', {
+                        ...eventData,
+                        authenticated: this.isReady,
+                        connected: this.isReady,
+                        sessionName: sessionName,
+                        eventId: eventId,
+                        timestamp: new Date().toISOString()
+                    });
                     break;
                 default:
-                    console.log(`[WAHA Service] Unknown webhook event: ${payload.event}`);
+                    console.log(`[WAHA Service] Unknown webhook event: ${eventType}`, payload);
             }
         }
         catch (error) {
@@ -478,68 +796,73 @@ class WAHAService extends events_1.EventEmitter {
         }
     }
     /**
-     * Request phone authentication code (using WAHA API)
+     * Request phone authentication code (using WAHA API - may not be available in all engines)
      */
     async requestPhoneCode(phoneNumber, sessionName = this.defaultSession) {
         try {
             console.log(`[WAHA Service] Requesting phone verification code for: ${phoneNumber}`);
             // Ensure session is created first
             await this.startSession(sessionName);
-            // Use WAHA's phone authentication endpoint
-            const response = await this.httpClient.post(`/api/${sessionName}/auth/phone/request`, {
+            // Use WAHA's phone authentication endpoint (may not be supported by all engines)
+            const response = await this.httpClient.post(`/api/${sessionName}/auth/request-code`, {
                 phoneNumber: phoneNumber.replace(/\D/g, '') // Remove non-digits
             });
-            if (response.data.success) {
+            if (response.data.success || response.status === 200) {
                 console.log(`[WAHA Service] ✅ Phone verification code requested successfully`);
                 return { success: true };
             }
             else {
-                console.error(`[WAHA Service] ❌ Phone code request failed:`, response.data.message);
+                console.error(`[WAHA Service] ❌ Phone code request failed:`, response.data);
                 return { success: false, error: response.data.message || 'Failed to request phone code' };
             }
         }
         catch (error) {
             console.error(`[WAHA Service] ❌ Error requesting phone code:`, error);
             // Check if it's a known error that means phone auth is not supported
-            if (error.response?.status === 404 || error.response?.status === 501) {
+            if (error.response?.status === 404 || error.response?.status === 501 || error.response?.status === 405) {
                 return {
                     success: false,
-                    error: 'Phone number authentication is not available with the current WAHA configuration. Please use QR code authentication instead.'
+                    error: 'Phone number authentication is not available with the current WAHA engine. Please use QR code authentication instead.'
                 };
             }
             return { success: false, error: error.message || 'Failed to request phone code' };
         }
     }
     /**
-     * Verify phone authentication code (using WAHA API)
+     * Verify phone authentication code (using WAHA API - may not be available in all engines)
      */
     async verifyPhoneCode(phoneNumber, code, sessionName = this.defaultSession) {
         try {
             console.log(`[WAHA Service] Verifying phone code for: ${phoneNumber}`);
-            // Use WAHA's phone verification endpoint
-            const response = await this.httpClient.post(`/api/${sessionName}/auth/phone/verify`, {
+            // Use WAHA's phone verification endpoint (may not be supported by all engines)
+            const response = await this.httpClient.post(`/api/${sessionName}/auth/authorize-code`, {
                 phoneNumber: phoneNumber.replace(/\D/g, ''),
                 code: code
             });
-            if (response.data.success) {
+            if (response.data.success || response.status === 200) {
                 console.log(`[WAHA Service] ✅ Phone verification successful`);
                 this.connectionStatus = 'WORKING';
                 this.isReady = true;
-                this.emit('authenticated', { method: 'phone', phoneNumber });
+                this.emit('authenticated', {
+                    method: 'phone',
+                    phoneNumber,
+                    sessionName,
+                    timestamp: new Date().toISOString()
+                });
                 return { success: true };
             }
             else {
-                console.error(`[WAHA Service] ❌ Phone verification failed:`, response.data.message);
+                console.error(`[WAHA Service] ❌ Phone verification failed:`, response.data);
                 return { success: false, error: response.data.message || 'Invalid verification code' };
             }
         }
         catch (error) {
             console.error(`[WAHA Service] ❌ Error verifying phone code:`, error);
             // Check if it's a known error that means phone auth is not supported
-            if (error.response?.status === 404 || error.response?.status === 501) {
+            if (error.response?.status === 404 || error.response?.status === 501 || error.response?.status === 405) {
                 return {
                     success: false,
-                    error: 'Phone number authentication is not available with the current WAHA configuration. Please use QR code authentication instead.'
+                    error: 'Phone number authentication is not available with the current WAHA engine. Please use QR code authentication instead.'
                 };
             }
             return { success: false, error: error.message || 'Failed to verify phone code' };

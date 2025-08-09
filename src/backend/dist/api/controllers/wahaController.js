@@ -7,7 +7,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.healthCheck = exports.removeMonitoredKeyword = exports.addMonitoredKeyword = exports.getMonitoredKeywords = exports.forceHistorySync = exports.refreshChats = exports.forceRestart = exports.restartSession = exports.getPrivateChats = exports.getGroups = exports.verifyPhoneAuthCode = exports.sendPhoneAuthCode = exports.webhook = exports.stopSession = exports.startSession = exports.getMessages = exports.getChats = exports.sendMedia = exports.sendMessage = exports.getQR = exports.getStatus = void 0;
+exports.initializeSession = exports.healthCheck = exports.removeMonitoredKeyword = exports.addMonitoredKeyword = exports.getMonitoredKeywords = exports.forceHistorySync = exports.refreshChats = exports.forceRestart = exports.restartSession = exports.getPrivateChats = exports.getGroups = exports.verifyPhoneAuthCode = exports.sendPhoneAuthCode = exports.webhook = exports.stopSession = exports.startSession = exports.getMessages = exports.getChats = exports.sendMedia = exports.sendMessage = exports.getQR = exports.getStatus = void 0;
 const wahaService_1 = __importDefault(require("../../services/wahaService"));
 // Get WAHA service instance
 const getWAHAService = () => {
@@ -21,8 +21,18 @@ const getStatus = async (req, res) => {
         const wahaService = getWAHAService();
         // Try to get status with connection test
         let wahaStatus;
+        let sessionDetails;
         try {
             wahaStatus = await wahaService.getStatus();
+            // Get detailed session information to properly determine authentication
+            try {
+                sessionDetails = await wahaService.getSessionStatus();
+                console.log('[WAHA Controller] Session details:', sessionDetails);
+            }
+            catch (sessionError) {
+                console.warn('[WAHA Controller] Could not get session details:', sessionError);
+                sessionDetails = null;
+            }
             // If service claims to be ready but we haven't tested recently, verify connection
             if (wahaStatus.isReady) {
                 try {
@@ -43,23 +53,54 @@ const getStatus = async (req, res) => {
                 qrAvailable: false,
                 timestamp: new Date().toISOString()
             };
+            sessionDetails = null;
         }
+        // Determine authentication status based on session details
+        const isAuthenticated = sessionDetails?.status === 'WORKING';
+        const isConnected = wahaStatus.isReady && isAuthenticated;
+        const qrAvailable = sessionDetails?.status === 'SCAN_QR_CODE';
+        console.log('[WAHA Controller] Status determination:', {
+            sessionStatus: sessionDetails?.status,
+            wahaReady: wahaStatus.isReady,
+            isAuthenticated,
+            isConnected,
+            qrAvailable
+        });
         // Convert WAHA status to format expected by frontend
         const status = {
-            connected: wahaStatus.isReady,
-            authenticated: wahaStatus.isReady, // Add authenticated field
+            connected: isConnected,
+            authenticated: isAuthenticated,
             lastHeartbeat: new Date(),
-            serviceStatus: wahaStatus.status,
-            isReady: wahaStatus.isReady,
-            isClientReady: wahaStatus.isReady,
+            serviceStatus: sessionDetails?.status || wahaStatus.status,
+            isReady: isConnected,
+            isClientReady: isConnected,
             groupsCount: 0,
             privateChatsCount: 0,
             messagesCount: 0,
-            qrAvailable: wahaStatus.qrAvailable,
+            qrAvailable: qrAvailable,
             timestamp: wahaStatus.timestamp,
             monitoredKeywords: [],
             serviceType: 'waha'
         };
+        // Check if we need to emit authentication status change via Socket.IO
+        const io_instance = global.io;
+        if (io_instance && isAuthenticated) {
+            // Only emit if we detect a new authentication (this prevents spam)
+            const currentTime = Date.now();
+            const lastEmit = global.lastAuthStatusEmit || 0;
+            if (currentTime - lastEmit > 10000) { // Only emit every 10 seconds max
+                console.log('[WAHA Controller] Emitting authentication status via Socket.IO');
+                io_instance.emit('whatsapp:status', {
+                    connected: true,
+                    authenticated: true,
+                    isReady: true,
+                    authMethod: 'qr',
+                    serviceType: 'waha',
+                    timestamp: new Date().toISOString()
+                });
+                global.lastAuthStatusEmit = currentTime;
+            }
+        }
         res.json({
             success: true,
             data: status
@@ -81,27 +122,52 @@ const getQR = async (req, res) => {
     try {
         console.log('[WAHA Controller] QR code request received');
         const wahaService = getWAHAService();
-        console.log('[WAHA Controller] WAHA service instance obtained');
+        // Check service health first
+        try {
+            await wahaService.healthCheck();
+            console.log('[WAHA Controller] Service health check passed');
+        }
+        catch (healthError) {
+            console.error('[WAHA Controller] Service health check failed:', healthError);
+            return res.status(503).json({
+                success: false,
+                error: 'WAHA service is not available. Please check service status.',
+                suggestion: 'Try restarting the WAHA service'
+            });
+        }
         const qrDataUrl = await wahaService.getQRCode();
-        console.log('[WAHA Controller] QR code generated successfully');
+        console.log('[WAHA Controller] ✅ QR code generated successfully');
         res.json({
             success: true,
             data: {
                 qrCode: qrDataUrl,
-                message: 'QR code available for scanning'
+                message: 'QR code ready for scanning with WhatsApp mobile app'
             }
         });
     }
     catch (error) {
-        console.error('[WAHA Controller] Error getting QR code:', error);
-        console.error('[WAHA Controller] Error details:', {
-            message: error instanceof Error ? error.message : String(error),
-            stack: error instanceof Error ? error.stack : undefined,
-            type: typeof error
-        });
-        res.status(500).json({
+        console.error('[WAHA Controller] ❌ Error getting QR code:', error);
+        // Provide more specific error messages based on the error type
+        let statusCode = 500;
+        let userMessage = 'Failed to generate QR code';
+        if (error instanceof Error) {
+            if (error.message.includes('not ready') || error.message.includes('422')) {
+                statusCode = 422;
+                userMessage = 'Session needs to be restarted. Please try again.';
+            }
+            else if (error.message.includes('not responding') || error.message.includes('502')) {
+                statusCode = 502;
+                userMessage = 'WhatsApp service is not responding. Please check service availability.';
+            }
+            else if (error.message.includes('timeout')) {
+                statusCode = 408;
+                userMessage = 'QR code generation timed out. Please try again.';
+            }
+        }
+        res.status(statusCode).json({
             success: false,
-            error: error instanceof Error ? error.message : 'Failed to get QR code'
+            error: userMessage,
+            technical: error instanceof Error ? error.message : String(error)
         });
     }
 };
@@ -261,12 +327,51 @@ const stopSession = async (req, res) => {
 };
 exports.stopSession = stopSession;
 /**
- * Webhook handler for WAHA events
+ * Webhook handler for WAHA events (following WAHA documentation structure)
  */
 const webhook = async (req, res) => {
     try {
+        console.log('[WAHA Controller] WAHA webhook received:', req.body);
         const wahaService = getWAHAService();
+        // Handle the webhook through the service
         wahaService.handleWebhook(req.body);
+        // Additional Socket.IO broadcasting for session status changes
+        // WAHA event structure: { id, timestamp, event, session, payload }
+        if (req.body.event === 'session.status') {
+            const io_instance = global.io;
+            if (io_instance) {
+                const eventData = req.body.payload;
+                const sessionName = req.body.session;
+                const sessionStatus = eventData.status;
+                const isAuthenticated = sessionStatus === 'WORKING';
+                console.log('[WAHA Controller] Broadcasting session status change via Socket.IO:', {
+                    sessionName,
+                    sessionStatus,
+                    isAuthenticated,
+                    eventId: req.body.id
+                });
+                io_instance.emit('whatsapp:status', {
+                    connected: isAuthenticated,
+                    authenticated: isAuthenticated,
+                    isReady: isAuthenticated,
+                    authMethod: 'qr',
+                    serviceType: 'waha',
+                    sessionName: sessionName,
+                    sessionStatus: sessionStatus,
+                    timestamp: new Date().toISOString()
+                });
+                // Also emit general status update when authenticated
+                if (isAuthenticated) {
+                    console.log('[WAHA Controller] 🎉 Authentication successful! Broadcasting to all clients');
+                    io_instance.emit('whatsapp:authenticated', {
+                        method: 'qr',
+                        serviceType: 'waha',
+                        sessionName: sessionName,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+            }
+        }
         res.status(200).json({ success: true });
     }
     catch (error) {
@@ -433,20 +538,27 @@ exports.getPrivateChats = getPrivateChats;
  */
 const restartSession = async (req, res) => {
     try {
+        console.log('[WAHA Controller] Restart session request received');
         const wahaService = getWAHAService();
-        // Stop and start the session
-        await wahaService.stopSession();
-        await wahaService.startSession();
+        const session = await wahaService.restartSession();
+        console.log('[WAHA Controller] ✅ Session restarted successfully');
         res.json({
             success: true,
-            message: 'WhatsApp service restart initiated'
+            message: 'WhatsApp session restarted successfully',
+            data: {
+                sessionStatus: session.status,
+                sessionName: session.name,
+                isReady: session.status === 'WORKING',
+                qrAvailable: session.status === 'SCAN_QR_CODE'
+            }
         });
     }
     catch (error) {
-        console.error('[WAHA Controller] Error restarting session:', error);
+        console.error('[WAHA Controller] ❌ Error restarting session:', error);
         res.status(500).json({
             success: false,
-            error: 'Failed to restart WhatsApp service'
+            error: error instanceof Error ? error.message : 'Failed to restart WhatsApp service',
+            suggestion: 'Please check WAHA service availability and try again'
         });
     }
 };
@@ -456,20 +568,32 @@ exports.restartSession = restartSession;
  */
 const forceRestart = async (req, res) => {
     try {
+        console.log('[WAHA Controller] Force restart session request received');
         const wahaService = getWAHAService();
-        // Force stop and start the session
-        await wahaService.stopSession();
-        await wahaService.startSession();
+        // Stop monitoring during restart
+        wahaService.stopStatusMonitoring();
+        // Force restart the session
+        const session = await wahaService.restartSession();
+        console.log('[WAHA Controller] ✅ Force restart completed');
+        // Resume monitoring
+        wahaService.startStatusMonitoring();
         res.json({
             success: true,
-            message: 'WhatsApp service force restart initiated'
+            message: 'WhatsApp service force restart completed',
+            data: {
+                sessionStatus: session.status,
+                sessionName: session.name,
+                isReady: session.status === 'WORKING',
+                qrAvailable: session.status === 'SCAN_QR_CODE'
+            }
         });
     }
     catch (error) {
-        console.error('[WAHA Controller] Error force restarting session:', error);
+        console.error('[WAHA Controller] ❌ Error force restarting session:', error);
         res.status(500).json({
             success: false,
-            error: 'Failed to force restart WhatsApp service'
+            error: error instanceof Error ? error.message : 'Failed to force restart WhatsApp service',
+            suggestion: 'Please check WAHA service availability and try again'
         });
     }
 };
@@ -630,3 +754,50 @@ const healthCheck = async (req, res) => {
     }
 };
 exports.healthCheck = healthCheck;
+/**
+ * Initialize/Create session endpoint
+ */
+const initializeSession = async (req, res) => {
+    try {
+        console.log('[WAHA Controller] 🚀 MANUAL session initialization request received');
+        const wahaService = getWAHAService();
+        // First check current session status
+        let currentStatus;
+        try {
+            currentStatus = await wahaService.getSessionStatus();
+            console.log('[WAHA Controller] Current session status before creation:', currentStatus);
+        }
+        catch (statusError) {
+            console.log('[WAHA Controller] Session status check failed (expected for new session):', statusError);
+        }
+        const session = await wahaService.startSession();
+        console.log('[WAHA Controller] ✅ Session creation completed:', session);
+        res.json({
+            success: true,
+            data: {
+                sessionName: session.name,
+                sessionStatus: session.status,
+                currentStatus: currentStatus,
+                message: 'Session initialized successfully'
+            }
+        });
+    }
+    catch (error) {
+        console.error('[WAHA Controller] ❌ Error initializing session:', error);
+        console.error('[WAHA Controller] Error details:', {
+            status: error?.response?.status,
+            statusText: error?.response?.statusText,
+            data: error?.response?.data,
+            message: error?.message
+        });
+        res.status(500).json({
+            success: false,
+            error: error?.message || 'Failed to initialize session',
+            details: {
+                status: error?.response?.status,
+                data: error?.response?.data
+            }
+        });
+    }
+};
+exports.initializeSession = initializeSession;

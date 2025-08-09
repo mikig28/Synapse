@@ -49,6 +49,7 @@ const schedulerService_1 = require("./services/schedulerService"); // Import sch
 const aguiEmitter_1 = require("./services/aguiEmitter"); // Import AG-UI emitter
 const searchIndexes_1 = require("./config/searchIndexes"); // Import search indexes initializer
 const usageTracking_1 = require("./middleware/usageTracking"); // Import usage tracking middleware
+require("./services/searchIndexingService"); // Import to initialize search indexing hooks
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const rawPort = process.env.PORT || '3001'; // Read as string
