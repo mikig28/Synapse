@@ -617,11 +617,15 @@ class WAHAService extends EventEmitter {
       // Prefer overview endpoint first for richer data (per WAHA docs)
       let response: any;
       try {
-        response = await this.httpClient.get(`/api/${sessionName}/chats/overview`);
+        response = await this.httpClient.get(`/api/${sessionName}/chats/overview`, {
+          timeout: 90000
+        });
         console.log(`[WAHA Service] Using chats overview endpoint`);
       } catch (e) {
         console.log(`[WAHA Service] Chats overview not available, falling back to /chats`);
-        response = await this.httpClient.get(`/api/${sessionName}/chats`);
+        response = await this.httpClient.get(`/api/${sessionName}/chats`, {
+          timeout: 90000
+        });
       }
       
       console.log(`[WAHA Service] Received ${response.data.length} chats`);
@@ -715,7 +719,8 @@ class WAHAService extends EventEmitter {
       
       // WAHA API endpoint structure: /api/{session}/chats/{chatId}/messages
       const response = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(chatId)}/messages`, {
-        params: { limit }
+        params: { limit },
+        timeout: 90000
       });
       
       console.log(`[WAHA Service] Received ${response.data.length} messages`);
