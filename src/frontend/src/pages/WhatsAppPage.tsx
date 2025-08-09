@@ -906,10 +906,19 @@ const WhatsAppPage: React.FC = () => {
 
     setSendingMessage(true);
     try {
-      const response = await api.post('/whatsapp/send', {
-        to: selectedChat.id,
-        message: newMessage,
-      });
+      // Prefer WAHA modern endpoint; fallback to legacy
+      let response: any;
+      try {
+        response = await api.post('/waha/send', {
+          chatId: selectedChat.id,
+          text: newMessage,
+        });
+      } catch (e) {
+        response = await api.post('/whatsapp/send', {
+          to: selectedChat.id,
+          message: newMessage,
+        });
+      }
 
       const data = response.data;
       if (data.success) {
