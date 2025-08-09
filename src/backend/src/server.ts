@@ -96,36 +96,9 @@ const io = new SocketIOServer(httpServer, {
   allowUpgrades: true // Allow transport upgrades
 });
 
-// Middleware - Enhanced CORS configuration with production fix
+// Middleware - Simplified CORS to avoid preflight failures on Render
 app.use(cors({
-  origin: function (requestOrigin, callback) {
-    console.log(`[CORS] Request from origin: ${requestOrigin}`);
-
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!requestOrigin) {
-      console.log(`[CORS] No origin header - allowing`);
-      return callback(null, true);
-    }
-
-    const allowedOrigins = [
-      "https://synapse-frontend.onrender.com",
-      "https://synapse-backend-7lq6.onrender.com", // Backend for Socket.IO
-      "http://localhost:5173", // Local development
-      "http://localhost:3000",  // Alternative local port
-      "http://localhost:5174",  // Vite alternative port
-      "http://localhost:3001",  // Backend local
-    ];
-
-    console.log(`[CORS] Checking origin ${requestOrigin} against allowed origins:`, allowedOrigins);
-
-    if (allowedOrigins.includes(requestOrigin)) {
-      console.log(`[CORS] ✅ Origin ${requestOrigin} explicitly allowed`);
-      return callback(null, true);
-    } else {
-      console.log(`[CORS] ❌ Origin ${requestOrigin} not in allowed list`);
-      return callback(new Error('Not allowed by CORS'), false);
-    }
-  },
+  origin: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control"],
   credentials: true,
