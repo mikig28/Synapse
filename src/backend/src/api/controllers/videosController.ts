@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import axios from 'axios'; // For oEmbed
 import { summarizeYouTubeVideo } from '../../services/videoSummarizationService';
 import { AuthenticatedRequest } from '../../types/express';
+import { checkVideoIndexExists, indexVideoCaptions, searchVideoCaptions } from '../../services/upstashVideoSearchService';
 
 // Define the oEmbed response interface
 interface YouTubeOEmbedResponse {
@@ -285,5 +286,88 @@ export const summarizeVideo = async (req: AuthenticatedRequest, res: Response) =
       message: 'Failed to generate video summary', 
       error: message 
     });
+  }
+};
+
+export const checkVideoIndex = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    const videoId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(videoId)) {
+      return res.status(400).json({ message: 'Invalid video ID' });
+    }
+
+    const video = await VideoItem.findOne({ _id: videoId, userId: new mongoose.Types.ObjectId(userId) });
+    if (!video) {
+      return res.status(404).json({ message: 'Video not found or user not authorized' });
+    }
+
+    const exists = await checkVideoIndexExists(video.videoId);
+    return res.status(200).json({ exists });
+  } catch (error) {
+    console.error('[VideoController] Error checking video index:', error);
+    return res.status(500).json({ message: 'Failed to check video index' });
+  }
+};
+
+export const indexVideo = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    const videoId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(videoId)) {
+      return res.status(400).json({ message: 'Invalid video ID' });
+    }
+
+    const video = await VideoItem.findOne({ _id: videoId, userId: new mongoose.Types.ObjectId(userId) });
+    if (!video) {
+      return res.status(404).json({ message: 'Video not found or user not authorized' });
+    }
+
+    const canonicalUrl = `https://www.youtube.com/watch?v=${video.videoId}`;
+    await indexVideoCaptions(canonicalUrl, video.videoId);
+
+    return res.status(200).json({ message: 'Video indexed successfully' });
+  } catch (error) {
+    console.error('[VideoController] Error indexing video captions:', error);
+    return res.status(500).json({ message: 'Failed to index video captions' });
+  }
+};
+
+export const searchVideoMoments = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    const videoId = req.params.id;
+    const { query } = req.body as { query?: string };
+
+    if (!query || query.trim().length === 0) {
+      return res.status(400).json({ message: 'Query is required' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(videoId)) {
+      return res.status(400).json({ message: 'Invalid video ID' });
+    }
+
+    const video = await VideoItem.findOne({ _id: videoId, userId: new mongoose.Types.ObjectId(userId) });
+    if (!video) {
+      return res.status(404).json({ message: 'Video not found or user not authorized' });
+    }
+
+    const results = await searchVideoCaptions(video.videoId, query);
+    return res.status(200).json({ results });
+  } catch (error) {
+    console.error('[VideoController] Error searching video moments:', error);
+    return res.status(500).json({ message: 'Failed to search video moments' });
   }
 }; 
