@@ -119,7 +119,18 @@ const DocsPage: React.FC = () => {
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showChatDialog, setShowChatDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null);
   const [newDocument, setNewDocument] = useState({
+    title: '',
+    content: '',
+    documentType: 'text',
+    category: 'general',
+    tags: '',
+  });
+  const [editDocument, setEditDocument] = useState({
+    _id: '',
     title: '',
     content: '',
     documentType: 'text',
@@ -350,6 +361,88 @@ const DocsPage: React.FC = () => {
         variant: 'destructive',
       });
     }
+  };
+
+  const handleEditDocument = (document: Document) => {
+    setEditDocument({
+      _id: document._id,
+      title: document.title,
+      content: document.content,
+      documentType: document.documentType,
+      category: document.metadata.category,
+      tags: document.metadata.tags.join(', '),
+    });
+    setShowEditDialog(true);
+  };
+
+  const handleUpdateDocument = async () => {
+    try {
+      const updatedDocument = await documentService.updateDocument(editDocument._id, {
+        title: editDocument.title,
+        content: editDocument.content,
+        'metadata.category': editDocument.category,
+        'metadata.tags': editDocument.tags.split(',').map(tag => tag.trim()).filter(Boolean),
+      });
+
+      setDocuments(prev => 
+        prev.map(doc => 
+          doc._id === editDocument._id ? { ...doc, ...updatedDocument } : doc
+        )
+      );
+      
+      toast({
+        title: 'Success',
+        description: 'Document updated successfully',
+      });
+      
+      setShowEditDialog(false);
+      setEditDocument({
+        _id: '',
+        title: '',
+        content: '',
+        documentType: 'text',
+        category: 'general',
+        tags: '',
+      });
+    } catch (error) {
+      console.error('Error updating document:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to update document',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteDocument = async () => {
+    if (!documentToDelete) return;
+
+    try {
+      await documentService.deleteDocument(documentToDelete._id);
+      
+      setDocuments(prev => prev.filter(doc => doc._id !== documentToDelete._id));
+      
+      toast({
+        title: 'Success',
+        description: 'Document deleted successfully',
+      });
+      
+      setShowDeleteConfirm(false);
+      setDocumentToDelete(null);
+      setSelectedDocument(null);
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to delete document',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const confirmDeleteDocument = (document: Document) => {
+    setDocumentToDelete(document);
+    setShowDeleteConfirm(true);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -1151,11 +1244,21 @@ const DocsPage: React.FC = () => {
                   </div>
                   
                   <div className="flex items-center justify-center sm:justify-end space-x-2">
-                    <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1 sm:flex-none"
+                      onClick={() => handleEditDocument(selectedDocument)}
+                    >
                       <Settings className="w-4 h-4 sm:mr-2" />
                       <span className="hidden sm:inline">Edit</span>
                     </Button>
-                    <Button variant="destructive" size="sm" className="flex-1 sm:flex-none">
+                    <Button 
+                      variant="destructive" 
+                      size="sm" 
+                      className="flex-1 sm:flex-none"
+                      onClick={() => confirmDeleteDocument(selectedDocument)}
+                    >
                       <Trash2 className="w-4 h-4 sm:mr-2" />
                       <span className="hidden sm:inline">Delete</span>
                     </Button>
@@ -1163,6 +1266,100 @@ const DocsPage: React.FC = () => {
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Document Dialog */}
+        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <DialogContent className="max-w-[95vw] w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-base sm:text-lg">Edit Document</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Title</label>
+                <Input
+                  value={editDocument.title}
+                  onChange={(e) => setEditDocument(prev => ({ ...prev, title: e.target.value }))}
+                  placeholder="Document title"
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium mb-2 block">Content</label>
+                <Textarea
+                  value={editDocument.content}
+                  onChange={(e) => setEditDocument(prev => ({ ...prev, content: e.target.value }))}
+                  placeholder="Document content"
+                  rows={10}
+                />
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Category</label>
+                  <Select
+                    value={editDocument.category}
+                    onValueChange={(value) => setEditDocument(prev => ({ ...prev, category: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="general">General</SelectItem>
+                      <SelectItem value="technical">Technical</SelectItem>
+                      <SelectItem value="business">Business</SelectItem>
+                      <SelectItem value="personal">Personal</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium mb-2 block">Tags</label>
+                <Input
+                  value={editDocument.tags}
+                  onChange={(e) => setEditDocument(prev => ({ ...prev, tags: e.target.value }))}
+                  placeholder="tag1, tag2, tag3"
+                />
+              </div>
+              
+              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-0 sm:space-x-2">
+                <Button variant="outline" onClick={() => setShowEditDialog(false)} className="order-2 sm:order-1">
+                  Cancel
+                </Button>
+                <Button onClick={handleUpdateDocument} className="order-1 sm:order-2">
+                  Update Document
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+          <DialogContent className="max-w-[95vw] w-full sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-base sm:text-lg flex items-center space-x-2">
+                <AlertCircle className="w-5 h-5 text-red-500" />
+                <span>Confirm Delete</span>
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Are you sure you want to delete "{documentToDelete?.title}"? This action cannot be undone.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-0 sm:space-x-2">
+                <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} className="order-2 sm:order-1">
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={handleDeleteDocument} className="order-1 sm:order-2">
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Document
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
