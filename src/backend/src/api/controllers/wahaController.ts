@@ -281,17 +281,29 @@ export const getMessages = async (req: Request, res: Response) => {
     const chatId = req.params.chatId || req.query.chatId as string;
     const limit = parseInt(req.query.limit as string) || 50;
     
+    const wahaService = getWAHAService();
+    
     if (!chatId) {
-      // If no chatId provided, return empty messages array instead of error
-      console.log('[WAHA Controller] No chatId provided, returning empty messages');
-      return res.json({
-        success: true,
-        data: []
-      });
+      // If no chatId provided, get recent messages from all chats
+      console.log('[WAHA Controller] No chatId provided, fetching recent messages from all chats');
+      try {
+        const allMessages = await wahaService.getRecentMessages(limit);
+        console.log('[WAHA Controller] Found recent messages:', allMessages.length);
+        return res.json({
+          success: true,
+          data: allMessages
+        });
+      } catch (recentError) {
+        console.warn('[WAHA Controller] Failed to get recent messages, returning empty array:', recentError);
+        return res.json({
+          success: true,
+          data: []
+        });
+      }
     }
 
-    const wahaService = getWAHAService();
     const messages = await wahaService.getMessages(chatId, limit);
+    console.log('[WAHA Controller] Found messages for chat', chatId, ':', messages.length);
     
     res.json({
       success: true,

@@ -872,7 +872,14 @@ const WhatsAppPage: React.FC = () => {
     try {
       setFetchingHistory(true);
       
-      const response = await api.get(`/whatsapp/messages?chatId=${chatId}&limit=${limit}`);
+      // Prefer WAHA modern endpoint; fallback to legacy
+      let response: any;
+      try {
+        response = await api.get(`/waha/messages?chatId=${encodeURIComponent(chatId)}&limit=${limit}`);
+      } catch (wahaError) {
+        console.log('WAHA endpoint failed, trying legacy:', wahaError);
+        response = await api.get(`/whatsapp/messages?chatId=${chatId}&limit=${limit}`);
+      }
       
       if (response.data.success && response.data.data) {
         const historicalMessages = response.data.data;
@@ -887,6 +894,11 @@ const WhatsAppPage: React.FC = () => {
         toast({
           title: "Chat History Loaded",
           description: `Loaded ${historicalMessages.length} historical messages`,
+        });
+      } else {
+        toast({
+          title: "No History Available",
+          description: "No additional messages found for this chat",
         });
       }
     } catch (error: any) {

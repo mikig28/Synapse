@@ -753,6 +753,71 @@ class WAHAService extends EventEmitter {
   }
 
   /**
+   * Get recent messages from all chats
+   */
+  async getRecentMessages(limit: number = 50, sessionName: string = this.defaultSession): Promise<WAHAMessage[]> {
+    try {
+      console.log(`[WAHA Service] Getting recent messages from all chats in session '${sessionName}'...`);
+      
+      // Check session status first
+      const sessionStatus = await this.getSessionStatus(sessionName);
+      console.log(`[WAHA Service] Session '${sessionName}' status: ${sessionStatus.status}`);
+      
+      if (sessionStatus.status !== 'WORKING') {
+        console.log(`[WAHA Service] Session not in WORKING status (${sessionStatus.status}), returning empty messages`);
+        return [];
+      }
+      
+      // Get all chats first
+      const chats = await this.getChats(sessionName);
+      
+      if (!chats || chats.length === 0) {
+        console.log(`[WAHA Service] No chats found, returning empty messages`);
+        return [];
+      }
+      
+      // Get messages from each chat (limit per chat to avoid overwhelming)
+      const messagesPerChat = Math.max(1, Math.floor(limit / Math.min(chats.length, 10)));
+      const allMessages: WAHAMessage[] = [];
+      
+      // Process first 10 chats with most recent activity
+      const sortedChats = chats
+        .filter(chat => chat.timestamp) // Only chats with recent activity
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+        .slice(0, 10);
+      
+      console.log(`[WAHA Service] Getting messages from ${sortedChats.length} most active chats (${messagesPerChat} messages per chat)`);
+      
+      for (const chat of sortedChats) {
+        try {
+          const chatMessages = await this.getMessages(chat.id, messagesPerChat, sessionName);
+          allMessages.push(...chatMessages);
+          
+          // Stop if we've reached the limit
+          if (allMessages.length >= limit) {
+            break;
+          }
+        } catch (chatError) {
+          console.warn(`[WAHA Service] Failed to get messages from chat ${chat.id}:`, chatError);
+          // Continue with other chats
+        }
+      }
+      
+      // Sort by timestamp descending and limit results
+      const sortedMessages = allMessages
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, limit);
+      
+      console.log(`[WAHA Service] Collected ${sortedMessages.length} recent messages from ${sortedChats.length} chats`);
+      return sortedMessages;
+      
+    } catch (error: any) {
+      console.error(`[WAHA Service] ❌ Failed to get recent messages:`, error.response?.status, error.response?.data);
+      return [];
+    }
+  }
+
+  /**
    * Stop session
    */
   async stopSession(sessionName: string = this.defaultSession): Promise<void> {
