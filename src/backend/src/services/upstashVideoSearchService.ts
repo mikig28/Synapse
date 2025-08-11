@@ -39,16 +39,27 @@ function formatTranscriptData(transcript: TranscriptInput, url: string): Formatt
   });
 }
 
-const searchClient = new Search({
-  url: process.env.UPSTASH_SEARCH_REST_URL!,
-  token: process.env.UPSTASH_SEARCH_REST_TOKEN!,
-});
+let searchClient: Search | null = null;
+let supadataClient: Supadata | null = null;
 
-const supadataClient = new Supadata({
-  apiKey: process.env.SUPADATA_API_KEY!,
-});
+if (process.env.UPSTASH_SEARCH_REST_URL && process.env.UPSTASH_SEARCH_REST_TOKEN) {
+  searchClient = new Search({
+    url: process.env.UPSTASH_SEARCH_REST_URL,
+    token: process.env.UPSTASH_SEARCH_REST_TOKEN,
+  });
+}
+
+if (process.env.SUPADATA_API_KEY) {
+  supadataClient = new Supadata({
+    apiKey: process.env.SUPADATA_API_KEY,
+  });
+}
 
 export async function checkVideoIndexExists(videoId: string): Promise<boolean> {
+  if (!searchClient) {
+    console.warn('[UpstashVideoSearch] Search client not available - Upstash credentials not configured');
+    return false;
+  }
   const allIndexes = await searchClient.listIndexes();
   return allIndexes.includes(videoId);
 }
@@ -63,6 +74,11 @@ async function upsertCaptionsBatch(formattedData: FormattedDocument[], index: an
 }
 
 export async function indexVideoCaptions(url: string, videoId: string): Promise<void> {
+  if (!searchClient || !supadataClient) {
+    console.warn('[UpstashVideoSearch] Search services not available - credentials not configured');
+    return;
+  }
+
   const already = await checkVideoIndexExists(videoId);
   if (already) return;
 
@@ -79,6 +95,11 @@ export async function indexVideoCaptions(url: string, videoId: string): Promise<
 }
 
 export async function searchVideoCaptions(videoId: string, query: string) {
+  if (!searchClient) {
+    console.warn('[UpstashVideoSearch] Search client not available - credentials not configured');
+    return [];
+  }
+
   const searchIndex: any = searchClient.index<{ text: string }>(videoId);
   const results = await searchIndex.search({
     query,
