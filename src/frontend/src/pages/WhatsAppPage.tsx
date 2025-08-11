@@ -514,16 +514,39 @@ const WhatsAppPage: React.FC = () => {
     }
 
     try {
-      const response = await api.post('/whatsapp/auth/phone', {
-        phoneNumber: phoneNumber.replace(/\D/g, '') // Remove non-digits
-      });
+      // Try WAHA endpoint first (modern WhatsApp service)
+      let response: any;
+      let usedService: 'waha' | 'baileys' = 'waha';
+      
+      try {
+        console.log('🚀 Sending phone auth via WAHA /waha/auth/phone...');
+        response = await api.post('/waha/auth/phone', {
+          phoneNumber: phoneNumber.replace(/\D/g, '') // Remove non-digits
+        });
+        console.log('✅ Phone auth request successful via WAHA');
+      } catch (wahaError: any) {
+        console.error('❌ WAHA phone auth failed, trying legacy endpoint:', wahaError);
+        
+        // If WAHA fails with specific errors, don't try legacy
+        if (wahaError.response?.data?.code === 'PHONE_AUTH_NOT_SUPPORTED') {
+          throw wahaError; // Re-throw to handle as not supported
+        }
+        
+        // Try legacy endpoint as fallback
+        console.log('⚠️ Falling back to legacy endpoint /whatsapp-legacy/auth/phone...');
+        response = await api.post('/whatsapp-legacy/auth/phone', {
+          phoneNumber: phoneNumber.replace(/\D/g, '')
+        });
+        usedService = 'baileys';
+        console.log('✅ Phone auth request successful via Baileys (legacy)');
+      }
 
       if (response.data.success) {
         setPhoneAuthStep('code');
         setIsWaitingForCode(true);
         toast({
           title: "Verification Code Sent",
-          description: "Please check your WhatsApp mobile app for the verification code",
+          description: `Please check your WhatsApp mobile app for the verification code (via ${usedService === 'waha' ? 'WAHA Modern' : 'Baileys Legacy'})`,
         });
       } else {
         toast({
@@ -541,7 +564,7 @@ const WhatsAppPage: React.FC = () => {
         setPhoneAuthSupported(false); // Disable phone auth option
         toast({
           title: "Phone Authentication Not Available",
-          description: "Phone authentication isn't supported. Switching to QR code method...",
+          description: "Phone authentication isn't supported by the WhatsApp service. Switching to QR code method...",
           variant: "destructive",
         });
         
@@ -567,9 +590,15 @@ const WhatsAppPage: React.FC = () => {
       } else {
         toast({
           title: "Error",
-          description: errorData?.error || "Failed to send verification code",
+          description: errorData?.error || "Failed to send verification code. Please try QR code authentication instead.",
           variant: "destructive",
         });
+        
+        // Auto-switch to QR code authentication after any other error
+        setTimeout(() => {
+          setAuthMethod('qr');
+          fetchQRCode();
+        }, 3000);
       }
     }
   };
@@ -585,17 +614,36 @@ const WhatsAppPage: React.FC = () => {
     }
 
     try {
-      const response = await api.post('/whatsapp/auth/verify', {
-        phoneNumber: phoneNumber.replace(/\D/g, ''),
-        code: verificationCode
-      });
+      // Try WAHA endpoint first, then fallback to legacy
+      let response: any;
+      let usedService: 'waha' | 'baileys' = 'waha';
+      
+      try {
+        console.log('🚀 Verifying phone code via WAHA /waha/auth/verify...');
+        response = await api.post('/waha/auth/verify', {
+          phoneNumber: phoneNumber.replace(/\D/g, ''),
+          code: verificationCode
+        });
+        console.log('✅ Phone verification successful via WAHA');
+      } catch (wahaError: any) {
+        console.error('❌ WAHA phone verification failed, trying legacy endpoint:', wahaError);
+        
+        // Try legacy endpoint as fallback
+        console.log('⚠️ Falling back to legacy endpoint /whatsapp-legacy/auth/verify...');
+        response = await api.post('/whatsapp-legacy/auth/verify', {
+          phoneNumber: phoneNumber.replace(/\D/g, ''),
+          code: verificationCode
+        });
+        usedService = 'baileys';
+        console.log('✅ Phone verification successful via Baileys (legacy)');
+      }
 
       if (response.data.success) {
         setShowAuth(false);
         setIsWaitingForCode(false);
         toast({
           title: "Authentication Successful",
-          description: "WhatsApp connected successfully via phone number",
+          description: `WhatsApp connected successfully via phone number (using ${usedService === 'waha' ? 'WAHA Modern' : 'Baileys Legacy'})`,
         });
         // Refresh status after successful auth
         setTimeout(fetchStatus, 2000);

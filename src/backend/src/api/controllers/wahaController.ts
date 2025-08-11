@@ -431,9 +431,11 @@ export const webhook = async (req: Request, res: Response) => {
  */
 export const sendPhoneAuthCode = async (req: Request, res: Response) => {
   try {
+    console.log('[WAHA Controller] Phone auth code request received:', req.body);
     const { phoneNumber } = req.body;
     
     if (!phoneNumber || typeof phoneNumber !== 'string') {
+      console.error('[WAHA Controller] Invalid phone number in request:', phoneNumber);
       return res.status(400).json({
         success: false,
         error: 'Phone number is required and must be a string'
@@ -442,18 +444,26 @@ export const sendPhoneAuthCode = async (req: Request, res: Response) => {
     
     // Clean phone number (remove non-digits)
     const cleanedPhone = phoneNumber.replace(/\D/g, '');
+    console.log('[WAHA Controller] Cleaned phone number:', cleanedPhone);
     
     if (cleanedPhone.length < 10) {
+      console.error('[WAHA Controller] Phone number too short:', cleanedPhone);
       return res.status(400).json({
         success: false,
         error: 'Invalid phone number format'
       });
     }
     
+    console.log('[WAHA Controller] Getting WAHA service instance...');
     const wahaService = getWAHAService();
+    
+    console.log('[WAHA Controller] Requesting phone code via WAHA service...');
     const result = await wahaService.requestPhoneCode(cleanedPhone);
     
+    console.log('[WAHA Controller] WAHA service result:', result);
+    
     if (result.success) {
+      console.log('[WAHA Controller] ✅ Phone code request successful');
       res.json({
         success: true,
         message: 'Verification code sent to your phone',
@@ -463,17 +473,42 @@ export const sendPhoneAuthCode = async (req: Request, res: Response) => {
         }
       });
     } else {
-      res.status(400).json({
-        success: false,
-        error: result.error || 'Failed to send verification code'
-      });
+      console.log('[WAHA Controller] ❌ Phone code request failed:', result.error);
+      
+      // Check if it's a known error that means phone auth is not supported
+      if (result.error?.includes('not available') || result.error?.includes('not supported')) {
+        console.log('[WAHA Controller] Phone auth not supported, directing user to QR method');
+        res.status(422).json({
+          success: false,
+          error: 'Phone number authentication is not available with the current WhatsApp configuration. Please use QR code authentication instead.',
+          fallbackMethod: 'qr',
+          code: 'PHONE_AUTH_NOT_SUPPORTED'
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          error: result.error || 'Failed to send verification code'
+        });
+      }
     }
   } catch (error: any) {
-    console.error('[WAHA Controller] Error sending phone auth code:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to send verification code: ' + error.message
-    });
+    console.error('[WAHA Controller] ❌ Exception sending phone auth code:', error);
+    
+    // Check if it's a network/connection error to WAHA service
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.response?.status >= 500) {
+      console.log('[WAHA Controller] WAHA service unavailable, directing user to QR method');
+      res.status(503).json({
+        success: false,
+        error: 'WhatsApp service is temporarily unavailable. Please try QR code authentication instead.',
+        fallbackMethod: 'qr',
+        code: 'SERVICE_UNAVAILABLE'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to send verification code: ' + error.message
+      });
+    }
   }
 };
 
