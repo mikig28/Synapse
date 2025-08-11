@@ -143,6 +143,14 @@ const initialSteps: OnboardingStep[] = [
     unlocked: true
   },
   {
+    id: 'telegram-bot-setup',
+    title: 'Set Up Telegram Bot',
+    description: 'Create your personal Telegram bot for notifications and interactions',
+    completed: false,
+    optional: false,
+    unlocked: false
+  },
+  {
     id: 'connect-data',
     title: 'Connect Your First Data Source',
     description: 'Link WhatsApp, Telegram, or upload documents to get started',

@@ -52,9 +52,9 @@ export const ConnectDataStep: React.FC = () => {
     },
     {
       id: 'telegram',
-      name: 'Telegram (Demo)',
+      name: 'Telegram Integration',
       icon: <Send className="w-6 h-6 text-blue-500" />,
-      description: 'Demo: Shows how Telegram bot would work. In production, this provides real-time notifications.',
+      description: 'Connect your Telegram bot to receive notifications and send messages to Synapse.',
       difficulty: 'easy',
       timeToSetup: '1 minute',
       benefits: ['Real-time notifications', 'Bot commands', 'File sharing'],
@@ -85,12 +85,13 @@ export const ConnectDataStep: React.FC = () => {
         showAchievement('📱 WhatsApp demo completed! In production, this would connect to your WhatsApp.');
       }, 3000);
     } else if (sourceId === 'telegram') {
-      updateIntegrationStatus('telegram', { status: 'connecting' });
-      
-      setTimeout(() => {
-        updateIntegrationStatus('telegram', { status: 'disconnected' });
-        showAchievement('💬 Telegram demo completed! In production, this would connect to @synapse_bot.');
-      }, 2000);
+      // Check if user already has a bot token configured from previous step
+      if (integrationStatus.telegram.status === 'connected') {
+        showAchievement('🤖 Telegram bot already connected! Your bot is ready to use.');
+        completeStep('connect-data');
+      } else {
+        showAchievement('🤖 To connect Telegram, please complete the bot setup in the previous step first.');
+      }
     } else if (sourceId === 'documents') {
       // Create a real file input for document upload
       const fileInput = document.createElement('input');

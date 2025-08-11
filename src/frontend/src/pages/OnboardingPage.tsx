@@ -9,6 +9,7 @@ import { OnboardingTips } from '@/components/onboarding/OnboardingTips';
 
 // Step Components
 import { WelcomeStep } from '@/components/onboarding/steps/WelcomeStep';
+import { TelegramBotSetupStep } from '@/components/onboarding/steps/TelegramBotSetupStep';
 import { ConnectDataStep } from '@/components/onboarding/steps/ConnectDataStep';
 import { CreateAgentStep } from '@/components/onboarding/steps/CreateAgentStep';
 import { ExploreSearchStep } from '@/components/onboarding/steps/ExploreSearchStep';
@@ -57,6 +58,7 @@ const OnboardingPage: React.FC = () => {
   // Step components mapping
   const stepComponents = [
     WelcomeStep,
+    TelegramBotSetupStep,
     ConnectDataStep,
     CreateAgentStep,
     ExploreSearchStep,
