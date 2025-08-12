@@ -1345,15 +1345,26 @@ const WhatsAppPage: React.FC = () => {
                 {isMobile && (
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-semibold text-white">Chats</h2>
-                    <Button
-                      onClick={() => setShowMonitoring(true)}
-                      variant="outline"
-                      size="sm"
-                      className="border-amber-400/30 text-amber-200 hover:bg-amber-500/10"
-                    >
-                      <Eye className="w-4 h-4 mr-1" />
-                      Monitor
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={() => setShowMonitoring(true)}
+                        variant="outline"
+                        size="sm"
+                        className="border-amber-400/30 text-amber-200 hover:bg-amber-500/10"
+                      >
+                        <Eye className="w-4 h-4 mr-1" />
+                        Monitor
+                      </Button>
+                      <Button
+                        onClick={() => setShowMobileMenu(true)}
+                        variant="outline"
+                        size="sm"
+                        className="border-blue-400/30 text-blue-200 hover:bg-blue-500/10"
+                      >
+                        <Menu className="w-4 h-4 mr-1" />
+                        Actions
+                      </Button>
+                    </div>
                   </div>
                 )}
                 <div className="relative">
@@ -1484,6 +1495,19 @@ const WhatsAppPage: React.FC = () => {
                       <p className="text-blue-200/50 text-xs mt-1">
                         {searchTerm ? 'Try a different search term' : 'Chats will appear as they are discovered'}
                       </p>
+                      {isMobile && (
+                        <div className="mt-4">
+                          <Button
+                            onClick={() => setShowMobileMenu(true)}
+                            variant="outline"
+                            size="sm"
+                            className="border-yellow-400/30 text-yellow-200 hover:bg-yellow-500/10"
+                          >
+                            <QrCode className="w-4 h-4 mr-2" />
+                            Connect WhatsApp
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
