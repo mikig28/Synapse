@@ -853,10 +853,11 @@ const sendPhoneAuthCode = async (req, res) => {
         if (result.success) {
             res.json({
                 success: true,
-                message: 'Verification code sent to your phone',
+                message: 'Verification code generated. Enter it in your WhatsApp app.',
                 data: {
                     phoneNumber: cleanedPhone,
-                    codeRequested: true
+                    codeRequested: true,
+                    pairingCode: result.code || null
                 }
             });
         }

@@ -925,10 +925,11 @@ export const sendPhoneAuthCode = async (req: Request, res: Response) => {
     if (result.success) {
       res.json({
         success: true,
-        message: 'Verification code sent to your phone',
+        message: 'Verification code generated. Enter it in your WhatsApp app.',
         data: {
           phoneNumber: cleanedPhone,
-          codeRequested: true
+          codeRequested: true,
+          pairingCode: (result as any).code || null
         }
       });
     } else {
