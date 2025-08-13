@@ -381,6 +381,9 @@ const WhatsAppPage: React.FC = () => {
       if (chatMessages.length === 0) {
         // Only fetch if we have no messages for this chat
         fetchMessages(selectedChat.id);
+      } else if (chatMessages.length === 0 && selectedChat?.id) {
+        // WAHA sometimes returns empty; try legacy as fallback explicitly
+        fetchMessages(selectedChat.id);
       }
     }
   }, [selectedChat?.id]); // Only depend on the ID to avoid circular dependencies
@@ -463,7 +466,7 @@ const WhatsAppPage: React.FC = () => {
           ? `/waha/messages?chatId=${encodeURIComponent(chatId)}&limit=50`
           : '/waha/messages';
         const wahaRes = await api.get(wahaEndpoint);
-        if (wahaRes.data.success) {
+        if (wahaRes.data.success && Array.isArray(wahaRes.data.data) && wahaRes.data.data.length > 0) {
           setMessages(wahaRes.data.data);
           return;
         }
@@ -471,7 +474,7 @@ const WhatsAppPage: React.FC = () => {
         // swallow and fallback
       }
       const legacyEndpoint = chatId 
-        ? `/whatsapp/messages?groupId=${chatId}`
+        ? `/whatsapp/messages?chatId=${encodeURIComponent(chatId)}`
         : '/whatsapp/messages';
       const legacyRes = await api.get(legacyEndpoint);
       if (legacyRes.data.success) {
@@ -945,10 +948,10 @@ const WhatsAppPage: React.FC = () => {
         response = await api.get(`/waha/messages?chatId=${encodeURIComponent(chatId)}&limit=${limit}`);
       } catch (wahaError) {
         console.log('WAHA endpoint failed, trying legacy:', wahaError);
-        response = await api.get(`/whatsapp/messages?chatId=${chatId}&limit=${limit}`);
+        response = await api.get(`/whatsapp/messages?chatId=${encodeURIComponent(chatId)}&limit=${limit}`);
       }
       
-      if (response.data.success && response.data.data) {
+      if (response.data.success && Array.isArray(response.data.data)) {
         const historicalMessages = response.data.data;
         
         // Merge with existing messages, avoiding duplicates
@@ -1432,7 +1435,7 @@ const WhatsAppPage: React.FC = () => {
                               </p>
                               <div className="flex items-center gap-2 mt-1">
                                 <p className="text-xs text-blue-200/70">
-                                  {group.participantCount || 0} members
+                                  {(group.participantCount ?? 0)} members
                                 </p>
                                 {group.lastMessage && (
                                   <>
@@ -1555,7 +1558,7 @@ const WhatsAppPage: React.FC = () => {
                         <h3 className="font-semibold text-white truncate">{selectedChat.name}</h3>
                         <p className="text-sm text-blue-200/70">
                           {selectedChat.isGroup 
-                            ? `${selectedChat.participantCount} members`
+                            ? `${selectedChat.participantCount ?? 0} members`
                             : 'Private chat'
                           }
                         </p>
