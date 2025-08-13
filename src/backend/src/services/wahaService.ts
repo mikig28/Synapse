@@ -1066,7 +1066,7 @@ class WAHAService extends EventEmitter {
   /**
    * Request phone authentication code (using WAHA API - may not be available in all engines)
    */
-  async requestPhoneCode(phoneNumber: string, sessionName: string = this.defaultSession): Promise<{ success: boolean; error?: string }> {
+  async requestPhoneCode(phoneNumber: string, sessionName: string = this.defaultSession): Promise<{ success: boolean; code?: string; error?: string }> {
     try {
       console.log(`[WAHA Service] Requesting phone verification code for: ${phoneNumber}`);
       
@@ -1078,12 +1078,17 @@ class WAHAService extends EventEmitter {
         phoneNumber: phoneNumber.replace(/\D/g, '') // Remove non-digits
       });
       
-      if (response.data.success || response.status === 200) {
-        console.log(`[WAHA Service] ✅ Phone verification code requested successfully`);
-        return { success: true };
+      // Some WAHA engines return the pairing code to be entered on the phone.
+      // Try to extract it from multiple possible shapes to be robust across versions.
+      const data: any = response?.data || {};
+      const possibleCode = data.code || data.pairingCode || data.pair_code || data?.data?.code || data?.payload?.code || undefined;
+      
+      if (data.success || response.status === 200) {
+        console.log(`[WAHA Service] ✅ Phone verification code requested successfully${possibleCode ? ` (code: ${possibleCode})` : ''}`);
+        return { success: true, code: possibleCode };
       } else {
-        console.error(`[WAHA Service] ❌ Phone code request failed:`, response.data);
-        return { success: false, error: response.data.message || 'Failed to request phone code' };
+        console.error(`[WAHA Service] ❌ Phone code request failed:`, data);
+        return { success: false, error: data.message || 'Failed to request phone code' };
       }
       
     } catch (error: any) {

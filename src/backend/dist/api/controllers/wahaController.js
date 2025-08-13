@@ -66,6 +66,18 @@ const getStatus = async (req, res) => {
             isConnected,
             qrAvailable
         });
+        // Compute counts from chats to keep the header accurate
+        let groupsCount = 0;
+        let privateChatsCount = 0;
+        let messagesCount = 0;
+        try {
+            const chats = await wahaService.getChats();
+            groupsCount = chats.filter(c => c.isGroup || (typeof c.id === 'string' && c.id.includes('@g.us'))).length;
+            privateChatsCount = Math.max(0, (chats?.length || 0) - groupsCount);
+            // Heuristic: count chats that have a last message present
+            messagesCount = chats.reduce((acc, c) => acc + (c.lastMessage ? 1 : 0), 0);
+        }
+        catch { }
         // Convert WAHA status to format expected by frontend
         const status = {
             connected: isConnected,
@@ -74,9 +86,9 @@ const getStatus = async (req, res) => {
             serviceStatus: sessionDetails?.status || wahaStatus.status,
             isReady: isConnected,
             isClientReady: isConnected,
-            groupsCount: 0,
-            privateChatsCount: 0,
-            messagesCount: 0,
+            groupsCount,
+            privateChatsCount,
+            messagesCount,
             qrAvailable: qrAvailable,
             timestamp: wahaStatus.timestamp,
             monitoredKeywords: [],
@@ -258,16 +270,28 @@ const getMessages = async (req, res) => {
         // Support both URL param and query param for chatId
         const chatId = req.params.chatId || req.query.chatId;
         const limit = parseInt(req.query.limit) || 50;
-        if (!chatId) {
-            // If no chatId provided, return empty messages array instead of error
-            console.log('[WAHA Controller] No chatId provided, returning empty messages');
-            return res.json({
-                success: true,
-                data: []
-            });
-        }
         const wahaService = getWAHAService();
+        if (!chatId) {
+            // If no chatId provided, get recent messages from all chats
+            console.log('[WAHA Controller] No chatId provided, fetching recent messages from all chats');
+            try {
+                const allMessages = await wahaService.getRecentMessages(limit);
+                console.log('[WAHA Controller] Found recent messages:', allMessages.length);
+                return res.json({
+                    success: true,
+                    data: allMessages
+                });
+            }
+            catch (recentError) {
+                console.warn('[WAHA Controller] Failed to get recent messages, returning empty array:', recentError);
+                return res.json({
+                    success: true,
+                    data: []
+                });
+            }
+        }
         const messages = await wahaService.getMessages(chatId, limit);
+        console.log('[WAHA Controller] Found messages for chat', chatId, ':', messages.length);
         res.json({
             success: true,
             data: messages
@@ -388,8 +412,10 @@ exports.webhook = webhook;
  */
 const sendPhoneAuthCode = async (req, res) => {
     try {
+        console.log('[WAHA Controller] Phone auth code request received:', req.body);
         const { phoneNumber } = req.body;
         if (!phoneNumber || typeof phoneNumber !== 'string') {
+            console.error('[WAHA Controller] Invalid phone number in request:', phoneNumber);
             return res.status(400).json({
                 success: false,
                 error: 'Phone number is required and must be a string'
@@ -397,37 +423,69 @@ const sendPhoneAuthCode = async (req, res) => {
         }
         // Clean phone number (remove non-digits)
         const cleanedPhone = phoneNumber.replace(/\D/g, '');
+        console.log('[WAHA Controller] Cleaned phone number:', cleanedPhone);
         if (cleanedPhone.length < 10) {
+            console.error('[WAHA Controller] Phone number too short:', cleanedPhone);
             return res.status(400).json({
                 success: false,
                 error: 'Invalid phone number format'
             });
         }
+        console.log('[WAHA Controller] Getting WAHA service instance...');
         const wahaService = getWAHAService();
+        console.log('[WAHA Controller] Requesting phone code via WAHA service...');
         const result = await wahaService.requestPhoneCode(cleanedPhone);
+        console.log('[WAHA Controller] WAHA service result:', result);
         if (result.success) {
+            console.log('[WAHA Controller] ✅ Phone code request successful');
             res.json({
                 success: true,
-                message: 'Verification code sent to your phone',
+                message: 'Verification code generated. Enter it in your WhatsApp app.',
                 data: {
                     phoneNumber: cleanedPhone,
-                    codeRequested: true
+                    codeRequested: true,
+                    pairingCode: result.code || null
                 }
             });
         }
         else {
-            res.status(400).json({
-                success: false,
-                error: result.error || 'Failed to send verification code'
-            });
+            console.log('[WAHA Controller] ❌ Phone code request failed:', result.error);
+            // Check if it's a known error that means phone auth is not supported
+            if (result.error?.includes('not available') || result.error?.includes('not supported')) {
+                console.log('[WAHA Controller] Phone auth not supported, directing user to QR method');
+                res.status(422).json({
+                    success: false,
+                    error: 'Phone number authentication is not available with the current WhatsApp configuration. Please use QR code authentication instead.',
+                    fallbackMethod: 'qr',
+                    code: 'PHONE_AUTH_NOT_SUPPORTED'
+                });
+            }
+            else {
+                res.status(400).json({
+                    success: false,
+                    error: result.error || 'Failed to send verification code'
+                });
+            }
         }
     }
     catch (error) {
-        console.error('[WAHA Controller] Error sending phone auth code:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to send verification code: ' + error.message
-        });
+        console.error('[WAHA Controller] ❌ Exception sending phone auth code:', error);
+        // Check if it's a network/connection error to WAHA service
+        if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.response?.status >= 500) {
+            console.log('[WAHA Controller] WAHA service unavailable, directing user to QR method');
+            res.status(503).json({
+                success: false,
+                error: 'WhatsApp service is temporarily unavailable. Please try QR code authentication instead.',
+                fallbackMethod: 'qr',
+                code: 'SERVICE_UNAVAILABLE'
+            });
+        }
+        else {
+            res.status(500).json({
+                success: false,
+                error: 'Failed to send verification code: ' + error.message
+            });
+        }
     }
 };
 exports.sendPhoneAuthCode = sendPhoneAuthCode;
@@ -493,9 +551,13 @@ exports.verifyPhoneAuthCode = verifyPhoneAuthCode;
 const getGroups = async (req, res) => {
     try {
         const wahaService = getWAHAService();
-        const chats = await wahaService.getChats();
-        // Filter only groups
-        const groups = chats.filter(chat => chat.isGroup);
+        // Try WAHA-compliant groups endpoint first
+        let groups = await wahaService.getGroups();
+        if (!groups || groups.length === 0) {
+            // Ask WAHA to refresh then try again quickly
+            await wahaService.refreshGroups();
+            groups = await wahaService.getGroups();
+        }
         res.json({
             success: true,
             data: groups
@@ -517,8 +579,8 @@ const getPrivateChats = async (req, res) => {
     try {
         const wahaService = getWAHAService();
         const chats = await wahaService.getChats();
-        // Filter only private chats
-        const privateChats = chats.filter(chat => !chat.isGroup);
+        // Filter only private chats (not @g.us)
+        const privateChats = chats.filter(chat => !chat.isGroup && !(typeof chat.id === 'string' && chat.id.includes('@g.us')));
         res.json({
             success: true,
             data: privateChats

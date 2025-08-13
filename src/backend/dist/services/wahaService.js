@@ -396,6 +396,15 @@ class WAHAService extends events_1.EventEmitter {
                     status: 'STOPPED'
                 };
             }
+            // Treat transient upstream failures (5xx, network errors) as non-fatal: report STOPPED
+            const statusCode = error.response?.status;
+            if (!statusCode || statusCode >= 500) {
+                console.warn(`[WAHA Service] ⚠️ Transient error getting session '${sessionName}' (status: ${statusCode || 'NETWORK_ERROR'}) → returning STOPPED`);
+                return {
+                    name: sessionName,
+                    status: 'STOPPED'
+                };
+            }
             console.error(`[WAHA Service] ❌ Failed to get session status for '${sessionName}':`, error);
             throw error;
         }
@@ -504,13 +513,26 @@ class WAHAService extends events_1.EventEmitter {
                 console.log(`[WAHA Service] Session not in WORKING status (${sessionStatus.status}), returning empty chats`);
                 return [];
             }
-            // WAHA API endpoint structure: /api/{session}/chats
-            const response = await this.httpClient.get(`/api/${sessionName}/chats`);
+            // Prefer overview endpoint first for richer data (per WAHA docs)
+            let response;
+            try {
+                response = await this.httpClient.get(`/api/${sessionName}/chats/overview`, {
+                    timeout: 90000
+                });
+                console.log(`[WAHA Service] Using chats overview endpoint`);
+            }
+            catch (e) {
+                console.log(`[WAHA Service] Chats overview not available, falling back to /chats`);
+                response = await this.httpClient.get(`/api/${sessionName}/chats`, {
+                    timeout: 90000
+                });
+            }
             console.log(`[WAHA Service] Received ${response.data.length} chats`);
             return response.data.map((chat) => ({
                 id: chat.id,
-                name: chat.name || chat.id,
-                isGroup: chat.isGroup || false,
+                name: chat.name || chat.subject || chat.title || chat.id,
+                // Robust group detection: WAHA may omit isGroup. Treat *@g.us as group.
+                isGroup: Boolean(chat.isGroup) || (typeof chat.id === 'string' && chat.id.includes('@g.us')),
                 lastMessage: chat.lastMessage?.body,
                 timestamp: chat.lastMessage?.timestamp,
                 participantCount: chat.participantCount
@@ -528,6 +550,56 @@ class WAHAService extends events_1.EventEmitter {
         }
     }
     /**
+     * Get groups using WAHA groups endpoint (compliant), fallback to filtering chats
+     */
+    async getGroups(sessionName = this.defaultSession) {
+        try {
+            // Ensure session is working
+            const sessionStatus = await this.getSessionStatus(sessionName);
+            if (sessionStatus.status !== 'WORKING') {
+                return [];
+            }
+            try {
+                const res = await this.httpClient.get(`/api/${sessionName}/groups`);
+                console.log(`[WAHA Service] Received ${res.data.length} groups`);
+                return res.data.map((g) => ({
+                    id: g.id || g.chatId || g.groupId,
+                    name: g.name || g.subject || g.title || g.id,
+                    isGroup: true,
+                    lastMessage: g.lastMessage?.body,
+                    timestamp: g.lastMessage?.timestamp,
+                    participantCount: g.participants?.length || g.participantCount
+                }));
+            }
+            catch (e) {
+                if (e.response?.status === 404) {
+                    console.log(`[WAHA Service] /groups endpoint not available, falling back to chats filter`);
+                }
+                else {
+                    console.warn(`[WAHA Service] Groups endpoint error, falling back to chats filter`, e.message);
+                }
+                const chats = await this.getChats(sessionName);
+                return chats.filter(c => c.isGroup || (typeof c.id === 'string' && c.id.includes('@g.us')));
+            }
+        }
+        catch (err) {
+            console.error('[WAHA Service] Failed to get groups:', err);
+            return [];
+        }
+    }
+    /**
+     * Request WAHA to refresh groups (best effort)
+     */
+    async refreshGroups(sessionName = this.defaultSession) {
+        try {
+            await this.httpClient.post(`/api/${sessionName}/groups/refresh`);
+            console.log('[WAHA Service] Groups refresh requested');
+        }
+        catch (e) {
+            console.log('[WAHA Service] Groups refresh not available, skipping');
+        }
+    }
+    /**
      * Get messages from chat
      */
     async getMessages(chatId, limit = 50, sessionName = this.defaultSession) {
@@ -542,7 +614,8 @@ class WAHAService extends events_1.EventEmitter {
             }
             // WAHA API endpoint structure: /api/{session}/chats/{chatId}/messages
             const response = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(chatId)}/messages`, {
-                params: { limit }
+                params: { limit },
+                timeout: 90000
             });
             console.log(`[WAHA Service] Received ${response.data.length} messages`);
             return response.data.map((msg) => ({
@@ -567,6 +640,60 @@ class WAHAService extends events_1.EventEmitter {
                 return [];
             }
             // Return empty array instead of throwing to prevent 500 errors
+            return [];
+        }
+    }
+    /**
+     * Get recent messages from all chats
+     */
+    async getRecentMessages(limit = 50, sessionName = this.defaultSession) {
+        try {
+            console.log(`[WAHA Service] Getting recent messages from all chats in session '${sessionName}'...`);
+            // Check session status first
+            const sessionStatus = await this.getSessionStatus(sessionName);
+            console.log(`[WAHA Service] Session '${sessionName}' status: ${sessionStatus.status}`);
+            if (sessionStatus.status !== 'WORKING') {
+                console.log(`[WAHA Service] Session not in WORKING status (${sessionStatus.status}), returning empty messages`);
+                return [];
+            }
+            // Get all chats first
+            const chats = await this.getChats(sessionName);
+            if (!chats || chats.length === 0) {
+                console.log(`[WAHA Service] No chats found, returning empty messages`);
+                return [];
+            }
+            // Get messages from each chat (limit per chat to avoid overwhelming)
+            const messagesPerChat = Math.max(1, Math.floor(limit / Math.min(chats.length, 10)));
+            const allMessages = [];
+            // Process first 10 chats with most recent activity
+            const sortedChats = chats
+                .filter(chat => chat.timestamp) // Only chats with recent activity
+                .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+                .slice(0, 10);
+            console.log(`[WAHA Service] Getting messages from ${sortedChats.length} most active chats (${messagesPerChat} messages per chat)`);
+            for (const chat of sortedChats) {
+                try {
+                    const chatMessages = await this.getMessages(chat.id, messagesPerChat, sessionName);
+                    allMessages.push(...chatMessages);
+                    // Stop if we've reached the limit
+                    if (allMessages.length >= limit) {
+                        break;
+                    }
+                }
+                catch (chatError) {
+                    console.warn(`[WAHA Service] Failed to get messages from chat ${chat.id}:`, chatError);
+                    // Continue with other chats
+                }
+            }
+            // Sort by timestamp descending and limit results
+            const sortedMessages = allMessages
+                .sort((a, b) => b.timestamp - a.timestamp)
+                .slice(0, limit);
+            console.log(`[WAHA Service] Collected ${sortedMessages.length} recent messages from ${sortedChats.length} chats`);
+            return sortedMessages;
+        }
+        catch (error) {
+            console.error(`[WAHA Service] ❌ Failed to get recent messages:`, error.response?.status, error.response?.data);
             return [];
         }
     }
@@ -807,13 +934,17 @@ class WAHAService extends events_1.EventEmitter {
             const response = await this.httpClient.post(`/api/${sessionName}/auth/request-code`, {
                 phoneNumber: phoneNumber.replace(/\D/g, '') // Remove non-digits
             });
-            if (response.data.success || response.status === 200) {
-                console.log(`[WAHA Service] ✅ Phone verification code requested successfully`);
-                return { success: true };
+            // Some WAHA engines return the pairing code to be entered on the phone.
+            // Try to extract it from multiple possible shapes to be robust across versions.
+            const data = response?.data || {};
+            const possibleCode = data.code || data.pairingCode || data.pair_code || data?.data?.code || data?.payload?.code || undefined;
+            if (data.success || response.status === 200) {
+                console.log(`[WAHA Service] ✅ Phone verification code requested successfully${possibleCode ? ` (code: ${possibleCode})` : ''}`);
+                return { success: true, code: possibleCode };
             }
             else {
-                console.error(`[WAHA Service] ❌ Phone code request failed:`, response.data);
-                return { success: false, error: response.data.message || 'Failed to request phone code' };
+                console.error(`[WAHA Service] ❌ Phone code request failed:`, data);
+                return { success: false, error: data.message || 'Failed to request phone code' };
             }
         }
         catch (error) {

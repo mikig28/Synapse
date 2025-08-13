@@ -385,25 +385,47 @@ const deleteDocument = async (req, res) => {
     try {
         const userId = req.user?.id;
         const { id } = req.params;
+        console.log('[DeleteDocument] Request params:', { id, userId });
         if (!userId) {
+            console.log('[DeleteDocument] No userId found in request');
             return res.status(401).json({ success: false, error: 'Unauthorized' });
         }
+        // Validate ObjectId format
+        if (!mongoose_1.default.Types.ObjectId.isValid(id)) {
+            console.log('[DeleteDocument] Invalid document ID format:', id);
+            return res.status(400).json({ success: false, error: 'Invalid document ID' });
+        }
+        if (!mongoose_1.default.Types.ObjectId.isValid(userId)) {
+            console.log('[DeleteDocument] Invalid user ID format:', userId);
+            return res.status(401).json({ success: false, error: 'Invalid user ID' });
+        }
+        console.log('[DeleteDocument] Attempting to find and delete document');
         const document = await Document_1.default.findOneAndDelete({
             _id: new mongoose_1.default.Types.ObjectId(id),
             userId: new mongoose_1.default.Types.ObjectId(userId),
         });
         if (!document) {
-            return res.status(404).json({ success: false, error: 'Document not found' });
+            console.log('[DeleteDocument] Document not found or not owned by user');
+            return res.status(404).json({ success: false, error: 'Document not found or you do not have permission to delete it' });
         }
-        // Delete from vector database
-        await vectorDatabaseService_1.vectorDatabaseService.deleteDocument(id);
+        console.log('[DeleteDocument] Document found, attempting to delete from vector database');
+        // Delete from vector database - make this non-blocking to avoid failures
+        try {
+            await vectorDatabaseService_1.vectorDatabaseService.deleteDocument(id);
+            console.log('[DeleteDocument] Successfully deleted from vector database');
+        }
+        catch (vectorError) {
+            console.error('[DeleteDocument] Failed to delete from vector database (continuing anyway):', vectorError);
+            // Don't fail the entire operation if vector database deletion fails
+        }
+        console.log('[DeleteDocument] Document deleted successfully');
         res.json({
             success: true,
             message: 'Document deleted successfully',
         });
     }
     catch (error) {
-        console.error('Error deleting document:', error);
+        console.error('[DeleteDocument] Error deleting document:', error);
         res.status(500).json({ success: false, error: 'Internal server error' });
     }
 };

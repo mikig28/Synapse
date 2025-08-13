@@ -466,10 +466,11 @@ export const sendPhoneAuthCode = async (req: Request, res: Response) => {
       console.log('[WAHA Controller] ✅ Phone code request successful');
       res.json({
         success: true,
-        message: 'Verification code sent to your phone',
+        message: 'Verification code generated. Enter it in your WhatsApp app.',
         data: {
           phoneNumber: cleanedPhone,
-          codeRequested: true
+          codeRequested: true,
+          pairingCode: result.code || null
         }
       });
     } else {

@@ -19,14 +19,24 @@ function formatTranscriptData(transcript, url) {
         };
     });
 }
-const searchClient = new search_1.Search({
-    url: process.env.UPSTASH_SEARCH_REST_URL,
-    token: process.env.UPSTASH_SEARCH_REST_TOKEN,
-});
-const supadataClient = new js_1.Supadata({
-    apiKey: process.env.SUPADATA_API_KEY,
-});
+let searchClient = null;
+let supadataClient = null;
+if (process.env.UPSTASH_SEARCH_REST_URL && process.env.UPSTASH_SEARCH_REST_TOKEN) {
+    searchClient = new search_1.Search({
+        url: process.env.UPSTASH_SEARCH_REST_URL,
+        token: process.env.UPSTASH_SEARCH_REST_TOKEN,
+    });
+}
+if (process.env.SUPADATA_API_KEY) {
+    supadataClient = new js_1.Supadata({
+        apiKey: process.env.SUPADATA_API_KEY,
+    });
+}
 async function checkVideoIndexExists(videoId) {
+    if (!searchClient) {
+        console.warn('[UpstashVideoSearch] Search client not available - Upstash credentials not configured');
+        return false;
+    }
     const allIndexes = await searchClient.listIndexes();
     return allIndexes.includes(videoId);
 }
@@ -39,6 +49,10 @@ async function upsertCaptionsBatch(formattedData, index) {
     }
 }
 async function indexVideoCaptions(url, videoId) {
+    if (!searchClient || !supadataClient) {
+        console.warn('[UpstashVideoSearch] Search services not available - credentials not configured');
+        return;
+    }
     const already = await checkVideoIndexExists(videoId);
     if (already)
         return;
@@ -53,6 +67,10 @@ async function indexVideoCaptions(url, videoId) {
     await upsertCaptionsBatch(formattedData, searchIndex);
 }
 async function searchVideoCaptions(videoId, query) {
+    if (!searchClient) {
+        console.warn('[UpstashVideoSearch] Search client not available - credentials not configured');
+        return [];
+    }
     const searchIndex = searchClient.index(videoId);
     const results = await searchIndex.search({
         query,

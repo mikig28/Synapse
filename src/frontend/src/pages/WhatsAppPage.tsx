@@ -98,6 +98,9 @@ const WhatsAppPage: React.FC = () => {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showMonitoring, setShowMonitoring] = useState(false);
   
+  // NEW: store pairing code returned by backend (if engine supports it)
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const { isAuthenticated, token } = useAuthStore();
@@ -497,6 +500,7 @@ const WhatsAppPage: React.FC = () => {
     setIsWaitingForCode(false);
     setPhoneNumber('');
     setVerificationCode('');
+    setPairingCode(null);
     setPhoneAuthSupported(true); // Reset phone auth support when opening modal
     
     // Actually generate the QR code when opening the modal
@@ -542,12 +546,25 @@ const WhatsAppPage: React.FC = () => {
       }
 
       if (response.data.success) {
-        setPhoneAuthStep('code');
-        setIsWaitingForCode(true);
-        toast({
-          title: "Verification Code Sent",
-          description: `Please check your WhatsApp mobile app for the verification code (via ${usedService === 'waha' ? 'WAHA Modern' : 'Baileys Legacy'})`,
-        });
+        // If backend returns a pairingCode, show it to the user immediately
+        const returnedCode = response.data?.data?.pairingCode as string | undefined;
+        if (returnedCode) {
+          setPairingCode(returnedCode);
+          setIsWaitingForCode(true);
+          setPhoneAuthStep('code');
+          toast({
+            title: 'Enter This Code in WhatsApp',
+            description: `Code: ${returnedCode}`,
+          });
+        } else {
+          // Fallback: ask user to enter the code they see on device
+          setPhoneAuthStep('code');
+          setIsWaitingForCode(true);
+          toast({
+            title: 'Verification Code Requested',
+            description: `Open WhatsApp and enter the 6‑digit code shown there.`,
+          });
+        }
       } else {
         toast({
           title: "Error",
@@ -604,11 +621,11 @@ const WhatsAppPage: React.FC = () => {
   };
 
   const verifyPhoneAuth = async () => {
-    if (!verificationCode.trim()) {
+    if (!verificationCode.trim() && !pairingCode) {
       toast({
-        title: "Error",
-        description: "Please enter the verification code",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Please enter the verification code',
+        variant: 'destructive',
       });
       return;
     }
@@ -617,12 +634,13 @@ const WhatsAppPage: React.FC = () => {
       // Try WAHA endpoint first, then fallback to legacy
       let response: any;
       let usedService: 'waha' | 'baileys' = 'waha';
+      const codeToUse = (verificationCode || pairingCode || '').trim();
       
       try {
         console.log('🚀 Verifying phone code via WAHA /waha/auth/verify...');
         response = await api.post('/waha/auth/verify', {
           phoneNumber: phoneNumber.replace(/\D/g, ''),
-          code: verificationCode
+          code: codeToUse
         });
         console.log('✅ Phone verification successful via WAHA');
       } catch (wahaError: any) {
@@ -632,7 +650,7 @@ const WhatsAppPage: React.FC = () => {
         console.log('⚠️ Falling back to legacy endpoint /whatsapp-legacy/auth/verify...');
         response = await api.post('/whatsapp-legacy/auth/verify', {
           phoneNumber: phoneNumber.replace(/\D/g, ''),
-          code: verificationCode
+          code: codeToUse
         });
         usedService = 'baileys';
         console.log('✅ Phone verification successful via Baileys (legacy)');
@@ -647,6 +665,7 @@ const WhatsAppPage: React.FC = () => {
         });
         // Refresh status after successful auth
         setTimeout(fetchStatus, 2000);
+        setPairingCode(null);
       } else {
         toast({
           title: "Verification Failed",
@@ -2045,36 +2064,49 @@ const WhatsAppPage: React.FC = () => {
                         </>
                       ) : (
                         <>
+                          {pairingCode && (
+                            <div className="p-3 bg-white/10 rounded-md text-white flex items-center justify-between">
+                              <div>
+                                <div className="text-xs text-blue-200">Enter this code in WhatsApp</div>
+                                <div className="text-2xl font-mono tracking-widest">{pairingCode}</div>
+                              </div>
+                              <Button
+                                variant="outline"
+                                onClick={() => navigator.clipboard.writeText(pairingCode)}
+                                className="ml-3"
+                              >
+                                Copy
+                              </Button>
+                            </div>
+                          )}
                           <div>
                             <label className="block text-sm font-medium text-blue-200 mb-2">
-                              Verification Code
+                              6‑Digit Code
                             </label>
                             <Input
                               type="text"
                               placeholder="Enter 6-digit code"
                               value={verificationCode}
                               onChange={(e) => setVerificationCode(e.target.value)}
-                              className="bg-white/10 border-white/20 text-white placeholder:text-blue-300"
+                              className="bg:white/10 border-white/20 text-white placeholder:text-blue-300"
                               maxLength={6}
                             />
-                            <p className="text-xs text-blue-200/60 mt-1">
-                              Check your WhatsApp mobile app for the verification code
-                            </p>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-3">
                             <Button 
+                              variant="outline"
                               onClick={() => {
                                 setPhoneAuthStep('phone');
                                 setVerificationCode('');
+                                setPairingCode(null);
                               }}
-                              variant="outline"
-                              className="flex-1 border-white/30 text-white hover:bg-white/10"
+                              className="flex-1"
                             >
                               Back
                             </Button>
                             <Button 
                               onClick={verifyPhoneAuth}
-                              disabled={!verificationCode.trim()}
+                              disabled={!verificationCode.trim() && !pairingCode}
                               className="flex-1 bg-green-500 hover:bg-green-600"
                             >
                               Verify
