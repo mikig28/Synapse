@@ -1581,92 +1581,170 @@ class WhatsAppBaileysService extends EventEmitter {
       
       console.log(`📱 Requesting phone pairing code for: ${formattedPhone}`);
       
-      // For phone number pairing, we need to use Baileys' pairing code feature
-      // This generates an 8-digit code that the user enters on their phone
-      if (!this.socket) {
-        // Initialize in pairing mode
-        const { state, saveCreds } = await useMultiFileAuthState(this.AUTH_PATH);
+      // Clear any existing pairing socket
+      if (this.pairingSocket) {
+        this.pairingSocket.end();
+        this.pairingSocket = null;
+      }
+      
+      // Check if already connected
+      if (this.socket && this.isClientReady) {
+        return { 
+          success: false, 
+          error: 'WhatsApp session is already active. Please logout first to pair a new device.' 
+        };
+      }
+      
+      // For phone pairing, we'll use the mobile registration approach
+      try {
+        // Create a temporary auth directory for pairing
+        const pairingAuthPath = path.join(this.AUTH_PATH, '../pairing-auth');
+        await fs.ensureDir(pairingAuthPath);
+        await fs.emptyDir(pairingAuthPath);
         
+        // Initialize auth state
+        const { state, saveCreds } = await useMultiFileAuthState(pairingAuthPath);
+        
+        // Create socket for pairing with mobile:true to enable phone pairing
         const socket = makeWASocket({
           auth: {
-            creds: undefined,
-            keys: makeCacheableSignalKeyStore(state.keys, this.logger)
+            creds: undefined, // Start fresh for pairing
+            keys: state.keys
           },
           printQRInTerminal: false,
           logger: this.logger as any,
-          browser: Browsers.macOS('Chrome'),
+          browser: Browsers.macOS('Desktop'),
           connectTimeoutMs: 60000,
           defaultQueryTimeoutMs: 0,
           keepAliveIntervalMs: 30000,
           emitOwnEvents: true,
-          fireInitQueries: true,
+          fireInitQueries: false,
           generateHighQualityLinkPreview: true,
           syncFullHistory: true,
           markOnlineOnConnect: true,
-          mobile: false, // Important: must be false for pairing code
-          patchMessageBeforeSending: (message) => {
-            const requiresPatch = !!(
-              message.buttonsMessage ||
-              message.templateMessage ||
-              message.listMessage
-            );
-            if (requiresPatch) {
-              message = {
-                viewOnceMessage: {
-                  message: {
-                    messageContextInfo: {
-                      deviceListMetadataVersion: 2,
-                      deviceListMetadata: {},
-                    },
-                    ...message,
-                  },
-                },
-              };
-            }
-            return message;
-          },
+          mobile: false // Keep false for web pairing
         });
         
-        // Request pairing code
-        if (socket.authState.creds && !socket.authState.creds.registered) {
-          const code = await socket.requestPairingCode(formattedPhone);
-          console.log(`✅ Pairing code generated: ${code}`);
+        // Store socket reference
+        this.pairingSocket = socket;
+        this.pairingPhone = formattedPhone;
+        this.pairingAuthPath = pairingAuthPath;
+        
+        // Wait for initial connection
+        await new Promise<string>((resolve, reject) => {
+          let pairingCode: string | null = null;
           
-          // Store the socket temporarily for verification
-          this.pairingSocket = socket;
-          this.pairingPhone = formattedPhone;
-          
-          // Set up connection update handler for pairing
-          socket.ev.on('connection.update', async (update) => {
-            const { connection, lastDisconnect } = update;
+          const connectionHandler = async (update: any) => {
+            const { connection, lastDisconnect, qr, pairingCode: code } = update;
             
-            if (connection === 'open') {
+            console.log('Pairing update:', { connection, hasQR: !!qr, hasPairingCode: !!code });
+            
+            // Check if we got a pairing code
+            if (code) {
+              pairingCode = code;
+              console.log(`✅ Got pairing code: ${code}`);
+              resolve(code);
+            }
+            
+            // If connection opens without pairing code, it means already paired
+            if (connection === 'open' && !pairingCode) {
+              reject(new Error('Connection opened without pairing - auth already exists'));
+            }
+            
+            // Handle errors
+            if (connection === 'close') {
+              const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+              const reason = DisconnectReason[statusCode] || statusCode;
+              console.error('Connection closed during pairing:', reason);
+              
+              if (statusCode !== DisconnectReason.loggedOut) {
+                reject(new Error(`Connection failed: ${reason}`));
+              }
+            }
+          };
+          
+          socket.ev.on('connection.update', connectionHandler);
+          
+          // Set up success handler for when pairing completes
+          socket.ev.on('connection.update', async (update) => {
+            if (update.connection === 'open') {
               console.log('✅ Phone pairing successful!');
+              
+              // Save credentials
+              await saveCreds();
+              
+              // Move auth to main directory
+              await fs.emptyDir(this.AUTH_PATH);
+              await fs.copy(pairingAuthPath, this.AUTH_PATH);
+              await fs.remove(pairingAuthPath);
+              
+              // Update main socket
+              if (this.socket) {
+                this.socket.end();
+              }
               this.socket = socket;
               this.pairingSocket = null;
-              saveCreds();
+              this.isClientReady = true;
+              
               await this.handleConnectionOpen();
             }
           });
           
           socket.ev.on('creds.update', saveCreds);
           
-          return { 
-            success: true, 
-            code: code,
-            error: undefined 
-          };
-        } else {
-          return { 
-            success: false, 
-            error: 'WhatsApp is already authenticated. Please logout first to pair a new device.' 
-          };
+          // Try to request pairing code
+          setTimeout(async () => {
+            try {
+              // Check if requestPairingCode method exists
+              if (typeof socket.requestPairingCode === 'function') {
+                const code = await socket.requestPairingCode(formattedPhone);
+                if (code) {
+                  resolve(code);
+                }
+              } else {
+                // If method doesn't exist, we need to wait for QR/pairing code from connection update
+                console.log('requestPairingCode not available, waiting for code from connection update...');
+              }
+            } catch (err) {
+              console.error('Error requesting pairing code:', err);
+            }
+          }, 1000);
+          
+          // Timeout after 30 seconds
+          setTimeout(() => {
+            reject(new Error('Timeout waiting for pairing code'));
+          }, 30000);
+        });
+        
+        // If we got here, we should have a pairing code
+        const code = await this.pairingSocket.requestPairingCode?.(formattedPhone);
+        
+        if (!code) {
+          throw new Error('Failed to generate pairing code');
         }
-      } else {
+        
+        // Format code to ensure it's 8 digits
+        const formattedCode = String(code).replace(/[\s-]/g, '');
+        console.log(`✅ Pairing code ready: ${formattedCode}`);
+        
         return { 
-          success: false, 
-          error: 'WhatsApp session is already active. Please logout first to pair a new device.' 
+          success: true, 
+          code: formattedCode,
+          error: undefined 
         };
+        
+      } catch (error: any) {
+        // Clean up on error
+        if (this.pairingSocket) {
+          this.pairingSocket.end();
+          this.pairingSocket = null;
+        }
+        
+        if (this.pairingAuthPath) {
+          await fs.remove(this.pairingAuthPath).catch(() => {});
+        }
+        
+        throw error;
       }
       
     } catch (error: any) {
@@ -1675,17 +1753,18 @@ class WhatsAppBaileysService extends EventEmitter {
       // Provide more specific error messages
       if (error.message?.includes('timeout')) {
         return { success: false, error: 'Connection timeout. Please check your internet connection and try again.' };
-      } else if (error.message?.includes('registered')) {
-        return { success: false, error: 'This session is already registered. Please clear authentication and try again.' };
+      } else if (error.message?.includes('already exists')) {
+        return { success: false, error: 'WhatsApp is already authenticated. Please clear authentication and try again.' };
+      } else if (error.message?.includes('requestPairingCode is not a function') || error.message?.includes('not available')) {
+        return { success: false, error: 'Phone pairing is not supported by the current WhatsApp Web version. Please use QR code authentication instead.' };
       } else {
         return { success: false, error: error.message || 'Failed to generate pairing code' };
       }
     }
   }
 
-  // Add property to store pairing socket
-  private pairingSocket: any = null;
-  private pairingPhone: string = '';
+  // Add property to store pairing auth path
+  private pairingAuthPath: string = '';
   
   // Verify phone authentication code
   public async verifyPhoneCode(phoneNumber: string, code: string): Promise<{ success: boolean; error?: string }> {
