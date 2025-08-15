@@ -527,15 +527,15 @@ export const verifyPhoneAuthCode = async (req: Request, res: Response) => {
       });
     }
     
-    if (typeof code !== 'string' || code.length !== 6) {
+    if (typeof code !== 'string' || code.trim().length < 6 || code.trim().length > 12) {
       return res.status(400).json({
         success: false,
-        error: 'Verification code must be 6 digits'
+        error: 'Verification code must be 6–12 characters'
       });
     }
     
     const wahaService = getWAHAService();
-    const result = await wahaService.verifyPhoneCode(phoneNumber, code);
+    const result = await wahaService.verifyPhoneCode(phoneNumber, code.trim());
     
     if (result.success) {
       // Emit connection status update to frontend
@@ -551,7 +551,7 @@ export const verifyPhoneAuthCode = async (req: Request, res: Response) => {
       
       res.json({
         success: true,
-        message: 'Phone verification successful - WhatsApp connected',
+        message: 'Phone verification submitted',
         data: {
           authenticated: true,
           phoneNumber: phoneNumber

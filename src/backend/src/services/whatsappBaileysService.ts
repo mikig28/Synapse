@@ -1571,7 +1571,7 @@ class WhatsAppBaileysService extends EventEmitter {
   }
 
   // Request phone authentication code
-  public async requestPhoneCode(phoneNumber: string): Promise<{ success: boolean; error?: string }> {
+  public async requestPhoneCode(phoneNumber: string): Promise<{ success: boolean; code?: string; error?: string }> {
     try {
       if (!this.socket) {
         await this.initialize();
@@ -1580,46 +1580,53 @@ class WhatsAppBaileysService extends EventEmitter {
       if (!this.socket) {
         return { success: false, error: 'Failed to initialize WhatsApp connection' };
       }
-      
-      // Format phone number for Baileys (ensure it includes country code)
-      let formattedPhone = phoneNumber.replace(/\D/g, '');
-      if (!formattedPhone.startsWith('1') && formattedPhone.length === 10) {
-        formattedPhone = '1' + formattedPhone; // Add US country code if missing
+
+      // If we're already authenticated, no pairing code is needed
+      const isRegistered = (this.socket as any)?.authState?.creds?.registered === true;
+      if (isRegistered) {
+        console.log('✅ Already authenticated. Skipping pairing code generation.');
+        return { success: true, code: undefined };
       }
       
-      console.log(`📱 Requesting phone verification code for: ${formattedPhone}`);
+      // Format phone number (digits only). Do not force country code; caller should provide it.
+      const formattedPhone = phoneNumber.replace(/\D/g, '');
+      if (formattedPhone.length < 8) {
+        return { success: false, error: 'Invalid phone number format' };
+      }
       
-      // Note: Baileys doesn't directly support phone number authentication like WhatsApp Web
-      // This would typically require a different WhatsApp Business API or custom implementation
-      // For now, we'll return an error indicating this feature needs WhatsApp Business API
-      
-      return { 
-        success: false, 
-        error: 'Phone number authentication requires WhatsApp Business API. Please use QR code authentication instead.' 
-      };
-      
+      console.log(`📱 Generating WhatsApp pairing code for: ${formattedPhone}`);
+
+      // Baileys supports pairing codes via requestPairingCode
+      if (typeof (this.socket as any).requestPairingCode !== 'function') {
+        console.error('❌ Baileys version does not support requestPairingCode');
+        return { success: false, error: 'Pairing code not supported by current WhatsApp engine. Please use QR code authentication instead.' };
+      }
+
+      const code: string = await (this.socket as any).requestPairingCode(formattedPhone);
+      // Normalize code (remove spaces) but keep dashes if present
+      const normalized = (code || '').trim();
+      console.log(`🔢 Pairing code generated: ${normalized}`);
+
+      // Emit a status hint so UIs can show a waiting state
+      this.emit('status', { ready: false, message: 'Pairing code generated. Enter it in WhatsApp.', code: normalized });
+
+      return { success: true, code: normalized };
     } catch (error: any) {
-      console.error('❌ Error requesting phone code:', error.message);
-      return { success: false, error: error.message };
+      console.error('❌ Error requesting phone code:', error?.message || error);
+      return { success: false, error: error?.message || 'Failed to generate pairing code' };
     }
   }
   
   // Verify phone authentication code
   public async verifyPhoneCode(phoneNumber: string, code: string): Promise<{ success: boolean; error?: string }> {
     try {
-      console.log(`📱 Verifying phone code for: ${phoneNumber}`);
-      
-      // Note: Baileys doesn't directly support phone number authentication
-      // This would require WhatsApp Business API integration
-      
-      return { 
-        success: false, 
-        error: 'Phone number authentication requires WhatsApp Business API. Please use QR code authentication instead.' 
-      };
-      
+      console.log(`📱 Verify called for pairing flow (noop). phone=${phoneNumber}, code=${code}`);
+      // In Baileys pairing-code flow, verification happens on the phone.
+      // We return success here and rely on connection/status events to reflect the real state.
+      return { success: true };
     } catch (error: any) {
-      console.error('❌ Error verifying phone code:', error.message);
-      return { success: false, error: error.message };
+      console.error('❌ Error in verifyPhoneCode noop:', error?.message || error);
+      return { success: false, error: error?.message };
     }
   }
 
