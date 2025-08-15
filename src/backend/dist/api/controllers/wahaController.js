@@ -501,14 +501,14 @@ const verifyPhoneAuthCode = async (req, res) => {
                 error: 'Phone number and verification code are required'
             });
         }
-        if (typeof code !== 'string' || code.trim().length < 6 || code.trim().length > 12) {
+        if (typeof code !== 'string' || code.length !== 6) {
             return res.status(400).json({
                 success: false,
-                error: 'Verification code must be 6–12 characters'
+                error: 'Verification code must be 6 digits'
             });
         }
         const wahaService = getWAHAService();
-        const result = await wahaService.verifyPhoneCode(phoneNumber, code.trim());
+        const result = await wahaService.verifyPhoneCode(phoneNumber, code);
         if (result.success) {
             // Emit connection status update to frontend
             const io_instance = global.io;
@@ -522,7 +522,7 @@ const verifyPhoneAuthCode = async (req, res) => {
             }
             res.json({
                 success: true,
-                message: 'Phone verification submitted',
+                message: 'Phone verification successful - WhatsApp connected',
                 data: {
                     authenticated: true,
                     phoneNumber: phoneNumber

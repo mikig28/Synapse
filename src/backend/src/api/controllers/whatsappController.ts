@@ -981,18 +981,17 @@ export const verifyPhoneAuthCode = async (req: Request, res: Response) => {
       });
     }
     
-    // Accept 6-digit SMS codes or 6-12 char pairing codes shown on device
-    if (typeof code !== 'string' || code.trim().length < 6 || code.trim().length > 12) {
+    if (typeof code !== 'string' || code.length !== 6) {
       return res.status(400).json({
         success: false,
-        error: 'Verification code must be 6–12 characters'
+        error: 'Verification code must be 6 digits'
       });
     }
     
     const whatsappService = getWhatsAppService();
     
-    // Verify the code with WhatsApp (Baileys pairing verify is a noop but returns success)
-    const result = await whatsappService.verifyPhoneCode(phoneNumber, code.trim());
+    // Verify the code with WhatsApp
+    const result = await whatsappService.verifyPhoneCode(phoneNumber, code);
     
     if (result.success) {
       // Emit connection status update to frontend
@@ -1008,7 +1007,7 @@ export const verifyPhoneAuthCode = async (req: Request, res: Response) => {
       
       res.json({
         success: true,
-        message: 'Phone verification submitted',
+        message: 'Phone verification successful - WhatsApp connected',
         data: {
           authenticated: true,
           phoneNumber: phoneNumber
