@@ -20,6 +20,7 @@ import { GoogleMapsProvider } from './contexts/GoogleMapsContext';
 import { AccessibilityProvider } from './contexts/AccessibilityContext';
 import { AnimationProvider } from './contexts/AnimationContext';
 import { AguiProvider } from './contexts/AguiContext';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // Lazy load all pages for better performance
 const DashboardPage = React.lazy(() => import('@/pages/DashboardPage'));
@@ -105,7 +106,7 @@ function AppContent() {
                     <Route path="/notes" element={isAuthenticated ? <Layout><NotesPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/ideas" element={isAuthenticated ? <Layout><IdeasPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/meetings" element={isAuthenticated ? <Layout><MeetingsPage /></Layout> : <Navigate to="/login" />} />
-                    <Route path="/agents" element={isAuthenticated ? <Layout><AgentsPage /></Layout> : <Navigate to="/login" />} />
+                    <Route path="/agents" element={isAuthenticated ? <Layout><ErrorBoundary><AgentsPage /></ErrorBoundary></Layout> : <Navigate to="/login" />} />
                     <Route path="/agents/:agentId/settings" element={isAuthenticated ? <Layout><AgentSettingsPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/scheduled-agents" element={isAuthenticated ? <Layout><ScheduledAgentsPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/news" element={isAuthenticated ? <Layout><NewsPage /></Layout> : <Navigate to="/login" />} />

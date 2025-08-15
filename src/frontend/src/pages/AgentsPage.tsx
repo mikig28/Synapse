@@ -299,7 +299,8 @@ const AgentsPage: React.FC = memo(() => {
 
       // Refresh data after a short delay
       setTimeout(() => {
-        fetchData();
+        refreshAgents();
+        refreshRuns();
       }, 2000);
     } catch (error: any) {
       const errorInfo = ErrorHandler.processError(error, { 
@@ -347,7 +348,8 @@ const AgentsPage: React.FC = memo(() => {
         title: 'Success',
         description: 'Agent status reset successfully',
       });
-      fetchData();
+      refreshAgents();
+      refreshRuns();
     } catch (error: any) {
       toast({
         title: 'Error',
