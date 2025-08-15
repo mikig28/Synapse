@@ -1,4 +1,4 @@
-import { makeWASocket, DisconnectReason, useMultiFileAuthState, WASocket, MessageUpsertType, BaileysEventMap } from '@whiskeysockets/baileys';
+import { makeWASocket, DisconnectReason, useMultiFileAuthState, WASocket, MessageUpsertType, BaileysEventMap, makeCacheableSignalKeyStore, Browsers } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import * as qrcode from 'qrcode';
 import * as qrTerminal from 'qrcode-terminal';
@@ -1571,51 +1571,159 @@ class WhatsAppBaileysService extends EventEmitter {
   }
 
   // Request phone authentication code
-  public async requestPhoneCode(phoneNumber: string): Promise<{ success: boolean; error?: string }> {
+  public async requestPhoneCode(phoneNumber: string): Promise<{ success: boolean; error?: string; code?: string }> {
     try {
-      if (!this.socket) {
-        await this.initialize();
-      }
-      
-      if (!this.socket) {
-        return { success: false, error: 'Failed to initialize WhatsApp connection' };
-      }
-      
       // Format phone number for Baileys (ensure it includes country code)
       let formattedPhone = phoneNumber.replace(/\D/g, '');
       if (!formattedPhone.startsWith('1') && formattedPhone.length === 10) {
         formattedPhone = '1' + formattedPhone; // Add US country code if missing
       }
       
-      console.log(`📱 Requesting phone verification code for: ${formattedPhone}`);
+      console.log(`📱 Requesting phone pairing code for: ${formattedPhone}`);
       
-      // Note: Baileys doesn't directly support phone number authentication like WhatsApp Web
-      // This would typically require a different WhatsApp Business API or custom implementation
-      // For now, we'll return an error indicating this feature needs WhatsApp Business API
-      
-      return { 
-        success: false, 
-        error: 'Phone number authentication requires WhatsApp Business API. Please use QR code authentication instead.' 
-      };
+      // For phone number pairing, we need to use Baileys' pairing code feature
+      // This generates an 8-digit code that the user enters on their phone
+      if (!this.socket) {
+        // Initialize in pairing mode
+        const { state, saveCreds } = await useMultiFileAuthState(this.AUTH_PATH);
+        
+        const socket = makeWASocket({
+          auth: {
+            creds: undefined,
+            keys: makeCacheableSignalKeyStore(state.keys, this.logger)
+          },
+          printQRInTerminal: false,
+          logger: this.logger as any,
+          browser: Browsers.macOS('Chrome'),
+          connectTimeoutMs: 60000,
+          defaultQueryTimeoutMs: 0,
+          keepAliveIntervalMs: 30000,
+          emitOwnEvents: true,
+          fireInitQueries: true,
+          generateHighQualityLinkPreview: true,
+          syncFullHistory: true,
+          markOnlineOnConnect: true,
+          mobile: false, // Important: must be false for pairing code
+          patchMessageBeforeSending: (message) => {
+            const requiresPatch = !!(
+              message.buttonsMessage ||
+              message.templateMessage ||
+              message.listMessage
+            );
+            if (requiresPatch) {
+              message = {
+                viewOnceMessage: {
+                  message: {
+                    messageContextInfo: {
+                      deviceListMetadataVersion: 2,
+                      deviceListMetadata: {},
+                    },
+                    ...message,
+                  },
+                },
+              };
+            }
+            return message;
+          },
+        });
+        
+        // Request pairing code
+        if (socket.authState.creds && !socket.authState.creds.registered) {
+          const code = await socket.requestPairingCode(formattedPhone);
+          console.log(`✅ Pairing code generated: ${code}`);
+          
+          // Store the socket temporarily for verification
+          this.pairingSocket = socket;
+          this.pairingPhone = formattedPhone;
+          
+          // Set up connection update handler for pairing
+          socket.ev.on('connection.update', async (update) => {
+            const { connection, lastDisconnect } = update;
+            
+            if (connection === 'open') {
+              console.log('✅ Phone pairing successful!');
+              this.socket = socket;
+              this.pairingSocket = null;
+              saveCreds();
+              await this.handleConnectionOpen();
+            }
+          });
+          
+          socket.ev.on('creds.update', saveCreds);
+          
+          return { 
+            success: true, 
+            code: code,
+            error: undefined 
+          };
+        } else {
+          return { 
+            success: false, 
+            error: 'WhatsApp is already authenticated. Please logout first to pair a new device.' 
+          };
+        }
+      } else {
+        return { 
+          success: false, 
+          error: 'WhatsApp session is already active. Please logout first to pair a new device.' 
+        };
+      }
       
     } catch (error: any) {
-      console.error('❌ Error requesting phone code:', error.message);
-      return { success: false, error: error.message };
+      console.error('❌ Error requesting pairing code:', error);
+      
+      // Provide more specific error messages
+      if (error.message?.includes('timeout')) {
+        return { success: false, error: 'Connection timeout. Please check your internet connection and try again.' };
+      } else if (error.message?.includes('registered')) {
+        return { success: false, error: 'This session is already registered. Please clear authentication and try again.' };
+      } else {
+        return { success: false, error: error.message || 'Failed to generate pairing code' };
+      }
     }
   }
+
+  // Add property to store pairing socket
+  private pairingSocket: any = null;
+  private pairingPhone: string = '';
   
   // Verify phone authentication code
   public async verifyPhoneCode(phoneNumber: string, code: string): Promise<{ success: boolean; error?: string }> {
     try {
       console.log(`📱 Verifying phone code for: ${phoneNumber}`);
       
-      // Note: Baileys doesn't directly support phone number authentication
-      // This would require WhatsApp Business API integration
+      // With pairing codes, the verification happens automatically when the user enters the code in WhatsApp
+      // The connection.update event will fire when pairing is successful
+      // So this method just checks if the pairing was successful
       
-      return { 
-        success: false, 
-        error: 'Phone number authentication requires WhatsApp Business API. Please use QR code authentication instead.' 
-      };
+      if (this.pairingSocket && this.pairingPhone === phoneNumber) {
+        // Check if the socket is now connected
+        const state = this.pairingSocket.authState;
+        if (state?.creds?.registered) {
+          // Pairing successful, transfer to main socket
+          this.socket = this.pairingSocket;
+          this.pairingSocket = null;
+          this.pairingPhone = '';
+          return { 
+            success: true
+          };
+        } else {
+          return { 
+            success: false, 
+            error: 'Pairing not yet completed. Please ensure you entered the code in WhatsApp.' 
+          };
+        }
+      } else if (this.socket && this.isClientReady) {
+        // Already connected
+        return { 
+          success: true
+        };
+      } else {
+        return { 
+          success: false, 
+          error: 'No active pairing session found. Please request a new pairing code.' 
+        };
+      }
       
     } catch (error: any) {
       console.error('❌ Error verifying phone code:', error.message);

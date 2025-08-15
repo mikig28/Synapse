@@ -922,14 +922,14 @@ export const sendPhoneAuthCode = async (req: Request, res: Response) => {
     // Request phone authentication code from WhatsApp
     const result = await whatsappService.requestPhoneCode(cleanedPhone);
     
-    if (result.success) {
+    if (result.success && result.code) {
       res.json({
         success: true,
-        message: 'Verification code generated. Enter it in your WhatsApp app.',
+        message: 'Pairing code generated successfully. Enter this code in your WhatsApp app.',
         data: {
           phoneNumber: cleanedPhone,
           codeRequested: true,
-          pairingCode: (result as any).code || null
+          pairingCode: result.code
         }
       });
     } else {
