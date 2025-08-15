@@ -1,22 +1,36 @@
-FROM node:20
+FROM node:20-alpine
 
-# Note: Chrome installation removed - using Baileys (no browser dependency)
+# Note: Using Alpine Linux for smaller image size
+
+# Install necessary dependencies for native modules
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    cairo-dev \
+    jpeg-dev \
+    pango-dev \
+    giflib-dev
 
 # Create non-root user with home directory and proper permissions
-RUN groupadd -r nodeuser && useradd -r -g nodeuser -m -d /home/nodeuser nodeuser \
-    && mkdir -p /home/nodeuser/.local/share/applications \
-    && chown -R nodeuser:nodeuser /home/nodeuser
+RUN addgroup -g 1001 nodeuser && \
+    adduser -D -u 1001 -G nodeuser -h /home/nodeuser -s /bin/sh nodeuser && \
+    mkdir -p /home/nodeuser/.local/share/applications && \
+    chown -R nodeuser:nodeuser /home/nodeuser
 
 WORKDIR /app
 
 # Set environment variables for Node.js
 ENV HOME=/home/nodeuser
+# Reduce memory limit for Render's constraints
+ENV NODE_OPTIONS="--max-old-space-size=512"
 
 # Copy package files from backend directory
 COPY src/backend/package*.json ./
 
-# Install dependencies (no browser dependencies needed)
-RUN npm ci --legacy-peer-deps
+# Install dependencies with reduced memory usage
+RUN npm ci --legacy-peer-deps --production && \
+    npm cache clean --force
 
 # Copy source code and config files from backend directory
 COPY src/backend/src/ ./src/
@@ -38,11 +52,11 @@ RUN echo "Starting TypeScript build..." && \
     ls -la dist/server.js && \
     echo "Build verification complete"
 
+# Remove source files to reduce image size
+RUN rm -rf src/ tsconfig.json
+
 # Expose common ports (Render will set PORT env var)
 EXPOSE 3001 10000
-
-# Set resource limits for Node.js application
-ENV NODE_OPTIONS="--max-old-space-size=2048"
 
 # Change ownership to non-root user
 RUN chown -R nodeuser:nodeuser /app && \
