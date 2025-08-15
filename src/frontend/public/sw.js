@@ -74,37 +74,80 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Handle different types of requests
-  if (url.pathname.startsWith('/api/')) {
-    // API requests - Network First with fallback to cache
-    event.respondWith(networkFirstStrategy(request));
-  } else if (url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|woff|woff2)$/)) {
-    // Static assets - Cache First
-    event.respondWith(cacheFirstStrategy(request));
-  } else {
-    // HTML pages - Stale While Revalidate
-    event.respondWith(staleWhileRevalidateStrategy(request));
+  // Skip chrome-extension and other browser-specific URLs
+  if (url.protocol === 'chrome-extension:' || 
+      url.protocol === 'moz-extension:' || 
+      url.protocol === 'safari-extension:' ||
+      url.protocol === 'chrome:' ||
+      url.protocol === 'edge:' ||
+      url.protocol === 'about:') {
+    return;
+  }
+
+  // Skip cross-origin requests that might have CORS issues
+  if (url.origin !== self.location.origin && 
+      !url.href.startsWith('https://synapse-backend-7lq6.onrender.com')) {
+    return;
+  }
+
+  // Handle different types of requests with error handling
+  try {
+    if (url.pathname.startsWith('/api/')) {
+      // API requests - Network First with fallback to cache
+      event.respondWith(networkFirstStrategy(request));
+    } else if (url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|woff|woff2)$/)) {
+      // Static assets - Cache First
+      event.respondWith(cacheFirstStrategy(request));
+    } else {
+      // HTML pages - Stale While Revalidate
+      event.respondWith(staleWhileRevalidateStrategy(request));
+    }
+  } catch (error) {
+    console.error('[SW] Error handling fetch:', error);
+    // Fall back to default browser behavior
+    return;
   }
 });
 
 // Network First Strategy (for API calls)
 async function networkFirstStrategy(request) {
   try {
-    const networkResponse = await fetch(request);
+    // Clone the request to add proper headers if needed
+    const headers = new Headers(request.headers);
+    
+    // Ensure proper CORS mode for API requests
+    const fetchOptions = {
+      method: request.method,
+      headers: headers,
+      mode: 'cors',
+      credentials: 'include',
+      cache: 'no-cache'
+    };
+
+    const networkResponse = await fetch(request.url, fetchOptions);
     
     // Cache successful API responses
-    if (networkResponse.ok && shouldCacheApiRequest(request)) {
-      const cache = await caches.open(DYNAMIC_CACHE);
-      cache.put(request, networkResponse.clone());
+    if (networkResponse && networkResponse.ok && shouldCacheApiRequest(request)) {
+      try {
+        const cache = await caches.open(DYNAMIC_CACHE);
+        cache.put(request, networkResponse.clone());
+      } catch (cacheError) {
+        console.warn('[SW] Failed to cache response:', cacheError);
+      }
     }
     
     return networkResponse;
   } catch (error) {
-    console.log('[SW] Network failed, trying cache:', request.url);
-    const cachedResponse = await caches.match(request);
+    console.log('[SW] Network failed, trying cache:', request.url, error);
     
-    if (cachedResponse) {
-      return cachedResponse;
+    try {
+      const cachedResponse = await caches.match(request);
+      
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+    } catch (cacheError) {
+      console.warn('[SW] Cache match failed:', cacheError);
     }
     
     // Return offline fallback for API requests
