@@ -45,7 +45,7 @@ RUN echo "Starting TypeScript build..." && \
     echo "Current directory: $(pwd)" && \
     echo "Package.json check:" && \
     grep -A 5 '"build"' package.json && \
-    npm run build && \
+    NODE_OPTIONS="--max-old-space-size=2048" npm run build && \
     echo "Build completed, checking dist directory..." && \
     ls -la dist/ && \
     echo "Checking for server.js:" && \

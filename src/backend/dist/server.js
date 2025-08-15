@@ -50,6 +50,7 @@ const aguiEmitter_1 = require("./services/aguiEmitter"); // Import AG-UI emitter
 const searchIndexes_1 = require("./config/searchIndexes"); // Import search indexes initializer
 const usageTracking_1 = require("./middleware/usageTracking"); // Import usage tracking middleware
 require("./services/searchIndexingService"); // Import to initialize search indexing hooks
+const startupManager_1 = require("./utils/startupManager"); // Import startup manager
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const rawPort = process.env.PORT || '3001'; // Read as string
@@ -414,8 +415,22 @@ app.get('/health', (req, res) => {
             memory: process.memoryUsage(),
             version: process.version
         };
-        // Return 200 even if degraded to prevent restart loops
-        res.status(200).json(healthStatus);
+        // Return appropriate status code based on health
+        // But for Render, we need to be careful about restart loops
+        if (isHealthy) {
+            res.status(200).json(healthStatus);
+        }
+        else {
+            // Return 503 only if database is disconnected and we've been running for > 60 seconds
+            // This prevents restart loops during startup
+            if (readyState === 0 && process.uptime() > 60) {
+                res.status(503).json(healthStatus);
+            }
+            else {
+                // Return 200 during startup phase to prevent premature restarts
+                res.status(200).json(healthStatus);
+            }
+        }
     }
     catch (error) {
         // Even if health check fails, return 200 to prevent restart
@@ -423,6 +438,23 @@ app.get('/health', (req, res) => {
             status: 'error',
             timestamp: new Date().toISOString(),
             error: error.message
+        });
+    }
+});
+// Readiness check endpoint - tells Render when the service is ready to receive traffic
+app.get('/ready', (req, res) => {
+    const isReady = mongoose_1.default.connection.readyState === 1;
+    if (isReady) {
+        res.status(200).json({
+            status: 'ready',
+            timestamp: new Date().toISOString()
+        });
+    }
+    else {
+        res.status(503).json({
+            status: 'not_ready',
+            timestamp: new Date().toISOString(),
+            message: 'Service is still initializing'
         });
     }
 });
@@ -545,6 +577,15 @@ process.on('uncaughtException', (error) => {
 });
 const startServer = async () => {
     try {
+        // Start the HTTP server early to respond to health checks
+        httpServer.listen(PORT, '0.0.0.0', () => {
+            console.log(`🚀 Server is running on port ${PORT}`);
+            console.log(`🌐 Server is binding to 0.0.0.0:${PORT}`);
+            console.log(`📦 Environment PORT: ${process.env.PORT || 'not set'}`);
+            console.log(`🔧 NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+            console.log(`✅ Health check available at: http://0.0.0.0:${PORT}/health`);
+            console.log(`🎯 RENDER DEPLOYMENT - Server accepting requests (initialization in progress)...`);
+        });
         const mongoUri = process.env.MONGODB_URI;
         // Debug: Log environment variables for troubleshooting
         console.log('[Server] Environment Variables Check:', {
@@ -552,135 +593,129 @@ const startServer = async () => {
             FRONTEND_URL: process.env.FRONTEND_URL,
             CREWAI_SERVICE_URL: process.env.CREWAI_SERVICE_URL
         });
-        // Force redeploy with Puppeteer fix - v2
         if (!mongoUri) {
             console.error('FATAL ERROR: MONGODB_URI is not defined.');
             process.exit(1);
         }
-        await mongoose_1.default.connect(mongoUri);
-        await (0, database_1.connectToDatabase)(); // Calls the Mongoose connection logic
-        // Initialize search indexes for optimal search performance
-        try {
-            await (0, searchIndexes_1.initializeSearchIndexes)();
-            console.log('[Server] ✅ Search indexes initialized successfully');
-        }
-        catch (error) {
-            console.error('[Server] ❌ Failed to initialize search indexes:', error);
-            // Don't exit - search will still work without optimal indexes
-        }
-        (0, telegramService_1.initializeTelegramBot)(); // Initialize and start the Telegram bot polling
-        // Initialize WAHA service (modern WhatsApp implementation) with retry logic
-        console.log('[Server] 🔄 Initializing WAHA service with network retry...');
-        let wahaInitialized = false;
-        // Try WAHA initialization with retries (network issues on Render.com)
-        for (let attempt = 1; attempt <= 3; attempt++) {
-            try {
-                console.log(`[Server] WAHA initialization attempt ${attempt}/3...`);
+        // Define startup phases
+        startupManager_1.startupManager.addPhase({
+            name: 'MongoDB Connection',
+            priority: 1,
+            timeout: 30000, // 30 seconds
+            required: true,
+            execute: async () => {
+                await mongoose_1.default.connect(mongoUri);
+                await (0, database_1.connectToDatabase)();
+            }
+        });
+        startupManager_1.startupManager.addPhase({
+            name: 'Search Indexes',
+            priority: 2,
+            timeout: 10000, // 10 seconds
+            required: false,
+            execute: async () => {
+                await (0, searchIndexes_1.initializeSearchIndexes)();
+            }
+        });
+        startupManager_1.startupManager.addPhase({
+            name: 'Telegram Bot',
+            priority: 3,
+            timeout: 5000, // 5 seconds
+            required: false,
+            execute: async () => {
+                (0, telegramService_1.initializeTelegramBot)();
+            }
+        });
+        startupManager_1.startupManager.addPhase({
+            name: 'WAHA Service',
+            priority: 4,
+            timeout: 15000, // 15 seconds for initial attempt
+            required: false,
+            execute: async () => {
                 const wahaService = wahaService_1.default.getInstance();
                 await wahaService.initialize();
-                console.log('[Server] ✅ WAHA service initialized successfully');
-                wahaInitialized = true;
-                break;
-            }
-            catch (wahaError) {
-                console.error(`[Server] ❌ WAHA attempt ${attempt} failed:`, wahaError);
-                if (attempt < 3) {
-                    console.log(`[Server] Retrying WAHA in ${attempt * 5} seconds...`);
-                    await new Promise(resolve => setTimeout(resolve, attempt * 5000)); // 5s, 10s delays
-                }
-                else {
-                    console.log('[Server] ⚠️ WAHA initialization failed after 3 attempts');
-                    console.log('[Server] Using Baileys fallback (WAHA will retry in background)');
-                }
-            }
-        }
-        // If WAHA failed, set up background retry
-        if (!wahaInitialized) {
-            console.log('[Server] 🔄 Setting up WAHA background retry (every 30 seconds)...');
-            const backgroundRetry = setInterval(async () => {
-                try {
-                    console.log('[Server] 🔄 Background WAHA retry...');
-                    const wahaService = wahaService_1.default.getInstance();
-                    await wahaService.initialize();
-                    console.log('[Server] ✅ WAHA service connected via background retry!');
-                    clearInterval(backgroundRetry);
-                }
-                catch (error) {
-                    console.log('[Server] Background WAHA retry failed, will try again...');
-                }
-            }, 30000); // Every 30 seconds
-            // Stop trying after 10 minutes
-            setTimeout(() => {
-                clearInterval(backgroundRetry);
-                console.log('[Server] Stopped WAHA background retries after 10 minutes');
-            }, 600000);
-        }
-        // Legacy: Initialize WhatsApp Baileys service (fallback - will be removed)
-        try {
-            const whatsappService = whatsappBaileysService_1.default.getInstance();
-            whatsappService.initialize(); // Note: This is async and doesn't wait for actual connection
-            console.log('[Server] WhatsApp Baileys service initialization started (LEGACY - will be removed)');
-        }
-        catch (whatsappError) {
-            console.error('[Server] WhatsApp Baileys service failed to start initialization:', whatsappError);
-            console.log('[Server] Continuing without legacy WhatsApp service...');
-            // Don't crash the server if WhatsApp fails
-        }
-        // Initialize agent services
-        const agentService = new agentService_1.AgentService();
-        const agentScheduler = new agentScheduler_1.AgentScheduler(agentService);
-        // Register agent executors
-        (0, agents_1.registerAgentExecutors)(agentService);
-        // Initialize scheduler service with the configured agent service
-        schedulerService_1.schedulerService.setAgentService(agentService);
-        await schedulerService_1.schedulerService.initializeExistingSchedules();
-        console.log('[Server] Scheduler service initialized with AgentService');
-        // Initialize agent controller dependencies
-        (0, agentsController_1.initializeAgentServices)(agentService, agentScheduler);
-        // Start the agent scheduler
-        await agentScheduler.start();
-        console.log('[Server] Agent scheduler started successfully');
-        // Initialize task reminder scheduler
-        (0, taskReminderService_1.initializeTaskReminderScheduler)();
-        console.log('[Server] Task reminder scheduler initialized');
-        // Make io available globally for real-time updates
-        global.io = io;
-        // Make agent service available globally for AG-UI commands
-        global.agentService = agentService;
-        // **AG-UI Protocol: Bridge AG-UI events to Socket.IO**
-        aguiEmitter_1.agui.subscribe((event) => {
-            try {
-                // Emit AG-UI events to all connected Socket.IO clients
-                const eventUserId = event.userId;
-                const eventSessionId = event.sessionId;
-                if (eventUserId) {
-                    // Send to specific user
-                    io.to(`user_${eventUserId}`).emit('ag_ui_event', event);
-                }
-                else if (eventSessionId) {
-                    // Send to specific session
-                    io.to(`session_${eventSessionId}`).emit('ag_ui_event', event);
-                }
-                else {
-                    // Broadcast to all connected clients
-                    io.emit('ag_ui_event', event);
-                }
-                console.log(`[AG-UI Bridge] Bridged event ${event.type} via Socket.IO`);
-            }
-            catch (error) {
-                console.error('[AG-UI Bridge] Error bridging event to Socket.IO:', error);
             }
         });
-        console.log('[AG-UI] Protocol initialized and bridged to Socket.IO');
-        httpServer.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 Server is running on port ${PORT}`);
-            console.log(`🌐 Server is binding to 0.0.0.0:${PORT}`);
-            console.log(`📦 Environment PORT: ${process.env.PORT || 'not set'}`);
-            console.log(`🔧 NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
-            console.log(`✅ Health check available at: http://0.0.0.0:${PORT}/health`);
-            console.log(`🎯 RENDER DEPLOYMENT READY - Service is accessible!`);
-            // The "[mongoose]: Mongoose connected to DB" log from database.ts confirms success
+        startupManager_1.startupManager.addPhase({
+            name: 'WhatsApp Baileys (Legacy)',
+            priority: 5,
+            timeout: 5000, // 5 seconds
+            required: false,
+            execute: async () => {
+                const whatsappService = whatsappBaileysService_1.default.getInstance();
+                whatsappService.initialize(); // Non-blocking
+            }
         });
+        startupManager_1.startupManager.addPhase({
+            name: 'Agent Services',
+            priority: 6,
+            timeout: 10000, // 10 seconds
+            required: true,
+            execute: async () => {
+                // Initialize agent services
+                const agentService = new agentService_1.AgentService();
+                const agentScheduler = new agentScheduler_1.AgentScheduler(agentService);
+                // Register agent executors
+                (0, agents_1.registerAgentExecutors)(agentService);
+                // Initialize scheduler service with the configured agent service
+                schedulerService_1.schedulerService.setAgentService(agentService);
+                await schedulerService_1.schedulerService.initializeExistingSchedules();
+                // Initialize agent controller dependencies
+                (0, agentsController_1.initializeAgentServices)(agentService, agentScheduler);
+                // Start the agent scheduler
+                await agentScheduler.start();
+                // Make agent service available globally for AG-UI commands
+                global.agentService = agentService;
+            }
+        });
+        startupManager_1.startupManager.addPhase({
+            name: 'Task Reminder Scheduler',
+            priority: 7,
+            timeout: 5000, // 5 seconds
+            required: false,
+            execute: async () => {
+                (0, taskReminderService_1.initializeTaskReminderScheduler)();
+            }
+        });
+        startupManager_1.startupManager.addPhase({
+            name: 'Global Services Setup',
+            priority: 8,
+            timeout: 5000, // 5 seconds
+            required: false,
+            execute: async () => {
+                // Make io available globally for real-time updates
+                global.io = io;
+                // **AG-UI Protocol: Bridge AG-UI events to Socket.IO**
+                aguiEmitter_1.agui.subscribe((event) => {
+                    try {
+                        // Emit AG-UI events to all connected Socket.IO clients
+                        const eventUserId = event.userId;
+                        const eventSessionId = event.sessionId;
+                        if (eventUserId) {
+                            // Send to specific user
+                            io.to(`user_${eventUserId}`).emit('ag_ui_event', event);
+                        }
+                        else if (eventSessionId) {
+                            // Send to specific session
+                            io.to(`session_${eventSessionId}`).emit('ag_ui_event', event);
+                        }
+                        else {
+                            // Broadcast to all connected clients
+                            io.emit('ag_ui_event', event);
+                        }
+                        console.log(`[AG-UI Bridge] Bridged event ${event.type} via Socket.IO`);
+                    }
+                    catch (error) {
+                        console.error('[AG-UI Bridge] Error bridging event to Socket.IO:', error);
+                    }
+                });
+                console.log('[AG-UI] Protocol initialized and bridged to Socket.IO');
+            }
+        });
+        // Execute all phases
+        await startupManager_1.startupManager.executePhases();
+        console.log(`🎯 RENDER DEPLOYMENT READY - All services initialized!`);
+        console.log(`⏱️ Total startup time: ${startupManager_1.startupManager.getTotalElapsedTime()}ms`);
     }
     catch (error) {
         console.error('[server]: Failed to start server or connect to database', error);
