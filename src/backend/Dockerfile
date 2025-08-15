@@ -28,8 +28,8 @@ ENV NODE_OPTIONS="--max-old-space-size=512"
 # Copy package files from backend directory
 COPY src/backend/package*.json ./
 
-# Install dependencies with reduced memory usage
-RUN npm ci --legacy-peer-deps --production && \
+# Install ALL dependencies (including dev dependencies for build)
+RUN npm ci --legacy-peer-deps && \
     npm cache clean --force
 
 # Copy source code and config files from backend directory
@@ -52,8 +52,10 @@ RUN echo "Starting TypeScript build..." && \
     ls -la dist/server.js && \
     echo "Build verification complete"
 
-# Remove source files to reduce image size
-RUN rm -rf src/ tsconfig.json
+# Remove source files and dev dependencies to reduce image size
+RUN rm -rf src/ tsconfig.json && \
+    npm prune --production && \
+    npm cache clean --force
 
 # Expose common ports (Render will set PORT env var)
 EXPOSE 3001 10000
