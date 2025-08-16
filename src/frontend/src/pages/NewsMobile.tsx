@@ -34,7 +34,7 @@ import {
   AlertCircle,
   CheckCircle,
 } from 'lucide-react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
@@ -280,8 +280,8 @@ const NewsMobile: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedContent, setSelectedContent] = useState<NewsItem | null>(null);
-  const [contentSheetOpen, setContentSheetOpen] = useState(false);
-  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const [contentDialogOpen, setContentDialogOpen] = useState(false);
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [currentFilter, setCurrentFilter] = useState<string>('all');
   const { toast } = useToast();
   
@@ -349,7 +349,7 @@ const NewsMobile: React.FC = () => {
     
     if (isInternal || item.source?.id === 'crewai_analysis') {
       setSelectedContent(item);
-      setContentSheetOpen(true);
+      setContentDialogOpen(true);
       markAsRead(item);
     } else {
       window.open(item.url, '_blank', 'noopener,noreferrer');
@@ -489,7 +489,7 @@ const NewsMobile: React.FC = () => {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setFilterSheetOpen(true)}
+              onClick={() => setFilterDialogOpen(true)}
               className="relative"
             >
               <Filter className="w-5 h-5" />
@@ -582,12 +582,12 @@ const NewsMobile: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter Sheet */}
-      <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>Filter News</SheetTitle>
-          </SheetHeader>
+      {/* Filter Dialog */}
+      <Dialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Filter News</DialogTitle>
+          </DialogHeader>
           <div className="p-4 space-y-2 mb-4">
             {filterOptions.map(option => (
               <Button
@@ -596,7 +596,7 @@ const NewsMobile: React.FC = () => {
                 className="w-full justify-start"
                 onClick={() => {
                   setCurrentFilter(option.value);
-                  setFilterSheetOpen(false);
+                  setFilterDialogOpen(false);
                   vibrate();
                 }}
               >
@@ -610,18 +610,18 @@ const NewsMobile: React.FC = () => {
               </Button>
             ))}
           </div>
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
-      {/* Content Viewer Sheet */}
-      <Sheet open={contentSheetOpen} onOpenChange={setContentSheetOpen}>
-        <SheetContent className="max-h-[90vh]">
-          <SheetHeader className="border-b">
+      {/* Content Viewer Dialog */}
+      <Dialog open={contentDialogOpen} onOpenChange={setContentDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="border-b pb-4">
             <div className="flex items-start justify-between">
               <div className="flex-1 pr-4">
-                <SheetTitle className="text-lg mb-1">
+                <DialogTitle className="text-lg mb-1">
                   {selectedContent?.title}
-                </SheetTitle>
+                </DialogTitle>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span>{getSourceEmoji(selectedContent?.source?.id || '')}</span>
                   <span>{selectedContent?.source?.name}</span>
@@ -632,12 +632,12 @@ const NewsMobile: React.FC = () => {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setContentSheetOpen(false)}
+                onClick={() => setContentDialogOpen(false)}
               >
                 <X className="w-5 h-5" />
               </Button>
             </div>
-          </SheetHeader>
+          </DialogHeader>
           
           <div className="overflow-y-auto p-4 pb-8">
             {selectedContent?.content ? (
@@ -679,8 +679,8 @@ const NewsMobile: React.FC = () => {
               </Button>
             </div>
           </div>
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-lg border-t z-40">
