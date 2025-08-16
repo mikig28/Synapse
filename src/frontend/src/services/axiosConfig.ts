@@ -8,7 +8,7 @@ import useAuthStore from '../store/authStore'; // Adjust path if your store is e
 export const BACKEND_ROOT_URL = import.meta.env.VITE_BACKEND_ROOT_URL || 'http://localhost:3001';
 
 // Define the common path for your API endpoints.
-const API_PATH = '/api/v1'; // This can be made configurable via another env var if needed
+const API_PATH = ''; // Using /api directly in the mock backend
 
 // Validate backend URL configuration
 const isValidBackendUrl = !!BACKEND_ROOT_URL && BACKEND_ROOT_URL.startsWith('http');
