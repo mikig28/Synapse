@@ -1,0 +1,109 @@
+/* iOS Safari specific fixes */
+
+/* Fix for blank page issue on iOS Safari */
+@supports (-webkit-touch-callout: none) {
+  /* iOS only styles */
+  
+  /* Prevent blank page by ensuring proper rendering */
+  html, body {
+    -webkit-transform: translate3d(0, 0, 0);
+    -webkit-backface-visibility: hidden;
+    -webkit-perspective: 1000px;
+  }
+  
+  /* Fix for disappearing content */
+  #root {
+    position: relative;
+    min-height: 100vh;
+    -webkit-transform: translateZ(0);
+  }
+  
+  /* Disable momentum scrolling that can cause issues */
+  .scroll-container {
+    -webkit-overflow-scrolling: auto !important;
+  }
+  
+  /* Fix for animations causing blank screens */
+  .animated-component {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    will-change: auto !important;
+  }
+  
+  /* Reduce animation complexity on iOS */
+  @media (max-width: 768px) {
+    * {
+      -webkit-animation-duration: 0.3s !important;
+      animation-duration: 0.3s !important;
+      -webkit-animation-delay: 0s !important;
+      animation-delay: 0s !important;
+    }
+    
+    /* Disable complex transitions on mobile */
+    .complex-transition {
+      transition: none !important;
+      -webkit-transition: none !important;
+    }
+  }
+  
+  /* Fix for lazy loading issues */
+  .lazy-component {
+    min-height: 100px;
+    position: relative;
+  }
+  
+  /* Prevent iOS rubber band scrolling issues */
+  .main-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Fix for input focus issues on iOS */
+  input, textarea, select {
+    -webkit-appearance: none;
+    -webkit-border-radius: 0;
+    font-size: 16px; /* Prevents zoom on focus */
+  }
+  
+  /* Prevent tap highlight */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* Fix for position fixed elements */
+  .fixed-element {
+    -webkit-transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+  }
+}
+
+/* Additional iOS-specific viewport fixes */
+@supports (padding: env(safe-area-inset-top)) {
+  .safe-area-container {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* Fix for iOS Safari rendering issues with complex components */
+@media screen and (-webkit-min-device-pixel-ratio: 0) {
+  /* Safari only */
+  .problematic-component {
+    transform: translate3d(0, 0, 0);
+    -webkit-transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Disable hardware acceleration for problematic elements */
+.no-hw-accel {
+  transform: none !important;
+  -webkit-transform: none !important;
+  will-change: auto !important;
+}

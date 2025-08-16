@@ -21,6 +21,13 @@ import { AccessibilityProvider } from './contexts/AccessibilityContext';
 import { AnimationProvider } from './contexts/AnimationContext';
 import { AguiProvider } from './contexts/AguiContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { initMobileOptimizations, preloadMobileResources } from '@/utils/mobileOptimizations';
+
+// Initialize mobile optimizations
+if (typeof window !== 'undefined') {
+  initMobileOptimizations();
+  preloadMobileResources();
+}
 
 // Lazy load all pages for better performance
 const DashboardPage = React.lazy(() => import('@/pages/DashboardPage'));

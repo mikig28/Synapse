@@ -13,6 +13,8 @@ import { EnhancedAgentCard } from '@/components/EnhancedAgentCard';
 import { MobileAgentCard } from '@/components/MobileAgentCard';
 import { useIsMobile } from '@/hooks/useMobileDetection';
 import { StatusGrid, LiveActivityIndicator } from '@/components/AgentStatusIndicator';
+import { shouldUseMobileFallback, getiOSPerformanceSettings } from '@/utils/iOSDetection';
+import AgentsPageMobileFix from './AgentsPageMobileFix';
 
 // Add error logging
 console.log('[AgentsPage] Component loading...');
@@ -111,12 +113,22 @@ import { AguiTestButton } from '@/components/AguiTestButton';
 const AgentsPage: React.FC = memo(() => {
   console.log('[AgentsPage] Rendering component...');
   
+  // Check if we should use the mobile fallback for iOS Safari
+  const shouldUseFallback = shouldUseMobileFallback();
+  const iosSettings = getiOSPerformanceSettings();
+  
+  // Use simplified version for iOS Safari to avoid rendering issues
+  if (shouldUseFallback) {
+    console.log('[AgentsPage] Using mobile fallback for iOS Safari');
+    return <AgentsPageMobileFix />;
+  }
+  
   const { isConnected, connectionState, eventCount } = useAgui();
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const navigate = useNavigate();
   
-  // Performance optimized data hooks
+  // Performance optimized data hooks with iOS settings
   const {
     agents,
     loading: agentsLoading,
@@ -127,7 +139,7 @@ const AgentsPage: React.FC = memo(() => {
     removeAgentOptimistically,
   } = useOptimizedAgents({
     pollingInterval: 30000, // 30 seconds
-    enableRealtime: true,
+    enableRealtime: !isMobile && iosSettings.enableAnimations,
     staleWhileRevalidate: true,
   });
 
@@ -164,9 +176,11 @@ const AgentsPage: React.FC = memo(() => {
   const [enableDashboardFeatures, setEnableDashboardFeatures] = useState(true);
   const [selectedAgentDashboard, setSelectedAgentDashboard] = useState<string | null>(null);
 
-  // Preload critical components on mount
+  // Preload critical components on mount (skip for iOS to improve performance)
   useEffect(() => {
-    preloadCriticalComponents();
+    if (iosSettings.enableLazyLoading) {
+      preloadCriticalComponents();
+    }
   }, []);
 
   // Convert Agent data to format expected by dashboard components

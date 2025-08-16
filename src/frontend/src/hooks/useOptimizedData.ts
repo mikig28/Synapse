@@ -192,9 +192,25 @@ export const useOptimizedAgents = (options: {
     }
   }, [staleWhileRevalidate]);
 
-  // Initial fetch
+  // Initial fetch with error boundary
   useEffect(() => {
-    fetchAgents();
+    let mounted = true;
+    
+    const safelyFetchAgents = async () => {
+      try {
+        if (mounted) {
+          await fetchAgents();
+        }
+      } catch (err) {
+        console.error('Failed to fetch agents on mount:', err);
+      }
+    };
+    
+    safelyFetchAgents();
+    
+    return () => {
+      mounted = false;
+    };
   }, [fetchAgents]);
 
   // Polling for updates
