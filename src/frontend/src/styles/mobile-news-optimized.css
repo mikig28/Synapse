@@ -1,0 +1,475 @@
+/* Mobile News Optimized Styles - Performance First */
+
+/* Root variables for consistent theming */
+:root {
+  --safe-area-inset-top: env(safe-area-inset-top);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom);
+  --safe-area-inset-left: env(safe-area-inset-left);
+  --safe-area-inset-right: env(safe-area-inset-right);
+  
+  /* Touch-friendly sizes */
+  --touch-target-min: 44px;
+  --touch-target-recommended: 48px;
+  
+  /* Animation durations */
+  --animation-fast: 150ms;
+  --animation-normal: 300ms;
+  --animation-slow: 500ms;
+  
+  /* Z-index layers */
+  --z-backdrop: 40;
+  --z-modal: 50;
+  --z-drawer: 50;
+  --z-header: 30;
+  --z-nav: 30;
+}
+
+/* Dark mode color adjustments */
+.dark {
+  color-scheme: dark;
+}
+
+/* Scrollbar hiding for mobile */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Performance optimizations */
+.mobile-news-card {
+  will-change: transform, opacity;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  contain: layout style paint;
+}
+
+/* Hardware acceleration for animations */
+.hw-accelerated {
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  -webkit-perspective: 1000px;
+  perspective: 1000px;
+}
+
+/* Touch optimizations */
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+/* Prevent text selection on interactive elements */
+.no-select {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Smooth momentum scrolling */
+.momentum-scroll {
+  -webkit-overflow-scrolling: touch;
+  overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Pull to refresh styles */
+.pull-to-refresh {
+  position: relative;
+  overflow: hidden;
+}
+
+.pull-indicator {
+  position: absolute;
+  top: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  transition: all var(--animation-normal) ease;
+}
+
+.pull-indicator.active {
+  top: 20px;
+}
+
+/* Bottom sheet animations */
+.bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  transform: translateY(100%);
+  transition: transform var(--animation-normal) cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+  border-radius: 24px 24px 0 0;
+  max-height: 90vh;
+  overflow: hidden;
+}
+
+.bottom-sheet.open {
+  transform: translateY(0);
+}
+
+.bottom-sheet-handle {
+  width: 48px;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 2px;
+  margin: 12px auto;
+  cursor: grab;
+}
+
+.bottom-sheet-handle:active {
+  cursor: grabbing;
+}
+
+/* Swipe card indicators */
+.swipe-indicator {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  transition: opacity var(--animation-fast) ease;
+  pointer-events: none;
+}
+
+.swipe-indicator.left {
+  left: 16px;
+}
+
+.swipe-indicator.right {
+  right: 16px;
+}
+
+.swipe-indicator.visible {
+  opacity: 1;
+}
+
+/* Loading skeleton animations */
+@keyframes skeleton-loading {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.05) 25%,
+    rgba(0, 0, 0, 0.1) 50%,
+    rgba(0, 0, 0, 0.05) 75%
+  );
+  background-size: 200px 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+}
+
+.dark .skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 25%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.05) 75%
+  );
+  background-size: 200px 100%;
+}
+
+/* Floating action button */
+.fab {
+  position: fixed;
+  bottom: calc(80px + var(--safe-area-inset-bottom));
+  right: 16px;
+  width: 56px;
+  height: 56px;
+  border-radius: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 20;
+  transition: all var(--animation-normal) ease;
+}
+
+.fab:active {
+  transform: scale(0.95);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Card press effect */
+.card-press {
+  transition: transform var(--animation-fast) ease;
+}
+
+.card-press:active {
+  transform: scale(0.98);
+}
+
+/* Haptic feedback visual cue */
+@keyframes haptic-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+
+.haptic-feedback {
+  animation: haptic-pulse 0.5s ease;
+}
+
+/* Navigation bar safe areas */
+.bottom-nav {
+  padding-bottom: var(--safe-area-inset-bottom);
+  padding-left: var(--safe-area-inset-left);
+  padding-right: var(--safe-area-inset-right);
+}
+
+/* Header safe areas */
+.mobile-header {
+  padding-top: var(--safe-area-inset-top);
+  padding-left: var(--safe-area-inset-left);
+  padding-right: var(--safe-area-inset-right);
+}
+
+/* Compact view styles */
+.compact-card {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  gap: 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.compact-card:last-child {
+  border-bottom: none;
+}
+
+/* Tag pills */
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Empty state illustration */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  padding: 32px;
+  text-align: center;
+}
+
+/* Filter drawer slide animation */
+.filter-drawer {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 80%;
+  max-width: 320px;
+  background: white;
+  transform: translateX(100%);
+  transition: transform var(--animation-normal) cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: var(--z-drawer);
+}
+
+.dark .filter-drawer {
+  background: #111827;
+}
+
+.filter-drawer.open {
+  transform: translateX(0);
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.1);
+}
+
+/* News card gradient overlay */
+.card-gradient {
+  background: linear-gradient(
+    135deg,
+    rgba(59, 130, 246, 0.05) 0%,
+    rgba(147, 51, 234, 0.05) 100%
+  );
+}
+
+/* Performance metrics display */
+.debug-metrics {
+  position: fixed;
+  top: 100px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-family: monospace;
+  z-index: 100;
+  pointer-events: none;
+}
+
+/* Optimized image loading */
+.lazy-image {
+  background: rgba(0, 0, 0, 0.05);
+  transition: opacity var(--animation-normal) ease;
+}
+
+.lazy-image.loaded {
+  opacity: 1;
+}
+
+/* Touch ripple effect */
+@keyframes ripple {
+  0% {
+    transform: scale(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  animation: ripple 0.6s ease-out;
+  pointer-events: none;
+}
+
+/* Offline indicator */
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #ef4444;
+  color: white;
+  padding: 8px;
+  text-align: center;
+  font-size: 14px;
+  z-index: 100;
+  transform: translateY(-100%);
+  transition: transform var(--animation-normal) ease;
+}
+
+.offline-banner.visible {
+  transform: translateY(0);
+}
+
+/* Accessibility improvements */
+.focus-visible:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .mobile-news-card {
+    border: 2px solid currentColor;
+  }
+  
+  .bottom-nav {
+    border-top: 2px solid currentColor;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Landscape orientation adjustments */
+@media (orientation: landscape) and (max-height: 500px) {
+  .mobile-header {
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+  
+  .bottom-nav {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  
+  .bottom-sheet {
+    max-height: 80vh;
+  }
+}
+
+/* Small device optimizations */
+@media (max-width: 320px) {
+  .mobile-news-card {
+    margin-left: 8px;
+    margin-right: 8px;
+  }
+  
+  .filter-drawer {
+    width: 90%;
+  }
+}
+
+/* Large phone optimizations */
+@media (min-width: 414px) {
+  .mobile-news-card {
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* Tablet optimizations */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .mobile-news-container {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  
+  .bottom-sheet {
+    max-width: 600px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100%);
+  }
+  
+  .bottom-sheet.open {
+    transform: translateX(-50%) translateY(0);
+  }
+}
