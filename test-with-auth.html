@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News API Test with Auth</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        .news-item {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.show {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            width: 90%;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .debug-info {
+            background: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 News API Test with Authentication</h1>
+        <p>This page tests the news API directly to diagnose the modal issue.</p>
+        
+        <div>
+            <h2>Step 1: Login</h2>
+            <input type="email" id="email" placeholder="Email" value="test@example.com" style="padding: 8px; margin: 5px;">
+            <input type="password" id="password" placeholder="Password" value="password123" style="padding: 8px; margin: 5px;">
+            <button onclick="login()">Login</button>
+            <button onclick="useStoredToken()">Use Stored Token</button>
+        </div>
+        
+        <div id="authStatus" class="status"></div>
+    </div>
+    
+    <div class="container">
+        <h2>Step 2: Fetch News</h2>
+        <button onclick="fetchNews()">Fetch News Items</button>
+        <button onclick="fetchStats()">Fetch Statistics</button>
+        <div id="newsStatus" class="status"></div>
+        <div id="newsContainer"></div>
+    </div>
+    
+    <!-- Modal for content -->
+    <div id="contentModal" class="modal">
+        <div class="modal-content">
+            <h2 id="modalTitle">Content</h2>
+            <div id="modalBody"></div>
+            <button onclick="closeModal()">Close</button>
+        </div>
+    </div>
+    
+    <script>
+        const BACKEND_URL = 'https://synapse-backend-7lq6.onrender.com';
+        let authToken = localStorage.getItem('token') || '';
+        
+        function updateAuthStatus(message, type = 'info') {
+            const status = document.getElementById('authStatus');
+            status.className = `status ${type}`;
+            status.innerHTML = message;
+        }
+        
+        function updateNewsStatus(message, type = 'info') {
+            const status = document.getElementById('newsStatus');
+            status.className = `status ${type}`;
+            status.innerHTML = message;
+        }
+        
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            updateAuthStatus('Logging in...', 'warning');
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/v1/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.data?.token) {
+                    authToken = data.data.token;
+                    localStorage.setItem('token', authToken);
+                    updateAuthStatus(`✅ Logged in successfully! Token: ${authToken.substring(0, 20)}...`, 'success');
+                } else {
+                    updateAuthStatus(`❌ Login failed: ${data.message || 'Invalid credentials'}`, 'error');
+                }
+            } catch (error) {
+                updateAuthStatus(`❌ Login error: ${error.message}`, 'error');
+            }
+        }
+        
+        function useStoredToken() {
+            authToken = localStorage.getItem('token') || '';
+            if (authToken) {
+                updateAuthStatus(`✅ Using stored token: ${authToken.substring(0, 20)}...`, 'success');
+            } else {
+                updateAuthStatus('❌ No stored token found. Please login first.', 'error');
+            }
+        }
+        
+        async function fetchNews() {
+            if (!authToken) {
+                updateNewsStatus('❌ Please login first', 'error');
+                return;
+            }
+            
+            updateNewsStatus('Fetching news...', 'warning');
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/v1/news`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                if (response.status === 401) {
+                    updateNewsStatus('❌ Authentication failed. Token may be expired. Please login again.', 'error');
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                if (response.ok && data.data) {
+                    const items = data.data;
+                    updateNewsStatus(`✅ Fetched ${items.length} news items`, 'success');
+                    
+                    // Display news items
+                    const container = document.getElementById('newsContainer');
+                    container.innerHTML = '<h3>News Items:</h3>';
+                    
+                    items.forEach((item, index) => {
+                        const isInternal = item.url?.startsWith('#') || !item.url?.startsWith('http');
+                        const hasContent = !!item.content;
+                        
+                        const itemHtml = `
+                            <div class="news-item">
+                                <h4>${index + 1}. ${item.title}</h4>
+                                <p><strong>Source:</strong> ${item.source?.name || 'Unknown'}</p>
+                                <p><strong>URL:</strong> ${item.url}</p>
+                                <div class="debug-info">
+                                    <strong>Debug Info:</strong><br>
+                                    • Is Internal: ${isInternal ? '✅ Yes' : '❌ No'}<br>
+                                    • Has Content: ${hasContent ? '✅ Yes' : '❌ No'}<br>
+                                    • Content Length: ${item.content?.length || 0} chars<br>
+                                    • Source ID: ${item.source?.id || 'none'}<br>
+                                    • Tags: ${item.tags?.join(', ') || 'none'}
+                                </div>
+                                ${isInternal || item.source?.id === 'crewai_analysis' ? 
+                                    `<button onclick='showContent(${JSON.stringify(item).replace(/'/g, "\\'")})'>👁️ View Content</button>` :
+                                    `<button onclick='window.open("${item.url}", "_blank")'>🔗 Open External</button>`
+                                }
+                            </div>
+                        `;
+                        container.innerHTML += itemHtml;
+                    });
+                    
+                    // Log detailed info
+                    console.log('📰 News items:', items);
+                    const internalItems = items.filter(i => i.url?.startsWith('#'));
+                    const crewaiItems = items.filter(i => i.source?.id === 'crewai_analysis');
+                    const itemsWithContent = items.filter(i => !!i.content);
+                    
+                    console.log('📊 Summary:');
+                    console.log(`  - Total items: ${items.length}`);
+                    console.log(`  - Internal items (URL starts with #): ${internalItems.length}`);
+                    console.log(`  - CrewAI reports: ${crewaiItems.length}`);
+                    console.log(`  - Items with content: ${itemsWithContent.length}`);
+                    
+                } else {
+                    updateNewsStatus(`❌ Failed to fetch news: ${data.message || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                updateNewsStatus(`❌ Error: ${error.message}`, 'error');
+                console.error('Fetch error:', error);
+            }
+        }
+        
+        async function fetchStats() {
+            if (!authToken) {
+                updateNewsStatus('❌ Please login first', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/v1/news/statistics`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.data) {
+                    const stats = data.data;
+                    updateNewsStatus(`✅ Statistics: Total: ${stats.totalItems}, Unread: ${stats.unreadItems}, Favorites: ${stats.favoriteItems}`, 'success');
+                }
+            } catch (error) {
+                updateNewsStatus(`❌ Error fetching stats: ${error.message}`, 'error');
+            }
+        }
+        
+        function showContent(itemJson) {
+            const item = typeof itemJson === 'string' ? JSON.parse(itemJson) : itemJson;
+            console.log('🔍 Showing content for:', item);
+            
+            const modal = document.getElementById('contentModal');
+            const title = document.getElementById('modalTitle');
+            const body = document.getElementById('modalBody');
+            
+            title.textContent = item.title;
+            
+            if (item.content) {
+                body.innerHTML = `
+                    <div class="debug-info">
+                        <strong>Content exists:</strong> ✅ Yes<br>
+                        <strong>Content length:</strong> ${item.content.length} characters<br>
+                        <strong>URL:</strong> ${item.url}
+                    </div>
+                    <h3>Content:</h3>
+                    <pre>${item.content}</pre>
+                `;
+            } else {
+                body.innerHTML = `
+                    <div class="status error">
+                        ❌ No content available for this item
+                    </div>
+                    <p><strong>Description:</strong> ${item.description || 'None'}</p>
+                    <p><strong>Summary:</strong> ${item.summary || 'None'}</p>
+                `;
+            }
+            
+            modal.classList.add('show');
+        }
+        
+        function closeModal() {
+            document.getElementById('contentModal').classList.remove('show');
+        }
+        
+        // Check for stored token on load
+        window.onload = () => {
+            if (authToken) {
+                updateAuthStatus(`ℹ️ Found stored token: ${authToken.substring(0, 20)}...`, 'warning');
+            } else {
+                updateAuthStatus('ℹ️ No token found. Please login.', 'warning');
+            }
+        };
+    </script>
+</body>
+</html>

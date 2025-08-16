@@ -48,6 +48,7 @@ const AgentsPage = React.lazy(() => import('@/pages/AgentsPage'));
 const AgentSettingsPage = React.lazy(() => import('@/pages/AgentSettingsPage'));
 const ScheduledAgentsPage = React.lazy(() => import('@/pages/ScheduledAgentsPage'));
 const NewsPage = React.lazy(() => import('@/pages/NewsPage'));
+const NewsPageFixed = React.lazy(() => import('@/pages/NewsPageFixed'));
 const WhatsAppPage = React.lazy(() => import('@/pages/WhatsAppPage'));
 const WhatsAppGroupMonitorPage = React.lazy(() => import('@/pages/WhatsAppGroupMonitorPage'));
 const PlacesPage = React.lazy(() => import('@/pages/PlacesPage'));
@@ -117,6 +118,7 @@ function AppContent() {
                     <Route path="/agents/:agentId/settings" element={isAuthenticated ? <Layout><AgentSettingsPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/scheduled-agents" element={isAuthenticated ? <Layout><ScheduledAgentsPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/news" element={isAuthenticated ? <Layout><NewsPage /></Layout> : <Navigate to="/login" />} />
+                    <Route path="/news-fixed" element={isAuthenticated ? <Layout><NewsPageFixed /></Layout> : <Navigate to="/login" />} />
                     <Route path="/images" element={isAuthenticated ? <Layout><ImagesPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/bookmarks" element={isAuthenticated ? <Layout><BookmarksPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/videos" element={isAuthenticated ? <Layout><VideosPage /></Layout> : <Navigate to="/login" />} />
