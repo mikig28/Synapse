@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -228,13 +228,49 @@ const SearchPage: React.FC = () => {
     return typeConfig?.color || 'text-gray-400';
   };
 
+  // Deduplicate results by stable identity (prefer parent/source/document id; fall back to id; finally type+title)
+  const dedupeResults = (items: SearchResult[]): SearchResult[] => {
+    const pickKey = (r: SearchResult) => {
+      const m: any = r.metadata || {};
+      return (
+        m.parentId || m.documentId || m.sourceId || r.id || `${r.type}:${(r.title || '').toLowerCase().trim()}`
+      );
+    };
+
+    // Keep highest score per key
+    const map = new Map<string, SearchResult>();
+    for (const r of items) {
+      const key = pickKey(r);
+      const existing = map.get(key);
+      if (!existing || (r.score ?? 0) > (existing.score ?? 0)) {
+        map.set(key, r);
+      }
+    }
+    // Return sorted by score desc, then recency
+    return Array.from(map.values()).sort((a, b) => {
+      const scoreDiff = (b.score ?? 0) - (a.score ?? 0);
+      if (scoreDiff !== 0) return scoreDiff;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  };
+
+  const dedupedResults = useMemo(() => dedupeResults(results?.results || []), [results]);
+
+  const resultsByTypeDeduped = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const r of dedupedResults) {
+      counts[r.type] = (counts[r.type] || 0) + 1;
+    }
+    return counts;
+  }, [dedupedResults]);
+
   const renderSearchResult = (result: SearchResult, index: number) => {
     const Icon = getTypeIcon(result.type);
     const typeColor = getTypeColor(result.type);
 
     return (
       <motion.div
-        key={result.id}
+        key={`${result.id}-${index}`}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: index * 0.1 }}
@@ -247,7 +283,7 @@ const SearchPage: React.FC = () => {
             
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2">
-                <h3 className="font-semibold text-white truncate">{result.title}</h3>
+                <h3 className="font-semibold text-white truncate text-sm sm:text-base">{result.title}</h3>
                 <span className="px-2 py-1 text-xs rounded-full bg-violet-500/20 text-violet-300 capitalize">
                   {result.type}
                 </span>
@@ -271,7 +307,7 @@ const SearchPage: React.FC = () => {
                     {Math.round(result.score * 100)}% match
                   </span>
                 </div>
-                <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hidden sm:block" />
               </div>
             </div>
           </div>
@@ -284,14 +320,14 @@ const SearchPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 relative overflow-hidden">
       <FloatingParticles />
       
-      <div className="relative z-10 container mx-auto px-4 py-8">
+      <div className="relative z-10 container mx-auto px-3 sm:px-4 py-6 sm:py-8">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
+          className="text-center mb-6 sm:mb-8"
         >
-          <h1 className="text-4xl font-bold text-white mb-2 flex items-center justify-center gap-3">
+          <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 flex items-center justify-center gap-3">
             <Search className="w-8 h-8 text-violet-400" />
             Universal Search
           </h1>
@@ -304,7 +340,7 @@ const SearchPage: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-4xl mx-auto mb-8 relative"
+          className="max-w-4xl mx-auto mb-6 sm:mb-8 relative"
         >
           <div className="relative">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -314,7 +350,7 @@ const SearchPage: React.FC = () => {
               placeholder="Search across documents, notes, bookmarks, tasks..."
               value={query}
               onChange={handleQueryChange}
-              className="pl-12 pr-4 py-4 text-lg bg-black/30 border-violet-500/30 focus:border-violet-400 text-white placeholder-gray-400"
+              className="pl-12 pr-4 py-3 md:py-4 text-base md:text-lg bg-black/30 border-violet-500/30 focus:border-violet-400 text-white placeholder-gray-400"
               onFocus={() => setShowSuggestions(suggestions.length > 0)}
             />
           </div>
@@ -346,7 +382,7 @@ const SearchPage: React.FC = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="max-w-4xl mx-auto mb-8"
+          className="max-w-4xl mx-auto mb-6 sm:mb-8"
         >
           <GlassCard className="p-4">
             <div className="flex items-center justify-between mb-4">
@@ -423,13 +459,13 @@ const SearchPage: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="max-w-4xl mx-auto mb-8"
+            className="max-w-4xl mx-auto mb-6 sm:mb-8"
           >
             <GlassCard className="p-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-white">{stats.totalSearchableItems.toLocaleString()}</div>
-                  <div className="text-xs text-gray-400">Total Items</div>
+                  <div className="text-xl sm:text-2xl font-bold text-white">{stats.totalSearchableItems.toLocaleString()}</div>
+                  <div className="text-[10px] sm:text-xs text-gray-400">Total Items</div>
                 </div>
                 {Object.entries(stats.byType).slice(0, 5).map(([type, count]) => {
                   const Icon = getTypeIcon(type);
@@ -440,8 +476,8 @@ const SearchPage: React.FC = () => {
                       <div className="flex items-center justify-center mb-1">
                         <Icon className={`w-4 h-4 ${color}`} />
                       </div>
-                      <div className="text-lg font-semibold text-white">{count.toLocaleString()}</div>
-                      <div className="text-xs text-gray-400 capitalize">{type}</div>
+                      <div className="text-base sm:text-lg font-semibold text-white">{count.toLocaleString()}</div>
+                      <div className="text-[10px] sm:text-xs text-gray-400 capitalize">{type}</div>
                     </div>
                   );
                 })}
@@ -457,7 +493,7 @@ const SearchPage: React.FC = () => {
             animate={{ opacity: 1 }}
             className="max-w-4xl mx-auto"
           >
-            <div className="grid gap-4">
+            <div className="grid gap-3 sm:gap-4">
               {[1, 2, 3, 4, 5].map(i => (
                 <SkeletonCard key={i} />
               ))}
@@ -502,19 +538,19 @@ const SearchPage: React.FC = () => {
             className="max-w-4xl mx-auto"
           >
             {/* Results Header */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
               <div className="text-white">
-                <h2 className="text-xl font-semibold">
-                  {results.totalResults.toLocaleString()} results found
+                <h2 className="text-lg md:text-xl font-semibold">
+                  {dedupedResults.length.toLocaleString()} results found
                 </h2>
-                <p className="text-gray-400 text-sm">
+                <p className="text-gray-400 text-xs md:text-sm">
                   Search completed in {results.searchTime}ms using {results.strategy} strategy
                 </p>
               </div>
 
               {/* Results by Type */}
-              <div className="flex items-center gap-2 text-sm">
-                {Object.entries(results.resultsByType)
+              <div className="flex items-center gap-2 text-xs md:text-sm flex-wrap">
+                {Object.entries(resultsByTypeDeduped)
                   .filter(([_, count]) => count > 0)
                   .map(([type, count]) => {
                     const Icon = getTypeIcon(type);
@@ -531,14 +567,14 @@ const SearchPage: React.FC = () => {
             </div>
 
             {/* Results List */}
-            {results.results.length > 0 ? (
-              <div className="grid gap-4">
-                {results.results.map((result, index) => renderSearchResult(result, index))}
+            {dedupedResults.length > 0 ? (
+              <div className="grid gap-3 sm:gap-4">
+                {dedupedResults.map((result, index) => renderSearchResult(result, index))}
               </div>
             ) : (
-              <GlassCard className="p-8 text-center">
+              <GlassCard className="p-6 sm:p-8 text-center">
                 <Search className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-white mb-2">No results found</h3>
+                <h3 className="text-lg sm:text-xl font-semibold text-white mb-2">No results found</h3>
                 <p className="text-gray-400">
                   Try adjusting your search query or filters
                 </p>
@@ -554,15 +590,15 @@ const SearchPage: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             className="max-w-4xl mx-auto text-center"
           >
-            <GlassCard className="p-12">
+            <GlassCard className="p-8 sm:p-12">
               <Zap className="w-16 h-16 text-violet-400 mx-auto mb-6" />
-              <h2 className="text-2xl font-semibold text-white mb-4">
+              <h2 className="text-xl sm:text-2xl font-semibold text-white mb-4">
                 Search Your Knowledge Universe
               </h2>
-              <p className="text-gray-300 mb-6 max-w-md mx-auto">
+              <p className="text-gray-300 mb-6 max-w-md mx-auto text-sm sm:text-base">
                 Find anything across your documents, notes, bookmarks, tasks, videos, messages, and more
               </p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 max-w-2xl mx-auto">
                 {contentTypes.slice(1, 5).map(type => {
                   const Icon = type.icon;
                   return (
