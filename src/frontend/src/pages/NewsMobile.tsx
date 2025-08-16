@@ -35,7 +35,6 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
@@ -281,8 +280,8 @@ const NewsMobile: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedContent, setSelectedContent] = useState<NewsItem | null>(null);
-  const [contentDrawerOpen, setContentDrawerOpen] = useState(false);
-  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [contentSheetOpen, setContentSheetOpen] = useState(false);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [currentFilter, setCurrentFilter] = useState<string>('all');
   const { toast } = useToast();
   
@@ -350,7 +349,7 @@ const NewsMobile: React.FC = () => {
     
     if (isInternal || item.source?.id === 'crewai_analysis') {
       setSelectedContent(item);
-      setContentDrawerOpen(true);
+      setContentSheetOpen(true);
       markAsRead(item);
     } else {
       window.open(item.url, '_blank', 'noopener,noreferrer');
@@ -490,7 +489,7 @@ const NewsMobile: React.FC = () => {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setFilterDrawerOpen(true)}
+              onClick={() => setFilterSheetOpen(true)}
               className="relative"
             >
               <Filter className="w-5 h-5" />
@@ -583,12 +582,12 @@ const NewsMobile: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter Drawer */}
-      <Drawer open={filterDrawerOpen} onOpenChange={setFilterDrawerOpen}>
-        <DrawerContent>
-          <DrawerHeader>
-            <DrawerTitle>Filter News</DrawerTitle>
-          </DrawerHeader>
+      {/* Filter Sheet */}
+      <Sheet open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Filter News</SheetTitle>
+          </SheetHeader>
           <div className="p-4 space-y-2 mb-4">
             {filterOptions.map(option => (
               <Button
@@ -597,7 +596,7 @@ const NewsMobile: React.FC = () => {
                 className="w-full justify-start"
                 onClick={() => {
                   setCurrentFilter(option.value);
-                  setFilterDrawerOpen(false);
+                  setFilterSheetOpen(false);
                   vibrate();
                 }}
               >
@@ -611,18 +610,18 @@ const NewsMobile: React.FC = () => {
               </Button>
             ))}
           </div>
-        </DrawerContent>
-      </Drawer>
+        </SheetContent>
+      </Sheet>
 
-      {/* Content Viewer Drawer */}
-      <Drawer open={contentDrawerOpen} onOpenChange={setContentDrawerOpen}>
-        <DrawerContent className="max-h-[90vh]">
-          <DrawerHeader className="border-b">
+      {/* Content Viewer Sheet */}
+      <Sheet open={contentSheetOpen} onOpenChange={setContentSheetOpen}>
+        <SheetContent className="max-h-[90vh]">
+          <SheetHeader className="border-b">
             <div className="flex items-start justify-between">
               <div className="flex-1 pr-4">
-                <DrawerTitle className="text-lg mb-1">
+                <SheetTitle className="text-lg mb-1">
                   {selectedContent?.title}
-                </DrawerTitle>
+                </SheetTitle>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span>{getSourceEmoji(selectedContent?.source?.id || '')}</span>
                   <span>{selectedContent?.source?.name}</span>
@@ -633,12 +632,12 @@ const NewsMobile: React.FC = () => {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setContentDrawerOpen(false)}
+                onClick={() => setContentSheetOpen(false)}
               >
                 <X className="w-5 h-5" />
               </Button>
             </div>
-          </DrawerHeader>
+          </SheetHeader>
           
           <div className="overflow-y-auto p-4 pb-8">
             {selectedContent?.content ? (
@@ -680,8 +679,8 @@ const NewsMobile: React.FC = () => {
               </Button>
             </div>
           </div>
-        </DrawerContent>
-      </Drawer>
+        </SheetContent>
+      </Sheet>
 
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-lg border-t z-40">
