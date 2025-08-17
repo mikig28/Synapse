@@ -1,7 +1,6 @@
 
 import { makeWASocket, DisconnectReason, useMultiFileAuthState, WASocket, MessageUpsertType, BaileysEventMap, Browsers } from '@whiskeysockets/baileys';
 
-
 import { Boom } from '@hapi/boom';
 import * as qrcode from 'qrcode';
 import * as qrTerminal from 'qrcode-terminal';
@@ -1583,8 +1582,131 @@ class WhatsAppBaileysService extends EventEmitter {
   }
 
   // Request phone authentication code
+  public async requestPhoneCode(phoneNumber: string): Promise<{ success: boolean; code?: string; error?: string }> {
+    try {
+      // Format phone number for Baileys (ensure it includes country code)
+      let formattedPhone = phoneNumber.replace(/\D/g, '');
+      if (!formattedPhone.startsWith('1') && formattedPhone.length === 10) {
+        formattedPhone = '1' + formattedPhone; // Add US country code if missing
+      }
+      console.log(`📱 Requesting phone pairing code for: ${formattedPhone}`);
 
-  public async requestPhoneCode(phoneNumber: string): Promise<{ success: boolean; error?: string; code?: string }> {
+      // Clear any existing pairing socket
+      if (this.pairingSocket) {
+        this.pairingSocket.end();
+        this.pairingSocket = null;
+      }
+
+      // Check if already connected
+      if (this.socket && this.isClientReady) {
+        return {
+          success: false,
+          error: 'WhatsApp session is already active. Please logout first to pair a new device.'
+        };
+      }
+
+      // Create a temporary auth directory for pairing
+      const pairingAuthPath = path.join(this.AUTH_PATH, '../pairing-auth');
+      await fs.ensureDir(pairingAuthPath);
+      await fs.emptyDir(pairingAuthPath);
+
+      // Initialize auth state
+      const { state, saveCreds } = await useMultiFileAuthState(pairingAuthPath);
+
+      // Create socket for pairing; passing state is sufficient even if fresh dir
+      const socket = makeWASocket({
+        auth: state,
+        printQRInTerminal: false,
+        logger: this.logger as any,
+        browser: Browsers.macOS('Desktop'),
+        connectTimeoutMs: 60000,
+        defaultQueryTimeoutMs: 0,
+        keepAliveIntervalMs: 30000,
+        emitOwnEvents: true,
+        fireInitQueries: false,
+        generateHighQualityLinkPreview: true,
+        syncFullHistory: true,
+        markOnlineOnConnect: true,
+        mobile: false // Keep false for web pairing
+      });
+
+      // Store socket reference
+      this.pairingSocket = socket;
+      this.pairingPhone = formattedPhone;
+      this.pairingAuthPath = pairingAuthPath;
+
+      // On successful connection, finalize pairing
+      socket.ev.on('connection.update', async (update) => {
+        if (update.connection === 'open') {
+          try {
+            await saveCreds();
+            await fs.emptyDir(this.AUTH_PATH);
+            await fs.copy(pairingAuthPath, this.AUTH_PATH);
+            await fs.remove(pairingAuthPath);
+            if (this.socket) {
+              this.socket.end();
+            }
+            this.socket = socket;
+            this.pairingSocket = null;
+            this.isClientReady = true;
+            await this.handleConnectionOpen();
+          } catch (e) {
+            console.error('❌ Error finalizing pairing session:', (e as Error).message);
+          }
+        }
+      });
+
+      // Try to get pairing code quickly from event
+      let eventCode: string | null = null;
+      const eventPromise = new Promise<void>((resolve) => {
+        const handler = (update: any) => {
+          if (update?.pairingCode && !eventCode) {
+            eventCode = String(update.pairingCode);
+            resolve();
+          }
+        };
+        socket.ev.on('connection.update', handler);
+        setTimeout(() => resolve(), 2000);
+      });
+      await eventPromise;
+
+      const code = eventCode ?? (await this.pairingSocket?.requestPairingCode?.(formattedPhone)) ?? null;
+      if (!code) {
+        return { success: false, error: 'Failed to generate pairing code' };
+      }
+
+      const formattedCode = String(code).replace(/[\s-]/g, '');
+      console.log(`✅ Pairing code ready: ${formattedCode}`);
+
+      return {
+        success: true,
+        code: formattedCode
+      };
+    } catch (error: any) {
+      console.error('❌ Error requesting pairing code:', error);
+      // Clean up on error
+      try {
+        if (this.pairingSocket) {
+          this.pairingSocket.end();
+          this.pairingSocket = null;
+        }
+        if (this.pairingAuthPath) {
+          await fs.remove(this.pairingAuthPath).catch(() => {});
+        }
+      } catch {}
+
+      if (error.message?.includes('timeout')) {
+        return { success: false, error: 'Connection timeout. Please check your internet connection and try again.' };
+      } else if (error.message?.includes('already exists')) {
+        return { success: false, error: 'WhatsApp is already authenticated. Please clear authentication and try again.' };
+      } else if (error.message?.includes('requestPairingCode is not a function') || error.message?.includes('not available')) {
+        return { success: false, error: 'Phone pairing is not supported by the current WhatsApp Web version. Please use QR code authentication instead.' };
+      } else {
+        return { success: false, error: error.message || 'Failed to generate pairing code' };
+      }
+    }
+  }
+> {
 
   public async requestPhoneCode(phoneNumber: string): Promise<{ success: boolean; code?: string; error?: string }> {
 
@@ -1604,13 +1726,10 @@ class WhatsAppBaileysService extends EventEmitter {
       }
       
 
-
-
       return { 
         success: false, 
         error: 'Phone number authentication requires WhatsApp Business API. Please use QR code authentication instead.' 
       };
-
 
       // Check if already connected
       if (this.socket && this.isClientReady) {
@@ -1782,9 +1901,6 @@ class WhatsAppBaileysService extends EventEmitter {
         throw error;
       }
 
-
-
-
       
     } catch (error: any) {
       console.error('❌ Error requesting pairing code:', error);
@@ -1802,14 +1918,10 @@ class WhatsAppBaileysService extends EventEmitter {
     }
   }
 
-
   // Add property to store pairing auth path
   private pairingAuthPath: string = '';
 
-
   
-
-
 
   // Verify phone authentication code
   public async verifyPhoneCode(phoneNumber: string, code: string): Promise<{ success: boolean; error?: string }> {
