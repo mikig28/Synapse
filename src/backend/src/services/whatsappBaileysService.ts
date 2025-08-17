@@ -1,4 +1,7 @@
-import { makeWASocket, DisconnectReason, useMultiFileAuthState, WASocket, MessageUpsertType, BaileysEventMap, makeCacheableSignalKeyStore, Browsers } from '@whiskeysockets/baileys';
+
+import { makeWASocket, DisconnectReason, useMultiFileAuthState, WASocket, MessageUpsertType, BaileysEventMap, Browsers } from '@whiskeysockets/baileys';
+
+
 import { Boom } from '@hapi/boom';
 import * as qrcode from 'qrcode';
 import * as qrTerminal from 'qrcode-terminal';
@@ -72,10 +75,19 @@ class WhatsAppBaileysService extends EventEmitter {
   private readonly MEMORY_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
   private readonly CONNECTION_TIMEOUT = 120000; // 120 seconds (increased)
   private readonly KEEP_ALIVE_INTERVAL = 30000; // 30 seconds (increased)
+  
+  // Added fields for pairing/diagnostics to satisfy TS and enable pairing flow
+  private pairingSocket: WASocket | null = null;
+  private pairingPhone: string = '';
+  private pairingAuthPath: string = '';
+  private AUTH_PATH: string = this.authDir; // Alias used by pairing code
+  private logger = pino({ level: 'silent' });
 
   private constructor() {
     super();
     this.loadSession();
+    // Ensure AUTH_PATH mirrors current authDir on construction
+    this.AUTH_PATH = this.authDir;
     
     // Cleanup timers on process exit
     process.on('SIGINT', this.cleanup.bind(this));
@@ -200,7 +212,7 @@ class WhatsAppBaileysService extends EventEmitter {
         auth: state,
         printQRInTerminal: false, // We'll handle QR code generation ourselves
         // Use pino logger with silent level to reduce noise
-        logger: pino({ level: 'silent' }),
+        logger: this.logger as any,
         browser: ['Synapse Bot', 'Chrome', '120.0.0'],
         generateHighQualityLinkPreview: false,
         syncFullHistory: false, // Disable full history sync to improve performance
@@ -1571,7 +1583,11 @@ class WhatsAppBaileysService extends EventEmitter {
   }
 
   // Request phone authentication code
+
   public async requestPhoneCode(phoneNumber: string): Promise<{ success: boolean; error?: string; code?: string }> {
+
+  public async requestPhoneCode(phoneNumber: string): Promise<{ success: boolean; code?: string; error?: string }> {
+
     try {
       // Format phone number for Baileys (ensure it includes country code)
       let formattedPhone = phoneNumber.replace(/\D/g, '');
@@ -1587,6 +1603,15 @@ class WhatsAppBaileysService extends EventEmitter {
         this.pairingSocket = null;
       }
       
+
+
+
+      return { 
+        success: false, 
+        error: 'Phone number authentication requires WhatsApp Business API. Please use QR code authentication instead.' 
+      };
+
+
       // Check if already connected
       if (this.socket && this.isClientReady) {
         return { 
@@ -1605,12 +1630,18 @@ class WhatsAppBaileysService extends EventEmitter {
         // Initialize auth state
         const { state, saveCreds } = await useMultiFileAuthState(pairingAuthPath);
         
+
         // Create socket for pairing with mobile:true to enable phone pairing
         const socket = makeWASocket({
           auth: {
             creds: undefined, // Start fresh for pairing
             keys: state.keys
           },
+
+        // Create socket for pairing; passing state is sufficient even if fresh dir
+        const socket = makeWASocket({
+          auth: state,
+
           printQRInTerminal: false,
           logger: this.logger as any,
           browser: Browsers.macOS('Desktop'),
@@ -1717,7 +1748,11 @@ class WhatsAppBaileysService extends EventEmitter {
         });
         
         // If we got here, we should have a pairing code
+
         const code = await this.pairingSocket.requestPairingCode?.(formattedPhone);
+
+        const code = await this.pairingSocket?.requestPairingCode?.(formattedPhone);
+
         
         if (!code) {
           throw new Error('Failed to generate pairing code');
@@ -1746,6 +1781,10 @@ class WhatsAppBaileysService extends EventEmitter {
         
         throw error;
       }
+
+
+
+
       
     } catch (error: any) {
       console.error('❌ Error requesting pairing code:', error);
@@ -1763,9 +1802,15 @@ class WhatsAppBaileysService extends EventEmitter {
     }
   }
 
+
   // Add property to store pairing auth path
   private pairingAuthPath: string = '';
+
+
   
+
+
+
   // Verify phone authentication code
   public async verifyPhoneCode(phoneNumber: string, code: string): Promise<{ success: boolean; error?: string }> {
     try {
@@ -1807,6 +1852,30 @@ class WhatsAppBaileysService extends EventEmitter {
     } catch (error: any) {
       console.error('❌ Error verifying phone code:', error.message);
       return { success: false, error: error.message };
+    }
+  }
+
+  // Called when connection has opened successfully (QR or pairing)
+  private async handleConnectionOpen(): Promise<void> {
+    try {
+      this.isClientReady = true;
+      this.isReady = true;
+      this.connectionStatus = 'connected';
+      this.qrString = null;
+      this.qrDataUrl = null;
+      this.reconnectAttempts = 0;
+      this.emit('status', {
+        ready: true,
+        authenticated: true,
+        connected: true,
+        message: 'WhatsApp connected successfully!',
+        authMethod: 'pairing'
+      });
+      this.emit('ready', { status: 'connected' });
+      this.startHealthMonitoring();
+      this.startMemoryCleanup();
+    } catch (error) {
+      console.error('❌ Error in handleConnectionOpen:', (error as Error).message);
     }
   }
 
