@@ -600,7 +600,14 @@ export class VectorDatabaseService {
       console.log(`[VectorDB]: Starting semantic search for query: "${query}"`);
       console.log(`[VectorDB]: Using production: ${this.config.useProduction}, Pinecone available: ${!!this.pinecone}, ChromaDB available: ${!!this.chroma}`);
       
-      // Generate query embedding
+      // If using Chroma with an embeddingFunction (OpenAI), let Chroma compute the
+      // query embedding via queryTexts to ensure dimensionality consistency.
+      if (!this.config.useProduction && this.chroma && this.embeddingFunction) {
+        console.log('[VectorDB]: Using ChromaDB queryTexts with embedded OpenAI function for consistent dimensions');
+        return await this.searchInChromaByText(query, options);
+      }
+      
+      // Otherwise, generate our own embedding
       const queryEmbedding = await this.generateEmbedding(query);
       console.log(`[VectorDB]: Generated embedding with ${queryEmbedding.length} dimensions`);
       
@@ -609,7 +616,7 @@ export class VectorDatabaseService {
         console.log('[VectorDB]: Searching in Pinecone');
         return await this.searchInPinecone(queryEmbedding, options);
       } else if (this.chroma) {
-        console.log('[VectorDB]: Searching in ChromaDB');
+        console.log('[VectorDB]: Searching in ChromaDB with provided embedding');
         return await this.searchInChroma(queryEmbedding, options);
       }
       
@@ -658,7 +665,7 @@ export class VectorDatabaseService {
   }
   
   /**
-   * Search in Chroma
+   * Search in Chroma using precomputed query embedding
    */
   private async searchInChroma(
     queryEmbedding: number[],
@@ -695,30 +702,81 @@ export class VectorDatabaseService {
       
       const results = await Promise.race([queryPromise, timeoutPromise]);
       
-      const searchResults: SearchResult[] = [];
-      
-      if (results.ids && results.distances && results.documents && results.metadatas) {
-        for (let i = 0; i < results.ids[0].length; i++) {
-          const score = 1 - (results.distances[0][i] || 0); // Convert distance to similarity
-          
-          if (score >= (options.minScore || 0)) {
-            searchResults.push({
-              id: results.ids[0][i],
-              score,
-              content: results.documents[0][i] || '',
-              metadata: results.metadatas[0][i] || {},
-              documentId: (results.metadatas[0][i] as any)?.documentId || '',
-              chunkId: (results.metadatas[0][i] as any)?.chunkId,
-            });
-          }
-        }
-      }
-      
-      return searchResults;
+      return this.transformChromaResults(results, options);
     } catch (error) {
       console.error('[VectorDB]: Error searching in Chroma:', error);
       return [];
     }
+  }
+
+  /**
+   * Search in Chroma letting it compute embeddings from text (recommended when using embeddingFunction)
+   */
+  private async searchInChromaByText(
+    query: string,
+    options: SearchOptions
+  ): Promise<SearchResult[]> {
+    if (!this.chroma || !this.embeddingFunction) return [];
+
+    const collectionName = 'synapse-documents';
+
+    try {
+      const collection = await this.chroma.getCollection({
+        name: collectionName,
+        embeddingFunction: this.embeddingFunction,
+      });
+
+      const where: Record<string, any> = {};
+      if (options.userId) {
+        where.userId = options.userId;
+      }
+      if (options.filter) {
+        Object.assign(where, options.filter);
+      }
+
+      const queryPromise = collection.query({
+        queryTexts: [query],
+        nResults: options.topK || 10,
+        where: Object.keys(where).length > 0 ? where : undefined,
+      });
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('ChromaDB query timeout')), 15000)
+      );
+
+      const results = await Promise.race([queryPromise, timeoutPromise]);
+
+      return this.transformChromaResults(results, options);
+    } catch (error) {
+      console.error('[VectorDB]: Error searching in Chroma by text:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Helper to transform Chroma results to SearchResult[]
+   */
+  private transformChromaResults(results: any, options: SearchOptions): SearchResult[] {
+    const searchResults: SearchResult[] = [];
+
+    if (results?.ids && results?.distances && results?.documents && results?.metadatas) {
+      for (let i = 0; i < results.ids[0].length; i++) {
+        const score = 1 - (results.distances[0][i] || 0); // Convert distance to similarity
+
+        if (score >= (options.minScore || 0)) {
+          searchResults.push({
+            id: results.ids[0][i],
+            score,
+            content: results.documents[0][i] || '',
+            metadata: results.metadatas[0][i] || {},
+            documentId: (results.metadatas[0][i] as any)?.documentId || '',
+            chunkId: (results.metadatas[0][i] as any)?.chunkId,
+          });
+        }
+      }
+    }
+
+    return searchResults;
   }
   
   /**
