@@ -700,6 +700,12 @@ class WAHAService extends EventEmitter {
         return [];
       }
 
+      // Enforce a hard cap to reduce memory usage when WAHA returns huge lists
+      const limit = Math.max(1, parseInt(process.env.WAHA_CHATS_LIMIT || '300', 10));
+      if (chats.length > limit) {
+        console.log(`[WAHA Service] Capping chats from ${chats.length} to ${limit} (WAHA_CHATS_LIMIT)`);
+        return chats.slice(0, limit);
+      }
       return chats;
     } catch (error: any) {
       console.error(`[WAHA Service] ❌ Failed to get chats for '${sessionName}':`, error.response?.status, error.response?.data);
