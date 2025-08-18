@@ -1,4 +1,4 @@
-import * as express from 'express';
+import { Request, Response } from 'express';
 import TelegramItem, { ITelegramItem } from '../../models/TelegramItem'; // Ensure TelegramItemDocument is not imported here
 import fs from 'fs'; // <-- Import fs for file deletion
 import path from 'path'; // <-- Import path for constructing file paths
@@ -65,7 +65,7 @@ export const processTelegramItemForBookmarks = async (telegramItem: ITelegramIte
   }
 };
 
-export const getTelegramItems = async (req: AuthenticatedRequest, res: express.Response) => {
+export const getTelegramItems = async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.user || !req.user.id) {
       return res.status(401).json({ message: 'Not authenticated' });
@@ -82,7 +82,7 @@ export const getTelegramItems = async (req: AuthenticatedRequest, res: express.R
   }
 };
 
-export const deleteTelegramItem = async (req: AuthenticatedRequest, res: express.Response) => {
+export const deleteTelegramItem = async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.user || !req.user.id) {
       return res.status(401).json({ message: 'Not authenticated' });

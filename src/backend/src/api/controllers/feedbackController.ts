@@ -1,4 +1,4 @@
-import * as express from 'express';
+import { Request, Response } from 'express';
 import Feedback, { IFeedback } from '../../models/Feedback';
 import User from '../../models/User';
 
@@ -41,7 +41,7 @@ interface FeedbackRequest {
 /**
  * Create new feedback
  */
-export const createFeedback = async (req: AuthenticatedRequest, res: express.Response) => {
+export const createFeedback = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const {
       type,
@@ -142,7 +142,7 @@ export const createFeedback = async (req: AuthenticatedRequest, res: express.Res
 /**
  * Get feedback list with filtering and pagination
  */
-export const getFeedback = async (req: AuthenticatedRequest, res: express.Response) => {
+export const getFeedback = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const {
       page = 1,
@@ -223,7 +223,7 @@ export const getFeedback = async (req: AuthenticatedRequest, res: express.Respon
 /**
  * Get single feedback by ID
  */
-export const getFeedbackById = async (req: AuthenticatedRequest, res: express.Response) => {
+export const getFeedbackById = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -255,7 +255,7 @@ export const getFeedbackById = async (req: AuthenticatedRequest, res: express.Re
 /**
  * Vote on feedback (upvote/downvote)
  */
-export const voteFeedback = async (req: AuthenticatedRequest, res: express.Response) => {
+export const voteFeedback = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { vote } = req.body; // 'up', 'down', or null to remove vote
@@ -328,7 +328,7 @@ export const voteFeedback = async (req: AuthenticatedRequest, res: express.Respo
 /**
  * Update feedback status (admin only)
  */
-export const updateFeedbackStatus = async (req: AuthenticatedRequest, res: express.Response) => {
+export const updateFeedbackStatus = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { status, adminNotes } = req.body;
@@ -392,7 +392,7 @@ export const updateFeedbackStatus = async (req: AuthenticatedRequest, res: expre
 /**
  * Get feedback statistics
  */
-export const getFeedbackStats = async (req: AuthenticatedRequest, res: express.Response) => {
+export const getFeedbackStats = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const stats = await Feedback.getFeedbackStats();
     const topIssues = await Feedback.getTopIssues(5);
@@ -447,7 +447,7 @@ export const getFeedbackStats = async (req: AuthenticatedRequest, res: express.R
 /**
  * Get user's own feedback
  */
-export const getUserFeedback = async (req: AuthenticatedRequest, res: express.Response) => {
+export const getUserFeedback = async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.user?.id) {
       return res.status(401).json({

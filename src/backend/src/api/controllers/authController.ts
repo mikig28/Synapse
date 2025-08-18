@@ -1,4 +1,4 @@
-import * as express from 'express';
+import { Request, Response } from 'express';
 import User, { IUser } from '../../models/User'; // Adjust path as necessary
 import jwt from 'jsonwebtoken'; // We'll install this next
 
@@ -11,7 +11,7 @@ const generateToken = (id: string) => {
   });
 };
 
-export const registerUser = async (req: express.Request, res: express.Response) => {
+export const registerUser = async (req: Request, res: Response) => {
   console.log('Received registration request body:', req.body); // ADDED THIS LOG
   const { fullName, email, password } = req.body;
 
@@ -56,7 +56,7 @@ export const registerUser = async (req: express.Request, res: express.Response) 
   }
 };
 
-export const loginUser = async (req: express.Request, res: express.Response) => {
+export const loginUser = async (req: Request, res: Response) => {
   console.log('LOGIN ATTEMPT - Raw Request Body:', JSON.stringify(req.body, null, 2)); // Log raw body
   const { email, password } = req.body;
 
@@ -92,7 +92,7 @@ export const loginUser = async (req: express.Request, res: express.Response) => 
   }
 };
 
-export const googleLogin = async (req: express.Request, res: express.Response) => {
+export const googleLogin = async (req: Request, res: Response) => {
   console.log('GOOGLE LOGIN ATTEMPT - Request Body:', JSON.stringify(req.body, null, 2));
   const { googleUserInfo, googleAccessToken } = req.body;
 

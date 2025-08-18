@@ -1,4 +1,6 @@
-import { Request } from 'express';
+import { Request as ExpressRequest } from 'express';
+import { ParamsDictionary } from 'express-serve-static-core';
+import { ParsedQs } from 'qs';
 
 declare global {
   namespace Express {
@@ -12,16 +14,24 @@ declare global {
   }
 }
 
-export interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest<
+  P = ParamsDictionary,
+  ResBody = any,
+  ReqBody = any,
+  ReqQuery = ParsedQs,
+> extends ExpressRequest<P, ResBody, ReqBody, ReqQuery> {
   user: {
     id: string;
     email: string;
   };
 }
 
-export interface AuthRequest extends Request {
+export interface AuthRequest extends ExpressRequest {
   user?: {
     id: string;
     email: string;
   };
 }
+
+// Re-export for convenience
+export { Request, Response, NextFunction } from 'express';

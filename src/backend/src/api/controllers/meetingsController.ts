@@ -1,4 +1,4 @@
-import * as express from 'express';
+import { Request, Response } from 'express';
 import Meeting, { IMeeting } from '../../models/Meeting';
 import { transcribeAudio } from '../../services/transcriptionService';
 import { MeetingAnalysisService } from '../../services/meetingAnalysisService';
@@ -9,13 +9,13 @@ import multer from 'multer'; // TODO: Configure multer
 
 // TODO: Configure multer storage
 const storage = multer.diskStorage({
-  destination: function (req: express.Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) {
+  destination: function (req: Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) {
     const uploadPath = path.join(__dirname, '../../../public/uploads/meeting_audio');
     // Ensure the directory exists
     fs.mkdirSync(uploadPath, { recursive: true });
     cb(null, uploadPath);
   },
-  filename: function (req: express.Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) {
+  filename: function (req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) {
     cb(null, `${Date.now()}-${file.originalname}`);
   }
 });
@@ -23,7 +23,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage }); // TODO: Add file filter if needed
 
 // Get all meetings for the authenticated user
-export const getMeetings = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
+export const getMeetings = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -63,7 +63,7 @@ export const getMeetings = async (req: AuthenticatedRequest, res: express.Respon
 };
 
 // Get a specific meeting by ID
-export const getMeeting = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
+export const getMeeting = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
@@ -88,7 +88,7 @@ export const getMeeting = async (req: AuthenticatedRequest, res: express.Respons
 };
 
 // Create a new meeting
-export const createMeeting = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
+export const createMeeting = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -116,7 +116,7 @@ export const createMeeting = async (req: AuthenticatedRequest, res: express.Resp
 };
 
 // Process transcription from text input (for now, until we add file upload)
-export const processTranscription = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
+export const processTranscription = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
@@ -199,7 +199,7 @@ const processTranscriptionAnalysis = async (meeting: IMeeting): Promise<void> =>
 };
 
 // Update meeting
-export const updateMeeting = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
+export const updateMeeting = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
@@ -235,7 +235,7 @@ export const updateMeeting = async (req: AuthenticatedRequest, res: express.Resp
 };
 
 // Delete meeting
-export const deleteMeeting = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
+export const deleteMeeting = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
@@ -269,7 +269,7 @@ export const deleteMeeting = async (req: AuthenticatedRequest, res: express.Resp
 };
 
 // Reprocess meeting (re-run analysis)
-export const reprocessMeeting = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
+export const reprocessMeeting = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
@@ -319,7 +319,7 @@ export const reprocessMeeting = async (req: AuthenticatedRequest, res: express.R
 };
 
 // Get meeting statistics
-export const getMeetingStats = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
+export const getMeetingStats = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -360,7 +360,7 @@ export const uploadAudio = [
   // Multer middleware for single file upload
   // Make sure the field name in the form-data matches 'audioFile'
   upload.single('audioFile'), 
-  async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const userId = req.user?.id;
       const { id } = req.params;

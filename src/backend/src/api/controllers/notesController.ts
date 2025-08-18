@@ -1,9 +1,9 @@
-import * as express from 'express';
+import { Request, Response } from 'express';
 import Note, { INote } from '../../models/Note';
 import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../../types/express';
 
-export const getNotes = async (req: AuthenticatedRequest, res: express.Response) => {
+export const getNotes = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'User not authenticated' });
@@ -17,7 +17,7 @@ export const getNotes = async (req: AuthenticatedRequest, res: express.Response)
   }
 };
 
-export const createNote = async (req: AuthenticatedRequest, res: express.Response) => {
+export const createNote = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'User not authenticated' });
@@ -38,7 +38,7 @@ export const createNote = async (req: AuthenticatedRequest, res: express.Respons
   }
 };
 
-export const deleteNote = async (req: AuthenticatedRequest, res: express.Response) => {
+export const deleteNote = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const noteId = req.params.id;
     const userId = req.user?.id;
@@ -59,7 +59,7 @@ export const deleteNote = async (req: AuthenticatedRequest, res: express.Respons
   }
 };
 
-export const updateNote = async (req: AuthenticatedRequest, res: express.Response) => {
+export const updateNote = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const noteId = req.params.id;
     const userId = req.user?.id;
@@ -102,7 +102,7 @@ export const updateNote = async (req: AuthenticatedRequest, res: express.Respons
   }
 };
 
-export const geotagNote = async (req: AuthenticatedRequest, res: express.Response) => {
+export const geotagNote = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { location } = req.body;
@@ -141,7 +141,7 @@ export const geotagNote = async (req: AuthenticatedRequest, res: express.Respons
   }
 };
 
-export const getNearbyNotes = async (req: AuthenticatedRequest, res: express.Response) => {
+export const getNearbyNotes = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { lat, lng, radius = 1000 } = req.query;
     const userId = req.user?.id;
