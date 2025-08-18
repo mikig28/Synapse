@@ -1,0 +1,22 @@
+# Minimal Working CrewAI Setup
+# Strategy: Use only essential dependencies and let CrewAI manage its own
+
+# Core Flask dependencies
+flask
+flask-cors
+python-dotenv
+
+# Essential utilities
+requests
+pyyaml
+pydantic
+
+# CrewAI - Let it manage its own dependencies
+crewai
+
+# Additional tools we need
+beautifulsoup4
+feedparser
+
+# Note: We're not constraining versions to let pip resolve the best combination
+# This is the simplest approach that often works
