@@ -26,8 +26,9 @@ COPY src/backend/public/ ./public/
 # Create uploads directory
 RUN mkdir -p ./public/uploads
 
-# Build the application
-RUN echo "Starting TypeScript build..." && \
+# Build the application with increased memory for TypeScript compilation
+ENV NODE_OPTIONS="--max-old-space-size=8192"
+RUN echo "Starting TypeScript build with increased memory..." && \
     echo "Current directory: $(pwd)" && \
     echo "Package.json check:" && \
     grep -A 5 '"build"' package.json && \
@@ -38,11 +39,11 @@ RUN echo "Starting TypeScript build..." && \
     ls -la dist/server.js && \
     echo "Build verification complete"
 
+# Reset NODE_OPTIONS for runtime (use less memory when running)
+ENV NODE_OPTIONS="--max-old-space-size=2048"
+
 # Expose common ports (Render will set PORT env var)
 EXPOSE 3001 10000
-
-# Set resource limits for Node.js application
-ENV NODE_OPTIONS="--max-old-space-size=2048"
 
 # Change ownership to non-root user
 RUN chown -R nodeuser:nodeuser /app && \
@@ -52,4 +53,4 @@ RUN chown -R nodeuser:nodeuser /app && \
 USER nodeuser
 
 # Start the application 
-CMD ["node", "dist/server.js"] 
+CMD ["node", "dist/server.js"]
