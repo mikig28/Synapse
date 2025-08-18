@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import * as express from 'express';
 import mongoose from 'mongoose';
 import { vectorDatabaseService, SearchResult as VectorSearchResult, SearchOptions } from '../../services/vectorDatabaseService';
 import Document from '../../models/Document';
@@ -42,7 +42,7 @@ interface UniversalSearchResponse {
 /**
  * Universal search across all content types using Vector Search
  */
-export const universalSearch = async (req: AuthenticatedRequest, res: Response) => {
+export const universalSearch = async (req: AuthenticatedRequest, res: express.Response) => {
   const startTime = Date.now();
 
   try {
@@ -252,7 +252,7 @@ async function keywordFallbackSearch({
 /**
  * Get search suggestions based on user's content
  */
-export const getSearchSuggestions = async (req: AuthenticatedRequest, res: Response) => {
+export const getSearchSuggestions = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -303,7 +303,7 @@ export const getSearchSuggestions = async (req: AuthenticatedRequest, res: Respo
 /**
  * Get search statistics for the user
  */
-export const getSearchStats = async (req: AuthenticatedRequest, res: Response) => {
+export const getSearchStats = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {

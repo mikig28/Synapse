@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import * as express from 'express';
 import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../../types/express';
 import NewsItem, { INewsItem } from '../../models/NewsItem';
@@ -11,7 +11,7 @@ import {
 import { getIllustration } from '../../services/imageService';
 
 // Get all news items for the authenticated user with pagination
-export const getNewsItems = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getNewsItems = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const page = parseInt(req.query.page as string) || 1;
@@ -108,7 +108,7 @@ export const getNewsItems = async (req: AuthenticatedRequest, res: Response): Pr
 };
 
 // Get a specific news item by ID
-export const getNewsItemById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getNewsItemById = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { newsId } = req.params;
     const userId = req.user!.id;
@@ -141,7 +141,7 @@ export const getNewsItemById = async (req: AuthenticatedRequest, res: Response):
 };
 
 // Mark news item as read
-export const markAsRead = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const markAsRead = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { newsId } = req.params;
     const userId = req.user!.id;
@@ -177,7 +177,7 @@ export const markAsRead = async (req: AuthenticatedRequest, res: Response): Prom
 };
 
 // Toggle favorite status
-export const toggleFavorite = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const toggleFavorite = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { newsId } = req.params;
     const userId = req.user!.id;
@@ -213,7 +213,7 @@ export const toggleFavorite = async (req: AuthenticatedRequest, res: Response): 
 };
 
 // Delete a news item
-export const deleteNewsItem = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const deleteNewsItem = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { newsId } = req.params;
     const userId = req.user!.id;
@@ -246,7 +246,7 @@ export const deleteNewsItem = async (req: AuthenticatedRequest, res: Response): 
 };
 
 // Archive/unarchive news item
-export const archiveNewsItem = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const archiveNewsItem = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { newsId } = req.params;
     const userId = req.user!.id;
@@ -284,7 +284,7 @@ export const archiveNewsItem = async (req: AuthenticatedRequest, res: Response):
 };
 
 // Get news categories for the user
-export const getNewsCategories = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getNewsCategories = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const userId = req.user!.id;
 
@@ -308,7 +308,7 @@ export const getNewsCategories = async (req: AuthenticatedRequest, res: Response
 };
 
 // Get news statistics for the user
-export const getNewsStatistics = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getNewsStatistics = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const userObjectId = new mongoose.Types.ObjectId(userId);
@@ -358,7 +358,7 @@ export const getNewsStatistics = async (req: AuthenticatedRequest, res: Response
 };
 
 // Bulk mark as read
-export const bulkMarkAsRead = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const bulkMarkAsRead = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const { newsIds } = req.body; // Array of news item IDs
@@ -406,7 +406,7 @@ export const bulkMarkAsRead = async (req: AuthenticatedRequest, res: Response): 
 /**
  * Enhance a specific news item with an image
  */
-export const enhanceNewsWithImage = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const enhanceNewsWithImage = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { newsId } = req.params;
     const { force = false } = req.body;
@@ -451,7 +451,7 @@ export const enhanceNewsWithImage = async (req: AuthenticatedRequest, res: Respo
 /**
  * Enhance recent news items with images
  */
-export const enhanceRecentNews = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const enhanceRecentNews = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { 
       hoursBack = 24, 
@@ -482,7 +482,7 @@ export const enhanceRecentNews = async (req: AuthenticatedRequest, res: Response
 /**
  * Get image enhancement statistics
  */
-export const getImageStats = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getImageStats = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const stats = await getImageEnhancementStats(userId);
@@ -503,7 +503,7 @@ export const getImageStats = async (req: AuthenticatedRequest, res: Response): P
 /**
  * Generate a test image for a given prompt
  */
-export const generateTestImage = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const generateTestImage = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { prompt } = req.body;
 
@@ -534,7 +534,7 @@ export const generateTestImage = async (req: AuthenticatedRequest, res: Response
 /**
  * Enhance existing analysis reports with images
  */
-export const enhanceAnalysisReports = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const enhanceAnalysisReports = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const { force = false } = req.body;

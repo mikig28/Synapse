@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import * as express from 'express';
 import VideoItem, { IVideoItem } from '../../models/VideoItem';
 import mongoose from 'mongoose';
 import axios from 'axios'; // For oEmbed
@@ -132,7 +132,7 @@ export const processAndCreateVideoItem = async (
 };
 
 // Endpoint to be called by Telegram service or other internal triggers
-export const createVideoFromTelegram = async (req: AuthenticatedRequest, res: Response) => {
+export const createVideoFromTelegram = async (req: AuthenticatedRequest, res: express.Response) => {
   const { originalUrl, telegramItemId } = req.body;
   const userId = req.user?.id;
 
@@ -153,7 +153,7 @@ export const createVideoFromTelegram = async (req: AuthenticatedRequest, res: Re
   }
 };
 
-export const getVideos = async (req: AuthenticatedRequest, res: Response) => {
+export const getVideos = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -168,7 +168,7 @@ export const getVideos = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-export const updateVideoStatus = async (req: AuthenticatedRequest, res: Response) => {
+export const updateVideoStatus = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const videoId = req.params.id;
     const { status } = req.body;
@@ -199,7 +199,7 @@ export const updateVideoStatus = async (req: AuthenticatedRequest, res: Response
 };
 
 // Function to delete a video
-export const deleteVideo = async (req: AuthenticatedRequest, res: Response) => {
+export const deleteVideo = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const videoId = req.params.id;
     const userId = req.user?.id;
@@ -234,7 +234,7 @@ export const deleteVideo = async (req: AuthenticatedRequest, res: Response) => {
 };
 
 // Function to summarize a video
-export const summarizeVideo = async (req: AuthenticatedRequest, res: Response) => {
+export const summarizeVideo = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const videoId = req.params.id;
     const userId = req.user?.id;
@@ -289,7 +289,7 @@ export const summarizeVideo = async (req: AuthenticatedRequest, res: Response) =
   }
 };
 
-export const checkVideoIndex = async (req: AuthenticatedRequest, res: Response) => {
+export const checkVideoIndex = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -314,7 +314,7 @@ export const checkVideoIndex = async (req: AuthenticatedRequest, res: Response) 
   }
 };
 
-export const indexVideo = async (req: AuthenticatedRequest, res: Response) => {
+export const indexVideo = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -341,7 +341,7 @@ export const indexVideo = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-export const searchVideoMoments = async (req: AuthenticatedRequest, res: Response) => {
+export const searchVideoMoments = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {

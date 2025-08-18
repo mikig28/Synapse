@@ -1,9 +1,9 @@
-import { Request, Response } from 'express';
+import * as express from 'express';
 import Idea, { IIdea } from '../../models/Idea';
 import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../../types/express';
 
-export const getIdeas = async (req: AuthenticatedRequest, res: Response) => {
+export const getIdeas = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'User not authenticated' });
@@ -17,7 +17,7 @@ export const getIdeas = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-export const createIdea = async (req: AuthenticatedRequest, res: Response) => {
+export const createIdea = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: 'User not authenticated' });
@@ -36,7 +36,7 @@ export const createIdea = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-export const deleteIdea = async (req: AuthenticatedRequest, res: Response) => {
+export const deleteIdea = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const ideaId = req.params.id;
     const userId = req.user?.id;

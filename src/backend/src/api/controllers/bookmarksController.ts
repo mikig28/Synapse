@@ -1,6 +1,6 @@
 console.log('[BookmarkController] Forcing re-evaluation - v2'); // Trivial change to force update
 import mongoose, { Types, Schema } from 'mongoose';
-import { Request, Response } from 'express';
+import * as express from 'express';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 console.log('[BookmarkController] Cheerio type (star import):', typeof cheerio, 'Cheerio value (star import):', cheerio); // DIAGNOSTIC LOG
@@ -188,7 +188,7 @@ const fetchRedditMetadata = async (url: string): Promise<{ title?: string; descr
   }
 };
 
-export const getBookmarks = async (req: AuthenticatedRequest, res: Response) => {
+export const getBookmarks = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -388,7 +388,7 @@ export const processAndCreateBookmark = async (
 };
 
 // Function to delete a bookmark
-export const deleteBookmark = async (req: AuthenticatedRequest, res: Response) => {
+export const deleteBookmark = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const bookmarkId = req.params.id;
     const userId = req.user?.id;
@@ -564,13 +564,13 @@ const fetchAndParseURL = async (url: string): Promise<string | null> => {
     const $ = cheerio.load(html);
     let textContent = '';
     // Try more specific selectors first
-    $('article, main, [role="main"], .post-content, .article-body, .story-content, .entry-content, .td-post-content, .post_content, .postBody, .blog-content').each((i: number, elem: cheerio.Element) => {
+    $('article, main, [role="main"], .post-content, .article-body, .story-content, .entry-content, .td-post-content, .post_content, .postBody, .blog-content').each((i: number, elem: any) => {
       textContent += $(elem).text() + '\n\n';
     });
 
     // If no content from specific selectors, try to get from common content containers
     if (!textContent.trim()) {
-        $('.content, .container, #content, #main-content, #main, .main-content, .page-content').each((i: number, elem: cheerio.Element) => {
+        $('.content, .container, #content, #main-content, #main, .main-content, .page-content').each((i: number, elem: any) => {
             textContent += $(elem).text() + '\n\n';
         });
     }
@@ -590,7 +590,7 @@ const fetchAndParseURL = async (url: string): Promise<string | null> => {
   }
 };
 
-export const summarizeBookmarkController = async (req: AuthenticatedRequest, res: Response) => {
+export const summarizeBookmarkController = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const bookmarkId = req.params.id;
     const userId = req.user?.id;
@@ -689,7 +689,7 @@ export const summarizeBookmarkController = async (req: AuthenticatedRequest, res
   }
 }; 
 
-export const summarizeLatestBookmarksController = async (req: AuthenticatedRequest, res: Response) => {
+export const summarizeLatestBookmarksController = async (req: AuthenticatedRequest, res: express.Response) => {
   const NUM_LATEST_TO_SUMMARIZE = 5;
   try {
     const userId = req.user?.id;
