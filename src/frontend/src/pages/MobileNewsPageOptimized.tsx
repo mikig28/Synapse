@@ -279,29 +279,26 @@ const ContentModal: React.FC<{
   content: NewsItem | null;
 }> = ({ isOpen, onClose, content }) => {
   const modalRef = useRef<HTMLDivElement>(null);
-  const [touchStartY, setTouchStartY] = useState(0);
-  const [touchCurrentY, setTouchCurrentY] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
+  const [dragY, setDragY] = useState(0);
+  const startY = useRef(0);
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchStartY(e.touches[0].clientY);
-    setIsDragging(true);
+    startY.current = e.touches[0].clientY;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging) return;
-    setTouchCurrentY(e.touches[0].clientY);
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - startY.current;
+    if (diff > 0) {
+      setDragY(Math.min(diff * 0.5, 100));
+    }
   };
 
   const handleTouchEnd = () => {
-    const dragDistance = touchCurrentY - touchStartY;
-    // Close modal if dragged down more than 100px
-    if (dragDistance > 100) {
+    if (dragY > 50) {
       onClose();
     }
-    setIsDragging(false);
-    setTouchStartY(0);
-    setTouchCurrentY(0);
+    setDragY(0);
   };
 
   const formatTimeAgo = (dateString: string) => {
@@ -317,11 +314,6 @@ const ContentModal: React.FC<{
     if (diffHours < 24) return `${diffHours} hours ago`;
     return `${diffDays} days ago`;
   };
-
-  // Calculate drag transform for visual feedback
-  const dragTransform = isDragging && touchCurrentY > touchStartY 
-    ? Math.min((touchCurrentY - touchStartY) * 0.5, 100) 
-    : 0;
 
   return (
     <AnimatePresence>
@@ -340,11 +332,7 @@ const ContentModal: React.FC<{
           <motion.div
             ref={modalRef}
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ 
-              opacity: 1, 
-              scale: 1, 
-              y: dragTransform 
-            }}
+            animate={{ opacity: 1, scale: 1, y: dragY }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             onTouchStart={handleTouchStart}
@@ -358,11 +346,10 @@ const ContentModal: React.FC<{
               right: '1rem'
             }}
           >
-            {/* Top Bar with Close Button */}
-            <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 z-10">
-              <div className="flex justify-center py-2">
-                <div className="w-12 h-1 bg-gray-300 dark:bg-gray-700 rounded-full" />
-              </div>
+            {/* Drag Handle */}
+            <div className="flex justify-center py-3 cursor-grab active:cursor-grabbing">
+              <div className="w-12 h-1.5 bg-gray-300 dark:bg-gray-700 rounded-full" />
+            </div>
 
             {/* Header */}
             <div className="px-4 pb-4 border-b border-gray-100 dark:border-gray-800">
@@ -386,7 +373,7 @@ const ContentModal: React.FC<{
             </div>
 
             {/* Content */}
-            <div className="overflow-y-auto px-4 py-4" style={{ maxHeight: 'calc(80vh - 120px)' }}>
+            <div className="overflow-y-auto px-4 py-4" style={{ maxHeight: 'calc(90vh - 120px)' }}>
               {content?.content ? (
                 <div className="prose prose-sm max-w-none dark:prose-invert">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
