@@ -5,8 +5,7 @@ import {
   Pie,
   Cell,
   ResponsiveContainer,
-  Tooltip,
-  Legend
+  Tooltip
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -183,48 +182,36 @@ export const SuccessRateChart: React.FC<SuccessRateChartProps> = ({ data }) => {
   const chartData = data.filter(agent => agent.totalRuns > 0);
 
   // Custom legend component
-  const CustomLegend: React.FC<{ payload?: any[] }> = ({ payload }) => {
-    if (!payload) return null;
-    
+  const CustomLegend: React.FC<{ items: SuccessRateData[] }> = ({ items }) => {
     return (
-      <div className="mt-6 space-y-2">
-        {payload.map((entry, index) => (
+      <div className="space-y-2">
+        {items.map((entry, index) => (
           <motion.div
-            key={index}
+            key={entry.agentId}
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.1 }}
+            transition={{ delay: index * 0.05 }}
             className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${
-              selectedAgent === entry.payload.agentId 
-                ? 'bg-muted/50' 
-                : 'hover:bg-muted/30'
+              selectedAgent === entry.agentId ? 'bg-muted/50' : 'hover:bg-muted/30'
             }`}
-            onClick={() => setSelectedAgent(
-              selectedAgent === entry.payload.agentId ? null : entry.payload.agentId
-            )}
+            onClick={() =>
+              setSelectedAgent(selectedAgent === entry.agentId ? null : entry.agentId)
+            }
           >
             <div className="flex items-center gap-3 flex-1">
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: entry.color }}
-              />
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
               <div className="flex-1">
-                <p className="text-sm font-medium text-foreground">
-                  {entry.payload.agentName}
-                </p>
+                <p className="text-sm font-medium text-foreground">{entry.agentName}</p>
                 <p className="text-xs text-muted-foreground capitalize">
-                  {entry.payload.agentType.replace('_', ' ')} agent
+                  {entry.agentType.replace('_', ' ')} agent
                 </p>
               </div>
             </div>
-            
             <div className="text-right">
               <p className="text-sm font-bold text-foreground">
-                {entry.payload.successRate.toFixed(1)}%
+                {entry.successRate.toFixed(1)}%
               </p>
-              <p className="text-xs text-muted-foreground">
-                {entry.payload.totalRuns} runs
-              </p>
+              <p className="text-xs text-muted-foreground">{entry.totalRuns} runs</p>
             </div>
           </motion.div>
         ))}
@@ -337,10 +324,14 @@ export const SuccessRateChart: React.FC<SuccessRateChartProps> = ({ data }) => {
                       ))}
                     </Pie>
                     <Tooltip content={<CustomTooltip />} />
-                    <Legend content={<CustomLegend />} />
                   </PieChart>
                 </ResponsiveContainer>
               </motion.div>
+
+              {/* Legend below chart, contained to avoid overlay */}
+              <div className="mt-6 max-h-64 overflow-y-auto pr-1">
+                <CustomLegend items={chartData} />
+              </div>
               
               {/* Overall Stats */}
               <motion.div

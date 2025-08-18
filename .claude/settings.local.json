@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run type-check:*)"
+      "Bash(npm run type-check:*)",
+      "Bash(timeout 30 npx tsc --noEmit --skipLibCheck)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }

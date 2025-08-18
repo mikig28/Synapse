@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useDeviceDetection } from '@/hooks/useMobileFeatures';
+import Layout from '@/components/layout/Layout';
 import NewsPageFixed from '@/pages/NewsPageFixed';
 import MobileNewsPageOptimized from '@/pages/MobileNewsPageOptimized';
 
@@ -20,11 +21,11 @@ const SmartNewsRouter: React.FC = () => {
   
   // Use optimized mobile version for mobile and tablet devices
   if (isMobile || isTablet) {
-    return <MobileNewsPageOptimized />;
+    return <Layout><MobileNewsPageOptimized /></Layout>;
   }
   
   // Use desktop version for larger screens
-  return <NewsPageFixed />;
+  return <Layout><NewsPageFixed /></Layout>;
 };
 
 export default SmartNewsRouter;
