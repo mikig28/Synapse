@@ -1,8 +1,8 @@
-import * as express from 'express';
+import { Request, Response } from 'express';
 import { locationExtractionService } from '../../services/locationExtractionService';
 import axios from 'axios';
 
-export const searchPlaces = async (req: express.Request, res: express.Response): Promise<void> => {
+export const searchPlaces = async (req: Request, res: Response): Promise<void> => {
   try {
     const query = req.query.q as string;
     const googleMapsApiKey = process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
@@ -74,7 +74,7 @@ export const searchPlaces = async (req: express.Request, res: express.Response):
   }
 };
 
-export const extractLocationFromText = async (req: express.Request, res: express.Response): Promise<void> => {
+export const extractLocationFromText = async (req: Request, res: Response): Promise<void> => {
   try {
     const { text } = req.body;
 
@@ -101,7 +101,7 @@ export const extractLocationFromText = async (req: express.Request, res: express
   }
 };
 
-export const healthCheck = async (req: express.Request, res: express.Response): Promise<void> => {
+export const healthCheck = async (req: Request, res: Response): Promise<void> => {
   try {
     res.json({
       success: true,
@@ -124,7 +124,7 @@ export const healthCheck = async (req: express.Request, res: express.Response): 
   }
 };
 
-export const testLocationExtraction = async (req: express.Request, res: express.Response): Promise<void> => {
+export const testLocationExtraction = async (req: Request, res: Response): Promise<void> => {
   try {
     const testCases = [
       'תוסיף את קפה איטליה למפה',

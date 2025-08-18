@@ -3,7 +3,7 @@
  * Replaces whatsappController.ts with WAHA-based implementation
  */
 
-import * as express from 'express';
+import { Request, Response } from 'express';
 import WAHAService from '../../services/wahaService';
 
 // Get WAHA service instance
@@ -14,7 +14,7 @@ const getWAHAService = () => {
 /**
  * Get WhatsApp connection status
  */
-export const getStatus = async (req: express.Request, res: express.Response) => {
+export const getStatus = async (req: Request, res: Response) => {
   try {
     const wahaService = getWAHAService();
     
@@ -133,7 +133,7 @@ export const getStatus = async (req: express.Request, res: express.Response) => 
 /**
  * Get QR code for WhatsApp Web authentication
  */
-export const getQR = async (req: express.Request, res: express.Response) => {
+export const getQR = async (req: Request, res: Response) => {
   try {
     console.log('[WAHA Controller] QR code request received');
     const wahaService = getWAHAService();
@@ -192,7 +192,7 @@ export const getQR = async (req: express.Request, res: express.Response) => {
 /**
  * Send text message
  */
-export const sendMessage = async (req: express.Request, res: express.Response) => {
+export const sendMessage = async (req: Request, res: Response) => {
   try {
     const { chatId, message, text } = req.body;
     
@@ -224,7 +224,7 @@ export const sendMessage = async (req: express.Request, res: express.Response) =
 /**
  * Send media message
  */
-export const sendMedia = async (req: express.Request, res: express.Response) => {
+export const sendMedia = async (req: Request, res: Response) => {
   try {
     const { chatId, mediaUrl, caption } = req.body;
     
@@ -254,7 +254,7 @@ export const sendMedia = async (req: express.Request, res: express.Response) => 
 /**
  * Get all chats
  */
-export const getChats = async (req: express.Request, res: express.Response) => {
+export const getChats = async (req: Request, res: Response) => {
   try {
     const wahaService = getWAHAService();
     const chats = await wahaService.getChats();
@@ -275,7 +275,7 @@ export const getChats = async (req: express.Request, res: express.Response) => {
 /**
  * Get messages from specific chat
  */
-export const getMessages = async (req: express.Request, res: express.Response) => {
+export const getMessages = async (req: Request, res: Response) => {
   try {
     // Support both URL param and query param for chatId
     const chatId = req.params.chatId || req.query.chatId as string;
@@ -321,7 +321,7 @@ export const getMessages = async (req: express.Request, res: express.Response) =
 /**
  * Start WhatsApp session
  */
-export const startSession = async (req: express.Request, res: express.Response) => {
+export const startSession = async (req: Request, res: Response) => {
   try {
     const { sessionName } = req.body;
     const wahaService = getWAHAService();
@@ -344,7 +344,7 @@ export const startSession = async (req: express.Request, res: express.Response) 
 /**
  * Stop WhatsApp session
  */
-export const stopSession = async (req: express.Request, res: express.Response) => {
+export const stopSession = async (req: Request, res: Response) => {
   try {
     const { sessionName } = req.body;
     const wahaService = getWAHAService();
@@ -367,7 +367,7 @@ export const stopSession = async (req: express.Request, res: express.Response) =
 /**
  * Webhook handler for WAHA events (following WAHA documentation structure)
  */
-export const webhook = async (req: express.Request, res: express.Response) => {
+export const webhook = async (req: Request, res: Response) => {
   try {
     console.log('[WAHA Controller] WAHA webhook received:', req.body);
     const wahaService = getWAHAService();
@@ -429,7 +429,7 @@ export const webhook = async (req: express.Request, res: express.Response) => {
 /**
  * Send phone authentication code
  */
-export const sendPhoneAuthCode = async (req: express.Request, res: express.Response) => {
+export const sendPhoneAuthCode = async (req: Request, res: Response) => {
   try {
     console.log('[WAHA Controller] Phone auth code request received:', req.body);
     const { phoneNumber } = req.body;
@@ -516,7 +516,7 @@ export const sendPhoneAuthCode = async (req: express.Request, res: express.Respo
 /**
  * Verify phone authentication code
  */
-export const verifyPhoneAuthCode = async (req: express.Request, res: express.Response) => {
+export const verifyPhoneAuthCode = async (req: Request, res: Response) => {
   try {
     const { phoneNumber, code } = req.body;
     
@@ -575,7 +575,7 @@ export const verifyPhoneAuthCode = async (req: express.Request, res: express.Res
 /**
  * Get WhatsApp groups  
  */
-export const getGroups = async (req: express.Request, res: express.Response) => {
+export const getGroups = async (req: Request, res: Response) => {
   try {
     const wahaService = getWAHAService();
     // Try WAHA-compliant groups endpoint first
@@ -602,7 +602,7 @@ export const getGroups = async (req: express.Request, res: express.Response) => 
 /**
  * Get WhatsApp private chats
  */
-export const getPrivateChats = async (req: express.Request, res: express.Response) => {
+export const getPrivateChats = async (req: Request, res: Response) => {
   try {
     const wahaService = getWAHAService();
     const chats = await wahaService.getChats();
@@ -626,7 +626,7 @@ export const getPrivateChats = async (req: express.Request, res: express.Respons
 /**
  * Restart WhatsApp session
  */
-export const restartSession = async (req: express.Request, res: express.Response) => {
+export const restartSession = async (req: Request, res: Response) => {
   try {
     console.log('[WAHA Controller] Restart session request received');
     const wahaService = getWAHAService();
@@ -657,7 +657,7 @@ export const restartSession = async (req: express.Request, res: express.Response
 /**
  * Force restart WhatsApp session
  */
-export const forceRestart = async (req: express.Request, res: express.Response) => {
+export const forceRestart = async (req: Request, res: Response) => {
   try {
     console.log('[WAHA Controller] Force restart session request received');
     const wahaService = getWAHAService();
@@ -695,7 +695,7 @@ export const forceRestart = async (req: express.Request, res: express.Response) 
 /**
  * Refresh WhatsApp chats
  */
-export const refreshChats = async (req: express.Request, res: express.Response) => {
+export const refreshChats = async (req: Request, res: Response) => {
   try {
     const wahaService = getWAHAService();
     const status = await wahaService.getStatus();
@@ -750,7 +750,7 @@ export const refreshChats = async (req: express.Request, res: express.Response) 
 /**
  * Force history sync (placeholder for compatibility)
  */
-export const forceHistorySync = async (req: express.Request, res: express.Response) => {
+export const forceHistorySync = async (req: Request, res: Response) => {
   try {
     res.json({
       success: true,
@@ -768,7 +768,7 @@ export const forceHistorySync = async (req: express.Request, res: express.Respon
 /**
  * Get monitored keywords (placeholder for compatibility)
  */
-export const getMonitoredKeywords = async (req: express.Request, res: express.Response) => {
+export const getMonitoredKeywords = async (req: Request, res: Response) => {
   try {
     // For now, return empty array since WAHA handles monitoring differently
     res.json({
@@ -787,7 +787,7 @@ export const getMonitoredKeywords = async (req: express.Request, res: express.Re
 /**
  * Add monitored keyword (placeholder for compatibility)
  */
-export const addMonitoredKeyword = async (req: express.Request, res: express.Response) => {
+export const addMonitoredKeyword = async (req: Request, res: Response) => {
   try {
     const { keyword } = req.body;
     
@@ -808,7 +808,7 @@ export const addMonitoredKeyword = async (req: express.Request, res: express.Res
 /**
  * Remove monitored keyword (placeholder for compatibility)
  */
-export const removeMonitoredKeyword = async (req: express.Request, res: express.Response) => {
+export const removeMonitoredKeyword = async (req: Request, res: Response) => {
   try {
     const { keyword } = req.params;
     
@@ -829,7 +829,7 @@ export const removeMonitoredKeyword = async (req: express.Request, res: express.
 /**
  * Health check endpoint
  */
-export const healthCheck = async (req: express.Request, res: express.Response) => {
+export const healthCheck = async (req: Request, res: Response) => {
   try {
     const wahaService = getWAHAService();
     const isHealthy = await wahaService.healthCheck();
@@ -853,7 +853,7 @@ export const healthCheck = async (req: express.Request, res: express.Response) =
 /**
  * Initialize/Create session endpoint
  */
-export const initializeSession = async (req: express.Request, res: express.Response) => {
+export const initializeSession = async (req: Request, res: Response) => {
   try {
     console.log('[WAHA Controller] 🚀 MANUAL session initialization request received');
     const wahaService = getWAHAService();
