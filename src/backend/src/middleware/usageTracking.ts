@@ -1,4 +1,4 @@
-import * as express from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { usageTrackingService } from '../services/usageTrackingService';
 import { AuthenticatedRequest } from '../api/middleware/authMiddleware';
 
@@ -14,7 +14,7 @@ interface UsageTrackingOptions {
  * Middleware to automatically track usage for API endpoints
  */
 export const trackUsage = (options: UsageTrackingOptions) => {
-  return async (req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) => {
+  return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     const startTime = Date.now();
     let responseTime = 0;
     let computeTime = 0;
@@ -121,7 +121,7 @@ export const trackIntegration = (platform: string) =>
  * Rate limiting middleware based on usage limits
  */
 export const rateLimitByUsage = (feature: string, action: string = 'request') => {
-  return async (req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) => {
+  return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     // Skip for non-authenticated requests
     if (!req.user?.id) {
       return next();
@@ -156,7 +156,7 @@ export const rateLimitByUsage = (feature: string, action: string = 'request') =>
 /**
  * Usage analytics tracking middleware for all API requests
  */
-export const trackApiUsage = async (req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) => {
+export const trackApiUsage = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   // Skip for non-authenticated requests or non-API routes
   if (!req.user?.id || !req.path.startsWith('/api/v1/')) {
     return next();

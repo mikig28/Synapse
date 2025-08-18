@@ -1,4 +1,4 @@
-import * as express from 'express';
+import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import fs from 'fs-extra';
 import path from 'path';
@@ -75,7 +75,7 @@ setInterval(() => {
 /**
  * Create a new export job
  */
-export const createExportJob = async (req: AuthenticatedRequest, res: express.Response) => {
+export const createExportJob = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -147,7 +147,7 @@ export const createExportJob = async (req: AuthenticatedRequest, res: express.Re
 /**
  * Get export job status
  */
-export const getExportJobStatus = async (req: AuthenticatedRequest, res: express.Response) => {
+export const getExportJobStatus = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const { jobId } = req.params;
@@ -186,7 +186,7 @@ export const getExportJobStatus = async (req: AuthenticatedRequest, res: express
 /**
  * Download export file
  */
-export const downloadExportFile = async (req: AuthenticatedRequest, res: express.Response) => {
+export const downloadExportFile = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const { jobId } = req.params;
@@ -230,7 +230,7 @@ export const downloadExportFile = async (req: AuthenticatedRequest, res: express
 /**
  * Get user's export history
  */
-export const getExportHistory = async (req: AuthenticatedRequest, res: express.Response) => {
+export const getExportHistory = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {

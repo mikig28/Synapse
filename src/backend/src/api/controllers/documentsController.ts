@@ -1,4 +1,4 @@
-import * as express from 'express';
+import { Request, Response } from 'express';
 import Document, { IDocument, ISmartChunk } from '../../models/Document';
 import { chunkingService } from '../../services/chunkingService';
 import { vectorDatabaseService } from '../../services/vectorDatabaseService';
@@ -52,7 +52,7 @@ interface AuthenticatedRequest extends Request {
 /**
  * Get all documents for a user
  */
-export const getDocuments = async (req: AuthenticatedRequest, res: express.Response) => {
+export const getDocuments = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -120,7 +120,7 @@ export const getDocuments = async (req: AuthenticatedRequest, res: express.Respo
 /**
  * Get a specific document
  */
-export const getDocument = async (req: AuthenticatedRequest, res: express.Response) => {
+export const getDocument = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
@@ -155,7 +155,7 @@ export const getDocument = async (req: AuthenticatedRequest, res: express.Respon
 /**
  * Upload and process a document
  */
-export const uploadDocument = async (req: AuthenticatedRequest, res: express.Response) => {
+export const uploadDocument = async (req: AuthenticatedRequest, res: Response) => {
   try {
     console.log('[uploadDocument] Starting upload process');
     
@@ -293,7 +293,7 @@ export const uploadDocument = async (req: AuthenticatedRequest, res: express.Res
 /**
  * Create a document from text
  */
-export const createDocument = async (req: AuthenticatedRequest, res: express.Response) => {
+export const createDocument = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -363,7 +363,7 @@ export const createDocument = async (req: AuthenticatedRequest, res: express.Res
 /**
  * Update a document
  */
-export const updateDocument = async (req: AuthenticatedRequest, res: express.Response) => {
+export const updateDocument = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
@@ -442,7 +442,7 @@ export const updateDocument = async (req: AuthenticatedRequest, res: express.Res
 /**
  * Delete a document
  */
-export const deleteDocument = async (req: AuthenticatedRequest, res: express.Response) => {
+export const deleteDocument = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
@@ -501,7 +501,7 @@ export const deleteDocument = async (req: AuthenticatedRequest, res: express.Res
 /**
  * Search documents using RAG
  */
-export const searchDocuments = async (req: AuthenticatedRequest, res: express.Response) => {
+export const searchDocuments = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -534,7 +534,7 @@ export const searchDocuments = async (req: AuthenticatedRequest, res: express.Re
 /**
  * Get document processing status
  */
-export const getProcessingStatus = async (req: AuthenticatedRequest, res: express.Response) => {
+export const getProcessingStatus = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
@@ -570,7 +570,7 @@ export const getProcessingStatus = async (req: AuthenticatedRequest, res: expres
 /**
  * Get similar documents
  */
-export const getSimilarDocuments = async (req: AuthenticatedRequest, res: express.Response) => {
+export const getSimilarDocuments = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
@@ -599,7 +599,7 @@ export const getSimilarDocuments = async (req: AuthenticatedRequest, res: expres
 /**
  * Get system health status
  */
-export const getHealthStatus = async (req: AuthenticatedRequest, res: express.Response) => {
+export const getHealthStatus = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const healthStatus = {
       vectorDatabase: false,
@@ -660,7 +660,7 @@ export const getHealthStatus = async (req: AuthenticatedRequest, res: express.Re
 /**
  * Get document statistics
  */
-export const getDocumentStats = async (req: AuthenticatedRequest, res: express.Response) => {
+export const getDocumentStats = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -944,7 +944,7 @@ function getDocumentType(mimeType: string): string {
 /**
  * Simplified upload endpoint for debugging
  */
-export const uploadDocumentSimple = async (req: AuthenticatedRequest, res: express.Response) => {
+export const uploadDocumentSimple = async (req: AuthenticatedRequest, res: Response) => {
   try {
     console.log('[uploadDocumentSimple] Starting simple upload process');
     
@@ -1016,7 +1016,7 @@ export const uploadDocumentSimple = async (req: AuthenticatedRequest, res: expre
 /**
  * Download document as file
  */
-export const downloadDocument = async (req: AuthenticatedRequest, res: express.Response) => {
+export const downloadDocument = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;

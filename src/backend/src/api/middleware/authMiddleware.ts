@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import * as express from 'express';
+import { Request, Response, NextFunction } from 'express';
 import User from '../../models/User'; // Adjust path as necessary
 import { AuthenticatedRequest } from '../../types/express';
 
@@ -12,7 +12,7 @@ interface JwtPayload extends jwt.JwtPayload {
   exp?: number;
 }
 
-export const protect = async (req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) => {
+export const protect = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   console.log('[AuthMiddleware] Processing request:', {
     method: req.method,
     path: req.path,
@@ -86,7 +86,7 @@ export const protect = async (req: AuthenticatedRequest, res: express.Response, 
 };
 
 // Helper function to set CORS headers consistently
-const setCorsHeaders = (res: express.Response, origin?: string) => {
+const setCorsHeaders = (res: Response, origin?: string) => {
   res.header('Access-Control-Allow-Origin', origin || 'https://synapse-frontend.onrender.com');
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, Accept, Origin');

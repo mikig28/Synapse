@@ -1,11 +1,11 @@
-import * as express from 'express';
+import { Request, Response } from 'express';
 import { usageTrackingService } from '../../services/usageTrackingService';
 import { AuthenticatedRequest } from '../middleware/authMiddleware';
 
 /**
  * Get current user's usage statistics
  */
-export const getUserUsage = async (req: AuthenticatedRequest, res: express.Response) => {
+export const getUserUsage = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -62,7 +62,7 @@ export const getUserUsage = async (req: AuthenticatedRequest, res: express.Respo
 /**
  * Check if user can perform a specific action
  */
-export const checkUsageLimit = async (req: AuthenticatedRequest, res: express.Response) => {
+export const checkUsageLimit = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -100,7 +100,7 @@ export const checkUsageLimit = async (req: AuthenticatedRequest, res: express.Re
 /**
  * Track a usage event (for manual tracking if needed)
  */
-export const trackUsageEvent = async (req: AuthenticatedRequest, res: express.Response) => {
+export const trackUsageEvent = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -147,7 +147,7 @@ export const trackUsageEvent = async (req: AuthenticatedRequest, res: express.Re
 /**
  * Get usage analytics (admin only)
  */
-export const getUsageAnalytics = async (req: AuthenticatedRequest, res: express.Response) => {
+export const getUsageAnalytics = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -190,7 +190,7 @@ export const getUsageAnalytics = async (req: AuthenticatedRequest, res: express.
 /**
  * Get user's usage history across different periods
  */
-export const getUserUsageHistory = async (req: AuthenticatedRequest, res: express.Response) => {
+export const getUserUsageHistory = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -283,7 +283,7 @@ export const getUserUsageHistory = async (req: AuthenticatedRequest, res: expres
 /**
  * Get tier pricing information and upgrade options
  */
-export const getTierPricing = async (req: express.Request, res: express.Response) => {
+export const getTierPricing = async (req: Request, res: Response) => {
   try {
     const pricing = {
       tiers: [
@@ -377,7 +377,7 @@ export const getTierPricing = async (req: express.Request, res: express.Response
 /**
  * Simulate tier upgrade (for beta testing)
  */
-export const simulateTierUpgrade = async (req: AuthenticatedRequest, res: express.Response) => {
+export const simulateTierUpgrade = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
