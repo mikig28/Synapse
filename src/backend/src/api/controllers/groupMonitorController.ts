@@ -1,4 +1,4 @@
-import * as express from 'express';
+import { Request, Response } from 'express';
 import PersonProfileService from '../../services/personProfileService';
 import GroupMonitorService from '../../services/groupMonitorService';
 import FilteredImage from '../../models/FilteredImage';
@@ -14,7 +14,7 @@ class GroupMonitorController {
   }
 
   // Person Profile endpoints
-  async createPersonProfile(req: AuthRequest, res: express.Response): Promise<void> {
+  async createPersonProfile(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -63,7 +63,7 @@ class GroupMonitorController {
     }
   }
 
-  async getPersonProfiles(req: AuthRequest, res: express.Response): Promise<void> {
+  async getPersonProfiles(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -89,7 +89,7 @@ class GroupMonitorController {
     }
   }
 
-  async getPersonProfile(req: AuthRequest, res: express.Response): Promise<void> {
+  async getPersonProfile(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -124,7 +124,7 @@ class GroupMonitorController {
     }
   }
 
-  async updatePersonProfile(req: AuthRequest, res: express.Response): Promise<void> {
+  async updatePersonProfile(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -162,7 +162,7 @@ class GroupMonitorController {
     }
   }
 
-  async deletePersonProfile(req: AuthRequest, res: express.Response): Promise<void> {
+  async deletePersonProfile(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -197,7 +197,7 @@ class GroupMonitorController {
     }
   }
 
-  async addTrainingImages(req: AuthRequest, res: express.Response): Promise<void> {
+  async addTrainingImages(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -244,7 +244,7 @@ class GroupMonitorController {
   }
 
   // Group Monitor endpoints
-  async createGroupMonitor(req: AuthRequest, res: express.Response): Promise<void> {
+  async createGroupMonitor(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -294,7 +294,7 @@ class GroupMonitorController {
     }
   }
 
-  async getGroupMonitors(req: AuthRequest, res: express.Response): Promise<void> {
+  async getGroupMonitors(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -320,7 +320,7 @@ class GroupMonitorController {
     }
   }
 
-  async updateGroupMonitor(req: AuthRequest, res: express.Response): Promise<void> {
+  async updateGroupMonitor(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -358,7 +358,7 @@ class GroupMonitorController {
     }
   }
 
-  async deleteGroupMonitor(req: AuthRequest, res: express.Response): Promise<void> {
+  async deleteGroupMonitor(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -393,7 +393,7 @@ class GroupMonitorController {
     }
   }
 
-  async getMonitorStatistics(req: AuthRequest, res: express.Response): Promise<void> {
+  async getMonitorStatistics(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -421,7 +421,7 @@ class GroupMonitorController {
   }
 
   // Filtered Images endpoints
-  async getFilteredImages(req: AuthRequest, res: express.Response): Promise<void> {
+  async getFilteredImages(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -458,7 +458,7 @@ class GroupMonitorController {
     }
   }
 
-  async archiveFilteredImage(req: AuthRequest, res: express.Response): Promise<void> {
+  async archiveFilteredImage(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -499,7 +499,7 @@ class GroupMonitorController {
     }
   }
 
-  async addImageTag(req: AuthRequest, res: express.Response): Promise<void> {
+  async addImageTag(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -550,7 +550,7 @@ class GroupMonitorController {
   }
 
   // Health check and service status
-  async getServiceStatus(req: express.Request, res: express.Response): Promise<void> {
+  async getServiceStatus(req: Request, res: Response): Promise<void> {
     try {
       const faceRecognitionHealthy = await this.personProfileService.testFaceRecognitionService();
 
@@ -571,7 +571,7 @@ class GroupMonitorController {
   }
 
   // Webhook for processing WhatsApp messages
-  async processWhatsAppMessage(req: express.Request, res: express.Response): Promise<void> {
+  async processWhatsAppMessage(req: Request, res: Response): Promise<void> {
     try {
       const { messageId, groupId, senderId, senderName, imageUrl, caption } = req.body;
 

@@ -1,4 +1,4 @@
-import * as express from 'express';
+import { Request, Response } from 'express';
 import WhatsAppMessage from '../../models/WhatsAppMessage';
 import WhatsAppContact from '../../models/WhatsAppContact';
 import WhatsAppBaileysService from '../../services/whatsappBaileysService';
@@ -129,7 +129,7 @@ function normalizeMessageType(messageType: string): string {
   return 'text';
 }
 
-export const handleWhatsAppWebhook = async (req: express.Request, res: express.Response) => {
+export const handleWhatsAppWebhook = async (req: Request, res: Response) => {
   console.log("[WhatsApp Webhook] Received webhook from WhatsApp Web.js service:");
   console.log("[WhatsApp Webhook] Body:", JSON.stringify(req.body, null, 2));
 
@@ -265,7 +265,7 @@ function isBusinessHours(): boolean {
 }
 
 // Get all WhatsApp contacts for a user
-export const getWhatsAppContacts = async (req: express.Request, res: express.Response) => {
+export const getWhatsAppContacts = async (req: Request, res: Response) => {
   try {
     const contacts = await WhatsAppContact.find()
       .sort({ lastSeen: -1 })
@@ -285,7 +285,7 @@ export const getWhatsAppContacts = async (req: express.Request, res: express.Res
 };
 
 // Get messages for a specific contact
-export const getContactMessages = async (req: express.Request, res: express.Response) => {
+export const getContactMessages = async (req: Request, res: Response) => {
   try {
     const { contactId } = req.params;
     const { page = 1, limit = 50 } = req.query;
@@ -322,7 +322,7 @@ async function sendMessageViaService(to: string, message: string) {
 }
 
 // Send a WhatsApp message
-export const sendWhatsAppMessage = async (req: express.Request, res: express.Response) => {
+export const sendWhatsAppMessage = async (req: Request, res: Response) => {
   try {
     const { to, message, type = 'text' } = req.body;
     
@@ -401,7 +401,7 @@ export const sendWhatsAppMessage = async (req: express.Request, res: express.Res
 };
 
 // Get WhatsApp statistics
-export const getWhatsAppStats = async (req: express.Request, res: express.Response) => {
+export const getWhatsAppStats = async (req: Request, res: Response) => {
   try {
     const totalContacts = await WhatsAppContact.countDocuments();
     const totalMessages = await WhatsAppMessage.countDocuments();
@@ -438,7 +438,7 @@ export const getWhatsAppStats = async (req: express.Request, res: express.Respon
 };
 
 // Update WhatsApp configuration
-export const updateWhatsAppConfig = async (req: express.Request, res: express.Response) => {
+export const updateWhatsAppConfig = async (req: Request, res: Response) => {
   try {
     const { phoneNumber, webhookUrl, verifyToken, autoReply } = req.body;
     
@@ -465,7 +465,7 @@ export const updateWhatsAppConfig = async (req: express.Request, res: express.Re
 };
 
 // Get WhatsApp connection status from WhatsApp service
-export const getConnectionStatus = async (req: express.Request, res: express.Response) => {
+export const getConnectionStatus = async (req: Request, res: Response) => {
   try {
     const whatsappService = getWhatsAppService();
     initializeWhatsAppService(); // Ensure listeners are set up
@@ -508,7 +508,7 @@ export const getConnectionStatus = async (req: express.Request, res: express.Res
 };
 
 // Get QR Code for WhatsApp Web authentication
-export const getQRCode = async (req: express.Request, res: express.Response) => {
+export const getQRCode = async (req: Request, res: Response) => {
   try {
     const whatsappService = getWhatsAppService();
     const { force } = req.query;
@@ -576,7 +576,7 @@ export const getQRCode = async (req: express.Request, res: express.Response) => 
 };
 
 // Restart WhatsApp service
-export const restartWhatsAppService = async (req: express.Request, res: express.Response) => {
+export const restartWhatsAppService = async (req: Request, res: Response) => {
   try {
     const whatsappService = getWhatsAppService();
     initializeWhatsAppService();
@@ -596,7 +596,7 @@ export const restartWhatsAppService = async (req: express.Request, res: express.
 };
 
 // Get WhatsApp groups
-export const getWhatsAppGroups = async (req: express.Request, res: express.Response) => {
+export const getWhatsAppGroups = async (req: Request, res: Response) => {
   try {
     const whatsappService = getWhatsAppService();
     const groups = whatsappService.getGroups();
@@ -615,7 +615,7 @@ export const getWhatsAppGroups = async (req: express.Request, res: express.Respo
 };
 
 // Get WhatsApp private chats
-export const getWhatsAppPrivateChats = async (req: express.Request, res: express.Response) => {
+export const getWhatsAppPrivateChats = async (req: Request, res: Response) => {
   try {
     const whatsappService = getWhatsAppService();
     const privateChats = whatsappService.getPrivateChats();
@@ -634,7 +634,7 @@ export const getWhatsAppPrivateChats = async (req: express.Request, res: express
 };
 
 // Get WhatsApp messages
-export const getWhatsAppMessages = async (req: express.Request, res: express.Response) => {
+export const getWhatsAppMessages = async (req: Request, res: Response) => {
   try {
     const whatsappService = getWhatsAppService();
     const { limit = 50, groupId, chatId } = req.query;
@@ -657,7 +657,7 @@ export const getWhatsAppMessages = async (req: express.Request, res: express.Res
 };
 
 // Refresh WhatsApp chats
-export const refreshWhatsAppChats = async (req: express.Request, res: express.Response) => {
+export const refreshWhatsAppChats = async (req: Request, res: Response) => {
   try {
     const whatsappService = getWhatsAppService();
     const status = whatsappService.getStatus();
@@ -718,7 +718,7 @@ export const refreshWhatsAppChats = async (req: express.Request, res: express.Re
 };
 
 // Add monitored keyword
-export const addMonitoredKeyword = async (req: express.Request, res: express.Response) => {
+export const addMonitoredKeyword = async (req: Request, res: Response) => {
   try {
     const { keyword } = req.body;
     
@@ -747,7 +747,7 @@ export const addMonitoredKeyword = async (req: express.Request, res: express.Res
 };
 
 // Remove monitored keyword
-export const removeMonitoredKeyword = async (req: express.Request, res: express.Response) => {
+export const removeMonitoredKeyword = async (req: Request, res: Response) => {
   try {
     const { keyword } = req.params;
     const whatsappService = getWhatsAppService();
@@ -775,7 +775,7 @@ export const removeMonitoredKeyword = async (req: express.Request, res: express.
 };
 
 // Get monitored keywords
-export const getMonitoredKeywords = async (req: express.Request, res: express.Response) => {
+export const getMonitoredKeywords = async (req: Request, res: Response) => {
   try {
     const whatsappService = getWhatsAppService();
     const keywords = whatsappService.getMonitoredKeywords();
@@ -794,7 +794,7 @@ export const getMonitoredKeywords = async (req: express.Request, res: express.Re
 };
 
 // Clear authentication data
-export const clearWhatsAppAuth = async (req: express.Request, res: express.Response) => {
+export const clearWhatsAppAuth = async (req: Request, res: Response) => {
   try {
     const whatsappService = getWhatsAppService();
     await whatsappService.clearAuth();
@@ -813,7 +813,7 @@ export const clearWhatsAppAuth = async (req: express.Request, res: express.Respo
 };
 
 // Diagnostic endpoint to check Puppeteer configuration
-export const getDiagnostics = async (req: express.Request, res: express.Response) => {
+export const getDiagnostics = async (req: Request, res: Response) => {
   try {
     const whatsappService = getWhatsAppService();
     const { testBrowser } = req.query;
@@ -853,7 +853,7 @@ export const getDiagnostics = async (req: express.Request, res: express.Response
   }
 };
 
-export const forceRestart = async (req: express.Request, res: express.Response) => {
+export const forceRestart = async (req: Request, res: Response) => {
   try {
     console.log('[WhatsApp] Force restart requested');
     
@@ -873,7 +873,7 @@ export const forceRestart = async (req: express.Request, res: express.Response) 
   }
 };
 
-export const forceHistorySync = async (req: express.Request, res: express.Response) => {
+export const forceHistorySync = async (req: Request, res: Response) => {
   try {
     initializeWhatsAppService();
     const whatsappService = getWhatsAppService();
@@ -894,7 +894,7 @@ export const forceHistorySync = async (req: express.Request, res: express.Respon
 };
 
 // Request phone authentication code
-export const sendPhoneAuthCode = async (req: express.Request, res: express.Response) => {
+export const sendPhoneAuthCode = async (req: Request, res: Response) => {
   try {
     const { phoneNumber } = req.body;
     
@@ -935,7 +935,7 @@ export const sendPhoneAuthCode = async (req: express.Request, res: express.Respo
 };
 
 // Verify phone authentication code
-export const verifyPhoneAuthCode = async (req: express.Request, res: express.Response) => {
+export const verifyPhoneAuthCode = async (req: Request, res: Response) => {
   try {
     const { phoneNumber, code } = req.body;
     
