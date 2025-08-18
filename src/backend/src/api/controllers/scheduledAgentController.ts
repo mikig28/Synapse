@@ -1,10 +1,10 @@
-import { Request, Response } from 'express';
+import * as express from 'express';
 import ScheduledAgent, { IScheduledAgent } from '../../models/ScheduledAgent';
 import { AuthenticatedRequest } from '../middleware/authMiddleware';
 import mongoose from 'mongoose';
 
 // Create a new scheduled agent
-export const createScheduledAgent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const createScheduledAgent = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { name, description, agentConfig, schedule } = req.body;
     const userId = req.user?.id;
@@ -80,7 +80,7 @@ export const createScheduledAgent = async (req: AuthenticatedRequest, res: Respo
 };
 
 // Get all scheduled agents for a user
-export const getScheduledAgents = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getScheduledAgents = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const userId = req.user?.id;
 
@@ -139,7 +139,7 @@ export const getScheduledAgents = async (req: AuthenticatedRequest, res: Respons
 };
 
 // Get a specific scheduled agent
-export const getScheduledAgent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getScheduledAgent = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params;
     const userId = req.user?.id;
@@ -210,7 +210,7 @@ export const getScheduledAgent = async (req: AuthenticatedRequest, res: Response
 };
 
 // Update a scheduled agent
-export const updateScheduledAgent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const updateScheduledAgent = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params;
     const userId = req.user?.id;
@@ -298,7 +298,7 @@ export const updateScheduledAgent = async (req: AuthenticatedRequest, res: Respo
 };
 
 // Toggle active status of a scheduled agent
-export const toggleScheduledAgent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const toggleScheduledAgent = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params;
     const userId = req.user?.id;
@@ -340,7 +340,7 @@ export const toggleScheduledAgent = async (req: AuthenticatedRequest, res: Respo
 };
 
 // Delete a scheduled agent
-export const deleteScheduledAgent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const deleteScheduledAgent = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params;
     const userId = req.user?.id;
@@ -381,7 +381,7 @@ export const deleteScheduledAgent = async (req: AuthenticatedRequest, res: Respo
 };
 
 // Execute a scheduled agent manually (for testing)
-export const executeScheduledAgent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const executeScheduledAgent = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params;
     const userId = req.user?.id;
@@ -428,7 +428,7 @@ export const executeScheduledAgent = async (req: AuthenticatedRequest, res: Resp
 };
 
 // Get execution history for a scheduled agent
-export const getExecutionHistory = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getExecutionHistory = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { id } = req.params;
     const userId = req.user?.id;

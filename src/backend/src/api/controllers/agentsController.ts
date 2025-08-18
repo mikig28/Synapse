@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import * as express from 'express';
 import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../../types/express';
 import { AgentService } from '../../services/agentService';
@@ -16,7 +16,7 @@ export const initializeAgentServices = (service: AgentService, scheduler: AgentS
 };
 
 // Health check for the agent system
-export const getHealthStatus = async (req: Request, res: Response): Promise<void> => {
+export const getHealthStatus = async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     // In a real system, you might check db connection, executor services, etc.
     res.json({
@@ -34,7 +34,7 @@ export const getHealthStatus = async (req: Request, res: Response): Promise<void
 };
 
 // Get all agents for the authenticated user
-export const getAgents = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getAgents = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const agents = await agentService.getAgentsByUser(new mongoose.Types.ObjectId(userId));
@@ -55,7 +55,7 @@ export const getAgents = async (req: AuthenticatedRequest, res: Response): Promi
 };
 
 // Get a specific agent by ID
-export const getAgentById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getAgentById = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { agentId } = req.params;
     const userId = req.user!.id;
@@ -94,7 +94,7 @@ export const getAgentById = async (req: AuthenticatedRequest, res: Response): Pr
 };
 
 // Create a new agent
-export const createAgent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const createAgent = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const { name, type, description, configuration } = req.body;
@@ -148,7 +148,7 @@ export const createAgent = async (req: AuthenticatedRequest, res: Response): Pro
 };
 
 // Update an agent
-export const updateAgent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const updateAgent = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { agentId } = req.params;
     const userId = req.user!.id;
@@ -212,7 +212,7 @@ export const updateAgent = async (req: AuthenticatedRequest, res: Response): Pro
 };
 
 // Delete an agent
-export const deleteAgent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const deleteAgent = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { agentId } = req.params;
     const userId = req.user!.id;
@@ -264,7 +264,7 @@ export const deleteAgent = async (req: AuthenticatedRequest, res: Response): Pro
 };
 
 // Execute an agent manually
-export const executeAgent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const executeAgent = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   const { agentId } = req.params;
   const userId = req.user!.id;
   const { force } = req.body; // Allow force execution to override stuck state
@@ -365,7 +365,7 @@ export const executeAgent = async (req: AuthenticatedRequest, res: Response): Pr
 };
 
 // Get agent runs
-export const getAgentRuns = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getAgentRuns = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { agentId } = req.params;
     const userId = req.user!.id;
@@ -407,7 +407,7 @@ export const getAgentRuns = async (req: AuthenticatedRequest, res: Response): Pr
 };
 
 // Get all agent runs for user
-export const getUserAgentRuns = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getUserAgentRuns = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const userId = req.user!.id;
     const limit = parseInt(req.query.limit as string) || 50;
@@ -430,7 +430,7 @@ export const getUserAgentRuns = async (req: AuthenticatedRequest, res: Response)
 };
 
 // Get agent statistics
-export const getAgentStatistics = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getAgentStatistics = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { agentId } = req.params;
     const userId = req.user!.id;
@@ -470,7 +470,7 @@ export const getAgentStatistics = async (req: AuthenticatedRequest, res: Respons
 };
 
 // Pause an agent
-export const pauseAgent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const pauseAgent = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { agentId } = req.params;
     const userId = req.user!.id;
@@ -515,7 +515,7 @@ export const pauseAgent = async (req: AuthenticatedRequest, res: Response): Prom
 };
 
 // Resume an agent
-export const resumeAgent = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const resumeAgent = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { agentId } = req.params;
     const userId = req.user!.id;
@@ -560,7 +560,7 @@ export const resumeAgent = async (req: AuthenticatedRequest, res: Response): Pro
 };
 
 // Get scheduler status
-export const getSchedulerStatus = async (req: Request, res: Response): Promise<void> => {
+export const getSchedulerStatus = async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const status = agentScheduler.getSchedulerStatus();
     
@@ -579,7 +579,7 @@ export const getSchedulerStatus = async (req: Request, res: Response): Promise<v
 };
 
 // Get available builtin tools
-export const getBuiltinTools = async (req: Request, res: Response): Promise<void> => {
+export const getBuiltinTools = async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const builtinTools = [
       {
@@ -656,7 +656,7 @@ export const getBuiltinTools = async (req: Request, res: Response): Promise<void
 };
 
 // Test MCP server connection
-export const testMCPConnection = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const testMCPConnection = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { serverUri, authentication } = req.body;
     
@@ -729,7 +729,7 @@ export const testMCPConnection = async (req: AuthenticatedRequest, res: Response
 };
 
 // Get MCP server recommendations based on agent type
-export const getMCPRecommendations = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getMCPRecommendations = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { agentType } = req.params;
     
@@ -799,7 +799,7 @@ export const getMCPRecommendations = async (req: AuthenticatedRequest, res: Resp
 };
 
 // Get agent capabilities summary
-export const getAgentCapabilities = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getAgentCapabilities = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { agentId } = req.params;
     const userId = req.user!.id;
@@ -881,7 +881,7 @@ export const getAgentCapabilities = async (req: AuthenticatedRequest, res: Respo
 };
 
 // Test CrewAI service sources health
-export const testCrewAISources = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const testCrewAISources = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const crewaiServiceUrl = process.env.CREWAI_SERVICE_URL || 'https://synapse-crewai.onrender.com';
     
@@ -973,7 +973,7 @@ export const testCrewAISources = async (req: AuthenticatedRequest, res: Response
 };
 
 // Get agent execution status
-export const getAgentStatus = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getAgentStatus = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { agentId } = req.params;
     const userId = req.user!.id;
@@ -1059,7 +1059,7 @@ export const getAgentStatus = async (req: AuthenticatedRequest, res: Response): 
 };
 
 // Get crew execution progress for CrewAI agents
-export const getCrewProgress = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getCrewProgress = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { agentId } = req.params;
     const userId = req.user!.id;
@@ -1105,7 +1105,7 @@ export const getCrewProgress = async (req: AuthenticatedRequest, res: Response):
 };
 
 // Reset agent status (for stuck agents)
-export const resetAgentStatus = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const resetAgentStatus = async (req: AuthenticatedRequest, res: express.Response): Promise<void> => {
   try {
     const { agentId } = req.params;
     const userId = req.user!.id;
@@ -1157,7 +1157,7 @@ export const resetAgentStatus = async (req: AuthenticatedRequest, res: Response)
 };
 
 // Debug endpoint to check environment variables
-export const getEnvironmentDebug = async (req: Request, res: Response): Promise<void> => {
+export const getEnvironmentDebug = async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const envVars = {
       NODE_ENV: process.env.NODE_ENV,

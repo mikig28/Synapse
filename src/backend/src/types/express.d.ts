@@ -1,4 +1,4 @@
-import { Request } from 'express';
+import * as express from 'express';
 
 declare global {
   namespace Express {
@@ -12,16 +12,16 @@ declare global {
   }
 }
 
-export interface AuthenticatedRequest extends Request {
-  user?: {
+export interface AuthenticatedRequest extends express.Request {
+  user: {
     id: string;
     email: string;
   };
 }
 
-export interface AuthRequest extends Request {
+export interface AuthRequest extends express.Request {
   user?: {
     id: string;
     email: string;
   };
-} 
+}

@@ -1593,7 +1593,7 @@ class WhatsAppBaileysService extends EventEmitter {
 
       // Clear any existing pairing socket
       if (this.pairingSocket) {
-        this.pairingSocket.end();
+        this.pairingSocket.end(new Error('Clearing existing pairing socket'));
         this.pairingSocket = null;
       }
 
@@ -1640,7 +1640,7 @@ class WhatsAppBaileysService extends EventEmitter {
             await fs.emptyDir(this.AUTH_PATH);
             await fs.copy(pairingAuthPath, this.AUTH_PATH);
             await fs.remove(pairingAuthPath);
-            if (this.socket) this.socket.end();
+            if (this.socket) this.socket.end(new Error('Replacing with paired socket'));
             this.socket = socket;
             this.pairingSocket = null;
             this.isClientReady = true;
@@ -1678,7 +1678,7 @@ class WhatsAppBaileysService extends EventEmitter {
       // Clean up on error
       try {
         if (this.pairingSocket) {
-          this.pairingSocket.end();
+          this.pairingSocket.end(new Error('Pairing error cleanup'));
           this.pairingSocket = null;
         }
         if (this.pairingAuthPath) {
