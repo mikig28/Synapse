@@ -23,13 +23,13 @@ python-telegram-bot>=20.0  # Telegram Bot API
 newspaper3k>=0.2.8
 
 # CrewAI and AI dependencies - FIXED COMPATIBILITY VERSIONS
-# Pin to versions that are known to work together (tested December 2023)
-openai>=1.0.0,<1.12.0
-# Use stable CrewAI version without latest breaking changes  
-crewai[tools]>=0.55.0,<0.70.0
+# Pin OpenAI SDK to compatible version that still exports ResponseTextConfig
+openai>=1.0.0,<1.4.0
+# Use latest CrewAI but with compatible tools
+crewai[tools]>=0.63.0
 anthropic>=0.7.0
-# Pin LiteLLM to stable version that works with these OpenAI versions
-litellm>=1.0.0,<1.30.0
+# Pin LiteLLM to avoid conflicts
+litellm>=1.0.0,<2.0.0
 
 # Advanced scraping tools (optional but recommended)
 firecrawl-py>=0.0.8
