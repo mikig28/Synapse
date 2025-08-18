@@ -346,15 +346,16 @@ class WAHAService extends EventEmitter {
       // If session doesn't exist, create it
       if (!sessionExists) {
         console.log(`[WAHA Service] Creating new session '${sessionName}'...`);
-        console.log(`[WAHA Service] Making POST request to /api/sessions with simplified payload:`, {
-          name: sessionName
-        });
+        const engine = process.env.WAHA_ENGINE?.trim();
+        const createPayload: any = { name: sessionName };
+        if (engine) {
+          createPayload.engine = engine;
+          console.log(`[WAHA Service] Using configured WAHA engine: ${engine}`);
+        }
+        console.log(`[WAHA Service] Making POST request to /api/sessions with payload:`, createPayload);
         
-        // ULTRA-FIX: Create session with simplified payload first, add webhooks later
-        const response = await this.httpClient.post('/api/sessions', {
-          name: sessionName
-          // Don't add webhooks during creation - add them later to avoid issues
-        });
+        // Create session (minimal payload; webhooks added after successful start)
+        const response = await this.httpClient.post('/api/sessions', createPayload);
         
         console.log(`[WAHA Service] ✅ Session creation response:`, response.status);
         console.log(`[WAHA Service] 📋 Full response data:`, JSON.stringify(response.data, null, 2));
