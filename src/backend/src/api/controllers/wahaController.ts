@@ -137,6 +137,7 @@ export const getQR = async (req: Request, res: Response) => {
   try {
     console.log('[WAHA Controller] QR code request received');
     const wahaService = getWAHAService();
+    const force = String(req.query.force || '').toLowerCase() === 'true';
     
     // Check service health first
     try {
@@ -151,7 +152,7 @@ export const getQR = async (req: Request, res: Response) => {
       });
     }
     
-    const qrDataUrl = await wahaService.getQRCode();
+    const qrDataUrl = await wahaService.getQRCode(undefined, force);
     console.log('[WAHA Controller] ✅ QR code generated successfully');
     
     res.json({
@@ -178,6 +179,9 @@ export const getQR = async (req: Request, res: Response) => {
       } else if (error.message.includes('timeout')) {
         statusCode = 408;
         userMessage = 'QR code generation timed out. Please try again.';
+      } else if (error.message.includes('429') || error.message.toLowerCase().includes('too many')) {
+        statusCode = 429;
+        userMessage = 'Too many linking attempts. Please wait a minute and try again.';
       }
     }
     

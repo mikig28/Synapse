@@ -52,6 +52,10 @@ class WAHAService extends EventEmitter {
   private isReady = false;
   private connectionStatus = 'disconnected';
   private statusMonitorInterval: NodeJS.Timeout | null = null;
+  private lastQrDataUrl: string | null = null;
+  private lastQrGeneratedAt: number | null = null;
+  private readonly qrReuseWindowMs = 25000; // reuse same QR for up to ~25s
+  private readonly qrRequestCooldownMs = 5000; // avoid hammering WAHA
 
   private constructor() {
     super();
@@ -502,13 +506,30 @@ class WAHAService extends EventEmitter {
   /**
    * Get QR code for session (following WAHA API documentation)
    */
-  async getQRCode(sessionName: string = this.defaultSession): Promise<string> {
-    console.log(`[WAHA Service] Starting QR code generation for session '${sessionName}'`);
+  async getQRCode(sessionName: string = this.defaultSession, force: boolean = false): Promise<string> {
+    console.log(`[WAHA Service] Starting QR code generation for session '${sessionName}', force=${force}`);
     
     try {
-      // First ensure session exists and is properly configured
+      // Throttle QR requests to avoid device-link rate limits
+      const now = Date.now();
+      if (!force && this.lastQrGeneratedAt && now - this.lastQrGeneratedAt < this.qrRequestCooldownMs) {
+        console.log('[WAHA Service] ⏳ Throttling QR requests; returning recent QR');
+        if (this.lastQrDataUrl) return this.lastQrDataUrl;
+      }
+
+      // Reuse a fresh QR within a short window to avoid regenerating constantly
+      if (!force && this.lastQrGeneratedAt && now - this.lastQrGeneratedAt < this.qrReuseWindowMs && this.lastQrDataUrl) {
+        console.log('[WAHA Service] 🔁 Reusing cached QR within reuse window');
+        return this.lastQrDataUrl;
+      }
+
+      // Ensure session exists and is in a proper state for QR
       console.log(`[WAHA Service] Ensuring session '${sessionName}' exists and is configured...`);
-      await this.startSession(sessionName);
+      let current = await this.getSessionStatus(sessionName);
+      if (current.status === 'STOPPED' || current.status === 'FAILED') {
+        await this.startSession(sessionName);
+        current = await this.getSessionStatus(sessionName);
+      }
       
       // Wait for session to reach SCAN_QR_CODE state with longer timeout
       console.log(`[WAHA Service] Waiting for session '${sessionName}' to reach QR ready state...`);
@@ -527,7 +548,10 @@ class WAHAService extends EventEmitter {
       if (response.data && response.data.byteLength > 0) {
         const base64 = Buffer.from(response.data).toString('base64');
         console.log(`[WAHA Service] ✅ QR code converted to base64, length: ${base64.length}`);
-        return `data:image/png;base64,${base64}`;
+        const dataUrl = `data:image/png;base64,${base64}`;
+        this.lastQrDataUrl = dataUrl;
+        this.lastQrGeneratedAt = Date.now();
+        return dataUrl;
       } else {
         throw new Error('Empty QR code response from WAHA service');
       }
@@ -826,12 +850,17 @@ class WAHAService extends EventEmitter {
       console.log(`[WAHA Service] ✅ Session '${sessionName}' stopped`);
       this.connectionStatus = 'disconnected';
       this.isReady = false;
+      // Invalidate cached QR on stop
+      this.lastQrDataUrl = null;
+      this.lastQrGeneratedAt = null;
     } catch (error: any) {
       // Don't throw error if session doesn't exist (404)
       if (error?.response?.status === 404) {
         console.log(`[WAHA Service] Session '${sessionName}' was already deleted`);
         this.connectionStatus = 'disconnected';
         this.isReady = false;
+        this.lastQrDataUrl = null;
+        this.lastQrGeneratedAt = null;
         return;
       }
       console.error(`[WAHA Service] ❌ Failed to stop session '${sessionName}':`, error);
@@ -860,6 +889,9 @@ class WAHAService extends EventEmitter {
       // Start new session
       const newSession = await this.startSession(sessionName);
       console.log(`[WAHA Service] ✅ Session '${sessionName}' restarted with status: ${newSession.status}`);
+      // Invalidate cached QR on restart
+      this.lastQrDataUrl = null;
+      this.lastQrGeneratedAt = null;
       
       return newSession;
     } catch (error) {
