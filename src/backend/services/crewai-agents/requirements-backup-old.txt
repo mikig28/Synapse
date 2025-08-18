@@ -1,0 +1,50 @@
+# Dependencies for enhanced multi-agent CrewAI service - Updated for real scraping
+# Fixed OpenAI SDK version compatibility for CrewAI/LiteLLM
+
+# Core Flask and API dependencies
+flask>=2.0.0
+flask-cors>=3.0.0
+python-dotenv>=0.19.0
+
+# Web scraping and HTTP requests
+requests>=2.25.0
+urllib3>=1.26.0
+
+# HTML parsing and content extraction - REQUIRED for social media scrapers
+beautifulsoup4>=4.10.0
+lxml[html_clean]>=4.9.0
+feedparser>=6.0.0
+
+# Social media scraping dependencies - REQUIRED for full functionality
+praw>=7.0.0  # Reddit API wrapper
+python-telegram-bot>=20.0  # Telegram Bot API
+
+# News extraction and parsing
+newspaper3k>=0.2.8
+
+# CrewAI and AI dependencies - FIXED COMPATIBILITY VERSIONS
+# Pin to versions that are known to work together (tested December 2023)
+openai>=1.0.0,<1.12.0
+# Use stable CrewAI version without latest breaking changes  
+crewai[tools]>=0.55.0,<0.70.0
+anthropic>=0.7.0
+# Pin LiteLLM to stable version that works with these OpenAI versions
+litellm>=1.0.0,<1.30.0
+
+# Advanced scraping tools (optional but recommended)
+firecrawl-py>=0.0.8
+selenium>=4.0.0
+
+# Utility dependencies
+python-dateutil>=2.8.0
+pytz>=2021.3
+
+# Note: For minimal functionality without social media scrapers, only these are required:
+# - flask, flask-cors, python-dotenv
+# - requests, urllib3
+# - crewai, openai/anthropic
+# However, social media scrapers will show warnings without beautifulsoup4, praw, and python-telegram-bot
+
+# COMPATIBILITY NOTE: 
+# The OpenAI SDK version is pinned to <1.4.0 because newer versions renamed
+# ResponseTextConfig to ResponseFormatTextConfig, breaking CrewAI/LiteLLM compatibility
