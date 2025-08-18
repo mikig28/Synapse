@@ -363,6 +363,7 @@ const ContentModal: React.FC<{
               <div className="flex justify-center py-2">
                 <div className="w-12 h-1 bg-gray-300 dark:bg-gray-700 rounded-full" />
               </div>
+            </div>
 
             {/* Header */}
             <div className="px-4 pb-4 border-b border-gray-100 dark:border-gray-800">
