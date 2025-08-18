@@ -639,31 +639,68 @@ class WAHAService extends EventEmitter {
         return [];
       }
       
-      // Prefer overview endpoint first for richer data (per WAHA docs)
-      let response: any;
-      try {
-        response = await this.httpClient.get(`/api/${sessionName}/chats/overview`, {
-          timeout: 15000
-        });
-        console.log(`[WAHA Service] Using chats overview endpoint`);
-      } catch (e) {
-        console.log(`[WAHA Service] Chats overview not available, falling back to /chats`);
-        response = await this.httpClient.get(`/api/${sessionName}/chats`, {
-          timeout: 15000
-        });
+      const normalizeChats = (raw: any): any[] => {
+        if (Array.isArray(raw)) return raw;
+        if (Array.isArray(raw?.chats)) return raw.chats;
+        if (Array.isArray(raw?.data)) return raw.data;
+        return [];
+      };
+
+      const mapChats = (items: any[]): WAHAChat[] => {
+        return (items || []).map((chat: any) => ({
+          id: chat.id,
+          name: chat.name || chat.subject || chat.title || chat.id,
+          // Robust group detection: WAHA may omit isGroup. Treat *@g.us as group.
+          isGroup: Boolean(chat.isGroup) || (typeof chat.id === 'string' && chat.id.includes('@g.us')),
+          lastMessage: chat.lastMessage?.body,
+          timestamp: chat.lastMessage?.timestamp,
+          participantCount: chat.participantCount
+        }));
+      };
+
+      const tryOverview = async (): Promise<WAHAChat[] | null> => {
+        try {
+          const res = await this.httpClient.get(`/api/${sessionName}/chats/overview`, { timeout: 15000 });
+          const items = normalizeChats(res.data);
+          console.log(`[WAHA Service] Using chats overview endpoint; got ${items.length} items`);
+          return mapChats(items);
+        } catch (e: any) {
+          console.log(`[WAHA Service] Chats overview failed: ${e?.message || e}`);
+          return null;
+        }
+      };
+
+      const tryChats = async (timeoutMs: number): Promise<WAHAChat[] | null> => {
+        try {
+          const res = await this.httpClient.get(`/api/${sessionName}/chats`, { timeout: timeoutMs });
+          const items = normalizeChats(res.data);
+          console.log(`[WAHA Service] Using /chats endpoint; got ${items.length} items`);
+          return mapChats(items);
+        } catch (e: any) {
+          console.log(`[WAHA Service] /chats failed (${timeoutMs} ms): ${e?.message || e}`);
+          return null;
+        }
+      };
+
+      // Attempt sequence: overview → chats(15s) → refresh → chats(10s)
+      let chats: WAHAChat[] | null = await tryOverview();
+      if (!chats || chats.length === 0) {
+        chats = await tryChats(15000);
       }
-      
-      console.log(`[WAHA Service] Received ${response.data.length} chats`);
-      
-      return response.data.map((chat: any) => ({
-        id: chat.id,
-        name: chat.name || chat.subject || chat.title || chat.id,
-        // Robust group detection: WAHA may omit isGroup. Treat *@g.us as group.
-        isGroup: Boolean(chat.isGroup) || (typeof chat.id === 'string' && chat.id.includes('@g.us')),
-        lastMessage: chat.lastMessage?.body,
-        timestamp: chat.lastMessage?.timestamp,
-        participantCount: chat.participantCount
-      }));
+      if (!chats || chats.length === 0) {
+        try {
+          await this.httpClient.post(`/api/${sessionName}/chats/refresh`, {}, { timeout: 5000 });
+          console.log('[WAHA Service] Requested chats refresh');
+        } catch {}
+        chats = await tryChats(10000);
+      }
+
+      if (!chats) {
+        console.warn('[WAHA Service] Returning empty chats due to upstream failures');
+        return [];
+      }
+
+      return chats;
     } catch (error: any) {
       console.error(`[WAHA Service] ❌ Failed to get chats for '${sessionName}':`, error.response?.status, error.response?.data);
       
