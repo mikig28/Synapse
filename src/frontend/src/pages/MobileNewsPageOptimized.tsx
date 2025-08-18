@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence, PanInfo, useMotionValue, useTransform } from 'framer-motion';
 import { useToast } from '@/hooks/use-toast';
+import { useTheme } from '@/components/theme-provider';
 import { newsService } from '../services/newsService';
 import { NewsItem, NewsStatistics } from '../types/news';
 import '../styles/mobile-news-optimized.css';
@@ -271,33 +272,36 @@ const MobileNewsCard: React.FC<{
   );
 };
 
-// Bottom sheet component for content viewing
-const BottomSheet: React.FC<{
+// Modal component for content viewing (centered instead of bottom sheet)
+const ContentModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
   content: NewsItem | null;
 }> = ({ isOpen, onClose, content }) => {
-  const sheetRef = useRef<HTMLDivElement>(null);
-  const [dragY, setDragY] = useState(0);
-  const startY = useRef(0);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const [touchStartY, setTouchStartY] = useState(0);
+  const [touchCurrentY, setTouchCurrentY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    startY.current = e.touches[0].clientY;
+    setTouchStartY(e.touches[0].clientY);
+    setIsDragging(true);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    const currentY = e.touches[0].clientY;
-    const diff = currentY - startY.current;
-    if (diff > 0) {
-      setDragY(diff);
-    }
+    if (!isDragging) return;
+    setTouchCurrentY(e.touches[0].clientY);
   };
 
   const handleTouchEnd = () => {
-    if (dragY > 100) {
+    const dragDistance = touchCurrentY - touchStartY;
+    // Close modal if dragged down more than 100px
+    if (dragDistance > 100) {
       onClose();
     }
-    setDragY(0);
+    setIsDragging(false);
+    setTouchStartY(0);
+    setTouchCurrentY(0);
   };
 
   const formatTimeAgo = (dateString: string) => {
@@ -314,6 +318,11 @@ const BottomSheet: React.FC<{
     return `${diffDays} days ago`;
   };
 
+  // Calculate drag transform for visual feedback
+  const dragTransform = isDragging && touchCurrentY > touchStartY 
+    ? Math.min((touchCurrentY - touchStartY) * 0.5, 100) 
+    : 0;
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -324,25 +333,36 @@ const BottomSheet: React.FC<{
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/50 z-40"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
           />
           
-          {/* Sheet */}
+          {/* Centered Modal */}
           <motion.div
-            ref={sheetRef}
-            initial={{ y: '100%' }}
-            animate={{ y: dragY }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+            ref={modalRef}
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ 
+              opacity: 1, 
+              scale: 1, 
+              y: dragTransform 
+            }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 rounded-t-3xl z-50 max-h-[90vh] overflow-hidden"
+            className="fixed inset-x-4 top-[10vh] bg-white dark:bg-gray-900 rounded-2xl z-50 max-h-[80vh] overflow-hidden shadow-2xl"
+            style={{
+              maxWidth: '500px',
+              margin: '0 auto',
+              left: '1rem',
+              right: '1rem'
+            }}
           >
-            {/* Drag Handle */}
-            <div className="flex justify-center py-3 cursor-grab active:cursor-grabbing">
-              <div className="w-12 h-1.5 bg-gray-300 dark:bg-gray-700 rounded-full" />
-            </div>
+            {/* Top Bar with Close Button */}
+            <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 z-10">
+              <div className="flex justify-center py-2">
+                <div className="w-12 h-1 bg-gray-300 dark:bg-gray-700 rounded-full" />
+              </div>
 
             {/* Header */}
             <div className="px-4 pb-4 border-b border-gray-100 dark:border-gray-800">
@@ -366,7 +386,7 @@ const BottomSheet: React.FC<{
             </div>
 
             {/* Content */}
-            <div className="overflow-y-auto px-4 py-4" style={{ maxHeight: 'calc(90vh - 120px)' }}>
+            <div className="overflow-y-auto px-4 py-4" style={{ maxHeight: 'calc(80vh - 120px)' }}>
               {content?.content ? (
                 <div className="prose prose-sm max-w-none dark:prose-invert">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -416,9 +436,9 @@ const MobileNewsPageOptimized: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedContent, setSelectedContent] = useState<NewsItem | null>(null);
-  const [bottomSheetOpen, setBottomSheetOpen] = useState(false);
+  const [contentModalOpen, setContentModalOpen] = useState(false);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const { theme, setTheme } = useTheme();
   const [viewMode, setViewMode] = useState<'cards' | 'compact'>('cards');
   const [currentFilter, setCurrentFilter] = useState<'all' | 'favorites' | 'unread'>('all');
   const { toast } = useToast();
@@ -431,21 +451,7 @@ const MobileNewsPageOptimized: React.FC = () => {
   useEffect(() => {
     fetchData();
     fetchStatistics();
-    
-    // Check system dark mode preference
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setDarkMode(true);
-      document.documentElement.classList.add('dark');
-    }
   }, []);
-
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [darkMode]);
 
   const fetchData = async () => {
     try {
@@ -500,7 +506,7 @@ const MobileNewsPageOptimized: React.FC = () => {
     
     if (isInternal) {
       setSelectedContent(item);
-      setBottomSheetOpen(true);
+      setContentModalOpen(true);
     } else {
       window.open(item.url, '_blank', 'noopener,noreferrer');
     }
@@ -630,10 +636,10 @@ const MobileNewsPageOptimized: React.FC = () => {
               
               <motion.button
                 whileTap={{ scale: 0.9 }}
-                onClick={() => setDarkMode(!darkMode)}
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                 className="p-2.5 bg-gray-100 dark:bg-gray-800 rounded-xl"
               >
-                {darkMode ? (
+                {theme === 'dark' ? (
                   <Sun className="w-5 h-5 text-yellow-500" />
                 ) : (
                   <Moon className="w-5 h-5" />
@@ -868,16 +874,16 @@ const MobileNewsPageOptimized: React.FC = () => {
                   <div className="space-y-2">
                     <motion.button
                       whileTap={{ scale: 0.95 }}
-                      onClick={() => setDarkMode(!darkMode)}
+                      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                       className="w-full flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-800 rounded-xl"
                     >
                       <span className="font-medium">Dark Mode</span>
                       <div className={`w-12 h-7 rounded-full p-1 transition-colors ${
-                        darkMode ? 'bg-blue-500' : 'bg-gray-300'
+                        theme === 'dark' ? 'bg-blue-500' : 'bg-gray-300'
                       }`}>
                         <motion.div
                           className="w-5 h-5 bg-white rounded-full"
-                          animate={{ x: darkMode ? 18 : 0 }}
+                          animate={{ x: theme === 'dark' ? 18 : 0 }}
                         />
                       </div>
                     </motion.button>
@@ -890,9 +896,9 @@ const MobileNewsPageOptimized: React.FC = () => {
       </AnimatePresence>
 
       {/* Bottom Sheet for Content */}
-      <BottomSheet
-        isOpen={bottomSheetOpen}
-        onClose={() => setBottomSheetOpen(false)}
+      <ContentModal
+        isOpen={contentModalOpen}
+        onClose={() => setContentModalOpen(false)}
         content={selectedContent}
       />
     </div>
