@@ -643,13 +643,13 @@ class WAHAService extends EventEmitter {
       let response: any;
       try {
         response = await this.httpClient.get(`/api/${sessionName}/chats/overview`, {
-          timeout: 90000
+          timeout: 15000
         });
         console.log(`[WAHA Service] Using chats overview endpoint`);
       } catch (e) {
         console.log(`[WAHA Service] Chats overview not available, falling back to /chats`);
         response = await this.httpClient.get(`/api/${sessionName}/chats`, {
-          timeout: 90000
+          timeout: 15000
         });
       }
       
@@ -745,7 +745,7 @@ class WAHAService extends EventEmitter {
       // WAHA API endpoint structure: /api/{session}/chats/{chatId}/messages
       const response = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(chatId)}/messages`, {
         params: { limit },
-        timeout: 90000
+        timeout: 20000
       });
       
       console.log(`[WAHA Service] Received ${response.data.length} messages`);

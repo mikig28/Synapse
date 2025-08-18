@@ -67,17 +67,10 @@ export const getStatus = async (req: Request, res: Response) => {
       qrAvailable
     });
     
-    // Compute counts from chats to keep the header accurate
-    let groupsCount = 0;
-    let privateChatsCount = 0;
-    let messagesCount = 0;
-    try {
-      const chats = await wahaService.getChats();
-      groupsCount = chats.filter(c => c.isGroup || (typeof c.id === 'string' && c.id.includes('@g.us'))).length;
-      privateChatsCount = Math.max(0, (chats?.length || 0) - groupsCount);
-      // Heuristic: count chats that have a last message present
-      messagesCount = chats.reduce((acc, c) => acc + (c.lastMessage ? 1 : 0), 0);
-    } catch {}
+    // Avoid fetching chats here to keep status fast and prevent 50x under latency
+    const groupsCount = undefined as unknown as number;
+    const privateChatsCount = undefined as unknown as number;
+    const messagesCount = undefined as unknown as number;
 
     // Convert WAHA status to format expected by frontend
     const status = {
