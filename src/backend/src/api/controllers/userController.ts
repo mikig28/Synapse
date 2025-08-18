@@ -5,7 +5,7 @@ import { AuthenticatedRequest } from '../../types/express';
 // @desc    Add a Telegram chat ID to the user's monitored list
 // @route   POST /api/v1/users/me/telegram-chats
 // @access  Private
-export const addMonitoredTelegramChat = async (req: AuthenticatedRequest, res: Response) => {
+export const addMonitoredTelegramChat = async (req: AuthenticatedRequest, res: express.Response) => {
   const { chatId } = req.body;
   const userId = req.user?.id; // From authMiddleware
   console.log(`[addMonitoredTelegramChat] Attempting to find user with ID: ${userId}`); // <-- ADD THIS LOG
@@ -54,7 +54,7 @@ export const addMonitoredTelegramChat = async (req: AuthenticatedRequest, res: R
 // @desc    Update user's Telegram report settings
 // @route   PUT /api/v1/users/me/telegram-report-settings
 // @access  Private
-export const updateTelegramReportSettings = async (req: AuthenticatedRequest, res: Response) => {
+export const updateTelegramReportSettings = async (req: AuthenticatedRequest, res: express.Response) => {
   const { sendAgentReportsToTelegram } = req.body;
   const userId = req.user?.id;
 

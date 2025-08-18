@@ -1,10 +1,10 @@
-import { Request, Response } from 'express';
+import * as express from 'express';
 import Task, { ITask } from '../../models/Task';
 import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../../types/express';
 import { sendTaskReminderToUser } from '../../services/taskReminderService';
 
-export const getTasks = async (req: AuthenticatedRequest, res: Response) => {
+export const getTasks = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -20,7 +20,7 @@ export const getTasks = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-export const createTask = async (req: AuthenticatedRequest, res: Response) => {
+export const createTask = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -47,7 +47,7 @@ export const createTask = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-export const updateTask = async (req: AuthenticatedRequest, res: Response) => {
+export const updateTask = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const taskId = req.params.id;
     const userId = req.user?.id;
@@ -81,7 +81,7 @@ export const updateTask = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-export const deleteTask = async (req: AuthenticatedRequest, res: Response) => {
+export const deleteTask = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const taskId = req.params.id;
     const userId = req.user?.id;
@@ -102,7 +102,7 @@ export const deleteTask = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-export const sendTaskReminder = async (req: AuthenticatedRequest, res: Response) => {
+export const sendTaskReminder = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -117,7 +117,7 @@ export const sendTaskReminder = async (req: AuthenticatedRequest, res: Response)
   }
 };
 
-export const geotagTask = async (req: AuthenticatedRequest, res: Response) => {
+export const geotagTask = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const { id } = req.params;
     const { location } = req.body;
@@ -156,7 +156,7 @@ export const geotagTask = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-export const getNearbyTasks = async (req: AuthenticatedRequest, res: Response) => {
+export const getNearbyTasks = async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const { lat, lng, radius = 1000 } = req.query;
     const userId = req.user?.id;
