@@ -551,7 +551,7 @@ const NewsPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 relative overflow-hidden">
+    <div className="bg-gradient-to-br from-background via-background to-muted/20 relative">
       <div className="relative z-10 container mx-auto p-4 md:p-8 space-y-6">
         {/* Header */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
@@ -1296,21 +1296,23 @@ const NewsPage: React.FC = () => {
                       variant="outline"
                       size="sm"
                       onClick={async () => {
+                        if (!selectedContent) return;
                         await handleToggleFavorite(selectedContent);
                         // Update the modal content to reflect changes
                         const updated = newsItems.find(item => item._id === selectedContent._id);
                         if (updated) setSelectedContent(updated);
                       }}
-                      className={selectedContent.isFavorite ? 'text-red-500' : ''}
+                      className={selectedContent?.isFavorite ? 'text-red-500' : ''}
                     >
-                      <Heart className={`w-4 h-4 mr-2 ${selectedContent.isFavorite ? 'fill-current' : ''}`} />
-                      {selectedContent.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                      <Heart className={`w-4 h-4 mr-2 ${selectedContent?.isFavorite ? 'fill-current' : ''}`} />
+                      {selectedContent?.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                     </Button>
                     
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={async () => {
+                        if (!selectedContent) return;
                         await handleArchive(selectedContent);
                         // Update the modal content to reflect changes
                         const updated = newsItems.find(item => item._id === selectedContent._id);
@@ -1318,7 +1320,7 @@ const NewsPage: React.FC = () => {
                       }}
                     >
                       <Archive className="w-4 h-4 mr-2" />
-                      {selectedContent.status === 'archived' ? 'Unarchive' : 'Archive'}
+                      {selectedContent?.status === 'archived' ? 'Unarchive' : 'Archive'}
                     </Button>
                   </div>
                 </div>
