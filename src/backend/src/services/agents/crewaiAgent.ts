@@ -932,6 +932,40 @@ Using fallback test crew to demonstrate dashboard functionality.`);
                       (data.organized_content?.linkedin_posts?.length || 0) +
                       (data.organized_content?.telegram_messages?.length || 0);
     
+    // Consolidate source URLs from organized_content for citations
+    const oc = data.organized_content || {};
+    const consolidatedItems: Array<{ item: any; type: string }> = [];
+    if (Array.isArray(oc.news_articles)) {
+      oc.news_articles.forEach((it: any) => consolidatedItems.push({ item: it, type: 'news_website' }));
+    }
+    if (Array.isArray(oc.reddit_posts)) {
+      oc.reddit_posts.forEach((it: any) => consolidatedItems.push({ item: it, type: 'reddit' }));
+    }
+    if (Array.isArray(oc.linkedin_posts)) {
+      oc.linkedin_posts.forEach((it: any) => consolidatedItems.push({ item: it, type: 'linkedin' }));
+    }
+    if (Array.isArray(oc.telegram_messages)) {
+      oc.telegram_messages.forEach((it: any) => consolidatedItems.push({ item: it, type: 'telegram' }));
+    }
+
+    const allSourceUrlsRaw = consolidatedItems
+      .map(({ item, type }) => this.getValidUrl(item, type))
+      .filter((u: string) => !!u && typeof u === 'string' && !u.startsWith('#')) as string[];
+    const uniqueSourceUrls = Array.from(new Set(allSourceUrlsRaw)).slice(0, 100);
+
+    const sourceLinksMd = [
+      '## Source Links',
+      ...(
+        uniqueSourceUrls.length
+          ? uniqueSourceUrls.map((u: string) => {
+              let host = 'Source';
+              try { host = new URL(u).hostname; } catch {}
+              return `- [${host}](${u})`;
+            })
+          : ['- No external sources were identified from this run']
+      )
+    ];
+
     const analysisContent = [
       '# CrewAI Multi-Agent News Analysis Report',
       '',
@@ -956,6 +990,8 @@ Using fallback test crew to demonstrate dashboard functionality.`);
       ),
       '',
       '---',
+      ...sourceLinksMd,
+      '',
       '## News Articles 📰',
       ...this.buildEnhancedSourceSection('News Articles', data.organized_content?.news_articles),
       '',
@@ -969,6 +1005,7 @@ Using fallback test crew to demonstrate dashboard functionality.`);
       ...this.buildEnhancedSourceSection('Telegram Messages', data.organized_content?.telegram_messages),
       '',
       '---',
+      '',
       '## AI Insights',
       this.formatAIInsights(data.ai_insights),
       '',
@@ -1001,7 +1038,12 @@ Using fallback test crew to demonstrate dashboard functionality.`);
       publishedAt: new Date(),
       tags: ['analysis', 'crewai', 'multi-agent', 'trends'],
       category: 'analysis',
-      status: 'summarized'
+      status: 'summarized',
+      metadata: {
+        ...dataTypeInfo,
+        sourceUrls: uniqueSourceUrls,
+        urlCount: uniqueSourceUrls.length
+      }
     });
 
     try {
@@ -1056,7 +1098,12 @@ Using fallback test crew to demonstrate dashboard functionality.`);
       const engagement = item.engagement || item.score || item.likes || '';
       const author = item.author || item.subreddit || item.channel || '';
       
-      let itemLine = `- ${simulationPrefix}**${displayTitle}**`;
+      const isAnchor = typeof url === 'string' && url.startsWith('#');
+      let host = '';
+      try { if (url && !isAnchor) host = new URL(url).hostname; } catch {}
+      const titleMarkdown = url && !isAnchor ? `[${displayTitle}](${url})` : `**${displayTitle}**`;
+      let itemLine = `- ${simulationPrefix}${titleMarkdown}`;
+      if (host) itemLine += ` (${host})`;
       if (author) itemLine += ` _(${author})_`;
       if (engagement) itemLine += ` \`${engagement}\``;
       
