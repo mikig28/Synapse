@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef, memo } from 'react';
+import React, { useEffect, useState, useCallback, useRef, memo, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,8 @@ import {
   Grid3X3,
   Box,
 } from 'lucide-react';
+import { AgentCreationWizard } from '@/components/wizard/AgentCreationWizard';
+import MobileWizard from '@/components/mobile/MobileWizard';
 
 // Simple agent card component for mobile
 const MobileAgentCard = ({ agent, onExecute, onToggle, onDelete, onReset, isExecuting, formatTimeAgo }) => {
@@ -278,6 +280,16 @@ const AgentsPageMobileFix: React.FC = memo(() => {
     return `${diffDays}d ago`;
   };
 
+  // Handle wizard success
+  const handleWizardSuccess = useCallback((agent: Agent) => {
+    setShowCreateWizard(false);
+    fetchAgents();
+    toast({
+      title: 'Success',
+      description: `Agent "${agent.name}" created successfully!`,
+    });
+  }, [fetchAgents, toast]);
+
   // Simple loading state
   if (loading) {
     return (
@@ -313,6 +325,21 @@ const AgentsPageMobileFix: React.FC = memo(() => {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Agent Creation Wizard */}
+      {isMobile ? (
+        <MobileWizard
+          isOpen={showCreateWizard}
+          onClose={() => setShowCreateWizard(false)}
+          onSuccess={handleWizardSuccess}
+        />
+      ) : (
+        <AgentCreationWizard
+          open={showCreateWizard}
+          onOpenChange={setShowCreateWizard}
+          onSuccess={handleWizardSuccess}
+        />
+      )}
+
       <div className="container mx-auto p-4 space-y-6">
         {/* Header */}
         <div className="space-y-4">
@@ -327,13 +354,7 @@ const AgentsPageMobileFix: React.FC = memo(() => {
               </div>
             </div>
             <Button
-              onClick={() => {
-                // For now, just show a toast since wizard might have issues
-                toast({
-                  title: 'Coming soon',
-                  description: 'Agent creation will be available shortly',
-                });
-              }}
+              onClick={() => setShowCreateWizard(true)}
             >
               <Plus className="w-4 h-4 mr-2" />
               Create
@@ -381,12 +402,7 @@ const AgentsPageMobileFix: React.FC = memo(() => {
                 Create your first AI agent to get started
               </p>
               <Button 
-                onClick={() => {
-                  toast({
-                    title: 'Coming soon',
-                    description: 'Agent creation will be available shortly',
-                  });
-                }}
+                onClick={() => setShowCreateWizard(true)}
                 className="mx-auto"
               >
                 <Plus className="w-4 h-4 mr-2" />
