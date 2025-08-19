@@ -33,6 +33,7 @@ import {
 import {
   LazyMetricsDashboard,
   LazyAgentCreationWizard,
+  LazyMobileResponsiveAgentWizard,
   LazyAguiLiveDashboard,
   LazyAgentActivityDashboard,
   LazyAgentStepTimeline,
@@ -1108,11 +1109,19 @@ const AgentsPage: React.FC = memo(() => {
             height: 500 
           }}
         >
-          <LazyAgentCreationWizard 
+          {isMobile ? (
+            <LazyMobileResponsiveAgentWizard 
+              open={showCreateWizard}
+              onOpenChange={setShowCreateWizard}
+              onSuccess={handleAgentCreated}
+            />
+          ) : (
+            <LazyAgentCreationWizard 
             open={showCreateWizard}
             onOpenChange={setShowCreateWizard}
             onSuccess={handleAgentCreated}
           />
+          )}
         </LazyWrapper>
 
         {/* Offline/Online Status Indicator */}

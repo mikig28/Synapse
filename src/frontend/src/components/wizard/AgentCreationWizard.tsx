@@ -343,7 +343,7 @@ export const AgentCreationWizard: React.FC<AgentCreationWizardProps> = ({
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent 
-        className="max-w-4xl h-[90vh] max-h-[90vh] overflow-hidden border-0 flex flex-col p-0"
+        className="w-full sm:max-w-4xl h-full sm:h-[90vh] max-h-screen sm:max-h-[90vh] overflow-hidden border-0 flex flex-col p-0 rounded-none sm:rounded-2xl"
         style={{
           backgroundColor: 'rgba(255, 255, 255, 0.98)',
           backdropFilter: 'blur(20px)',
