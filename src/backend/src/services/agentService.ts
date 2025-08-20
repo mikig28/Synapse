@@ -84,10 +84,6 @@ export class AgentService {
     return false;
   }
 
-  getAvailableExecutors(): string[] {
-    return Array.from(this.executors.keys());
-  }
-
   async getAgentsByUser(userId: mongoose.Types.ObjectId): Promise<IAgent[]> {
     return Agent.find({ userId }).sort({ createdAt: -1 });
   }
