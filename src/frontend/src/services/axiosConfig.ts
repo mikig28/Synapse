@@ -55,7 +55,7 @@ if (typeof window !== 'undefined') {
 
 const axiosInstance = axios.create({
   baseURL: `${BACKEND_ROOT_URL}${API_PATH}`, // e.g., http://localhost:3001/api/v1 or https://your-backend.onrender.com/api/v1
-  timeout: 30000, // 30 second timeout
+  timeout: 60000, // 60 second timeout (increased from 30s)
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
