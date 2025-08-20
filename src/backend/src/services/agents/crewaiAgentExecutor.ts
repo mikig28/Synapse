@@ -194,6 +194,15 @@ export class CrewAIAgentExecutor implements AgentExecutor {
       topics,
       sources,
       agent_id: agent._id.toString(), // Critical for session tracking
+      // Pass agent identity and goals for context-aware generation
+      agent_context: {
+        name: agent.name,
+        description: agent.description || '',
+        goal: config.goal || agent.description || `Research and analyze ${topics.join(', ')}`,
+        type: agent.type,
+        focus_areas: config.focusAreas || topics,
+        custom_instructions: config.customInstructions || ''
+      },
       max_articles: config.maxItemsPerRun || 50,
       quality_threshold: 0.7,
       include_trends: true,

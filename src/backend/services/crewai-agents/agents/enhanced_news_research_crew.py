@@ -878,11 +878,13 @@ class EnhancedNewsResearchCrew:
             update_progress(1, 'in_progress', f"Scraping recent news from {len([k for k, v in sources.items() if v])} sources")
             
             scraping_task = Task(
-                description=f"Use your web search and scraping tools to find high-quality, RECENT news articles for topics: {', '.join(topics)}. "
+                description=f"You are working for {agent_name} with the goal: {agent_goal}. "
+                           f"Use your web search and scraping tools to find high-quality, RECENT news articles specifically related to: {', '.join(topics)}. "
                            f"Current date: {current_date}. Focus on articles published within the last 24-48 hours. "
-                           f"Prioritize current events and breaking news. Filter out outdated content (older than 3 days). "
+                           f"Prioritize current events and breaking news relevant to {agent_goal}. Filter out outdated content (older than 3 days). "
                            f"Search sources: {', '.join([k for k, v in sources.items() if v])}. "
                            f"Use your URL validation tools to ensure all links are accessible. "
+                           f"{custom_instructions} " if custom_instructions else "" +
                            f"Provide detailed progress updates as you work through each source.",
                 agent=self.agents['news_researcher'],
                 expected_output="A JSON list of validated and cleaned RECENT news articles with the following structure: [{{'title': 'Article Title', 'url': 'https://...', 'content': 'Article content...', 'published_date': 'ISO date', 'source': 'Source name', 'quality_score': 0.8}}]",
@@ -905,10 +907,12 @@ class EnhancedNewsResearchCrew:
 
             # Task 3: Identify CURRENT trends from recent news
             trending_task = Task(
-                description=f"Using your trend analysis and search tools, analyze the curated articles to identify CURRENT emerging trends, breaking news, and developing patterns. "
-                           f"Today is {current_date}. Focus on trends happening NOW and in the last 24-48 hours. "
+                description=f"For {agent_name} with goal '{agent_goal}': "
+                           f"Using your trend analysis and search tools, analyze the curated articles to identify CURRENT emerging trends, breaking news, and developing patterns specifically related to {agent_goal}. "
+                           f"Today is {current_date}. Focus on trends happening NOW and in the last 24-48 hours that are relevant to {', '.join(topics)}. "
                            f"Use your search capabilities to cross-reference trending topics across multiple sources. "
-                           f"Summarize the most important current trends and breaking developments. "
+                           f"Summarize the most important current trends and breaking developments that align with {agent_name}'s focus area. "
+                           f"{custom_instructions} " if custom_instructions else "" +
                            f"Provide progress updates as you analyze trending patterns and generate insights.",
                 agent=self.agents['trend_analyst'],
                 context=[analysis_task],
@@ -1015,8 +1019,8 @@ class EnhancedNewsResearchCrew:
                 "failed_at": datetime.now().isoformat()
             }
     
-    def research_news_with_social_media(self, topics: List[str], sources: Dict[str, bool] = None, progress_callback=None) -> Dict[str, Any]:
-        """Enhanced research combining news analysis with real social media scraping"""
+    def research_news_with_social_media(self, topics: List[str], sources: Dict[str, bool] = None, agent_context: Dict[str, Any] = None, user_input: Dict[str, Any] = None, progress_callback=None) -> Dict[str, Any]:
+        """Enhanced research combining news analysis with real social media scraping with agent context awareness"""
         
         if not sources:
             sources = {
@@ -1025,6 +1029,21 @@ class EnhancedNewsResearchCrew:
                 'telegram': True,
                 'news_websites': True
             }
+        
+        # Extract agent context for personalized task generation
+        agent_name = 'News Agent'
+        agent_goal = f'Research and analyze {topics}'
+        custom_instructions = ''
+        
+        if agent_context:
+            agent_name = agent_context.get('name', 'News Agent')
+            agent_goal = agent_context.get('goal', f'Research and analyze {topics}')
+            custom_instructions = agent_context.get('custom_instructions', '')
+            
+            logger.info(f"🎯 Agent Context Applied:")
+            logger.info(f"   Name: {agent_name}")
+            logger.info(f"   Goal: {agent_goal}")
+            logger.info(f"   Custom Instructions: {custom_instructions[:100]}..." if custom_instructions else "   No custom instructions")
         
         # Initialize progress tracking with social media steps
         progress_steps = [
