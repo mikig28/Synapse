@@ -33,6 +33,33 @@ export const getHealthStatus = async (req: Request, res: Response): Promise<void
   }
 };
 
+// Health check for CrewAI service specifically
+export const getCrewAIServiceHealth = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const healthCheck = await agentService.checkCrewAIServiceHealth();
+    
+    res.status(healthCheck.isHealthy ? 200 : 503).json({
+      success: healthCheck.isHealthy,
+      service: 'CrewAI',
+      status: healthCheck.status,
+      message: healthCheck.message,
+      serviceUrl: healthCheck.serviceUrl,
+      responseTime: healthCheck.responseTime,
+      timestamp: new Date().toISOString(),
+      error: healthCheck.error
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      service: 'CrewAI',
+      status: 'error',
+      message: 'Failed to check CrewAI service health',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+};
+
 // Get all agents for the authenticated user
 export const getAgents = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
@@ -334,6 +361,18 @@ export const executeAgent = async (req: AuthenticatedRequest, res: Response): Pr
     } else if (error.message.includes('No executor registered')) {
       statusCode = 501;
       errorType = 'executor_not_available';
+    } else if (error.message.includes('Cannot execute CrewAI agent') || error.serviceHealthy === false) {
+      // CrewAI service health check failures
+      if (error.serviceStatus === 'unreachable') {
+        statusCode = 503;
+        errorType = 'crewai_service_unreachable';
+      } else if (error.serviceStatus === 'timeout') {
+        statusCode = 504;
+        errorType = 'crewai_service_timeout';
+      } else {
+        statusCode = 503;
+        errorType = 'crewai_service_unhealthy';
+      }
     } else if (error.message.includes('service is unavailable') || error.code === 'ECONNREFUSED') {
       statusCode = 503;
       errorType = 'service_unavailable';
@@ -351,6 +390,10 @@ export const executeAgent = async (req: AuthenticatedRequest, res: Response): Pr
       agentStatus: agent?.status,
       availableExecutors: agentService.getAvailableExecutors(),
       errorType,
+      serviceHealthy: error.serviceHealthy,
+      serviceStatus: error.serviceStatus,
+      serviceUrl: error.serviceUrl,
+      serviceError: error.serviceError,
       timestamp: new Date().toISOString()
     };
     

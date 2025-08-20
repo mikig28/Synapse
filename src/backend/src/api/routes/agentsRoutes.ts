@@ -24,6 +24,7 @@ import {
   resetAgentStatus,
   getCrewProgress,
   getHealthStatus,
+  getCrewAIServiceHealth,
 } from '../controllers/agentsController';
 import AgentRun from '../../models/AgentRun';
 
@@ -31,6 +32,9 @@ const router = express.Router();
 
 // Health check endpoint (no auth required)
 router.get('/health', getHealthStatus);
+
+// CrewAI service health check endpoint (no auth required)
+router.get('/health/crewai', getCrewAIServiceHealth);
 
 // Debug endpoint (no auth required for testing)
 router.get('/debug/environment', getEnvironmentDebug);
