@@ -122,29 +122,58 @@ export class AgentService {
     console.log(`[AgentService] Found agent: ${agent.name} (type: ${agent.type}, active: ${agent.isActive}, status: ${agent.status})`);
 
     if (!agent.isActive) {
-      console.error(`[AgentService] Agent is not active: ${agent.name}`);
-      const error = new Error(`Agent ${agent.name} is not active`) as any;
-      error.agentExists = true;
-      error.agentActive = false;
-      error.agentStatus = agent.status;
-      throw error;
+      console.warn(`[AgentService] Agent ${agent.name} is not active, checking if it should be auto-activated...`);
+      
+      // For scheduled agents or manual execution, we can auto-activate
+      if (agent.type === 'scheduled' || agent.type === 'crewai_news' || agent.type === 'twitter' || agent.type === 'news') {
+        console.log(`[AgentService] Auto-activating agent ${agent.name} for execution`);
+        agent.isActive = true;
+        await agent.save();
+      } else {
+        console.error(`[AgentService] Agent is not active and cannot be auto-activated: ${agent.name}`);
+        const error = new Error(`Agent ${agent.name} is not active. Please activate the agent before executing.`) as any;
+        error.agentExists = true;
+        error.agentActive = false;
+        error.agentStatus = agent.status;
+        throw error;
+      }
     }
 
-    // Check for stuck agents (running for more than 10 minutes)
-    const stuckThreshold = 10 * 60 * 1000; // 10 minutes
+    // Check for stuck agents (running for more than 5 minutes - reduced from 10)
+    const stuckThreshold = 5 * 60 * 1000; // 5 minutes
     const isStuck = agent.status === 'running' && 
                    agent.lastRun && 
                    (Date.now() - agent.lastRun.getTime()) > stuckThreshold;
 
     if (agent.status === 'running' && !isStuck) {
-      console.error(`[AgentService] Agent already running: ${agent.name}`);
-      const error = new Error(`Agent ${agent.name} is already running`) as any;
-      error.agentExists = true;
-      error.agentActive = agent.isActive;
-      error.agentStatus = agent.status;
-      throw error;
+      console.warn(`[AgentService] Agent ${agent.name} appears to be running, checking if truly active...`);
+      
+      // Double-check by looking for recent agent runs
+      const recentRun = await AgentRun.findOne({
+        agentId: agent._id,
+        status: 'running',
+        createdAt: { $gte: new Date(Date.now() - stuckThreshold) }
+      });
+      
+      if (recentRun) {
+        console.error(`[AgentService] Agent ${agent.name} is actively running (run ID: ${recentRun._id})`);
+        const error = new Error(`Agent ${agent.name} is already running`) as any;
+        error.agentExists = true;
+        error.agentActive = agent.isActive;
+        error.agentStatus = agent.status;
+        error.currentRunId = recentRun._id;
+        throw error;
+      } else {
+        console.warn(`[AgentService] No active run found for ${agent.name}, resetting stuck status`);
+        await this.resetAgentStatus(agentId);
+        // Refetch the agent after reset
+        const resetAgent = await Agent.findById(agentId);
+        if (resetAgent) {
+          Object.assign(agent, resetAgent);
+        }
+      }
     } else if (isStuck) {
-      console.warn(`[AgentService] Agent ${agent.name} appears stuck, resetting status before execution`);
+      console.warn(`[AgentService] Agent ${agent.name} appears stuck (last run: ${agent.lastRun}), resetting status before execution`);
       await this.resetAgentStatus(agentId);
       // Refetch the agent after reset
       const resetAgent = await Agent.findById(agentId);
@@ -665,6 +694,26 @@ ${detailedContent}
     const agent = await Agent.findById(agentId);
     if (!agent) {
       throw new Error(`Agent with ID ${agentId} not found`);
+    }
+
+    // Also mark any stuck running agent runs as failed
+    const stuckRuns = await AgentRun.updateMany(
+      { 
+        agentId: agent._id,
+        status: 'running',
+        createdAt: { $lt: new Date(Date.now() - 5 * 60 * 1000) } // Older than 5 minutes
+      },
+      {
+        $set: {
+          status: 'failed',
+          completedAt: new Date(),
+          errorMessage: 'Agent run was stuck and has been reset'
+        }
+      }
+    );
+    
+    if (stuckRuns.modifiedCount > 0) {
+      console.log(`[AgentService] Marked ${stuckRuns.modifiedCount} stuck run(s) as failed`);
     }
 
     // Reset agent to idle state and clear any error messages
