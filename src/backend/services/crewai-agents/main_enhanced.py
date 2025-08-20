@@ -641,19 +641,28 @@ except Exception as e:
 @app.route('/', methods=['GET'])
 def root():
     """Root endpoint for health checks and service info"""
-    return jsonify({
-        'service': 'Enhanced Synapse CrewAI Multi-Agent News Service',
-        'status': 'running',
-        'mode': news_gatherer.mode if news_gatherer else 'initialization_failed',
-        'version': '1.0.0',
-        'timestamp': datetime.now().isoformat(),
-        'endpoints': {
-            '/health': 'Detailed health check',
-            '/gather-news': 'POST - Gather news with topics',
-            '/system-info': 'System status and capabilities',
-            '/progress': 'Real-time progress tracking'
-        }
-    })
+    try:
+        return jsonify({
+            'service': 'Enhanced Synapse CrewAI Multi-Agent News Service',
+            'status': 'running',
+            'mode': news_gatherer.mode if news_gatherer else 'initialization_failed',
+            'version': '1.0.0',
+            'timestamp': datetime.now().isoformat(),
+            'endpoints': {
+                '/health': 'Detailed health check',
+                '/gather-news': 'POST - Gather news with topics',
+                '/system-info': 'System status and capabilities',
+                '/progress': 'Real-time progress tracking'
+            }
+        }), 200
+    except Exception as e:
+        logger.error(f"Error in root endpoint: {str(e)}")
+        return jsonify({
+            'service': 'Enhanced Synapse CrewAI Multi-Agent News Service',
+            'status': 'error',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
 
 @app.route('/health', methods=['GET'])
 def health_check():
