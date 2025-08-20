@@ -124,8 +124,8 @@ export class AgentService {
     if (!agent.isActive) {
       console.warn(`[AgentService] Agent ${agent.name} is not active, checking if it should be auto-activated...`);
       
-      // For scheduled agents or manual execution, we can auto-activate
-      if (agent.type === 'scheduled' || agent.type === 'crewai_news' || agent.type === 'twitter' || agent.type === 'news') {
+      // For known agent types, we can auto-activate for manual execution
+      if (agent.type === 'crewai_news' || agent.type === 'twitter' || agent.type === 'news' || agent.type === 'custom') {
         console.log(`[AgentService] Auto-activating agent ${agent.name} for execution`);
         agent.isActive = true;
         await agent.save();
