@@ -26,11 +26,14 @@ const universalSearch = async (req, res) => {
         if (!userId) {
             return res.status(401).json({ success: false, error: 'Unauthorized' });
         }
-        const { query, strategy = 'hybrid', limit = 50, offset = 0, contentTypes = ['all'], } = req.body;
+        const { query, strategy = 'hybrid', limit = 50, offset = 0, contentTypes = ['all'], minScore, } = req.body;
         if (!query || query.trim().length === 0) {
             return res.status(400).json({ success: false, error: 'Query is required' });
         }
         console.log(`[UniversalSearch] Searching for: "${query}" with strategy: ${strategy} for user: ${userId}`);
+        const defaultMinScore = typeof minScore === 'number'
+            ? Number(minScore)
+            : (strategy === 'semantic' ? 0.55 : strategy === 'hybrid' ? 0.5 : 0.35);
         const searchOptions = {
             topK: limit + offset, // Fetch enough results for pagination
             userId,
@@ -40,6 +43,7 @@ const universalSearch = async (req, res) => {
             searchOptions.filter.documentType = { $in: contentTypes };
         }
         let searchResults = [];
+        let effectiveStrategy = strategy;
         switch (strategy) {
             case 'semantic':
                 console.log('[UniversalSearch] Using semantic search strategy');
@@ -56,6 +60,17 @@ const universalSearch = async (req, res) => {
                 searchResults = await vectorDatabaseService_1.vectorDatabaseService.hybridSearch(query, searchOptions);
                 break;
         }
+        const relevantVectorResults = (searchResults || []).filter(r => (r.score ?? 0) >= defaultMinScore);
+        if (relevantVectorResults.length === 0) {
+            const fallback = await keywordFallbackSearch({ userId, query, limit: limit + offset, contentTypes });
+            searchResults = fallback;
+            if (strategy !== 'keyword') {
+                effectiveStrategy = 'keyword_fallback';
+            }
+        }
+        else {
+            searchResults = relevantVectorResults;
+        }
         const resultsByType = {};
         const processedResults = searchResults.map(result => {
             const type = result.metadata.documentType || 'unknown';
@@ -65,9 +80,9 @@ const universalSearch = async (req, res) => {
                 type: type,
                 title: result.metadata.title || 'Untitled',
                 content: result.content,
-                excerpt: result.content.substring(0, 200) + '...',
+                excerpt: (result.content || '').substring(0, 200) + ((result.content || '').length > 200 ? '...' : ''),
                 score: result.score,
-                createdAt: new Date(result.metadata.createdAt),
+                createdAt: new Date(result.metadata.createdAt || Date.now()),
                 metadata: result.metadata,
             };
         });
@@ -79,7 +94,7 @@ const universalSearch = async (req, res) => {
             results: paginatedResults,
             resultsByType,
             searchTime,
-            strategy
+            strategy: effectiveStrategy
         };
         console.log(`[UniversalSearch] Found ${processedResults.length} results in ${searchTime}ms`);
         console.log(`[UniversalSearch] Results by type:`, resultsByType);
@@ -98,6 +113,69 @@ const universalSearch = async (req, res) => {
     }
 };
 exports.universalSearch = universalSearch;
+// Simple keyword fallback search across Mongo collections when vector results aren't relevant
+async function keywordFallbackSearch({ userId, query, limit, contentTypes, }) {
+    try {
+        const userObjectId = new mongoose_1.default.Types.ObjectId(userId);
+        const regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        const includeAll = !contentTypes || contentTypes.includes('all');
+        const searches = [];
+        if (includeAll || contentTypes.includes('document')) {
+            searches.push(Document_1.default.find({ userId: userObjectId, $or: [{ title: regex }, { content: regex }] })
+                .limit(20)
+                .lean());
+        }
+        if (includeAll || contentTypes.includes('note')) {
+            searches.push(Note_1.default.find({ userId: userObjectId, $or: [{ title: regex }, { content: regex }] })
+                .limit(20)
+                .lean());
+        }
+        if (includeAll || contentTypes.includes('bookmark')) {
+            searches.push(BookmarkItem_1.default.find({ userId: userObjectId, $or: [{ title: regex }, { fetchedTitle: regex }, { summary: regex }, { fetchedDescription: regex }] })
+                .limit(20)
+                .lean());
+        }
+        if (includeAll || contentTypes.includes('task')) {
+            searches.push(Task_1.default.find({ userId: userObjectId, $or: [{ title: regex }, { description: regex }] })
+                .limit(20)
+                .lean());
+        }
+        if (includeAll || contentTypes.includes('idea')) {
+            searches.push(Idea_1.default.find({ userId: userObjectId, content: regex })
+                .limit(20)
+                .lean());
+        }
+        const results = (await Promise.all(searches)).flat();
+        const mapped = results.slice(0, limit).map((doc) => {
+            const type = doc.documentType || (doc.content && !doc.title ? 'idea' :
+                doc.fetchedTitle || doc.summary ? 'bookmark' :
+                    doc.description !== undefined ? 'task' : 'document');
+            const title = doc.title || doc.fetchedTitle || (doc.content ? doc.content.slice(0, 60) : 'Untitled');
+            const content = doc.content || doc.summary || doc.fetchedDescription || '';
+            const lowerQ = query.toLowerCase();
+            const inTitle = title.toLowerCase().includes(lowerQ);
+            const inContent = (content || '').toLowerCase().includes(lowerQ);
+            const score = inTitle ? 0.85 : inContent ? 0.65 : 0.4;
+            return {
+                id: String(doc._id),
+                documentId: String(doc._id),
+                chunkId: undefined,
+                content: [title, content].filter(Boolean).join('\n').slice(0, 2000),
+                score,
+                metadata: {
+                    documentType: type,
+                    title,
+                    createdAt: doc.createdAt || new Date(),
+                },
+            };
+        });
+        return mapped;
+    }
+    catch (error) {
+        console.error('[KeywordFallbackSearch] Error:', error);
+        return [];
+    }
+}
 /**
  * Get search suggestions based on user's content
  */

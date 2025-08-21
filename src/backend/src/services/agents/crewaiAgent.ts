@@ -121,28 +121,41 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
       // Dynamic topic handling - accept any topics without hardcoded mappings
       let topics: string[] = [];
       const configTopics = config.topics as string | string[] | undefined | null;
-      
+
       // Handle various formats and ensure we have valid topics
       if (!configTopics) {
-        // No topics configured - use a generic default
-        console.warn(`[CrewAI Agent] No topics configured for agent ${agent.name}`);
-        topics = ['news', 'trending', 'latest'];
-        await run.addLog('warn', `No topics configured, using generic defaults: ${topics.join(', ')}`);
+        // Try extracting from agent name/description before defaulting
+        const extracted = this.extractTopicsFromAgent(agent);
+        if (extracted.length > 0) {
+          topics = extracted;
+          await run.addLog('info', 'Extracted topics from agent profile', { topics });
+        } else {
+          console.warn(`[CrewAI Agent] No topics configured for agent ${agent.name}`);
+          topics = ['news', 'trending', 'latest'];
+          await run.addLog('warn', `No topics configured, using generic defaults: ${topics.join(', ')}`);
+        }
       } else if (typeof configTopics === 'string') {
         // Handle string topics - could be comma-separated or single topic
         const trimmed = configTopics.trim();
         if (trimmed.length === 0) {
-          // Empty string - use generic defaults
-          topics = ['news', 'trending', 'latest'];
-          await run.addLog('warn', `Empty topics string, using defaults: ${topics.join(', ')}`);
+          // Empty string - attempt extraction first
+          const extracted = this.extractTopicsFromAgent(agent);
+          if (extracted.length > 0) {
+            topics = extracted;
+            await run.addLog('info', 'Extracted topics from agent profile', { topics });
+          } else {
+            topics = ['news', 'trending', 'latest'];
+            await run.addLog('warn', `Empty topics string, using defaults: ${topics.join(', ')}`);
+          }
         } else {
           // Parse comma-separated topics or use as single topic
-          topics = trimmed.includes(',') 
+          topics = trimmed.includes(',')
             ? trimmed.split(',').map((t: string) => t.trim()).filter((t: string) => t.length > 0)
             : [trimmed];
-          
+
           if (topics.length === 0) {
-            topics = ['news', 'trending', 'latest'];
+            const extracted = this.extractTopicsFromAgent(agent);
+            topics = extracted.length > 0 ? extracted : ['news', 'trending', 'latest'];
           }
         }
       } else if (Array.isArray(configTopics)) {
@@ -150,11 +163,16 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
         topics = configTopics
           .filter((t: any): t is string => typeof t === 'string' && t.trim().length > 0)
           .map((t: string) => t.trim());
-        
+
         if (topics.length === 0) {
-          // Empty array after filtering - use generic defaults
-          topics = ['news', 'trending', 'latest'];
-          await run.addLog('warn', `No valid topics in array, using defaults: ${topics.join(', ')}`);
+          // Empty array after filtering - try extraction first
+          const extracted = this.extractTopicsFromAgent(agent);
+          topics = extracted.length > 0 ? extracted : ['news', 'trending', 'latest'];
+          if (extracted.length === 0) {
+            await run.addLog('warn', `No valid topics in array, using defaults: ${topics.join(', ')}`);
+          } else {
+            await run.addLog('info', 'Extracted topics from agent profile', { topics });
+          }
         }
       }
       
@@ -641,6 +659,92 @@ Using fallback test crew to demonstrate dashboard functionality.`);
       sources_used: sources,
       data: mockData
     };
+  }
+
+  /**
+   * Extract likely topics from the agent's name and description when explicit topics are not provided.
+   */
+  private extractTopicsFromAgent(agent: any): string[] {
+    const topics: string[] = [];
+    const fullText = `${agent.name || ''} ${agent.description || ''}`.toLowerCase();
+
+    console.log(`[CrewAI Agent] Extracting topics from agent profile: "${fullText}"`);
+
+    // Sports patterns
+    if (
+      fullText.includes('sport') ||
+      fullText.includes('nba') ||
+      fullText.includes('basketball') ||
+      fullText.includes('football') ||
+      fullText.includes('soccer') ||
+      fullText.includes('baseball')
+    ) {
+      if (fullText.includes('nba') || fullText.includes('basketball')) {
+        topics.push('NBA', 'basketball', 'NBA news', 'NBA games', 'NBA players');
+      } else if (fullText.includes('nfl') || (fullText.includes('football') && !fullText.includes('soccer'))) {
+        topics.push('NFL', 'football', 'NFL news', 'NFL games', 'NFL scores');
+      } else if (fullText.includes('soccer') || fullText.includes('premier league')) {
+        topics.push('soccer', 'Premier League', 'Champions League', 'soccer news');
+      } else if (fullText.includes('mlb') || fullText.includes('baseball')) {
+        topics.push('MLB', 'baseball', 'MLB news', 'baseball scores');
+      } else if (fullText.includes('sport')) {
+        topics.push('sports', 'sports news', 'athletes', 'games today');
+      }
+    }
+
+    // Finance patterns
+    else if (
+      fullText.includes('financ') ||
+      fullText.includes('stock') ||
+      fullText.includes('crypto') ||
+      fullText.includes('market') ||
+      fullText.includes('trading')
+    ) {
+      if (fullText.includes('crypto') || fullText.includes('bitcoin')) {
+        topics.push('cryptocurrency', 'bitcoin', 'ethereum', 'crypto news', 'crypto prices');
+      } else if (fullText.includes('stock') || fullText.includes('trading')) {
+        topics.push('stock market', 'stocks', 'trading', 'NYSE', 'NASDAQ', 'market news');
+      } else {
+        topics.push('finance', 'financial news', 'markets', 'economy', 'investments');
+      }
+    }
+
+    // Technology patterns
+    else if (
+      fullText.includes('tech') ||
+      fullText.includes('ai') ||
+      fullText.includes('artificial') ||
+      fullText.includes('software') ||
+      fullText.includes('startup')
+    ) {
+      topics.push('technology', 'AI', 'artificial intelligence', 'tech news', 'startups');
+    }
+
+    // Entertainment patterns
+    else if (
+      fullText.includes('entertainment') ||
+      fullText.includes('movie') ||
+      fullText.includes('music') ||
+      fullText.includes('celebrity') ||
+      fullText.includes('hollywood')
+    ) {
+      topics.push('entertainment', 'movies', 'music', 'celebrities', 'entertainment news');
+    }
+
+    // Generic extraction from description if nothing matched
+    if (topics.length === 0 && agent.description) {
+      const words = (agent.description as string).toLowerCase().split(/\s+/);
+      const stopWords = [
+        'the','a','an','and','or','but','in','on','at','to','for','of','with','by','from',
+        'get','find','search','about','this','that','these','those','you','your','my','our'
+      ];
+      const meaningfulWords = words.filter(w => w.length > 3 && !stopWords.includes(w));
+      if (meaningfulWords.length > 0) {
+        topics.push(...meaningfulWords.slice(0, 5));
+      }
+    }
+
+    return topics.slice(0, 5);
   }
 
   private generateMockNewsData(topics: string[], sources: any): any {
