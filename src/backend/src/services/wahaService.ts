@@ -79,7 +79,7 @@ class WAHAService extends EventEmitter {
 
     this.httpClient = axios.create({
       baseURL: this.wahaBaseUrl,
-      timeout: 30000,
+      timeout: 60000, // Increased to 60 seconds for chat loading operations
       headers,
     });
 
@@ -660,39 +660,59 @@ class WAHAService extends EventEmitter {
 
       const tryOverview = async (): Promise<WAHAChat[] | null> => {
         try {
-          const res = await this.httpClient.get(`/api/${sessionName}/chats/overview`, { timeout: 15000 });
+          console.log(`[WAHA Service] Trying chats overview with 45s timeout...`);
+          const res = await this.httpClient.get(`/api/${sessionName}/chats/overview`, { timeout: 45000 });
           const items = normalizeChats(res.data);
-          console.log(`[WAHA Service] Using chats overview endpoint; got ${items.length} items`);
+          console.log(`[WAHA Service] ✅ Chats overview successful; got ${items.length} items`);
           return mapChats(items);
         } catch (e: any) {
-          console.log(`[WAHA Service] Chats overview failed: ${e?.message || e}`);
+          const errorMsg = e?.message || e;
+          console.log(`[WAHA Service] ❌ Chats overview failed: ${errorMsg}`);
+          if (errorMsg.includes('timeout')) {
+            console.log(`[WAHA Service] Overview endpoint timed out after 45s, will try direct /chats`);
+          }
           return null;
         }
       };
 
       const tryChats = async (timeoutMs: number): Promise<WAHAChat[] | null> => {
         try {
+          console.log(`[WAHA Service] Trying direct /chats endpoint with ${timeoutMs/1000}s timeout...`);
           const res = await this.httpClient.get(`/api/${sessionName}/chats`, { timeout: timeoutMs });
           const items = normalizeChats(res.data);
-          console.log(`[WAHA Service] Using /chats endpoint; got ${items.length} items`);
+          console.log(`[WAHA Service] ✅ Direct /chats successful; got ${items.length} items`);
           return mapChats(items);
         } catch (e: any) {
-          console.log(`[WAHA Service] /chats failed (${timeoutMs} ms): ${e?.message || e}`);
+          const errorMsg = e?.message || e;
+          console.log(`[WAHA Service] ❌ /chats failed (${timeoutMs/1000}s): ${errorMsg}`);
+          if (errorMsg.includes('timeout')) {
+            console.log(`[WAHA Service] Direct chats endpoint timed out after ${timeoutMs/1000}s`);
+          }
           return null;
         }
       };
 
-      // Attempt sequence: overview → chats(15s) → refresh → chats(10s)
+      // Attempt sequence: overview(45s) → chats(30s) → refresh → chats(20s)
+      console.log(`[WAHA Service] Starting chat loading sequence for session '${sessionName}'...`);
       let chats: WAHAChat[] | null = await tryOverview();
+      
       if (!chats || chats.length === 0) {
-        chats = await tryChats(15000);
+        console.log(`[WAHA Service] Overview failed or empty, trying direct /chats...`);
+        chats = await tryChats(30000);
       }
+      
       if (!chats || chats.length === 0) {
+        console.log(`[WAHA Service] Direct /chats failed or empty, requesting refresh...`);
         try {
-          await this.httpClient.post(`/api/${sessionName}/chats/refresh`, {}, { timeout: 5000 });
-          console.log('[WAHA Service] Requested chats refresh');
-        } catch {}
-        chats = await tryChats(10000);
+          await this.httpClient.post(`/api/${sessionName}/chats/refresh`, {}, { timeout: 10000 });
+          console.log('[WAHA Service] ✅ Chats refresh requested successfully');
+          // Wait a moment for refresh to process
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } catch (refreshError: any) {
+          console.log(`[WAHA Service] ❌ Chats refresh failed: ${refreshError?.message || refreshError}`);
+        }
+        console.log(`[WAHA Service] Trying /chats again after refresh...`);
+        chats = await tryChats(20000);
       }
 
       if (!chats) {

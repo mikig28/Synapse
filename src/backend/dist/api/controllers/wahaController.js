@@ -244,17 +244,59 @@ exports.sendMedia = sendMedia;
 const getChats = async (req, res) => {
     try {
         const wahaService = getWAHAService();
+        // Check session status first
+        const status = await wahaService.getStatus();
+        if (!status.isReady) {
+            return res.status(400).json({
+                success: false,
+                error: 'WhatsApp session is not ready',
+                details: {
+                    status: status.status,
+                    suggestion: 'Please authenticate with WhatsApp first'
+                }
+            });
+        }
+        console.log('[WAHA Controller] Fetching chats...');
+        const startTime = Date.now();
         const chats = await wahaService.getChats();
+        const duration = Date.now() - startTime;
+        console.log(`[WAHA Controller] ✅ Successfully fetched ${chats.length} chats in ${duration}ms`);
         res.json({
             success: true,
-            data: chats
+            data: chats,
+            meta: {
+                count: chats.length,
+                loadTime: duration
+            }
         });
     }
     catch (error) {
         console.error('[WAHA Controller] Error getting chats:', error);
-        res.status(500).json({
+        let statusCode = 500;
+        let errorMessage = 'Failed to get chats';
+        let suggestion = 'Please try again or check your connection';
+        if (error.message?.includes('timeout')) {
+            statusCode = 408;
+            errorMessage = 'Chat loading timed out';
+            suggestion = 'The WhatsApp service is taking longer than expected. Please try again in a moment.';
+        }
+        else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+            statusCode = 503;
+            errorMessage = 'WhatsApp service unavailable';
+            suggestion = 'The WhatsApp service is temporarily unavailable. Please try again later.';
+        }
+        else if (error.response?.status === 401) {
+            statusCode = 401;
+            errorMessage = 'WhatsApp authentication required';
+            suggestion = 'Please authenticate with WhatsApp first.';
+        }
+        res.status(statusCode).json({
             success: false,
-            error: 'Failed to get chats'
+            error: errorMessage,
+            details: {
+                suggestion,
+                timestamp: new Date().toISOString()
+            }
         });
     }
 };
@@ -548,23 +590,66 @@ exports.verifyPhoneAuthCode = verifyPhoneAuthCode;
 const getGroups = async (req, res) => {
     try {
         const wahaService = getWAHAService();
+        // Check session status first
+        const status = await wahaService.getStatus();
+        if (!status.isReady) {
+            return res.status(400).json({
+                success: false,
+                error: 'WhatsApp session is not ready',
+                details: {
+                    status: status.status,
+                    suggestion: 'Please authenticate with WhatsApp first'
+                }
+            });
+        }
+        console.log('[WAHA Controller] Fetching groups...');
+        const startTime = Date.now();
         // Try WAHA-compliant groups endpoint first
         let groups = await wahaService.getGroups();
         if (!groups || groups.length === 0) {
+            console.log('[WAHA Controller] No groups found, trying refresh...');
             // Ask WAHA to refresh then try again quickly
             await wahaService.refreshGroups();
             groups = await wahaService.getGroups();
         }
+        const duration = Date.now() - startTime;
+        console.log(`[WAHA Controller] ✅ Successfully fetched ${groups.length} groups in ${duration}ms`);
         res.json({
             success: true,
-            data: groups
+            data: groups,
+            meta: {
+                count: groups.length,
+                loadTime: duration
+            }
         });
     }
     catch (error) {
         console.error('[WAHA Controller] Error getting groups:', error);
-        res.status(500).json({
+        let statusCode = 500;
+        let errorMessage = 'Failed to get WhatsApp groups';
+        let suggestion = 'Please try again or check your connection';
+        if (error.message?.includes('timeout')) {
+            statusCode = 408;
+            errorMessage = 'Group loading timed out';
+            suggestion = 'The WhatsApp service is taking longer than expected. Please try again in a moment.';
+        }
+        else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+            statusCode = 503;
+            errorMessage = 'WhatsApp service unavailable';
+            suggestion = 'The WhatsApp service is temporarily unavailable. Please try again later.';
+        }
+        else if (error.response?.status === 401) {
+            statusCode = 401;
+            errorMessage = 'WhatsApp authentication required';
+            suggestion = 'Please authenticate with WhatsApp first.';
+        }
+        res.status(statusCode).json({
             success: false,
-            error: 'Failed to get WhatsApp groups'
+            error: errorMessage,
+            details: {
+                suggestion,
+                timestamp: new Date().toISOString()
+            }
         });
     }
 };
@@ -575,19 +660,61 @@ exports.getGroups = getGroups;
 const getPrivateChats = async (req, res) => {
     try {
         const wahaService = getWAHAService();
+        // Check session status first
+        const status = await wahaService.getStatus();
+        if (!status.isReady) {
+            return res.status(400).json({
+                success: false,
+                error: 'WhatsApp session is not ready',
+                details: {
+                    status: status.status,
+                    suggestion: 'Please authenticate with WhatsApp first'
+                }
+            });
+        }
+        console.log('[WAHA Controller] Fetching private chats...');
+        const startTime = Date.now();
         const chats = await wahaService.getChats();
         // Filter only private chats (not @g.us)
         const privateChats = chats.filter(chat => !chat.isGroup && !(typeof chat.id === 'string' && chat.id.includes('@g.us')));
+        const duration = Date.now() - startTime;
+        console.log(`[WAHA Controller] ✅ Successfully fetched ${privateChats.length} private chats in ${duration}ms`);
         res.json({
             success: true,
-            data: privateChats
+            data: privateChats,
+            meta: {
+                count: privateChats.length,
+                loadTime: duration
+            }
         });
     }
     catch (error) {
         console.error('[WAHA Controller] Error getting private chats:', error);
-        res.status(500).json({
+        let statusCode = 500;
+        let errorMessage = 'Failed to get WhatsApp private chats';
+        let suggestion = 'Please try again or check your connection';
+        if (error.message?.includes('timeout')) {
+            statusCode = 408;
+            errorMessage = 'Private chat loading timed out';
+            suggestion = 'The WhatsApp service is taking longer than expected. Please try again in a moment.';
+        }
+        else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+            statusCode = 503;
+            errorMessage = 'WhatsApp service unavailable';
+            suggestion = 'The WhatsApp service is temporarily unavailable. Please try again later.';
+        }
+        else if (error.response?.status === 401) {
+            statusCode = 401;
+            errorMessage = 'WhatsApp authentication required';
+            suggestion = 'Please authenticate with WhatsApp first.';
+        }
+        res.status(statusCode).json({
             success: false,
-            error: 'Failed to get WhatsApp private chats'
+            error: errorMessage,
+            details: {
+                suggestion,
+                timestamp: new Date().toISOString()
+            }
         });
     }
 };
