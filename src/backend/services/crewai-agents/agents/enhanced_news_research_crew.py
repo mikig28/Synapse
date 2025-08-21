@@ -884,8 +884,8 @@ class EnhancedNewsResearchCrew:
                            f"Prioritize current events and breaking news relevant to {agent_goal}. Filter out outdated content (older than 3 days). "
                            f"Search sources: {', '.join([k for k, v in sources.items() if v])}. "
                            f"Use your URL validation tools to ensure all links are accessible. "
-                           f"{custom_instructions} " if custom_instructions else "" +
-                           f"Provide detailed progress updates as you work through each source.",
+                           + (f"{custom_instructions} " if custom_instructions else "")
+                           + "Provide detailed progress updates as you work through each source.",
                 agent=self.agents['news_researcher'],
                 expected_output="A JSON list of validated and cleaned RECENT news articles with the following structure: [{{'title': 'Article Title', 'url': 'https://...', 'content': 'Article content...', 'published_date': 'ISO date', 'source': 'Source name', 'quality_score': 0.8}}]",
                 tools=self.agents['news_researcher'].tools if hasattr(self.agents['news_researcher'], 'tools') else [],
@@ -912,8 +912,8 @@ class EnhancedNewsResearchCrew:
                            f"Today is {current_date}. Focus on trends happening NOW and in the last 24-48 hours that are relevant to {', '.join(topics)}. "
                            f"Use your search capabilities to cross-reference trending topics across multiple sources. "
                            f"Summarize the most important current trends and breaking developments that align with {agent_name}'s focus area. "
-                           f"{custom_instructions} " if custom_instructions else "" +
-                           f"Provide progress updates as you analyze trending patterns and generate insights.",
+                           + (f"{custom_instructions} " if custom_instructions else "")
+                           + "Provide progress updates as you analyze trending patterns and generate insights.",
                 agent=self.agents['trend_analyst'],
                 context=[analysis_task],
                 expected_output="A JSON object with trend analysis: {{'top_trends': [{{topic: 'AI Development', 'mentions': 15, 'trend_score': 0.9, 'supporting_articles': ['url1', 'url2']}}], 'summary': 'Current trend analysis summary', 'trending_keywords': ['AI', 'technology'], 'timestamp': 'ISO date'}}",
