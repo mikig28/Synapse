@@ -63,8 +63,11 @@ export class CrewAIAgentExecutor implements AgentExecutor {
       await run.addLog('info', 'Starting CrewAI multi-agent news gathering', {
         topics: requestData.topics,
         sources: requestData.sources,
-        mode: 'enhanced_dynamic'
+        mode: 'enhanced_dynamic',
+        agent_context: requestData.agent_context
       });
+      
+      console.log('[CrewAIExecutor] Sending request with agent context:', JSON.stringify(requestData.agent_context, null, 2));
 
       // Call the enhanced CrewAI service with retry logic
       const response = await this.executeNewsGatheringWithRetry(requestData, run);
@@ -164,8 +167,13 @@ export class CrewAIAgentExecutor implements AgentExecutor {
       }
     }
     
+    console.log(`[CrewAIExecutor] Agent details:`, {
+      name: agent.name,
+      description: agent.description,
+      configuredTopics: config.topics,
+      finalTopics: topics
+    });
     console.log(`[CrewAIExecutor] Using topics for agent ${agent.name}:`, topics);
-    console.log(`[CrewAIExecutor] Topics are dynamically provided by user - no hardcoded mappings`);
     
     // Map CrewAI sources to the enhanced service format
     const sources: any = {};
@@ -198,10 +206,12 @@ export class CrewAIAgentExecutor implements AgentExecutor {
       agent_context: {
         name: agent.name,
         description: agent.description || '',
-        goal: config.goal || agent.description || `Research and analyze ${topics.join(', ')}`,
+        // Use agent description as the goal since there's no separate goal field
+        goal: agent.description || `Research and analyze ${topics.join(', ')}`,
         type: agent.type,
-        focus_areas: config.focusAreas || topics,
-        custom_instructions: config.customInstructions || ''
+        focus_areas: topics, // Use configured topics as focus areas
+        custom_instructions: '', // No custom instructions field in model
+        configured_topics: topics // Pass the actual configured topics
       },
       max_articles: config.maxItemsPerRun || 50,
       quality_threshold: 0.7,

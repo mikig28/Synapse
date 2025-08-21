@@ -211,17 +211,30 @@ class EnhancedNewsGatherer:
         goal_lower = goal.lower()
         
         # Common patterns for sports agents
-        if any(word in goal_lower for word in ['sport', 'nba', 'basketball', 'football', 'soccer', 'baseball', 'tennis']):
+        if any(word in goal_lower for word in ['sport', 'nba', 'basketball', 'football', 'soccer', 'baseball', 'tennis', 'athletic', 'game', 'player', 'team']):
             topics = []
+            # NBA/Basketball specific
             if 'nba' in goal_lower or 'basketball' in goal_lower:
-                topics.extend(['NBA', 'basketball', 'NBA news', 'NBA games', 'NBA players'])
-            if 'football' in goal_lower or 'nfl' in goal_lower:
-                topics.extend(['NFL', 'football', 'NFL news', 'NFL games'])
-            if 'soccer' in goal_lower or 'premier league' in goal_lower:
-                topics.extend(['soccer', 'Premier League', 'Champions League', 'football'])
-            if 'sport' in goal_lower and not topics:
-                topics = ['sports', 'sports news', 'athletes', 'games', 'tournaments']
-            return topics[:5]  # Limit to 5 topics
+                topics.extend(['NBA', 'basketball', 'NBA news', 'NBA games today', 'NBA players', 'NBA trades', 'NBA scores'])
+            # NFL/American Football
+            elif 'nfl' in goal_lower or ('football' in goal_lower and 'american' in goal_lower):
+                topics.extend(['NFL', 'football', 'NFL news', 'NFL games', 'NFL teams'])
+            # Soccer/Football
+            elif 'soccer' in goal_lower or 'premier league' in goal_lower or 'champions league' in goal_lower:
+                topics.extend(['soccer', 'Premier League', 'Champions League', 'football news', 'soccer transfers'])
+            # MLB/Baseball
+            elif 'mlb' in goal_lower or 'baseball' in goal_lower:
+                topics.extend(['MLB', 'baseball', 'MLB news', 'baseball scores', 'MLB games'])
+            # Tennis
+            elif 'tennis' in goal_lower:
+                topics.extend(['tennis', 'ATP', 'WTA', 'tennis news', 'tennis tournaments'])
+            # Generic sports
+            elif 'sport' in goal_lower:
+                topics = ['sports news', 'sports today', 'athletes', 'sports scores', 'sports highlights']
+            
+            if topics:
+                logger.info(f"🏀 Sports agent detected! Topics: {topics[:5]}")
+                return topics[:5]  # Limit to 5 topics
         
         # Financial/crypto patterns
         if any(word in goal_lower for word in ['financ', 'stock', 'crypto', 'bitcoin', 'market', 'trading']):
@@ -262,10 +275,19 @@ class EnhancedNewsGatherer:
             
             logger.info(f"📋 Agent Context - Name: {agent_name}, Goal: {agent_goal}")
             
-            # If agent has specific goals, use them to guide topic selection
-            if agent_goal and not topics:
-                # Extract topics from agent goal
-                topics = self._extract_topics_from_goal(agent_goal)
+            # Always try to extract specific topics from agent goal/description
+            # This overrides generic topics to ensure personalized content
+            if agent_goal:
+                extracted_topics = self._extract_topics_from_goal(agent_goal)
+                if extracted_topics and extracted_topics != ['news', 'latest', 'trending']:
+                    logger.info(f"🎯 Extracted specific topics from goal: {extracted_topics}")
+                    topics = extracted_topics
+                elif agent_description:
+                    # Try extracting from description if goal didn't yield specific topics
+                    extracted_topics = self._extract_topics_from_goal(agent_description)
+                    if extracted_topics and extracted_topics != ['news', 'latest', 'trending']:
+                        logger.info(f"🎯 Extracted specific topics from description: {extracted_topics}")
+                        topics = extracted_topics
         
         if not topics:
             topics = ["technology", "AI", "startups", "business", "innovation"]
@@ -816,11 +838,20 @@ def gather_news():
     
     try:
         data = request.get_json() if request.is_json else {}
+        
+        # Log the entire request data for debugging
+        logger.info(f"📥 Received request data keys: {list(data.keys())}")
+        
         topics = data.get('topics', None)
         sources = data.get('sources', None)
         
         # Get agent context for personalized generation
         agent_context = data.get('agent_context', {})
+        
+        if agent_context:
+            logger.info(f"✅ Agent context received: {agent_context}")
+        else:
+            logger.warning("⚠️ No agent context received in request")
         
         # Additional parameters for enhanced system
         max_articles = data.get('max_articles', 50)
