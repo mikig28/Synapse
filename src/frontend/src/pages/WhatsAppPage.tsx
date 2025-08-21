@@ -85,12 +85,14 @@ const WhatsAppPage: React.FC = () => {
   const [phoneAuthStep, setPhoneAuthStep] = useState<'phone' | 'code'>('phone');
   const [phoneAuthSupported, setPhoneAuthSupported] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [loadingChats, setLoadingChats] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [monitoredKeywords, setMonitoredKeywords] = useState<string[]>([]);
   const [newKeyword, setNewKeyword] = useState('');
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isSocketConnected, setIsSocketConnected] = useState(false);
   const [fetchingHistory, setFetchingHistory] = useState(false);
+  const [chatsFetchAttempts, setChatsFetchAttempts] = useState(0);
   
   // Mobile-specific states
   const [isMobile, setIsMobile] = useState(false);
@@ -286,16 +288,31 @@ const WhatsAppPage: React.FC = () => {
       // If WhatsApp just became authenticated, fetch chats and groups
       if (!wasAuthenticated && isNowAuthenticated) {
         console.log('[WhatsApp Socket.IO] Authentication successful, fetching chats...');
+        setLoadingChats(true);
+        
         toast({
           title: "WhatsApp Connected",
           description: "Loading your chats and groups...",
         });
         
-        // Fetch data after authentication
+        // Fetch data after authentication with loading indicators
         setTimeout(() => {
-          fetchGroups();
-          fetchPrivateChats();
-          fetchMessages();
+          Promise.all([
+            fetchGroups(true),
+            fetchPrivateChats(true),
+            fetchMessages()
+          ]).then(() => {
+            console.log('[WhatsApp Socket.IO] ✅ All data fetched after authentication');
+            setLoadingChats(false);
+          }).catch((error) => {
+            console.error('[WhatsApp Socket.IO] ❌ Error fetching data after authentication:', error);
+            setLoadingChats(false);
+            toast({
+              title: "Chat Loading Issue",
+              description: "WhatsApp connected but couldn't load chats. Please refresh.",
+              variant: "destructive",
+            });
+          });
         }, 1000); // Small delay to ensure backend is ready
         
         // Close auth modal if open
@@ -315,11 +332,27 @@ const WhatsAppPage: React.FC = () => {
 
     newSocket.on('whatsapp:chats_updated', (chatsData: any) => {
       console.log('[WhatsApp Socket.IO] Chats updated:', chatsData);
-      if (chatsData.groups) {
+      
+      if (chatsData.groups && Array.isArray(chatsData.groups)) {
+        console.log(`[WhatsApp Socket.IO] ✅ Received ${chatsData.groups.length} groups`);
         setGroups(chatsData.groups);
       }
-      if (chatsData.privateChats) {
+      if (chatsData.privateChats && Array.isArray(chatsData.privateChats)) {
+        console.log(`[WhatsApp Socket.IO] ✅ Received ${chatsData.privateChats.length} private chats`);
         setPrivateChats(chatsData.privateChats);
+      }
+      
+      // Track fetch attempts for debugging
+      if (chatsData.fetchAttempts) {
+        setChatsFetchAttempts(chatsData.fetchAttempts);
+      }
+      
+      // Show success notification when chats are loaded
+      if (chatsData.totalCount > 0) {
+        toast({
+          title: "Chats Loaded Successfully",
+          description: `Loaded ${chatsData.totalCount} chats (${chatsData.groups?.length || 0} groups, ${chatsData.privateChats?.length || 0} private)`,
+        });
       }
       
       // Show notification for new groups/chats
@@ -416,45 +449,67 @@ const WhatsAppPage: React.FC = () => {
     }
   };
 
-  const fetchGroups = async () => {
+  const fetchGroups = async (showLoading = false) => {
     try {
+      if (showLoading) setLoadingChats(true);
+      
       // Prefer WAHA modern endpoint; fallback to legacy
       try {
         const wahaRes = await api.get('/waha/groups');
-        if (wahaRes.data.success) {
+        if (wahaRes.data.success && Array.isArray(wahaRes.data.data)) {
+          console.log(`[WhatsApp Frontend] ✅ Fetched ${wahaRes.data.data.length} groups via WAHA`);
           setGroups(wahaRes.data.data);
           return;
         }
       } catch (e) {
-        // swallow and fallback
+        console.log('[WhatsApp Frontend] WAHA groups endpoint failed, trying legacy');
       }
       const legacyRes = await api.get('/whatsapp/groups');
-      if (legacyRes.data.success) {
+      if (legacyRes.data.success && Array.isArray(legacyRes.data.data)) {
+        console.log(`[WhatsApp Frontend] ✅ Fetched ${legacyRes.data.data.length} groups via legacy`);
         setGroups(legacyRes.data.data);
       }
     } catch (error) {
       console.error('Error fetching WhatsApp groups:', error);
+      toast({
+        title: "Chat Loading Issue",
+        description: "Unable to load WhatsApp groups. Please try refreshing.",
+        variant: "destructive",
+      });
+    } finally {
+      if (showLoading) setLoadingChats(false);
     }
   };
 
-  const fetchPrivateChats = async () => {
+  const fetchPrivateChats = async (showLoading = false) => {
     try {
+      if (showLoading) setLoadingChats(true);
+      
       // Prefer WAHA modern endpoint; fallback to legacy
       try {
         const wahaRes = await api.get('/waha/private-chats');
-        if (wahaRes.data.success) {
+        if (wahaRes.data.success && Array.isArray(wahaRes.data.data)) {
+          console.log(`[WhatsApp Frontend] ✅ Fetched ${wahaRes.data.data.length} private chats via WAHA`);
           setPrivateChats(wahaRes.data.data);
           return;
         }
       } catch (e) {
-        // swallow and fallback
+        console.log('[WhatsApp Frontend] WAHA private chats endpoint failed, trying legacy');
       }
       const legacyRes = await api.get('/whatsapp/private-chats');
-      if (legacyRes.data.success) {
+      if (legacyRes.data.success && Array.isArray(legacyRes.data.data)) {
+        console.log(`[WhatsApp Frontend] ✅ Fetched ${legacyRes.data.data.length} private chats via legacy`);
         setPrivateChats(legacyRes.data.data);
       }
     } catch (error) {
       console.error('Error fetching WhatsApp private chats:', error);
+      toast({
+        title: "Chat Loading Issue",
+        description: "Unable to load private chats. Please try refreshing.",
+        variant: "destructive",
+      });
+    } finally {
+      if (showLoading) setLoadingChats(false);
     }
   };
 
@@ -789,18 +844,36 @@ const WhatsAppPage: React.FC = () => {
 
   const refreshChats = async () => {
     try {
+      setLoadingChats(true);
+      
+      console.log('[WhatsApp Frontend] 🔄 Starting chat refresh...');
+      
       let data: any;
       // Try WAHA first, then legacy
       try {
         const waha = await api.post('/waha/refresh-chats');
         data = waha.data;
+        console.log('[WhatsApp Frontend] ✅ WAHA refresh response:', data);
       } catch (e) {
+        console.log('[WhatsApp Frontend] WAHA refresh failed, trying legacy');
         const legacy = await api.post('/whatsapp/refresh-chats');
         data = legacy.data;
+        console.log('[WhatsApp Frontend] ✅ Legacy refresh response:', data);
       }
+      
       if (data.success) {
-        await fetchGroups();
-        await fetchPrivateChats();
+        // Show immediate feedback about the refresh
+        toast({
+          title: "Refreshing Chats",
+          description: data.data ? `Found ${data.data.chatCount || 0} total chats` : "Fetching latest chat data...",
+        });
+        
+        // Fetch updated data
+        await Promise.all([
+          fetchGroups(false), // Don't show loading again since we already are
+          fetchPrivateChats(false)
+        ]);
+        
         toast({
           title: "Success",
           description: "Chats refreshed successfully",
@@ -817,13 +890,23 @@ const WhatsAppPage: React.FC = () => {
           variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error refreshing chats:', error);
+      
+      let errorMsg = "Failed to connect to WhatsApp service";
+      if (error.response?.status === 408) {
+        errorMsg = "Chat refresh timed out. Service may be busy.";
+      } else if (error.response?.data?.error) {
+        errorMsg = error.response.data.error;
+      }
+      
       toast({
         title: "Connection Error",
-        description: "Failed to connect to WhatsApp service",
+        description: errorMsg,
         variant: "destructive",
       });
+    } finally {
+      setLoadingChats(false);
     }
   };
 
@@ -1507,7 +1590,21 @@ const WhatsAppPage: React.FC = () => {
                   </div>
                 )}
                 
-                {filteredGroups.length === 0 && filteredPrivateChats.length === 0 && (
+                {loadingChats && (
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="text-center">
+                      <RefreshCw className="w-8 h-8 text-blue-300 animate-spin mx-auto mb-3" />
+                      <p className="text-blue-200/70 text-sm">Loading chats...</p>
+                      {chatsFetchAttempts > 1 && (
+                        <p className="text-blue-200/50 text-xs mt-1">
+                          Attempt {chatsFetchAttempts} - Please wait
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {!loadingChats && filteredGroups.length === 0 && filteredPrivateChats.length === 0 && (
                   <div className="flex-1 flex items-center justify-center">
                     <div className="text-center">
                       <Search className="w-12 h-12 text-blue-300/50 mx-auto mb-3" />
@@ -1515,9 +1612,9 @@ const WhatsAppPage: React.FC = () => {
                         {searchTerm ? 'No chats match your search' : 'No chats available'}
                       </p>
                       <p className="text-blue-200/50 text-xs mt-1">
-                        {searchTerm ? 'Try a different search term' : 'Chats will appear as they are discovered'}
+                        {searchTerm ? 'Try a different search term' : 'Connect WhatsApp to see your chats'}
                       </p>
-                      {isMobile && (
+                      {isMobile && !status?.connected && (
                         <div className="mt-4">
                           <Button
                             onClick={() => setShowMobileMenu(true)}
@@ -1527,6 +1624,23 @@ const WhatsAppPage: React.FC = () => {
                           >
                             <QrCode className="w-4 h-4 mr-2" />
                             Connect WhatsApp
+                          </Button>
+                        </div>
+                      )}
+                      {!isMobile && status?.connected && (
+                        <div className="mt-4">
+                          <Button
+                            onClick={() => {
+                              setLoadingChats(true);
+                              fetchGroups(true);
+                              fetchPrivateChats(true);
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="border-blue-400/30 text-blue-200 hover:bg-blue-500/10"
+                          >
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            Refresh Chats
                           </Button>
                         </div>
                       )}

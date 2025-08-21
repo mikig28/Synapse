@@ -690,7 +690,7 @@ export const forceRestart = async (req: Request, res: Response) => {
 };
 
 /**
- * Refresh WhatsApp chats
+ * Refresh WhatsApp chats - triggers fresh fetch
  */
 export const refreshChats = async (req: Request, res: Response) => {
   try {
@@ -710,14 +710,21 @@ export const refreshChats = async (req: Request, res: Response) => {
       });
     }
     
-    // Get fresh chats data
-    await wahaService.getChats();
+    console.log('[WAHA Controller] Refreshing chats - fetching fresh data...');
+    
+    // Get fresh chats data directly (this will use the optimized chat fetching)
+    const chats = await wahaService.getChats();
+    
+    console.log(`[WAHA Controller] ✅ Chat refresh complete: ${chats.length} chats retrieved`);
     
     res.json({
       success: true,
       message: 'WhatsApp chats refreshed successfully',
       data: {
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        chatCount: chats.length,
+        groups: chats.filter(chat => chat.isGroup).length,
+        privateChats: chats.filter(chat => !chat.isGroup).length
       }
     });
   } catch (error: any) {
@@ -733,6 +740,9 @@ export const refreshChats = async (req: Request, res: Response) => {
     } else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
       userFriendlyMessage = 'Cannot connect to WAHA service. Please check service availability.';
       statusCode = 503;
+    } else if (error.message?.includes('timeout')) {
+      userFriendlyMessage = 'Chat refresh timed out. WAHA service may be overloaded.';
+      statusCode = 408;
     }
     
     res.status(statusCode).json({

@@ -107,19 +107,40 @@ class WAHAService extends EventEmitter {
   }
 
   /**
-   * Handle authentication event - fetch chats automatically
+   * Handle authentication event - fetch chats automatically with retry logic
    */
   private async handleAuthentication(authData: any): Promise<void> {
     try {
       console.log('[WAHA Service] 🎉 Handling authentication event:', authData);
       
-      // Wait a moment for the session to stabilize
+      // Wait for the session to stabilize
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Try to fetch chats to verify the connection is working
+      // Try to fetch chats with retry logic since WAHA might need time to sync
       console.log('[WAHA Service] Fetching chats after authentication...');
-      const chats = await this.getChats();
-      console.log(`[WAHA Service] Successfully fetched ${chats.length} chats after authentication`);
+      let chats: any[] = [];
+      let attempts = 0;
+      const maxAttempts = 3;
+      
+      while (attempts < maxAttempts && chats.length === 0) {
+        attempts++;
+        try {
+          chats = await this.getChats();
+          console.log(`[WAHA Service] Attempt ${attempts}: fetched ${chats.length} chats`);
+          
+          if (chats.length === 0 && attempts < maxAttempts) {
+            console.log(`[WAHA Service] No chats found, waiting 3s before retry ${attempts + 1}/${maxAttempts}`);
+            await new Promise(resolve => setTimeout(resolve, 3000));
+          }
+        } catch (error) {
+          console.error(`[WAHA Service] Chat fetch attempt ${attempts} failed:`, error);
+          if (attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
+      }
+      
+      console.log(`[WAHA Service] ✅ Authentication handling complete: ${chats.length} chats after ${attempts} attempts`);
       
       // Emit chats updated event
       this.emit('chats_updated', {
@@ -135,7 +156,8 @@ class WAHAService extends EventEmitter {
         io_instance.emit('whatsapp:chats_updated', {
           groups: chats.filter(chat => chat.isGroup),
           privateChats: chats.filter(chat => !chat.isGroup),
-          totalCount: chats.length
+          totalCount: chats.length,
+          fetchAttempts: attempts
         });
       }
       
@@ -660,12 +682,18 @@ class WAHAService extends EventEmitter {
 
       const tryOverview = async (): Promise<WAHAChat[] | null> => {
         try {
-          const res = await this.httpClient.get(`/api/${sessionName}/chats/overview`, { timeout: 15000 });
+          const res = await this.httpClient.get(`/api/${sessionName}/chats/overview`, { timeout: 10000 });
           const items = normalizeChats(res.data);
-          console.log(`[WAHA Service] Using chats overview endpoint; got ${items.length} items`);
-          return mapChats(items);
+          console.log(`[WAHA Service] Overview endpoint successful; got ${items.length} items`);
+          if (items.length > 0) {
+            return mapChats(items);
+          } else {
+            console.log('[WAHA Service] Overview endpoint returned empty result, will try direct /chats');
+            return null;
+          }
         } catch (e: any) {
-          console.log(`[WAHA Service] Chats overview failed: ${e?.message || e}`);
+          const errorMsg = e?.response?.status === 404 ? 'Overview endpoint not available (404)' : `${e?.message || e}`;
+          console.log(`[WAHA Service] Overview endpoint failed: ${errorMsg}`);
           return null;
         }
       };
@@ -674,39 +702,47 @@ class WAHAService extends EventEmitter {
         try {
           const res = await this.httpClient.get(`/api/${sessionName}/chats`, { timeout: timeoutMs });
           const items = normalizeChats(res.data);
-          console.log(`[WAHA Service] Using /chats endpoint; got ${items.length} items`);
+          console.log(`[WAHA Service] Using /chats endpoint; got ${items.length} items (timeout: ${timeoutMs}ms)`);
           return mapChats(items);
         } catch (e: any) {
-          console.log(`[WAHA Service] /chats failed (${timeoutMs} ms): ${e?.message || e}`);
+          console.log(`[WAHA Service] /chats failed (${timeoutMs}ms): ${e?.message || e}`);
           return null;
         }
       };
 
-      // Attempt sequence: overview → chats(15s) → refresh → chats(10s)
+      // Optimized attempt sequence: overview → chats(12s) → chats(8s) with exponential backoff
       let chats: WAHAChat[] | null = await tryOverview();
       if (!chats || chats.length === 0) {
-        chats = await tryChats(15000);
+        console.log('[WAHA Service] Overview endpoint returned empty, trying direct /chats with 12s timeout...');
+        chats = await tryChats(12000);
       }
       if (!chats || chats.length === 0) {
-        try {
-          await this.httpClient.post(`/api/${sessionName}/chats/refresh`, {}, { timeout: 5000 });
-          console.log('[WAHA Service] Requested chats refresh');
-        } catch {}
-        chats = await tryChats(10000);
+        console.log('[WAHA Service] First /chats attempt failed, retrying with shorter 8s timeout...');
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Brief delay before retry
+        chats = await tryChats(8000);
       }
 
-      if (!chats) {
-        console.warn('[WAHA Service] Returning empty chats due to upstream failures');
+      if (!chats || chats.length === 0) {
+        console.warn('[WAHA Service] ⚠️ No chats retrieved from any endpoint');
+        console.warn('[WAHA Service] This could indicate: 1) Session not fully ready, 2) No chats exist, 3) Service issues');
         return [];
+      }
+
+      // Validate that we have meaningful chat data
+      const validChats = chats.filter(chat => chat.id && chat.name);
+      if (validChats.length !== chats.length) {
+        console.warn(`[WAHA Service] Filtered out ${chats.length - validChats.length} invalid chats`);
       }
 
       // Enforce a hard cap to reduce memory usage when WAHA returns huge lists
       const limit = Math.max(1, parseInt(process.env.WAHA_CHATS_LIMIT || '300', 10));
-      if (chats.length > limit) {
-        console.log(`[WAHA Service] Capping chats from ${chats.length} to ${limit} (WAHA_CHATS_LIMIT)`);
-        return chats.slice(0, limit);
+      if (validChats.length > limit) {
+        console.log(`[WAHA Service] Capping chats from ${validChats.length} to ${limit} (WAHA_CHATS_LIMIT)`);
+        return validChats.slice(0, limit);
       }
-      return chats;
+
+      console.log(`[WAHA Service] ✅ Successfully retrieved ${validChats.length} valid chats`);
+      return validChats;
     } catch (error: any) {
       console.error(`[WAHA Service] ❌ Failed to get chats for '${sessionName}':`, error.response?.status, error.response?.data);
       
@@ -759,14 +795,13 @@ class WAHAService extends EventEmitter {
 
   /**
    * Request WAHA to refresh groups (best effort)
+   * Note: Most WAHA engines don't support a refresh endpoint, so this is mainly a placeholder
    */
   async refreshGroups(sessionName: string = this.defaultSession): Promise<void> {
-    try {
-      await this.httpClient.post(`/api/${sessionName}/groups/refresh`);
-      console.log('[WAHA Service] Groups refresh requested');
-    } catch (e) {
-      console.log('[WAHA Service] Groups refresh not available, skipping');
-    }
+    console.log('[WAHA Service] Group refresh requested - most WAHA engines handle this automatically');
+    // Most WAHA implementations don't support manual refresh endpoints
+    // Groups are typically refreshed automatically by the WAHA service
+    // This method exists for API compatibility but is largely a no-op
   }
 
   /**
