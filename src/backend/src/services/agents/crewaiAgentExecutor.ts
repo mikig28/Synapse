@@ -63,8 +63,11 @@ export class CrewAIAgentExecutor implements AgentExecutor {
       await run.addLog('info', 'Starting CrewAI multi-agent news gathering', {
         topics: requestData.topics,
         sources: requestData.sources,
-        mode: 'enhanced_dynamic'
+        mode: 'enhanced_dynamic',
+        agent_context: requestData.agent_context
       });
+      
+      console.log('[CrewAIExecutor] Sending request with agent context:', JSON.stringify(requestData.agent_context, null, 2));
 
       // Call the enhanced CrewAI service with retry logic
       const response = await this.executeNewsGatheringWithRetry(requestData, run);
@@ -141,9 +144,19 @@ export class CrewAIAgentExecutor implements AgentExecutor {
     
     // Handle various formats and ensure we have valid topics
     if (!topics || (Array.isArray(topics) && topics.length === 0) || (typeof topics === 'string' && !topics.trim())) {
-      // No topics configured - use generic defaults
-      console.warn(`[CrewAIExecutor] No topics configured for agent ${agent.name}`);
-      topics = ['news', 'trending', 'latest'];
+      // No topics configured - try to extract from agent name and description
+      console.warn(`[CrewAIExecutor] No topics configured for agent ${agent.name}, extracting from description...`);
+      
+      // Extract topics from agent name and description
+      const extractedTopics = this.extractTopicsFromAgent(agent);
+      if (extractedTopics && extractedTopics.length > 0) {
+        topics = extractedTopics;
+        console.log(`[CrewAIExecutor] Extracted topics from agent description: ${topics}`);
+      } else {
+        // Fall back to generic defaults only if extraction fails
+        topics = ['news', 'trending', 'latest'];
+        console.warn(`[CrewAIExecutor] Using generic default topics for agent ${agent.name}`);
+      }
     } else if (typeof topics === 'string') {
       // Handle string topics - could be comma-separated or single topic
       const trimmed = topics.trim();
@@ -164,8 +177,13 @@ export class CrewAIAgentExecutor implements AgentExecutor {
       }
     }
     
+    console.log(`[CrewAIExecutor] Agent details:`, {
+      name: agent.name,
+      description: agent.description,
+      configuredTopics: config.topics,
+      finalTopics: topics
+    });
     console.log(`[CrewAIExecutor] Using topics for agent ${agent.name}:`, topics);
-    console.log(`[CrewAIExecutor] Topics are dynamically provided by user - no hardcoded mappings`);
     
     // Map CrewAI sources to the enhanced service format
     const sources: any = {};
@@ -194,6 +212,18 @@ export class CrewAIAgentExecutor implements AgentExecutor {
       topics,
       sources,
       agent_id: agent._id.toString(), // Critical for session tracking
+      // Pass agent identity and goals for context-aware generation
+      agent_context: {
+        name: agent.name,
+        description: agent.description || '',
+        // Use agent description as the goal, but be explicit about topics
+        goal: agent.description ? `${agent.description}. Focus on: ${topics.join(', ')}` : `Research and analyze ${topics.join(', ')}`,
+        type: agent.type,
+        focus_areas: topics, // Use extracted/configured topics as focus areas
+        custom_instructions: `IMPORTANT: This agent specifically focuses on ${topics.join(', ')}. All content MUST be related to these topics.`,
+        configured_topics: topics, // Pass the actual configured/extracted topics
+        explicit_topics: topics // Make it very clear what topics to use
+      },
       max_articles: config.maxItemsPerRun || 50,
       quality_threshold: 0.7,
       include_trends: true,
@@ -210,6 +240,81 @@ export class CrewAIAgentExecutor implements AgentExecutor {
         prefer_recent: true
       }
     };
+  }
+
+  private extractTopicsFromAgent(agent: any): string[] {
+    const topics: string[] = [];
+    
+    // Combine agent name and description for analysis
+    const fullText = `${agent.name} ${agent.description || ''}`.toLowerCase();
+    
+    console.log(`[CrewAIExecutor] Extracting topics from: "${fullText}"`);
+    
+    // Sports patterns
+    if (fullText.includes('sport') || fullText.includes('nba') || fullText.includes('basketball') || 
+        fullText.includes('football') || fullText.includes('soccer') || fullText.includes('baseball')) {
+      
+      if (fullText.includes('nba') || fullText.includes('basketball')) {
+        topics.push('NBA', 'basketball', 'NBA news', 'NBA games', 'NBA scores', 'NBA players');
+        console.log('[CrewAIExecutor] Detected NBA/Basketball agent');
+      } else if (fullText.includes('nfl') || (fullText.includes('football') && !fullText.includes('soccer'))) {
+        topics.push('NFL', 'football', 'NFL news', 'NFL games', 'NFL scores');
+        console.log('[CrewAIExecutor] Detected NFL/Football agent');
+      } else if (fullText.includes('soccer') || fullText.includes('premier league')) {
+        topics.push('soccer', 'Premier League', 'Champions League', 'soccer news');
+        console.log('[CrewAIExecutor] Detected Soccer agent');
+      } else if (fullText.includes('mlb') || fullText.includes('baseball')) {
+        topics.push('MLB', 'baseball', 'MLB news', 'baseball scores');
+        console.log('[CrewAIExecutor] Detected Baseball agent');
+      } else if (fullText.includes('sport')) {
+        topics.push('sports', 'sports news', 'sports scores', 'athletes', 'games today');
+        console.log('[CrewAIExecutor] Detected generic Sports agent');
+      }
+    }
+    
+    // Financial patterns
+    else if (fullText.includes('financ') || fullText.includes('stock') || fullText.includes('crypto') || 
+             fullText.includes('market') || fullText.includes('trading')) {
+      
+      if (fullText.includes('crypto') || fullText.includes('bitcoin')) {
+        topics.push('cryptocurrency', 'bitcoin', 'ethereum', 'crypto news', 'crypto prices');
+        console.log('[CrewAIExecutor] Detected Crypto agent');
+      } else if (fullText.includes('stock') || fullText.includes('trading')) {
+        topics.push('stock market', 'stocks', 'trading', 'NYSE', 'NASDAQ', 'market news');
+        console.log('[CrewAIExecutor] Detected Stock Market agent');
+      } else {
+        topics.push('finance', 'financial news', 'markets', 'economy', 'investments');
+        console.log('[CrewAIExecutor] Detected Finance agent');
+      }
+    }
+    
+    // Technology patterns
+    else if (fullText.includes('tech') || fullText.includes('ai') || fullText.includes('artificial') || 
+             fullText.includes('software') || fullText.includes('startup')) {
+      topics.push('technology', 'AI', 'artificial intelligence', 'tech news', 'startups');
+      console.log('[CrewAIExecutor] Detected Technology agent');
+    }
+    
+    // Entertainment patterns
+    else if (fullText.includes('entertainment') || fullText.includes('movie') || fullText.includes('music') || 
+             fullText.includes('celebrity') || fullText.includes('hollywood')) {
+      topics.push('entertainment', 'movies', 'music', 'celebrities', 'entertainment news');
+      console.log('[CrewAIExecutor] Detected Entertainment agent');
+    }
+    
+    // If no specific pattern matched, extract key words from description
+    if (topics.length === 0 && agent.description) {
+      const words = agent.description.toLowerCase().split(/\s+/);
+      const stopWords = ['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'get', 'find', 'search', 'about'];
+      const meaningfulWords = words.filter(w => w.length > 3 && !stopWords.includes(w));
+      
+      if (meaningfulWords.length > 0) {
+        topics.push(...meaningfulWords.slice(0, 5));
+        console.log('[CrewAIExecutor] Extracted keywords from description:', topics);
+      }
+    }
+    
+    return topics.slice(0, 5); // Limit to 5 topics
   }
 
   private async processResults(result: any, agent: any, run: IAgentRun, userId: string): Promise<void> {

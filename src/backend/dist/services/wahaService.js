@@ -16,6 +16,10 @@ class WAHAService extends events_1.EventEmitter {
         this.isReady = false;
         this.connectionStatus = 'disconnected';
         this.statusMonitorInterval = null;
+        this.lastQrDataUrl = null;
+        this.lastQrGeneratedAt = null;
+        this.qrReuseWindowMs = 25000; // reuse same QR for up to ~25s
+        this.qrRequestCooldownMs = 5000; // avoid hammering WAHA
         this.wahaBaseUrl = process.env.WAHA_SERVICE_URL || 'https://synapse-waha.onrender.com';
         // Get WAHA API key from environment variables
         const wahaApiKey = process.env.WAHA_API_KEY;
@@ -32,7 +36,7 @@ class WAHAService extends events_1.EventEmitter {
         }
         this.httpClient = axios_1.default.create({
             baseURL: this.wahaBaseUrl,
-            timeout: 30000,
+            timeout: 60000, // Increased to 60 seconds for chat loading operations
             headers,
         });
         // Setup request interceptors for logging
@@ -262,14 +266,15 @@ class WAHAService extends events_1.EventEmitter {
             // If session doesn't exist, create it
             if (!sessionExists) {
                 console.log(`[WAHA Service] Creating new session '${sessionName}'...`);
-                console.log(`[WAHA Service] Making POST request to /api/sessions with simplified payload:`, {
-                    name: sessionName
-                });
-                // ULTRA-FIX: Create session with simplified payload first, add webhooks later
-                const response = await this.httpClient.post('/api/sessions', {
-                    name: sessionName
-                    // Don't add webhooks during creation - add them later to avoid issues
-                });
+                const engine = process.env.WAHA_ENGINE?.trim();
+                const createPayload = { name: sessionName };
+                if (engine) {
+                    createPayload.engine = engine;
+                    console.log(`[WAHA Service] Using configured WAHA engine: ${engine}`);
+                }
+                console.log(`[WAHA Service] Making POST request to /api/sessions with payload:`, createPayload);
+                // Create session (minimal payload; webhooks added after successful start)
+                const response = await this.httpClient.post('/api/sessions', createPayload);
                 console.log(`[WAHA Service] ✅ Session creation response:`, response.status);
                 console.log(`[WAHA Service] 📋 Full response data:`, JSON.stringify(response.data, null, 2));
                 sessionData = response.data;
@@ -412,12 +417,28 @@ class WAHAService extends events_1.EventEmitter {
     /**
      * Get QR code for session (following WAHA API documentation)
      */
-    async getQRCode(sessionName = this.defaultSession) {
-        console.log(`[WAHA Service] Starting QR code generation for session '${sessionName}'`);
+    async getQRCode(sessionName = this.defaultSession, force = false) {
+        console.log(`[WAHA Service] Starting QR code generation for session '${sessionName}', force=${force}`);
         try {
-            // First ensure session exists and is properly configured
+            // Throttle QR requests to avoid device-link rate limits
+            const now = Date.now();
+            if (!force && this.lastQrGeneratedAt && now - this.lastQrGeneratedAt < this.qrRequestCooldownMs) {
+                console.log('[WAHA Service] ⏳ Throttling QR requests; returning recent QR');
+                if (this.lastQrDataUrl)
+                    return this.lastQrDataUrl;
+            }
+            // Reuse a fresh QR within a short window to avoid regenerating constantly
+            if (!force && this.lastQrGeneratedAt && now - this.lastQrGeneratedAt < this.qrReuseWindowMs && this.lastQrDataUrl) {
+                console.log('[WAHA Service] 🔁 Reusing cached QR within reuse window');
+                return this.lastQrDataUrl;
+            }
+            // Ensure session exists and is in a proper state for QR
             console.log(`[WAHA Service] Ensuring session '${sessionName}' exists and is configured...`);
-            await this.startSession(sessionName);
+            let current = await this.getSessionStatus(sessionName);
+            if (current.status === 'STOPPED' || current.status === 'FAILED') {
+                await this.startSession(sessionName);
+                current = await this.getSessionStatus(sessionName);
+            }
             // Wait for session to reach SCAN_QR_CODE state with longer timeout
             console.log(`[WAHA Service] Waiting for session '${sessionName}' to reach QR ready state...`);
             await this.waitForSessionState(sessionName, ['SCAN_QR_CODE'], 30000); // 30 seconds for stability
@@ -432,7 +453,10 @@ class WAHAService extends events_1.EventEmitter {
             if (response.data && response.data.byteLength > 0) {
                 const base64 = Buffer.from(response.data).toString('base64');
                 console.log(`[WAHA Service] ✅ QR code converted to base64, length: ${base64.length}`);
-                return `data:image/png;base64,${base64}`;
+                const dataUrl = `data:image/png;base64,${base64}`;
+                this.lastQrDataUrl = dataUrl;
+                this.lastQrGeneratedAt = Date.now();
+                return dataUrl;
             }
             else {
                 throw new Error('Empty QR code response from WAHA service');
@@ -513,30 +537,92 @@ class WAHAService extends events_1.EventEmitter {
                 console.log(`[WAHA Service] Session not in WORKING status (${sessionStatus.status}), returning empty chats`);
                 return [];
             }
-            // Prefer overview endpoint first for richer data (per WAHA docs)
-            let response;
-            try {
-                response = await this.httpClient.get(`/api/${sessionName}/chats/overview`, {
-                    timeout: 90000
-                });
-                console.log(`[WAHA Service] Using chats overview endpoint`);
+            const normalizeChats = (raw) => {
+                if (Array.isArray(raw))
+                    return raw;
+                if (Array.isArray(raw?.chats))
+                    return raw.chats;
+                if (Array.isArray(raw?.data))
+                    return raw.data;
+                return [];
+            };
+            const mapChats = (items) => {
+                return (items || []).map((chat) => ({
+                    id: chat.id,
+                    name: chat.name || chat.subject || chat.title || chat.id,
+                    // Robust group detection: WAHA may omit isGroup. Treat *@g.us as group.
+                    isGroup: Boolean(chat.isGroup) || (typeof chat.id === 'string' && chat.id.includes('@g.us')),
+                    lastMessage: chat.lastMessage?.body,
+                    timestamp: chat.lastMessage?.timestamp,
+                    participantCount: chat.participantCount
+                }));
+            };
+            const tryOverview = async () => {
+                try {
+                    console.log(`[WAHA Service] Trying chats overview with 45s timeout...`);
+                    const res = await this.httpClient.get(`/api/${sessionName}/chats/overview`, { timeout: 45000 });
+                    const items = normalizeChats(res.data);
+                    console.log(`[WAHA Service] ✅ Chats overview successful; got ${items.length} items`);
+                    return mapChats(items);
+                }
+                catch (e) {
+                    const errorMsg = e?.message || e;
+                    console.log(`[WAHA Service] ❌ Chats overview failed: ${errorMsg}`);
+                    if (errorMsg.includes('timeout')) {
+                        console.log(`[WAHA Service] Overview endpoint timed out after 45s, will try direct /chats`);
+                    }
+                    return null;
+                }
+            };
+            const tryChats = async (timeoutMs) => {
+                try {
+                    console.log(`[WAHA Service] Trying direct /chats endpoint with ${timeoutMs / 1000}s timeout...`);
+                    const res = await this.httpClient.get(`/api/${sessionName}/chats`, { timeout: timeoutMs });
+                    const items = normalizeChats(res.data);
+                    console.log(`[WAHA Service] ✅ Direct /chats successful; got ${items.length} items`);
+                    return mapChats(items);
+                }
+                catch (e) {
+                    const errorMsg = e?.message || e;
+                    console.log(`[WAHA Service] ❌ /chats failed (${timeoutMs / 1000}s): ${errorMsg}`);
+                    if (errorMsg.includes('timeout')) {
+                        console.log(`[WAHA Service] Direct chats endpoint timed out after ${timeoutMs / 1000}s`);
+                    }
+                    return null;
+                }
+            };
+            // Attempt sequence: overview(45s) → chats(30s) → refresh → chats(20s)
+            console.log(`[WAHA Service] Starting chat loading sequence for session '${sessionName}'...`);
+            let chats = await tryOverview();
+            if (!chats || chats.length === 0) {
+                console.log(`[WAHA Service] Overview failed or empty, trying direct /chats...`);
+                chats = await tryChats(30000);
             }
-            catch (e) {
-                console.log(`[WAHA Service] Chats overview not available, falling back to /chats`);
-                response = await this.httpClient.get(`/api/${sessionName}/chats`, {
-                    timeout: 90000
-                });
+            if (!chats || chats.length === 0) {
+                console.log(`[WAHA Service] Direct /chats failed or empty, requesting refresh...`);
+                try {
+                    await this.httpClient.post(`/api/${sessionName}/chats/refresh`, {}, { timeout: 10000 });
+                    console.log('[WAHA Service] ✅ Chats refresh requested successfully');
+                    // Wait a moment for refresh to process
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+                catch (refreshError) {
+                    console.log(`[WAHA Service] ❌ Chats refresh failed: ${refreshError?.message || refreshError}`);
+                }
+                console.log(`[WAHA Service] Trying /chats again after refresh...`);
+                chats = await tryChats(20000);
             }
-            console.log(`[WAHA Service] Received ${response.data.length} chats`);
-            return response.data.map((chat) => ({
-                id: chat.id,
-                name: chat.name || chat.subject || chat.title || chat.id,
-                // Robust group detection: WAHA may omit isGroup. Treat *@g.us as group.
-                isGroup: Boolean(chat.isGroup) || (typeof chat.id === 'string' && chat.id.includes('@g.us')),
-                lastMessage: chat.lastMessage?.body,
-                timestamp: chat.lastMessage?.timestamp,
-                participantCount: chat.participantCount
-            }));
+            if (!chats) {
+                console.warn('[WAHA Service] Returning empty chats due to upstream failures');
+                return [];
+            }
+            // Enforce a hard cap to reduce memory usage when WAHA returns huge lists
+            const limit = Math.max(1, parseInt(process.env.WAHA_CHATS_LIMIT || '300', 10));
+            if (chats.length > limit) {
+                console.log(`[WAHA Service] Capping chats from ${chats.length} to ${limit} (WAHA_CHATS_LIMIT)`);
+                return chats.slice(0, limit);
+            }
+            return chats;
         }
         catch (error) {
             console.error(`[WAHA Service] ❌ Failed to get chats for '${sessionName}':`, error.response?.status, error.response?.data);
@@ -615,7 +701,7 @@ class WAHAService extends events_1.EventEmitter {
             // WAHA API endpoint structure: /api/{session}/chats/{chatId}/messages
             const response = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(chatId)}/messages`, {
                 params: { limit },
-                timeout: 90000
+                timeout: 20000
             });
             console.log(`[WAHA Service] Received ${response.data.length} messages`);
             return response.data.map((msg) => ({
@@ -706,6 +792,9 @@ class WAHAService extends events_1.EventEmitter {
             console.log(`[WAHA Service] ✅ Session '${sessionName}' stopped`);
             this.connectionStatus = 'disconnected';
             this.isReady = false;
+            // Invalidate cached QR on stop
+            this.lastQrDataUrl = null;
+            this.lastQrGeneratedAt = null;
         }
         catch (error) {
             // Don't throw error if session doesn't exist (404)
@@ -713,6 +802,8 @@ class WAHAService extends events_1.EventEmitter {
                 console.log(`[WAHA Service] Session '${sessionName}' was already deleted`);
                 this.connectionStatus = 'disconnected';
                 this.isReady = false;
+                this.lastQrDataUrl = null;
+                this.lastQrGeneratedAt = null;
                 return;
             }
             console.error(`[WAHA Service] ❌ Failed to stop session '${sessionName}':`, error);
@@ -738,6 +829,9 @@ class WAHAService extends events_1.EventEmitter {
             // Start new session
             const newSession = await this.startSession(sessionName);
             console.log(`[WAHA Service] ✅ Session '${sessionName}' restarted with status: ${newSession.status}`);
+            // Invalidate cached QR on restart
+            this.lastQrDataUrl = null;
+            this.lastQrGeneratedAt = null;
             return newSession;
         }
         catch (error) {

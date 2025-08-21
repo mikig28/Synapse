@@ -64,6 +64,11 @@ console.log(`  - NODE_ENV: ${process.env.NODE_ENV}`);
 // Create HTTP server and pass it to Socket.IO
 const httpServer = http.createServer(app);
 
+// Set server timeout to 2 minutes (120 seconds) for long-running operations
+httpServer.timeout = 120000; // 2 minutes
+httpServer.keepAliveTimeout = 65000; // 65 seconds (should be less than timeout)
+httpServer.headersTimeout = 66000; // 66 seconds (should be slightly higher than keepAliveTimeout)
+
 // Define allowed origins for Socket.IO
 const allowedSocketOrigins = [
   frontendUrl, // From environment variable

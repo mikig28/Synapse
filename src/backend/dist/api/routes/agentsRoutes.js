@@ -11,6 +11,8 @@ const AgentRun_1 = __importDefault(require("../../models/AgentRun"));
 const router = express_1.default.Router();
 // Health check endpoint (no auth required)
 router.get('/health', agentsController_1.getHealthStatus);
+// CrewAI service health check endpoint (no auth required)
+router.get('/health/crewai', agentsController_1.getCrewAIServiceHealth);
 // Debug endpoint (no auth required for testing)
 router.get('/debug/environment', agentsController_1.getEnvironmentDebug);
 // All other routes require authentication

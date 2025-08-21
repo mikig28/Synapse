@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getEnvironmentDebug = exports.resetAgentStatus = exports.getCrewProgress = exports.getAgentStatus = exports.testCrewAISources = exports.getAgentCapabilities = exports.getMCPRecommendations = exports.testMCPConnection = exports.getBuiltinTools = exports.getSchedulerStatus = exports.resumeAgent = exports.pauseAgent = exports.getAgentStatistics = exports.getUserAgentRuns = exports.getAgentRuns = exports.executeAgent = exports.deleteAgent = exports.updateAgent = exports.createAgent = exports.getAgentById = exports.getAgents = exports.getHealthStatus = exports.initializeAgentServices = void 0;
+exports.getEnvironmentDebug = exports.resetAgentStatus = exports.getCrewProgress = exports.getAgentStatus = exports.testCrewAISources = exports.getAgentCapabilities = exports.getMCPRecommendations = exports.testMCPConnection = exports.getBuiltinTools = exports.getSchedulerStatus = exports.resumeAgent = exports.pauseAgent = exports.getAgentStatistics = exports.getUserAgentRuns = exports.getAgentRuns = exports.executeAgent = exports.deleteAgent = exports.updateAgent = exports.createAgent = exports.getAgentById = exports.getAgents = exports.getCrewAIServiceHealth = exports.getHealthStatus = exports.initializeAgentServices = void 0;
 const mongoose_1 = __importDefault(require("mongoose"));
 const Agent_1 = __importDefault(require("../../models/Agent"));
 const AgentRun_1 = __importDefault(require("../../models/AgentRun"));
@@ -67,6 +67,33 @@ const getHealthStatus = async (req, res) => {
     }
 };
 exports.getHealthStatus = getHealthStatus;
+// Health check for CrewAI service specifically
+const getCrewAIServiceHealth = async (req, res) => {
+    try {
+        const healthCheck = await agentService.checkCrewAIServiceHealth();
+        res.status(healthCheck.isHealthy ? 200 : 503).json({
+            success: healthCheck.isHealthy,
+            service: 'CrewAI',
+            status: healthCheck.status,
+            message: healthCheck.message,
+            serviceUrl: healthCheck.serviceUrl,
+            responseTime: healthCheck.responseTime,
+            timestamp: new Date().toISOString(),
+            error: healthCheck.error
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            service: 'CrewAI',
+            status: 'error',
+            message: 'Failed to check CrewAI service health',
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+};
+exports.getCrewAIServiceHealth = getCrewAIServiceHealth;
 // Get all agents for the authenticated user
 const getAgents = async (req, res) => {
     try {
@@ -344,6 +371,21 @@ const executeAgent = async (req, res) => {
             statusCode = 501;
             errorType = 'executor_not_available';
         }
+        else if (error.message.includes('Cannot execute CrewAI agent') || error.serviceHealthy === false) {
+            // CrewAI service health check failures
+            if (error.serviceStatus === 'unreachable') {
+                statusCode = 503;
+                errorType = 'crewai_service_unreachable';
+            }
+            else if (error.serviceStatus === 'timeout') {
+                statusCode = 504;
+                errorType = 'crewai_service_timeout';
+            }
+            else {
+                statusCode = 503;
+                errorType = 'crewai_service_unhealthy';
+            }
+        }
         else if (error.message.includes('service is unavailable') || error.code === 'ECONNREFUSED') {
             statusCode = 503;
             errorType = 'service_unavailable';
@@ -361,6 +403,10 @@ const executeAgent = async (req, res) => {
             agentStatus: agent?.status,
             availableExecutors: agentService.getAvailableExecutors(),
             errorType,
+            serviceHealthy: error.serviceHealthy,
+            serviceStatus: error.serviceStatus,
+            serviceUrl: error.serviceUrl,
+            serviceError: error.serviceError,
             timestamp: new Date().toISOString()
         };
         res.status(statusCode).json({

@@ -107,6 +107,7 @@ services:
     runtime: python
     buildCommand: cd src/backend/services/crewai-agents && pip install --upgrade pip && pip install -r requirements.txt && ls -la
     startCommand: cd src/backend/services/crewai-agents && ls -la && python main_enhanced.py
+    healthCheckPath: /
     plan: starter
     envVars:
       - key: OPENAI_API_KEY

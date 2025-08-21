@@ -827,7 +827,7 @@ const forceHistorySync = async (req, res) => {
     }
 };
 exports.forceHistorySync = forceHistorySync;
-// Send phone authentication code
+// Request phone authentication code
 const sendPhoneAuthCode = async (req, res) => {
     try {
         const { phoneNumber } = req.body;
@@ -837,66 +837,31 @@ const sendPhoneAuthCode = async (req, res) => {
                 error: 'Phone number is required and must be a string'
             });
         }
-        // Clean phone number (remove non-digits and add country code if needed)
-        const cleanedPhone = phoneNumber.replace(/\D/g, '');
-        if (cleanedPhone.length < 10) {
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid phone number format'
-            });
-        }
-        // Check if WAHA service is available first
-        const whatsappService = getWhatsAppService();
-        initializeWhatsAppService();
-        // Request phone authentication code from WhatsApp
-        const result = await whatsappService.requestPhoneCode(cleanedPhone);
-        if (result.success) {
-            res.json({
-                success: true,
-                message: 'Verification code generated. Enter it in your WhatsApp app.',
-                data: {
-                    phoneNumber: cleanedPhone,
-                    codeRequested: true,
-                    pairingCode: result.code || null
-                }
-            });
-        }
-        else {
-            // Check if it's a known "not supported" error
-            if (result.error?.includes('not available') || result.error?.includes('not supported')) {
-                console.log('[WhatsApp] Phone auth not supported by WAHA service, directing user to QR method');
-                res.status(422).json({
-                    success: false,
-                    error: 'Phone number authentication is not available with the current WhatsApp configuration. Please use QR code authentication instead.',
-                    fallbackMethod: 'qr',
-                    code: 'PHONE_AUTH_NOT_SUPPORTED'
-                });
-            }
-            else {
-                res.status(400).json({
-                    success: false,
-                    error: result.error || 'Failed to send verification code'
-                });
-            }
-        }
+        // Phone pairing is NOT supported by Baileys
+        // Return a clear message explaining this limitation
+        console.log('[WhatsApp] Phone auth requested but not supported by Baileys');
+        return res.status(422).json({
+            success: false,
+            error: 'Phone number pairing is not supported. Please use QR code scanning instead.',
+            message: 'The "Link with phone number" feature only works with official WhatsApp Web. This platform uses Baileys which only supports QR code authentication.',
+            fallbackMethod: 'qr',
+            code: 'PHONE_AUTH_NOT_SUPPORTED',
+            instructions: [
+                '1. Use the QR code method instead',
+                '2. In WhatsApp, go to Settings > Linked Devices',
+                '3. Tap "Link a Device"',
+                '4. DO NOT select "Link with phone number"',
+                '5. Scan the QR code displayed by this platform'
+            ]
+        });
     }
     catch (error) {
-        console.error('[WhatsApp] Error sending phone auth code:', error);
-        // Check if it's a network/connection error to WAHA service
-        if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.response?.status >= 500) {
-            res.status(503).json({
-                success: false,
-                error: 'WhatsApp service is temporarily unavailable. Please try QR code authentication instead.',
-                fallbackMethod: 'qr',
-                code: 'SERVICE_UNAVAILABLE'
-            });
-        }
-        else {
-            res.status(500).json({
-                success: false,
-                error: 'Failed to send verification code: ' + error.message
-            });
-        }
+        console.error('[WhatsApp] Error in phone auth request:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Phone pairing is not supported. Please use QR code authentication.',
+            fallbackMethod: 'qr'
+        });
     }
 };
 exports.sendPhoneAuthCode = sendPhoneAuthCode;

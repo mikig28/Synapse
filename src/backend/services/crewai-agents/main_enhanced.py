@@ -203,11 +203,105 @@ class EnhancedNewsGatherer:
         
         logger.info(f"Enhanced news gatherer initialized in {self.mode} mode")
     
-    def gather_news(self, topics: List[str] = None, sources: Dict[str, Any] = None, **kwargs) -> Dict[str, Any]:
-        """Gather news using the best available method"""
+    def _extract_topics_from_goal(self, goal: str) -> List[str]:
+        """Extract meaningful topics from agent goal description"""
+        import re
         
-        if not topics:
-            topics = ["technology", "AI", "startups", "business", "innovation"]
+        # Convert to lowercase for processing
+        goal_lower = goal.lower()
+        
+        # Common patterns for sports agents
+        if any(word in goal_lower for word in ['sport', 'nba', 'basketball', 'football', 'soccer', 'baseball', 'tennis', 'athletic', 'game', 'player', 'team']):
+            topics = []
+            # NBA/Basketball specific
+            if 'nba' in goal_lower or 'basketball' in goal_lower:
+                topics.extend(['NBA', 'basketball', 'NBA news', 'NBA games today', 'NBA players', 'NBA trades', 'NBA scores'])
+            # NFL/American Football
+            elif 'nfl' in goal_lower or ('football' in goal_lower and 'american' in goal_lower):
+                topics.extend(['NFL', 'football', 'NFL news', 'NFL games', 'NFL teams'])
+            # Soccer/Football
+            elif 'soccer' in goal_lower or 'premier league' in goal_lower or 'champions league' in goal_lower:
+                topics.extend(['soccer', 'Premier League', 'Champions League', 'football news', 'soccer transfers'])
+            # MLB/Baseball
+            elif 'mlb' in goal_lower or 'baseball' in goal_lower:
+                topics.extend(['MLB', 'baseball', 'MLB news', 'baseball scores', 'MLB games'])
+            # Tennis
+            elif 'tennis' in goal_lower:
+                topics.extend(['tennis', 'ATP', 'WTA', 'tennis news', 'tennis tournaments'])
+            # Generic sports
+            elif 'sport' in goal_lower:
+                topics = ['sports news', 'sports today', 'athletes', 'sports scores', 'sports highlights']
+            
+            if topics:
+                logger.info(f"🏀 Sports agent detected! Topics: {topics[:5]}")
+                return topics[:5]  # Limit to 5 topics
+        
+        # Financial/crypto patterns
+        if any(word in goal_lower for word in ['financ', 'stock', 'crypto', 'bitcoin', 'market', 'trading']):
+            topics = []
+            if 'crypto' in goal_lower or 'bitcoin' in goal_lower:
+                topics.extend(['cryptocurrency', 'bitcoin', 'ethereum', 'crypto news'])
+            if 'stock' in goal_lower or 'trading' in goal_lower:
+                topics.extend(['stock market', 'stocks', 'trading', 'NYSE', 'NASDAQ'])
+            if 'financ' in goal_lower:
+                topics.extend(['finance', 'financial news', 'economy', 'markets'])
+            return topics[:5]
+        
+        # Technology patterns
+        if any(word in goal_lower for word in ['tech', 'ai', 'artificial intelligence', 'software', 'startup']):
+            topics = ['technology', 'AI', 'tech news', 'startups', 'innovation']
+            return topics
+        
+        # Extract key phrases from goal using simple NLP
+        # Remove common words and extract meaningful terms
+        stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'up', 'about', 'get', 'find', 'search', 'look', 'news', 'information', 'data', 'latest', 'recent', 'current'}
+        
+        # Split by common delimiters and clean
+        words = re.findall(r'\b[a-z]+\b', goal_lower)
+        topics = [word for word in words if word not in stop_words and len(word) > 3]
+        
+        # Return up to 5 unique topics
+        return list(set(topics))[:5] if topics else ['news', 'latest', 'trending']
+    
+    def gather_news(self, topics: List[str] = None, sources: Dict[str, Any] = None, agent_context: Dict[str, Any] = None, **kwargs) -> Dict[str, Any]:
+        """Gather news using the best available method with agent context awareness"""
+        
+        # Extract agent context for personalized generation
+        if agent_context:
+            agent_name = agent_context.get('name', 'News Agent')
+            agent_goal = agent_context.get('goal', '')
+            agent_description = agent_context.get('description', '')
+            custom_instructions = agent_context.get('custom_instructions', '')
+            
+            logger.info(f"📋 Agent Context - Name: {agent_name}, Goal: {agent_goal}")
+            
+            # Always try to extract specific topics from agent goal/description
+            # This overrides generic topics to ensure personalized content
+            if agent_goal:
+                extracted_topics = self._extract_topics_from_goal(agent_goal)
+                if extracted_topics and extracted_topics != ['news', 'latest', 'trending']:
+                    logger.info(f"🎯 Extracted specific topics from goal: {extracted_topics}")
+                    topics = extracted_topics
+                elif agent_description:
+                    # Try extracting from description if goal didn't yield specific topics
+                    extracted_topics = self._extract_topics_from_goal(agent_description)
+                    if extracted_topics and extracted_topics != ['news', 'latest', 'trending']:
+                        logger.info(f"🎯 Extracted specific topics from description: {extracted_topics}")
+                        topics = extracted_topics
+        
+        # Only use default topics if absolutely no topics were provided or extracted
+        if not topics or len(topics) == 0:
+            # Check if we have explicit topics in agent context
+            if agent_context and agent_context.get('explicit_topics'):
+                topics = agent_context.get('explicit_topics')
+                logger.info(f"🎯 Using explicit topics from agent context: {topics}")
+            elif agent_context and agent_context.get('configured_topics'):
+                topics = agent_context.get('configured_topics')
+                logger.info(f"🎯 Using configured topics from agent context: {topics}")
+            else:
+                # Only use defaults as absolute last resort
+                topics = ["technology", "AI", "startups", "business", "innovation"]
+                logger.warning(f"⚠️ Using default topics as last resort for agent: {agent_name}")
         
         if not sources:
             sources = {
@@ -223,7 +317,7 @@ class EnhancedNewsGatherer:
         try:
             logger.info(f"Gathering news for topics: {topics} using {self.mode} mode")
             
-            # Prepare user input for dynamic crew
+            # Prepare user input for dynamic crew with agent context
             user_input = {
                 'topics': topics,
                 'sources': list(sources.keys()) if isinstance(sources, dict) else sources,
@@ -231,7 +325,12 @@ class EnhancedNewsGatherer:
                 'quality_threshold': kwargs.get('quality_threshold', 0.7),
                 'include_trends': kwargs.get('include_trends', True),
                 'focus_areas': kwargs.get('focus_areas', ['quality', 'relevance']),
-                'platforms': [k for k, v in sources.items() if v] if isinstance(sources, dict) else sources
+                'platforms': [k for k, v in sources.items() if v] if isinstance(sources, dict) else sources,
+                # Include agent context for personalized generation
+                'agent_context': agent_context if agent_context else {},
+                'agent_name': agent_context.get('name', 'News Agent') if agent_context else 'News Agent',
+                'agent_goal': agent_context.get('goal', f'Research {topics}') if agent_context else f'Research {topics}',
+                'custom_instructions': agent_context.get('custom_instructions', '') if agent_context else ''
             }
             
             # Try enhanced multi-agent system first
@@ -273,8 +372,17 @@ class EnhancedNewsGatherer:
                             })
                     
                     logger.info(f"🔄 Starting enhanced crew research with social media for topics: {topics}")
+                    # Pass agent context for personalized generation
+                    if agent_context:
+                        logger.info(f"🎯 Using agent context: {agent_context.get('name', 'Unknown')} - Goal: {agent_context.get('goal', 'Not specified')}")
                     # Use the new enhanced method that combines news analysis with real social media scraping
-                    result = self.enhanced_crew.research_news_with_social_media(topics, sources, progress_callback=progress_callback)
+                    result = self.enhanced_crew.research_news_with_social_media(
+                        topics, 
+                        sources, 
+                        agent_context=agent_context,
+                        user_input=user_input,
+                        progress_callback=progress_callback
+                    )
                     logger.info(f"🔄 Enhanced crew research with social media completed. Result keys: {list(result.keys()) if isinstance(result, dict) else type(result)}")
                     
                     if result.get('status') == 'success':
@@ -641,19 +749,28 @@ except Exception as e:
 @app.route('/', methods=['GET'])
 def root():
     """Root endpoint for health checks and service info"""
-    return jsonify({
-        'service': 'Enhanced Synapse CrewAI Multi-Agent News Service',
-        'status': 'running',
-        'mode': news_gatherer.mode if news_gatherer else 'initialization_failed',
-        'version': '1.0.0',
-        'timestamp': datetime.now().isoformat(),
-        'endpoints': {
-            '/health': 'Detailed health check',
-            '/gather-news': 'POST - Gather news with topics',
-            '/system-info': 'System status and capabilities',
-            '/progress': 'Real-time progress tracking'
-        }
-    })
+    try:
+        return jsonify({
+            'service': 'Enhanced Synapse CrewAI Multi-Agent News Service',
+            'status': 'running',
+            'mode': news_gatherer.mode if news_gatherer else 'initialization_failed',
+            'version': '1.0.0',
+            'timestamp': datetime.now().isoformat(),
+            'endpoints': {
+                '/health': 'Detailed health check',
+                '/gather-news': 'POST - Gather news with topics',
+                '/system-info': 'System status and capabilities',
+                '/progress': 'Real-time progress tracking'
+            }
+        }), 200
+    except Exception as e:
+        logger.error(f"Error in root endpoint: {str(e)}")
+        return jsonify({
+            'service': 'Enhanced Synapse CrewAI Multi-Agent News Service',
+            'status': 'error',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -732,8 +849,20 @@ def gather_news():
     
     try:
         data = request.get_json() if request.is_json else {}
+        
+        # Log the entire request data for debugging
+        logger.info(f"📥 Received request data keys: {list(data.keys())}")
+        
         topics = data.get('topics', None)
         sources = data.get('sources', None)
+        
+        # Get agent context for personalized generation
+        agent_context = data.get('agent_context', {})
+        
+        if agent_context:
+            logger.info(f"✅ Agent context received: {agent_context}")
+        else:
+            logger.warning("⚠️ No agent context received in request")
         
         # Additional parameters for enhanced system
         max_articles = data.get('max_articles', 50)
@@ -741,10 +870,11 @@ def gather_news():
         include_trends = data.get('include_trends', True)
         focus_areas = data.get('focus_areas', ['quality', 'relevance'])
         
-        # Execute enhanced news gathering
+        # Execute enhanced news gathering with agent context
         result = news_gatherer.gather_news(
             topics=topics,
             sources=sources,
+            agent_context=agent_context,
             max_articles=max_articles,
             quality_threshold=quality_threshold,
             include_trends=include_trends,

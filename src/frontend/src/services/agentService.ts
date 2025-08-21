@@ -170,7 +170,10 @@ export const agentService = {
     status?: number;
   }> {
     try {
-      const response = await axiosInstance.get<{ success: boolean; progress: any; error?: string; }>(`/agents/${agentId}/crew-progress`);
+      const response = await axiosInstance.get<{ success: boolean; progress: any; error?: string; }>(
+        `/agents/${agentId}/crew-progress`,
+        { timeout: 60000 } // 60 second timeout for progress checks
+      );
       return { ...response.data, status: response.status };
     } catch (error: any) {
       console.error('Error fetching crew progress:', error);
@@ -189,7 +192,12 @@ export const agentService = {
 
   // Execute an agent manually
   async executeAgent(agentId: string, force: boolean = false): Promise<AgentRun> {
-    const response = await axiosInstance.post<{ success: boolean; data: AgentRun }>(`/agents/${agentId}/execute`, { force });
+    // Use a longer timeout for agent execution (2 minutes)
+    const response = await axiosInstance.post<{ success: boolean; data: AgentRun }>(
+      `/agents/${agentId}/execute`,
+      { force },
+      { timeout: 120000 } // 2 minute timeout for agent execution
+    );
     return response.data.data;
   },
 

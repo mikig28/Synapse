@@ -27,7 +27,7 @@ COPY src/backend/public/ ./public/
 RUN mkdir -p ./public/uploads
 
 # Build the application with increased memory for TypeScript compilation
-ENV NODE_OPTIONS="--max-old-space-size=8192"
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN echo "Starting TypeScript build with increased memory..." && \
     echo "Current directory: $(pwd)" && \
     echo "Package.json check:" && \
