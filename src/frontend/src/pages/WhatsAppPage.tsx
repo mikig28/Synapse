@@ -51,6 +51,14 @@ interface WhatsAppChat {
   isGroup: boolean;
   participantCount?: number;
   description?: string;
+  // Enhanced WAHA group metadata
+  inviteCode?: string;
+  picture?: string;
+  role?: 'ADMIN' | 'MEMBER' | 'SUPERADMIN';
+  settings?: {
+    messagesAdminOnly?: boolean;
+    infoAdminOnly?: boolean;
+  };
 }
 
 interface WhatsAppStatus {
@@ -449,25 +457,49 @@ const WhatsAppPage: React.FC = () => {
     }
   };
 
-  const fetchGroups = async (showLoading = false) => {
+  const fetchGroups = async (showLoading = false, options?: { limit?: number; offset?: number }) => {
     try {
       if (showLoading) setLoadingChats(true);
       
+      // Build WAHA-compliant query parameters
+      const params = new URLSearchParams();
+      if (options?.limit) params.append('limit', options.limit.toString());
+      if (options?.offset) params.append('offset', options.offset.toString());
+      params.append('sortBy', 'subject'); // Sort by group name
+      params.append('sortOrder', 'asc'); // Alphabetical order
+      
+      const queryString = params.toString();
+      
       // Prefer WAHA modern endpoint; fallback to legacy
       try {
-        const wahaRes = await api.get('/waha/groups');
+        const wahaEndpoint = `/waha/groups${queryString ? `?${queryString}` : ''}`;
+        const wahaRes = await api.get(wahaEndpoint);
         if (wahaRes.data.success && Array.isArray(wahaRes.data.data)) {
-          console.log(`[WhatsApp Frontend] ✅ Fetched ${wahaRes.data.data.length} groups via WAHA`);
-          setGroups(wahaRes.data.data);
-          return;
+          console.log(`[WhatsApp Frontend] ✅ Fetched ${wahaRes.data.data.length} groups via WAHA with pagination`);
+          
+          // Show enhanced metadata if available
+          if (wahaRes.data.metadata) {
+            console.log(`[WhatsApp Frontend] Group metadata:`, wahaRes.data.metadata);
+          }
+          
+          // Append new groups if offset is provided (pagination), otherwise replace
+          if (options?.offset && options.offset > 0) {
+            setGroups(prevGroups => [...prevGroups, ...wahaRes.data.data]);
+          } else {
+            setGroups(wahaRes.data.data);
+          }
+          return wahaRes.data;
         }
       } catch (e) {
         console.log('[WhatsApp Frontend] WAHA groups endpoint failed, trying legacy');
       }
+      
+      // Fallback to legacy endpoint
       const legacyRes = await api.get('/whatsapp/groups');
       if (legacyRes.data.success && Array.isArray(legacyRes.data.data)) {
         console.log(`[WhatsApp Frontend] ✅ Fetched ${legacyRes.data.data.length} groups via legacy`);
         setGroups(legacyRes.data.data);
+        return legacyRes.data;
       }
     } catch (error) {
       console.error('Error fetching WhatsApp groups:', error);
@@ -868,9 +900,9 @@ const WhatsAppPage: React.FC = () => {
           description: data.data ? `Found ${data.data.chatCount || 0} total chats` : "Fetching latest chat data...",
         });
         
-        // Fetch updated data
+        // Fetch updated data with pagination support
         await Promise.all([
-          fetchGroups(false), // Don't show loading again since we already are
+          fetchGroups(false, { limit: 100 }), // Load first 100 groups with pagination
           fetchPrivateChats(false)
         ]);
         
@@ -903,6 +935,57 @@ const WhatsAppPage: React.FC = () => {
       toast({
         title: "Connection Error",
         description: errorMsg,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingChats(false);
+    }
+  };
+
+  const refreshGroups = async () => {
+    try {
+      setLoadingChats(true);
+      
+      console.log('[WhatsApp Frontend] 🔄 Starting groups refresh...');
+      
+      // Try WAHA-compliant group refresh endpoint
+      let refreshData: any;
+      try {
+        const wahaRefresh = await api.post('/waha/refresh-groups');
+        refreshData = wahaRefresh.data;
+        console.log('[WhatsApp Frontend] ✅ WAHA groups refresh response:', refreshData);
+      } catch (e) {
+        console.log('[WhatsApp Frontend] WAHA groups refresh failed, will fetch fresh data');
+      }
+      
+      // Show immediate feedback
+      toast({
+        title: "Refreshing Groups",
+        description: refreshData?.message || "Fetching latest group data...",
+      });
+      
+      // Fetch updated groups with enhanced metadata
+      const groupsData = await fetchGroups(false, { limit: 100 });
+      
+      // Show success notification with enhanced information
+      if (groupsData?.metadata) {
+        const { metadata } = groupsData;
+        toast({
+          title: "Groups Refreshed Successfully",
+          description: `Loaded ${groupsData.data?.length || 0} groups (${metadata.groupsWithAdminRole} admin roles, ${metadata.totalParticipants} total members)`,
+        });
+      } else {
+        toast({
+          title: "Groups Refreshed",
+          description: "Group data updated successfully",
+        });
+      }
+      
+    } catch (error: any) {
+      console.error('Error refreshing groups:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to refresh groups",
         variant: "destructive",
       });
     } finally {
@@ -1342,7 +1425,17 @@ const WhatsAppPage: React.FC = () => {
                     className="border-blue-400/30 text-blue-200 hover:bg-blue-500/10"
                   >
                     <RefreshCw className="w-4 h-4 mr-2" />
-                    Refresh
+                    Refresh Chats
+                  </AnimatedButton>
+                  
+                  <AnimatedButton
+                    onClick={refreshGroups}
+                    variant="outline"
+                    size="sm"
+                    className="border-green-400/30 text-green-200 hover:bg-green-500/10"
+                  >
+                    <Users className="w-4 h-4 mr-2" />
+                    Refresh Groups
                   </AnimatedButton>
                   
                   <AnimatedButton
@@ -1509,17 +1602,44 @@ const WhatsAppPage: React.FC = () => {
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                            <div className="flex-shrink-0">
-                              <Users className="w-5 h-5 text-green-400" />
+                            <div className="flex-shrink-0 relative">
+                              <Users className={`w-5 h-5 ${
+                                group.role === 'ADMIN' ? 'text-yellow-400' : 'text-green-400'
+                              }`} />
+                              {group.role === 'ADMIN' && (
+                                <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full" 
+                                     title="You are admin" />
+                              )}
+                              {(group.settings?.messagesAdminOnly || group.settings?.infoAdminOnly) && (
+                                <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-red-400 rounded-full" 
+                                     title="Restricted group" />
+                              )}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-white truncate" title={group.name}>
-                                {group.name}
-                              </p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium text-white truncate flex-1" title={group.name}>
+                                  {group.name}
+                                </p>
+                                {group.role === 'ADMIN' && (
+                                  <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1 rounded" 
+                                        title="Admin">
+                                    A
+                                  </span>
+                                )}
+                              </div>
                               <div className="flex items-center gap-2 mt-1">
                                 <p className="text-xs text-blue-200/70">
                                   {(group.participantCount ?? 0)} members
                                 </p>
+                                {group.description && (
+                                  <>
+                                    <span className="text-xs text-blue-200/40">•</span>
+                                    <p className="text-xs text-blue-200/50 truncate max-w-[80px]" 
+                                       title={group.description}>
+                                      {group.description}
+                                    </p>
+                                  </>
+                                )}
                                 {group.lastMessage && (
                                   <>
                                     <span className="text-xs text-blue-200/40">•</span>
@@ -1529,6 +1649,14 @@ const WhatsAppPage: React.FC = () => {
                                   </>
                                 )}
                               </div>
+                              {(group.settings?.messagesAdminOnly || group.settings?.infoAdminOnly) && (
+                                <div className="mt-1">
+                                  <span className="text-xs bg-red-500/20 text-red-400 px-1 rounded" 
+                                        title="Group has restrictions">
+                                    {group.settings.messagesAdminOnly ? 'Admin-only messages' : 'Admin-only info'}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </motion.div>
@@ -1881,6 +2009,18 @@ const WhatsAppPage: React.FC = () => {
                     >
                       <RefreshCw className="w-4 h-4 mr-2" />
                       Refresh Chats
+                    </AnimatedButton>
+                    
+                    <AnimatedButton
+                      onClick={() => {
+                        refreshGroups();
+                        setShowMobileMenu(false);
+                      }}
+                      variant="outline"
+                      className="w-full border-green-400/30 text-green-200 hover:bg-green-500/10"
+                    >
+                      <Users className="w-4 h-4 mr-2" />
+                      Refresh Groups
                     </AnimatedButton>
                     
                     <AnimatedButton

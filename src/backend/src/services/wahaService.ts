@@ -29,6 +29,14 @@ export interface WAHAChat {
   isGroup: boolean;
   participantCount?: number;
   description?: string;
+  // Enhanced WAHA group metadata
+  inviteCode?: string;
+  picture?: string;
+  role?: 'ADMIN' | 'MEMBER' | 'SUPERADMIN';
+  settings?: {
+    messagesAdminOnly?: boolean;
+    infoAdminOnly?: boolean;
+  };
 }
 
 export interface WAHAStatus {
@@ -646,9 +654,18 @@ class WAHAService extends EventEmitter {
   }
 
   /**
-   * Get chats
+   * Get chats with WAHA-compliant pagination and filtering
    */
-  async getChats(sessionName: string = this.defaultSession): Promise<WAHAChat[]> {
+  async getChats(
+    sessionName: string = this.defaultSession,
+    options: {
+      limit?: number;
+      offset?: number;
+      sortBy?: 'messageTimestamp' | 'id' | 'name';
+      sortOrder?: 'desc' | 'asc';
+      exclude?: string[];
+    } = {}
+  ): Promise<WAHAChat[]> {
     try {
       console.log(`[WAHA Service] Getting chats for session '${sessionName}'...`);
       
@@ -700,7 +717,19 @@ class WAHAService extends EventEmitter {
 
       const tryChats = async (timeoutMs: number): Promise<WAHAChat[] | null> => {
         try {
-          const res = await this.httpClient.get(`/api/${sessionName}/chats`, { timeout: timeoutMs });
+          // Build WAHA-compliant query parameters
+          const params = new URLSearchParams();
+          if (options.limit) params.append('limit', options.limit.toString());
+          if (options.offset) params.append('offset', options.offset.toString());
+          if (options.sortBy) params.append('sortBy', options.sortBy);
+          if (options.sortOrder) params.append('sortOrder', options.sortOrder);
+          if (options.exclude?.length) params.append('exclude', options.exclude.join(','));
+
+          const queryString = params.toString();
+          const endpoint = `/api/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
+          
+          console.log(`[WAHA Service] Using WAHA-compliant endpoint: ${endpoint}`);
+          const res = await this.httpClient.get(endpoint, { timeout: timeoutMs });
           const items = normalizeChats(res.data);
           console.log(`[WAHA Service] Using /chats endpoint; got ${items.length} items (timeout: ${timeoutMs}ms)`);
           return mapChats(items);
@@ -760,7 +789,16 @@ class WAHAService extends EventEmitter {
   /**
    * Get groups using WAHA groups endpoint (compliant), fallback to filtering chats
    */
-  async getGroups(sessionName: string = this.defaultSession): Promise<WAHAChat[]> {
+  async getGroups(
+    sessionName: string = this.defaultSession,
+    options: {
+      limit?: number;
+      offset?: number;
+      sortBy?: 'id' | 'subject';
+      sortOrder?: 'desc' | 'asc';
+      exclude?: string[];
+    } = {}
+  ): Promise<WAHAChat[]> {
     try {
       // Ensure session is working
       const sessionStatus = await this.getSessionStatus(sessionName);
@@ -768,15 +806,36 @@ class WAHAService extends EventEmitter {
         return [];
       }
       try {
-        const res = await this.httpClient.get(`/api/${sessionName}/groups`);
+        // Build WAHA-compliant query parameters for groups
+        const params = new URLSearchParams();
+        if (options.limit) params.append('limit', options.limit.toString());
+        if (options.offset) params.append('offset', options.offset.toString());
+        if (options.sortBy) params.append('sortBy', options.sortBy);
+        if (options.sortOrder) params.append('sortOrder', options.sortOrder);
+        if (options.exclude?.length) params.append('exclude', options.exclude.join(','));
+
+        const queryString = params.toString();
+        const endpoint = `/api/${sessionName}/groups${queryString ? `?${queryString}` : ''}`;
+        
+        console.log(`[WAHA Service] Using WAHA-compliant groups endpoint: ${endpoint}`);
+        const res = await this.httpClient.get(endpoint);
         console.log(`[WAHA Service] Received ${res.data.length} groups`);
         return res.data.map((g: any) => ({
           id: g.id || g.chatId || g.groupId,
           name: g.name || g.subject || g.title || g.id,
+          description: g.description,
           isGroup: true,
           lastMessage: g.lastMessage?.body,
           timestamp: g.lastMessage?.timestamp,
-          participantCount: g.participants?.length || g.participantCount
+          participantCount: g.participants?.length || g.participantCount || 0,
+          // Enhanced WAHA group metadata
+          inviteCode: g.invite || g.inviteCode,
+          picture: g.picture,
+          role: g.role, // 'ADMIN', 'MEMBER', etc.
+          settings: {
+            messagesAdminOnly: g.settings?.messagesAdminOnly,
+            infoAdminOnly: g.settings?.infoAdminOnly
+          }
         }));
       } catch (e: any) {
         if (e.response?.status === 404) {
@@ -794,14 +853,59 @@ class WAHAService extends EventEmitter {
   }
 
   /**
-   * Request WAHA to refresh groups (best effort)
-   * Note: Most WAHA engines don't support a refresh endpoint, so this is mainly a placeholder
+   * Request WAHA to refresh groups (WAHA-compliant implementation)
    */
-  async refreshGroups(sessionName: string = this.defaultSession): Promise<void> {
-    console.log('[WAHA Service] Group refresh requested - most WAHA engines handle this automatically');
-    // Most WAHA implementations don't support manual refresh endpoints
-    // Groups are typically refreshed automatically by the WAHA service
-    // This method exists for API compatibility but is largely a no-op
+  async refreshGroups(sessionName: string = this.defaultSession): Promise<{ success: boolean; message?: string }> {
+    try {
+      console.log(`[WAHA Service] Refreshing groups for session '${sessionName}'`);
+      
+      // Try WAHA-compliant refresh endpoint first
+      try {
+        const response = await this.httpClient.post(`/api/${sessionName}/groups/refresh`);
+        console.log(`[WAHA Service] ✅ Groups refreshed successfully`);
+        return { success: true, message: 'Groups refreshed successfully' };
+      } catch (refreshError: any) {
+        // If refresh endpoint doesn't exist (404), that's expected for some engines
+        if (refreshError.response?.status === 404) {
+          console.log(`[WAHA Service] Groups refresh endpoint not available - groups auto-refresh by WAHA`);
+          return { success: true, message: 'Groups are automatically refreshed by WAHA service' };
+        } else {
+          console.warn(`[WAHA Service] Groups refresh failed:`, refreshError.message);
+          throw refreshError;
+        }
+      }
+    } catch (error: any) {
+      console.error(`[WAHA Service] ❌ Failed to refresh groups:`, error);
+      return { success: false, message: error.message || 'Failed to refresh groups' };
+    }
+  }
+
+  /**
+   * Get group participants (WAHA-compliant)
+   */
+  async getGroupParticipants(groupId: string, sessionName: string = this.defaultSession): Promise<any[]> {
+    try {
+      console.log(`[WAHA Service] Getting participants for group '${groupId}'`);
+      const response = await this.httpClient.get(`/api/${sessionName}/groups/${encodeURIComponent(groupId)}/participants`);
+      return response.data || [];
+    } catch (error: any) {
+      console.error(`[WAHA Service] ❌ Failed to get group participants:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Get specific group details (WAHA-compliant)
+   */
+  async getGroupDetails(groupId: string, sessionName: string = this.defaultSession): Promise<any> {
+    try {
+      console.log(`[WAHA Service] Getting details for group '${groupId}'`);
+      const response = await this.httpClient.get(`/api/${sessionName}/groups/${encodeURIComponent(groupId)}`);
+      return response.data;
+    } catch (error: any) {
+      console.error(`[WAHA Service] ❌ Failed to get group details:`, error);
+      return null;
+    }
   }
 
   /**

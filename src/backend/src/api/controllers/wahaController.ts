@@ -249,16 +249,33 @@ export const sendMedia = async (req: Request, res: Response) => {
 };
 
 /**
- * Get all chats
+ * Get all chats with WAHA-compliant pagination and filtering
  */
 export const getChats = async (req: Request, res: Response) => {
   try {
     const wahaService = getWAHAService();
-    const chats = await wahaService.getChats();
+    
+    // Parse WAHA-compliant query parameters
+    const options = {
+      limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
+      offset: req.query.offset ? parseInt(req.query.offset as string) : undefined,
+      sortBy: req.query.sortBy as 'messageTimestamp' | 'id' | 'name' | undefined,
+      sortOrder: req.query.sortOrder as 'desc' | 'asc' | undefined,
+      exclude: req.query.exclude ? (req.query.exclude as string).split(',') : undefined
+    };
+    
+    console.log('[WAHA Controller] Getting chats with options:', options);
+    const chats = await wahaService.getChats(undefined, options);
     
     res.json({
       success: true,
-      data: chats
+      data: chats,
+      pagination: {
+        limit: options.limit,
+        offset: options.offset,
+        total: chats.length,
+        hasMore: options.limit ? chats.length >= options.limit : false
+      }
     });
   } catch (error) {
     console.error('[WAHA Controller] Error getting chats:', error);
@@ -570,22 +587,46 @@ export const verifyPhoneAuthCode = async (req: Request, res: Response) => {
 };
 
 /**
- * Get WhatsApp groups  
+ * Get WhatsApp groups with WAHA-compliant pagination and enhanced metadata
  */
 export const getGroups = async (req: Request, res: Response) => {
   try {
     const wahaService = getWAHAService();
+    
+    // Parse WAHA-compliant query parameters for groups
+    const options = {
+      limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
+      offset: req.query.offset ? parseInt(req.query.offset as string) : undefined,
+      sortBy: req.query.sortBy as 'id' | 'subject' | undefined,
+      sortOrder: req.query.sortOrder as 'desc' | 'asc' | undefined,
+      exclude: req.query.exclude ? (req.query.exclude as string).split(',') : undefined
+    };
+    
+    console.log('[WAHA Controller] Getting groups with options:', options);
+    
     // Try WAHA-compliant groups endpoint first
-    let groups = await wahaService.getGroups();
+    let groups = await wahaService.getGroups(undefined, options);
     if (!groups || groups.length === 0) {
       // Ask WAHA to refresh then try again quickly
-      await wahaService.refreshGroups();
-      groups = await wahaService.getGroups();
+      const refreshResult = await wahaService.refreshGroups();
+      console.log('[WAHA Controller] Group refresh result:', refreshResult);
+      groups = await wahaService.getGroups(undefined, options);
     }
     
     res.json({
       success: true,
-      data: groups
+      data: groups,
+      pagination: {
+        limit: options.limit,
+        offset: options.offset,
+        total: groups.length,
+        hasMore: options.limit ? groups.length >= options.limit : false
+      },
+      metadata: {
+        groupsWithAdminRole: groups.filter(g => g.role === 'ADMIN').length,
+        groupsWithRestrictions: groups.filter(g => g.settings?.messagesAdminOnly || g.settings?.infoAdminOnly).length,
+        totalParticipants: groups.reduce((sum, g) => sum + (g.participantCount || 0), 0)
+      }
     });
   } catch (error) {
     console.error('[WAHA Controller] Error getting groups:', error);
@@ -692,6 +733,101 @@ export const forceRestart = async (req: Request, res: Response) => {
 /**
  * Refresh WhatsApp chats - triggers fresh fetch
  */
+/**
+ * Get group participants (WAHA-compliant)
+ */
+export const getGroupParticipants = async (req: Request, res: Response) => {
+  try {
+    const { groupId } = req.params;
+    const wahaService = getWAHAService();
+    
+    if (!groupId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Group ID is required'
+      });
+    }
+    
+    console.log(`[WAHA Controller] Getting participants for group: ${groupId}`);
+    const participants = await wahaService.getGroupParticipants(groupId);
+    
+    res.json({
+      success: true,
+      data: participants,
+      groupId: groupId,
+      participantCount: participants.length
+    });
+  } catch (error) {
+    console.error('[WAHA Controller] Error getting group participants:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get group participants'
+    });
+  }
+};
+
+/**
+ * Get specific group details (WAHA-compliant)
+ */
+export const getGroupDetails = async (req: Request, res: Response) => {
+  try {
+    const { groupId } = req.params;
+    const wahaService = getWAHAService();
+    
+    if (!groupId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Group ID is required'
+      });
+    }
+    
+    console.log(`[WAHA Controller] Getting details for group: ${groupId}`);
+    const groupDetails = await wahaService.getGroupDetails(groupId);
+    
+    if (!groupDetails) {
+      return res.status(404).json({
+        success: false,
+        error: 'Group not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: groupDetails
+    });
+  } catch (error) {
+    console.error('[WAHA Controller] Error getting group details:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get group details'
+    });
+  }
+};
+
+/**
+ * Refresh groups using WAHA-compliant endpoint
+ */
+export const refreshGroups = async (req: Request, res: Response) => {
+  try {
+    const wahaService = getWAHAService();
+    console.log('[WAHA Controller] Refreshing groups...');
+    
+    const result = await wahaService.refreshGroups();
+    
+    res.json({
+      success: result.success,
+      message: result.message || 'Groups refresh completed',
+      data: result
+    });
+  } catch (error) {
+    console.error('[WAHA Controller] Error refreshing groups:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to refresh groups'
+    });
+  }
+};
+
 export const refreshChats = async (req: Request, res: Response) => {
   try {
     const wahaService = getWAHAService();
