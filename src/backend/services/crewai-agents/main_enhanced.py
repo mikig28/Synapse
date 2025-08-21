@@ -289,8 +289,19 @@ class EnhancedNewsGatherer:
                         logger.info(f"🎯 Extracted specific topics from description: {extracted_topics}")
                         topics = extracted_topics
         
-        if not topics:
-            topics = ["technology", "AI", "startups", "business", "innovation"]
+        # Only use default topics if absolutely no topics were provided or extracted
+        if not topics or len(topics) == 0:
+            # Check if we have explicit topics in agent context
+            if agent_context and agent_context.get('explicit_topics'):
+                topics = agent_context.get('explicit_topics')
+                logger.info(f"🎯 Using explicit topics from agent context: {topics}")
+            elif agent_context and agent_context.get('configured_topics'):
+                topics = agent_context.get('configured_topics')
+                logger.info(f"🎯 Using configured topics from agent context: {topics}")
+            else:
+                # Only use defaults as absolute last resort
+                topics = ["technology", "AI", "startups", "business", "innovation"]
+                logger.warning(f"⚠️ Using default topics as last resort for agent: {agent_name}")
         
         if not sources:
             sources = {
