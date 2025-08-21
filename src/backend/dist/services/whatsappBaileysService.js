@@ -67,7 +67,15 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
         this.MEMORY_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
         this.CONNECTION_TIMEOUT = 120000; // 120 seconds (increased)
         this.KEEP_ALIVE_INTERVAL = 30000; // 30 seconds (increased)
+        // Added fields for pairing/diagnostics to satisfy TS and enable pairing flow
+        this.pairingSocket = null;
+        this.pairingPhone = '';
+        this.pairingAuthPath = '';
+        this.AUTH_PATH = this.authDir; // Alias used by pairing code
+        this.logger = (0, pino_1.default)({ level: 'silent' });
         this.loadSession();
+        // Ensure AUTH_PATH mirrors current authDir on construction
+        this.AUTH_PATH = this.authDir;
         // Cleanup timers on process exit
         process.on('SIGINT', this.cleanup.bind(this));
         process.on('SIGTERM', this.cleanup.bind(this));
@@ -179,7 +187,7 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
                 auth: state,
                 printQRInTerminal: false, // We'll handle QR code generation ourselves
                 // Use pino logger with silent level to reduce noise
-                logger: (0, pino_1.default)({ level: 'silent' }),
+                logger: this.logger,
                 browser: ['Synapse Bot', 'Chrome', '120.0.0'],
                 generateHighQualityLinkPreview: false,
                 syncFullHistory: false, // Disable full history sync to improve performance
@@ -401,7 +409,7 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
                         this.emitChatsUpdate();
                     }
                     this.saveSession();
-                }, 1500); // Reduced from 3000ms"}
+                }, 1500); // Reduced from 3000ms
             }
         });
         // Credentials update handler
@@ -1404,45 +1412,162 @@ class WhatsAppBaileysService extends events_1.EventEmitter {
     // Request phone authentication code
     async requestPhoneCode(phoneNumber) {
         try {
-            if (!this.socket) {
-                await this.initialize();
-            }
-            if (!this.socket) {
-                return { success: false, error: 'Failed to initialize WhatsApp connection' };
-            }
             // Format phone number for Baileys (ensure it includes country code)
             let formattedPhone = phoneNumber.replace(/\D/g, '');
             if (!formattedPhone.startsWith('1') && formattedPhone.length === 10) {
                 formattedPhone = '1' + formattedPhone; // Add US country code if missing
             }
-            console.log(`📱 Requesting phone verification code for: ${formattedPhone}`);
-            // Note: Baileys doesn't directly support phone number authentication like WhatsApp Web
-            // This would typically require a different WhatsApp Business API or custom implementation
-            // For now, we'll return an error indicating this feature needs WhatsApp Business API
-            return {
-                success: false,
-                error: 'Phone number authentication requires WhatsApp Business API. Please use QR code authentication instead.'
-            };
+            console.log(`📱 Requesting phone pairing code for: ${formattedPhone}`);
+            // Clear any existing pairing socket
+            if (this.pairingSocket) {
+                this.pairingSocket.end(new Error('Clearing existing pairing socket'));
+                this.pairingSocket = null;
+            }
+            // If already connected, do not start pairing
+            if (this.socket && this.isClientReady) {
+                return { success: false, error: 'WhatsApp session is already active. Please logout first to pair a new device.' };
+            }
+            // Create a temporary auth directory for pairing
+            const pairingAuthPath = path.join(this.AUTH_PATH, '../pairing-auth');
+            await fs.ensureDir(pairingAuthPath);
+            await fs.emptyDir(pairingAuthPath);
+            // Initialize auth state
+            const { state, saveCreds } = await (0, baileys_1.useMultiFileAuthState)(pairingAuthPath);
+            // Create socket for pairing; passing state is sufficient even if fresh dir
+            const socket = (0, baileys_1.makeWASocket)({
+                auth: state,
+                printQRInTerminal: false,
+                logger: this.logger,
+                browser: baileys_1.Browsers.macOS('Desktop'),
+                connectTimeoutMs: 60000,
+                defaultQueryTimeoutMs: 0,
+                keepAliveIntervalMs: 30000,
+                emitOwnEvents: true,
+                fireInitQueries: false,
+                generateHighQualityLinkPreview: true,
+                syncFullHistory: true,
+                markOnlineOnConnect: true,
+                mobile: false
+            });
+            // Store socket reference
+            this.pairingSocket = socket;
+            this.pairingPhone = formattedPhone;
+            this.pairingAuthPath = pairingAuthPath;
+            // Finalize on successful connection
+            socket.ev.on('connection.update', async (update) => {
+                if (update.connection === 'open') {
+                    try {
+                        await saveCreds();
+                        await fs.emptyDir(this.AUTH_PATH);
+                        await fs.copy(pairingAuthPath, this.AUTH_PATH);
+                        await fs.remove(pairingAuthPath);
+                        if (this.socket)
+                            this.socket.end(new Error('Replacing with paired socket'));
+                        this.socket = socket;
+                        this.pairingSocket = null;
+                        this.isClientReady = true;
+                        await this.handleConnectionOpen();
+                    }
+                    catch (e) {
+                        console.error('❌ Error finalizing pairing session:', e.message);
+                    }
+                }
+            });
+            // Try to obtain pairing code via event quickly
+            let eventCode = null;
+            const eventPromise = new Promise((resolve) => {
+                const handler = (update) => {
+                    if (update?.pairingCode && !eventCode) {
+                        eventCode = String(update.pairingCode);
+                        resolve();
+                    }
+                };
+                socket.ev.on('connection.update', handler);
+                setTimeout(() => resolve(), 2500);
+            });
+            await eventPromise;
+            const code = eventCode ?? (await this.pairingSocket?.requestPairingCode?.(formattedPhone)) ?? null;
+            if (!code) {
+                return { success: false, error: 'Failed to generate pairing code' };
+            }
+            const formattedCode = String(code).replace(/[\s-]/g, '');
+            console.log(`✅ Pairing code ready: ${formattedCode}`);
+            return { success: true, code: formattedCode };
         }
         catch (error) {
-            console.error('❌ Error requesting phone code:', error.message);
-            return { success: false, error: error.message };
+            console.error('❌ Error requesting pairing code:', error);
+            // Clean up on error
+            try {
+                if (this.pairingSocket) {
+                    this.pairingSocket.end(new Error('Pairing error cleanup'));
+                    this.pairingSocket = null;
+                }
+                if (this.pairingAuthPath) {
+                    await fs.remove(this.pairingAuthPath).catch(() => { });
+                }
+            }
+            catch { }
+            if (error.message?.includes('timeout')) {
+                return { success: false, error: 'Connection timeout. Please check your internet connection and try again.' };
+            }
+            else if (error.message?.includes('already exists')) {
+                return { success: false, error: 'WhatsApp is already authenticated. Please clear authentication and try again.' };
+            }
+            else if (error.message?.includes('requestPairingCode is not a function') || error.message?.includes('not available')) {
+                return { success: false, error: 'Phone pairing is not supported by the current WhatsApp Web version. Please use QR code authentication instead.' };
+            }
+            else {
+                return { success: false, error: error.message || 'Failed to generate pairing code' };
+            }
         }
     }
     // Verify phone authentication code
     async verifyPhoneCode(phoneNumber, code) {
         try {
             console.log(`📱 Verifying phone code for: ${phoneNumber}`);
-            // Note: Baileys doesn't directly support phone number authentication
-            // This would require WhatsApp Business API integration
-            return {
-                success: false,
-                error: 'Phone number authentication requires WhatsApp Business API. Please use QR code authentication instead.'
-            };
+            // With pairing codes, verification completes on the phone; we can only report state
+            if (this.pairingSocket && this.pairingPhone === phoneNumber) {
+                const state = this.pairingSocket.authState;
+                if (state?.creds?.registered) {
+                    this.socket = this.pairingSocket;
+                    this.pairingSocket = null;
+                    this.pairingPhone = '';
+                    return { success: true };
+                }
+                return { success: false, error: 'Pairing not yet completed. Please ensure you entered the code in WhatsApp.' };
+            }
+            if (this.socket && this.isClientReady) {
+                return { success: true };
+            }
+            return { success: false, error: 'No active pairing session found. Please request a new pairing code.' };
         }
         catch (error) {
             console.error('❌ Error verifying phone code:', error.message);
             return { success: false, error: error.message };
+        }
+    }
+    // Called when connection has opened successfully (QR or pairing)
+    async handleConnectionOpen() {
+        try {
+            this.isClientReady = true;
+            this.isReady = true;
+            this.connectionStatus = 'connected';
+            this.qrString = null;
+            this.qrDataUrl = null;
+            this.reconnectAttempts = 0;
+            this.emit('status', {
+                ready: true,
+                authenticated: true,
+                connected: true,
+                message: 'WhatsApp connected successfully!',
+                authMethod: 'pairing'
+            });
+            this.emit('ready', { status: 'connected' });
+            this.startHealthMonitoring();
+            this.startMemoryCleanup();
+        }
+        catch (error) {
+            console.error('❌ Error in handleConnectionOpen:', error.message);
         }
     }
     // Cleanup method for graceful shutdown

@@ -66,18 +66,10 @@ const getStatus = async (req, res) => {
             isConnected,
             qrAvailable
         });
-        // Compute counts from chats to keep the header accurate
-        let groupsCount = 0;
-        let privateChatsCount = 0;
-        let messagesCount = 0;
-        try {
-            const chats = await wahaService.getChats();
-            groupsCount = chats.filter(c => c.isGroup || (typeof c.id === 'string' && c.id.includes('@g.us'))).length;
-            privateChatsCount = Math.max(0, (chats?.length || 0) - groupsCount);
-            // Heuristic: count chats that have a last message present
-            messagesCount = chats.reduce((acc, c) => acc + (c.lastMessage ? 1 : 0), 0);
-        }
-        catch { }
+        // Avoid fetching chats here to keep status fast and prevent 50x under latency
+        const groupsCount = undefined;
+        const privateChatsCount = undefined;
+        const messagesCount = undefined;
         // Convert WAHA status to format expected by frontend
         const status = {
             connected: isConnected,
@@ -134,6 +126,7 @@ const getQR = async (req, res) => {
     try {
         console.log('[WAHA Controller] QR code request received');
         const wahaService = getWAHAService();
+        const force = String(req.query.force || '').toLowerCase() === 'true';
         // Check service health first
         try {
             await wahaService.healthCheck();
@@ -147,7 +140,7 @@ const getQR = async (req, res) => {
                 suggestion: 'Try restarting the WAHA service'
             });
         }
-        const qrDataUrl = await wahaService.getQRCode();
+        const qrDataUrl = await wahaService.getQRCode(undefined, force);
         console.log('[WAHA Controller] ✅ QR code generated successfully');
         res.json({
             success: true,
@@ -174,6 +167,10 @@ const getQR = async (req, res) => {
             else if (error.message.includes('timeout')) {
                 statusCode = 408;
                 userMessage = 'QR code generation timed out. Please try again.';
+            }
+            else if (error.message.includes('429') || error.message.toLowerCase().includes('too many')) {
+                statusCode = 429;
+                userMessage = 'Too many linking attempts. Please wait a minute and try again.';
             }
         }
         res.status(statusCode).json({
