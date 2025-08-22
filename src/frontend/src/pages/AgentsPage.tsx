@@ -108,6 +108,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { AguiTestButton } from '@/components/AguiTestButton';
+import MobileCrewAIViewer from '@/components/MobileCrewAIViewer';
 
 // Memoized component for better performance
 const AgentsPage: React.FC = memo(() => {
@@ -175,6 +176,10 @@ const AgentsPage: React.FC = memo(() => {
   const [currentView, setCurrentView] = useState<'agents' | 'analytics' | 'dashboard'>('agents');
   const [enableDashboardFeatures, setEnableDashboardFeatures] = useState(true);
   const [selectedAgentDashboard, setSelectedAgentDashboard] = useState<string | null>(null);
+  const [mobileCrewViewer, setMobileCrewViewer] = useState<{ isVisible: boolean; agent: Agent | null }>({
+    isVisible: false,
+    agent: null
+  });
 
   // Preload critical components on mount (skip for iOS to improve performance)
   useEffect(() => {
@@ -1114,6 +1119,41 @@ const AgentsPage: React.FC = memo(() => {
             onSuccess={handleAgentCreated}
           />
         </LazyWrapper>
+
+        {/* Mobile CrewAI Quick Access - only show on mobile for running CrewAI agents */}
+        {isMobile && agents && (() => {
+          const runningCrewAIAgents = agents.filter(agent => 
+            agent.type === 'crewai_news' && agent.status === 'running'
+          );
+          return runningCrewAIAgents.length > 0 && (
+            <FloatingActionButton
+              icon={<Brain className="w-5 h-5" />}
+              position="bottom-center"
+              tooltip={`View ${runningCrewAIAgents.length} running CrewAI agent${runningCrewAIAgents.length > 1 ? 's' : ''}`}
+              onClick={() => {
+                // Show the first running CrewAI agent
+                setMobileCrewViewer({
+                  isVisible: true,
+                  agent: runningCrewAIAgents[0]
+                });
+              }}
+              style={{
+                background: `linear-gradient(135deg, ${agentColors.running.primary}, ${agentColors.completed.primary})`,
+                boxShadow: shadows.coloredGlow(agentColors.running.glow),
+                animation: 'pulse 2s infinite'
+              }}
+            />
+          );
+        })()}
+
+        {/* Mobile CrewAI Viewer Modal */}
+        {mobileCrewViewer.agent && (
+          <MobileCrewAIViewer
+            agent={mobileCrewViewer.agent}
+            isVisible={mobileCrewViewer.isVisible}
+            onClose={() => setMobileCrewViewer({ isVisible: false, agent: null })}
+          />
+        )}
 
         {/* Offline/Online Status Indicator */}
         {!isOnline && (
