@@ -85,10 +85,18 @@ class WAHAService extends EventEmitter {
       console.warn('[WAHA Service] ⚠️ No WAHA_API_KEY found - API requests may fail with 401');
     }
 
+    // Get timeout from environment or use default
+    const timeout = parseInt(process.env.WAHA_TIMEOUT_MS || '30000', 10);
+
     this.httpClient = axios.create({
       baseURL: this.wahaBaseUrl,
-      timeout: 90000, // Increased to 90 seconds for Render.com cold starts and heavy chat loads
+      timeout, // Use configurable timeout
       headers,
+      // Add retry configuration
+      validateStatus: (status) => {
+        // Consider 2xx and 3xx as success
+        return status >= 200 && status < 400;
+      }
     });
 
     // Setup request interceptors for logging
@@ -104,6 +112,16 @@ class WAHAService extends EventEmitter {
       },
       (error: any) => {
         console.error(`[WAHA API] ❌ ${error.response?.status || 'NETWORK_ERROR'} ${error.config?.url}:`, error.message);
+        
+        // Enhanced error logging for debugging
+        if (error.response?.status === 401) {
+          console.error('[WAHA API] Authentication failed - check WAHA_API_KEY');
+        } else if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+          console.error('[WAHA API] Request timed out - consider increasing WAHA_TIMEOUT_MS');
+        } else if (error.code === 'ECONNREFUSED') {
+          console.error('[WAHA API] Connection refused - check WAHA_SERVICE_URL');
+        }
+        
         return Promise.reject(error);
       }
     );
@@ -748,25 +766,31 @@ class WAHAService extends EventEmitter {
         }
       };
 
-      // Optimized attempt sequence: overview(60s) → chats(60s) → chats(30s) with progressive timeout reduction
+      // Get configured timeout and chat limit
+      const defaultTimeout = parseInt(process.env.WAHA_TIMEOUT_MS || '30000', 10);
+      const chatLimit = parseInt(process.env.WAHA_CHATS_LIMIT || '300', 10);
+      
+      // Optimized attempt sequence with configurable timeouts
       console.log(`[WAHA Service] Starting optimized chat loading sequence for session '${sessionName}'...`);
+      console.log(`[WAHA Service] Using timeout: ${defaultTimeout}ms, limit: ${chatLimit} chats`);
+      
       let chats: WAHAChat[] | null = await tryOverview();
       
       if (!chats || chats.length === 0) {
-        console.log(`[WAHA Service] Overview failed or empty, trying direct /chats with extended timeout...`);
-        chats = await tryChats(60000); // First attempt with 60s timeout for heavy loads
+        console.log(`[WAHA Service] Overview failed or empty, trying direct /chats...`);
+        chats = await tryChats(defaultTimeout); // First attempt with configured timeout
       }
       
       if (!chats || chats.length === 0) {
-        console.log(`[WAHA Service] First /chats attempt failed, retrying with shorter timeout...`);
+        console.log(`[WAHA Service] First /chats attempt failed, retrying with reduced timeout...`);
         await new Promise(resolve => setTimeout(resolve, 2000)); // Brief delay before retry
-        chats = await tryChats(30000); // Second attempt with 30s timeout
+        chats = await tryChats(Math.floor(defaultTimeout * 0.5)); // Second attempt with 50% timeout
       }
       
       if (!chats || chats.length === 0) {
-        console.log(`[WAHA Service] Second /chats attempt failed, final retry with minimal data...`);
+        console.log(`[WAHA Service] Second /chats attempt failed, final retry with minimal timeout...`);
         await new Promise(resolve => setTimeout(resolve, 1000)); // Brief delay before final retry
-        chats = await tryChats(15000); // Final attempt with 15s timeout
+        chats = await tryChats(Math.min(15000, Math.floor(defaultTimeout * 0.25))); // Final attempt with 25% timeout or 15s max
       }
 
       if (!chats || chats.length === 0) {
