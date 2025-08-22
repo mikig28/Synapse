@@ -28,6 +28,7 @@ import {
   Play,
   Pause,
   Settings,
+  Edit,
   Trash2,
   Loader2,
   Twitter,
@@ -159,38 +160,48 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
             exit="hidden"
             custom="left"
           >
-            <div className="flex items-center gap-2">
-              <motion.button
-                className="p-3 bg-blue-500 text-white rounded-full shadow-lg"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => onExecute(agent._id)}
-                disabled={isExecuting || agent.status === 'running'}
-              >
-                {isExecuting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Play className="w-4 h-4" />
-                )}
-              </motion.button>
+            <div className="flex items-center gap-3">
+              <div className="flex flex-col items-center gap-1">
+                <motion.button
+                  className="p-3 bg-blue-500 text-white rounded-full shadow-lg"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => onExecute(agent._id)}
+                  disabled={isExecuting || agent.status === 'running'}
+                >
+                  {isExecuting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Play className="w-4 h-4" />
+                  )}
+                </motion.button>
+                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">Run</span>
+              </div>
               
-              <motion.button
-                className="p-3 bg-gray-500 text-white rounded-full shadow-lg"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => onSettings(agent._id)}
-              >
-                <Settings className="w-4 h-4" />
-              </motion.button>
+              <div className="flex flex-col items-center gap-1">
+                <motion.button
+                  className="p-3 bg-green-500 text-white rounded-full shadow-lg"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => onSettings(agent._id)}
+                  title="Edit Agent Settings"
+                >
+                  <Edit className="w-4 h-4" />
+                </motion.button>
+                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">Edit</span>
+              </div>
               
-              <motion.button
-                className="p-3 bg-red-500 text-white rounded-full shadow-lg"
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setShowActions(false)}
-              >
-                <X className="w-4 h-4" />
-              </motion.button>
+              <div className="flex flex-col items-center gap-1">
+                <motion.button
+                  className="p-3 bg-red-500 text-white rounded-full shadow-lg"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setShowActions(false)}
+                >
+                  <X className="w-4 h-4" />
+                </motion.button>
+                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">Close</span>
+              </div>
             </div>
           </motion.div>
         )}
@@ -373,10 +384,11 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
                   size="sm"
                   variant="outline"
                   onClick={() => onSettings(agent._id)}
-                  className="px-3 bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
-                  title="Edit Settings"
+                  className="px-3 bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700 flex items-center gap-1"
+                  title="Edit Agent Settings"
                 >
-                  <Settings className="w-3 h-3" />
+                  <Edit className="w-3 h-3" />
+                  <span className="text-xs font-medium">Edit</span>
                 </Button>
               </motion.div>
 
