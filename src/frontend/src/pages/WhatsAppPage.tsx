@@ -519,9 +519,10 @@ const WhatsAppPage: React.FC = () => {
       
       // Prefer WAHA modern endpoint; fallback to legacy
       try {
-        const wahaRes = await api.get('/waha/private-chats');
+        // Request limited recent private chats to avoid timeouts and heavy payloads
+        const wahaRes = await api.get('/waha/private-chats?limit=200&sortBy=messageTimestamp&sortOrder=desc');
         if (wahaRes.data.success && Array.isArray(wahaRes.data.data)) {
-          console.log(`[WhatsApp Frontend] ✅ Fetched ${wahaRes.data.data.length} private chats via WAHA`);
+          console.log(`[WhatsApp Frontend] ✅ Fetched ${wahaRes.data.data.length} private chats via WAHA (limited)`);
           setPrivateChats(wahaRes.data.data);
           return;
         }

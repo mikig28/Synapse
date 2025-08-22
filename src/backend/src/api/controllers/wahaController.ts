@@ -746,21 +746,52 @@ export const getPrivateChats = async (req: Request, res: Response) => {
       });
     }
     
-    console.log('[WAHA Controller] Fetching private chats...');
+    // Parse pagination/sorting options
+    const limit = req.query.limit ? Math.max(1, Math.min(500, parseInt(req.query.limit as string))) : undefined;
+    const offset = req.query.offset ? Math.max(0, parseInt(req.query.offset as string)) : undefined;
+    const sortBy = (req.query.sortBy as 'messageTimestamp' | 'id' | 'name' | undefined) || 'messageTimestamp';
+    const sortOrder = (req.query.sortOrder as 'desc' | 'asc' | undefined) || 'desc';
+    
+    console.log('[WAHA Controller] Fetching private chats...', { limit, offset, sortBy, sortOrder });
     const startTime = Date.now();
-    const chats = await wahaService.getChats();
+
+    // Request chats with options to let service use WAHA-compliant params
+    const chats = await wahaService.getChats(undefined, { limit, offset, sortBy, sortOrder });
     
     // Filter only private chats (not @g.us)
-    const privateChats = chats.filter(chat => !chat.isGroup && !(typeof chat.id === 'string' && chat.id.includes('@g.us')));
-    
+    let privateChats = chats.filter(chat => !chat.isGroup && !(typeof chat.id === 'string' && chat.id.includes('@g.us')));
+
+    // Sort client-side as a fallback if WAHA ignored params
+    if (sortBy === 'messageTimestamp') {
+      privateChats = privateChats.sort((a, b) => (sortOrder === 'desc' ? (b.timestamp || 0) - (a.timestamp || 0) : (a.timestamp || 0) - (b.timestamp || 0)));
+    } else if (sortBy === 'name') {
+      privateChats = privateChats.sort((a, b) => (sortOrder === 'desc' ? (b.name || '').localeCompare(a.name || '') : (a.name || '').localeCompare(b.name || '')));
+    } else if (sortBy === 'id') {
+      privateChats = privateChats.sort((a, b) => (sortOrder === 'desc' ? (b.id || '').localeCompare(a.id || '') : (a.id || '').localeCompare(b.id || '')));
+    }
+
+    // Apply pagination client-side if WAHA ignored params
+    const total = privateChats.length;
+    let paged = privateChats;
+    if (typeof limit === 'number') {
+      const start = typeof offset === 'number' ? offset : 0;
+      paged = privateChats.slice(start, start + limit);
+    }
+
     const duration = Date.now() - startTime;
-    console.log(`[WAHA Controller] ✅ Successfully fetched ${privateChats.length} private chats in ${duration}ms`);
+    console.log(`[WAHA Controller] ✅ Successfully fetched ${paged.length}/${total} private chats in ${duration}ms`);
     
     res.json({
       success: true,
-      data: privateChats,
+      data: paged,
+      pagination: {
+        limit,
+        offset: typeof offset === 'number' ? offset : 0,
+        total,
+        hasMore: typeof limit === 'number' ? (typeof offset === 'number' ? offset + paged.length < total : paged.length < total) : false
+      },
       meta: {
-        count: privateChats.length,
+        count: paged.length,
         loadTime: duration
       }
     });
