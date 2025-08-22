@@ -22,6 +22,7 @@ import {
   slideVariants,
   springConfigs 
 } from '@/utils/animations';
+import MobileCrewAIViewer from './MobileCrewAIViewer';
 import {
   Bot,
   Play,
@@ -41,6 +42,8 @@ import {
   AlertCircle,
   CheckCircle,
   X,
+  Eye,
+  Brain,
 } from 'lucide-react';
 
 interface MobileAgentCardProps {
@@ -66,6 +69,7 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
 }) => {
   const [showActions, setShowActions] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
+  const [showCrewViewer, setShowCrewViewer] = useState(false);
 
   const statusColor = getAgentStatusColor(agent.status);
   const typeColor = getAgentTypeColor(agent.type);
@@ -364,6 +368,21 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
                 </Button>
               </motion.div>
 
+              {/* CrewAI Process Viewer Button - only for CrewAI agents */}
+              {agent.type === 'crewai_news' && (
+                <motion.div variants={buttonVariants} whileTap="tap">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowCrewViewer(true)}
+                    className="px-3 bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700"
+                    title="View AI Process"
+                  >
+                    <Brain className="w-3 h-3" />
+                  </Button>
+                </motion.div>
+              )}
+
               <motion.div variants={buttonVariants} whileTap="tap">
                 <Button
                   size="sm"
@@ -400,6 +419,15 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
       >
         <span>← Swipe for actions</span>
       </motion.div>
+
+      {/* CrewAI Process Viewer Modal */}
+      {agent.type === 'crewai_news' && (
+        <MobileCrewAIViewer
+          agent={agent}
+          isVisible={showCrewViewer}
+          onClose={() => setShowCrewViewer(false)}
+        />
+      )}
     </motion.div>
   );
 };
