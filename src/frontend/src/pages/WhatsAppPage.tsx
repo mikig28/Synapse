@@ -926,15 +926,21 @@ const WhatsAppPage: React.FC = () => {
       console.error('Error refreshing chats:', error);
       
       let errorMsg = "Failed to connect to WhatsApp service";
-      if (error.response?.status === 408) {
-        errorMsg = "Chat refresh timed out. Service may be busy.";
+      let suggestion = "Please try again in a few moments";
+      
+      if (error.response?.status === 408 || error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        errorMsg = "WhatsApp service is taking longer than expected";
+        suggestion = "This often happens when the service is processing large amounts of data. Please wait 30-60 seconds and try again.";
+      } else if (error.response?.status === 503) {
+        errorMsg = "WhatsApp service is temporarily unavailable";
+        suggestion = "The service may be starting up (cold start). Please wait 30-60 seconds and try again.";
       } else if (error.response?.data?.error) {
         errorMsg = error.response.data.error;
       }
       
       toast({
-        title: "Connection Error",
-        description: errorMsg,
+        title: "Connection Issue",
+        description: `${errorMsg}. ${suggestion}`,
         variant: "destructive",
       });
     } finally {

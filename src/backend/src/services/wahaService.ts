@@ -87,7 +87,7 @@ class WAHAService extends EventEmitter {
 
     this.httpClient = axios.create({
       baseURL: this.wahaBaseUrl,
-      timeout: 60000, // Increased to 60 seconds for chat loading operations
+      timeout: 90000, // Increased to 90 seconds for Render.com cold starts and heavy chat loads
       headers,
     });
 
@@ -699,8 +699,8 @@ class WAHAService extends EventEmitter {
 
       const tryOverview = async (): Promise<WAHAChat[] | null> => {
         try {
-          console.log(`[WAHA Service] Trying chats overview with 45s timeout...`);
-          const res = await this.httpClient.get(`/api/${sessionName}/chats/overview`, { timeout: 45000 });
+          console.log(`[WAHA Service] Trying chats overview with 60s timeout...`);
+          const res = await this.httpClient.get(`/api/${sessionName}/chats/overview`, { timeout: 60000 });
           const items = normalizeChats(res.data);
           console.log(`[WAHA Service] ✅ Chats overview successful; got ${items.length} items`);
           if (items.length > 0) {
@@ -713,7 +713,7 @@ class WAHAService extends EventEmitter {
           const errorMsg = e?.response?.status === 404 ? 'Overview endpoint not available (404)' : `${e?.message || e}`;
           console.log(`[WAHA Service] ❌ Chats overview failed: ${errorMsg}`);
           if (errorMsg.includes('timeout')) {
-            console.log(`[WAHA Service] Overview endpoint timed out after 45s, will try direct /chats`);
+            console.log(`[WAHA Service] Overview endpoint timed out after 60s, will try direct /chats`);
           }
           return null;
         }
@@ -748,32 +748,35 @@ class WAHAService extends EventEmitter {
         }
       };
 
-      // Attempt sequence: overview(45s) → chats(30s) → refresh → chats(20s)
-      console.log(`[WAHA Service] Starting chat loading sequence for session '${sessionName}'...`);
+      // Optimized attempt sequence: overview(60s) → chats(60s) → chats(30s) with progressive timeout reduction
+      console.log(`[WAHA Service] Starting optimized chat loading sequence for session '${sessionName}'...`);
       let chats: WAHAChat[] | null = await tryOverview();
       
       if (!chats || chats.length === 0) {
-        console.log(`[WAHA Service] Overview failed or empty, trying direct /chats...`);
-        chats = await tryChats(30000);
+        console.log(`[WAHA Service] Overview failed or empty, trying direct /chats with extended timeout...`);
+        chats = await tryChats(60000); // First attempt with 60s timeout for heavy loads
       }
       
       if (!chats || chats.length === 0) {
-        console.log(`[WAHA Service] Direct /chats failed or empty, requesting refresh...`);
-        try {
-          await this.httpClient.post(`/api/${sessionName}/chats/refresh`, {}, { timeout: 10000 });
-          console.log('[WAHA Service] ✅ Chats refresh requested successfully');
-          // Wait a moment for refresh to process
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        } catch (refreshError: any) {
-          console.log(`[WAHA Service] ❌ Chats refresh failed: ${refreshError?.message || refreshError}`);
-        }
-        console.log(`[WAHA Service] Trying /chats again after refresh...`);
-        chats = await tryChats(20000);
+        console.log(`[WAHA Service] First /chats attempt failed, retrying with shorter timeout...`);
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Brief delay before retry
+        chats = await tryChats(30000); // Second attempt with 30s timeout
+      }
+      
+      if (!chats || chats.length === 0) {
+        console.log(`[WAHA Service] Second /chats attempt failed, final retry with minimal data...`);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Brief delay before final retry
+        chats = await tryChats(15000); // Final attempt with 15s timeout
       }
 
       if (!chats || chats.length === 0) {
-        console.warn('[WAHA Service] ⚠️ No chats retrieved from any endpoint');
-        console.warn('[WAHA Service] This could indicate: 1) Session not fully ready, 2) No chats exist, 3) Service issues');
+        console.warn('[WAHA Service] ⚠️ No chats retrieved from any endpoint after multiple attempts');
+        console.warn('[WAHA Service] Possible causes:');
+        console.warn('[WAHA Service] 1) WhatsApp session not fully synchronized with WAHA service');
+        console.warn('[WAHA Service] 2) No WhatsApp chats exist for this account');  
+        console.warn('[WAHA Service] 3) WAHA service is experiencing heavy load (Render.com cold start)');
+        console.warn('[WAHA Service] 4) Network connectivity issues between backend and WAHA service');
+        console.warn('[WAHA Service] Suggestion: Wait a few moments and try refreshing, or check WAHA service logs');
         return [];
       }
 
@@ -876,27 +879,26 @@ class WAHAService extends EventEmitter {
    * Request WAHA to refresh groups (WAHA-compliant implementation)
    */
   async refreshGroups(sessionName: string = this.defaultSession): Promise<{ success: boolean; message?: string }> {
+    console.log(`[WAHA Service] Refreshing groups for session '${sessionName}'`);
+    
+    // Try WAHA-compliant refresh endpoint first
     try {
-      console.log(`[WAHA Service] Refreshing groups for session '${sessionName}'`);
-      
-      // Try WAHA-compliant refresh endpoint first
-      try {
-        const response = await this.httpClient.post(`/api/${sessionName}/groups/refresh`);
-        console.log(`[WAHA Service] ✅ Groups refreshed successfully`);
-        return { success: true, message: 'Groups refreshed successfully' };
-      } catch (refreshError: any) {
-        // If refresh endpoint doesn't exist (404), that's expected for some engines
-        if (refreshError.response?.status === 404) {
-          console.log(`[WAHA Service] Groups refresh endpoint not available - groups auto-refresh by WAHA`);
-          return { success: true, message: 'Groups are automatically refreshed by WAHA service' };
-        } else {
-          console.warn(`[WAHA Service] Groups refresh failed:`, refreshError.message);
-          throw refreshError;
-        }
+      const response = await this.httpClient.post(`/api/${sessionName}/groups/refresh`, {}, { timeout: 15000 });
+      console.log(`[WAHA Service] ✅ Groups refreshed successfully`);
+      return { success: true, message: 'Groups refreshed successfully' };
+    } catch (refreshError: any) {
+      // If refresh endpoint doesn't exist (404), that's expected for many WAHA engines
+      if (refreshError.response?.status === 404) {
+        console.log(`[WAHA Service] Groups refresh endpoint not available (404) - this is normal for some WAHA engines`);
+        console.log(`[WAHA Service] Groups are automatically refreshed by the WAHA service`);
+        return { success: true, message: 'Groups are automatically refreshed by WAHA service (no manual refresh needed)' };
+      } else if (refreshError.code === 'ECONNABORTED' || refreshError.message?.includes('timeout')) {
+        console.log(`[WAHA Service] Groups refresh timed out - this may indicate heavy processing`);
+        return { success: true, message: 'Groups refresh initiated (may take time to complete)' };
+      } else {
+        console.warn(`[WAHA Service] Groups refresh failed:`, refreshError.message);
+        return { success: false, message: `Groups refresh failed: ${refreshError.message}` };
       }
-    } catch (error: any) {
-      console.error(`[WAHA Service] ❌ Failed to refresh groups:`, error);
-      return { success: false, message: error.message || 'Failed to refresh groups' };
     }
   }
 
