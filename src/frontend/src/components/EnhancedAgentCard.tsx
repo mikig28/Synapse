@@ -46,6 +46,7 @@ import {
   Play,
   Pause,
   Settings,
+  Edit,
   Trash2,
   Loader2,
   Twitter,
@@ -650,13 +651,14 @@ export const EnhancedAgentCard: React.FC<EnhancedAgentCardProps> = ({
                 size="sm"
                 variant="outline"
                 onClick={() => onSettings(agent._id)}
-                className="px-3"
+                className="px-3 flex items-center gap-1"
                 rippleEffect={!settings.reducedMotion}
                 hapticFeedback={settings.hapticFeedback}
                 aria-label={`Edit ${agent.name} settings`}
                 title="Edit agent settings and configuration"
               >
-                <Settings className="w-4 h-4" aria-hidden="true" />
+                <Edit className="w-4 h-4" aria-hidden="true" />
+                <span className="text-xs font-medium">Edit</span>
                 <span className="sr-only">Edit settings</span>
               </AnimatedButton>
             </FloatingTooltip>
