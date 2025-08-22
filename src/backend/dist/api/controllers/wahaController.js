@@ -7,17 +7,73 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.initializeSession = exports.healthCheck = exports.removeMonitoredKeyword = exports.addMonitoredKeyword = exports.getMonitoredKeywords = exports.forceHistorySync = exports.refreshChats = exports.refreshGroups = exports.getGroupDetails = exports.getGroupParticipants = exports.forceRestart = exports.restartSession = exports.getPrivateChats = exports.getGroups = exports.verifyPhoneAuthCode = exports.sendPhoneAuthCode = exports.webhook = exports.stopSession = exports.startSession = exports.getMessages = exports.getChats = exports.sendMedia = exports.sendMessage = exports.getQR = exports.getStatus = void 0;
+exports.initializeSession = exports.healthCheck = exports.removeMonitoredKeyword = exports.addMonitoredKeyword = exports.getMonitoredKeywords = exports.forceHistorySync = exports.refreshChats = exports.refreshGroups = exports.getGroupDetails = exports.getGroupParticipants = exports.forceRestart = exports.restartSession = exports.getPrivateChats = exports.getGroups = exports.verifyPhoneAuthCode = exports.sendPhoneAuthCode = exports.webhook = exports.stopSession = exports.startSession = exports.getMessages = exports.getChats = exports.sendMedia = exports.sendMessage = exports.getQR = exports.getStatus = exports.getMonitoringStats = void 0;
 const wahaService_1 = __importDefault(require("../../services/wahaService"));
+const polling_config_1 = __importDefault(require("../../config/polling.config"));
+const statusCache = {
+    data: null,
+    timestamp: 0
+};
+const CACHE_DURATION = polling_config_1.default.backend.statusCacheDuration;
+// Monitoring statistics
+const monitoringStats = {
+    totalRequests: 0,
+    cacheHits: 0,
+    cacheMisses: 0,
+    apiCalls: 0,
+    errors: 0,
+    lastReset: new Date()
+};
 // Get WAHA service instance
 const getWAHAService = () => {
     return wahaService_1.default.getInstance();
 };
 /**
+ * Get monitoring statistics
+ */
+const getMonitoringStats = async (req, res) => {
+    try {
+        const uptime = Date.now() - monitoringStats.lastReset.getTime();
+        const cacheHitRate = monitoringStats.totalRequests > 0
+            ? (monitoringStats.cacheHits / monitoringStats.totalRequests * 100).toFixed(2)
+            : 0;
+        res.json({
+            success: true,
+            data: {
+                ...monitoringStats,
+                uptime,
+                cacheHitRate: `${cacheHitRate}%`,
+                averageApiCallsPerMinute: (monitoringStats.apiCalls / (uptime / 60000)).toFixed(2)
+            }
+        });
+    }
+    catch (error) {
+        console.error('[WAHA Controller] Error getting monitoring stats:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to get monitoring statistics'
+        });
+    }
+};
+exports.getMonitoringStats = getMonitoringStats;
+/**
  * Get WhatsApp connection status
  */
 const getStatus = async (req, res) => {
     try {
+        monitoringStats.totalRequests++;
+        // Check if we have cached data that's still fresh
+        const now = Date.now();
+        if (statusCache.data && (now - statusCache.timestamp) < CACHE_DURATION) {
+            console.log('[WAHA Controller] Returning cached status');
+            monitoringStats.cacheHits++;
+            return res.json({
+                success: true,
+                data: statusCache.data
+            });
+        }
+        monitoringStats.cacheMisses++;
+        monitoringStats.apiCalls++;
         const wahaService = getWAHAService();
         // Try to get status with connection test
         let wahaStatus;
@@ -86,6 +142,9 @@ const getStatus = async (req, res) => {
             monitoredKeywords: [],
             serviceType: 'waha'
         };
+        // Cache the status
+        statusCache.data = status;
+        statusCache.timestamp = now;
         // Check if we need to emit authentication status change via Socket.IO
         const io_instance = global.io;
         if (io_instance && isAuthenticated) {

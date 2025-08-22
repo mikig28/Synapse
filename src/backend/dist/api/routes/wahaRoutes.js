@@ -14,6 +14,7 @@ router.post('/session/start', wahaController_1.startSession);
 router.post('/session/stop', wahaController_1.stopSession);
 router.post('/session/initialize', wahaController_1.initializeSession);
 router.get('/status', wahaController_1.getStatus);
+router.get('/monitoring/stats', wahaController_1.getMonitoringStats);
 // Authentication - WAHA compliant endpoints
 router.post('/auth/qr', wahaController_1.getQR);
 router.get('/qr', wahaController_1.getQR); // Legacy support during transition
