@@ -149,37 +149,64 @@ const WhatsAppPage: React.FC = () => {
     fetchMessages();
     fetchMonitoredKeywords();
     
-    // Set up status monitoring with authentication detection
-    const statusInterval = setInterval(async () => {
+    // Intelligent status monitoring with exponential backoff
+    let pollInterval = 15000; // Start with 15 seconds
+    let failureCount = 0;
+    let statusCheckTimer: NodeJS.Timeout;
+    
+    const checkStatus = async () => {
       const prevAuthenticated = status?.authenticated;
       const prevConnected = status?.connected;
-      await fetchStatus();
       
-      // Check if we just became authenticated (polling fallback)
-      if (!prevAuthenticated && status?.authenticated) {
-        console.log('[WhatsApp Status Polling] Authentication detected, fetching chats...');
-        toast({
-          title: "WhatsApp Connected",
-          description: "Authentication successful! Loading your chats...",
-        });
+      try {
+        await fetchStatus();
+        failureCount = 0; // Reset on success
+        pollInterval = 15000; // Reset to base interval
         
-        // Fetch data with a small delay to ensure backend is ready
-        setTimeout(() => {
-          fetchGroups();
-          fetchPrivateChats();
-          fetchMessages();
-        }, 1000);
+        // Check if we just became authenticated (polling fallback)
+        if (!prevAuthenticated && status?.authenticated) {
+          console.log('[WhatsApp Status Polling] Authentication detected, fetching chats...');
+          toast({
+            title: "WhatsApp Connected",
+            description: "Authentication successful! Loading your chats...",
+          });
+          
+          // Fetch data with a small delay to ensure backend is ready
+          setTimeout(() => {
+            fetchGroups();
+            fetchPrivateChats();
+            fetchMessages();
+          }, 1000);
+          
+          // Reduce polling frequency after successful auth
+          pollInterval = 30000; // 30 seconds
+        }
+        
+        // Also check for connection changes
+        if (!prevConnected && status?.connected) {
+          console.log('[WhatsApp Status Polling] Connection detected, updating UI...');
+          fetchMonitoredKeywords();
+          // Reduce polling frequency when connected
+          pollInterval = 30000; // 30 seconds
+        }
+      } catch (error) {
+        failureCount++;
+        // Exponential backoff on failures
+        pollInterval = Math.min(pollInterval * 2, 60000); // Max 1 minute
+        console.error('[WhatsApp Status Polling] Error checking status:', error);
       }
       
-      // Also check for connection changes
-      if (!prevConnected && status?.connected) {
-        console.log('[WhatsApp Status Polling] Connection detected, updating UI...');
-        fetchMonitoredKeywords();
-      }
-    }, 5000); // Check every 5 seconds for faster detection
+      // Schedule next check
+      statusCheckTimer = setTimeout(checkStatus, pollInterval);
+    };
+    
+    // Start the status check
+    statusCheckTimer = setTimeout(checkStatus, 5000); // Initial check after 5 seconds
     
     return () => {
-      clearInterval(statusInterval);
+      if (statusCheckTimer) {
+        clearTimeout(statusCheckTimer);
+      }
     };
   }, [status?.authenticated]); // Watch for authentication state changes
 

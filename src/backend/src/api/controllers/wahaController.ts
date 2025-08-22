@@ -5,6 +5,30 @@
 
 import { Request, Response } from 'express';
 import WAHAService from '../../services/wahaService';
+import POLLING_CONFIG from '../../config/polling.config';
+
+// Cache for status responses to prevent excessive API calls
+interface StatusCache {
+  data: any;
+  timestamp: number;
+}
+
+const statusCache: StatusCache = {
+  data: null,
+  timestamp: 0
+};
+
+const CACHE_DURATION = POLLING_CONFIG.backend.statusCacheDuration;
+
+// Monitoring statistics
+const monitoringStats = {
+  totalRequests: 0,
+  cacheHits: 0,
+  cacheMisses: 0,
+  apiCalls: 0,
+  errors: 0,
+  lastReset: new Date()
+};
 
 // Get WAHA service instance
 const getWAHAService = () => {
@@ -12,10 +36,54 @@ const getWAHAService = () => {
 };
 
 /**
+ * Get monitoring statistics
+ */
+export const getMonitoringStats = async (req: Request, res: Response) => {
+  try {
+    const uptime = Date.now() - monitoringStats.lastReset.getTime();
+    const cacheHitRate = monitoringStats.totalRequests > 0 
+      ? (monitoringStats.cacheHits / monitoringStats.totalRequests * 100).toFixed(2) 
+      : 0;
+    
+    res.json({
+      success: true,
+      data: {
+        ...monitoringStats,
+        uptime,
+        cacheHitRate: `${cacheHitRate}%`,
+        averageApiCallsPerMinute: (monitoringStats.apiCalls / (uptime / 60000)).toFixed(2)
+      }
+    });
+  } catch (error) {
+    console.error('[WAHA Controller] Error getting monitoring stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get monitoring statistics'
+    });
+  }
+};
+
+/**
  * Get WhatsApp connection status
  */
 export const getStatus = async (req: Request, res: Response) => {
   try {
+    monitoringStats.totalRequests++;
+    
+    // Check if we have cached data that's still fresh
+    const now = Date.now();
+    if (statusCache.data && (now - statusCache.timestamp) < CACHE_DURATION) {
+      console.log('[WAHA Controller] Returning cached status');
+      monitoringStats.cacheHits++;
+      return res.json({
+        success: true,
+        data: statusCache.data
+      });
+    }
+
+    monitoringStats.cacheMisses++;
+    monitoringStats.apiCalls++;
+    
     const wahaService = getWAHAService();
     
     // Try to get status with connection test
@@ -88,6 +156,10 @@ export const getStatus = async (req: Request, res: Response) => {
       monitoredKeywords: [],
       serviceType: 'waha'
     };
+    
+    // Cache the status
+    statusCache.data = status;
+    statusCache.timestamp = now;
     
     // Check if we need to emit authentication status change via Socket.IO
     const io_instance = (global as any).io;

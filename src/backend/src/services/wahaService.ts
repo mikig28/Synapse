@@ -3,7 +3,7 @@
  * Replaces the complex WhatsAppBaileysService with simple HTTP calls to WAHA microservice
  */
 
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import { EventEmitter } from 'events';
 
 export interface WAHAMessage {
@@ -54,7 +54,7 @@ export interface WAHASession {
 
 class WAHAService extends EventEmitter {
   private static instance: WAHAService | null = null;
-  private httpClient: any;
+  private httpClient: AxiosInstance;
   private wahaBaseUrl: string;
   private defaultSession: string = 'default';
   private isReady = false;
@@ -64,6 +64,20 @@ class WAHAService extends EventEmitter {
   private lastQrGeneratedAt: number | null = null;
   private readonly qrReuseWindowMs = 25000; // reuse same QR for up to ~25s
   private readonly qrRequestCooldownMs = 5000; // avoid hammering WAHA
+  
+  // Session status cache
+  private sessionStatusCache: {
+    data: any;
+    timestamp: number;
+  } = {
+    data: null,
+    timestamp: 0
+  };
+  private readonly SESSION_CACHE_DURATION = 10000; // 10 seconds
+
+  // Health check cache
+  private lastHealthCheckResult: { healthy: boolean; details: any } | null = null;
+  private lastHealthCheckTimestamp: number = 0;
 
   private constructor() {
     super();
@@ -189,7 +203,9 @@ class WAHAService extends EventEmitter {
       console.log('[WAHA Service] Initializing...');
       
       // Check if WAHA service is running
-      await this.healthCheck();
+      const healthCheckResult = await this.healthCheck();
+      this.isReady = healthCheckResult.healthy;
+      this.connectionStatus = healthCheckResult.healthy ? 'connected' : 'disconnected';
       
       // Start default session (don't fail initialization if this fails)
       try {
@@ -278,57 +294,91 @@ class WAHAService extends EventEmitter {
   }
 
   /**
-   * Health check - verify WAHA service is running
+   * Perform a health check on the WAHA service
    */
-  async healthCheck(): Promise<boolean> {
-    console.log(`[WAHA Service] 🔍 Starting health check for: ${this.wahaBaseUrl}`);
-    
-    // Try multiple health check endpoints with longer timeouts for network stability
-    const healthEndpoints = ['/api/version', '/api/sessions', '/ping', '/'];
-    let lastError = null;
-    
-    for (const endpoint of healthEndpoints) {
-      try {
-        console.log(`[WAHA Service] Trying health check: ${this.wahaBaseUrl}${endpoint}`);
-        const response = await this.httpClient.get(endpoint, {
-          timeout: 20000, // Increased timeout for Render.com network delays
-          validateStatus: (status: number) => status < 500, // Accept 4xx as "service is running"
-        });
-        
-        console.log(`[WAHA Service] Response from ${endpoint}: ${response.status} - ${response.statusText}`);
-        
-        if (response.status < 500) { // Service is running even if endpoint doesn't exist
-          console.log(`[WAHA Service] ✅ Health check passed using ${endpoint} (status: ${response.status})`);
-          this.isReady = true;
-          this.connectionStatus = 'connected';
-          return true;
-        }
-      } catch (error: any) {
-        lastError = error;
-        const errorMsg = error?.response?.status 
-          ? `HTTP ${error.response.status}: ${error.response.statusText}`
-          : error.code 
-          ? `Network Error: ${error.code}`
-          : error.message || 'Unknown error';
-        
-        console.log(`[WAHA Service] Health check ${endpoint} failed: ${errorMsg}`);
-        
-        // If we get a 404 or 405, service is running but endpoint doesn't exist
-        if (error?.response?.status === 404 || error?.response?.status === 405) {
-          console.log(`[WAHA Service] ✅ Service is running (got ${error.response.status} for ${endpoint})`);
-          this.isReady = true;
-          this.connectionStatus = 'connected';
-          return true;
+  async healthCheck(): Promise<{ healthy: boolean; details: any }> {
+    try {
+      // Check if we've done a health check recently
+      const now = Date.now();
+      if (this.lastHealthCheckResult && 
+          (now - this.lastHealthCheckTimestamp) < 30000) { // 30 seconds cache
+        console.log('[WAHA Service] Returning cached health check');
+        return this.lastHealthCheckResult;
+      }
+      
+      const healthEndpoints = ['/api/version', '/api/sessions', '/ping', '/'];
+      const results: any[] = [];
+      
+      for (const endpoint of healthEndpoints) {
+        try {
+          const response = await this.httpClient.get(endpoint, {
+            timeout: 5000,
+            validateStatus: (status) => status < 500
+          });
+          
+          results.push({
+            endpoint,
+            status: response.status,
+            success: response.status < 400
+          });
+          
+          // If we get a successful response from any endpoint, consider service healthy
+          if (response.status < 400) {
+            const result = {
+              healthy: true,
+              details: {
+                endpoints: results,
+                lastCheck: new Date().toISOString()
+              }
+            };
+            
+            // Cache the result
+            this.lastHealthCheckResult = result;
+            this.lastHealthCheckTimestamp = now;
+            
+            return result;
+          }
+        } catch (error) {
+          results.push({
+            endpoint,
+            status: 0,
+            success: false,
+            error: error.message
+          });
         }
       }
+      
+      // If we get here, all endpoints failed
+      const result = {
+        healthy: false,
+        details: {
+          endpoints: results,
+          lastCheck: new Date().toISOString()
+        }
+      };
+      
+      // Cache even failed results to prevent hammering
+      this.lastHealthCheckResult = result;
+      this.lastHealthCheckTimestamp = now;
+      
+      return result;
+    } catch (error) {
+      console.error('[WAHA Service] Health check error:', error);
+      
+      const result = {
+        healthy: false,
+        details: {
+          error: error.message,
+          lastCheck: new Date().toISOString()
+        }
+      };
+      
+      // Cache the error result
+      this.lastHealthCheckResult = result;
+      this.lastHealthCheckTimestamp = now;
+      
+      return result;
     }
-    
-    console.error('[WAHA Service] ❌ All health check endpoints failed');
-    console.error('[WAHA Service] Last error:', lastError?.message || lastError);
-    
-    this.isReady = false;
-    this.connectionStatus = 'disconnected';
-    throw new Error(`WAHA service is not responding: ${lastError?.message || 'All health checks failed'}`);
   }
 
   /**
@@ -505,31 +555,44 @@ class WAHAService extends EventEmitter {
   }
 
   /**
-   * Get session status
+   * Get session status (with caching to reduce API calls)
    */
-  async getSessionStatus(sessionName: string = this.defaultSession): Promise<WAHASession> {
+  async getSessionStatus(sessionName: string = 'default'): Promise<any> {
     try {
+      // Check cache first
+      const now = Date.now();
+      if (this.sessionStatusCache.data && 
+          (now - this.sessionStatusCache.timestamp) < this.SESSION_CACHE_DURATION) {
+        console.log('[WAHA Service] Returning cached session status');
+        return this.sessionStatusCache.data;
+      }
+
       const response = await this.httpClient.get(`/api/sessions/${sessionName}`);
+      
+      // Cache the response
+      this.sessionStatusCache.data = response.data;
+      this.sessionStatusCache.timestamp = now;
+      
+      console.log(`[WAHA Service] Session '${sessionName}' status:`, {
+        status: response.data?.status,
+        me: response.data?.me,
+        engine: response.data?.engine
+      });
+      
       return response.data;
     } catch (error: any) {
-      // If session doesn't exist (404), return a default status indicating it needs to be created
+      // Return cached data if available on error
+      if (this.sessionStatusCache.data) {
+        console.warn('[WAHA Service] Error fetching session status, returning cached data:', error.message);
+        return this.sessionStatusCache.data;
+      }
+      
       if (error.response?.status === 404) {
-        console.log(`[WAHA Service] Session '${sessionName}' does not exist, needs to be created`);
-        return {
-          name: sessionName,
-          status: 'STOPPED'
-        };
+        console.error(`[WAHA Service] Session '${sessionName}' not found`);
+        throw new Error('Session not found. Please create a new session.');
       }
-      // Treat transient upstream failures (5xx, network errors) as non-fatal: report STOPPED
-      const statusCode = error.response?.status;
-      if (!statusCode || statusCode >= 500) {
-        console.warn(`[WAHA Service] ⚠️ Transient error getting session '${sessionName}' (status: ${statusCode || 'NETWORK_ERROR'}) → returning STOPPED`);
-        return {
-          name: sessionName,
-          status: 'STOPPED'
-        };
-      }
-      console.error(`[WAHA Service] ❌ Failed to get session status for '${sessionName}':`, error);
+      
+      console.error('[WAHA Service] Error getting session status:', error.message);
       throw error;
     }
   }
@@ -1106,69 +1169,43 @@ class WAHAService extends EventEmitter {
   }
 
   /**
-   * Get service status (compatible with old interface)
+   * Get overall service status
    */
-  async getStatus(): Promise<WAHAStatus> {
+  async getStatus(): Promise<any> {
     try {
-      // Get real-time session status from WAHA
-      let sessionStatus = await this.getSessionStatus();
-      const previousConnectionStatus = this.connectionStatus;
-      const previousIsReady = this.isReady;
+      // Quick health check with caching
+      const healthResult = await this.healthCheck();
+      const isHealthy = healthResult.healthy;
       
-      // If session doesn't exist (STOPPED status from our 404 handler), try to create it
-      if (sessionStatus.status === 'STOPPED' && sessionStatus.name === this.defaultSession) {
-        console.log('[WAHA Service] 🚀 Session is STOPPED (404), FORCE creating session now...');
+      let sessionStatus = null;
+      let sessionDetails = null;
+      
+      // Only check session if service is healthy
+      if (isHealthy) {
         try {
-          const createdSession = await this.startSession();
-          sessionStatus = createdSession;
-          console.log(`[WAHA Service] ✅ FORCE session created/started with status: ${sessionStatus.status}`);
-        } catch (createError: any) {
-          console.error('[WAHA Service] ❌ FORCE session creation failed:', createError);
-          console.error('[WAHA Service] Create error details:', {
-            status: createError?.response?.status,
-            statusText: createError?.response?.statusText,
-            data: createError?.response?.data,
-            message: createError?.message
-          });
-          // Continue with STOPPED status
+          sessionDetails = await this.getSessionStatus();
+          sessionStatus = sessionDetails?.status || 'STOPPED';
+        } catch (error) {
+          console.warn('[WAHA Service] Could not get session status:', error.message);
+          sessionStatus = 'STOPPED';
         }
       }
       
-      this.connectionStatus = sessionStatus.status;
-      this.isReady = sessionStatus.status === 'WORKING';
-      
-      // Detect authentication state change
-      if (!previousIsReady && this.isReady && sessionStatus.status === 'WORKING') {
-        console.log('[WAHA Service] 🎉 Authentication detected! Session transitioned to WORKING');
-        this.emit('authenticated', {
-          method: 'qr',
-          sessionStatus: sessionStatus.status,
-          timestamp: new Date().toISOString()
-        });
-        
-        // Also emit general status change
-        this.emit('status_change', {
-          status: sessionStatus.status,
-          authenticated: true,
-          connected: true,
-          isReady: true,
-          timestamp: new Date().toISOString()
-        });
-      }
-      
       return {
-        status: sessionStatus.status,
-        isReady: sessionStatus.status === 'WORKING',
-        qrAvailable: sessionStatus.status === 'SCAN_QR_CODE',
-        timestamp: new Date().toISOString()
+        isReady: isHealthy && sessionStatus === 'WORKING',
+        status: sessionStatus || 'disconnected',
+        qrAvailable: sessionStatus === 'SCAN_QR_CODE',
+        timestamp: new Date().toISOString(),
+        healthCheck: healthResult.details
       };
     } catch (error) {
       console.error('[WAHA Service] Error getting status:', error);
       return {
-        status: 'FAILED',
         isReady: false,
+        status: 'error',
         qrAvailable: false,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        error: error.message
       };
     }
   }

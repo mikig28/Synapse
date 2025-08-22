@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import {
   getStatus,
+  getMonitoringStats,
   getQR,
   sendMessage,
   sendMedia,
@@ -39,6 +40,7 @@ router.post('/session/start', startSession);
 router.post('/session/stop', stopSession);
 router.post('/session/initialize', initializeSession);
 router.get('/status', getStatus);
+router.get('/monitoring/stats', getMonitoringStats);
 
 // Authentication - WAHA compliant endpoints
 router.post('/auth/qr', getQR);
