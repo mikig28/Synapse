@@ -32,9 +32,12 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.locationExtractionService = void 0;
-const axios = __importStar(require("axios"));
+const axios_1 = __importDefault(require("axios"));
 const dotenv = __importStar(require("dotenv"));
 dotenv.config();
 class LocationExtractionService {
@@ -147,7 +150,7 @@ Examples:
                 apiKeyLength: this.openaiApiKey.length,
                 textToAnalyze: text
             });
-            const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+            const response = await axios_1.default.post('https://api.openai.com/v1/chat/completions', {
                 model: 'gpt-4o-mini',
                 messages: [
                     { role: 'system', content: systemPrompt },
@@ -299,7 +302,7 @@ Examples:
             console.log(`[LocationExtraction]: Searching for place: "${query}"`);
             console.log(`[LocationExtraction]: Using Google Maps API key: ${this.googleMapsApiKey.substring(0, 10)}...`);
             // Use Google Places Text Search API
-            const response = await axios.get('https://maps.googleapis.com/maps/api/place/textsearch/json', {
+            const response = await axios_1.default.get('https://maps.googleapis.com/maps/api/place/textsearch/json', {
                 params: {
                     query: query,
                     key: this.googleMapsApiKey,
@@ -369,7 +372,7 @@ Examples:
         }
         try {
             console.log(`[LocationExtraction]: Geocoding address: "${address}"`);
-            const response = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
+            const response = await axios_1.default.get('https://maps.googleapis.com/maps/api/geocode/json', {
                 params: {
                     address: address,
                     key: this.googleMapsApiKey

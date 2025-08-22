@@ -238,10 +238,7 @@ class WhatsAppBaileysService extends EventEmitter {
           return undefined;
         },
         // Add connection options for Render deployment
-        options: {
-          version: [2, 2323, 4],
-          makeSocket: true
-        }
+        version: [2, 2323, 4]
       });
       
       // Set up event handlers

@@ -375,7 +375,7 @@ class WAHAService extends EventEmitter {
       
       // Cache the error result
       this.lastHealthCheckResult = result;
-      this.lastHealthCheckTimestamp = now;
+      this.lastHealthCheckTimestamp = Date.now();
       
       return result;
     }
