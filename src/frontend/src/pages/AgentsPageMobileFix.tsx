@@ -10,6 +10,7 @@ import { ErrorHandler } from '@/utils/errorHandler';
 import { useNavigate } from 'react-router-dom';
 import { useAgui } from '../contexts/AguiContext';
 import { useIsMobile } from '@/hooks/useMobileDetection';
+import MobileCrewAIViewer from '@/components/MobileCrewAIViewer';
 import { 
   Bot,
   Plus,
@@ -32,10 +33,11 @@ import {
   BarChart3,
   Grid3X3,
   Box,
+  Brain,
 } from 'lucide-react';
 
 // Simple agent card component for mobile
-const MobileAgentCard = ({ agent, onExecute, onToggle, onDelete, onReset, isExecuting, formatTimeAgo }) => {
+const MobileAgentCard = ({ agent, onExecute, onToggle, onDelete, onReset, isExecuting, formatTimeAgo, onShowCrewViewer }) => {
   const getAgentIcon = (type: string) => {
     switch (type) {
       case 'twitter':
@@ -109,6 +111,19 @@ const MobileAgentCard = ({ agent, onExecute, onToggle, onDelete, onReset, isExec
             )}
           </Button>
           
+          {/* CrewAI Process Viewer Button - only for CrewAI agents */}
+          {agent.type === 'crewai_news' && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onShowCrewViewer(agent)}
+              className="px-3 bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700"
+              title="View AI Process"
+            >
+              <Brain className="w-3 h-3" />
+            </Button>
+          )}
+          
           <Button
             size="sm"
             variant="outline"
@@ -143,6 +158,10 @@ const AgentsPageMobileFix: React.FC = memo(() => {
   const [error, setError] = useState<Error | null>(null);
   const [executingAgents, setExecutingAgents] = useState<Set<string>>(new Set());
   const [showCreateWizard, setShowCreateWizard] = useState(false);
+  const [mobileCrewViewer, setMobileCrewViewer] = useState<{ isVisible: boolean; agent: Agent | null }>({
+    isVisible: false,
+    agent: null
+  });
   
   // Fetch agents with error handling
   const fetchAgents = useCallback(async () => {
@@ -369,6 +388,12 @@ const AgentsPageMobileFix: React.FC = memo(() => {
                 onReset={handleResetAgentStatus}
                 isExecuting={executingAgents.has(agent._id)}
                 formatTimeAgo={formatTimeAgo}
+                onShowCrewViewer={(agent) => {
+                  setMobileCrewViewer({
+                    isVisible: true,
+                    agent: agent
+                  });
+                }}
               />
             ))}
           </div>
@@ -396,6 +421,15 @@ const AgentsPageMobileFix: React.FC = memo(() => {
           </Card>
         )}
       </div>
+      
+      {/* Mobile CrewAI Viewer Modal */}
+      {mobileCrewViewer.agent && (
+        <MobileCrewAIViewer
+          agent={mobileCrewViewer.agent}
+          isVisible={mobileCrewViewer.isVisible}
+          onClose={() => setMobileCrewViewer({ isVisible: false, agent: null })}
+        />
+      )}
     </div>
   );
 });
