@@ -375,6 +375,9 @@ export const EnhancedAgentCard: React.FC<EnhancedAgentCardProps> = ({
           break;
         case 's':
           event.preventDefault();
+          if (settings.announceActions) {
+            screenReader.announce(`Opening settings for ${agent.name}`, 'polite');
+          }
           onSettings(agent._id);
           break;
       }
@@ -638,6 +641,25 @@ export const EnhancedAgentCard: React.FC<EnhancedAgentCardProps> = ({
                 </MagneticButton>
               </FloatingTooltip>
             </div>
+
+            <FloatingTooltip
+              content={`Edit ${agent.name} settings and configuration. Keyboard shortcut: Ctrl+S`}
+              placement="top"
+            >
+              <AnimatedButton
+                size="sm"
+                variant="outline"
+                onClick={() => onSettings(agent._id)}
+                className="px-3"
+                rippleEffect={!settings.reducedMotion}
+                hapticFeedback={settings.hapticFeedback}
+                aria-label={`Edit ${agent.name} settings`}
+                title="Edit agent settings and configuration"
+              >
+                <Settings className="w-4 h-4" aria-hidden="true" />
+                <span className="sr-only">Edit settings</span>
+              </AnimatedButton>
+            </FloatingTooltip>
 
             <AnimatedButton
               size="sm"

@@ -368,6 +368,18 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
                 </Button>
               </motion.div>
 
+              <motion.div variants={buttonVariants} whileTap="tap">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onSettings(agent._id)}
+                  className="px-3 bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700"
+                  title="Edit Settings"
+                >
+                  <Settings className="w-3 h-3" />
+                </Button>
+              </motion.div>
+
               {/* CrewAI Process Viewer Button - only for CrewAI agents */}
               {agent.type === 'crewai_news' && (
                 <motion.div variants={buttonVariants} whileTap="tap">
