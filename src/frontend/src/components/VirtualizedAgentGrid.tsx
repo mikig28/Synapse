@@ -299,6 +299,15 @@ export const VirtualizedAgentGrid: React.FC<VirtualizedAgentGridProps> = memo(({
             )
           ))}
         </div>
+        
+        {/* Debug info for non-virtualized grid */}
+        {import.meta.env.DEV && (
+          <div className="mt-4 text-xs text-muted-foreground opacity-50">
+            Non-virtualized: {agents.length} agents
+            | Mobile: {isMobile ? '📱 YES' : '🖥️ NO'}
+            | Using: {isMobile ? 'MobileAgentCard' : 'EnhancedAgentCard'}
+          </div>
+        )}
       </motion.div>
     );
   }
@@ -335,6 +344,8 @@ export const VirtualizedAgentGrid: React.FC<VirtualizedAgentGridProps> = memo(({
                 Virtualized: {agents.length} agents, {columnCount} cols, {rowCount} rows
                 | Render: {metrics.renderTime.toFixed(1)}ms
                 | Avg: {metrics.averageRenderTime.toFixed(1)}ms
+                | Mobile: {isMobile ? '📱 YES' : '🖥️ NO'} (Width: {containerSize.width}px)
+                | Using: {isMobile ? 'MobileAgentCard' : 'EnhancedAgentCard'}
               </div>
             )}
           </>
