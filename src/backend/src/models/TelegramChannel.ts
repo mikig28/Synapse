@@ -32,6 +32,7 @@ export interface ITelegramChannel extends Document {
   keywords?: string[]; // Optional keywords to filter messages
   fetchInterval: number; // Minutes between fetches (default: 30)
   lastFetchedAt?: Date;
+  lastError?: string; // Last error message if any
   createdAt: Date;
   updatedAt: Date;
 }
@@ -74,7 +75,8 @@ const TelegramChannelSchema: Schema<ITelegramChannel> = new Schema({
   messages: [TelegramChannelMessageSchema],
   keywords: [String], // Optional filtering
   fetchInterval: { type: Number, default: 30 }, // Default 30 minutes
-  lastFetchedAt: { type: Date }
+  lastFetchedAt: { type: Date },
+  lastError: { type: String } // Store error messages
 }, { 
   timestamps: true,
   // Limit messages array size to prevent document size issues

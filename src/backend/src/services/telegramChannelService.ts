@@ -220,25 +220,123 @@ class TelegramChannelService {
    * Get recent messages from channel (limited by Bot API)
    */
   private async getRecentChannelMessages(channelId: string): Promise<ITelegramChannelMessage[]> {
-    // Note: Bot API has limitations for getting channel history
-    // This is a simplified implementation - for full channel monitoring,
-    // you'd need MTProto or the channel would need to forward messages to the bot
-    
     try {
-      // For now, return empty array as Bot API doesn't provide direct channel message history
-      // In a full implementation, you'd use:
-      // 1. MTProto client libraries
-      // 2. Channel admin rights to receive messages
-      // 3. RSS feeds if channel provides them
-      // 4. Web scraping (not recommended)
+      // Try to get chat info first to ensure we can access it
+      const chat = await this.bot.getChat(channelId);
+      console.log(`[TelegramChannelService] Chat info for ${channelId}:`, {
+        id: chat.id,
+        title: chat.title,
+        type: chat.type,
+        username: chat.username
+      });
+
+      // Bot API limitation: Cannot get message history from channels/groups unless:
+      // 1. Bot is admin in the channel/group
+      // 2. For groups: bot must be added as member
+      // 3. For channels: bot must be added as admin with "Read Messages" permission
       
-      console.log(`[TelegramChannelService] Note: Bot API cannot fetch channel history directly for ${channelId}`);
-      console.log(`[TelegramChannelService] Consider using MTProto or ensuring bot is admin in channel`);
-      
+      // Try to get updates (this will only work if bot has proper permissions)
+      try {
+        // This is a workaround: try to send a test message and see if we can access the chat
+        // If this fails, we know the bot doesn't have permission
+        const updates = await this.bot.getUpdates({ limit: 10 });
+        
+        // Filter messages from our target channel
+        const channelMessages = updates
+          .filter(update => 
+            update.message && 
+            (update.message.chat.id.toString() === channelId || 
+             '@' + update.message.chat.username === channelId)
+          )
+          .map(update => this.convertToChannelMessage(update.message!))
+          .filter(msg => msg !== null) as ITelegramChannelMessage[];
+
+        if (channelMessages.length > 0) {
+          console.log(`[TelegramChannelService] ✅ Found ${channelMessages.length} messages from ${channelId}`);
+          return channelMessages;
+        }
+
+      } catch (permissionError) {
+        console.log(`[TelegramChannelService] ⚠️  Bot doesn't have permission to read messages from ${channelId}`);
+      }
+
+      // If no messages found via updates, try alternative approach for public channels
+      if (channelId.startsWith('@')) {
+        console.log(`[TelegramChannelService] 💡 For public channel ${channelId}: Bot needs to be added as admin with 'Read Messages' permission`);
+      } else {
+        console.log(`[TelegramChannelService] 💡 For group ${channelId}: Bot needs to be added as member`);
+      }
+
       return [];
+      
     } catch (error) {
-      console.error(`[TelegramChannelService] Error fetching messages:`, error);
+      console.error(`[TelegramChannelService] ❌ Error accessing channel ${channelId}:`, error);
+      
+      // Update channel with error status
+      try {
+        await TelegramChannel.findOneAndUpdate(
+          { channelId },
+          { 
+            $set: { 
+              lastError: (error as Error).message,
+              lastFetchedAt: new Date()
+            }
+          }
+        );
+      } catch (updateError) {
+        console.error(`[TelegramChannelService] Error updating channel status:`, updateError);
+      }
+      
       return [];
+    }
+  }
+
+  /**
+   * Convert Telegram message to channel message format
+   */
+  private convertToChannelMessage(message: any): ITelegramChannelMessage | null {
+    try {
+      const channelMessage: ITelegramChannelMessage = {
+        messageId: message.message_id,
+        text: message.text || message.caption,
+        date: new Date(message.date * 1000),
+        author: message.from?.username || message.from?.first_name,
+        views: message.views || 0,
+        forwards: message.forward_from ? 1 : 0,
+      };
+
+      // Extract URLs
+      if (message.entities) {
+        channelMessage.urls = this.extractUrlsFromEntities(message.text || message.caption, message.entities);
+      }
+
+      // Extract hashtags
+      if (channelMessage.text) {
+        channelMessage.hashtags = this.extractHashtags(channelMessage.text);
+      }
+
+      // Handle media
+      if (message.photo) {
+        channelMessage.mediaType = 'photo';
+        channelMessage.mediaFileId = message.photo[message.photo.length - 1].file_id;
+      } else if (message.video) {
+        channelMessage.mediaType = 'video';
+        channelMessage.mediaFileId = message.video.file_id;
+      } else if (message.document) {
+        channelMessage.mediaType = 'document';
+        channelMessage.mediaFileId = message.document.file_id;
+      } else if (message.audio) {
+        channelMessage.mediaType = 'audio';
+        channelMessage.mediaFileId = message.audio.file_id;
+      } else if (message.voice) {
+        channelMessage.mediaType = 'voice';
+        channelMessage.mediaFileId = message.voice.file_id;
+      }
+
+      return channelMessage;
+    } catch (error) {
+      console.error(`[TelegramChannelService] Error converting message:`, error);
+      return null;
     }
   }
 
@@ -282,6 +380,23 @@ class TelegramChannelService {
   private extractUrls(text: string): string[] {
     const urlRegex = /https?:\/\/[^\s]+/g;
     return text.match(urlRegex) || [];
+  }
+
+  /**
+   * Extract URLs from Telegram message entities
+   */
+  private extractUrlsFromEntities(text: string | undefined, entities: any[]): string[] {
+    if (!text || !entities) return [];
+    
+    const urls: string[] = [];
+    for (const entity of entities) {
+      if (entity.type === 'url') {
+        urls.push(text.substring(entity.offset, entity.offset + entity.length));
+      } else if (entity.type === 'text_link' && entity.url) {
+        urls.push(entity.url);
+      }
+    }
+    return urls;
   }
 
   /**

@@ -181,13 +181,19 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
           )}
 
           <div className="bg-muted/50 rounded-lg p-3">
-            <h4 className="font-medium text-sm mb-2">Important Notes:</h4>
+            <h4 className="font-medium text-sm mb-2">⚠️ Important Setup Requirements:</h4>
             <ul className="text-xs text-muted-foreground space-y-1">
-              <li>• Only public channels and groups can be monitored</li>
-              <li>• The bot must be added to private groups to monitor them</li>
-              <li>• Message fetching happens every 30 minutes automatically</li>
-              <li>• Historical messages may not be available due to API limitations</li>
+              <li>• <strong>For Public Channels (@channelname):</strong> Bot must be added as admin with "Read Messages" permission</li>
+              <li>• <strong>For Groups (-1001234567890):</strong> Bot must be added as a member</li>
+              <li>• Messages are fetched every 30 minutes automatically</li>
+              <li>• Only new messages after adding the bot will be available</li>
+              <li>• Historical messages are not accessible via Bot API</li>
             </ul>
+            <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-950 rounded border-l-2 border-blue-400">
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                <strong>Bot Username:</strong> Find your bot via @BotFather and add it to channels/groups first!
+              </p>
+            </div>
           </div>
 
           <DialogFooter className="flex gap-2">

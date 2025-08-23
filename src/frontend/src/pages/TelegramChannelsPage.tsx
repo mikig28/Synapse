@@ -35,6 +35,7 @@ interface TelegramChannel {
   keywords: string[];
   fetchInterval: number;
   lastFetchedAt?: string;
+  lastError?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -184,22 +185,87 @@ const TelegramChannelsPage: React.FC = () => {
 
         <TabsContent value="channels" className="space-y-4">
           {channels.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12">
-                <div className="text-center">
-                  <h3 className="text-lg font-medium text-foreground mb-2">
-                    No channels added yet
-                  </h3>
-                  <p className="text-muted-foreground mb-4">
-                    Add your first Telegram channel to start monitoring
-                  </p>
-                  <AnimatedButton onClick={() => setIsAddModalOpen(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Channel
-                  </AnimatedButton>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="space-y-6">
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <div className="text-center">
+                    <h3 className="text-lg font-medium text-foreground mb-2">
+                      No channels added yet
+                    </h3>
+                    <p className="text-muted-foreground mb-4">
+                      Add your first Telegram channel to start monitoring
+                    </p>
+                    <AnimatedButton onClick={() => setIsAddModalOpen(true)}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Channel
+                    </AnimatedButton>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Setup Guide */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="w-5 h-5" />
+                    Setup Guide
+                  </CardTitle>
+                  <CardDescription>
+                    Follow these steps to properly set up channel monitoring
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-sm">🤖 Step 1: Find Your Bot</h4>
+                      <ol className="text-xs text-muted-foreground space-y-1 pl-4">
+                        <li>1. Go to @BotFather on Telegram</li>
+                        <li>2. Send /mybots to see your bots</li>
+                        <li>3. Find the bot used by this app</li>
+                        <li>4. Copy the bot username (e.g., @YourBot)</li>
+                      </ol>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-sm">📢 Step 2: Add Bot to Channel</h4>
+                      <ol className="text-xs text-muted-foreground space-y-1 pl-4">
+                        <li>1. Go to your target channel/group</li>
+                        <li>2. Tap channel name → Administrators</li>
+                        <li>3. Add Administrator → Search your bot</li>
+                        <li>4. Grant "Post Messages" permission</li>
+                      </ol>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-sm">✅ Step 3: Add Channel Here</h4>
+                      <ol className="text-xs text-muted-foreground space-y-1 pl-4">
+                        <li>1. Click "Add Channel" above</li>
+                        <li>2. Enter @channelname or group ID</li>
+                        <li>3. Add optional keyword filters</li>
+                        <li>4. Start monitoring!</li>
+                      </ol>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-sm">🔧 Troubleshooting</h4>
+                      <ul className="text-xs text-muted-foreground space-y-1 pl-4">
+                        <li>• No messages? Check bot permissions</li>
+                        <li>• "Setup needed"? Bot isn't admin</li>
+                        <li>• Only new messages are monitored</li>
+                        <li>• Historical messages aren't available</li>
+                      </ul>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                      <strong>⚠️ Important:</strong> Due to Telegram Bot API limitations, your bot must be added as an administrator 
+                      to channels or as a member to groups <em>before</em> it can read messages. Historical messages cannot be accessed.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {channels.map((channel) => (
@@ -237,10 +303,28 @@ const TelegramChannelsPage: React.FC = () => {
                   </CardHeader>
                   
                   <CardContent className="pt-0">
-                    <div className="flex items-center justify-between text-sm text-muted-foreground mb-3">
-                      <span>{channel.totalMessages} messages</span>
-                      {channel.lastFetchedAt && (
-                        <span>Last: {formatDate(channel.lastFetchedAt)}</span>
+                    <div className="space-y-2 mb-3">
+                      <div className="flex items-center justify-between text-sm text-muted-foreground">
+                        <span>{channel.totalMessages} messages</span>
+                        {channel.lastFetchedAt && (
+                          <span>Last: {formatDate(channel.lastFetchedAt)}</span>
+                        )}
+                      </div>
+                      
+                      {channel.lastError && (
+                        <div className="bg-orange-50 dark:bg-orange-950 border-l-2 border-orange-400 p-2 rounded">
+                          <p className="text-xs text-orange-700 dark:text-orange-300">
+                            <strong>Setup needed:</strong> Bot requires permissions to read messages
+                          </p>
+                        </div>
+                      )}
+                      
+                      {channel.totalMessages === 0 && !channel.lastError && (
+                        <div className="bg-blue-50 dark:bg-blue-950 border-l-2 border-blue-400 p-2 rounded">
+                          <p className="text-xs text-blue-700 dark:text-blue-300">
+                            <strong>Waiting for messages:</strong> Make sure the bot is added to the channel/group
+                          </p>
+                        </div>
                       )}
                     </div>
                     
