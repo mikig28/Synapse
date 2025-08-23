@@ -149,9 +149,10 @@ const WhatsAppPage: React.FC = () => {
     fetchMessages();
     fetchMonitoredKeywords();
     
-    // Intelligent status monitoring with exponential backoff
-    let pollInterval = 15000; // Start with 15 seconds
+    // Intelligent status monitoring with enhanced exponential backoff (optimized for rate limiting)
+    let pollInterval = 30000; // Start with 30 seconds (reduced from 15s to prevent rate limiting)
     let failureCount = 0;
+    let connectionFailureDetected = false;
     let statusCheckTimer: NodeJS.Timeout;
     
     const checkStatus = async () => {
@@ -161,7 +162,10 @@ const WhatsAppPage: React.FC = () => {
       try {
         await fetchStatus();
         failureCount = 0; // Reset on success
-        pollInterval = 15000; // Reset to base interval
+        connectionFailureDetected = false; // Reset connection failure flag
+        
+        // Use longer base interval to reduce server load and prevent rate limiting
+        pollInterval = status?.authenticated ? 45000 : 30000; // 45s when authenticated, 30s when not
         
         // Check if we just became authenticated (polling fallback)
         if (!prevAuthenticated && status?.authenticated) {
@@ -179,7 +183,7 @@ const WhatsAppPage: React.FC = () => {
           }, 1000);
           
           // Reduce polling frequency after successful auth
-          pollInterval = 30000; // 30 seconds
+          pollInterval = 60000; // 60 seconds when authenticated and stable
         }
         
         // Also check for connection changes
@@ -187,13 +191,31 @@ const WhatsAppPage: React.FC = () => {
           console.log('[WhatsApp Status Polling] Connection detected, updating UI...');
           fetchMonitoredKeywords();
           // Reduce polling frequency when connected
-          pollInterval = 30000; // 30 seconds
+          pollInterval = 60000; // 60 seconds when connected and stable
         }
-      } catch (error) {
+      } catch (error: any) {
         failureCount++;
-        // Exponential backoff on failures
-        pollInterval = Math.min(pollInterval * 2, 60000); // Max 1 minute
-        console.error('[WhatsApp Status Polling] Error checking status:', error);
+        
+        // Check for rate limiting errors (405, 429)
+        if (error?.response?.status === 405 || error?.response?.status === 429) {
+          console.warn('[WhatsApp Status Polling] 🚨 Rate limiting detected, entering extended backoff');
+          connectionFailureDetected = true;
+          pollInterval = Math.min(pollInterval * 3, 300000); // More aggressive backoff, max 5 minutes
+        } else {
+          // Exponential backoff on other failures
+          pollInterval = Math.min(pollInterval * 1.5, 120000); // Max 2 minutes for other errors
+        }
+        
+        console.error('[WhatsApp Status Polling] Error checking status:', error?.response?.status || error.message);
+        
+        // Show user-friendly error for connection issues
+        if (connectionFailureDetected && failureCount === 1) {
+          toast({
+            title: "Connection Issue Detected",
+            description: "WhatsApp service is recovering. Polling frequency reduced to prevent rate limiting.",
+            variant: "default",
+          });
+        }
       }
       
       // Schedule next check
