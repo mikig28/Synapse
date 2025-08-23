@@ -32,6 +32,8 @@ router.get('/messages', wahaController_1.getMessages); // Support query param fo
 router.post('/refresh-chats', wahaController_1.refreshChats);
 // Session management
 router.post('/restart', wahaController_1.restartSession);
+router.post('/restart-failed', wahaController_1.restartFailedSession);
+router.post('/auto-recover', wahaController_1.autoRecoverSession);
 router.post('/force-restart', wahaController_1.forceRestart);
 router.post('/force-history-sync', wahaController_1.forceHistorySync);
 // Monitoring

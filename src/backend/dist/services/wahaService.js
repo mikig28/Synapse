@@ -558,16 +558,47 @@ class WAHAService extends events_1.EventEmitter {
     async sendMessage(chatId, text, sessionName = this.defaultSession) {
         try {
             console.log(`[WAHA Service] Sending message to ${chatId} in session '${sessionName}'...`);
-            // WAHA API structure: POST /api/{session}/sendText
-            const response = await this.httpClient.post(`/api/${sessionName}/sendText`, {
+            console.log(`[WAHA Service] Message details:`, {
                 chatId,
-                text
+                textLength: text.length,
+                textPreview: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
+                sessionName,
+                wahaBaseUrl: this.wahaBaseUrl
             });
-            console.log(`[WAHA Service] ✅ Message sent to ${chatId}`);
+            // Check session status first
+            try {
+                const sessionStatus = await this.getSessionStatus(sessionName);
+                console.log(`[WAHA Service] Session status before send:`, sessionStatus);
+                if (sessionStatus.status !== 'WORKING') {
+                    throw new Error(`Session not ready for sending. Status: ${sessionStatus.status}`);
+                }
+            }
+            catch (statusError) {
+                console.warn(`[WAHA Service] Could not check session status before send:`, statusError);
+                // Continue anyway - might still work
+            }
+            // WAHA API structure: POST /api/{session}/sendText
+            const endpoint = `/api/${sessionName}/sendText`;
+            const payload = { chatId, text };
+            console.log(`[WAHA Service] Making request to: ${this.wahaBaseUrl}${endpoint}`);
+            console.log(`[WAHA Service] Request payload:`, payload);
+            const response = await this.httpClient.post(endpoint, payload);
+            console.log(`[WAHA Service] ✅ Message sent to ${chatId}. Response:`, response.data);
             return response.data;
         }
         catch (error) {
-            console.error(`[WAHA Service] ❌ Failed to send message to ${chatId}:`, error.response?.status, error.response?.data);
+            console.error(`[WAHA Service] ❌ Failed to send message to ${chatId}:`, {
+                error: error.message,
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data,
+                config: {
+                    url: error.config?.url,
+                    method: error.config?.method,
+                    baseURL: error.config?.baseURL,
+                    timeout: error.config?.timeout
+                }
+            });
             throw error;
         }
     }
@@ -628,8 +659,8 @@ class WAHAService extends events_1.EventEmitter {
             };
             const tryOverview = async () => {
                 try {
-                    console.log(`[WAHA Service] Trying chats overview with 60s timeout...`);
-                    const res = await this.httpClient.get(`/api/${sessionName}/chats/overview`, { timeout: 60000 });
+                    console.log(`[WAHA Service] Trying chats overview with 90s timeout...`);
+                    const res = await this.httpClient.get(`/api/${sessionName}/chats/overview`, { timeout: 90000 });
                     const items = normalizeChats(res.data);
                     console.log(`[WAHA Service] ✅ Chats overview successful; got ${items.length} items`);
                     if (items.length > 0) {
@@ -644,17 +675,18 @@ class WAHAService extends events_1.EventEmitter {
                     const errorMsg = e?.response?.status === 404 ? 'Overview endpoint not available (404)' : `${e?.message || e}`;
                     console.log(`[WAHA Service] ❌ Chats overview failed: ${errorMsg}`);
                     if (errorMsg.includes('timeout')) {
-                        console.log(`[WAHA Service] Overview endpoint timed out after 60s, will try direct /chats`);
+                        console.log(`[WAHA Service] Overview endpoint timed out after 90s, will try direct /chats`);
                     }
                     return null;
                 }
             };
             const tryChats = async (timeoutMs) => {
                 try {
-                    // Build WAHA-compliant query parameters
+                    // Build WAHA-compliant query parameters with performance optimizations
                     const params = new URLSearchParams();
-                    if (options.limit)
-                        params.append('limit', options.limit.toString());
+                    // Use smaller initial limit to reduce timeout risk
+                    const effectiveLimit = options.limit || 50; // Default to 50 chats initially for better performance
+                    params.append('limit', effectiveLimit.toString());
                     if (options.offset)
                         params.append('offset', options.offset.toString());
                     if (options.sortBy)
@@ -681,22 +713,22 @@ class WAHAService extends events_1.EventEmitter {
                     return null;
                 }
             };
-            // Optimized attempt sequence: overview(60s) → chats(60s) → chats(30s) with progressive timeout reduction
+            // Optimized attempt sequence: overview(90s) → chats(90s) → chats(60s) with progressive timeout reduction
             console.log(`[WAHA Service] Starting optimized chat loading sequence for session '${sessionName}'...`);
             let chats = await tryOverview();
             if (!chats || chats.length === 0) {
                 console.log(`[WAHA Service] Overview failed or empty, trying direct /chats with extended timeout...`);
-                chats = await tryChats(60000); // First attempt with 60s timeout for heavy loads
+                chats = await tryChats(90000); // First attempt with 90s timeout for heavy loads/cold starts
             }
             if (!chats || chats.length === 0) {
-                console.log(`[WAHA Service] First /chats attempt failed, retrying with shorter timeout...`);
-                await new Promise(resolve => setTimeout(resolve, 2000)); // Brief delay before retry
-                chats = await tryChats(30000); // Second attempt with 30s timeout
+                console.log(`[WAHA Service] First /chats attempt failed, retrying with medium timeout...`);
+                await new Promise(resolve => setTimeout(resolve, 3000)); // Longer delay for WAHA to stabilize
+                chats = await tryChats(60000); // Second attempt with 60s timeout
             }
             if (!chats || chats.length === 0) {
-                console.log(`[WAHA Service] Second /chats attempt failed, final retry with minimal data...`);
-                await new Promise(resolve => setTimeout(resolve, 1000)); // Brief delay before final retry
-                chats = await tryChats(15000); // Final attempt with 15s timeout
+                console.log(`[WAHA Service] Second /chats attempt failed, final retry with standard timeout...`);
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Brief delay before final retry
+                chats = await tryChats(30000); // Final attempt with 30s timeout (original failing timeout)
             }
             if (!chats || chats.length === 0) {
                 console.warn('[WAHA Service] ⚠️ No chats retrieved from any endpoint after multiple attempts');
@@ -1261,6 +1293,54 @@ class WAHAService extends events_1.EventEmitter {
             }
         }
         throw new Error(`Timeout waiting for session '${sessionName}' to reach state [${expectedStates.join(', ')}]`);
+    }
+    /**
+     * Restart failed WAHA session - handles FAILED session states
+     */
+    async restartFailedSession(sessionName = this.defaultSession) {
+        try {
+            console.log(`[WAHA Service] 🔄 Attempting to restart session '${sessionName}'...`);
+            // First, delete the failed session
+            try {
+                await this.httpClient.delete(`/api/sessions/${sessionName}`);
+                console.log(`[WAHA Service] ✅ Deleted failed session '${sessionName}'`);
+            }
+            catch (deleteError) {
+                console.log(`[WAHA Service] ⚠️ Could not delete session (might not exist):`, deleteError.response?.status);
+            }
+            // Wait for cleanup
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Start new session
+            const response = await this.httpClient.post(`/api/sessions/${sessionName}/start`, {
+                name: sessionName
+            });
+            console.log(`[WAHA Service] ✅ Started new session '${sessionName}':`, response.data);
+            // Reset connection status
+            this.connectionStatus = 'disconnected';
+            this.emit('session_restarted', { session: sessionName });
+            return true;
+        }
+        catch (error) {
+            console.error(`[WAHA Service] ❌ Failed to restart session '${sessionName}':`, error.response?.data || error.message);
+            return false;
+        }
+    }
+    /**
+     * Auto-recover from FAILED session state
+     */
+    async autoRecoverSession(sessionName = this.defaultSession) {
+        try {
+            const status = await this.getSessionStatus(sessionName);
+            if (status.status === 'FAILED') {
+                console.log(`[WAHA Service] 🔄 Auto-recovering FAILED session '${sessionName}'...`);
+                return await this.restartFailedSession(sessionName);
+            }
+            return true;
+        }
+        catch (error) {
+            console.error(`[WAHA Service] ❌ Auto-recovery failed for '${sessionName}':`, error.message);
+            return false;
+        }
     }
 }
 WAHAService.instance = null;

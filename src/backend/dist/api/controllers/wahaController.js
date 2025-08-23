@@ -7,7 +7,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.initializeSession = exports.healthCheck = exports.removeMonitoredKeyword = exports.addMonitoredKeyword = exports.getMonitoredKeywords = exports.forceHistorySync = exports.refreshChats = exports.refreshGroups = exports.getGroupDetails = exports.getGroupParticipants = exports.forceRestart = exports.restartSession = exports.getPrivateChats = exports.getGroups = exports.verifyPhoneAuthCode = exports.sendPhoneAuthCode = exports.webhook = exports.stopSession = exports.startSession = exports.getMessages = exports.getChats = exports.sendMedia = exports.sendMessage = exports.getQR = exports.getStatus = exports.getMonitoringStats = void 0;
+exports.autoRecoverSession = exports.restartFailedSession = exports.initializeSession = exports.healthCheck = exports.removeMonitoredKeyword = exports.addMonitoredKeyword = exports.getMonitoredKeywords = exports.forceHistorySync = exports.refreshChats = exports.refreshGroups = exports.getGroupDetails = exports.getGroupParticipants = exports.forceRestart = exports.restartSession = exports.getPrivateChats = exports.getGroups = exports.verifyPhoneAuthCode = exports.sendPhoneAuthCode = exports.webhook = exports.stopSession = exports.startSession = exports.getMessages = exports.getChats = exports.sendMedia = exports.sendMessage = exports.getQR = exports.getStatus = exports.getMonitoringStats = void 0;
 const wahaService_1 = __importDefault(require("../../services/wahaService"));
 const polling_config_1 = __importDefault(require("../../config/polling.config"));
 const statusCache = {
@@ -245,8 +245,16 @@ exports.getQR = getQR;
  */
 const sendMessage = async (req, res) => {
     try {
+        console.log('[WAHA Controller] Send message request received:', {
+            body: req.body,
+            headers: {
+                'content-type': req.headers['content-type'],
+                'user-agent': req.headers['user-agent']
+            }
+        });
         const { chatId, message, text } = req.body;
         if (!chatId || (!message && !text)) {
+            console.log('[WAHA Controller] ❌ Missing required fields:', { chatId, message, text });
             return res.status(400).json({
                 success: false,
                 error: 'Missing required fields: chatId and message/text'
@@ -254,17 +262,30 @@ const sendMessage = async (req, res) => {
         }
         const wahaService = getWAHAService();
         const messageText = message || text;
+        console.log('[WAHA Controller] Attempting to send message:', {
+            chatId,
+            messageLength: messageText.length,
+            messagePreview: messageText.substring(0, 50) + (messageText.length > 50 ? '...' : '')
+        });
         const result = await wahaService.sendMessage(chatId, messageText);
+        console.log('[WAHA Controller] ✅ Message sent successfully:', result);
         res.json({
             success: true,
             data: result
         });
     }
     catch (error) {
-        console.error('[WAHA Controller] Error sending message:', error);
+        console.error('[WAHA Controller] ❌ Error sending message:', {
+            error: error.message,
+            stack: error.stack,
+            response: error.response?.data,
+            status: error.response?.status,
+            statusText: error.response?.statusText
+        });
         res.status(500).json({
             success: false,
-            error: 'Failed to send message'
+            error: 'Failed to send message: ' + error.message,
+            details: error.response?.data || error.message
         });
     }
 };
@@ -777,7 +798,7 @@ const getPrivateChats = async (req, res) => {
         // Parse pagination/sorting options
         const limit = req.query.limit ? Math.max(1, Math.min(500, parseInt(req.query.limit))) : undefined;
         const offset = req.query.offset ? Math.max(0, parseInt(req.query.offset)) : undefined;
-        const sortBy = req.query.sortBy || 'messageTimestamp';
+        const sortBy = req.query.sortBy || 'conversationTimestamp';
         const sortOrder = req.query.sortOrder || 'desc';
         console.log('[WAHA Controller] Fetching private chats...', { limit, offset, sortBy, sortOrder });
         const startTime = Date.now();
@@ -786,7 +807,7 @@ const getPrivateChats = async (req, res) => {
         // Filter only private chats (not @g.us)
         let privateChats = chats.filter(chat => !chat.isGroup && !(typeof chat.id === 'string' && chat.id.includes('@g.us')));
         // Sort client-side as a fallback if WAHA ignored params
-        if (sortBy === 'messageTimestamp') {
+        if (sortBy === 'conversationTimestamp') {
             privateChats = privateChats.sort((a, b) => (sortOrder === 'desc' ? (b.timestamp || 0) - (a.timestamp || 0) : (a.timestamp || 0) - (b.timestamp || 0)));
         }
         else if (sortBy === 'name') {
@@ -1216,3 +1237,120 @@ const initializeSession = async (req, res) => {
     }
 };
 exports.initializeSession = initializeSession;
+/**
+ * Restart failed session endpoint
+ */
+const restartFailedSession = async (req, res) => {
+    try {
+        console.log('[WAHA Controller] 🔄 Session restart request received');
+        const wahaService = getWAHAService();
+        // Check current session status
+        let currentStatus;
+        try {
+            currentStatus = await wahaService.getSessionStatus();
+            console.log('[WAHA Controller] Current session status before restart:', currentStatus);
+        }
+        catch (statusError) {
+            console.log('[WAHA Controller] Session status check failed:', statusError);
+            currentStatus = { status: 'UNKNOWN' };
+        }
+        // Attempt restart
+        const restartResult = await wahaService.restartFailedSession();
+        if (restartResult) {
+            console.log('[WAHA Controller] ✅ Session restarted successfully');
+            // Get new session status
+            let newStatus;
+            try {
+                newStatus = await wahaService.getSessionStatus();
+            }
+            catch (error) {
+                newStatus = { status: 'STARTING' };
+            }
+            res.json({
+                success: true,
+                data: {
+                    message: 'Session restarted successfully',
+                    previousStatus: currentStatus.status,
+                    currentStatus: newStatus.status,
+                    needsQR: newStatus.status === 'SCAN_QR_CODE' || newStatus.status === 'STARTING'
+                }
+            });
+        }
+        else {
+            console.log('[WAHA Controller] ❌ Session restart failed');
+            res.status(500).json({
+                success: false,
+                error: 'Failed to restart session',
+                data: {
+                    previousStatus: currentStatus.status,
+                    suggestion: 'Try again or restart the WAHA service'
+                }
+            });
+        }
+    }
+    catch (error) {
+        console.error('[WAHA Controller] ❌ Error restarting session:', error);
+        res.status(500).json({
+            success: false,
+            error: error?.message || 'Failed to restart session',
+            details: {
+                status: error?.response?.status,
+                data: error?.response?.data
+            }
+        });
+    }
+};
+exports.restartFailedSession = restartFailedSession;
+/**
+ * Auto-recover session from FAILED state
+ */
+const autoRecoverSession = async (req, res) => {
+    try {
+        console.log('[WAHA Controller] 🔄 Auto-recovery request received');
+        const wahaService = getWAHAService();
+        // Check if auto-recovery is needed
+        const currentStatus = await wahaService.getSessionStatus();
+        console.log('[WAHA Controller] Current session status:', currentStatus);
+        if (currentStatus.status !== 'FAILED') {
+            return res.json({
+                success: true,
+                data: {
+                    message: 'Session is not in FAILED state - no recovery needed',
+                    status: currentStatus.status
+                }
+            });
+        }
+        // Attempt auto-recovery
+        const recoveryResult = await wahaService.autoRecoverSession();
+        if (recoveryResult) {
+            const newStatus = await wahaService.getSessionStatus();
+            res.json({
+                success: true,
+                data: {
+                    message: 'Session auto-recovery completed',
+                    previousStatus: 'FAILED',
+                    currentStatus: newStatus.status,
+                    needsQR: newStatus.status === 'SCAN_QR_CODE' || newStatus.status === 'STARTING'
+                }
+            });
+        }
+        else {
+            res.status(500).json({
+                success: false,
+                error: 'Auto-recovery failed',
+                data: {
+                    suggestion: 'Try manual session restart or WAHA service restart'
+                }
+            });
+        }
+    }
+    catch (error) {
+        console.error('[WAHA Controller] ❌ Error in auto-recovery:', error);
+        res.status(500).json({
+            success: false,
+            error: error?.message || 'Auto-recovery failed',
+            details: error?.response?.data || error.message
+        });
+    }
+};
+exports.autoRecoverSession = autoRecoverSession;

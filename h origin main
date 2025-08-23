@@ -1,0 +1,3 @@
+[33mace96062[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m fix(waha): Increase timeout limits to handle WAHA service delays
+[33mbe93e669[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m debug(whatsapp): Bypass isReady validation to debug session status
+[33m24dee142[m debug(whatsapp): Temporarily disable sortBy parameters to test chat loading

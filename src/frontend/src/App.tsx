@@ -8,6 +8,7 @@ import { PageTransition } from '@/components/animations';
 import { CommandPalette, useCommandPalette } from '@/components/animations';
 import { DigestProvider } from './context/DigestContext';
 import { TelegramProvider } from './contexts/TelegramContext';
+import { TelegramChannelsProvider } from './contexts/TelegramChannelsContext';
 import { useLocation } from 'react-router-dom';
 import { PWAProvider } from './components/pwa/PWAPrompts';
 import { StagewiseToolbar } from '@stagewise/toolbar-react';
@@ -57,6 +58,7 @@ const WhatsAppGroupMonitorPage = React.lazy(() => import('@/pages/WhatsAppGroupM
 const PlacesPage = React.lazy(() => import('@/pages/PlacesPage'));
 const DocsPage = React.lazy(() => import('@/pages/DocsPage'));
 const SearchPage = React.lazy(() => import('@/pages/SearchPage'));
+const TelegramChannelsPage = React.lazy(() => import('@/pages/TelegramChannelsPage'));
 const OnboardingPage = React.lazy(() => import('@/pages/OnboardingPage'));
 
 // Loading component with beautiful animation
@@ -98,6 +100,7 @@ function AppContent() {
         <AguiProvider>
           <DigestProvider>
             <TelegramProvider>
+              <TelegramChannelsProvider>
               <PageTransition key={location.pathname}>
                 <Suspense fallback={<PageLoader />}>
                   <Routes>
@@ -129,6 +132,7 @@ function AppContent() {
                     <Route path="/videos" element={isAuthenticated ? <Layout><VideosPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/whatsapp" element={isAuthenticated ? <Layout><WhatsAppPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/whatsapp-monitor" element={isAuthenticated ? <Layout><WhatsAppGroupMonitorPage /></Layout> : <Navigate to="/login" />} />
+                    <Route path="/telegram-channels" element={isAuthenticated ? <Layout><TelegramChannelsPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/maps" element={isAuthenticated ? <Navigate to="/places" /> : <Navigate to="/login" />} />
                     <Route path="/places" element={isAuthenticated ? <Layout><PlacesPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/docs" element={isAuthenticated ? <Layout><DocsPage /></Layout> : <Navigate to="/login" />} />
@@ -153,6 +157,7 @@ function AppContent() {
               
               {/* Toast Container */}
               <Toaster />
+              </TelegramChannelsProvider>
             </TelegramProvider>
           </DigestProvider>
         </AguiProvider>

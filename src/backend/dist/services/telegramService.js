@@ -127,8 +127,23 @@ bot.on('message', async (msg) => {
     synapseUser = await User_1.default.findOne({ monitoredTelegramChats: chatId });
     if (!synapseUser) {
         console.log(`[TelegramBot]: No Synapse user is monitoring chat ID: ${chatId}. Message not processed further for Synapse features.`);
-        // Optionally, you might still want the bot to respond or transcribe even if not linked to a Synapse user
-        // For now, we largely stop processing if no user is linked, except for basic bot interactions.
+        // Debug: Check if any users exist with Telegram monitoring
+        const allUsersWithTelegram = await User_1.default.find({
+            monitoredTelegramChats: { $exists: true, $ne: [] }
+        }).select('email monitoredTelegramChats');
+        if (allUsersWithTelegram.length > 0) {
+            console.log(`[TelegramBot]: DEBUG - Found ${allUsersWithTelegram.length} users with Telegram monitoring:`);
+            allUsersWithTelegram.forEach(u => {
+                console.log(`[TelegramBot]: DEBUG - User ${u.email}: chats [${u.monitoredTelegramChats.join(', ')}]`);
+            });
+            console.log(`[TelegramBot]: DEBUG - Incoming chat ID type: ${typeof chatId}, value: ${chatId}`);
+        }
+        else {
+            console.log(`[TelegramBot]: DEBUG - No users found with any Telegram monitoring configured`);
+        }
+    }
+    else {
+        console.log(`[TelegramBot]: ✅ Found monitoring user: ${synapseUser.email} for chat ID: ${chatId}`);
     }
     if (msg.text)
         messageType = 'text';
