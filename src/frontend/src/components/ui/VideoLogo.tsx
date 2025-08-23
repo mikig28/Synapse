@@ -152,7 +152,7 @@ export const VideoLogo: React.FC<VideoLogoProps> = ({
           borderRadius: '50%'
         }}
       >
-        <source src="/videos/synapse-logo.mp4" type="video/mp4" />
+        <source src="/videos/synapse-logo.mp4?v=2" type="video/mp4" />
         Your browser does not support the video tag.
       </video>
       
