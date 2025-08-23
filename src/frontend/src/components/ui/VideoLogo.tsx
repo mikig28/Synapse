@@ -106,68 +106,119 @@ export const VideoLogo: React.FC<VideoLogoProps> = ({
     }
   };
 
-  // Neural network-inspired fallback SVG icon
+  // Synapse brain logo SVG fallback (matches the actual logo design)
   const DefaultFallback = () => (
     <motion.svg 
       width={width} 
       height={height} 
-      viewBox="0 0 24 24" 
+      viewBox="0 0 100 100" 
       fill="none" 
       xmlns="http://www.w3.org/2000/svg"
-      className="text-purple-400"
-      style={{ filter: 'drop-shadow(0 0 4px rgba(168, 85, 247, 0.4))' }}
+      style={{ filter: 'drop-shadow(0 0 4px rgba(59, 130, 246, 0.4))' }}
     >
-      {/* Neural network nodes */}
-      <motion.circle 
-        cx="12" cy="6" r="2" 
-        fill="currentColor" 
-        animate={{ 
-          scale: clickPulse ? [1, 1.4, 1] : (isPlaying ? [1, 1.2, 1] : 1),
-          opacity: clickPulse ? [1, 0.7, 1] : 1
-        }}
-        transition={{ duration: clickPulse ? 0.6 : 1.5, repeat: (clickPulse || isPlaying) ? (clickPulse ? 0 : Infinity) : 0 }}
-      />
-      <motion.circle 
-        cx="6" cy="12" r="1.5" 
-        fill="currentColor" 
-        animate={{ 
-          scale: clickPulse ? [1, 1.5, 1] : (isPlaying ? [1, 1.3, 1] : 1),
-          opacity: clickPulse ? [1, 0.6, 1] : 1
-        }}
-        transition={{ duration: clickPulse ? 0.6 : 1.8, repeat: (clickPulse || isPlaying) ? (clickPulse ? 0 : Infinity) : 0, delay: clickPulse ? 0.1 : 0.3 }}
-      />
-      <motion.circle 
-        cx="18" cy="12" r="1.5" 
-        fill="currentColor" 
-        animate={{ 
-          scale: clickPulse ? [1, 1.5, 1] : (isPlaying ? [1, 1.3, 1] : 1),
-          opacity: clickPulse ? [1, 0.6, 1] : 1
-        }}
-        transition={{ duration: clickPulse ? 0.6 : 1.8, repeat: (clickPulse || isPlaying) ? (clickPulse ? 0 : Infinity) : 0, delay: clickPulse ? 0.2 : 0.6 }}
-      />
-      <motion.circle 
-        cx="12" cy="18" r="2" 
-        fill="currentColor" 
-        animate={{ 
-          scale: clickPulse ? [1, 1.4, 1] : (isPlaying ? [1, 1.2, 1] : 1),
-          opacity: clickPulse ? [1, 0.7, 1] : 1
-        }}
-        transition={{ duration: clickPulse ? 0.6 : 1.5, repeat: (clickPulse || isPlaying) ? (clickPulse ? 0 : Infinity) : 0, delay: clickPulse ? 0.3 : 0.9 }}
-      />
+      <defs>
+        <linearGradient id="brainGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#3B82F6" />
+          <stop offset="50%" stopColor="#1D4ED8" />
+          <stop offset="100%" stopColor="#1E40AF" />
+        </linearGradient>
+      </defs>
       
-      {/* Neural connections */}
+      {/* Brain outline */}
       <motion.path 
-        d="M12 8L6 10.5M12 8L18 10.5M6 13.5L12 16M18 13.5L12 16" 
-        stroke="currentColor" 
-        strokeWidth="1.5" 
-        strokeLinecap="round"
-        opacity={0.6}
+        d="M25 30 Q35 15 50 20 Q65 10 75 25 Q85 35 80 50 Q85 65 75 75 Q65 85 50 80 Q45 85 40 80 Q30 85 25 75 Q15 65 20 50 Q15 35 25 30 Z" 
+        stroke="url(#brainGradient)" 
+        strokeWidth="3" 
+        fill="none"
         animate={{ 
-          pathLength: clickPulse ? [1, 0, 1, 0, 1] : (isPlaying ? [0, 1, 0] : 1),
-          opacity: clickPulse ? [0.6, 1, 0.6, 1, 0.6] : (isPlaying ? [0.3, 0.8, 0.3] : 0.6),
-          strokeWidth: clickPulse ? [1.5, 2.5, 1.5] : 1.5
+          strokeWidth: clickPulse ? [3, 4, 3] : (isPlaying ? [3, 3.5, 3] : 3),
+          opacity: clickPulse ? [1, 0.8, 1] : 1
         }}
         transition={{ duration: clickPulse ? 0.6 : 2, repeat: (clickPulse || isPlaying) ? (clickPulse ? 0 : Infinity) : 0 }}
+      />
+      
+      {/* Internal circuit pathways */}
+      <motion.path 
+        d="M30 35 Q40 40 45 35 T60 40 Q70 45 65 55" 
+        stroke="url(#brainGradient)" 
+        strokeWidth="2" 
+        fill="none"
+        animate={{ 
+          pathLength: clickPulse ? [1, 0, 1] : (isPlaying ? [0, 1, 0] : 1),
+          opacity: clickPulse ? [0.8, 1, 0.8] : (isPlaying ? [0.6, 1, 0.6] : 0.8)
+        }}
+        transition={{ duration: clickPulse ? 0.6 : 2.5, repeat: (clickPulse || isPlaying) ? (clickPulse ? 0 : Infinity) : 0 }}
+      />
+      
+      <motion.path 
+        d="M35 50 Q50 45 55 50 Q65 55 60 65 Q50 70 45 65" 
+        stroke="url(#brainGradient)" 
+        strokeWidth="2" 
+        fill="none"
+        animate={{ 
+          pathLength: clickPulse ? [1, 0, 1] : (isPlaying ? [0, 1, 0] : 1),
+          opacity: clickPulse ? [0.8, 1, 0.8] : (isPlaying ? [0.6, 1, 0.6] : 0.8)
+        }}
+        transition={{ duration: clickPulse ? 0.6 : 3, repeat: (clickPulse || isPlaying) ? (clickPulse ? 0 : Infinity) : 0, delay: 0.3 }}
+      />
+      
+      <motion.path 
+        d="M40 25 Q50 30 60 25 M30 60 Q40 65 50 60 M55 70 Q65 65 70 70" 
+        stroke="url(#brainGradient)" 
+        strokeWidth="2" 
+        fill="none"
+        animate={{ 
+          pathLength: clickPulse ? [1, 0, 1] : (isPlaying ? [0, 1, 0] : 1),
+          opacity: clickPulse ? [0.8, 1, 0.8] : (isPlaying ? [0.6, 1, 0.6] : 0.8)
+        }}
+        transition={{ duration: clickPulse ? 0.6 : 2.2, repeat: (clickPulse || isPlaying) ? (clickPulse ? 0 : Infinity) : 0, delay: 0.6 }}
+      />
+      
+      {/* Circuit nodes */}
+      <motion.circle 
+        cx="35" cy="35" r="2" 
+        fill="url(#brainGradient)"
+        animate={{ 
+          scale: clickPulse ? [1, 1.5, 1] : (isPlaying ? [1, 1.3, 1] : 1),
+          opacity: clickPulse ? [1, 0.7, 1] : 1
+        }}
+        transition={{ duration: clickPulse ? 0.6 : 1.8, repeat: (clickPulse || isPlaying) ? (clickPulse ? 0 : Infinity) : 0 }}
+      />
+      <motion.circle 
+        cx="50" cy="30" r="2" 
+        fill="url(#brainGradient)"
+        animate={{ 
+          scale: clickPulse ? [1, 1.5, 1] : (isPlaying ? [1, 1.3, 1] : 1),
+          opacity: clickPulse ? [1, 0.7, 1] : 1
+        }}
+        transition={{ duration: clickPulse ? 0.6 : 2.1, repeat: (clickPulse || isPlaying) ? (clickPulse ? 0 : Infinity) : 0, delay: 0.2 }}
+      />
+      <motion.circle 
+        cx="65" cy="40" r="2" 
+        fill="url(#brainGradient)"
+        animate={{ 
+          scale: clickPulse ? [1, 1.5, 1] : (isPlaying ? [1, 1.3, 1] : 1),
+          opacity: clickPulse ? [1, 0.7, 1] : 1
+        }}
+        transition={{ duration: clickPulse ? 0.6 : 1.9, repeat: (clickPulse || isPlaying) ? (clickPulse ? 0 : Infinity) : 0, delay: 0.4 }}
+      />
+      <motion.circle 
+        cx="45" cy="55" r="2" 
+        fill="url(#brainGradient)"
+        animate={{ 
+          scale: clickPulse ? [1, 1.5, 1] : (isPlaying ? [1, 1.3, 1] : 1),
+          opacity: clickPulse ? [1, 0.7, 1] : 1
+        }}
+        transition={{ duration: clickPulse ? 0.6 : 2.3, repeat: (clickPulse || isPlaying) ? (clickPulse ? 0 : Infinity) : 0, delay: 0.6 }}
+      />
+      <motion.circle 
+        cx="60" cy="65" r="2" 
+        fill="url(#brainGradient)"
+        animate={{ 
+          scale: clickPulse ? [1, 1.5, 1] : (isPlaying ? [1, 1.3, 1] : 1),
+          opacity: clickPulse ? [1, 0.7, 1] : 1
+        }}
+        transition={{ duration: clickPulse ? 0.6 : 2.0, repeat: (clickPulse || isPlaying) ? (clickPulse ? 0 : Infinity) : 0, delay: 0.8 }}
       />
     </motion.svg>
   );
@@ -194,23 +245,22 @@ export const VideoLogo: React.FC<VideoLogoProps> = ({
       onClick={handleClick}
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.98 }}
-      transition={{ duration: 0.2 }}
       animate={{
         boxShadow: clickPulse
           ? [
-              '0 0 8px rgba(168, 85, 247, 0.3)',
-              '0 0 32px rgba(168, 85, 247, 0.8), 0 0 60px rgba(168, 85, 247, 0.4)',
-              '0 0 8px rgba(168, 85, 247, 0.3)'
+              '0 0 8px rgba(59, 130, 246, 0.3)',
+              '0 0 32px rgba(59, 130, 246, 0.8), 0 0 60px rgba(59, 130, 246, 0.4)',
+              '0 0 8px rgba(59, 130, 246, 0.3)'
             ]
           : isPlaying 
             ? [
-                '0 0 8px rgba(168, 85, 247, 0.3), 0 0 20px rgba(168, 85, 247, 0.1)',
-                '0 0 16px rgba(168, 85, 247, 0.5), 0 0 30px rgba(168, 85, 247, 0.2)',
-                '0 0 24px rgba(168, 85, 247, 0.4), 0 0 40px rgba(168, 85, 247, 0.15)',
-                '0 0 16px rgba(168, 85, 247, 0.5), 0 0 30px rgba(168, 85, 247, 0.2)',
-                '0 0 8px rgba(168, 85, 247, 0.3), 0 0 20px rgba(168, 85, 247, 0.1)'
+                '0 0 8px rgba(59, 130, 246, 0.3), 0 0 20px rgba(59, 130, 246, 0.1)',
+                '0 0 16px rgba(59, 130, 246, 0.5), 0 0 30px rgba(59, 130, 246, 0.2)',
+                '0 0 24px rgba(59, 130, 246, 0.4), 0 0 40px rgba(59, 130, 246, 0.15)',
+                '0 0 16px rgba(59, 130, 246, 0.5), 0 0 30px rgba(59, 130, 246, 0.2)',
+                '0 0 8px rgba(59, 130, 246, 0.3), 0 0 20px rgba(59, 130, 246, 0.1)'
               ]
-            : '0 0 8px rgba(168, 85, 247, 0.3)'
+            : '0 0 8px rgba(59, 130, 246, 0.3)'
       }}
       transition={{
         duration: clickPulse ? 0.6 : 3,
@@ -233,13 +283,13 @@ export const VideoLogo: React.FC<VideoLogoProps> = ({
         animate={{
           filter: isPlaying 
             ? [
-                'drop-shadow(0 0 8px rgba(168, 85, 247, 0.4)) brightness(1)',
-                'drop-shadow(0 0 12px rgba(168, 85, 247, 0.6)) brightness(1.1)',
-                'drop-shadow(0 0 16px rgba(168, 85, 247, 0.5)) brightness(1.05)',
-                'drop-shadow(0 0 12px rgba(168, 85, 247, 0.6)) brightness(1.1)',
-                'drop-shadow(0 0 8px rgba(168, 85, 247, 0.4)) brightness(1)'
+                'drop-shadow(0 0 8px rgba(59, 130, 246, 0.4)) brightness(1)',
+                'drop-shadow(0 0 12px rgba(59, 130, 246, 0.6)) brightness(1.1)',
+                'drop-shadow(0 0 16px rgba(59, 130, 246, 0.5)) brightness(1.05)',
+                'drop-shadow(0 0 12px rgba(59, 130, 246, 0.6)) brightness(1.1)',
+                'drop-shadow(0 0 8px rgba(59, 130, 246, 0.4)) brightness(1)'
               ]
-            : 'drop-shadow(0 0 8px rgba(168, 85, 247, 0.3)) brightness(1)'
+            : 'drop-shadow(0 0 8px rgba(59, 130, 246, 0.3)) brightness(1)'
         }}
         transition={{
           duration: 3,
