@@ -264,6 +264,51 @@ const SearchPage: React.FC = () => {
     return counts;
   }, [dedupedResults]);
 
+  const handleResultClick = (result: SearchResult) => {
+    // Handle external URLs (for bookmarks, news, etc.)
+    if (result.metadata?.url && (result.type === 'bookmark' || result.type === 'news')) {
+      window.open(result.metadata.url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    // Handle document files (PDFs, etc.)
+    if (result.type === 'document' && result.metadata?.filePath) {
+      // Navigate to docs page with specific document
+      navigate(`/docs?doc=${encodeURIComponent(result.id)}`);
+      return;
+    }
+
+    const getNavigationPath = (result: SearchResult) => {
+      switch (result.type) {
+        case 'bookmark':
+          return `/bookmarks${result.id ? `?highlight=${result.id}` : ''}`;
+        case 'document':
+          return `/docs${result.id ? `?highlight=${result.id}` : ''}`;
+        case 'note':
+          return `/notes${result.id ? `?highlight=${result.id}` : ''}`;
+        case 'task':
+          return `/tasks${result.id ? `?highlight=${result.id}` : ''}`;
+        case 'idea':
+          return `/ideas${result.id ? `?highlight=${result.id}` : ''}`;
+        case 'video':
+          return `/videos${result.id ? `?highlight=${result.id}` : ''}`;
+        case 'news':
+          return `/news${result.id ? `?highlight=${result.id}` : ''}`;
+        case 'meeting':
+          return `/meetings${result.id ? `?highlight=${result.id}` : ''}`;
+        case 'whatsapp':
+          return `/agents?type=whatsapp${result.id ? `&highlight=${result.id}` : ''}`;
+        case 'telegram':
+          return `/agents?type=telegram${result.id ? `&highlight=${result.id}` : ''}`;
+        default:
+          return '/dashboard';
+      }
+    };
+
+    const path = getNavigationPath(result);
+    navigate(path);
+  };
+
   const renderSearchResult = (result: SearchResult, index: number) => {
     const Icon = getTypeIcon(result.type);
     const typeColor = getTypeColor(result.type);
@@ -275,7 +320,10 @@ const SearchPage: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: index * 0.1 }}
       >
-        <GlassCard className="p-4 hover:border-violet-400/50 transition-all duration-300 cursor-pointer group">
+        <GlassCard 
+          className="p-4 hover:border-violet-400/50 transition-all duration-300 cursor-pointer group"
+          onClick={() => handleResultClick(result)}
+        >
           <div className="flex items-start gap-3">
             <div className={`flex-shrink-0 p-2 rounded-lg bg-gradient-to-br from-violet-500/20 to-purple-500/20 group-hover:from-violet-500/30 group-hover:to-purple-500/30 transition-colors duration-300`}>
               <Icon className={`w-4 h-4 ${typeColor}`} />
