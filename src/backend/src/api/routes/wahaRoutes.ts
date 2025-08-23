@@ -22,6 +22,8 @@ import {
   getGroups,
   getPrivateChats,
   restartSession,
+  restartFailedSession,
+  autoRecoverSession,
   forceRestart,
   refreshChats,
   forceHistorySync,
@@ -62,6 +64,8 @@ router.post('/refresh-chats', refreshChats);
 
 // Session management
 router.post('/restart', restartSession);
+router.post('/restart-failed', restartFailedSession);
+router.post('/auto-recover', autoRecoverSession);
 router.post('/force-restart', forceRestart);
 router.post('/force-history-sync', forceHistorySync);
 

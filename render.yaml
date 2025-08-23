@@ -11,6 +11,15 @@ services:
         value: https://synapse-backend-7lq6.onrender.com
       - key: VITE_API_BASE_URL
         value: https://synapse-backend-7lq6.onrender.com/api/v1
+      - key: VITE_SOCKET_IO_URL
+        value: https://synapse-backend-7lq6.onrender.com
+      # Add these API keys via Render Dashboard (sync: false)
+      - key: VITE_GOOGLE_CLIENT_ID
+        sync: false
+      - key: VITE_GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: VITE_ELEVENLABS_API_KEY
+        sync: false
 
   - type: web
     name: synapse-backend
@@ -53,6 +62,19 @@ services:
         value: https://synapse-waha.onrender.com
       - key: WAHA_API_KEY
         value: waha-synapse-2025-secure
+      # Performance & Memory Optimizations
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=2048 --optimize-for-size"
+      - key: UV_THREADPOOL_SIZE
+        value: "16"
+      # Logging Configuration
+      - key: LOG_LEVEL
+        value: "info"
+      # Optional WAHA Overrides (uncomment if needed)
+      # - key: WAHA_ENGINE
+      #   value: "WEBJS"
+      # - key: WAHA_CHATS_LIMIT
+      #   value: "300"
 
   - type: web
     name: synapse-waha
@@ -97,6 +119,19 @@ services:
         value: "true"
       - key: WHATSAPP_SESSIONS_MONGO_URL
         sync: false
+      # Memory optimization settings
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=1800 --optimize-for-size --gc-interval=100"
+      - key: WAHA_MAX_SESSIONS
+        value: "1"
+      - key: WAHA_BROWSER_DISABLE_CACHE
+        value: "true"
+      - key: WAHA_SESSION_STORE_MAX_SIZE
+        value: "5"
+      - key: WAHA_MEDIA_CLEANUP_INTERVAL
+        value: "300000"
+      - key: WAHA_REQUEST_TIMEOUT
+        value: "30000"
       - key: WHATSAPP_HOOK_URL
         value: https://synapse-backend-7lq6.onrender.com/api/v1/waha/webhook
       - key: WHATSAPP_HOOK_EVENTS

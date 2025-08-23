@@ -4,27 +4,29 @@
  */
 
 export const POLLING_CONFIG = {
-  // Backend caching durations (milliseconds)
+  // Backend caching durations (milliseconds) - MEMORY OPTIMIZED
   backend: {
-    statusCacheDuration: 10000,        // 10 seconds - WAHA status cache
-    sessionCacheDuration: 10000,       // 10 seconds - Session status cache
-    healthCheckCacheDuration: 30000,   // 30 seconds - Health check cache
+    statusCacheDuration: 30000,        // 30 seconds - Increased for memory efficiency
+    sessionCacheDuration: 20000,       // 20 seconds - Increased cache duration
+    healthCheckCacheDuration: 60000,   // 1 minute - Longer health check cache
   },
   
-  // Frontend polling intervals (milliseconds)
+  // Frontend polling intervals (milliseconds) - MEMORY OPTIMIZED
   frontend: {
-    initialCheckDelay: 5000,           // 5 seconds - Initial status check
-    baseInterval: 15000,               // 15 seconds - Base polling interval
-    authenticatedInterval: 30000,      // 30 seconds - When authenticated
-    maxInterval: 60000,                // 1 minute - Maximum backoff interval
-    backoffMultiplier: 2,              // Exponential backoff multiplier
+    initialCheckDelay: 10000,          // 10 seconds - Delayed start
+    baseInterval: 30000,               // 30 seconds - Reduced frequency
+    authenticatedInterval: 60000,      // 1 minute - Less frequent when working
+    maxInterval: 300000,               // 5 minutes - Much longer backoff
+    backoffMultiplier: 1.5,            // Gentler backoff multiplier
   },
   
-  // Resource limits
+  // Resource limits - MEMORY OPTIMIZED
   limits: {
-    maxConcurrentRequests: 2,          // Max concurrent WAHA API requests
-    requestTimeout: 5000,              // 5 seconds - Individual request timeout
-    maxRetries: 3,                     // Maximum retry attempts
+    maxConcurrentRequests: 1,          // Only 1 concurrent request
+    requestTimeout: 15000,             // 15 seconds - Longer for stability
+    maxRetries: 2,                     // Fewer retries to reduce load
+    maxChatsPerRequest: 50,            // Limit chats per request
+    maxMessagesPerRequest: 100,        // Limit messages per request
   }
 };
 

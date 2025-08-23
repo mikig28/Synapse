@@ -1313,3 +1313,123 @@ export const initializeSession = async (req: Request, res: Response) => {
     });
   }
 };
+
+/**
+ * Restart failed session endpoint
+ */
+export const restartFailedSession = async (req: Request, res: Response) => {
+  try {
+    console.log('[WAHA Controller] 🔄 Session restart request received');
+    const wahaService = getWAHAService();
+    
+    // Check current session status
+    let currentStatus;
+    try {
+      currentStatus = await wahaService.getSessionStatus();
+      console.log('[WAHA Controller] Current session status before restart:', currentStatus);
+    } catch (statusError) {
+      console.log('[WAHA Controller] Session status check failed:', statusError);
+      currentStatus = { status: 'UNKNOWN' };
+    }
+    
+    // Attempt restart
+    const restartResult = await wahaService.restartFailedSession();
+    
+    if (restartResult) {
+      console.log('[WAHA Controller] ✅ Session restarted successfully');
+      
+      // Get new session status
+      let newStatus;
+      try {
+        newStatus = await wahaService.getSessionStatus();
+      } catch (error) {
+        newStatus = { status: 'STARTING' };
+      }
+      
+      res.json({
+        success: true,
+        data: {
+          message: 'Session restarted successfully',
+          previousStatus: currentStatus.status,
+          currentStatus: newStatus.status,
+          needsQR: newStatus.status === 'SCAN_QR_CODE' || newStatus.status === 'STARTING'
+        }
+      });
+    } else {
+      console.log('[WAHA Controller] ❌ Session restart failed');
+      res.status(500).json({
+        success: false,
+        error: 'Failed to restart session',
+        data: {
+          previousStatus: currentStatus.status,
+          suggestion: 'Try again or restart the WAHA service'
+        }
+      });
+    }
+  } catch (error: any) {
+    console.error('[WAHA Controller] ❌ Error restarting session:', error);
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to restart session',
+      details: {
+        status: error?.response?.status,
+        data: error?.response?.data
+      }
+    });
+  }
+};
+
+/**
+ * Auto-recover session from FAILED state
+ */
+export const autoRecoverSession = async (req: Request, res: Response) => {
+  try {
+    console.log('[WAHA Controller] 🔄 Auto-recovery request received');
+    const wahaService = getWAHAService();
+    
+    // Check if auto-recovery is needed
+    const currentStatus = await wahaService.getSessionStatus();
+    console.log('[WAHA Controller] Current session status:', currentStatus);
+    
+    if (currentStatus.status !== 'FAILED') {
+      return res.json({
+        success: true,
+        data: {
+          message: 'Session is not in FAILED state - no recovery needed',
+          status: currentStatus.status
+        }
+      });
+    }
+    
+    // Attempt auto-recovery
+    const recoveryResult = await wahaService.autoRecoverSession();
+    
+    if (recoveryResult) {
+      const newStatus = await wahaService.getSessionStatus();
+      res.json({
+        success: true,
+        data: {
+          message: 'Session auto-recovery completed',
+          previousStatus: 'FAILED',
+          currentStatus: newStatus.status,
+          needsQR: newStatus.status === 'SCAN_QR_CODE' || newStatus.status === 'STARTING'
+        }
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Auto-recovery failed',
+        data: {
+          suggestion: 'Try manual session restart or WAHA service restart'
+        }
+      });
+    }
+  } catch (error: any) {
+    console.error('[WAHA Controller] ❌ Error in auto-recovery:', error);
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Auto-recovery failed',
+      details: error?.response?.data || error.message
+    });
+  }
+};
