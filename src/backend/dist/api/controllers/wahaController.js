@@ -303,17 +303,20 @@ exports.sendMedia = sendMedia;
 const getChats = async (req, res) => {
     try {
         const wahaService = getWAHAService();
-        // Check session status first
+        // Check session status first - temporarily log for debugging
         const status = await wahaService.getStatus();
+        console.log('[WAHA Controller DEBUG] Session status for getChats:', status);
+        // Temporarily disable isReady check to debug authentication issues
         if (!status.isReady) {
-            return res.status(400).json({
-                success: false,
-                error: 'WhatsApp session is not ready',
-                details: {
-                    status: status.status,
-                    suggestion: 'Please authenticate with WhatsApp first'
-                }
-            });
+            console.log('[WAHA Controller DEBUG] Session not ready but continuing for debugging');
+            // return res.status(400).json({
+            //   success: false,
+            //   error: 'WhatsApp session is not ready',
+            //   details: {
+            //     status: status.status,
+            //     suggestion: 'Please authenticate with WhatsApp first'
+            //   }
+            // });
         }
         // Parse WAHA-compliant query parameters
         const options = {
@@ -663,17 +666,20 @@ exports.verifyPhoneAuthCode = verifyPhoneAuthCode;
 const getGroups = async (req, res) => {
     try {
         const wahaService = getWAHAService();
-        // Check session status first
+        // Check session status first - temporarily log for debugging
         const status = await wahaService.getStatus();
+        console.log('[WAHA Controller DEBUG] Session status for getGroups:', status);
+        // Temporarily disable isReady check to debug authentication issues
         if (!status.isReady) {
-            return res.status(400).json({
-                success: false,
-                error: 'WhatsApp session is not ready',
-                details: {
-                    status: status.status,
-                    suggestion: 'Please authenticate with WhatsApp first'
-                }
-            });
+            console.log('[WAHA Controller DEBUG] Session not ready but continuing for debugging');
+            // return res.status(400).json({
+            //   success: false,
+            //   error: 'WhatsApp session is not ready',
+            //   details: {
+            //     status: status.status,
+            //     suggestion: 'Please authenticate with WhatsApp first'
+            //   }
+            // });
         }
         // Parse WAHA-compliant query parameters for groups
         const options = {
@@ -753,17 +759,20 @@ exports.getGroups = getGroups;
 const getPrivateChats = async (req, res) => {
     try {
         const wahaService = getWAHAService();
-        // Check session status first
+        // Check session status first - temporarily log for debugging
         const status = await wahaService.getStatus();
+        console.log('[WAHA Controller DEBUG] Session status for getPrivateChats:', status);
+        // Temporarily disable isReady check to debug authentication issues
         if (!status.isReady) {
-            return res.status(400).json({
-                success: false,
-                error: 'WhatsApp session is not ready',
-                details: {
-                    status: status.status,
-                    suggestion: 'Please authenticate with WhatsApp first'
-                }
-            });
+            console.log('[WAHA Controller DEBUG] Session not ready but continuing for debugging');
+            // return res.status(400).json({
+            //   success: false,
+            //   error: 'WhatsApp session is not ready',
+            //   details: {
+            //     status: status.status,
+            //     suggestion: 'Please authenticate with WhatsApp first'
+            //   }
+            // });
         }
         // Parse pagination/sorting options
         const limit = req.query.limit ? Math.max(1, Math.min(500, parseInt(req.query.limit))) : undefined;
