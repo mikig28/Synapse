@@ -71,6 +71,7 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
   const [showActions, setShowActions] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   const [showCrewViewer, setShowCrewViewer] = useState(false);
+  const [debugInfo, setDebugInfo] = useState(false);
 
   const statusColor = getAgentStatusColor(agent.status);
   const typeColor = getAgentTypeColor(agent.type);
@@ -180,15 +181,15 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
               
               <div className="flex flex-col items-center gap-1">
                 <motion.button
-                  className="p-3 bg-green-500 text-white rounded-full shadow-lg"
+                  className="p-4 bg-green-500 hover:bg-green-600 text-white rounded-full shadow-lg"
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
                   onClick={() => onSettings(agent._id)}
                   title="Edit Agent Settings"
                 >
-                  <Edit className="w-4 h-4" />
+                  <Edit className="w-5 h-5" />
                 </motion.button>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">Edit</span>
+                <span className="text-xs text-gray-600 dark:text-gray-300 font-semibold">Edit</span>
               </div>
               
               <div className="flex flex-col items-center gap-1">
@@ -364,7 +365,7 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
                   size="sm"
                   onClick={() => onExecute(agent._id)}
                   disabled={isExecuting || agent.status === 'running'}
-                  className="w-full text-xs"
+                  className="w-full text-xs h-9"
                   style={{
                     backgroundColor: statusColor.primary,
                     borderColor: statusColor.primary,
@@ -384,11 +385,13 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
                   size="sm"
                   variant="outline"
                   onClick={() => onSettings(agent._id)}
-                  className="px-3 bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700 flex items-center gap-1"
+                  className="px-4 h-9 bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700 flex items-center gap-2 min-w-[80px] font-medium relative"
                   title="Edit Agent Settings"
                 >
-                  <Edit className="w-3 h-3" />
-                  <span className="text-xs font-medium">Edit</span>
+                  <Edit className="w-4 h-4" />
+                  <span className="text-sm font-semibold">Edit</span>
+                  {/* Visual indicator to make edit button more noticeable */}
+                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full opacity-75" />
                 </Button>
               </motion.div>
 
@@ -399,10 +402,10 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
                     size="sm"
                     variant="outline"
                     onClick={() => setShowCrewViewer(true)}
-                    className="px-3 bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700"
+                    className="px-3 h-9 bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700"
                     title="View AI Process"
                   >
-                    <Brain className="w-3 h-3" />
+                    <Brain className="w-4 h-4" />
                   </Button>
                 </motion.div>
               )}
@@ -412,9 +415,9 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
                   size="sm"
                   variant="outline"
                   onClick={() => onToggle(agent)}
-                  className="px-3"
+                  className="px-3 h-9"
                 >
-                  {agent.isActive ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                  {agent.isActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                 </Button>
               </motion.div>
 
@@ -424,9 +427,9 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
                     size="sm"
                     variant="outline"
                     onClick={() => onReset(agent._id)}
-                    className="px-3"
+                    className="px-3 h-9"
                   >
-                    <RotateCcw className="w-3 h-3" />
+                    <RotateCcw className="w-4 h-4" />
                   </Button>
                 </motion.div>
               )}
@@ -443,6 +446,30 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
       >
         <span>← Swipe for actions</span>
       </motion.div>
+
+      {/* Debug Information Overlay - Development Only */}
+      {import.meta.env.DEV && (
+        <div className="absolute top-2 left-2 z-50">
+          <button
+            onClick={() => setDebugInfo(!debugInfo)}
+            className="bg-red-500 text-white text-xs px-2 py-1 rounded opacity-50 hover:opacity-100"
+          >
+            Debug
+          </button>
+          {debugInfo && (
+            <div className="absolute top-8 left-0 bg-black text-white text-xs p-2 rounded shadow-lg min-w-[200px] z-50">
+              <div>Screen Width: {window.innerWidth}px</div>
+              <div>Component: MobileAgentCard</div>
+              <div>Agent: {agent.name}</div>
+              <div>Edit Button Visible: ✅ Yes</div>
+              <div>Quick Actions: {showActions ? '✅ Shown' : '❌ Hidden'}</div>
+              <div>Swipe Actions: {showActions ? '✅ Available' : '❌ Hidden'}</div>
+              <div>Touch Events: {window.TouchEvent ? '✅ Supported' : '❌ Not Supported'}</div>
+              <div>User Agent: {navigator.userAgent.includes('Mobile') ? '📱 Mobile' : '🖥️ Desktop'}</div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* CrewAI Process Viewer Modal */}
       {agent.type === 'crewai_news' && (
