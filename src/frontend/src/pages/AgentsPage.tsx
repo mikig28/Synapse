@@ -11,7 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAgui } from '../contexts/AguiContext';
 import { EnhancedAgentCard } from '@/components/EnhancedAgentCard';
 import { MobileAgentCard } from '@/components/MobileAgentCard';
-import { useIsMobile } from '@/hooks/useMobileDetection';
+import { useDeviceDetection } from '@/hooks/useMobileFeatures';
 import { StatusGrid, LiveActivityIndicator } from '@/components/AgentStatusIndicator';
 import { shouldUseMobileFallback, getiOSPerformanceSettings } from '@/utils/iOSDetection';
 import AgentsPageMobileFix from './AgentsPageMobileFix';
@@ -125,7 +125,7 @@ const AgentsPage: React.FC = memo(() => {
   }
   
   const { isConnected, connectionState, eventCount } = useAgui();
-  const isMobile = useIsMobile();
+  const { isMobile, hasTouch } = useDeviceDetection();
   const { toast } = useToast();
   const navigate = useNavigate();
   
