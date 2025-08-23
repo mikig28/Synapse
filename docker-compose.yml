@@ -54,6 +54,36 @@ services:
       retries: 3
       start_period: 10s
 
+  # WAHA WhatsApp Service
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: synapse-waha
+    restart: unless-stopped
+    ports:
+      - "3001:3000"  # WAHA runs on port 3000 internally
+    environment:
+      # WAHA Configuration
+      - WHATSAPP_SESSIONS_FOLDER=/app/sessions
+      - WHATSAPP_DEFAULT_ENGINE=WEBJS
+      - WHATSAPP_API_KEY=${WAHA_API_KEY:-your-secure-api-key-here}
+      - WHATSAPP_FILES_LIFETIME=0  # Disable automatic file cleanup
+      - WHATSAPP_RESTART_ALL_SESSIONS=true
+      - WHATSAPP_START_SESSION=default
+      # Performance settings
+      - WHATSAPP_MAX_ATTACHMENT_SIZE=50
+      - WHATSAPP_DOWNLOAD_MEDIA=false  # Disable automatic media download to improve performance
+    volumes:
+      - waha_sessions:/app/sessions
+      - waha_media:/app/media
+    networks:
+      - synapse-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   # Backend Service (for development)
   backend:
     build:
@@ -72,6 +102,9 @@ services:
       - JWT_SECRET=your-jwt-secret-here
       - JWT_EXPIRES_IN=7d
       - FRONTEND_URL=http://localhost:5173
+      # WAHA Configuration
+      - WAHA_SERVICE_URL=http://waha:3000
+      - WAHA_API_KEY=${WAHA_API_KEY:-your-secure-api-key-here}
     volumes:
       - ./src/backend:/app
       - /app/node_modules
@@ -80,6 +113,7 @@ services:
       - mongodb
       - redis
       - face-recognition
+      - waha
     networks:
       - synapse-network
 
@@ -87,6 +121,10 @@ volumes:
   mongodb_data:
     driver: local
   redis_data:
+    driver: local
+  waha_sessions:
+    driver: local
+  waha_media:
     driver: local
 
 networks:
