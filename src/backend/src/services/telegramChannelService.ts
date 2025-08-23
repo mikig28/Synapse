@@ -5,17 +5,16 @@ import mongoose from 'mongoose';
 import { io } from '../server';
 import cron from 'node-cron';
 import fetch from 'node-fetch';
+import { telegramBot } from './telegramService'; // Import shared bot instance
 
 class TelegramChannelService {
   private bot: TelegramBot;
   private cronJobs: Map<string, cron.ScheduledTask> = new Map();
 
   constructor() {
-    const token = process.env.TELEGRAM_BOT_TOKEN;
-    if (!token) {
-      throw new Error('TELEGRAM_BOT_TOKEN is required for channel monitoring');
-    }
-    this.bot = new TelegramBot(token, { polling: false });
+    // Reuse the existing bot instance to avoid polling conflicts
+    this.bot = telegramBot;
+    console.log('[TelegramChannelService] Using shared telegram bot instance');
     this.initializePeriodicFetch();
   }
 

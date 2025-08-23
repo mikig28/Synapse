@@ -941,5 +941,5 @@ export const handleDocumentSearch = async (userId: string, query: string, chatId
   }
 };
 
-// Export the bot instance if you need to access it directly in other modules (e.g., to send messages programmatically)
-// export default bot; 
+// Export the bot instance for reuse in other services (e.g., channel monitoring)
+export { bot as telegramBot }; 
