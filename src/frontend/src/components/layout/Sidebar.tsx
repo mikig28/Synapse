@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { VideoLogo } from '@/components/ui/VideoLogo';
 
 // Define props for Sidebar
 interface SidebarProps {
@@ -140,18 +141,25 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
       <div className="px-4 pt-4 pb-2 flex items-center justify-center flex-shrink-0">
         {/* Synapse Logo/Icon - visible when open, tiny icon when closed */}
         <Link to="/dashboard" className="flex items-center gap-2">
-          <motion.svg 
-            width={isSidebarOpen ? "32" : "24"} 
-            height={isSidebarOpen ? "32" : "24"} 
-            viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
-            className="text-purple-400 transition-all duration-300"
-            animate={{ rotate: isSidebarOpen ? 0 : 360 }}
-            transition={{ duration: 0.5 }}
-          >
-            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </motion.svg>
+          <VideoLogo 
+            size={isSidebarOpen ? "lg" : "sm"} 
+            playOnHover={true}
+            className="transition-all duration-300 glow-effect-purple-sm"
+            fallbackIcon={
+              <motion.svg 
+                width={isSidebarOpen ? "48" : "24"} 
+                height={isSidebarOpen ? "48" : "24"} 
+                viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
+                className="text-purple-400 transition-all duration-300"
+                animate={{ rotate: isSidebarOpen ? 0 : 360 }}
+                transition={{ duration: 0.5 }}
+              >
+                <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </motion.svg>
+            }
+          />
           <h2 className={`text-xl md:text-2xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent overflow-hidden whitespace-nowrap transition-all duration-300 ${isSidebarOpen ? 'opacity-100 w-auto ml-2' : 'opacity-0 w-0 ml-0'}`}>
             Synapse
           </h2>

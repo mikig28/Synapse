@@ -14,6 +14,7 @@ import { Brain, Mail, Lock, Sparkles, ArrowRight, AlertCircle, ChromeIcon } from
 import { useToast } from "@/hooks/use-toast";
 import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { VideoLogo } from '@/components/ui/VideoLogo';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -158,17 +159,27 @@ const LoginPage: React.FC = () => {
             <div className="flex justify-center mb-4">
               <motion.div
                 className="relative"
-                animate={{ rotate: [0, 5, -5, 0] }}
+                animate={{ y: [0, -5, 0] }}
                 transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
               >
-                <Brain className="w-12 h-12 text-violet-300" />
-                <motion.div
-                  className="absolute -top-1 -right-1"
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                >
-                  <Sparkles className="w-4 h-4 text-amber-300" />
-                </motion.div>
+                <VideoLogo 
+                  size="xl" 
+                  playOnHover={true}
+                  autoplay={true}
+                  className="glow-effect-purple-md"
+                  fallbackIcon={
+                    <div className="relative">
+                      <Brain className="w-16 h-16 text-violet-300" />
+                      <motion.div
+                        className="absolute -top-1 -right-1"
+                        animate={{ scale: [1, 1.2, 1] }}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                      >
+                        <Sparkles className="w-4 h-4 text-amber-300" />
+                      </motion.div>
+                    </div>
+                  }
+                />
               </motion.div>
             </div>
             
