@@ -322,8 +322,8 @@ async function sendMessageViaService(to: string, message: string) {
     const serviceStatus = whatsappService.getStatus();
     console.log('[WhatsApp Service Helper] Service status before send:', serviceStatus);
     
-    if (!serviceStatus.connected || !serviceStatus.authenticated) {
-      throw new Error(`WhatsApp service not ready. Connected: ${serviceStatus.connected}, Authenticated: ${serviceStatus.authenticated}`);
+    if (!serviceStatus.isReady || !serviceStatus.isClientReady) {
+      throw new Error(`WhatsApp service not ready. IsReady: ${serviceStatus.isReady}, IsClientReady: ${serviceStatus.isClientReady}, Status: ${serviceStatus.status}`);
     }
     
     const result = await whatsappService.sendMessage(to, message);
