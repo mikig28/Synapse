@@ -1173,8 +1173,48 @@ const AgentsPage: React.FC = memo(() => {
           </motion.div>
         )}
         </motion.div>
-      </PageTransitionManager>
-    );
+      {/* Debug Panel for Edit Button Visibility */}
+      {import.meta.env.DEV && (
+        <div className="fixed bottom-4 right-4 z-50">
+          <button
+            onClick={() => setShowDebugPanel(!showDebugPanel)}
+            className="bg-purple-600 text-white px-4 py-2 rounded-lg shadow-lg hover:bg-purple-700 transition-colors"
+          >
+            Debug Edit Button
+          </button>
+          {showDebugPanel && (
+            <div className="absolute bottom-12 right-0 bg-black text-white p-4 rounded-lg shadow-xl min-w-[300px] max-w-[400px] space-y-2 text-sm">
+              <h3 className="font-bold text-lg mb-2">Edit Button Debug Info</h3>
+              <div>📱 Mobile Detection: {isMobile ? 'Yes' : 'No'}</div>
+              <div>📊 Agents Count: {agents?.length || 0}</div>
+              <div>🔍 Current View: {currentView}</div>
+              <div>💻 Screen Width: {window.innerWidth}px</div>
+              <div>📱 Touch Device: {hasTouch ? 'Yes' : 'No'}</div>
+              <div>🔗 Edit Route: /agents/:agentId/settings</div>
+              <div className="mt-3 pt-2 border-t border-gray-600">
+                <p className="font-semibold mb-1">Edit Button Locations:</p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>Card Header: Blue "Edit" button (always visible)</li>
+                  <li>Card Actions: Edit icon with "Edit" text</li>
+                  <li>Mobile: Blue "EDIT" button in action bar</li>
+                  <li>Mobile Swipe: Edit button in swipe panel</li>
+                </ul>
+              </div>
+              <div className="mt-3 pt-2 border-t border-gray-600">
+                <p className="font-semibold mb-1">If you can't see the edit button:</p>
+                <ul className="list-disc list-inside space-y-1 text-xs">
+                  <li>Check if agents are loaded</li>
+                  <li>Try refreshing the page</li>
+                  <li>Check browser console for errors</li>
+                  <li>Ensure you're logged in</li>
+                </ul>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </PageTransitionManager>
+  );
 });
 
 AgentsPage.displayName = 'AgentsPage';

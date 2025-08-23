@@ -502,6 +502,20 @@ export const EnhancedAgentCard: React.FC<EnhancedAgentCardProps> = ({
                 size="sm"
                 aria-label={agent.isActive ? 'Agent is active' : 'Agent is paused'}
               />
+              {/* Prominent Edit Button - Always Visible */}
+              <AnimatedButton
+                size="sm"
+                variant="default"
+                onClick={() => onSettings(agent._id)}
+                className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1"
+                rippleEffect={!settings.reducedMotion}
+                hapticFeedback={settings.hapticFeedback}
+                aria-label={`Edit ${agent.name} settings`}
+                title="Edit agent settings and configuration"
+              >
+                <Edit className="w-3 h-3" aria-hidden="true" />
+                <span className="text-xs font-semibold">Edit</span>
+              </AnimatedButton>
             </div>
           </div>
         </CardHeader>
