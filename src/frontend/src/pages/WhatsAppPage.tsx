@@ -492,7 +492,7 @@ const WhatsAppPage: React.FC = () => {
       const params = new URLSearchParams();
       if (options?.limit) params.append('limit', options.limit.toString());
       if (options?.offset) params.append('offset', options.offset.toString());
-      params.append('sortBy', 'subject'); // Sort by group name
+      params.append('sortBy', 'subject'); // Sort by group subject (WAHA-compliant)
       params.append('sortOrder', 'asc'); // Alphabetical order
       
       const queryString = params.toString();
@@ -530,11 +530,27 @@ const WhatsAppPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching WhatsApp groups:', error);
-      toast({
-        title: "Chat Loading Issue",
-        description: "Unable to load WhatsApp groups. Please try refreshing.",
-        variant: "destructive",
-      });
+      
+      // Check if it's an authentication error
+      if (error.response?.status === 401) {
+        toast({
+          title: "WhatsApp Authentication Required",
+          description: "Please scan the QR code with your WhatsApp mobile app to authenticate.",
+          variant: "destructive",
+        });
+      } else if (error.response?.status === 503) {
+        toast({
+          title: "WhatsApp Service Starting",
+          description: "Please wait a moment for the WhatsApp service to initialize.",
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Chat Loading Issue",
+          description: "Unable to load WhatsApp groups. Please try refreshing.",
+          variant: "destructive",
+        });
+      }
     } finally {
       if (showLoading) setLoadingChats(false);
     }
@@ -546,7 +562,7 @@ const WhatsAppPage: React.FC = () => {
       
       // Prefer WAHA modern endpoint; fallback to legacy
       try {
-        // Request limited recent private chats to avoid timeouts and heavy payloads
+        // Request limited recent private chats with WAHA-compliant parameters
         const wahaRes = await api.get('/waha/private-chats?limit=200&sortBy=messageTimestamp&sortOrder=desc');
         if (wahaRes.data.success && Array.isArray(wahaRes.data.data)) {
           console.log(`[WhatsApp Frontend] ✅ Fetched ${wahaRes.data.data.length} private chats via WAHA (limited)`);
@@ -563,11 +579,27 @@ const WhatsAppPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching WhatsApp private chats:', error);
-      toast({
-        title: "Chat Loading Issue",
-        description: "Unable to load private chats. Please try refreshing.",
-        variant: "destructive",
-      });
+      
+      // Check if it's an authentication error
+      if (error.response?.status === 401) {
+        toast({
+          title: "WhatsApp Authentication Required",
+          description: "Please scan the QR code with your WhatsApp mobile app to authenticate.",
+          variant: "destructive",
+        });
+      } else if (error.response?.status === 503) {
+        toast({
+          title: "WhatsApp Service Starting",
+          description: "Please wait a moment for the WhatsApp service to initialize.",
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Chat Loading Issue",
+          description: "Unable to load private chats. Please try refreshing.",
+          variant: "destructive",
+        });
+      }
     } finally {
       if (showLoading) setLoadingChats(false);
     }
