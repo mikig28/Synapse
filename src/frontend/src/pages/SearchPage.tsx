@@ -265,19 +265,22 @@ const SearchPage: React.FC = () => {
   }, [dedupedResults]);
 
   const handleResultClick = (result: SearchResult) => {
+    // Debug logging
+    console.log('🔍 Search result clicked:', {
+      id: result.id,
+      type: result.type,
+      title: result.title,
+      metadata: result.metadata
+    });
+
     // Handle external URLs (for bookmarks, news, etc.)
     if (result.metadata?.url && (result.type === 'bookmark' || result.type === 'news')) {
+      console.log('🔗 Opening external URL:', result.metadata.url);
       window.open(result.metadata.url, '_blank', 'noopener,noreferrer');
       return;
     }
 
-    // Handle document files (PDFs, etc.)
-    if (result.type === 'document' && result.metadata?.filePath) {
-      // Navigate to docs page with specific document
-      navigate(`/docs?doc=${encodeURIComponent(result.id)}`);
-      return;
-    }
-
+    // Get navigation path based on type
     const getNavigationPath = (result: SearchResult) => {
       switch (result.type) {
         case 'bookmark':
@@ -301,11 +304,13 @@ const SearchPage: React.FC = () => {
         case 'telegram':
           return `/agents?type=telegram${result.id ? `&highlight=${result.id}` : ''}`;
         default:
+          console.warn('⚠️ Unknown result type, redirecting to dashboard:', result.type);
           return '/dashboard';
       }
     };
 
     const path = getNavigationPath(result);
+    console.log('🧭 Navigating to:', path);
     navigate(path);
   };
 
