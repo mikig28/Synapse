@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { io, Socket } from 'socket.io-client';
 import axiosInstance from '@/services/axiosConfig';
 import useAuthStore from '@/store/authStore';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 interface TelegramChannelMessage {
   messageId: number;
