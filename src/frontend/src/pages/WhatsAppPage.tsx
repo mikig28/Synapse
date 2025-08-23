@@ -492,8 +492,9 @@ const WhatsAppPage: React.FC = () => {
       const params = new URLSearchParams();
       if (options?.limit) params.append('limit', options.limit.toString());
       if (options?.offset) params.append('offset', options.offset.toString());
-      params.append('sortBy', 'subject'); // Sort by group subject (WAHA-compliant)
-      params.append('sortOrder', 'asc'); // Alphabetical order
+      // Temporarily disable sortBy parameters for debugging
+      // params.append('sortBy', 'subject'); 
+      // params.append('sortOrder', 'asc');
       
       const queryString = params.toString();
       
@@ -562,8 +563,8 @@ const WhatsAppPage: React.FC = () => {
       
       // Prefer WAHA modern endpoint; fallback to legacy
       try {
-        // Request limited recent private chats with WAHA-compliant parameters
-        const wahaRes = await api.get('/waha/private-chats?limit=200&sortBy=messageTimestamp&sortOrder=desc');
+        // Request limited recent private chats - testing without sortBy parameters
+        const wahaRes = await api.get('/waha/private-chats?limit=200');
         if (wahaRes.data.success && Array.isArray(wahaRes.data.data)) {
           console.log(`[WhatsApp Frontend] ✅ Fetched ${wahaRes.data.data.length} private chats via WAHA (limited)`);
           setPrivateChats(wahaRes.data.data);
