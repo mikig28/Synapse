@@ -33,6 +33,7 @@ export const VideoLogo: React.FC<VideoLogoProps> = ({
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [clickPulse, setClickPulse] = useState(false);
   
   // Respect user's reduced motion preference
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -91,12 +92,21 @@ export const VideoLogo: React.FC<VideoLogoProps> = ({
   };
 
   const handleClick = () => {
+    // Trigger neural firing animation
+    setClickPulse(true);
+    setTimeout(() => setClickPulse(false), 600);
+    
+    // Try to play video on click if not already playing
+    if (videoRef.current && isLoaded && !isPlaying && !prefersReducedMotion) {
+      videoRef.current.play().catch(() => {});
+    }
+    
     if (onClick) {
       onClick();
     }
   };
 
-  // Fallback SVG icon (current Synapse logo)
+  // Neural network-inspired fallback SVG icon
   const DefaultFallback = () => (
     <motion.svg 
       width={width} 
@@ -105,12 +115,60 @@ export const VideoLogo: React.FC<VideoLogoProps> = ({
       fill="none" 
       xmlns="http://www.w3.org/2000/svg"
       className="text-purple-400"
-      animate={{ rotate: isPlaying ? 360 : 0 }}
-      transition={{ duration: 2, repeat: isPlaying ? Infinity : 0, ease: "linear" }}
+      style={{ filter: 'drop-shadow(0 0 4px rgba(168, 85, 247, 0.4))' }}
     >
-      <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      {/* Neural network nodes */}
+      <motion.circle 
+        cx="12" cy="6" r="2" 
+        fill="currentColor" 
+        animate={{ 
+          scale: clickPulse ? [1, 1.4, 1] : (isPlaying ? [1, 1.2, 1] : 1),
+          opacity: clickPulse ? [1, 0.7, 1] : 1
+        }}
+        transition={{ duration: clickPulse ? 0.6 : 1.5, repeat: (clickPulse || isPlaying) ? (clickPulse ? 0 : Infinity) : 0 }}
+      />
+      <motion.circle 
+        cx="6" cy="12" r="1.5" 
+        fill="currentColor" 
+        animate={{ 
+          scale: clickPulse ? [1, 1.5, 1] : (isPlaying ? [1, 1.3, 1] : 1),
+          opacity: clickPulse ? [1, 0.6, 1] : 1
+        }}
+        transition={{ duration: clickPulse ? 0.6 : 1.8, repeat: (clickPulse || isPlaying) ? (clickPulse ? 0 : Infinity) : 0, delay: clickPulse ? 0.1 : 0.3 }}
+      />
+      <motion.circle 
+        cx="18" cy="12" r="1.5" 
+        fill="currentColor" 
+        animate={{ 
+          scale: clickPulse ? [1, 1.5, 1] : (isPlaying ? [1, 1.3, 1] : 1),
+          opacity: clickPulse ? [1, 0.6, 1] : 1
+        }}
+        transition={{ duration: clickPulse ? 0.6 : 1.8, repeat: (clickPulse || isPlaying) ? (clickPulse ? 0 : Infinity) : 0, delay: clickPulse ? 0.2 : 0.6 }}
+      />
+      <motion.circle 
+        cx="12" cy="18" r="2" 
+        fill="currentColor" 
+        animate={{ 
+          scale: clickPulse ? [1, 1.4, 1] : (isPlaying ? [1, 1.2, 1] : 1),
+          opacity: clickPulse ? [1, 0.7, 1] : 1
+        }}
+        transition={{ duration: clickPulse ? 0.6 : 1.5, repeat: (clickPulse || isPlaying) ? (clickPulse ? 0 : Infinity) : 0, delay: clickPulse ? 0.3 : 0.9 }}
+      />
+      
+      {/* Neural connections */}
+      <motion.path 
+        d="M12 8L6 10.5M12 8L18 10.5M6 13.5L12 16M18 13.5L12 16" 
+        stroke="currentColor" 
+        strokeWidth="1.5" 
+        strokeLinecap="round"
+        opacity={0.6}
+        animate={{ 
+          pathLength: clickPulse ? [1, 0, 1, 0, 1] : (isPlaying ? [0, 1, 0] : 1),
+          opacity: clickPulse ? [0.6, 1, 0.6, 1, 0.6] : (isPlaying ? [0.3, 0.8, 0.3] : 0.6),
+          strokeWidth: clickPulse ? [1.5, 2.5, 1.5] : 1.5
+        }}
+        transition={{ duration: clickPulse ? 0.6 : 2, repeat: (clickPulse || isPlaying) ? (clickPulse ? 0 : Infinity) : 0 }}
+      />
     </motion.svg>
   );
 
@@ -137,8 +195,30 @@ export const VideoLogo: React.FC<VideoLogoProps> = ({
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.98 }}
       transition={{ duration: 0.2 }}
+      animate={{
+        boxShadow: clickPulse
+          ? [
+              '0 0 8px rgba(168, 85, 247, 0.3)',
+              '0 0 32px rgba(168, 85, 247, 0.8), 0 0 60px rgba(168, 85, 247, 0.4)',
+              '0 0 8px rgba(168, 85, 247, 0.3)'
+            ]
+          : isPlaying 
+            ? [
+                '0 0 8px rgba(168, 85, 247, 0.3), 0 0 20px rgba(168, 85, 247, 0.1)',
+                '0 0 16px rgba(168, 85, 247, 0.5), 0 0 30px rgba(168, 85, 247, 0.2)',
+                '0 0 24px rgba(168, 85, 247, 0.4), 0 0 40px rgba(168, 85, 247, 0.15)',
+                '0 0 16px rgba(168, 85, 247, 0.5), 0 0 30px rgba(168, 85, 247, 0.2)',
+                '0 0 8px rgba(168, 85, 247, 0.3), 0 0 20px rgba(168, 85, 247, 0.1)'
+              ]
+            : '0 0 8px rgba(168, 85, 247, 0.3)'
+      }}
+      transition={{
+        duration: clickPulse ? 0.6 : 3,
+        repeat: clickPulse ? 0 : (isPlaying ? Infinity : 0),
+        ease: clickPulse ? "easeOut" : "easeInOut"
+      }}
     >
-      <video
+      <motion.video
         ref={videoRef}
         width={width}
         height={height}
@@ -148,13 +228,28 @@ export const VideoLogo: React.FC<VideoLogoProps> = ({
         preload="metadata"
         className="w-full h-full object-cover"
         style={{ 
-          filter: 'drop-shadow(0 0 8px rgba(168, 85, 247, 0.3))',
           borderRadius: '50%'
         }}
+        animate={{
+          filter: isPlaying 
+            ? [
+                'drop-shadow(0 0 8px rgba(168, 85, 247, 0.4)) brightness(1)',
+                'drop-shadow(0 0 12px rgba(168, 85, 247, 0.6)) brightness(1.1)',
+                'drop-shadow(0 0 16px rgba(168, 85, 247, 0.5)) brightness(1.05)',
+                'drop-shadow(0 0 12px rgba(168, 85, 247, 0.6)) brightness(1.1)',
+                'drop-shadow(0 0 8px rgba(168, 85, 247, 0.4)) brightness(1)'
+              ]
+            : 'drop-shadow(0 0 8px rgba(168, 85, 247, 0.3)) brightness(1)'
+        }}
+        transition={{
+          duration: 3,
+          repeat: isPlaying ? Infinity : 0,
+          ease: "easeInOut"
+        }}
       >
-        <source src="/videos/synapse-logo.mp4?v=2" type="video/mp4" />
+        <source src="/videos/synapse-logo-nerve-system.mp4?v=1" type="video/mp4" />
         Your browser does not support the video tag.
-      </video>
+      </motion.video>
       
       {!isLoaded && (
         <div 
