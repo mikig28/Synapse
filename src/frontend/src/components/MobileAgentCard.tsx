@@ -241,20 +241,28 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
                   {getAgentIcon(agent.type)}
                 </motion.div>
                 
+                {/* Agent Info */}
                 <div className="flex-1 min-w-0">
-                  <h3 
-                    className="font-semibold text-gray-900 dark:text-white truncate"
-                    style={{ fontSize: '0.875rem', lineHeight: '1.25rem' }}
-                  >
+                  <h3 className="font-bold text-base text-gray-900 dark:text-white truncate">
                     {agent.name}
                   </h3>
-                  <p 
-                    className="text-gray-600 dark:text-gray-300 truncate"
-                    style={{ fontSize: '0.75rem', lineHeight: '1rem' }}
-                  >
-                    {agent.type === 'crewai_news' ? 'CrewAI Multi-Agent' : `${agent.type} Agent`}
+                  <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                    {getAgentIcon(agent.type)}
+                    <span className="capitalize">{agent.type.replace('_', ' ')}</span>
                   </p>
                 </div>
+                
+                {/* Always Visible Edit Button in Header */}
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={() => onSettings(agent._id)}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 shadow-md"
+                  title="Edit Agent Settings"
+                >
+                  <Edit className="w-3 h-3" />
+                  <span className="text-xs font-semibold">Edit</span>
+                </Button>
               </div>
               
               <div className="flex items-center gap-2 flex-shrink-0">
