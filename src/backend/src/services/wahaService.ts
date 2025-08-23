@@ -884,7 +884,16 @@ class WAHAService extends EventEmitter {
         return [];
       }
       
-      // Return empty array instead of throwing to prevent 500 errors
+      // Handle 500 server errors by triggering recovery
+      if (error.response?.status === 500 || error.response?.status === 502 || error.response?.status === 503) {
+        console.log(`[WAHA Service] 🚨 Server error (${error.response?.status}) in getChats, triggering recovery`);
+        // Don't await recovery to avoid blocking the current request
+        this.handleConnectionFailure(sessionName, error).catch(recoveryError => {
+          console.error(`[WAHA Service] Recovery failed:`, recoveryError);
+        });
+      }
+      
+      // Return empty array instead of throwing to prevent cascading errors
       return [];
     }
   }
@@ -949,8 +958,18 @@ class WAHAService extends EventEmitter {
         const chats = await this.getChats(sessionName);
         return chats.filter(c => c.isGroup || (typeof c.id === 'string' && c.id.includes('@g.us')));
       }
-    } catch (err) {
-      console.error('[WAHA Service] Failed to get groups:', err);
+    } catch (err: any) {
+      console.error('[WAHA Service] Failed to get groups:', err.response?.status, err.message);
+      
+      // Handle 500 server errors by triggering recovery
+      if (err.response?.status === 500 || err.response?.status === 502 || err.response?.status === 503) {
+        console.log(`[WAHA Service] 🚨 Server error (${err.response?.status}) in getGroups, triggering recovery`);
+        // Don't await recovery to avoid blocking the current request
+        this.handleConnectionFailure(sessionName, err).catch(recoveryError => {
+          console.error(`[WAHA Service] Recovery failed:`, recoveryError);
+        });
+      }
+      
       return [];
     }
   }
@@ -1536,10 +1555,31 @@ class WAHAService extends EventEmitter {
     try {
       console.log(`[WAHA Service] 🔄 Handling connection failure for '${sessionName}':`, error.message);
       
-      // Check if it's a rate limiting error (405, 429, etc.)
+      // Check if it's a rate limiting error (405, 429, etc.) or server error (500)
       const isRateLimited = error.response?.status === 405 ||
                            error.response?.status === 429 ||
                            error.message?.includes('Connection Failure');
+      
+      const isServerError = error.response?.status === 500 ||
+                           error.response?.status === 502 ||
+                           error.response?.status === 503;
+      
+      if (isServerError) {
+        console.log(`[WAHA Service] 🚨 Server error detected (${error.response?.status})`);
+        
+        // For server errors, try immediate session restart
+        console.log(`[WAHA Service] 🔄 Server error detected, attempting immediate session restart...`);
+        const restartResult = await this.restartFailedSession(sessionName);
+        
+        if (restartResult) {
+          // Wait longer for server error recovery
+          await new Promise(resolve => setTimeout(resolve, 45000)); // 45s stabilization
+          this.startEnhancedStatusMonitoring();
+          console.log(`[WAHA Service] ✅ Server error recovery completed`);
+        }
+        
+        return restartResult;
+      }
       
       if (isRateLimited) {
         console.log(`[WAHA Service] 🚨 Rate limiting detected (${error.response?.status || 'Connection Failure'})`);
@@ -1625,9 +1665,9 @@ class WAHAService extends EventEmitter {
         consecutiveFailures++;
         console.error(`[WAHA Service] Status monitoring error ${consecutiveFailures}/${maxConsecutiveFailures}:`, error.message);
         
-        // Handle specific connection failures
-        if (error.response?.status === 405 || error.message?.includes('Connection Failure')) {
-          console.log(`[WAHA Service] 🚨 Connection failure detected during monitoring`);
+        // Handle specific connection failures (rate limiting and server errors)
+        if (error.response?.status === 405 || error.response?.status === 500 || error.response?.status === 502 || error.response?.status === 503 || error.message?.includes('Connection Failure')) {
+          console.log(`[WAHA Service] 🚨 Connection/Server failure detected during monitoring (${error.response?.status})`);
           consecutiveFailures = 0; // Reset to avoid double-handling
           await this.handleConnectionFailure(this.defaultSession, error);
         } else if (consecutiveFailures >= maxConsecutiveFailures) {
