@@ -3,9 +3,19 @@
 ## Current Work Focus
 
 ### Primary Objective
-Enhanced Agent Card Edit Functionality
+Enhanced Mobile Edit Button Detection & Visibility
 
 ### Recently Completed
+- **Mobile Device Detection Fix**: Fixed mobile detection for proper card rendering
+  - Replaced screen-width-only detection (`useIsMobile`) with comprehensive device detection (`useDeviceDetection`)
+  - Now properly detects mobile devices using user agent + screen size + touch capabilities
+  - Fixed issue where phones with >768px width were showing desktop cards instead of mobile cards
+  - Updated VirtualizedAgentGrid and AgentsPage to use proper mobile detection
+  - Enhanced mobile edit button prominence with larger touch targets (44px minimum height)
+  - Added visual indicators and better styling for mobile edit buttons
+  - Improved swipe edit action with larger touch targets and better contrast
+  - All changes compile successfully with no TypeScript errors
+
 - **Agent Edit Button Enhancement**: Improved visibility and accessibility of edit buttons in agent cards
   - Added "Edit" text labels alongside Edit icons for better clarity
   - Enhanced both EnhancedAgentCard and MobileAgentCard components
@@ -13,7 +23,6 @@ Enhanced Agent Card Edit Functionality
   - Replaced Settings icons with Edit icons for more intuitive user experience
   - Verified edit functionality navigates to `/agents/:agentId/settings` route
   - Confirmed AgentSettingsPage component exists and is properly routed
-  - All changes compile successfully with no TypeScript errors
 
 ### Agent Edit Button Implementation Details
 - **Desktop (EnhancedAgentCard)**: 
@@ -21,11 +30,23 @@ Enhanced Agent Card Edit Functionality
   - Secondary full-width "Settings" button in expanded details section
   - Proper tooltips and accessibility labels
 - **Mobile (MobileAgentCard)**:
-  - Edit button with Edit icon + "Edit" text in main action bar
-  - Enhanced swipe action panel with labeled buttons
-  - Touch-optimized design with proper spacing
+  - Enhanced edit button with larger touch target (44px+ height) in main action bar
+  - Blue-colored edit button with "EDIT" text and prominent visual indicator
+  - Enhanced swipe action panel with larger edit button (56px) and better contrast
+  - Touch-optimized design with proper spacing and `touch-manipulation` CSS
 - **Navigation**: All edit buttons properly navigate to `/agents/:agentId/settings`
 - **Accessibility**: Full ARIA support, keyboard shortcuts, and screen reader compatibility
+
+### Mobile Detection Fix Details
+- **Previous Issue**: Used `useIsMobile(768)` which only checked screen width
+  - Problem: Modern phones (iPhone 14 Pro, Samsung Galaxy S22, etc.) have >768px width
+  - Result: These phones showed desktop cards instead of mobile cards, hiding edit button
+- **Solution**: Implemented `useDeviceDetection()` which checks:
+  - User agent patterns: `/android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i`
+  - Touch capability: `ontouchstart`, `maxTouchPoints`, `msMaxTouchPoints`
+  - Screen size as fallback: `width <= 768`
+- **Debug Info**: Added comprehensive debug panel (DEV mode only) showing:
+  - Screen dimensions, touch support, user agent detection, touch points, component type
 
 ### Previously Fixed
 - **Frontend Build Error**: Resolved missing accordion component import error

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Agent } from '@/types/agent';
 import { EnhancedAgentCard } from './EnhancedAgentCard';
 import { MobileAgentCard } from './MobileAgentCard';
-import { useIsMobile } from '@/hooks/useMobileDetection';
+import { useDeviceDetection } from '@/hooks/useMobileFeatures';
 import { AgentCardSkeleton } from './animations/LoadingAnimations';
 import { useNavigate } from 'react-router-dom';
 import { containerVariants, cardVariants } from '@/utils/animations';
@@ -158,7 +158,7 @@ export const VirtualizedAgentGrid: React.FC<VirtualizedAgentGridProps> = memo(({
   className = '',
 }) => {
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
+  const { isMobile, hasTouch } = useDeviceDetection();
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const { metrics, measureRender } = usePerformanceMetrics();
 

@@ -181,15 +181,19 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
               
               <div className="flex flex-col items-center gap-1">
                 <motion.button
-                  className="p-4 bg-green-500 hover:bg-green-600 text-white rounded-full shadow-lg"
+                  className="p-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-xl border-2 border-white touch-manipulation"
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
                   onClick={() => onSettings(agent._id)}
                   title="Edit Agent Settings"
+                  style={{
+                    minHeight: '56px',
+                    minWidth: '56px'
+                  }}
                 >
-                  <Edit className="w-5 h-5" />
+                  <Edit className="w-6 h-6" />
                 </motion.button>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-semibold">Edit</span>
+                <span className="text-sm text-gray-600 dark:text-gray-300 font-bold">EDIT</span>
               </div>
               
               <div className="flex flex-col items-center gap-1">
@@ -385,13 +389,18 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
                   size="sm"
                   variant="outline"
                   onClick={() => onSettings(agent._id)}
-                  className="px-4 h-9 bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700 flex items-center gap-2 min-w-[80px] font-medium relative"
+                  className="px-4 h-10 bg-blue-50 hover:bg-blue-100 border-2 border-blue-300 text-blue-800 flex items-center gap-2 min-w-[90px] font-bold relative shadow-lg touch-manipulation"
                   title="Edit Agent Settings"
+                  style={{
+                    minHeight: '44px', // Ensure proper touch target size
+                    borderWidth: '2px',
+                    fontWeight: '700'
+                  }}
                 >
-                  <Edit className="w-4 h-4" />
-                  <span className="text-sm font-semibold">Edit</span>
-                  {/* Visual indicator to make edit button more noticeable */}
-                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full opacity-75" />
+                  <Edit className="w-5 h-5" />
+                  <span className="text-sm font-bold">EDIT</span>
+                  {/* Enhanced visual indicator */}
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-600 rounded-full border border-white" />
                 </Button>
               </motion.div>
 
@@ -461,11 +470,13 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
               <div>Screen Width: {window.innerWidth}px</div>
               <div>Component: MobileAgentCard</div>
               <div>Agent: {agent.name}</div>
-              <div>Edit Button Visible: ✅ Yes</div>
+              <div>Edit Button Visible: ✅ Yes (Main: Lines 384-396, Swipe: Lines 184-193)</div>
               <div>Quick Actions: {showActions ? '✅ Shown' : '❌ Hidden'}</div>
               <div>Swipe Actions: {showActions ? '✅ Available' : '❌ Hidden'}</div>
               <div>Touch Events: {window.TouchEvent ? '✅ Supported' : '❌ Not Supported'}</div>
-              <div>User Agent: {navigator.userAgent.includes('Mobile') ? '📱 Mobile' : '🖥️ Desktop'}</div>
+              <div>User Agent Check: {/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? '📱 Mobile UA' : '🖥️ Desktop UA'}</div>
+              <div>Touch Points: {navigator.maxTouchPoints || 0}</div>
+              <div>Viewport: {window.innerWidth}x{window.innerHeight}</div>
             </div>
           )}
         </div>
