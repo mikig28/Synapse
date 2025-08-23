@@ -4,6 +4,7 @@ import User from '../models/User';
 import mongoose from 'mongoose';
 import { io } from '../server';
 import cron from 'node-cron';
+import fetch from 'node-fetch';
 
 class TelegramChannelService {
   private bot: TelegramBot;
@@ -260,9 +261,18 @@ class TelegramChannelService {
         console.log(`[TelegramChannelService] ⚠️  Bot doesn't have permission to read messages from ${channelId}`);
       }
 
-      // If no messages found via updates, try alternative approach for public channels
+      // If no messages found via updates, try alternative approaches for public channels
       if (channelId.startsWith('@')) {
-        console.log(`[TelegramChannelService] 💡 For public channel ${channelId}: Bot needs to be added as admin with 'Read Messages' permission`);
+        console.log(`[TelegramChannelService] 💡 For public channel ${channelId}: Trying alternative methods...`);
+        
+        // Try RSS feed approach for public channels
+        const rssMessages = await this.tryRSSFeed(channelId);
+        if (rssMessages.length > 0) {
+          console.log(`[TelegramChannelService] ✅ Found ${rssMessages.length} messages via RSS for ${channelId}`);
+          return rssMessages;
+        }
+        
+        console.log(`[TelegramChannelService] 💡 Bot needs to be added as admin with 'Read Messages' permission for ${channelId}`);
       } else {
         console.log(`[TelegramChannelService] 💡 For group ${channelId}: Bot needs to be added as member`);
       }
@@ -287,6 +297,70 @@ class TelegramChannelService {
         console.error(`[TelegramChannelService] Error updating channel status:`, updateError);
       }
       
+      return [];
+    }
+  }
+
+  /**
+   * Try to fetch messages via RSS feed for public channels
+   */
+  private async tryRSSFeed(channelId: string): Promise<ITelegramChannelMessage[]> {
+    try {
+      const channelName = channelId.replace('@', '');
+      const rssUrl = `https://rsshub.app/telegram/channel/${channelName}`;
+      
+      console.log(`[TelegramChannelService] 🔄 Trying RSS feed: ${rssUrl}`);
+      
+      // Note: This is a basic implementation
+      // In production, you'd want to:
+      // 1. Use a proper RSS parser library
+      // 2. Handle different RSS feed formats
+      // 3. Cache feed results
+      // 4. Handle rate limiting
+      
+      const response = await fetch(rssUrl, {
+        headers: {
+          'User-Agent': 'TelegramChannelMonitor/1.0'
+        },
+        timeout: 10000
+      });
+      
+      if (!response.ok) {
+        console.log(`[TelegramChannelService] RSS feed not available for ${channelId}`);
+        return [];
+      }
+      
+      const rssText = await response.text();
+      
+      // Basic RSS parsing (you'd want to use a proper XML parser in production)
+      const messages: ITelegramChannelMessage[] = [];
+      
+      // This is a simplified example - in production use a proper RSS parser
+      const itemMatches = rssText.match(/<item>[\s\S]*?<\/item>/g) || [];
+      
+      for (const item of itemMatches.slice(0, 10)) { // Limit to 10 recent items
+        const title = item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1];
+        const description = item.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/)?.[1];
+        const pubDate = item.match(/<pubDate>(.*?)<\/pubDate>/)?.[1];
+        
+        if (title && pubDate) {
+          const message: ITelegramChannelMessage = {
+            messageId: Math.floor(Math.random() * 1000000), // RSS doesn't have message IDs
+            text: description || title,
+            date: new Date(pubDate),
+            author: channelName,
+            urls: this.extractUrls(description || title),
+            hashtags: this.extractHashtags(description || title)
+          };
+          
+          messages.push(message);
+        }
+      }
+      
+      return messages;
+      
+    } catch (error) {
+      console.log(`[TelegramChannelService] RSS feed failed for ${channelId}:`, error);
       return [];
     }
   }

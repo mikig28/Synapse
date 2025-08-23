@@ -228,12 +228,23 @@ const TelegramChannelsPage: React.FC = () => {
                     
                     <div className="space-y-3">
                       <h4 className="font-medium text-sm">📢 Step 2: Add Bot to Channel</h4>
-                      <ol className="text-xs text-muted-foreground space-y-1 pl-4">
-                        <li>1. Go to your target channel/group</li>
-                        <li>2. Tap channel name → Administrators</li>
-                        <li>3. Add Administrator → Search your bot</li>
-                        <li>4. Grant "Post Messages" permission</li>
-                      </ol>
+                      <div className="text-xs text-muted-foreground space-y-2">
+                        <div>
+                          <strong>For Groups:</strong>
+                          <ol className="pl-4 space-y-1 mt-1">
+                            <li>1. Go to your target group</li>
+                            <li>2. Add members → Search your bot</li>
+                            <li>3. Add bot as regular member</li>
+                          </ol>
+                        </div>
+                        <div>
+                          <strong>For Channels (Optional):</strong>
+                          <ol className="pl-4 space-y-1 mt-1">
+                            <li>1. Add bot as admin (best option)</li>
+                            <li>2. OR skip - system will try RSS feeds</li>
+                          </ol>
+                        </div>
+                      </div>
                     </div>
                     
                     <div className="space-y-3">

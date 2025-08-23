@@ -180,18 +180,30 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
             </div>
           )}
 
-          <div className="bg-muted/50 rounded-lg p-3">
-            <h4 className="font-medium text-sm mb-2">⚠️ Important Setup Requirements:</h4>
-            <ul className="text-xs text-muted-foreground space-y-1">
-              <li>• <strong>For Public Channels (@channelname):</strong> Bot must be added as admin with "Read Messages" permission</li>
-              <li>• <strong>For Groups (-1001234567890):</strong> Bot must be added as a member</li>
-              <li>• Messages are fetched every 30 minutes automatically</li>
-              <li>• Only new messages after adding the bot will be available</li>
-              <li>• Historical messages are not accessible via Bot API</li>
-            </ul>
-            <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-950 rounded border-l-2 border-blue-400">
+          <div className="bg-muted/50 rounded-lg p-3 space-y-3">
+            <div>
+              <h4 className="font-medium text-sm mb-2">⚠️ Setup Requirements:</h4>
+              <ul className="text-xs text-muted-foreground space-y-1">
+                <li>• <strong>Public Channels (@channelname):</strong> Bot must be added as admin OR system will try RSS feeds</li>
+                <li>• <strong>Groups (-1001234567890):</strong> Bot must be added as a member</li>
+                <li>• Messages are fetched every 30 minutes automatically</li>
+                <li>• Only new messages after adding the bot will be available</li>
+                <li>• Historical messages are not accessible via Bot API</li>
+              </ul>
+            </div>
+            
+            <div className="border-t pt-2">
+              <h4 className="font-medium text-sm mb-2">📡 Public Channel Alternatives:</h4>
+              <ul className="text-xs text-muted-foreground space-y-1">
+                <li>• <strong>RSS Feeds:</strong> System automatically tries RSS feeds for public channels</li>
+                <li>• <strong>Best Option:</strong> Still add bot as admin for real-time updates</li>
+                <li>• <strong>Fallback:</strong> RSS provides recent posts but may be limited</li>
+              </ul>
+            </div>
+            
+            <div className="bg-blue-50 dark:bg-blue-950 rounded border-l-2 border-blue-400 p-2">
               <p className="text-xs text-blue-700 dark:text-blue-300">
-                <strong>Bot Username:</strong> Find your bot via @BotFather and add it to channels/groups first!
+                <strong>💡 Pro Tip:</strong> For public channels, try adding without bot setup first - the system will attempt RSS feeds!
               </p>
             </div>
           </div>
