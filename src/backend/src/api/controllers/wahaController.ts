@@ -263,9 +263,18 @@ export const getQR = async (req: Request, res: Response) => {
  */
 export const sendMessage = async (req: Request, res: Response) => {
   try {
+    console.log('[WAHA Controller] Send message request received:', {
+      body: req.body,
+      headers: {
+        'content-type': req.headers['content-type'],
+        'user-agent': req.headers['user-agent']
+      }
+    });
+    
     const { chatId, message, text } = req.body;
     
     if (!chatId || (!message && !text)) {
+      console.log('[WAHA Controller] ❌ Missing required fields:', { chatId, message, text });
       return res.status(400).json({
         success: false,
         error: 'Missing required fields: chatId and message/text'
@@ -275,17 +284,31 @@ export const sendMessage = async (req: Request, res: Response) => {
     const wahaService = getWAHAService();
     const messageText = message || text;
     
+    console.log('[WAHA Controller] Attempting to send message:', {
+      chatId,
+      messageLength: messageText.length,
+      messagePreview: messageText.substring(0, 50) + (messageText.length > 50 ? '...' : '')
+    });
+    
     const result = await wahaService.sendMessage(chatId, messageText);
     
+    console.log('[WAHA Controller] ✅ Message sent successfully:', result);
     res.json({
       success: true,
       data: result
     });
-  } catch (error) {
-    console.error('[WAHA Controller] Error sending message:', error);
+  } catch (error: any) {
+    console.error('[WAHA Controller] ❌ Error sending message:', {
+      error: error.message,
+      stack: error.stack,
+      response: error.response?.data,
+      status: error.response?.status,
+      statusText: error.response?.statusText
+    });
     res.status(500).json({
       success: false,
-      error: 'Failed to send message'
+      error: 'Failed to send message: ' + error.message,
+      details: error.response?.data || error.message
     });
   }
 };

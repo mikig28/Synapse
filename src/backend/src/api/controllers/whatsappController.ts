@@ -312,11 +312,30 @@ export const getContactMessages = async (req: Request, res: Response) => {
 // Helper function to send message via WhatsApp service
 async function sendMessageViaService(to: string, message: string) {
   try {
+    console.log('[WhatsApp Service Helper] Attempting to send message:', {
+      to,
+      messageLength: message.length,
+      messagePreview: message.substring(0, 50) + (message.length > 50 ? '...' : '')
+    });
+    
     const whatsappService = getWhatsAppService();
-    await whatsappService.sendMessage(to, message);
+    const serviceStatus = whatsappService.getStatus();
+    console.log('[WhatsApp Service Helper] Service status before send:', serviceStatus);
+    
+    if (!serviceStatus.connected || !serviceStatus.authenticated) {
+      throw new Error(`WhatsApp service not ready. Connected: ${serviceStatus.connected}, Authenticated: ${serviceStatus.authenticated}`);
+    }
+    
+    const result = await whatsappService.sendMessage(to, message);
+    console.log('[WhatsApp Service Helper] ✅ Message sent via WhatsApp service:', result);
     return { success: true };
   } catch (error: any) {
-    console.error('[WhatsApp Service] Error sending message:', error.message);
+    console.error('[WhatsApp Service Helper] ❌ Error sending message via service:', {
+      error: error.message,
+      stack: error.stack,
+      to,
+      messageLength: message?.length
+    });
     throw error;
   }
 }
@@ -324,7 +343,30 @@ async function sendMessageViaService(to: string, message: string) {
 // Send a WhatsApp message
 export const sendWhatsAppMessage = async (req: Request, res: Response) => {
   try {
+    console.log('[WhatsApp Controller] Send message request received:', {
+      body: req.body,
+      headers: {
+        'content-type': req.headers['content-type'],
+        'user-agent': req.headers['user-agent']
+      }
+    });
+    
     const { to, message, type = 'text' } = req.body;
+    
+    if (!to || !message) {
+      console.log('[WhatsApp Controller] ❌ Missing required fields:', { to, message, type });
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: to and message'
+      });
+    }
+    
+    console.log('[WhatsApp Controller] Processing send request:', {
+      to,
+      messageLength: message.length,
+      messagePreview: message.substring(0, 50) + (message.length > 50 ? '...' : ''),
+      type
+    });
     
     // Find or create contact
     let contact = await WhatsAppContact.findOne({ phoneNumber: to });
@@ -348,8 +390,12 @@ export const sendWhatsAppMessage = async (req: Request, res: Response) => {
     // Format the 'to' field for WhatsApp Web.js (add @c.us if not present)
     const whatsappTo = to.includes('@') ? to : `${to}@c.us`;
     
+    console.log('[WhatsApp Controller] Sending message via service:', { whatsappTo, messageLength: message.length });
+    
     // Send message via WhatsApp Web.js service
     const serviceResponse = await sendMessageViaService(whatsappTo, message);
+    
+    console.log('[WhatsApp Controller] Service response received, saving to database...');
     
     // Save the message to our database
     const whatsappMessage = new WhatsAppMessage({
@@ -364,7 +410,9 @@ export const sendWhatsAppMessage = async (req: Request, res: Response) => {
       contactId: contact._id
     });
     
+    console.log('[WhatsApp Controller] Attempting to save message to database...');
     await whatsappMessage.save();
+    console.log('[WhatsApp Controller] Message saved to database successfully');
     
     // Update contact statistics
     contact.unreadCount = 0; // Reset since we're responding
@@ -392,10 +440,22 @@ export const sendWhatsAppMessage = async (req: Request, res: Response) => {
       serviceResponse
     });
   } catch (error: any) {
-    console.error('[WhatsApp] Error sending message:', error);
-    res.status(500).json({
+    console.error('[WhatsApp Controller] ❌ Error sending message:', {
+      error: error.message,
+      stack: error.stack,
+      requestBody: req.body,
+      name: error.name,
+      cause: error.cause
+    });
+    
+    // Determine if it's a validation error (400) or server error (500)
+    const statusCode = error.message.includes('Missing required') || 
+                      error.message.includes('WhatsApp service not ready') ? 400 : 500;
+    
+    res.status(statusCode).json({
       success: false,
-      error: 'Failed to send message: ' + error.message
+      error: 'Failed to send message: ' + error.message,
+      details: error.stack
     });
   }
 };

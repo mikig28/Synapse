@@ -677,17 +677,51 @@ class WAHAService extends EventEmitter {
   async sendMessage(chatId: string, text: string, sessionName: string = this.defaultSession): Promise<any> {
     try {
       console.log(`[WAHA Service] Sending message to ${chatId} in session '${sessionName}'...`);
-      
-      // WAHA API structure: POST /api/{session}/sendText
-      const response = await this.httpClient.post(`/api/${sessionName}/sendText`, {
+      console.log(`[WAHA Service] Message details:`, {
         chatId,
-        text
+        textLength: text.length,
+        textPreview: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
+        sessionName,
+        wahaBaseUrl: this.wahaBaseUrl
       });
       
-      console.log(`[WAHA Service] ✅ Message sent to ${chatId}`);
+      // Check session status first
+      try {
+        const sessionStatus = await this.getSessionStatus(sessionName);
+        console.log(`[WAHA Service] Session status before send:`, sessionStatus);
+        
+        if (sessionStatus.status !== 'WORKING') {
+          throw new Error(`Session not ready for sending. Status: ${sessionStatus.status}`);
+        }
+      } catch (statusError) {
+        console.warn(`[WAHA Service] Could not check session status before send:`, statusError);
+        // Continue anyway - might still work
+      }
+      
+      // WAHA API structure: POST /api/{session}/sendText
+      const endpoint = `/api/${sessionName}/sendText`;
+      const payload = { chatId, text };
+      
+      console.log(`[WAHA Service] Making request to: ${this.wahaBaseUrl}${endpoint}`);
+      console.log(`[WAHA Service] Request payload:`, payload);
+      
+      const response = await this.httpClient.post(endpoint, payload);
+      
+      console.log(`[WAHA Service] ✅ Message sent to ${chatId}. Response:`, response.data);
       return response.data;
     } catch (error: any) {
-      console.error(`[WAHA Service] ❌ Failed to send message to ${chatId}:`, error.response?.status, error.response?.data);
+      console.error(`[WAHA Service] ❌ Failed to send message to ${chatId}:`, {
+        error: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          baseURL: error.config?.baseURL,
+          timeout: error.config?.timeout
+        }
+      });
       throw error;
     }
   }
