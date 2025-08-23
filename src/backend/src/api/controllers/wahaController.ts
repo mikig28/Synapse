@@ -371,7 +371,7 @@ export const getChats = async (req: Request, res: Response) => {
     const options = {
       limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
       offset: req.query.offset ? parseInt(req.query.offset as string) : undefined,
-      sortBy: req.query.sortBy as 'messageTimestamp' | 'id' | 'name' | undefined,
+      sortBy: req.query.sortBy as 'conversationTimestamp' | 'id' | 'name' | undefined,
       sortOrder: req.query.sortOrder as 'desc' | 'asc' | undefined,
       exclude: req.query.exclude ? (req.query.exclude as string).split(',') : undefined
     };
@@ -856,7 +856,7 @@ export const getPrivateChats = async (req: Request, res: Response) => {
     // Parse pagination/sorting options
     const limit = req.query.limit ? Math.max(1, Math.min(500, parseInt(req.query.limit as string))) : undefined;
     const offset = req.query.offset ? Math.max(0, parseInt(req.query.offset as string)) : undefined;
-    const sortBy = (req.query.sortBy as 'messageTimestamp' | 'id' | 'name' | undefined) || 'messageTimestamp';
+    const sortBy = (req.query.sortBy as 'conversationTimestamp' | 'id' | 'name' | undefined) || 'conversationTimestamp';
     const sortOrder = (req.query.sortOrder as 'desc' | 'asc' | undefined) || 'desc';
     
     console.log('[WAHA Controller] Fetching private chats...', { limit, offset, sortBy, sortOrder });
@@ -869,7 +869,7 @@ export const getPrivateChats = async (req: Request, res: Response) => {
     let privateChats = chats.filter(chat => !chat.isGroup && !(typeof chat.id === 'string' && chat.id.includes('@g.us')));
 
     // Sort client-side as a fallback if WAHA ignored params
-    if (sortBy === 'messageTimestamp') {
+    if (sortBy === 'conversationTimestamp') {
       privateChats = privateChats.sort((a, b) => (sortOrder === 'desc' ? (b.timestamp || 0) - (a.timestamp || 0) : (a.timestamp || 0) - (b.timestamp || 0)));
     } else if (sortBy === 'name') {
       privateChats = privateChats.sort((a, b) => (sortOrder === 'desc' ? (b.name || '').localeCompare(a.name || '') : (a.name || '').localeCompare(b.name || '')));

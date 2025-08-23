@@ -758,7 +758,7 @@ class WAHAService extends EventEmitter {
     options: {
       limit?: number;
       offset?: number;
-      sortBy?: 'messageTimestamp' | 'id' | 'name';
+      sortBy?: 'conversationTimestamp' | 'id' | 'name';
       sortOrder?: 'desc' | 'asc';
       exclude?: string[];
     } = {}
