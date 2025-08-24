@@ -83,6 +83,7 @@ const WhatsAppPage: React.FC = () => {
   const [privateChats, setPrivateChats] = useState<WhatsAppChat[]>([]);
   const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
   const [selectedChat, setSelectedChat] = useState<WhatsAppChat | null>(null);
+  const [messagesCache, setMessagesCache] = useState<Record<string, WhatsAppMessage[]>>({});
   const [newMessage, setNewMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -102,6 +103,7 @@ const WhatsAppPage: React.FC = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isSocketConnected, setIsSocketConnected] = useState(false);
   const [fetchingHistory, setFetchingHistory] = useState(false);
+  const [refreshingMessages, setRefreshingMessages] = useState(false);
   const [chatsFetchAttempts, setChatsFetchAttempts] = useState(0);
   
   // Mobile-specific states
@@ -311,7 +313,17 @@ const WhatsAppPage: React.FC = () => {
       setMessages(prevMessages => {
         const exists = prevMessages.find(m => m.id === messageData.id);
         if (exists) return prevMessages;
-        return [messageData, ...prevMessages].slice(0, 100);
+        const updatedMessages = [messageData, ...prevMessages].slice(0, 100);
+        
+        // Update cache if this message is for the current chat
+        if (messageData.chatId && selectedChat?.id === messageData.chatId) {
+          setMessagesCache(prev => ({
+            ...prev,
+            [messageData.chatId]: updatedMessages
+          }));
+        }
+        
+        return updatedMessages;
       });
 
       // Show toast notification for monitored messages
@@ -782,9 +794,21 @@ const WhatsAppPage: React.FC = () => {
     }
   };
 
-  const fetchMessages = async (chatId?: string) => {
+  const fetchMessages = async (chatId?: string, forceRefresh: boolean = false) => {
     try {
-      console.log(`[WhatsApp Frontend] Fetching messages for chatId: ${chatId}`);
+      console.log(`[WhatsApp Frontend] Fetching messages for chatId: ${chatId}, forceRefresh: ${forceRefresh}`);
+      
+      // Set loading state for refresh
+      if (forceRefresh) {
+        setRefreshingMessages(true);
+      }
+      
+      // Check cache first if not forcing refresh
+      if (chatId && !forceRefresh && messagesCache[chatId]) {
+        console.log(`[WhatsApp Frontend] Using cached messages for ${chatId}`);
+        setMessages(messagesCache[chatId]);
+        return;
+      }
       
       // Try WAHA modern endpoint
       try {
@@ -816,6 +840,14 @@ const WhatsAppPage: React.FC = () => {
           }));
           
           setMessages(processedMessages);
+          
+          // Cache messages for this chat
+          if (chatId) {
+            setMessagesCache(prev => ({
+              ...prev,
+              [chatId]: processedMessages
+            }));
+          }
           
           // Update message count in status
           if (!chatId) {
@@ -859,6 +891,14 @@ const WhatsAppPage: React.FC = () => {
         
         setMessages(processedMessages);
         
+        // Cache messages for this chat
+        if (chatId) {
+          setMessagesCache(prev => ({
+            ...prev,
+            [chatId]: processedMessages
+          }));
+        }
+        
         if (!chatId) {
           setStatus(prevStatus => prevStatus ? {
             ...prevStatus,
@@ -871,6 +911,10 @@ const WhatsAppPage: React.FC = () => {
       
       // Don't show error toast for message fetching failures as it's too noisy
       // Just log the error
+    } finally {
+      if (forceRefresh) {
+        setRefreshingMessages(false);
+      }
     }
   };
 
@@ -1451,7 +1495,17 @@ const WhatsAppPage: React.FC = () => {
         setMessages(prevMessages => {
           const existingIds = new Set(prevMessages.map(m => m.id));
           const newMessages = historicalMessages.filter((msg: WhatsAppMessage) => !existingIds.has(msg.id));
-          return [...prevMessages, ...newMessages];
+          const updatedMessages = [...prevMessages, ...newMessages];
+          
+          // Update cache
+          if (chatId) {
+            setMessagesCache(prev => ({
+              ...prev,
+              [chatId]: updatedMessages
+            }));
+          }
+          
+          return updatedMessages;
         });
         
         toast({
@@ -1515,7 +1569,19 @@ const WhatsAppPage: React.FC = () => {
           isMedia: false
         };
         
-        setMessages(prevMessages => [sentMessage, ...prevMessages]);
+        setMessages(prevMessages => {
+          const updatedMessages = [sentMessage, ...prevMessages];
+          
+          // Update cache
+          if (selectedChat.id) {
+            setMessagesCache(prev => ({
+              ...prev,
+              [selectedChat.id]: updatedMessages
+            }));
+          }
+          
+          return updatedMessages;
+        });
         
         toast({
           title: "Success",
@@ -1933,10 +1999,10 @@ const WhatsAppPage: React.FC = () => {
                           onClick={() => {
                             console.log(`[WhatsApp Frontend] Selected group: ${group.name} (${group.id})`);
                             setSelectedChat(group);
-                            // Clear previous messages before fetching new ones
-                            setMessages([]);
-                            // Fetch messages immediately for selected group
-                            fetchMessages(group.id);
+                            // Only fetch messages if we don't have any or if it's a different chat
+                            if (selectedChat?.id !== group.id) {
+                              fetchMessages(group.id);
+                            }
                           }}
                           className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
                             selectedChat?.id === group.id
@@ -2023,10 +2089,10 @@ const WhatsAppPage: React.FC = () => {
                           onClick={() => {
                             console.log(`[WhatsApp Frontend] Selected private chat: ${chat.name} (${chat.id})`);
                             setSelectedChat(chat);
-                            // Clear previous messages before fetching new ones
-                            setMessages([]);
-                            // Fetch messages immediately for selected private chat
-                            fetchMessages(chat.id);
+                            // Only fetch messages if we don't have any or if it's a different chat
+                            if (selectedChat?.id !== chat.id) {
+                              fetchMessages(chat.id);
+                            }
                           }}
                           className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
                             selectedChat?.id === chat.id
@@ -2136,6 +2202,20 @@ const WhatsAppPage: React.FC = () => {
                 <>
                   <div className="flex items-center justify-between pb-4 border-b border-white/20">
                     <div className="flex items-center gap-3">
+                      {isMobile && (
+                        <Button
+                          onClick={() => {
+                            setShowChatList(true);
+                            // Don't clear selectedChat to preserve state for when user comes back
+                          }}
+                          variant="ghost"
+                          size="sm"
+                          className="p-1.5 hover:bg-white/10"
+                          aria-label="Back to chat list"
+                        >
+                          <ArrowLeft className="w-5 h-5 text-white" />
+                        </Button>
+                      )}
                       {selectedChat.isGroup ? (
                         <Users className="w-6 h-6 text-green-400" />
                       ) : (
@@ -2152,20 +2232,38 @@ const WhatsAppPage: React.FC = () => {
                       </div>
                     </div>
                     
-                    <AnimatedButton
-                      onClick={() => fetchChatHistory(selectedChat.id, 10)}
-                      variant="outline"
-                      size="sm"
-                      disabled={fetchingHistory}
-                      className="border-orange-400/30 text-orange-200 hover:bg-orange-500/10 flex-shrink-0"
-                    >
-                      {fetchingHistory ? (
-                        <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
-                      ) : (
-                        <Download className="w-4 h-4 mr-1" />
-                      )}
-                      {!isMobile && 'Load History'}
-                    </AnimatedButton>
+                    <div className="flex items-center gap-2">
+                      <AnimatedButton
+                        onClick={() => fetchMessages(selectedChat.id, true)}
+                        variant="outline"
+                        size="sm"
+                        disabled={refreshingMessages}
+                        className="border-blue-400/30 text-blue-200 hover:bg-blue-500/10 flex-shrink-0"
+                        title="Refresh messages from server"
+                      >
+                        {refreshingMessages ? (
+                          <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                        ) : (
+                          <RefreshCw className="w-4 h-4 mr-1" />
+                        )}
+                        {!isMobile && 'Refresh'}
+                      </AnimatedButton>
+                      
+                      <AnimatedButton
+                        onClick={() => fetchChatHistory(selectedChat.id, 10)}
+                        variant="outline"
+                        size="sm"
+                        disabled={fetchingHistory}
+                        className="border-orange-400/30 text-orange-200 hover:bg-orange-500/10 flex-shrink-0"
+                      >
+                        {fetchingHistory ? (
+                          <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                        ) : (
+                          <Download className="w-4 h-4 mr-1" />
+                        )}
+                        {!isMobile && 'Load History'}
+                      </AnimatedButton>
+                    </div>
                   </div>
                   
                   <div className="flex-1 overflow-y-auto my-4 space-y-3 scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-white/10 hover:scrollbar-thumb-white/50">
