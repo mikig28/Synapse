@@ -1656,10 +1656,14 @@ const WhatsAppPage: React.FC = () => {
   };
 
   const filteredGroups = groups.filter(group =>
+    group.id && typeof group.id === 'string' && 
+    group.name && typeof group.name === 'string' &&
     group.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const filteredPrivateChats = privateChats.filter(chat =>
+    chat.id && typeof chat.id === 'string' && 
+    chat.name && typeof chat.name === 'string' &&
     chat.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -1669,13 +1673,20 @@ const WhatsAppPage: React.FC = () => {
       return messages.slice(0, 50); // Show recent messages if no chat selected
     }
     
-    // Filter messages for the selected chat
+    // Filter messages for the selected chat with type safety
     const chatMessages = messages.filter(msg => {
-      // Check various possible chat ID formats
+      // Ensure both msg.chatId and selectedChat.id are strings before any operations
+      if (!msg.chatId || !selectedChat.id || 
+          typeof msg.chatId !== 'string' || 
+          typeof selectedChat.id !== 'string') {
+        return false;
+      }
+      
+      // Check various possible chat ID formats with safe string operations
       return msg.chatId === selectedChat.id || 
              msg.chatId === selectedChat.id.split('@')[0] ||
              msg.from === selectedChat.id ||
-             msg.from === selectedChat.id.split('@')[0];
+             (typeof msg.from === 'string' && msg.from === selectedChat.id.split('@')[0]);
     });
     
     console.log(`[WhatsApp Frontend] Displaying ${chatMessages.length} messages for chat ${selectedChat.name}`);
@@ -1997,11 +2008,16 @@ const WhatsAppPage: React.FC = () => {
                           whileHover={{ scale: isMobile ? 1 : 1.01 }}
                           whileTap={{ scale: 0.99 }}
                           onClick={() => {
-                            console.log(`[WhatsApp Frontend] Selected group: ${group.name} (${group.id})`);
-                            setSelectedChat(group);
-                            // Only fetch messages if we don't have any or if it's a different chat
-                            if (selectedChat?.id !== group.id) {
-                              fetchMessages(group.id);
+                            if (group.id && typeof group.id === 'string') {
+                              console.log(`[WhatsApp Frontend] Selected group: ${group.name} (${group.id})`);
+                              setSelectedChat(group);
+                              // Only fetch messages if we don't have any or if it's a different chat
+                              if (selectedChat?.id !== group.id) {
+                                fetchMessages(group.id);
+                              }
+                              // Keep chat list visible on mobile for easy navigation
+                            } else {
+                              console.warn('Invalid group ID:', group.id);
                             }
                           }}
                           className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
@@ -2087,11 +2103,16 @@ const WhatsAppPage: React.FC = () => {
                           whileHover={{ scale: isMobile ? 1 : 1.01 }}
                           whileTap={{ scale: 0.99 }}
                           onClick={() => {
-                            console.log(`[WhatsApp Frontend] Selected private chat: ${chat.name} (${chat.id})`);
-                            setSelectedChat(chat);
-                            // Only fetch messages if we don't have any or if it's a different chat
-                            if (selectedChat?.id !== chat.id) {
-                              fetchMessages(chat.id);
+                            if (chat.id && typeof chat.id === 'string') {
+                              console.log(`[WhatsApp Frontend] Selected private chat: ${chat.name} (${chat.id})`);
+                              setSelectedChat(chat);
+                              // Only fetch messages if we don't have any or if it's a different chat
+                              if (selectedChat?.id !== chat.id) {
+                                fetchMessages(chat.id);
+                              }
+                              // Keep chat list visible on mobile for easy navigation
+                            } else {
+                              console.warn('Invalid chat ID:', chat.id);
                             }
                           }}
                           className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
