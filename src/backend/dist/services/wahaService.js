@@ -30,6 +30,20 @@ class WAHAService extends events_1.EventEmitter {
         this.lastHealthCheckResult = null;
         this.lastHealthCheckTimestamp = 0;
         this.wahaBaseUrl = process.env.WAHA_SERVICE_URL || 'https://synapse-waha.onrender.com';
+        // Normalize base URL: ensure scheme and no trailing slash
+        try {
+            let normalized = (this.wahaBaseUrl || '').trim();
+            if (normalized && !/^https?:\/\//i.test(normalized)) {
+                normalized = `https://${normalized}`;
+            }
+            // Remove trailing slashes to avoid double slashes in requests
+            normalized = normalized.replace(/\/+$|\/$/g, '');
+            this.wahaBaseUrl = normalized || 'https://synapse-waha.onrender.com';
+        }
+        catch (e) {
+            console.error('[WAHA Service] ⚠️ Invalid WAHA_SERVICE_URL, falling back to default:', e);
+            this.wahaBaseUrl = 'https://synapse-waha.onrender.com';
+        }
         // Get WAHA API key from environment variables
         const wahaApiKey = process.env.WAHA_API_KEY;
         const headers = {
@@ -164,30 +178,11 @@ class WAHAService extends events_1.EventEmitter {
         }
     }
     /**
-     * Start periodic status monitoring
+     * Start periodic status monitoring (enhanced version)
      */
     startStatusMonitoring() {
-        // Clear any existing monitor
-        this.stopStatusMonitoring();
-        console.log('[WAHA Service] Starting periodic status monitoring');
-        this.statusMonitorInterval = setInterval(async () => {
-            try {
-                await this.getStatus(); // This will emit events if status changes
-            }
-            catch (error) {
-                console.error('[WAHA Service] Error during status monitoring:', error);
-            }
-        }, 5000); // Check every 5 seconds
-    }
-    /**
-     * Stop periodic status monitoring
-     */
-    stopStatusMonitoring() {
-        if (this.statusMonitorInterval) {
-            console.log('[WAHA Service] Stopping periodic status monitoring');
-            clearInterval(this.statusMonitorInterval);
-            this.statusMonitorInterval = null;
-        }
+        // Use the enhanced monitoring
+        this.startEnhancedStatusMonitoring();
     }
     /**
      * Initialize default session (create if doesn't exist)
@@ -761,7 +756,15 @@ class WAHAService extends events_1.EventEmitter {
                 console.log(`[WAHA Service] Session not ready (422), returning empty chats`);
                 return [];
             }
-            // Return empty array instead of throwing to prevent 500 errors
+            // Handle 500 server errors by triggering recovery
+            if (error.response?.status === 500 || error.response?.status === 502 || error.response?.status === 503) {
+                console.log(`[WAHA Service] 🚨 Server error (${error.response?.status}) in getChats, triggering recovery`);
+                // Don't await recovery to avoid blocking the current request
+                this.handleConnectionFailure(sessionName, error).catch(recoveryError => {
+                    console.error(`[WAHA Service] Recovery failed:`, recoveryError);
+                });
+            }
+            // Return empty array instead of throwing to prevent cascading errors
             return [];
         }
     }
@@ -823,7 +826,15 @@ class WAHAService extends events_1.EventEmitter {
             }
         }
         catch (err) {
-            console.error('[WAHA Service] Failed to get groups:', err);
+            console.error('[WAHA Service] Failed to get groups:', err.response?.status, err.message);
+            // Handle 500 server errors by triggering recovery
+            if (err.response?.status === 500 || err.response?.status === 502 || err.response?.status === 503) {
+                console.log(`[WAHA Service] 🚨 Server error (${err.response?.status}) in getGroups, triggering recovery`);
+                // Don't await recovery to avoid blocking the current request
+                this.handleConnectionFailure(sessionName, err).catch(recoveryError => {
+                    console.error(`[WAHA Service] Recovery failed:`, recoveryError);
+                });
+            }
             return [];
         }
     }
@@ -1340,6 +1351,130 @@ class WAHAService extends events_1.EventEmitter {
         catch (error) {
             console.error(`[WAHA Service] ❌ Auto-recovery failed for '${sessionName}':`, error.message);
             return false;
+        }
+    }
+    /**
+     * Handle connection failure recovery with exponential backoff
+     * Specifically for 405 "Method Not Allowed" and rate limiting errors
+     */
+    async handleConnectionFailure(sessionName = this.defaultSession, error) {
+        try {
+            console.log(`[WAHA Service] 🔄 Handling connection failure for '${sessionName}':`, error.message);
+            // Check if it's a rate limiting error (405, 429, etc.) or server error (500)
+            const isRateLimited = error.response?.status === 405 ||
+                error.response?.status === 429 ||
+                error.message?.includes('Connection Failure');
+            const isServerError = error.response?.status === 500 ||
+                error.response?.status === 502 ||
+                error.response?.status === 503;
+            if (isServerError) {
+                console.log(`[WAHA Service] 🚨 Server error detected (${error.response?.status})`);
+                // For server errors, try immediate session restart
+                console.log(`[WAHA Service] 🔄 Server error detected, attempting immediate session restart...`);
+                const restartResult = await this.restartFailedSession(sessionName);
+                if (restartResult) {
+                    // Wait longer for server error recovery
+                    await new Promise(resolve => setTimeout(resolve, 45000)); // 45s stabilization
+                    this.startEnhancedStatusMonitoring();
+                    console.log(`[WAHA Service] ✅ Server error recovery completed`);
+                }
+                return restartResult;
+            }
+            if (isRateLimited) {
+                console.log(`[WAHA Service] 🚨 Rate limiting detected (${error.response?.status || 'Connection Failure'})`);
+                // Stop status monitoring to reduce requests
+                if (this.statusMonitorInterval) {
+                    clearInterval(this.statusMonitorInterval);
+                    this.statusMonitorInterval = null;
+                    console.log('[WAHA Service] 🛑 Stopped status monitoring due to rate limiting');
+                }
+                // Wait for extended cooldown period
+                const cooldownSeconds = 60; // 1 minute cooldown
+                console.log(`[WAHA Service] ⏳ Entering ${cooldownSeconds}s cooldown period...`);
+                await new Promise(resolve => setTimeout(resolve, cooldownSeconds * 1000));
+                // Check if session recovered naturally
+                try {
+                    const status = await this.getSessionStatus(sessionName);
+                    if (status.status === 'WORKING') {
+                        console.log(`[WAHA Service] ✅ Session recovered naturally after cooldown`);
+                        this.startEnhancedStatusMonitoring(); // Resume monitoring
+                        return true;
+                    }
+                }
+                catch (statusError) {
+                    console.log('[WAHA Service] Session status check failed after cooldown, will restart');
+                }
+                // If not recovered, restart session
+                console.log(`[WAHA Service] 🔄 Session didn't recover naturally, attempting restart...`);
+                const restartResult = await this.restartFailedSession(sessionName);
+                if (restartResult) {
+                    // Wait for session to stabilize before resuming monitoring
+                    await new Promise(resolve => setTimeout(resolve, 30000)); // 30s stabilization
+                    this.startEnhancedStatusMonitoring(); // Resume monitoring with reduced frequency
+                    console.log(`[WAHA Service] ✅ Connection failure recovery completed successfully`);
+                }
+                return restartResult;
+            }
+            // For other errors, just try session recovery
+            return await this.autoRecoverSession(sessionName);
+        }
+        catch (recoveryError) {
+            console.error(`[WAHA Service] ❌ Connection failure recovery failed:`, recoveryError.message);
+            return false;
+        }
+    }
+    /**
+     * Enhanced status monitoring with connection failure detection
+     */
+    startEnhancedStatusMonitoring() {
+        if (this.statusMonitorInterval) {
+            clearInterval(this.statusMonitorInterval);
+        }
+        let consecutiveFailures = 0;
+        const maxConsecutiveFailures = 3;
+        const monitoringInterval = 45000; // Increased to 45 seconds to reduce load
+        console.log(`[WAHA Service] 🔍 Starting enhanced status monitoring (${monitoringInterval / 1000}s interval)...`);
+        this.statusMonitorInterval = setInterval(async () => {
+            try {
+                const status = await this.getStatus();
+                if (status.isReady) {
+                    consecutiveFailures = 0; // Reset failure counter on success
+                }
+                else {
+                    consecutiveFailures++;
+                    console.log(`[WAHA Service] ⚠️ Status monitoring failure ${consecutiveFailures}/${maxConsecutiveFailures}`);
+                    if (consecutiveFailures >= maxConsecutiveFailures) {
+                        console.log(`[WAHA Service] 🚨 ${maxConsecutiveFailures} consecutive failures, triggering recovery...`);
+                        consecutiveFailures = 0; // Reset to avoid endless recovery loops
+                        await this.handleConnectionFailure(this.defaultSession, new Error('Multiple consecutive status failures'));
+                    }
+                }
+            }
+            catch (error) {
+                consecutiveFailures++;
+                console.error(`[WAHA Service] Status monitoring error ${consecutiveFailures}/${maxConsecutiveFailures}:`, error.message);
+                // Handle specific connection failures (rate limiting and server errors)
+                if (error.response?.status === 405 || error.response?.status === 500 || error.response?.status === 502 || error.response?.status === 503 || error.message?.includes('Connection Failure')) {
+                    console.log(`[WAHA Service] 🚨 Connection/Server failure detected during monitoring (${error.response?.status})`);
+                    consecutiveFailures = 0; // Reset to avoid double-handling
+                    await this.handleConnectionFailure(this.defaultSession, error);
+                }
+                else if (consecutiveFailures >= maxConsecutiveFailures) {
+                    console.log(`[WAHA Service] 🚨 ${maxConsecutiveFailures} consecutive monitoring errors, triggering recovery...`);
+                    consecutiveFailures = 0;
+                    await this.handleConnectionFailure(this.defaultSession, error);
+                }
+            }
+        }, monitoringInterval);
+    }
+    /**
+     * Stop status monitoring
+     */
+    stopStatusMonitoring() {
+        if (this.statusMonitorInterval) {
+            clearInterval(this.statusMonitorInterval);
+            this.statusMonitorInterval = null;
+            console.log('[WAHA Service] 🛑 Status monitoring stopped');
         }
     }
 }

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.handleDocumentSearch = exports.sendAgentReportToTelegram = exports.initializeTelegramBot = void 0;
+exports.telegramBot = exports.handleDocumentSearch = exports.sendAgentReportToTelegram = exports.initializeTelegramBot = void 0;
 const node_telegram_bot_api_1 = __importDefault(require("node-telegram-bot-api"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const axios_1 = __importDefault(require("axios")); // <-- Import axios
@@ -36,6 +36,7 @@ if (!TELEGRAM_BOT_TOKEN) {
 // Create a bot that uses 'polling' to fetch new updates
 // Alternatively, you can use webhooks for a production environment
 const bot = new node_telegram_bot_api_1.default(TELEGRAM_BOT_TOKEN, { polling: true });
+exports.telegramBot = bot;
 console.log('[TelegramBot]: Bot instance created. Polling for messages...');
 // Helper to extract URLs from text and entities
 const extractUrls = (text, entities) => {
@@ -843,5 +844,3 @@ const handleDocumentSearch = async (userId, query, chatId) => {
     }
 };
 exports.handleDocumentSearch = handleDocumentSearch;
-// Export the bot instance if you need to access it directly in other modules (e.g., to send messages programmatically)
-// export default bot; 
