@@ -204,7 +204,27 @@ class TelegramChannelService {
   private async getChannelInfo(channelIdentifier: string, userId: string): Promise<any> {
     try {
       // Get the user's bot instance
-      const bot = telegramBotManager.getBotForUser(userId);
+      let bot = telegramBotManager.getBotForUser(userId);
+      
+      // If no bot found, try to initialize it
+      if (!bot) {
+        console.log(`[TelegramChannelService] No active bot found for user ${userId}, attempting to initialize...`);
+        
+        // Get user with bot token
+        const user = await User.findById(userId).select('+telegramBotToken');
+        if (user?.telegramBotToken && user.telegramBotActive) {
+          console.log(`[TelegramChannelService] Found bot token for user ${userId}, initializing bot...`);
+          const initResult = await telegramBotManager.setBotForUser(userId, user.telegramBotToken);
+          
+          if (initResult.success) {
+            bot = telegramBotManager.getBotForUser(userId);
+            console.log(`[TelegramChannelService] ✅ Successfully initialized bot for user ${userId}`);
+          } else {
+            console.error(`[TelegramChannelService] Failed to initialize bot for user ${userId}:`, initResult.error);
+          }
+        }
+      }
+      
       if (!bot) {
         throw new Error('No active bot found for user. Please configure your Telegram bot first.');
       }
@@ -227,9 +247,29 @@ class TelegramChannelService {
   private async getRecentChannelMessages(channelId: string, userId: string): Promise<ITelegramChannelMessage[]> {
     try {
       // Get user's bot instance
-      const bot = telegramBotManager.getBotForUser(userId);
+      let bot = telegramBotManager.getBotForUser(userId);
+      
+      // If no bot found, try to initialize it
       if (!bot) {
-        throw new Error('No active bot found for user');
+        console.log(`[TelegramChannelService] No active bot found for user ${userId}, attempting to initialize...`);
+        
+        // Get user with bot token
+        const user = await User.findById(userId).select('+telegramBotToken');
+        if (user?.telegramBotToken && user.telegramBotActive) {
+          console.log(`[TelegramChannelService] Found bot token for user ${userId}, initializing bot...`);
+          const initResult = await telegramBotManager.setBotForUser(userId, user.telegramBotToken);
+          
+          if (initResult.success) {
+            bot = telegramBotManager.getBotForUser(userId);
+            console.log(`[TelegramChannelService] ✅ Successfully initialized bot for user ${userId}`);
+          } else {
+            console.error(`[TelegramChannelService] Failed to initialize bot for user ${userId}:`, initResult.error);
+          }
+        }
+      }
+      
+      if (!bot) {
+        throw new Error('No active bot found for user. Please configure your Telegram bot first.');
       }
 
       // For groups and channels, messages will be received via the main message handler
