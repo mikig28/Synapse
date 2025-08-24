@@ -2001,11 +2001,19 @@ const WhatsAppPage: React.FC = () => {
                 </div>
               </div>
               
-              <div className="flex-1 overflow-y-auto space-y-3 scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-white/10 hover:scrollbar-thumb-white/50">
+              <div className="flex-1 overflow-y-auto space-y-3 scrollbar-thin scrollbar-thumb-blue-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-blue-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full"
+                   style={{
+                     scrollbarWidth: 'auto',
+                     scrollbarColor: '#60a5fa rgba(255,255,255,0.2)'
+                   }}>
                 {filteredGroups.length > 0 && (
                   <div>
                     <h3 className="text-sm font-semibold text-blue-200 mb-2">Groups</h3>
-                    <div className="space-y-1 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-white/10 hover:scrollbar-thumb-white/30">
+                    <div className="space-y-1 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-green-400/50 scrollbar-track-white/15 hover:scrollbar-thumb-green-300/70 scrollbar-track-rounded-full scrollbar-thumb-rounded-full"
+                         style={{
+                           scrollbarWidth: 'auto',
+                           scrollbarColor: '#4ade80 rgba(255,255,255,0.15)'
+                         }}>
                       {filteredGroups.map((group) => (
                         <motion.div
                           key={group.id}
@@ -2100,7 +2108,11 @@ const WhatsAppPage: React.FC = () => {
                       <Phone className="w-4 h-4" />
                       Private Contacts
                     </h3>
-                    <div className="space-y-1 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-white/10 hover:scrollbar-thumb-white/30">
+                    <div className="space-y-1 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-violet-400/50 scrollbar-track-white/15 hover:scrollbar-thumb-violet-300/70 scrollbar-track-rounded-full scrollbar-thumb-rounded-full"
+                         style={{
+                           scrollbarWidth: 'auto',
+                           scrollbarColor: '#8b5cf6 rgba(255,255,255,0.15)'
+                         }}>
                       {filteredPrivateChats.map((chat) => (
                         <motion.div
                           key={chat.id}
@@ -2291,7 +2303,11 @@ const WhatsAppPage: React.FC = () => {
                     </div>
                   </div>
                   
-                  <div className="flex-1 overflow-y-auto my-4 space-y-3 scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-white/10 hover:scrollbar-thumb-white/50">
+                  <div className="flex-1 overflow-y-auto my-4 space-y-3 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full" 
+                       style={{
+                         scrollbarWidth: 'auto',
+                         scrollbarColor: '#8b5cf6 rgba(255,255,255,0.2)'
+                       }}>
                     {displayedMessages.length === 0 ? (
                       <div className="flex items-center justify-center h-full">
                         <div className="text-center">
@@ -2389,7 +2405,11 @@ const WhatsAppPage: React.FC = () => {
                   </div>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-white/10 hover:scrollbar-thumb-white/50">
+                <div className="flex-1 overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-amber-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-amber-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full"
+                     style={{
+                       scrollbarWidth: 'auto',
+                       scrollbarColor: '#fbbf24 rgba(255,255,255,0.2)'
+                     }}>
                   <h4 className="text-sm font-medium text-blue-200">Monitored Keywords</h4>
                   {monitoredKeywords.map((keyword) => (
                     <motion.div
