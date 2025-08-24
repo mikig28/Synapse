@@ -1,7 +1,7 @@
 import Agent, { IAgent } from '../models/Agent';
 import AgentRun, { IAgentRun } from '../models/AgentRun';
 import mongoose from 'mongoose';
-import { sendAgentReportToTelegram } from './telegramService';
+import { sendAgentReportToTelegram } from './telegramServiceNew';
 import { agui } from './aguiEmitter';
 import { 
   mapAgentStatusToAGUIEvents, 

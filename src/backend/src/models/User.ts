@@ -9,6 +9,9 @@ export interface IUser extends Document {
   googleId?: string; // For Google OAuth
   monitoredTelegramChats?: number[]; // Added for storing Telegram chat IDs to monitor
   sendAgentReportsToTelegram?: boolean; // Toggle for sending agent reports to Telegram
+  telegramBotToken?: string; // User's personal Telegram bot token
+  telegramBotUsername?: string; // Bot username for display purposes
+  telegramBotActive?: boolean; // Whether the user's bot is currently active
   // Add other fields like profilePicture, etc.
   createdAt: Date;
   updatedAt: Date;
@@ -48,6 +51,17 @@ const UserSchema: Schema<IUser> = new Schema(
       type: Boolean,
       default: false, // Default to false
     },
+    telegramBotToken: {
+      type: String,
+      select: false, // Don't return bot token by default for security
+    },
+    telegramBotUsername: {
+      type: String,
+    },
+    telegramBotActive: {
+      type: Boolean,
+      default: false,
+    },
     // You can add more fields here as your application grows
     // e.g., profilePictureUrl: String,
     // lastLogin: Date,
@@ -80,4 +94,4 @@ UserSchema.methods.comparePassword = async function (candidatePassword: string):
 
 const User = mongoose.model<IUser>('User', UserSchema);
 
-export default User; 
+export default User;

@@ -8,7 +8,7 @@ import whatsappRoutes from './api/routes/whatsappRoutes'; // Import WhatsApp rou
 import wahaRoutes from './api/routes/wahaRoutes'; // Import WAHA routes (modern)
 import { connectToDatabase } from './config/database'; // Import database connection
 import authRoutes from './api/routes/authRoutes'; // Import auth routes
-import { initializeTelegramBot } from './services/telegramService'; // Import Telegram Bot initializer
+import { initializeTelegramService } from './services/telegramServiceNew'; // Import new multi-user Telegram service
 import { AgentService } from './services/agentService'; // Import agent service
 import { AgentScheduler } from './services/agentScheduler'; // Import agent scheduler
 import { initializeAgentServices } from './api/controllers/agentsController'; // Import agent services initializer
@@ -620,7 +620,7 @@ const startServer = async () => {
       // Don't exit - search will still work without optimal indexes
     }
 
-    initializeTelegramBot(); // Initialize and start the Telegram bot polling
+    await initializeTelegramService(); // Initialize multi-user Telegram service
 
     // Initialize WAHA service (modern WhatsApp implementation) with retry logic
     console.log('[Server] 🔄 Initializing WAHA service with network retry...');
