@@ -1,4 +1,5 @@
 import api from './axiosConfig';
+import { optimizedPollingService } from './optimizedPollingService';
 
 export interface WhatsAppMessage {
   id: string;
@@ -73,6 +74,9 @@ export interface WhatsAppConfig {
 class WhatsAppService {
   private baseUrl = '/whatsapp';    // Legacy API endpoint
   private wahaUrl = '/waha'; // Modern WAHA API endpoint (api.baseURL already includes /api/v1)
+  private pollingEnabled = false;
+  private listeners = new Map<string, Set<(data: any) => void>>();
+  private lastKnownData = new Map<string, any>();
 
   // Get all WhatsApp contacts
   async getContacts(): Promise<WhatsAppContact[]> {
@@ -323,6 +327,266 @@ class WhatsAppService {
       return timestamp.toLocaleDateString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
     } else {
       return timestamp.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+  }
+
+  // Enhanced polling methods with optimized service
+  
+  /**
+   * Start polling for WhatsApp status with exponential backoff
+   */
+  startStatusPolling(callback: (status: WhatsAppConnectionStatus) => void): void {
+    if (this.pollingEnabled) return;
+    
+    this.pollingEnabled = true;
+    console.log('Starting optimized WhatsApp status polling...');
+
+    optimizedPollingService.startPolling(
+      'whatsapp-status',
+      () => this.getConnectionStatusWithRetry(),
+      (status) => {
+        this.lastKnownData.set('status', status);
+        callback(status);
+        this.notifyListeners('status', status);
+      },
+      (error) => {
+        console.error('WhatsApp status polling error:', error);
+        // Return cached status if available
+        const cachedStatus = this.lastKnownData.get('status');
+        if (cachedStatus) {
+          callback({ ...cachedStatus, connected: false });
+        }
+      },
+      {
+        baseInterval: 45000,    // 45 seconds base interval
+        maxInterval: 300000,    // 5 minutes max
+        maxRetries: 3,
+        backoffMultiplier: 2,
+        enableAdaptivePolling: true,
+        enableCircuitBreaker: true
+      }
+    );
+  }
+
+  /**
+   * Start polling for messages with intelligent frequency
+   */
+  startMessagePolling(callback: (messages: WhatsAppMessage[]) => void, chatId?: string): void {
+    const pollerId = `whatsapp-messages${chatId ? `-${chatId}` : ''}`;
+    
+    console.log(`Starting optimized message polling for ${chatId || 'all chats'}...`);
+
+    optimizedPollingService.startPolling(
+      pollerId,
+      () => chatId ? this.getContactMessages(chatId, 1, 50) : this.getRecentMessages(),
+      (messages) => {
+        this.lastKnownData.set(pollerId, messages);
+        callback(messages);
+        this.notifyListeners('messages', messages);
+      },
+      (error) => {
+        console.error('WhatsApp message polling error:', error);
+        // Return cached messages if available
+        const cachedMessages = this.lastKnownData.get(pollerId);
+        if (cachedMessages) {
+          callback(cachedMessages);
+        }
+      },
+      {
+        baseInterval: 60000,    // 1 minute base interval (reduced from frequent polling)
+        maxInterval: 600000,    // 10 minutes max
+        maxRetries: 2,
+        backoffMultiplier: 2.5,  // More aggressive backoff for messages
+        enableAdaptivePolling: true,
+        enableCircuitBreaker: true
+      }
+    );
+  }
+
+  /**
+   * Start polling for contacts with very low frequency
+   */
+  startContactPolling(callback: (contacts: WhatsAppContact[]) => void): void {
+    console.log('Starting optimized contact polling...');
+
+    optimizedPollingService.startPolling(
+      'whatsapp-contacts',
+      () => this.getContacts(),
+      (contacts) => {
+        this.lastKnownData.set('contacts', contacts);
+        callback(contacts);
+        this.notifyListeners('contacts', contacts);
+      },
+      (error) => {
+        console.error('WhatsApp contact polling error:', error);
+        // Return cached contacts if available
+        const cachedContacts = this.lastKnownData.get('contacts');
+        if (cachedContacts) {
+          callback(cachedContacts);
+        }
+      },
+      {
+        baseInterval: 120000,   // 2 minutes base interval
+        maxInterval: 900000,    // 15 minutes max
+        maxRetries: 2,
+        backoffMultiplier: 1.8,
+        enableAdaptivePolling: true,
+        enableCircuitBreaker: true
+      }
+    );
+  }
+
+  /**
+   * Stop all polling
+   */
+  stopPolling(): void {
+    if (!this.pollingEnabled) return;
+    
+    this.pollingEnabled = false;
+    optimizedPollingService.stopAllPolling();
+    console.log('All WhatsApp polling stopped');
+  }
+
+  /**
+   * Stop specific polling
+   */
+  stopSpecificPolling(type: 'status' | 'messages' | 'contacts', chatId?: string): void {
+    let pollerId: string;
+    
+    switch (type) {
+      case 'status':
+        pollerId = 'whatsapp-status';
+        break;
+      case 'messages':
+        pollerId = `whatsapp-messages${chatId ? `-${chatId}` : ''}`;
+        break;
+      case 'contacts':
+        pollerId = 'whatsapp-contacts';
+        break;
+    }
+    
+    optimizedPollingService.stopPolling(pollerId);
+    console.log(`Stopped ${type} polling${chatId ? ` for ${chatId}` : ''}`);
+  }
+
+  /**
+   * Get polling statistics
+   */
+  getPollingStats(): Record<string, any> {
+    const activePollers = optimizedPollingService.getActivePollers();
+    const stats: Record<string, any> = {};
+    
+    for (const pollerId of activePollers) {
+      stats[pollerId] = optimizedPollingService.getStats(pollerId);
+    }
+    
+    return {
+      activePollers,
+      pollingEnabled: this.pollingEnabled,
+      stats
+    };
+  }
+
+  /**
+   * Reset circuit breaker for specific service
+   */
+  resetCircuitBreaker(type: 'status' | 'messages' | 'contacts', chatId?: string): void {
+    let pollerId: string;
+    
+    switch (type) {
+      case 'status':
+        pollerId = 'whatsapp-status';
+        break;
+      case 'messages':
+        pollerId = `whatsapp-messages${chatId ? `-${chatId}` : ''}`;
+        break;
+      case 'contacts':
+        pollerId = 'whatsapp-contacts';
+        break;
+    }
+    
+    optimizedPollingService.resetCircuitBreaker(pollerId);
+    console.log(`Reset circuit breaker for ${type}${chatId ? ` (${chatId})` : ''}`);
+  }
+
+  /**
+   * Subscribe to real-time updates
+   */
+  subscribe(event: string, callback: (data: any) => void): () => void {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
+    }
+    
+    this.listeners.get(event)!.add(callback);
+    
+    // Return unsubscribe function
+    return () => {
+      this.listeners.get(event)?.delete(callback);
+    };
+  }
+
+  /**
+   * Get cached data without making a new request
+   */
+  getCachedData(key: string): any {
+    return this.lastKnownData.get(key);
+  }
+
+  // Private helper methods
+
+  private async getConnectionStatusWithRetry(): Promise<WhatsAppConnectionStatus> {
+    // Enhanced retry logic with different endpoints
+    const endpoints = [`${this.wahaUrl}/status`, `${this.baseUrl}/status`];
+    
+    for (let i = 0; i < endpoints.length; i++) {
+      try {
+        const response = await api.get(endpoints[i]);
+        const data = response.data.data;
+        return {
+          ...data,
+          lastHeartbeat: new Date(data.lastHeartbeat || Date.now())
+        };
+      } catch (error) {
+        if (i === endpoints.length - 1) {
+          throw error; // Re-throw if all endpoints failed
+        }
+        console.warn(`Endpoint ${endpoints[i]} failed, trying next...`);
+      }
+    }
+    
+    throw new Error('All status endpoints failed');
+  }
+
+  private async getRecentMessages(): Promise<WhatsAppMessage[]> {
+    // This would be a new endpoint that returns recent messages across all chats
+    try {
+      const response = await api.get(`${this.wahaUrl}/messages?limit=50`);
+      return response.data.data.map((message: any) => ({
+        ...message,
+        id: message._id,
+        timestamp: new Date(message.timestamp)
+      }));
+    } catch (error) {
+      // Fallback to legacy endpoint
+      const response = await api.get(`${this.baseUrl}/messages?limit=50`);
+      return response.data.data.map((message: any) => ({
+        ...message,
+        id: message._id,
+        timestamp: new Date(message.timestamp)
+      }));
+    }
+  }
+
+  private notifyListeners(event: string, data: any): void {
+    const eventListeners = this.listeners.get(event);
+    if (eventListeners) {
+      eventListeners.forEach(callback => {
+        try {
+          callback(data);
+        } catch (error) {
+          console.error(`Error in ${event} listener:`, error);
+        }
+      });
     }
   }
 

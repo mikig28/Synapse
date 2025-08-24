@@ -11,13 +11,17 @@ export const POLLING_CONFIG = {
     healthCheckCacheDuration: 60000,   // 1 minute - Longer health check cache
   },
   
-  // Frontend polling intervals (milliseconds) - MEMORY OPTIMIZED
+  // Frontend polling intervals (milliseconds) - HIGHLY OPTIMIZED
   frontend: {
-    initialCheckDelay: 10000,          // 10 seconds - Delayed start
-    baseInterval: 30000,               // 30 seconds - Reduced frequency
-    authenticatedInterval: 60000,      // 1 minute - Less frequent when working
-    maxInterval: 300000,               // 5 minutes - Much longer backoff
-    backoffMultiplier: 1.5,            // Gentler backoff multiplier
+    initialCheckDelay: 15000,          // 15 seconds - Further delayed start
+    baseInterval: 60000,               // 1 minute - Much reduced frequency
+    authenticatedInterval: 120000,     // 2 minutes - Even less frequent when working
+    maxInterval: 600000,               // 10 minutes - Very long backoff
+    backoffMultiplier: 2.0,            // More aggressive backoff
+    
+    // WebSocket preferred intervals
+    websocketFallbackInterval: 180000, // 3 minutes when WebSocket fails
+    circuitBreakerResetTime: 120000,   // 2 minutes before retry
   },
   
   // Resource limits - MEMORY OPTIMIZED

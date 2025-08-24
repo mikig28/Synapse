@@ -295,16 +295,36 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   };
 
   const createGroupMonitor = async () => {
-    if (!monitorForm.groupId || monitorForm.targetPersons.length === 0) {
+    // Enhanced validation with specific error messages
+    if (!monitorForm.groupId) {
       toast({
         title: "Validation Error",
-        description: "Please select a group and at least one person to monitor",
+        description: "Please select a WhatsApp group",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!monitorForm.groupName) {
+      toast({
+        title: "Validation Error",
+        description: "Group name is missing. Please reselect the group",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (monitorForm.targetPersons.length === 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please select at least one person to monitor",
         variant: "destructive",
       });
       return;
     }
 
     try {
+      console.log('Creating group monitor with data:', monitorForm);
       const response = await api.post('/group-monitor/monitors', monitorForm);
       if (response.data.success) {
         setGroupMonitors([...groupMonitors, response.data.data]);
@@ -328,9 +348,13 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error creating group monitor:', error);
+      console.error('Request data was:', monitorForm);
+      
+      const errorMessage = error.response?.data?.error || error.message || "Failed to create group monitor";
+      
       toast({
         title: "Error",
-        description: error.response?.data?.error || "Failed to create group monitor",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -1048,12 +1072,22 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
                       <select
                         value={monitorForm.groupId}
                         onChange={(e) => {
-                          const selectedGroup = whatsAppGroups.find(g => g.id === e.target.value);
-                          setMonitorForm(prev => ({
-                            ...prev,
-                            groupId: e.target.value,
-                            groupName: selectedGroup?.name || ''
-                          }));
+                          const selectedGroupId = e.target.value;
+                          const selectedGroup = whatsAppGroups.find(g => g.id === selectedGroupId);
+                          
+                          if (selectedGroupId && selectedGroup) {
+                            setMonitorForm(prev => ({
+                              ...prev,
+                              groupId: selectedGroupId,
+                              groupName: selectedGroup.name
+                            }));
+                          } else {
+                            setMonitorForm(prev => ({
+                              ...prev,
+                              groupId: '',
+                              groupName: ''
+                            }));
+                          }
                         }}
                         className="w-full mt-1 bg-white/10 border border-white/20 rounded-md px-3 py-2 text-white"
                       >
@@ -1168,7 +1202,7 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
                     <div className="flex gap-3 pt-4">
                       <Button
                         onClick={createGroupMonitor}
-                        disabled={!monitorForm.groupId || monitorForm.targetPersons.length === 0}
+                        disabled={!monitorForm.groupId || !monitorForm.groupName || monitorForm.targetPersons.length === 0}
                         className="flex-1 bg-green-500 hover:bg-green-600"
                       >
                         Create Monitor
