@@ -4,19 +4,18 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.telegramChannelService = void 0;
-const node_telegram_bot_api_1 = __importDefault(require("node-telegram-bot-api"));
 const TelegramChannel_1 = __importDefault(require("../models/TelegramChannel"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const server_1 = require("../server");
 const node_cron_1 = __importDefault(require("node-cron"));
+const node_fetch_1 = __importDefault(require("node-fetch"));
+const telegramService_1 = require("./telegramService"); // Import shared bot instance
 class TelegramChannelService {
     constructor() {
         this.cronJobs = new Map();
-        const token = process.env.TELEGRAM_BOT_TOKEN;
-        if (!token) {
-            throw new Error('TELEGRAM_BOT_TOKEN is required for channel monitoring');
-        }
-        this.bot = new node_telegram_bot_api_1.default(token, { polling: false });
+        // Reuse the existing bot instance to avoid polling conflicts
+        this.bot = telegramService_1.telegramBot;
+        console.log('[TelegramChannelService] Using shared telegram bot instance');
         this.initializePeriodicFetch();
     }
     /**
@@ -192,23 +191,171 @@ class TelegramChannelService {
      * Get recent messages from channel (limited by Bot API)
      */
     async getRecentChannelMessages(channelId) {
-        // Note: Bot API has limitations for getting channel history
-        // This is a simplified implementation - for full channel monitoring,
-        // you'd need MTProto or the channel would need to forward messages to the bot
         try {
-            // For now, return empty array as Bot API doesn't provide direct channel message history
-            // In a full implementation, you'd use:
-            // 1. MTProto client libraries
-            // 2. Channel admin rights to receive messages
-            // 3. RSS feeds if channel provides them
-            // 4. Web scraping (not recommended)
-            console.log(`[TelegramChannelService] Note: Bot API cannot fetch channel history directly for ${channelId}`);
-            console.log(`[TelegramChannelService] Consider using MTProto or ensuring bot is admin in channel`);
+            // Try to get chat info first to ensure we can access it
+            const chat = await this.bot.getChat(channelId);
+            console.log(`[TelegramChannelService] Chat info for ${channelId}:`, {
+                id: chat.id,
+                title: chat.title,
+                type: chat.type,
+                username: chat.username
+            });
+            // Bot API limitation: Cannot get message history from channels/groups unless:
+            // 1. Bot is admin in the channel/group
+            // 2. For groups: bot must be added as member
+            // 3. For channels: bot must be added as admin with "Read Messages" permission
+            // Try to get updates (this will only work if bot has proper permissions)
+            try {
+                // This is a workaround: try to send a test message and see if we can access the chat
+                // If this fails, we know the bot doesn't have permission
+                const updates = await this.bot.getUpdates({ limit: 10 });
+                // Filter messages from our target channel
+                const channelMessages = updates
+                    .filter(update => update.message &&
+                    (update.message.chat.id.toString() === channelId ||
+                        '@' + update.message.chat.username === channelId))
+                    .map(update => this.convertToChannelMessage(update.message))
+                    .filter(msg => msg !== null);
+                if (channelMessages.length > 0) {
+                    console.log(`[TelegramChannelService] ✅ Found ${channelMessages.length} messages from ${channelId}`);
+                    return channelMessages;
+                }
+            }
+            catch (permissionError) {
+                console.log(`[TelegramChannelService] ⚠️  Bot doesn't have permission to read messages from ${channelId}`);
+            }
+            // If no messages found via updates, try alternative approaches for public channels
+            if (channelId.startsWith('@')) {
+                console.log(`[TelegramChannelService] 💡 For public channel ${channelId}: Trying alternative methods...`);
+                // Try RSS feed approach for public channels
+                const rssMessages = await this.tryRSSFeed(channelId);
+                if (rssMessages.length > 0) {
+                    console.log(`[TelegramChannelService] ✅ Found ${rssMessages.length} messages via RSS for ${channelId}`);
+                    return rssMessages;
+                }
+                console.log(`[TelegramChannelService] 💡 Bot needs to be added as admin with 'Read Messages' permission for ${channelId}`);
+            }
+            else {
+                console.log(`[TelegramChannelService] 💡 For group ${channelId}: Bot needs to be added as member`);
+            }
             return [];
         }
         catch (error) {
-            console.error(`[TelegramChannelService] Error fetching messages:`, error);
+            console.error(`[TelegramChannelService] ❌ Error accessing channel ${channelId}:`, error);
+            // Update channel with error status
+            try {
+                await TelegramChannel_1.default.findOneAndUpdate({ channelId }, {
+                    $set: {
+                        lastError: error.message,
+                        lastFetchedAt: new Date()
+                    }
+                });
+            }
+            catch (updateError) {
+                console.error(`[TelegramChannelService] Error updating channel status:`, updateError);
+            }
             return [];
+        }
+    }
+    /**
+     * Try to fetch messages via RSS feed for public channels
+     */
+    async tryRSSFeed(channelId) {
+        try {
+            const channelName = channelId.replace('@', '');
+            const rssUrl = `https://rsshub.app/telegram/channel/${channelName}`;
+            console.log(`[TelegramChannelService] 🔄 Trying RSS feed: ${rssUrl}`);
+            // Note: This is a basic implementation
+            // In production, you'd want to:
+            // 1. Use a proper RSS parser library
+            // 2. Handle different RSS feed formats
+            // 3. Cache feed results
+            // 4. Handle rate limiting
+            const response = await (0, node_fetch_1.default)(rssUrl, {
+                headers: {
+                    'User-Agent': 'TelegramChannelMonitor/1.0'
+                },
+                timeout: 10000
+            });
+            if (!response.ok) {
+                console.log(`[TelegramChannelService] RSS feed not available for ${channelId}`);
+                return [];
+            }
+            const rssText = await response.text();
+            // Basic RSS parsing (you'd want to use a proper XML parser in production)
+            const messages = [];
+            // This is a simplified example - in production use a proper RSS parser
+            const itemMatches = rssText.match(/<item>[\s\S]*?<\/item>/g) || [];
+            for (const item of itemMatches.slice(0, 10)) { // Limit to 10 recent items
+                const title = item.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1];
+                const description = item.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/)?.[1];
+                const pubDate = item.match(/<pubDate>(.*?)<\/pubDate>/)?.[1];
+                if (title && pubDate) {
+                    const message = {
+                        messageId: Math.floor(Math.random() * 1000000), // RSS doesn't have message IDs
+                        text: description || title,
+                        date: new Date(pubDate),
+                        author: channelName,
+                        urls: this.extractUrls(description || title),
+                        hashtags: this.extractHashtags(description || title)
+                    };
+                    messages.push(message);
+                }
+            }
+            return messages;
+        }
+        catch (error) {
+            console.log(`[TelegramChannelService] RSS feed failed for ${channelId}:`, error);
+            return [];
+        }
+    }
+    /**
+     * Convert Telegram message to channel message format
+     */
+    convertToChannelMessage(message) {
+        try {
+            const channelMessage = {
+                messageId: message.message_id,
+                text: message.text || message.caption,
+                date: new Date(message.date * 1000),
+                author: message.from?.username || message.from?.first_name,
+                views: message.views || 0,
+                forwards: message.forward_from ? 1 : 0,
+            };
+            // Extract URLs
+            if (message.entities) {
+                channelMessage.urls = this.extractUrlsFromEntities(message.text || message.caption, message.entities);
+            }
+            // Extract hashtags
+            if (channelMessage.text) {
+                channelMessage.hashtags = this.extractHashtags(channelMessage.text);
+            }
+            // Handle media
+            if (message.photo) {
+                channelMessage.mediaType = 'photo';
+                channelMessage.mediaFileId = message.photo[message.photo.length - 1].file_id;
+            }
+            else if (message.video) {
+                channelMessage.mediaType = 'video';
+                channelMessage.mediaFileId = message.video.file_id;
+            }
+            else if (message.document) {
+                channelMessage.mediaType = 'document';
+                channelMessage.mediaFileId = message.document.file_id;
+            }
+            else if (message.audio) {
+                channelMessage.mediaType = 'audio';
+                channelMessage.mediaFileId = message.audio.file_id;
+            }
+            else if (message.voice) {
+                channelMessage.mediaType = 'voice';
+                channelMessage.mediaFileId = message.voice.file_id;
+            }
+            return channelMessage;
+        }
+        catch (error) {
+            console.error(`[TelegramChannelService] Error converting message:`, error);
+            return null;
         }
     }
     /**
@@ -246,6 +393,23 @@ class TelegramChannelService {
     extractUrls(text) {
         const urlRegex = /https?:\/\/[^\s]+/g;
         return text.match(urlRegex) || [];
+    }
+    /**
+     * Extract URLs from Telegram message entities
+     */
+    extractUrlsFromEntities(text, entities) {
+        if (!text || !entities)
+            return [];
+        const urls = [];
+        for (const entity of entities) {
+            if (entity.type === 'url') {
+                urls.push(text.substring(entity.offset, entity.offset + entity.length));
+            }
+            else if (entity.type === 'text_link' && entity.url) {
+                urls.push(entity.url);
+            }
+        }
+        return urls;
     }
     /**
      * Extract hashtags from message text

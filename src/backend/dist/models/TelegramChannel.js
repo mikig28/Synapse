@@ -71,7 +71,8 @@ const TelegramChannelSchema = new mongoose_1.Schema({
     messages: [TelegramChannelMessageSchema],
     keywords: [String], // Optional filtering
     fetchInterval: { type: Number, default: 30 }, // Default 30 minutes
-    lastFetchedAt: { type: Date }
+    lastFetchedAt: { type: Date },
+    lastError: { type: String } // Store error messages
 }, {
     timestamps: true,
     // Limit messages array size to prevent document size issues

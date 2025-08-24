@@ -59,7 +59,7 @@ services:
       - key: PINECONE_INDEX_NAME
         value: synapse-docs
       - key: WAHA_SERVICE_URL
-        value: https://synapse-waha.onrender.com
+        value: https://waha-synapse-production.up.railway.app
       - key: WAHA_API_KEY
         value: waha-synapse-2025-secure
       # Performance & Memory Optimizations

@@ -44,6 +44,7 @@ const searchRoutes_1 = __importDefault(require("./api/routes/searchRoutes")); //
 const exportRoutes_1 = __importDefault(require("./api/routes/exportRoutes")); // Import export routes
 const feedbackRoutes_1 = __importDefault(require("./api/routes/feedbackRoutes")); // Import feedback routes
 const usageRoutes_1 = __importDefault(require("./api/routes/usageRoutes")); // Import usage routes
+const telegramChannelRoutes_1 = __importDefault(require("./api/routes/telegramChannelRoutes")); // Import telegram channel routes
 const taskReminderService_1 = require("./services/taskReminderService"); // Import task reminder service
 const schedulerService_1 = require("./services/schedulerService"); // Import scheduler service
 const aguiEmitter_1 = require("./services/aguiEmitter"); // Import AG-UI emitter
@@ -192,6 +193,7 @@ app.use('/api/v1/search', searchRoutes_1.default); // Use search routes
 app.use('/api/v1/export', exportRoutes_1.default); // Use export routes
 app.use('/api/v1/feedback', feedbackRoutes_1.default); // Use feedback routes
 app.use('/api/v1/usage', usageRoutes_1.default); // Use usage routes
+app.use('/api/v1/telegram-channels', telegramChannelRoutes_1.default); // Use telegram channels routes
 // **AG-UI Protocol Endpoints**
 // Test endpoint to manually emit AG-UI events for debugging
 app.get('/api/v1/ag-ui/test-event', (req, res) => {
