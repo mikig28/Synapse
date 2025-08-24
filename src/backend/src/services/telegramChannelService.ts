@@ -5,16 +5,13 @@ import mongoose from 'mongoose';
 import { io } from '../server';
 import cron from 'node-cron';
 import fetch from 'node-fetch';
-import { telegramBot } from './telegramService'; // Import shared bot instance
+import { telegramBotManager } from './telegramBotManager'; // Import bot manager
 
 class TelegramChannelService {
-  private bot: TelegramBot;
   private cronJobs: Map<string, cron.ScheduledTask> = new Map();
 
   constructor() {
-    // Reuse the existing bot instance to avoid polling conflicts
-    this.bot = telegramBot;
-    console.log('[TelegramChannelService] Using shared telegram bot instance');
+    console.log('[TelegramChannelService] Initialized with multi-user bot manager');
     this.initializePeriodicFetch();
   }
 
@@ -26,7 +23,7 @@ class TelegramChannelService {
       console.log(`[TelegramChannelService] Adding channel: ${channelIdentifier} for user: ${userId}`);
 
       // Validate channel exists and get info
-      const channelInfo = await this.getChannelInfo(channelIdentifier);
+      const channelInfo = await this.getChannelInfo(channelIdentifier, userId);
       
       // Check if channel already exists for this user
       const existingChannel = await TelegramChannel.findOne({
@@ -161,9 +158,8 @@ class TelegramChannelService {
 
       console.log(`[TelegramChannelService] Fetching messages for: ${channel.channelTitle}`);
 
-      // Get channel history using getChat and getChatHistory would require MTProto
-      // For now, we'll use a simpler approach with bot API limitations
-      const messages = await this.getRecentChannelMessages(channel.channelId);
+      // Get messages using the user's bot instance
+      const messages = await this.getRecentChannelMessages(channel.channelId, channel.userId.toString());
 
       if (messages.length > 0) {
         // Filter by keywords if specified
@@ -203,100 +199,115 @@ class TelegramChannelService {
   }
 
   /**
-   * Get channel information
+   * Get channel information using user's bot
    */
-  private async getChannelInfo(channelIdentifier: string): Promise<any> {
+  private async getChannelInfo(channelIdentifier: string, userId: string): Promise<any> {
     try {
+      // Get the user's bot instance
+      const bot = telegramBotManager.getBotForUser(userId);
+      if (!bot) {
+        throw new Error('No active bot found for user. Please configure your Telegram bot first.');
+      }
+
       // Try to get chat info - works for public channels/groups
-      const chat = await this.bot.getChat(channelIdentifier);
+      const chat = await bot.getChat(channelIdentifier);
       return chat;
     } catch (error) {
       console.error(`[TelegramChannelService] Error getting channel info for ${channelIdentifier}:`, error);
-      throw new Error(`Cannot access channel ${channelIdentifier}. Make sure it's public or the bot is a member.`);
+      if ((error as Error).message.includes('chat not found')) {
+        throw new Error(`Channel ${channelIdentifier} not found. Make sure it exists and is public.`);
+      }
+      throw new Error(`Cannot access channel ${channelIdentifier}. Make sure the bot is added to the group/channel with proper permissions.`);
     }
   }
 
   /**
-   * Get recent messages from channel (limited by Bot API)
+   * Get recent messages from channel using proper bot instance
    */
-  private async getRecentChannelMessages(channelId: string): Promise<ITelegramChannelMessage[]> {
+  private async getRecentChannelMessages(channelId: string, userId: string): Promise<ITelegramChannelMessage[]> {
     try {
-      // Try to get chat info first to ensure we can access it
-      const chat = await this.bot.getChat(channelId);
-      console.log(`[TelegramChannelService] Chat info for ${channelId}:`, {
-        id: chat.id,
-        title: chat.title,
-        type: chat.type,
-        username: chat.username
-      });
-
-      // Bot API limitation: Cannot get message history from channels/groups unless:
-      // 1. Bot is admin in the channel/group
-      // 2. For groups: bot must be added as member
-      // 3. For channels: bot must be added as admin with "Read Messages" permission
-      
-      // Try to get updates (this will only work if bot has proper permissions)
-      try {
-        // This is a workaround: try to send a test message and see if we can access the chat
-        // If this fails, we know the bot doesn't have permission
-        const updates = await this.bot.getUpdates({ limit: 10 });
-        
-        // Filter messages from our target channel
-        const channelMessages = updates
-          .filter(update => 
-            update.message && 
-            (update.message.chat.id.toString() === channelId || 
-             '@' + update.message.chat.username === channelId)
-          )
-          .map(update => this.convertToChannelMessage(update.message!))
-          .filter(msg => msg !== null) as ITelegramChannelMessage[];
-
-        if (channelMessages.length > 0) {
-          console.log(`[TelegramChannelService] ✅ Found ${channelMessages.length} messages from ${channelId}`);
-          return channelMessages;
-        }
-
-      } catch (permissionError) {
-        console.log(`[TelegramChannelService] ⚠️  Bot doesn't have permission to read messages from ${channelId}`);
+      // Get user's bot instance
+      const bot = telegramBotManager.getBotForUser(userId);
+      if (!bot) {
+        throw new Error('No active bot found for user');
       }
 
-      // If no messages found via updates, try alternative approaches for public channels
-      if (channelId.startsWith('@')) {
-        console.log(`[TelegramChannelService] 💡 For public channel ${channelId}: Trying alternative methods...`);
-        
-        // Try RSS feed approach for public channels
-        const rssMessages = await this.tryRSSFeed(channelId);
-        if (rssMessages.length > 0) {
-          console.log(`[TelegramChannelService] ✅ Found ${rssMessages.length} messages via RSS for ${channelId}`);
-          return rssMessages;
-        }
-        
-        console.log(`[TelegramChannelService] 💡 Bot needs to be added as admin with 'Read Messages' permission for ${channelId}`);
-      } else {
-        console.log(`[TelegramChannelService] 💡 For group ${channelId}: Bot needs to be added as member`);
-      }
-
-      return [];
+      // For groups and channels, messages will be received via the main message handler
+      // This method now focuses on checking if the bot has proper access
       
-    } catch (error) {
-      console.error(`[TelegramChannelService] ❌ Error accessing channel ${channelId}:`, error);
-      
-      // Update channel with error status
       try {
+        // Verify bot can access the chat
+        const chat = await bot.getChat(channelId);
+        console.log(`[TelegramChannelService] Chat accessible for ${channelId}:`, {
+          id: chat.id,
+          title: chat.title,
+          type: chat.type,
+          username: chat.username
+        });
+
+        // Check if this chat is being monitored by the user
+        const user = await User.findById(userId);
+        if (!user) {
+          throw new Error('User not found');
+        }
+
+        const chatIdNum = typeof chat.id === 'string' ? parseInt(chat.id) : chat.id;
+        
+        // Add chat to monitored chats if not already there
+        if (!user.monitoredTelegramChats?.includes(chatIdNum)) {
+          if (!user.monitoredTelegramChats) {
+            user.monitoredTelegramChats = [];
+          }
+          user.monitoredTelegramChats.push(chatIdNum);
+          await user.save();
+          console.log(`[TelegramChannelService] ✅ Added chat ${chatIdNum} to monitored chats for user ${userId}`);
+        }
+
+        // Clear any previous errors
         await TelegramChannel.findOneAndUpdate(
-          { channelId },
+          { channelId, userId: new mongoose.Types.ObjectId(userId) },
+          { $unset: { lastError: 1 } }
+        );
+
+        console.log(`[TelegramChannelService] ✅ Bot has access to ${channelId}. Messages will be received in real-time.`);
+        return []; // Real-time messages will be handled by the main message handler
+        
+      } catch (accessError) {
+        console.error(`[TelegramChannelService] ❌ Bot cannot access ${channelId}:`, accessError);
+        
+        // Update channel with specific error
+        const errorMessage = this.getPermissionErrorMessage(channelId, (accessError as Error).message);
+        await TelegramChannel.findOneAndUpdate(
+          { channelId, userId: new mongoose.Types.ObjectId(userId) },
           { 
             $set: { 
-              lastError: (error as Error).message,
+              lastError: errorMessage,
               lastFetchedAt: new Date()
             }
           }
         );
-      } catch (updateError) {
-        console.error(`[TelegramChannelService] Error updating channel status:`, updateError);
+        
+        throw new Error(errorMessage);
       }
       
-      return [];
+    } catch (error) {
+      console.error(`[TelegramChannelService] Error in getRecentChannelMessages:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get user-friendly error message for permission issues
+   */
+  private getPermissionErrorMessage(channelId: string, originalError: string): string {
+    if (originalError.includes('chat not found')) {
+      return 'Channel/group not found. Make sure it exists and is accessible.';
+    }
+    
+    if (channelId.startsWith('@')) {
+      return 'Bot needs to be added as administrator with "Read Messages" permission to this channel.';
+    } else {
+      return 'Bot needs to be added as a member to this group/supergroup.';
     }
   }
 
@@ -493,9 +504,13 @@ class TelegramChannelService {
         console.log(`[TelegramChannelService] Found ${activeChannels.length} active channels to fetch`);
 
         for (const channel of activeChannels) {
-          await this.fetchChannelMessages(channel._id.toString());
-          // Add small delay between channels to avoid rate limiting
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          try {
+            await this.fetchChannelMessages(channel._id.toString());
+            // Add small delay between channels to avoid rate limiting
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } catch (error) {
+            console.error(`[TelegramChannelService] Error fetching messages for channel ${channel.channelTitle}:`, error);
+          }
         }
       } catch (error) {
         console.error('[TelegramChannelService] Error in periodic fetch:', error);

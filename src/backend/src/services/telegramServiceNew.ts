@@ -23,6 +23,7 @@ import mongoose from 'mongoose';
 import { getBucket } from '../config/gridfs';
 import PDFParser from 'pdf-parse';
 import { telegramBotManager } from './telegramBotManager';
+import TelegramChannel, { ITelegramChannelMessage } from '../models/TelegramChannel';
 
 dotenv.config();
 
@@ -427,6 +428,9 @@ const handleTelegramMessage = async (userId: string, msg: TelegramBot.Message, b
 
   console.log(`[TelegramService] Finished processing message ${telegramMessageId} from chat ${chatId}`);
 
+  // Check if this message is from a monitored channel and save to channel records
+  await handleChannelMessage(userId, msg, synapseUser);
+
   try {
     if (!synapseUser) {
       console.log(`[TelegramService] No Synapse user found for message processing`);
@@ -723,6 +727,115 @@ async function extractContentFromFile(filePath: string, documentType: string): P
     return '';
   }
 }
+
+// Function to handle channel messages
+const handleChannelMessage = async (userId: string, msg: TelegramBot.Message, synapseUser: any): Promise<void> => {
+  try {
+    const chatId = msg.chat.id;
+    const messageId = msg.message_id;
+    
+    // Check if this chat is a monitored channel for this user
+    const monitoredChannel = await TelegramChannel.findOne({
+      userId: new mongoose.Types.ObjectId(userId),
+      $or: [
+        { channelId: chatId.toString() },
+        { channelId: '@' + msg.chat.username }
+      ],
+      isActive: true
+    });
+
+    if (!monitoredChannel) {
+      return; // Not a monitored channel
+    }
+
+    console.log(`[TelegramService] 📢 Processing channel message from ${monitoredChannel.channelTitle}`);
+
+    // Convert message to channel message format
+    const channelMessage: ITelegramChannelMessage = {
+      messageId: messageId,
+      text: msg.text || msg.caption,
+      date: new Date(msg.date * 1000),
+      author: msg.from?.username || msg.from?.first_name || monitoredChannel.channelTitle,
+      views: (msg as any).views || 0,
+      forwards: (msg as any).forward_from_chat ? 1 : 0,
+      urls: extractUrls(msg.text || msg.caption, msg.entities || msg.caption_entities),
+      hashtags: extractHashtags(msg.text || msg.caption || '')
+    };
+
+    // Handle media
+    if (msg.photo) {
+      channelMessage.mediaType = 'photo';
+      channelMessage.mediaFileId = msg.photo[msg.photo.length - 1].file_id;
+    } else if (msg.video) {
+      channelMessage.mediaType = 'video';
+      channelMessage.mediaFileId = msg.video.file_id;
+    } else if (msg.document) {
+      channelMessage.mediaType = 'document';
+      channelMessage.mediaFileId = msg.document.file_id;
+    } else if (msg.audio) {
+      channelMessage.mediaType = 'audio';
+      channelMessage.mediaFileId = msg.audio.file_id;
+    } else if (msg.voice) {
+      channelMessage.mediaType = 'voice';
+      channelMessage.mediaFileId = msg.voice.file_id;
+    }
+
+    // Filter by keywords if specified
+    const hasKeywords = monitoredChannel.keywords && monitoredChannel.keywords.length > 0;
+    if (hasKeywords && channelMessage.text) {
+      const messageText = channelMessage.text.toLowerCase();
+      const matchesKeyword = monitoredChannel.keywords.some(keyword => 
+        messageText.includes(keyword.toLowerCase())
+      );
+      
+      if (!matchesKeyword) {
+        console.log(`[TelegramService] 🔍 Message filtered out - no keyword match`);
+        return;
+      }
+    }
+
+    // Check if message already exists
+    const existingMessage = monitoredChannel.messages.find(m => m.messageId === messageId);
+    if (existingMessage) {
+      console.log(`[TelegramService] 📝 Message ${messageId} already exists in channel ${monitoredChannel.channelTitle}`);
+      return;
+    }
+
+    // Add message to channel
+    monitoredChannel.messages.push(channelMessage);
+    monitoredChannel.totalMessages += 1;
+    monitoredChannel.lastFetchedAt = new Date();
+    monitoredChannel.lastFetchedMessageId = messageId;
+    
+    // Clear any errors
+    if (monitoredChannel.lastError) {
+      monitoredChannel.lastError = undefined;
+    }
+
+    await monitoredChannel.save();
+
+    console.log(`[TelegramService] ✅ Added new message to channel ${monitoredChannel.channelTitle} (Total: ${monitoredChannel.totalMessages})`);
+
+    // Emit real-time update
+    if (io) {
+      io.emit('new_telegram_channel_messages', {
+        userId: userId,
+        channelId: monitoredChannel._id.toString(),
+        messages: [channelMessage]
+      });
+    }
+
+  } catch (error) {
+    console.error(`[TelegramService] Error handling channel message:`, error);
+  }
+};
+
+// Function to extract hashtags from text
+const extractHashtags = (text: string): string[] => {
+  if (!text) return [];
+  const hashtagRegex = /#[^\s#]+/g;
+  return text.match(hashtagRegex) || [];
+};
 
 // Function to handle document search via Telegram
 const handleDocumentSearch = async (userId: string, query: string, chatId: number, bot: TelegramBot): Promise<void> => {

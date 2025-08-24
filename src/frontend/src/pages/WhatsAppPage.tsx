@@ -484,16 +484,20 @@ const WhatsAppPage: React.FC = () => {
       console.log(`[WhatsApp Frontend] Selected chat: ${selectedChat.name} (${selectedChat.id})`);
       
       // Always fetch fresh messages when selecting a chat
-      fetchMessages(selectedChat.id).then(() => {
-        // If no messages were found, try with a different chat ID format
-        const chatMessages = messages.filter(msg => msg.chatId === selectedChat.id);
-        if (chatMessages.length === 0 && selectedChat.id.includes('@')) {
-          // Try without domain suffix for some IDs
-          const simplifiedId = selectedChat.id.split('@')[0];
-          console.log(`[WhatsApp Frontend] Trying simplified chat ID: ${simplifiedId}`);
-          fetchMessages(simplifiedId);
-        }
-      });
+      if (selectedChat.id && typeof selectedChat.id === 'string') {
+        fetchMessages(selectedChat.id).then(() => {
+          // If no messages were found, try with a different chat ID format
+          const chatMessages = messages.filter(msg => msg.chatId === selectedChat.id);
+          if (chatMessages.length === 0 && typeof selectedChat.id === 'string' && selectedChat.id.includes('@')) {
+            // Try without domain suffix for some IDs
+            const simplifiedId = selectedChat.id.split('@')[0];
+            console.log(`[WhatsApp Frontend] Trying simplified chat ID: ${simplifiedId}`);
+            fetchMessages(simplifiedId);
+          }
+        });
+      } else {
+        console.warn('[WhatsApp Frontend] Invalid selectedChat.id:', selectedChat.id);
+      }
     }
   }, [selectedChat?.id]); // Only depend on the ID to avoid circular dependencies
 
