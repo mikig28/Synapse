@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/input';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Info, AlertTriangle } from 'lucide-react';
 
 interface TelegramChatResponse {
   message: string;
