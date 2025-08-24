@@ -65,6 +65,7 @@ interface WhatsAppStatus {
   connected: boolean;
   isReady: boolean;
   isClientReady: boolean;
+  authenticated?: boolean;
   groupsCount: number;
   privateChatsCount: number;
   messagesCount: number;
@@ -72,6 +73,7 @@ interface WhatsAppStatus {
   timestamp: string;
   monitoredKeywords: string[];
   serviceType?: 'waha' | 'baileys'; // Track which service is being used
+  sessionStatus?: string;
 }
 
 const WhatsAppPage: React.FC = () => {
@@ -467,14 +469,19 @@ const WhatsAppPage: React.FC = () => {
   // Load messages for selected chat if we don't have any yet
   useEffect(() => {
     if (selectedChat) {
-      const chatMessages = messages.filter(msg => msg.chatId === selectedChat.id);
-      if (chatMessages.length === 0) {
-        // Only fetch if we have no messages for this chat
-        fetchMessages(selectedChat.id);
-      } else if (chatMessages.length === 0 && selectedChat?.id) {
-        // WAHA sometimes returns empty; try legacy as fallback explicitly
-        fetchMessages(selectedChat.id);
-      }
+      console.log(`[WhatsApp Frontend] Selected chat: ${selectedChat.name} (${selectedChat.id})`);
+      
+      // Always fetch fresh messages when selecting a chat
+      fetchMessages(selectedChat.id).then(() => {
+        // If no messages were found, try with a different chat ID format
+        const chatMessages = messages.filter(msg => msg.chatId === selectedChat.id);
+        if (chatMessages.length === 0 && selectedChat.id.includes('@')) {
+          // Try without domain suffix for some IDs
+          const simplifiedId = selectedChat.id.split('@')[0];
+          console.log(`[WhatsApp Frontend] Trying simplified chat ID: ${simplifiedId}`);
+          fetchMessages(simplifiedId);
+        }
+      });
     }
   }, [selectedChat?.id]); // Only depend on the ID to avoid circular dependencies
 
@@ -483,23 +490,85 @@ const WhatsAppPage: React.FC = () => {
       // Try WAHA endpoint first
       const response = await api.get('/waha/status');
       if (response.data.success) {
-        setStatus({ ...response.data.data, serviceType: 'waha' });
+        const statusData = response.data.data;
+        console.log('[WhatsApp Frontend] WAHA Status:', statusData);
+        
+        // Enhanced status with proper authentication check
+        const enhancedStatus = {
+          connected: statusData.connected || statusData.isReady || false,
+          isReady: statusData.isReady || false,
+          isClientReady: statusData.isClientReady || statusData.isReady || false,
+          authenticated: statusData.authenticated || statusData.isReady || false,
+          groupsCount: statusData.groupsCount || status?.groupsCount || 0,
+          privateChatsCount: statusData.privateChatsCount || status?.privateChatsCount || 0,
+          messagesCount: statusData.messagesCount || status?.messagesCount || 0,
+          qrAvailable: statusData.qrAvailable || (!statusData.isReady && !statusData.authenticated),
+          timestamp: statusData.timestamp || new Date().toISOString(),
+          monitoredKeywords: statusData.monitoredKeywords || [],
+          serviceType: 'waha' as const,
+          sessionStatus: statusData.status || 'UNKNOWN'
+        };
+        
+        setStatus(enhancedStatus);
         setActiveService('waha');
         console.log('✅ Using WAHA service (modern)');
+        
+        // If authenticated and we don't have chats yet, fetch them
+        if (enhancedStatus.authenticated && groups.length === 0 && privateChats.length === 0) {
+          console.log('[WhatsApp Frontend] Authenticated but no chats loaded, fetching...');
+          setTimeout(() => {
+            fetchGroups(true);
+            fetchPrivateChats(true);
+            fetchMessages();
+          }, 1000);
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching WAHA status, trying legacy:', error);
       // Fallback to legacy endpoint
       try {
         const fallbackResponse = await api.get('/whatsapp/status');
         if (fallbackResponse.data.success) {
-          setStatus({ ...fallbackResponse.data.data, serviceType: 'baileys' });
+          const statusData = fallbackResponse.data.data;
+          
+          const enhancedStatus = {
+            ...statusData,
+            authenticated: statusData.authenticated || statusData.connected || false,
+            serviceType: 'baileys' as const
+          };
+          
+          setStatus(enhancedStatus);
           setActiveService('baileys');
           console.log('⚠️ Using Baileys service (fallback)');
+          
+          // If authenticated and we don't have chats yet, fetch them
+          if (enhancedStatus.authenticated && groups.length === 0 && privateChats.length === 0) {
+            console.log('[WhatsApp Frontend] Authenticated but no chats loaded, fetching...');
+            setTimeout(() => {
+              fetchGroups(true);
+              fetchPrivateChats(true);
+              fetchMessages();
+            }, 1000);
+          }
         }
       } catch (fallbackError) {
         console.error('Error fetching WhatsApp status:', fallbackError);
         setActiveService(null);
+        
+        // Set a default status to prevent UI errors
+        setStatus({
+          connected: false,
+          isReady: false,
+          isClientReady: false,
+          authenticated: false,
+          groupsCount: 0,
+          privateChatsCount: 0,
+          messagesCount: 0,
+          qrAvailable: true,
+          timestamp: new Date().toISOString(),
+          monitoredKeywords: [],
+          serviceType: undefined
+        });
       }
     } finally {
       setLoading(false);
@@ -514,44 +583,90 @@ const WhatsAppPage: React.FC = () => {
       const params = new URLSearchParams();
       if (options?.limit) params.append('limit', options.limit.toString());
       if (options?.offset) params.append('offset', options.offset.toString());
-      // Temporarily disable sortBy parameters for debugging
-      // params.append('sortBy', 'subject'); 
-      // params.append('sortOrder', 'asc');
       
       const queryString = params.toString();
       
-      // Prefer WAHA modern endpoint; fallback to legacy
+      // Try WAHA modern endpoint
       try {
         const wahaEndpoint = `/waha/groups${queryString ? `?${queryString}` : ''}`;
+        console.log(`[WhatsApp Frontend] Fetching groups from: ${wahaEndpoint}`);
         const wahaRes = await api.get(wahaEndpoint);
-        if (wahaRes.data.success && Array.isArray(wahaRes.data.data)) {
-          console.log(`[WhatsApp Frontend] ✅ Fetched ${wahaRes.data.data.length} groups via WAHA with pagination`);
+        
+        if (wahaRes.data.success) {
+          const groupsData = wahaRes.data.data || [];
+          console.log(`[WhatsApp Frontend] ✅ Fetched ${groupsData.length} groups via WAHA`);
           
-          // Show enhanced metadata if available
+          // Process groups to ensure they have proper structure
+          const processedGroups = groupsData.map((group: any) => ({
+            id: group.id || group._id,
+            name: group.name || group.subject || 'Unnamed Group',
+            lastMessage: group.lastMessage?.body || group.lastMessage,
+            timestamp: group.timestamp,
+            isGroup: true,
+            participantCount: group.participantCount || group.participants?.length || 0,
+            description: group.description || group.desc,
+            inviteCode: group.inviteCode,
+            picture: group.picture,
+            role: group.role,
+            settings: group.settings
+          }));
+          
+          // Show metadata if available
           if (wahaRes.data.metadata) {
             console.log(`[WhatsApp Frontend] Group metadata:`, wahaRes.data.metadata);
           }
           
           // Append new groups if offset is provided (pagination), otherwise replace
           if (options?.offset && options.offset > 0) {
-            setGroups(prevGroups => [...prevGroups, ...wahaRes.data.data]);
+            setGroups(prevGroups => [...prevGroups, ...processedGroups]);
           } else {
-            setGroups(wahaRes.data.data);
+            setGroups(processedGroups);
           }
+          
+          // Update status with group count
+          setStatus(prevStatus => prevStatus ? {
+            ...prevStatus,
+            groupsCount: processedGroups.length
+          } : null);
+          
           return wahaRes.data;
         }
-      } catch (e) {
-        console.log('[WhatsApp Frontend] WAHA groups endpoint failed, trying legacy');
+      } catch (wahaError: any) {
+        console.error('[WhatsApp Frontend] WAHA groups endpoint failed:', wahaError);
+        
+        // If it's an authentication error, show specific message
+        if (wahaError.response?.status === 401) {
+          throw wahaError;
+        }
       }
       
       // Fallback to legacy endpoint
+      console.log('[WhatsApp Frontend] Trying legacy groups endpoint');
       const legacyRes = await api.get('/whatsapp/groups');
-      if (legacyRes.data.success && Array.isArray(legacyRes.data.data)) {
-        console.log(`[WhatsApp Frontend] ✅ Fetched ${legacyRes.data.data.length} groups via legacy`);
-        setGroups(legacyRes.data.data);
+      if (legacyRes.data.success) {
+        const groupsData = legacyRes.data.data || [];
+        console.log(`[WhatsApp Frontend] ✅ Fetched ${groupsData.length} groups via legacy`);
+        
+        // Process legacy groups
+        const processedGroups = groupsData.map((group: any) => ({
+          id: group.id || group._id,
+          name: group.name || 'Unnamed Group',
+          lastMessage: group.lastMessage,
+          timestamp: group.timestamp,
+          isGroup: true,
+          participantCount: group.participantCount || 0,
+          description: group.description
+        }));
+        
+        setGroups(processedGroups);
+        setStatus(prevStatus => prevStatus ? {
+          ...prevStatus,
+          groupsCount: processedGroups.length
+        } : null);
+        
         return legacyRes.data;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching WhatsApp groups:', error);
       
       // Check if it's an authentication error
@@ -583,24 +698,63 @@ const WhatsAppPage: React.FC = () => {
     try {
       if (showLoading) setLoadingChats(true);
       
-      // Prefer WAHA modern endpoint; fallback to legacy
+      // Try WAHA modern endpoint
       try {
-        // Request limited recent private chats - testing without sortBy parameters
         const wahaRes = await api.get('/waha/private-chats?limit=200');
-        if (wahaRes.data.success && Array.isArray(wahaRes.data.data)) {
-          console.log(`[WhatsApp Frontend] ✅ Fetched ${wahaRes.data.data.length} private chats via WAHA (limited)`);
-          setPrivateChats(wahaRes.data.data);
+        console.log(`[WhatsApp Frontend] Fetching private chats from WAHA`);
+        
+        if (wahaRes.data.success) {
+          const chatsData = wahaRes.data.data || [];
+          console.log(`[WhatsApp Frontend] ✅ Fetched ${chatsData.length} private chats via WAHA`);
+          
+          // Process private chats to ensure proper structure
+          const processedChats = chatsData.map((chat: any) => ({
+            id: chat.id || chat._id,
+            name: chat.name || chat.pushName || chat.number || 'Unknown Contact',
+            lastMessage: chat.lastMessage?.body || chat.lastMessage,
+            timestamp: chat.timestamp,
+            isGroup: false,
+            description: chat.status || chat.about
+          }));
+          
+          setPrivateChats(processedChats);
+          setStatus(prevStatus => prevStatus ? {
+            ...prevStatus,
+            privateChatsCount: processedChats.length
+          } : null);
+          
           return;
         }
-      } catch (e) {
-        console.log('[WhatsApp Frontend] WAHA private chats endpoint failed, trying legacy');
+      } catch (wahaError: any) {
+        console.error('[WhatsApp Frontend] WAHA private chats endpoint failed:', wahaError);
+        
+        if (wahaError.response?.status === 401) {
+          throw wahaError;
+        }
       }
+      
+      // Fallback to legacy endpoint
+      console.log('[WhatsApp Frontend] Trying legacy private chats endpoint');
       const legacyRes = await api.get('/whatsapp/private-chats');
-      if (legacyRes.data.success && Array.isArray(legacyRes.data.data)) {
-        console.log(`[WhatsApp Frontend] ✅ Fetched ${legacyRes.data.data.length} private chats via legacy`);
-        setPrivateChats(legacyRes.data.data);
+      if (legacyRes.data.success) {
+        const chatsData = legacyRes.data.data || [];
+        console.log(`[WhatsApp Frontend] ✅ Fetched ${chatsData.length} private chats via legacy`);
+        
+        const processedChats = chatsData.map((chat: any) => ({
+          id: chat.id || chat._id,
+          name: chat.name || 'Unknown Contact',
+          lastMessage: chat.lastMessage,
+          timestamp: chat.timestamp,
+          isGroup: false
+        }));
+        
+        setPrivateChats(processedChats);
+        setStatus(prevStatus => prevStatus ? {
+          ...prevStatus,
+          privateChatsCount: processedChats.length
+        } : null);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching WhatsApp private chats:', error);
       
       // Check if it's an authentication error
@@ -630,28 +784,93 @@ const WhatsAppPage: React.FC = () => {
 
   const fetchMessages = async (chatId?: string) => {
     try {
-      // Prefer WAHA modern endpoint; fallback to legacy
+      console.log(`[WhatsApp Frontend] Fetching messages for chatId: ${chatId}`);
+      
+      // Try WAHA modern endpoint
       try {
         const wahaEndpoint = chatId
           ? `/waha/messages?chatId=${encodeURIComponent(chatId)}&limit=50`
-          : '/waha/messages';
+          : '/waha/messages?limit=50';
+        
+        console.log(`[WhatsApp Frontend] Fetching from: ${wahaEndpoint}`);
         const wahaRes = await api.get(wahaEndpoint);
-        if (wahaRes.data.success && Array.isArray(wahaRes.data.data) && wahaRes.data.data.length > 0) {
-          setMessages(wahaRes.data.data);
+        
+        if (wahaRes.data.success) {
+          const messagesData = wahaRes.data.data || [];
+          console.log(`[WhatsApp Frontend] ✅ Fetched ${messagesData.length} messages via WAHA`);
+          
+          // Process messages to ensure proper structure
+          const processedMessages = messagesData.map((msg: any) => ({
+            id: msg.id || msg._id || `msg_${Date.now()}_${Math.random()}`,
+            body: msg.body || msg.text || msg.message || '',
+            from: msg.from || msg.sender || '',
+            fromMe: msg.fromMe || false,
+            timestamp: msg.timestamp || Date.now(),
+            type: msg.type || 'text',
+            isGroup: msg.isGroup || false,
+            groupName: msg.groupName || msg.chatName,
+            contactName: msg.contactName || msg.senderName || msg.from || 'Unknown',
+            chatId: msg.chatId || chatId || '',
+            time: new Date(msg.timestamp || Date.now()).toLocaleTimeString(),
+            isMedia: msg.hasMedia || false
+          }));
+          
+          setMessages(processedMessages);
+          
+          // Update message count in status
+          if (!chatId) {
+            setStatus(prevStatus => prevStatus ? {
+              ...prevStatus,
+              messagesCount: processedMessages.length
+            } : null);
+          }
+          
           return;
         }
-      } catch (e) {
-        // swallow and fallback
+      } catch (wahaError: any) {
+        console.error('[WhatsApp Frontend] WAHA messages endpoint failed:', wahaError);
       }
+      
+      // Fallback to legacy endpoint
+      console.log('[WhatsApp Frontend] Trying legacy messages endpoint');
       const legacyEndpoint = chatId 
-        ? `/whatsapp/messages?chatId=${encodeURIComponent(chatId)}`
-        : '/whatsapp/messages';
+        ? `/whatsapp/messages?chatId=${encodeURIComponent(chatId)}&limit=50`
+        : '/whatsapp/messages?limit=50';
+      
       const legacyRes = await api.get(legacyEndpoint);
       if (legacyRes.data.success) {
-        setMessages(legacyRes.data.data);
+        const messagesData = legacyRes.data.data || [];
+        console.log(`[WhatsApp Frontend] ✅ Fetched ${messagesData.length} messages via legacy`);
+        
+        const processedMessages = messagesData.map((msg: any) => ({
+          id: msg.id || msg._id || `msg_${Date.now()}_${Math.random()}`,
+          body: msg.body || msg.message || '',
+          from: msg.from || '',
+          fromMe: msg.fromMe || false,
+          timestamp: msg.timestamp || Date.now(),
+          type: msg.type || 'text',
+          isGroup: msg.isGroup || false,
+          groupName: msg.groupName,
+          contactName: msg.contactName || msg.from || 'Unknown',
+          chatId: msg.chatId || chatId || '',
+          time: new Date(msg.timestamp || Date.now()).toLocaleTimeString(),
+          isMedia: msg.isMedia || false
+        }));
+        
+        setMessages(processedMessages);
+        
+        if (!chatId) {
+          setStatus(prevStatus => prevStatus ? {
+            ...prevStatus,
+            messagesCount: processedMessages.length
+          } : null);
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching WhatsApp messages:', error);
+      
+      // Don't show error toast for message fetching failures as it's too noisy
+      // Just log the error
     }
   };
 
@@ -963,6 +1182,18 @@ const WhatsAppPage: React.FC = () => {
       
       console.log('[WhatsApp Frontend] 🔄 Starting chat refresh...');
       
+      // First check if we're authenticated
+      const statusCheck = await api.get('/waha/status').catch(() => api.get('/whatsapp/status'));
+      if (!statusCheck.data?.data?.isReady && !statusCheck.data?.data?.connected) {
+        toast({
+          title: "WhatsApp Not Connected",
+          description: "Please authenticate with WhatsApp first by scanning the QR code.",
+          variant: "destructive",
+        });
+        setLoadingChats(false);
+        return;
+      }
+      
       let data: any;
       // Try WAHA first, then legacy
       try {
@@ -983,15 +1214,22 @@ const WhatsAppPage: React.FC = () => {
           description: data.data ? `Found ${data.data.chatCount || 0} total chats` : "Fetching latest chat data...",
         });
         
+        // Clear existing chats to show fresh data
+        setGroups([]);
+        setPrivateChats([]);
+        
         // Fetch updated data with pagination support
         await Promise.all([
           fetchGroups(false, { limit: 100 }), // Load first 100 groups with pagination
           fetchPrivateChats(false)
         ]);
         
+        // Update status counts
+        await fetchStatus();
+        
         toast({
           title: "Success",
-          description: "Chats refreshed successfully",
+          description: `Loaded ${groups.length + privateChats.length} chats successfully`,
         });
       } else {
         let title = "WhatsApp Not Ready";
@@ -1361,9 +1599,23 @@ const WhatsAppPage: React.FC = () => {
 
   // Filter messages for the selected chat
   const displayedMessages = useMemo(() => {
-    return selectedChat 
-      ? messages.filter(msg => msg.chatId === selectedChat.id)
-      : messages.slice(0, 50); // Show recent messages if no chat selected
+    if (!selectedChat) {
+      return messages.slice(0, 50); // Show recent messages if no chat selected
+    }
+    
+    // Filter messages for the selected chat
+    const chatMessages = messages.filter(msg => {
+      // Check various possible chat ID formats
+      return msg.chatId === selectedChat.id || 
+             msg.chatId === selectedChat.id.split('@')[0] ||
+             msg.from === selectedChat.id ||
+             msg.from === selectedChat.id.split('@')[0];
+    });
+    
+    console.log(`[WhatsApp Frontend] Displaying ${chatMessages.length} messages for chat ${selectedChat.name}`);
+    
+    // Sort messages by timestamp (newest first for display, but we'll reverse in the UI)
+    return chatMessages.sort((a, b) => a.timestamp - b.timestamp);
   }, [messages, selectedChat?.id]);
 
   // Scroll to bottom when messages change
@@ -1679,10 +1931,12 @@ const WhatsAppPage: React.FC = () => {
                           whileHover={{ scale: isMobile ? 1 : 1.01 }}
                           whileTap={{ scale: 0.99 }}
                           onClick={() => {
+                            console.log(`[WhatsApp Frontend] Selected group: ${group.name} (${group.id})`);
                             setSelectedChat(group);
+                            // Clear previous messages before fetching new ones
+                            setMessages([]);
                             // Fetch messages immediately for selected group
                             fetchMessages(group.id);
-                            // Keep chat list visible on mobile for easy navigation
                           }}
                           className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
                             selectedChat?.id === group.id
@@ -1718,7 +1972,7 @@ const WhatsAppPage: React.FC = () => {
                               </div>
                               <div className="flex items-center gap-2 mt-1">
                                 <p className="text-xs text-blue-200/70">
-                                  {(group.participantCount ?? 0)} members
+                                  {group.participantCount > 0 ? `${group.participantCount} members` : 'Loading members...'}
                                 </p>
                                 {group.description && (
                                   <>
@@ -1767,10 +2021,12 @@ const WhatsAppPage: React.FC = () => {
                           whileHover={{ scale: isMobile ? 1 : 1.01 }}
                           whileTap={{ scale: 0.99 }}
                           onClick={() => {
+                            console.log(`[WhatsApp Frontend] Selected private chat: ${chat.name} (${chat.id})`);
                             setSelectedChat(chat);
+                            // Clear previous messages before fetching new ones
+                            setMessages([]);
                             // Fetch messages immediately for selected private chat
                             fetchMessages(chat.id);
-                            // Keep chat list visible on mobile for easy navigation
                           }}
                           className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
                             selectedChat?.id === chat.id
@@ -1913,28 +2169,40 @@ const WhatsAppPage: React.FC = () => {
                   </div>
                   
                   <div className="flex-1 overflow-y-auto my-4 space-y-3 scrollbar-thin scrollbar-thumb-white/30 scrollbar-track-white/10 hover:scrollbar-thumb-white/50">
-                    {displayedMessages.map((message) => (
-                      <motion.div
-                        key={message.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className={`flex ${message.fromMe ? 'justify-end' : 'justify-start'}`}
-                      >
-                        <div
-                          className={`max-w-[85%] sm:max-w-xs lg:max-w-md px-3 sm:px-4 py-2 rounded-lg ${
-                            message.fromMe
-                              ? 'bg-violet-500/70 text-white'
-                              : 'bg-white/20 text-white'
-                          }`}
-                        >
-                          {!message.fromMe && message.isGroup && (
-                            <p className="text-xs text-blue-200 mb-1">{message.contactName}</p>
-                          )}
-                          <p className="text-sm">{message.body || '[Media]'}</p>
-                          <p className="text-xs opacity-70 mt-1">{message.time}</p>
+                    {displayedMessages.length === 0 ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center">
+                          <MessageCircle className="w-12 h-12 text-blue-300/50 mx-auto mb-3" />
+                          <p className="text-blue-200/70">No messages yet</p>
+                          <p className="text-blue-200/50 text-xs mt-1">
+                            {fetchingHistory ? 'Loading messages...' : 'Start a conversation or load history'}
+                          </p>
                         </div>
-                      </motion.div>
-                    ))}
+                      </div>
+                    ) : (
+                      displayedMessages.map((message) => (
+                        <motion.div
+                          key={message.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className={`flex ${message.fromMe ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`max-w-[85%] sm:max-w-xs lg:max-w-md px-3 sm:px-4 py-2 rounded-lg ${
+                              message.fromMe
+                                ? 'bg-violet-500/70 text-white'
+                                : 'bg-white/20 text-white'
+                            }`}
+                          >
+                            {!message.fromMe && message.isGroup && (
+                              <p className="text-xs text-blue-200 mb-1">{message.contactName}</p>
+                            )}
+                            <p className="text-sm">{message.body || '[Media]'}</p>
+                            <p className="text-xs opacity-70 mt-1">{message.time}</p>
+                          </div>
+                        </motion.div>
+                      ))
+                    )}
                     <div ref={messagesEndRef} />
                   </div>
                   
