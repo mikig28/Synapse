@@ -2062,6 +2062,9 @@ const WhatsAppPage: React.FC = () => {
               )}
             </div>
                   
+
+            {selectedChat ? (
+              <>
                   <div className="flex-1 overflow-y-auto my-4 space-y-3 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full" 
                        style={{
                          scrollbarWidth: 'auto',
@@ -2135,7 +2138,7 @@ const WhatsAppPage: React.FC = () => {
                   </div>
                 </div>
               )}
-            </GlassCard>
+            
           </div>
 
           {/* Monitoring Panel - Mobile: Modal, Desktop: Sidebar */}
@@ -2199,7 +2202,7 @@ const WhatsAppPage: React.FC = () => {
               </GlassCard>
             </div>
           )}
-        </div>
+        </motion.div>
 
         {/* Mobile Menu Modal */}
         <AnimatePresence>

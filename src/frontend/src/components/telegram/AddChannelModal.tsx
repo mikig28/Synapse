@@ -172,7 +172,7 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
                 <li>Add your bot to the channel/group first</li>
                 <li>Send any message in the channel/group</li>
                 <li>Visit: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded text-[10px]">https://api.telegram.org/bot&lt;YOUR_BOT_TOKEN&gt;/getUpdates</code></li>
-                <li>Look for "chat":{"id": number} in the response</li>
+                <li>Look for "chat":{"{"}"id": number{"}"} in the response</li>
               </ol>
             </div>
           </div>
