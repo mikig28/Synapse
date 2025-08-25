@@ -437,8 +437,22 @@ export const getChats = async (req: Request, res: Response) => {
 export const getMessages = async (req: Request, res: Response) => {
   try {
     // Support both URL param and query param for chatId
-    const chatId = req.params.chatId || req.query.chatId as string;
+    const rawChatId = req.params.chatId || req.query.chatId as string;
     const limit = parseInt(req.query.limit as string) || 50;
+    
+    // Validate and sanitize chatId
+    let chatId: string | undefined;
+    if (rawChatId) {
+      if (typeof rawChatId === 'string' && rawChatId.trim() !== '' && rawChatId !== '[object Object]') {
+        chatId = rawChatId.trim();
+      } else {
+        console.error(`[WAHA Controller] ❌ Invalid chatId "${rawChatId}" detected`);
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid chatId format'
+        });
+      }
+    }
     
     const wahaService = getWAHAService();
     

@@ -22,9 +22,33 @@ export const getUserChannels = async (req: AuthenticatedRequest, res: Response) 
     });
   } catch (error: any) {
     console.error('[TelegramChannelController] Error getting channels:', error);
-    res.status(500).json({ 
+    
+    let statusCode = 500;
+    let message = 'Failed to fetch channels';
+    
+    // Handle specific error cases that might cause 409 conflicts
+    if (error.message.includes('No active bot found')) {
+      statusCode = 409;
+      message = 'No active Telegram bot configured for this user. Please configure a bot first.';
+    } else if (error.message.includes('Bot token is already in use')) {
+      statusCode = 409;
+      message = 'The configured bot token is already in use by another user. Please use a different bot token.';
+    } else if (error.message.includes('Invalid bot token')) {
+      statusCode = 400;
+      message = 'Invalid Telegram bot token. Please check your bot configuration.';
+    } else if (error.message.includes('Bot access denied')) {
+      statusCode = 403;
+      message = 'Bot access denied. Please ensure the bot has proper permissions.';
+    } else if (error.message.includes('Bot initialization failed')) {
+      statusCode = 503;
+      message = 'Failed to initialize Telegram bot. The service may be temporarily unavailable.';
+    }
+    
+    res.status(statusCode).json({ 
       success: false, 
-      message: error.message || 'Failed to fetch channels' 
+      message: message,
+      errorCode: error.code || 'TELEGRAM_ERROR',
+      suggestion: statusCode === 409 ? 'Try configuring your Telegram bot in the settings page' : undefined
     });
   }
 };

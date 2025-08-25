@@ -326,14 +326,39 @@ export const executeAgent = async (req: AuthenticatedRequest, res: Response): Pr
       await agentService.resetAgentStatus(agentId);
     }
     
-    // Execute the agent
-    const agentRun = await agentService.executeAgent(agentId);
+    // Execute the agent with timeout handling
+    console.log(`[AgentsController] Starting execution for agent ${agent.name} (${agentId})`);
     
-    res.json({
-      success: true,
-      data: agentRun,
-      message: 'Agent execution started',
-    });
+    try {
+      const agentRun = await Promise.race([
+        agentService.executeAgent(agentId),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Agent execution timeout after 10 minutes')), 10 * 60 * 1000)
+        )
+      ]) as any;
+      
+      res.json({
+        success: true,
+        data: agentRun,
+        message: 'Agent execution started',
+      });
+    } catch (timeoutError: any) {
+      if (timeoutError.message.includes('timeout')) {
+        console.error(`[AgentsController] Agent execution timeout for ${agentId}:`, timeoutError);
+        // Reset agent status on timeout
+        await agentService.resetAgentStatus(agentId).catch(() => {});
+        
+        res.status(504).json({
+          success: false,
+          error: 'Agent execution timeout',
+          errorType: 'execution_timeout',
+          message: 'Agent execution took too long and was cancelled. The agent may be processing a large dataset or the external service is slow.',
+          suggestion: 'Try executing the agent again. If the issue persists, check the agent configuration or reduce the data scope.'
+        });
+        return;
+      }
+      throw timeoutError; // Re-throw non-timeout errors to be handled by the outer catch
+    }
   } catch (error: any) {
     console.error('[AgentsController] Error executing agent:', error);
     console.error('[AgentsController] Error details:', {
