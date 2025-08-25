@@ -9,10 +9,9 @@ import AddChannelModal from '@/components/telegram/AddChannelModal';
 import ChannelMessagesView from '@/components/telegram/ChannelMessagesView';
 import BotConfigurationModal from '@/components/telegram/BotConfigurationModal';
 import QuickDiagnostics from '@/components/telegram/QuickDiagnostics';
-<<<<<<< HEAD
-=======
 import ChannelSetupGuide from '@/components/telegram/ChannelSetupGuide';
->>>>>>> 7b67ae5eaae0fd292d47a75572423f14da51d421
+import BotSetupVerification from '@/components/telegram/BotSetupVerification';
+import BotAdditionGuide from '@/components/telegram/BotAdditionGuide';
 import { useTelegramChannels } from '@/contexts/TelegramChannelsContext';
 import { useTelegramBot } from '@/hooks/useTelegramBot';
 import { useToast } from '@/hooks/use-toast';
@@ -174,17 +173,13 @@ const TelegramChannelsPage: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl">
-<<<<<<< HEAD
-=======
       
       {/* DEBUG: Simple always-visible element to test deployment */}
       <div style={{ background: 'red', color: 'white', padding: '15px', margin: '10px 0', fontWeight: 'bold', fontSize: '16px', borderRadius: '8px', textAlign: 'center' }}>
-        🚨 DEBUG v2: Latest code deployed! Bot: {botStatus?.hasBot ? 'CONFIGURED' : 'NOT CONFIGURED'} | 
+        🚨 DEBUG v3: Bot diagnostics deployed! Bot: {botStatus?.hasBot ? 'CONFIGURED' : 'NOT CONFIGURED'} | 
         Channels: {channels.length} | Bot: @{botStatus?.botUsername || 'none'} | 
         Add Button: {botStatus?.hasBot ? 'ENABLED' : 'DISABLED'} | Loading: {isLoading ? 'YES' : 'NO'}
       </div>
-
->>>>>>> 7b67ae5eaae0fd292d47a75572423f14da51d421
       {/* Alert for 0 messages issue */}
       {botStatus?.hasBot && channels.length > 0 && channels.every(c => c.totalMessages === 0) && (
         <div className="mb-6 p-4 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
@@ -365,11 +360,27 @@ const TelegramChannelsPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Quick Diagnostics - Show when bot is configured */}
+      {/* Bot Setup Verification - Show when bot is configured */}
       {botStatus?.hasBot && (
-        <QuickDiagnostics 
+        <BotSetupVerification 
           botStatus={botStatus}
           channels={channels}
+          onRefresh={() => {
+            refreshBotStatus();
+            window.location.reload();
+          }}
+        />
+      )}
+
+      {/* Bot Addition Guide - Show when channels need setup */}
+      {botStatus?.hasBot && channels.length > 0 && channels.some(c => c.totalMessages === 0) && (
+        <BotAdditionGuide
+          botUsername={botStatus.botUsername}
+          channels={channels}
+          onRefresh={() => {
+            refreshBotStatus();
+            window.location.reload();
+          }}
         />
       )}
 
@@ -679,10 +690,25 @@ const TelegramChannelsPage: React.FC = () => {
 
         <TabsContent value="setup" className="space-y-4">
           {botStatus?.hasBot ? (
-            <ChannelSetupGuide 
-              botUsername={botStatus.botUsername}
-              onAddChannel={() => setIsAddModalOpen(true)}
-            />
+            <div className="space-y-6">
+              {/* Comprehensive Bot Addition Guide */}
+              {channels.some(c => c.totalMessages === 0) && (
+                <BotAdditionGuide
+                  botUsername={botStatus.botUsername}
+                  channels={channels}
+                  onRefresh={() => {
+                    refreshBotStatus();
+                    window.location.reload();
+                  }}
+                />
+              )}
+              
+              {/* Original Setup Guide */}
+              <ChannelSetupGuide 
+                botUsername={botStatus.botUsername}
+                onAddChannel={() => setIsAddModalOpen(true)}
+              />
+            </div>
           ) : (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">

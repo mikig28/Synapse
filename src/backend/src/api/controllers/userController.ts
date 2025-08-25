@@ -298,3 +298,85 @@ export const removeMonitoredTelegramChat = async (req: AuthenticatedRequest, res
     res.status(500).json({ message: 'Server error while removing Telegram chat ID' });
   }
 };
+
+// @desc    Test Telegram bot connectivity
+// @route   POST /api/v1/users/me/telegram-bot/test
+// @access  Private
+export const testTelegramBotConnectivity = async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user?.id;
+
+  if (!userId) {
+    return res.status(401).json({ message: 'Not authorized, user ID not found' });
+  }
+
+  try {
+    console.log(`[testTelegramBotConnectivity] Testing bot connectivity for user: ${userId}`);
+
+    // Get user to check if they have a bot configured
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (!user.telegramBotToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'No bot token configured. Please set up your bot first.',
+      });
+    }
+
+    // Test bot connectivity via bot manager
+    const bot = telegramBotManager.getBotForUser(userId);
+    if (!bot) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bot is not active. Please reconfigure your bot.',
+      });
+    }
+
+    try {
+      // Use getMe to test connectivity
+      const botInfo = await bot.getMe();
+      
+      res.status(200).json({
+        success: true,
+        message: 'Bot is connected and working properly',
+        details: {
+          botId: botInfo.id,
+          username: botInfo.username,
+          firstName: botInfo.first_name,
+          canJoinGroups: botInfo.can_join_groups,
+          canReadAllGroupMessages: botInfo.can_read_all_group_messages,
+          supportsInlineQueries: botInfo.supports_inline_queries,
+        }
+      });
+    } catch (botError: any) {
+      console.error('[BOT_CONNECTIVITY_TEST_ERROR]', botError);
+      
+      let errorMessage = 'Bot connectivity test failed';
+      if (botError.message) {
+        if (botError.message.includes('Unauthorized')) {
+          errorMessage = 'Bot token is invalid or revoked';
+        } else if (botError.message.includes('Bad Request')) {
+          errorMessage = 'Bad request to Telegram API';
+        } else if (botError.message.includes('timeout')) {
+          errorMessage = 'Request timed out - check internet connection';
+        } else {
+          errorMessage = `Telegram API error: ${botError.message}`;
+        }
+      }
+      
+      res.status(400).json({
+        success: false,
+        message: errorMessage,
+      });
+    }
+
+  } catch (error: any) {
+    console.error('[TEST_TELEGRAM_BOT_CONNECTIVITY_ERROR]', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error while testing bot connectivity' 
+    });
+  }
+};

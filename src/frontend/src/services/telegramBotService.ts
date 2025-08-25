@@ -23,6 +23,18 @@ export interface SetBotResponse {
   };
 }
 
+export interface BotConnectivityResponse {
+  success: boolean;
+  message: string;
+  details?: {
+    botId?: number;
+    username?: string;
+    canJoinGroups?: boolean;
+    canReadAllGroupMessages?: boolean;
+    supportsInlineQueries?: boolean;
+  };
+}
+
 class TelegramBotService {
   /**
    * Validate a Telegram bot token
@@ -65,6 +77,14 @@ class TelegramBotService {
    */
   async removeMonitoredChat(chatId: number): Promise<{ message: string }> {
     const response = await axiosInstance.delete(`/users/me/telegram-chats/${chatId}`);
+    return response.data;
+  }
+
+  /**
+   * Test bot connectivity and permissions
+   */
+  async testBotConnectivity(): Promise<BotConnectivityResponse> {
+    const response = await axiosInstance.post('/users/me/telegram-bot/test');
     return response.data;
   }
 }
