@@ -800,6 +800,31 @@ const WhatsAppPage: React.FC = () => {
 
   const fetchMessages = async (chatId?: string, forceRefresh: boolean = false) => {
     try {
+      // Enhanced chatId validation
+      if (chatId) {
+        // Ensure chatId is a string
+        if (typeof chatId !== 'string') {
+          console.error('[WhatsApp Frontend] chatId is not a string:', typeof chatId, chatId);
+          toast({
+            title: "Error",
+            description: "Invalid chat ID format. Please refresh the page.",
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        // Check for invalid chatId patterns
+        if (chatId === '[object Object]' || chatId.includes('[object') || chatId === 'undefined' || chatId === 'null') {
+          console.error('[WhatsApp Frontend] Invalid chatId detected:', chatId);
+          toast({
+            title: "Error",
+            description: "Invalid chat ID. Please select a different chat or refresh the page.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+      
       console.log(`[WhatsApp Frontend] Fetching messages for chatId: ${chatId}, forceRefresh: ${forceRefresh}`);
       
       // Set loading state for refresh
