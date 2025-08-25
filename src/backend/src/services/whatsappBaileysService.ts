@@ -212,7 +212,8 @@ class WhatsAppBaileysService extends EventEmitter {
         printQRInTerminal: false, // We'll handle QR code generation ourselves
         // Use pino logger with silent level to reduce noise
         logger: this.logger as any,
-        browser: ['Synapse Bot', 'Chrome', '120.0.0'],
+        // Updated browser info to match WhatsApp Web latest
+        browser: Browsers.macOS('Chrome'),  // Use official Baileys browser config
         generateHighQualityLinkPreview: false,
         syncFullHistory: false, // Disable full history sync to improve performance
         markOnlineOnConnect: false, // Reduce server load
@@ -231,14 +232,15 @@ class WhatsAppBaileysService extends EventEmitter {
         qrTimeout: 120000, // 2 minutes for QR timeout
         // Reduce aggressive queries
         emitOwnEvents: false,
-        fireInitQueries: false, // Disable automatic queries
+        fireInitQueries: true, // Enable for proper initialization
         // Add better message handling
         getMessage: async (key) => {
           // Return empty to avoid message retrieval issues
           return undefined;
         },
         // Add connection options for Render deployment
-        version: [2, 2323, 4]
+        // Updated version to fix 405 error - using latest WhatsApp Web version
+        version: [2, 3000, 1026266956]
       });
       
       // Set up event handlers
@@ -292,6 +294,10 @@ class WhatsAppBaileysService extends EventEmitter {
         const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
         const errorMessage = lastDisconnect?.error?.message || 'Unknown reason';
         const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+        const errorData = (lastDisconnect?.error as Boom)?.data;
+        
+        // Handle 405 error specifically
+        const is405Error = statusCode === 405 || errorData?.reason === '405' || errorData?.location === 'frc';
         
         // Enhanced conflict detection
         const isConflictError = errorMessage.includes('Stream Errored (conflict)') ||
@@ -304,7 +310,37 @@ class WhatsAppBaileysService extends EventEmitter {
                               statusCode === DisconnectReason.timedOut;
         
         console.log('❌ WhatsApp connection closed due to ', lastDisconnect?.error, ', reconnecting ', shouldReconnect);
-        console.log(`📊 Connection stats: status=${statusCode}, conflict=${isConflictError}, timeout=${isTimeoutError}`);
+        console.log(`📊 Connection stats: status=${statusCode}, conflict=${isConflictError}, timeout=${isTimeoutError}, is405=${is405Error}`);
+        console.log(`📊 Error data:`, errorData);
+        
+        // Handle 405 error (Method Not Allowed / Protocol mismatch)
+        if (is405Error) {
+          console.log('⚠️ WhatsApp protocol version mismatch (405 error) detected');
+          console.log('🔄 Clearing auth and attempting reconnection with updated protocol...');
+          
+          this.reconnectAttempts++;
+          
+          if (this.reconnectAttempts <= 3) {
+            // Clear auth and wait before reconnecting
+            const delay = 10000 + (this.reconnectAttempts * 5000); // 10s, 15s, 20s
+            console.log(`⏳ 405 error recovery attempt ${this.reconnectAttempts}/3: Clearing auth and waiting ${delay/1000}s...`);
+            this.connectionStatus = 'reconnecting';
+            this.emit('status', { 
+              ready: false, 
+              message: `WhatsApp protocol mismatch - attempting recovery (${this.reconnectAttempts}/3)...` 
+            });
+            this.scheduleReconnect(delay, true); // Clear auth for 405 errors
+          } else {
+            console.log('❌ Max 405 error recovery attempts reached. Manual intervention may be required.');
+            console.log('💡 Try: 1) Force Restart, 2) Clear Authentication, or 3) Re-scan QR code');
+            this.connectionStatus = 'failed';
+            this.emit('status', { 
+              ready: false, 
+              message: 'WhatsApp protocol mismatch - please clear authentication and re-scan QR code.' 
+            });
+          }
+          return;
+        }
         
         if (isConflictError) {
           console.log('⚠️ Session conflict detected - another WhatsApp session is active');

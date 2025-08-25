@@ -1,0 +1,94 @@
+// Fixed getMessages function for wahaController.ts
+// Replace the getMessages function starting at line 437
+
+export const getMessages = async (req: Request, res: Response) => {
+  try {
+    // Support both URL param and query param for chatId
+    let chatId = req.params.chatId || req.query.chatId;
+    const limit = parseInt(req.query.limit as string) || 50;
+    
+    // Validate and sanitize chatId
+    if (chatId && typeof chatId === 'object') {
+      console.error('[WAHA Controller] ❌ chatId is an object, not a string:', chatId);
+      // Try to extract the actual ID if it's an object
+      if ('id' in chatId) {
+        chatId = (chatId as any).id;
+        console.log('[WAHA Controller] Extracted chatId from object.id:', chatId);
+      } else if ('_id' in chatId) {
+        chatId = (chatId as any)._id;
+        console.log('[WAHA Controller] Extracted chatId from object._id:', chatId);
+      } else {
+        // If we can't extract an ID, return an error
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid chatId format - expected string but received object',
+          details: { receivedType: typeof chatId, receivedValue: JSON.stringify(chatId) }
+        });
+      }
+    }
+    
+    // Ensure chatId is a string and not "[object Object]"
+    if (chatId) {
+      if (typeof chatId !== 'string') {
+        chatId = String(chatId);
+        console.warn('[WAHA Controller] Converted chatId to string:', chatId);
+      }
+      
+      // Check if chatId is literally "[object Object]"
+      if (chatId === '[object Object]' || chatId.includes('[object')) {
+        console.error('[WAHA Controller] ❌ Invalid chatId "[object Object]" detected');
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid chatId - received "[object Object]"',
+          details: { 
+            receivedValue: chatId,
+            hint: 'The frontend is sending an object instead of a string ID'
+          }
+        });
+      }
+    }
+    
+    const wahaService = getWAHAService();
+    
+    if (!chatId) {
+      // If no chatId provided, get recent messages from all chats
+      console.log('[WAHA Controller] No chatId provided, fetching recent messages from all chats');
+      try {
+        const allMessages = await wahaService.getRecentMessages(limit);
+        console.log('[WAHA Controller] Found recent messages:', allMessages.length);
+        return res.json({
+          success: true,
+          data: allMessages
+        });
+      } catch (recentError) {
+        console.warn('[WAHA Controller] Failed to get recent messages, returning empty array:', recentError);
+        return res.json({
+          success: true,
+          data: []
+        });
+      }
+    }
+
+    // Log the actual chatId being used
+    console.log('[WAHA Controller] Getting messages for chatId:', { 
+      chatId, 
+      type: typeof chatId, 
+      limit,
+      isObjectString: chatId === '[object Object]'
+    });
+    
+    const messages = await wahaService.getMessages(chatId as string, limit);
+    console.log('[WAHA Controller] Found messages for chat', chatId, ':', messages.length);
+    
+    res.json({
+      success: true,
+      data: messages
+    });
+  } catch (error) {
+    console.error('[WAHA Controller] Error getting messages:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get messages'
+    });
+  }
+};

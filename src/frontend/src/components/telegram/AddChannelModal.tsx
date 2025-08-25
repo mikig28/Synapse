@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Plus, Minus } from 'lucide-react';
+import { X, Plus, Minus, HelpCircle, ExternalLink, CheckCircle, AlertTriangle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -114,17 +114,67 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="channelIdentifier">Channel Identifier</Label>
+            <Label htmlFor="channelIdentifier" className="flex items-center gap-2">
+              Channel Identifier
+              <HelpCircle className="w-3 h-3 text-muted-foreground" title="Help with channel identifiers" />
+            </Label>
             <Input
               id="channelIdentifier"
-              placeholder="@channelname or channel ID"
+              placeholder="@channelname, -1001234567890, or channel ID"
               value={channelIdentifier}
               onChange={(e) => setChannelIdentifier(e.target.value)}
               required
             />
-            <p className="text-xs text-muted-foreground">
-              Examples: @channelname, -1001234567890 (for groups), or numeric channel ID
-            </p>
+            
+            {/* Channel Type Examples */}
+            <div className="bg-muted/30 rounded-lg p-3 space-y-2">
+              <h4 className="text-xs font-medium text-foreground mb-2">📋 Channel Types & Examples:</h4>
+              <div className="grid gap-2 text-xs">
+                <div className="flex items-start gap-2">
+                  <div className="bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded text-blue-700 dark:text-blue-300 font-mono text-[10px] min-w-fit">
+                    @channel
+                  </div>
+                  <div>
+                    <div className="font-medium text-foreground">Public Channels</div>
+                    <div className="text-muted-foreground">@news_channel, @crypto_updates</div>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-2">
+                  <div className="bg-green-100 dark:bg-green-900 px-1.5 py-0.5 rounded text-green-700 dark:text-green-300 font-mono text-[10px] min-w-fit">
+                    -100123
+                  </div>
+                  <div>
+                    <div className="font-medium text-foreground">Groups & Supergroups</div>
+                    <div className="text-muted-foreground">-1001234567890 (negative number)</div>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-2">
+                  <div className="bg-purple-100 dark:bg-purple-900 px-1.5 py-0.5 rounded text-purple-700 dark:text-purple-300 font-mono text-[10px] min-w-fit">
+                    123456
+                  </div>
+                  <div>
+                    <div className="font-medium text-foreground">Private Channels</div>
+                    <div className="text-muted-foreground">Numeric channel ID (positive number)</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* How to find IDs */}
+            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded p-3">
+              <h4 className="text-xs font-medium text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-1">
+                <HelpCircle className="w-3 h-3" />
+                How to find Channel/Group IDs:
+              </h4>
+              <ol className="text-xs text-blue-700 dark:text-blue-300 space-y-1 list-decimal list-inside">
+                <li>Add your bot to the channel/group first</li>
+                <li>Send any message in the channel/group</li>
+                <li>Visit: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded text-[10px]">https://api.telegram.org/bot&lt;YOUR_BOT_TOKEN&gt;/getUpdates</code></li>
+                <li>Look for "chat":{"{"}"id": number{"}"} in the response</li>
+              </ol>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -169,9 +219,12 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
               </div>
             )}
             
-            <p className="text-xs text-muted-foreground">
-              Only messages containing these keywords will be saved. Leave empty to monitor all messages.
-            </p>
+            <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded p-2">
+              <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                <strong>🔍 Keyword Tips:</strong> Leave empty to capture all messages, or add keywords like "bitcoin", "news", "update" to filter content. 
+                Keywords are case-insensitive and use OR logic (any match saves the message).
+              </p>
+            </div>
           </div>
 
           {error && (
@@ -180,30 +233,56 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
             </div>
           )}
 
-          <div className="bg-muted/50 rounded-lg p-3 space-y-3">
-            <div>
-              <h4 className="font-medium text-sm mb-2">⚠️ Setup Requirements:</h4>
-              <ul className="text-xs text-muted-foreground space-y-1">
-                <li>• <strong>Public Channels (@channelname):</strong> Bot must be added as admin OR system will try RSS feeds</li>
-                <li>• <strong>Groups (-1001234567890):</strong> Bot must be added as a member</li>
-                <li>• Messages are fetched every 30 minutes automatically</li>
-                <li>• Only new messages after adding the bot will be available</li>
-                <li>• Historical messages are not accessible via Bot API</li>
-              </ul>
+          {/* Setup Requirements */}
+          <div className="space-y-3">
+            <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+              <h4 className="font-medium text-sm mb-2 text-amber-800 dark:text-amber-200 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                ⚠️ IMPORTANT: Add Your Bot First!
+              </h4>
+              <div className="space-y-2 text-xs text-amber-700 dark:text-amber-300">
+                <p className="font-medium">Before adding a channel here, you MUST add your bot to it in Telegram:</p>
+                <ul className="space-y-1 ml-4 list-disc">
+                  <li><strong>Channels:</strong> Add @{channelIdentifier.includes('@') ? 'yourbot' : 'SynapseCaptureBot'} as administrator with "Read Messages" permission</li>
+                  <li><strong>Groups:</strong> Add @{channelIdentifier.includes('@') ? 'yourbot' : 'SynapseCaptureBot'} as a regular member</li>
+                  <li><strong>Private channels:</strong> Add bot as admin, then use the numeric channel ID</li>
+                </ul>
+              </div>
             </div>
             
-            <div className="border-t pt-2">
-              <h4 className="font-medium text-sm mb-2">📡 Public Channel Alternatives:</h4>
-              <ul className="text-xs text-muted-foreground space-y-1">
-                <li>• <strong>RSS Feeds:</strong> System automatically tries RSS feeds for public channels</li>
-                <li>• <strong>Best Option:</strong> Still add bot as admin for real-time updates</li>
-                <li>• <strong>Fallback:</strong> RSS provides recent posts but may be limited</li>
-              </ul>
+            <div className="grid md:grid-cols-2 gap-3">
+              <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                <h4 className="font-medium text-sm mb-2 text-green-800 dark:text-green-200 flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3" />
+                  ✅ What Works:
+                </h4>
+                <ul className="text-xs text-green-700 dark:text-green-300 space-y-1">
+                  <li>• Bot added as admin/member ✓</li>
+                  <li>• Public channels with @username ✓</li>
+                  <li>• Groups with negative IDs ✓</li>
+                  <li>• Real-time message updates ✓</li>
+                  <li>• Keyword filtering ✓</li>
+                </ul>
+              </div>
+              
+              <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                <h4 className="font-medium text-sm mb-2 text-red-800 dark:text-red-200 flex items-center gap-1">
+                  <X className="w-3 h-3" />
+                  ❌ Limitations:
+                </h4>
+                <ul className="text-xs text-red-700 dark:text-red-300 space-y-1">
+                  <li>• No historical messages ✗</li>
+                  <li>• Bot must join before monitoring ✗</li>
+                  <li>• Private channels need IDs ✗</li>
+                  <li>• Some channels may block bots ✗</li>
+                </ul>
+              </div>
             </div>
             
-            <div className="bg-blue-50 dark:bg-blue-950 rounded border-l-2 border-blue-400 p-2">
+            <div className="bg-blue-50 dark:bg-blue-950 rounded border-l-4 border-blue-400 p-3">
               <p className="text-xs text-blue-700 dark:text-blue-300">
-                <strong>💡 Pro Tip:</strong> For public channels, try adding without bot setup first - the system will attempt RSS feeds!
+                <strong>💡 Quick Test:</strong> After adding the channel here, send a test message in the Telegram channel/group. 
+                It should appear in Synapse within 2-3 minutes!
               </p>
             </div>
           </div>

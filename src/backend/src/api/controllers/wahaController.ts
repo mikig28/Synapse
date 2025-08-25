@@ -437,19 +437,41 @@ export const getChats = async (req: Request, res: Response) => {
 export const getMessages = async (req: Request, res: Response) => {
   try {
     // Support both URL param and query param for chatId
-    const rawChatId = req.params.chatId || req.query.chatId as string;
+    let chatId: string | undefined = req.params.chatId || (req.query.chatId as string | undefined);
     const limit = parseInt(req.query.limit as string) || 50;
     
-    // Validate and sanitize chatId
-    let chatId: string | undefined;
-    if (rawChatId) {
-      if (typeof rawChatId === 'string' && rawChatId.trim() !== '' && rawChatId !== '[object Object]') {
-        chatId = rawChatId.trim();
-      } else {
-        console.error(`[WAHA Controller] ❌ Invalid chatId "${rawChatId}" detected`);
+    // Validate and sanitize chatId to prevent [object Object] errors
+    if (chatId) {
+      // Check if chatId is an object (shouldn't happen but defensive coding)
+      // Note: typeof null === 'object' in JavaScript, so we need to check for null explicitly
+      if (chatId !== null && typeof chatId === 'object') {
+        console.error('[WAHA Controller] ❌ chatId is an object:', chatId);
+        // Type assertion to tell TypeScript chatId is not null here
+        const chatIdObj = chatId as any;
+        if ('id' in chatIdObj) {
+          chatId = chatIdObj.id;
+        } else if ('_id' in chatIdObj) {
+          chatId = chatIdObj._id;
+        } else {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid chatId format',
+            details: { receivedType: typeof chatId }
+          });
+        }
+      }
+      
+      // Convert to string if needed
+      chatId = String(chatId);
+      // TypeScript type guard - chatId is definitely a string now
+      
+      // Check for literal "[object Object]" string
+      if (chatId === '[object Object]' || chatId.includes('[object')) {
+        console.error('[WAHA Controller] ❌ Invalid chatId "[object Object]" detected');
         return res.status(400).json({
           success: false,
-          error: 'Invalid chatId format'
+          error: 'Invalid chatId received',
+          details: { chatId, hint: 'Frontend sent an object instead of string' }
         });
       }
     }
@@ -475,7 +497,7 @@ export const getMessages = async (req: Request, res: Response) => {
       }
     }
 
-    const messages = await wahaService.getMessages(chatId, limit);
+    const messages = await wahaService.getMessages(chatId as string, limit);
     console.log('[WAHA Controller] Found messages for chat', chatId, ':', messages.length);
     
     res.json({
