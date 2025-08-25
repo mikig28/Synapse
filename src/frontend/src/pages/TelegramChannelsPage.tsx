@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Settings, RefreshCw, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Search, Settings, RefreshCw, Trash2, ToggleLeft, ToggleRight, Bot, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AddChannelModal from '@/components/telegram/AddChannelModal';
 import ChannelMessagesView from '@/components/telegram/ChannelMessagesView';
+import BotConfigurationModal from '@/components/telegram/BotConfigurationModal';
 import { useTelegramChannels } from '@/contexts/TelegramChannelsContext';
+import { useTelegramBot } from '@/hooks/useTelegramBot';
+import { useToast } from '@/hooks/use-toast';
 
 interface TelegramChannelMessage {
   messageId: number;
@@ -52,11 +55,20 @@ const TelegramChannelsPage: React.FC = () => {
     isLoading
   } = useTelegramChannels();
   
+  const {
+    botStatus,
+    isLoading: isBotLoading,
+    refreshBotStatus,
+    removeBotConfiguration
+  } = useTelegramBot();
+  
   const [selectedChannel, setSelectedChannel] = useState<TelegramChannel | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isBotConfigOpen, setIsBotConfigOpen] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const { toast } = useToast();
 
   // Search messages when query changes
   useEffect(() => {
@@ -82,6 +94,12 @@ const TelegramChannelsPage: React.FC = () => {
   };
 
   const handleAddChannel = async (channelData: { channelIdentifier: string; keywords: string[] }) => {
+    // Prevent adding channels if bot is not configured
+    if (!botStatus?.hasBot || !botStatus.isActive) {
+      setIsBotConfigOpen(true);
+      return;
+    }
+
     try {
       await addChannel(channelData);
       setIsAddModalOpen(false);
@@ -161,11 +179,21 @@ const TelegramChannelsPage: React.FC = () => {
         
         <div className="flex gap-2 mt-4 md:mt-0">
           <AnimatedButton
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={() => botStatus?.hasBot ? setIsAddModalOpen(true) : setIsBotConfigOpen(true)}
             className="flex items-center gap-2"
+            variant={!botStatus?.hasBot ? "outline" : "default"}
           >
-            <Plus className="w-4 h-4" />
-            Add Channel
+            {!botStatus?.hasBot ? (
+              <>
+                <Bot className="w-4 h-4" />
+                Configure Bot
+              </>
+            ) : (
+              <>
+                <Plus className="w-4 h-4" />
+                Add Channel
+              </>
+            )}
           </AnimatedButton>
           
           <AnimatedButton
@@ -176,6 +204,88 @@ const TelegramChannelsPage: React.FC = () => {
           </AnimatedButton>
         </div>
       </div>
+
+      {/* Bot Status Section */}
+      {!isBotLoading && (
+        <Card className="mb-6">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Bot className="w-5 h-5" />
+              Telegram Bot Status
+            </CardTitle>
+            <CardDescription>
+              Your personal bot configuration for monitoring channels
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!botStatus?.hasBot ? (
+              <div className="flex items-center justify-between p-4 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                  <div>
+                    <h4 className="font-medium text-amber-800 dark:text-amber-200">
+                      Bot Configuration Required
+                    </h4>
+                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                      You need to configure your personal Telegram bot before you can monitor channels
+                    </p>
+                  </div>
+                </div>
+                <AnimatedButton
+                  onClick={() => setIsBotConfigOpen(true)}
+                  className="bg-amber-600 hover:bg-amber-700"
+                >
+                  <Bot className="w-4 h-4 mr-2" />
+                  Configure Bot
+                </AnimatedButton>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="flex items-center gap-3 p-3 border rounded-lg">
+                  <CheckCircle2 className="w-5 h-5 text-green-600" />
+                  <div>
+                    <p className="text-sm font-medium">Bot Status</p>
+                    <p className={`text-xs ${botStatus.isActive ? 'text-green-600' : 'text-red-600'}`}>
+                      {botStatus.isActive ? 'Active' : 'Inactive'}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 p-3 border rounded-lg">
+                  <Bot className="w-5 h-5 text-blue-600" />
+                  <div>
+                    <p className="text-sm font-medium">Bot Username</p>
+                    <p className="text-xs font-mono text-muted-foreground">
+                      @{botStatus.botUsername || 'Unknown'}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 p-3 border rounded-lg">
+                  <Search className="w-5 h-5 text-purple-600" />
+                  <div>
+                    <p className="text-sm font-medium">Monitored Chats</p>
+                    <p className="text-xs text-muted-foreground">
+                      {botStatus.monitoredChats} active
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <AnimatedButton
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsBotConfigOpen(true)}
+                  >
+                    <Settings className="w-4 h-4 mr-1" />
+                    Manage Bot
+                  </AnimatedButton>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="channels" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
@@ -189,16 +299,35 @@ const TelegramChannelsPage: React.FC = () => {
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <div className="text-center">
-                    <h3 className="text-lg font-medium text-foreground mb-2">
-                      No channels added yet
-                    </h3>
-                    <p className="text-muted-foreground mb-4">
-                      Add your first Telegram channel to start monitoring
-                    </p>
-                    <AnimatedButton onClick={() => setIsAddModalOpen(true)}>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Channel
-                    </AnimatedButton>
+                    {!botStatus?.hasBot ? (
+                      <>
+                        <Bot className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-foreground mb-2">
+                          Configure Your Bot First
+                        </h3>
+                        <p className="text-muted-foreground mb-4">
+                          You need to set up your personal Telegram bot before you can monitor channels
+                        </p>
+                        <AnimatedButton onClick={() => setIsBotConfigOpen(true)}>
+                          <Bot className="w-4 h-4 mr-2" />
+                          Configure Bot
+                        </AnimatedButton>
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-foreground mb-2">
+                          No channels added yet
+                        </h3>
+                        <p className="text-muted-foreground mb-4">
+                          Add your first Telegram channel to start monitoring
+                        </p>
+                        <AnimatedButton onClick={() => setIsAddModalOpen(true)}>
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Channel
+                        </AnimatedButton>
+                      </>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -455,6 +584,19 @@ const TelegramChannelsPage: React.FC = () => {
       </Tabs>
 
       {/* Modals */}
+      <BotConfigurationModal
+        isOpen={isBotConfigOpen}
+        onClose={() => setIsBotConfigOpen(false)}
+        onSuccess={() => {
+          refreshBotStatus();
+          // Refresh channels after bot is configured
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        }}
+        currentBotInfo={botStatus || undefined}
+      />
+
       <AddChannelModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
