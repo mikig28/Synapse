@@ -120,14 +120,14 @@ const BotDiagnostics: React.FC<BotDiagnosticsProps> = ({ botStatus, channels, on
   };
 
   return (
-    <Card className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950">
+    <Card className="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950">
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
-          <AlertCircle className="w-5 h-5" />
-          Troubleshooting: 0 Messages Issue
+        <CardTitle className="flex items-center gap-2 text-blue-800 dark:text-blue-200">
+          <Settings className="w-5 h-5" />
+          Bot Diagnostics & Troubleshooting
         </CardTitle>
-        <CardDescription className="text-amber-700 dark:text-amber-300">
-          If you're seeing 0 messages, run diagnostics to find the issue
+        <CardDescription className="text-blue-700 dark:text-blue-300">
+          Check your setup and troubleshoot any message reception issues
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -136,19 +136,19 @@ const BotDiagnostics: React.FC<BotDiagnosticsProps> = ({ botStatus, channels, on
             onClick={runDiagnostic}
             loading={isRunningDiagnostic}
             variant="outline"
-            className="border-amber-300 text-amber-700 hover:bg-amber-100"
+            className="border-blue-300 text-blue-700 hover:bg-blue-100"
           >
             <Settings className="w-4 h-4 mr-2" />
-            Run Diagnostics
+            Run Full Diagnostic
           </AnimatedButton>
           
           <AnimatedButton
             onClick={forceRefreshChannels}
             variant="outline"
-            className="border-amber-300 text-amber-700 hover:bg-amber-100"
+            className="border-blue-300 text-blue-700 hover:bg-blue-100"
           >
             <RefreshCw className="w-4 h-4 mr-2" />
-            Force Refresh All
+            Force Refresh All Channels
           </AnimatedButton>
         </div>
 

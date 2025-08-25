@@ -288,8 +288,8 @@ const TelegramChannelsPage: React.FC = () => {
         </Card>
       )}
 
-      {/* Diagnostics Section - Show when bot is configured but no messages */}
-      {botStatus?.hasBot && channels.length > 0 && channels.every(c => c.totalMessages === 0) && (
+      {/* Diagnostics Section - Always show when bot is configured */}
+      {botStatus?.hasBot && (
         <BotDiagnostics 
           botStatus={botStatus}
           channels={channels}
