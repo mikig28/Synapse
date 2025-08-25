@@ -1811,502 +1811,78 @@ const WhatsAppPage: React.FC = () => {
             <div className="flex items-center gap-1 sm:gap-3">
               {isMobile ? (
                 <AnimatedButton
-                  onClick={() => setShowMobileMenu(true)}
+
+                  onClick={() => {
+
+                    console.log('[WhatsApp Frontend] Load History clicked, selectedChat:', selectedChat);
+
+                    if (selectedChat && selectedChat.id) {
+
+                      const chatId = String(selectedChat.id);
+
+                      if (chatId && chatId !== '[object Object]') {
+
+                        console.log('[WhatsApp Frontend] Loading history for chatId:', chatId);
+
+                        fetchChatHistory(chatId, 10);
+
+                      } else {
+
+                        console.error('[WhatsApp Frontend] Invalid chat ID detected:', chatId);
+
+                        toast({
+
+                          title: "Error",
+
+                          description: "Invalid chat selected. Please try again.",
+
+                          variant: "destructive",
+
+                        });
+
+                      }
+
+                    } else {
+
+                      console.error('[WhatsApp Frontend] No chat selected');
+
+                      toast({
+
+                        title: "Error",
+
+                        description: "Please select a chat first",
+
+                        variant: "destructive",
+
+                      });
+
+                    }
+
+                  }}
+
                   variant="outline"
+
                   size="sm"
-                  className="border-blue-400/30 text-blue-200 hover:bg-blue-500/10 p-2"
+
+                  disabled={fetchingHistory}
+
+                  className="border-orange-400/30 text-orange-200 hover:bg-orange-500/10 flex-shrink-0"
+
                 >
-                  <Menu className="w-4 h-4" />
-                </AnimatedButton>
-              ) : (
-                <>
-                  <AnimatedButton
-                    onClick={openAuthModal}
-                    variant="outline"
-                    size="sm"
-                    className="border-yellow-400/30 text-yellow-200 hover:bg-yellow-500/10"
-                  >
-                    <QrCode className="w-4 h-4 mr-2" />
-                    Connect
-                  </AnimatedButton>
-                  
-                  {/* Show Force QR button when there are connection issues */}
-                  {(!status?.connected || !status?.isReady) && (
-                    <AnimatedButton
-                      onClick={() => {
-                        setShowAuth(true);
-                        setAuthMethod('qr');
-                        fetchQRCode(true);
-                      }}
-                      variant="outline"
-                      size="sm"
-                      className="border-orange-400/30 text-orange-200 hover:bg-orange-500/10"
-                    >
-                      <QrCode className="w-4 h-4 mr-2" />
-                      Force QR
-                    </AnimatedButton>
+
+                  {fetchingHistory ? (
+
+                    <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+
+                  ) : (
+
+                    <Download className="w-4 h-4 mr-1" />
+
                   )}
-                  
-                  <AnimatedButton
-                    onClick={refreshChats}
-                    variant="outline"
-                    size="sm"
-                    className="border-blue-400/30 text-blue-200 hover:bg-blue-500/10"
-                  >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Refresh Chats
-                  </AnimatedButton>
-                  
-                  <AnimatedButton
-                    onClick={refreshGroups}
-                    variant="outline"
-                    size="sm"
-                    className="border-green-400/30 text-green-200 hover:bg-green-500/10"
-                  >
-                    <Users className="w-4 h-4 mr-2" />
-                    Refresh Groups
-                  </AnimatedButton>
-                  
-                  <AnimatedButton
-                    onClick={forceHistorySync}
-                    variant="outline"
-                    size="sm"
-                    disabled={fetchingHistory}
-                    className="border-purple-400/30 text-purple-200 hover:bg-purple-500/10"
-                  >
-                    {fetchingHistory ? (
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <History className="w-4 h-4 mr-2" />
-                    )}
-                    Sync History
-                  </AnimatedButton>
-                  
-                  <AnimatedButton
-                    onClick={restartService}
-                    variant="outline"
-                    size="sm"
-                    className="border-red-400/30 text-red-200 hover:bg-red-500/10"
-                  >
-                    <Settings className="w-4 h-4 mr-2" />
-                    Restart
-                  </AnimatedButton>
-                  
-                  <AnimatedButton
-                    onClick={forceRestart}
-                    variant="outline"
-                    size="sm"
-                    className="border-red-600/30 text-red-300 hover:bg-red-600/10"
-                  >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Force Restart
-                  </AnimatedButton>
-                </>
-              )}
-            </div>
-          </div>
-        </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6 mb-4 sm:mb-8"
-        >
-          <GlassCard className="p-3 sm:p-6">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <Users className="w-6 h-6 sm:w-8 sm:h-8 text-green-400 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-blue-100/70">Groups</p>
-                <p className="text-lg sm:text-2xl font-bold text-white">{status?.groupsCount || 0}</p>
-              </div>
-            </div>
-          </GlassCard>
-          
-          <GlassCard className="p-3 sm:p-6">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <Phone className="w-6 h-6 sm:w-8 sm:h-8 text-violet-400 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-blue-100/70">Private Chats</p>
-                <p className="text-lg sm:text-2xl font-bold text-white">{status?.privateChatsCount || 0}</p>
-              </div>
-            </div>
-          </GlassCard>
-          
-          <GlassCard className="p-3 sm:p-6">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <MessageCircle className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-blue-100/70">Messages</p>
-                <p className="text-lg sm:text-2xl font-bold text-white">{status?.messagesCount || 0}</p>
-              </div>
-            </div>
-          </GlassCard>
-          
-          <GlassCard className="p-3 sm:p-6">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <Eye className="w-6 h-6 sm:w-8 sm:h-8 text-amber-400 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-blue-100/70">Monitored</p>
-                <p className="text-lg sm:text-2xl font-bold text-white">{monitoredKeywords.length}</p>
-              </div>
-            </div>
-          </GlassCard>
-        </motion.div>
+                  {!isMobile && 'Load History'}
 
-        <div className={`${isMobile ? 'flex flex-col' : 'grid grid-cols-1 lg:grid-cols-4'} gap-3 sm:gap-6`}>
-          {/* Chat List - Mobile: Full screen overlay, Desktop: Sidebar */}
-          <div className={`
-            ${isMobile 
-              ? `${showChatList ? 'flex' : 'hidden'} fixed inset-0 z-40 bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 flex-col p-3`
-              : 'lg:col-span-1'
-            }
-          `}
-          onClick={(e) => {
-            // Close chat list when clicking outside the content area on mobile
-            if (isMobile && e.target === e.currentTarget) {
-              setShowChatList(false);
-            }
-          }}>
-            <GlassCard className={`${isMobile ? 'h-full mt-16' : 'h-[600px]'} p-4 sm:p-6 flex flex-col`}>
-              <div className="mb-4">
-                {isMobile && (
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-white">Chats</h2>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        onClick={() => setShowMonitoring(true)}
-                        variant="outline"
-                        size="sm"
-                        className="border-amber-400/30 text-amber-200 hover:bg-amber-500/10"
-                      >
-                        <Eye className="w-4 h-4 mr-1" />
-                        Monitor
-                      </Button>
-                      <Button
-                        onClick={() => setShowMobileMenu(true)}
-                        variant="outline"
-                        size="sm"
-                        className="border-blue-400/30 text-blue-200 hover:bg-blue-500/10"
-                      >
-                        <Menu className="w-4 h-4 mr-1" />
-                        Actions
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 w-4 h-4 text-blue-300" />
-                  <Input
-                    placeholder="Search groups and contacts..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-blue-300"
-                  />
-                </div>
-                <div className="mt-2 text-xs text-blue-200/60">
-                  {filteredGroups.length + filteredPrivateChats.length} chats ({filteredGroups.length} groups, {filteredPrivateChats.length} contacts)
-                </div>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto space-y-3 scrollbar-thin scrollbar-thumb-blue-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-blue-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full"
-                   style={{
-                     scrollbarWidth: 'auto',
-                     scrollbarColor: '#60a5fa rgba(255,255,255,0.2)'
-                   }}>
-                {filteredGroups.length > 0 && (
-                  <div>
-                    <h3 className="text-sm font-semibold text-blue-200 mb-2">Groups</h3>
-                    <div className="space-y-1 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-green-400/50 scrollbar-track-white/15 hover:scrollbar-thumb-green-300/70 scrollbar-track-rounded-full scrollbar-thumb-rounded-full"
-                         style={{
-                           scrollbarWidth: 'auto',
-                           scrollbarColor: '#4ade80 rgba(255,255,255,0.15)'
-                         }}>
-                      {filteredGroups.map((group) => (
-                        <motion.div
-                          key={group.id}
-                          whileHover={{ scale: isMobile ? 1 : 1.01 }}
-                          whileTap={{ scale: 0.99 }}
-                          onClick={() => {
-                            if (group.id && typeof group.id === 'string') {
-                              console.log(`[WhatsApp Frontend] Selected group: ${group.name} (${group.id})`);
-                              setSelectedChat(group);
-                              // Only fetch messages if we don't have any or if it's a different chat
-                              if (selectedChat?.id !== group.id) {
-                                fetchMessages(group.id);
-                              }
-                              // Keep chat list visible on mobile for easy navigation
-                            } else {
-                              console.warn('Invalid group ID:', group.id);
-                            }
-                          }}
-                          className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                            selectedChat?.id === group.id
-                              ? 'bg-violet-500/30 border border-violet-400/50 shadow-lg'
-                              : 'bg-white/5 hover:bg-white/10 border border-transparent'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="flex-shrink-0 relative">
-                              <Users className={`w-5 h-5 ${
-                                group.role === 'ADMIN' ? 'text-yellow-400' : 'text-green-400'
-                              }`} />
-                              {group.role === 'ADMIN' && (
-                                <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full" 
-                                     title="You are admin" />
-                              )}
-                              {(group.settings?.messagesAdminOnly || group.settings?.infoAdminOnly) && (
-                                <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-red-400 rounded-full" 
-                                     title="Restricted group" />
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <p className="text-sm font-medium text-white truncate flex-1" title={group.name}>
-                                  {group.name}
-                                </p>
-                                {group.role === 'ADMIN' && (
-                                  <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1 rounded" 
-                                        title="Admin">
-                                    A
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 mt-1">
-                                <p className="text-xs text-blue-200/70">
-                                  {group.participantCount > 0 ? `${group.participantCount} members` : 'Loading members...'}
-                                </p>
-                                {group.description && (
-                                  <>
-                                    <span className="text-xs text-blue-200/40">•</span>
-                                    <p className="text-xs text-blue-200/50 truncate max-w-[80px]" 
-                                       title={group.description}>
-                                      {group.description}
-                                    </p>
-                                  </>
-                                )}
-                                {group.lastMessage && (
-                                  <>
-                                    <span className="text-xs text-blue-200/40">•</span>
-                                    <p className="text-xs text-blue-200/50 truncate max-w-[100px]">
-                                      {group.lastMessage}
-                                    </p>
-                                  </>
-                                )}
-                              </div>
-                              {(group.settings?.messagesAdminOnly || group.settings?.infoAdminOnly) && (
-                                <div className="mt-1">
-                                  <span className="text-xs bg-red-500/20 text-red-400 px-1 rounded" 
-                                        title="Group has restrictions">
-                                    {group.settings.messagesAdminOnly ? 'Admin-only messages' : 'Admin-only info'}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {filteredPrivateChats.length > 0 && (
-                  <div className={filteredGroups.length > 0 ? "pt-4" : ""}>
-                    <h3 className="text-sm font-semibold text-blue-200 mb-2 flex items-center gap-2">
-                      <Phone className="w-4 h-4" />
-                      Private Contacts
-                    </h3>
-                    <div className="space-y-1 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-violet-400/50 scrollbar-track-white/15 hover:scrollbar-thumb-violet-300/70 scrollbar-track-rounded-full scrollbar-thumb-rounded-full"
-                         style={{
-                           scrollbarWidth: 'auto',
-                           scrollbarColor: '#8b5cf6 rgba(255,255,255,0.15)'
-                         }}>
-                      {filteredPrivateChats.map((chat) => (
-                        <motion.div
-                          key={chat.id}
-                          whileHover={{ scale: isMobile ? 1 : 1.01 }}
-                          whileTap={{ scale: 0.99 }}
-                          onClick={() => {
-                            if (chat.id && typeof chat.id === 'string') {
-                              console.log(`[WhatsApp Frontend] Selected private chat: ${chat.name} (${chat.id})`);
-                              setSelectedChat(chat);
-                              // Only fetch messages if we don't have any or if it's a different chat
-                              if (selectedChat?.id !== chat.id) {
-                                fetchMessages(chat.id);
-                              }
-                              // Keep chat list visible on mobile for easy navigation
-                            } else {
-                              console.warn('Invalid chat ID:', chat.id);
-                            }
-                          }}
-                          className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                            selectedChat?.id === chat.id
-                              ? 'bg-violet-500/30 border border-violet-400/50 shadow-lg'
-                              : 'bg-white/5 hover:bg-white/10 border border-transparent'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="flex-shrink-0">
-                              <Phone className="w-5 h-5 text-violet-400" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-white truncate" title={chat.name}>
-                                {chat.name}
-                              </p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <p className="text-xs text-violet-200/70">
-                                  Private contact
-                                </p>
-                                {chat.lastMessage && (
-                                  <>
-                                    <span className="text-xs text-blue-200/40">•</span>
-                                    <p className="text-xs text-blue-200/50 truncate max-w-[100px]">
-                                      {chat.lastMessage}
-                                    </p>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {loadingChats && (
-                  <div className="flex-1 flex items-center justify-center">
-                    <div className="text-center">
-                      <RefreshCw className="w-8 h-8 text-blue-300 animate-spin mx-auto mb-3" />
-                      <p className="text-blue-200/70 text-sm">Loading chats...</p>
-                      {chatsFetchAttempts > 1 && (
-                        <p className="text-blue-200/50 text-xs mt-1">
-                          Attempt {chatsFetchAttempts} - Please wait
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {!loadingChats && filteredGroups.length === 0 && filteredPrivateChats.length === 0 && (
-                  <div className="flex-1 flex items-center justify-center">
-                    <div className="text-center">
-                      <Search className="w-12 h-12 text-blue-300/50 mx-auto mb-3" />
-                      <p className="text-blue-200/70 text-sm">
-                        {searchTerm ? 'No chats match your search' : 'No chats available'}
-                      </p>
-                      <p className="text-blue-200/50 text-xs mt-1">
-                        {searchTerm ? 'Try a different search term' : 'Connect WhatsApp to see your chats'}
-                      </p>
-                      {isMobile && !status?.connected && (
-                        <div className="mt-4">
-                          <Button
-                            onClick={() => setShowMobileMenu(true)}
-                            variant="outline"
-                            size="sm"
-                            className="border-yellow-400/30 text-yellow-200 hover:bg-yellow-500/10"
-                          >
-                            <QrCode className="w-4 h-4 mr-2" />
-                            Connect WhatsApp
-                          </Button>
-                        </div>
-                      )}
-                      {!isMobile && status?.connected && (
-                        <div className="mt-4">
-                          <Button
-                            onClick={() => {
-                              setLoadingChats(true);
-                              fetchGroups(true);
-                              fetchPrivateChats(true);
-                            }}
-                            variant="outline"
-                            size="sm"
-                            className="border-blue-400/30 text-blue-200 hover:bg-blue-500/10"
-                          >
-                            <RefreshCw className="w-4 h-4 mr-2" />
-                            Refresh Chats
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </GlassCard>
-          </div>
-
-          {/* Chat Interface - Mobile: Full screen, Desktop: Main content */}
-          <div className={`
-            ${isMobile 
-              ? `${!showChatList ? 'flex' : 'hidden'} fixed inset-0 z-30 bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 flex-col p-3 pt-20`
-              : 'lg:col-span-2'
-            }
-          `}>
-            <GlassCard className={`${isMobile ? 'h-full' : 'h-[600px]'} p-4 sm:p-6 flex flex-col`}>
-              {selectedChat ? (
-                <>
-                  <div className="flex items-center justify-between pb-4 border-b border-white/20">
-                    <div className="flex items-center gap-3">
-                      {isMobile && (
-                        <Button
-                          onClick={() => {
-                            setShowChatList(true);
-                            // Don't clear selectedChat to preserve state for when user comes back
-                          }}
-                          variant="ghost"
-                          size="sm"
-                          className="p-1.5 hover:bg-white/10"
-                          aria-label="Back to chat list"
-                        >
-                          <ArrowLeft className="w-5 h-5 text-white" />
-                        </Button>
-                      )}
-                      {selectedChat.isGroup ? (
-                        <Users className="w-6 h-6 text-green-400" />
-                      ) : (
-                        <Phone className="w-6 h-6 text-violet-400" />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-semibold text-white truncate">{selectedChat.name}</h3>
-                        <p className="text-sm text-blue-200/70">
-                          {selectedChat.isGroup 
-                            ? `${selectedChat.participantCount ?? 0} members`
-                            : 'Private chat'
-                          }
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <AnimatedButton
-                        onClick={() => fetchMessages(selectedChat.id, true)}
-                        variant="outline"
-                        size="sm"
-                        disabled={refreshingMessages}
-                        className="border-blue-400/30 text-blue-200 hover:bg-blue-500/10 flex-shrink-0"
-                        title="Refresh messages from server"
-                      >
-                        {refreshingMessages ? (
-                          <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
-                        ) : (
-                          <RefreshCw className="w-4 h-4 mr-1" />
-                        )}
-                        {!isMobile && 'Refresh'}
-                      </AnimatedButton>
-                      
-                      <AnimatedButton
-                        onClick={() => fetchChatHistory(selectedChat.id, 10)}
-                        variant="outline"
-                        size="sm"
-                        disabled={fetchingHistory}
-                        className="border-orange-400/30 text-orange-200 hover:bg-orange-500/10 flex-shrink-0"
-                      >
-                        {fetchingHistory ? (
-                          <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
-                        ) : (
-                          <Download className="w-4 h-4 mr-1" />
-                        )}
-                        {!isMobile && 'Load History'}
-                      </AnimatedButton>
+                </AnimatedButton>
                     </div>
                   </div>
                   
