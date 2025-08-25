@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AddChannelModal from '@/components/telegram/AddChannelModal';
 import ChannelMessagesView from '@/components/telegram/ChannelMessagesView';
 import BotConfigurationModal from '@/components/telegram/BotConfigurationModal';
+import BotDiagnostics from '@/components/telegram/BotDiagnostics';
 import { useTelegramChannels } from '@/contexts/TelegramChannelsContext';
 import { useTelegramBot } from '@/hooks/useTelegramBot';
 import { useToast } from '@/hooks/use-toast';
@@ -285,6 +286,15 @@ const TelegramChannelsPage: React.FC = () => {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Diagnostics Section - Show when bot is configured but no messages */}
+      {botStatus?.hasBot && channels.length > 0 && channels.every(c => c.totalMessages === 0) && (
+        <BotDiagnostics 
+          botStatus={botStatus}
+          channels={channels}
+          onRefresh={() => window.location.reload()}
+        />
       )}
 
       <Tabs defaultValue="channels" className="w-full">
