@@ -178,9 +178,10 @@ const TelegramChannelsPage: React.FC = () => {
 =======
       
       {/* DEBUG: Simple always-visible element to test deployment */}
-      <div style={{ background: 'red', color: 'white', padding: '10px', margin: '10px 0', fontWeight: 'bold', fontSize: '14px' }}>
-        🚨 DEBUG: If you see this, the latest code is deployed! Bot Status: {botStatus?.hasBot ? 'CONFIGURED' : 'NOT CONFIGURED'}, 
-        Channels: {channels.length}, Bot Username: @{botStatus?.botUsername || 'none'}
+      <div style={{ background: 'red', color: 'white', padding: '15px', margin: '10px 0', fontWeight: 'bold', fontSize: '16px', borderRadius: '8px', textAlign: 'center' }}>
+        🚨 DEBUG v2: Latest code deployed! Bot: {botStatus?.hasBot ? 'CONFIGURED' : 'NOT CONFIGURED'} | 
+        Channels: {channels.length} | Bot: @{botStatus?.botUsername || 'none'} | 
+        Add Button: {botStatus?.hasBot ? 'ENABLED' : 'DISABLED'} | Loading: {isLoading ? 'YES' : 'NO'}
       </div>
 
 >>>>>>> 7b67ae5eaae0fd292d47a75572423f14da51d421
@@ -213,27 +214,33 @@ const TelegramChannelsPage: React.FC = () => {
         </div>
         
         <div className="flex gap-2 mt-4 md:mt-0">
+          {/* Always show Add Channel button */}
           <AnimatedButton
             onClick={() => botStatus?.hasBot ? setIsAddModalOpen(true) : setIsBotConfigOpen(true)}
             className="flex items-center gap-2"
-            variant={!botStatus?.hasBot ? "outline" : "default"}
+            disabled={!botStatus?.hasBot}
+            title={!botStatus?.hasBot ? "Configure your bot first" : "Add a channel to monitor"}
           >
-            {!botStatus?.hasBot ? (
-              <>
-                <Bot className="w-4 h-4" />
-                Configure Bot
-              </>
-            ) : (
-              <>
-                <Plus className="w-4 h-4" />
-                Add Channel
-              </>
-            )}
+            <Plus className="w-4 h-4" />
+            Add Channel
           </AnimatedButton>
+          
+          {/* Show Configure Bot button if needed */}
+          {!botStatus?.hasBot && (
+            <AnimatedButton
+              onClick={() => setIsBotConfigOpen(true)}
+              className="flex items-center gap-2"
+              variant="outline"
+            >
+              <Bot className="w-4 h-4" />
+              Configure Bot
+            </AnimatedButton>
+          )}
           
           <AnimatedButton
             variant="outline"
             onClick={() => window.location.reload()}
+            title="Refresh page"
           >
             <RefreshCw className="w-4 h-4" />
           </AnimatedButton>
@@ -321,6 +328,42 @@ const TelegramChannelsPage: React.FC = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Quick Actions Bar */}
+      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 border-blue-200 dark:border-blue-800">
+        <CardContent className="py-4">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-center sm:text-left">
+              <h3 className="font-semibold text-foreground">Quick Actions</h3>
+              <p className="text-sm text-muted-foreground">
+                Add channels/groups to monitor or configure your bot
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <AnimatedButton
+                onClick={() => botStatus?.hasBot ? setIsAddModalOpen(true) : setIsBotConfigOpen(true)}
+                className="flex items-center gap-2"
+                size="lg"
+              >
+                <Plus className="w-4 h-4" />
+                Add Channel/Group
+              </AnimatedButton>
+              
+              {!botStatus?.hasBot && (
+                <AnimatedButton
+                  onClick={() => setIsBotConfigOpen(true)}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                  size="lg"
+                >
+                  <Bot className="w-4 h-4" />
+                  Setup Bot
+                </AnimatedButton>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Quick Diagnostics - Show when bot is configured */}
       {botStatus?.hasBot && (
