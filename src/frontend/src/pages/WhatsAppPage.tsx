@@ -1483,6 +1483,19 @@ const WhatsAppPage: React.FC = () => {
     try {
       setFetchingHistory(true);
       
+      // Validate chatId parameter
+      if (!chatId || typeof chatId !== 'string') {
+        console.error('[WhatsApp Frontend] Invalid chatId for history fetch:', chatId);
+        toast({
+          title: "Error",
+          description: "Invalid chat ID. Please select a chat first.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      console.log(`[WhatsApp Frontend] Fetching history for chatId: ${chatId}, limit: ${limit}`);
+      
       // Prefer WAHA modern endpoint; fallback to legacy
       let response: any;
       try {
@@ -2294,7 +2307,13 @@ const WhatsAppPage: React.FC = () => {
                       </AnimatedButton>
                       
                       <AnimatedButton
-                        onClick={() => fetchChatHistory(selectedChat.id, 10)}
+                        onClick={() => {
+                          if (selectedChat.id && typeof selectedChat.id === 'string') {
+                            fetchChatHistory(selectedChat.id, 10);
+                          } else {
+                            console.warn('[WhatsApp Frontend] Invalid selectedChat.id for history fetch:', selectedChat.id);
+                          }
+                        }}
                         variant="outline"
                         size="sm"
                         disabled={fetchingHistory}
