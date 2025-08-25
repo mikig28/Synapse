@@ -1660,17 +1660,23 @@ const WhatsAppPage: React.FC = () => {
     }
   };
 
-  const filteredGroups = groups.filter(group =>
-    group.id && typeof group.id === 'string' && 
-    group.name && typeof group.name === 'string' &&
-    group.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredGroups = groups.filter(group => {
+    // More robust filtering that handles different data types
+    const hasValidId = group.id != null && String(group.id).trim() !== '';
+    const hasValidName = group.name != null && String(group.name).trim() !== '';
+    const matchesSearch = !searchTerm || String(group.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+    
+    return hasValidId && hasValidName && matchesSearch;
+  });
 
-  const filteredPrivateChats = privateChats.filter(chat =>
-    chat.id && typeof chat.id === 'string' && 
-    chat.name && typeof chat.name === 'string' &&
-    chat.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredPrivateChats = privateChats.filter(chat => {
+    // More robust filtering that handles different data types
+    const hasValidId = chat.id != null && String(chat.id).trim() !== '';
+    const hasValidName = chat.name != null && String(chat.name).trim() !== '';
+    const matchesSearch = !searchTerm || String(chat.name || '').toLowerCase().includes(searchTerm.toLowerCase());
+    
+    return hasValidId && hasValidName && matchesSearch;
+  });
 
   // Filter messages for the selected chat
   const displayedMessages = useMemo(() => {

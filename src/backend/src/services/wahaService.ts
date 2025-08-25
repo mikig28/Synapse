@@ -925,11 +925,18 @@ class WAHAService extends EventEmitter {
     } = {}
   ): Promise<WAHAChat[]> {
     try {
-      // Ensure session is working
+      // Ensure session is working - but be more lenient
       const sessionStatus = await this.getSessionStatus(sessionName);
-      if (sessionStatus.status !== 'WORKING') {
+      console.log(`[WAHA Service] getGroups - Session status: ${sessionStatus.status}`);
+      
+      // Allow groups to be fetched if session is in a working state
+      if (sessionStatus.status === 'STOPPED' || sessionStatus.status === 'FAILED') {
+        console.log(`[WAHA Service] getGroups - Session not ready (${sessionStatus.status}), returning empty array`);
         return [];
       }
+      
+      // For other statuses (STARTING, SCAN_QR_CODE, WORKING, etc.), try to fetch groups anyway
+      console.log(`[WAHA Service] getGroups - Session status ${sessionStatus.status}, attempting to fetch groups`);
       try {
         // Build WAHA-compliant query parameters for groups
         const params = new URLSearchParams();
@@ -946,11 +953,11 @@ class WAHAService extends EventEmitter {
         const res = await this.httpClient.get(endpoint);
         console.log(`[WAHA Service] Received ${res.data.length} groups`);
         return res.data.map((g: any) => ({
-          id: g.id || g.chatId || g.groupId,
-          name: g.name || g.subject || g.title || g.id,
-          description: g.description,
+          id: String(g.id || g.chatId || g.groupId || ''),
+          name: String(g.name || g.subject || g.title || g.id || 'Unnamed Group'),
+          description: g.description ? String(g.description) : undefined,
           isGroup: true,
-          lastMessage: g.lastMessage?.body,
+          lastMessage: g.lastMessage?.body ? String(g.lastMessage.body) : undefined,
           timestamp: g.lastMessage?.timestamp,
           participantCount: g.participants?.length || g.participantCount || 0,
           // Enhanced WAHA group metadata
