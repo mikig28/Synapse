@@ -1818,7 +1818,22 @@ const WhatsAppPage: React.FC = () => {
 
                     if (selectedChat && selectedChat.id) {
 
-                      const chatId = String(selectedChat.id);
+                      // More robust ID extraction
+                      let chatId: string;
+                      
+                      if (typeof selectedChat.id === 'string') {
+                        chatId = selectedChat.id;
+                      } else if (typeof selectedChat.id === 'object' && selectedChat.id !== null) {
+                        console.warn('[WhatsApp Frontend] WARNING: selectedChat.id is an object:', selectedChat.id);
+                        // This should not happen - log the full structure for debugging
+                        console.error('[WhatsApp Frontend] Full selectedChat structure:', JSON.stringify(selectedChat, null, 2));
+                        // Try to extract ID anyway
+                        chatId = String(selectedChat.id);
+                      } else {
+                        chatId = String(selectedChat.id);
+                      }
+                      
+                      console.log('[WhatsApp Frontend] Extracted chatId:', chatId, 'type:', typeof chatId);
 
                       if (chatId && chatId !== '[object Object]') {
 
