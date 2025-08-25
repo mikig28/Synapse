@@ -2008,8 +2008,59 @@ const WhatsAppPage: React.FC = () => {
                   {!isMobile && 'Load History'}
 
                 </AnimatedButton>
-                    </div>
-                  </div>
+              ) : (
+                <AnimatedButton
+                  onClick={() => {
+                    console.log('[WhatsApp Frontend] Desktop Load History clicked, selectedChat:', selectedChat);
+                    if (selectedChat && selectedChat.id) {
+                      let chatId: string;
+                      
+                      if (typeof selectedChat.id === 'string') {
+                        chatId = selectedChat.id;
+                      } else if (typeof selectedChat.id === 'object' && selectedChat.id !== null) {
+                        console.warn('[WhatsApp Frontend] WARNING: selectedChat.id is an object:', selectedChat.id);
+                        console.error('[WhatsApp Frontend] Full selectedChat structure:', JSON.stringify(selectedChat, null, 2));
+                        chatId = String(selectedChat.id);
+                      } else {
+                        chatId = String(selectedChat.id);
+                      }
+                      
+                      console.log('[WhatsApp Frontend] Extracted chatId:', chatId, 'type:', typeof chatId);
+                      
+                      if (chatId && chatId !== '[object Object]') {
+                        console.log('[WhatsApp Frontend] Loading history for chatId:', chatId);
+                        fetchChatHistory(chatId, 10);
+                      } else {
+                        console.error('[WhatsApp Frontend] Invalid chat ID detected:', chatId);
+                        toast({
+                          title: "Error",
+                          description: "Invalid chat selected. Please try again.",
+                          variant: "destructive",
+                        });
+                      }
+                    } else {
+                      console.error('[WhatsApp Frontend] No chat selected or missing ID');
+                      toast({
+                        title: "Error",
+                        description: "Please select a chat first",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  variant="outline"
+                  size="sm"
+                  disabled={fetchingHistory}
+                  className="border-orange-400/30 text-orange-200 hover:bg-orange-500/10 flex-shrink-0"
+                >
+                  {fetchingHistory ? (
+                    <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4 mr-1" />
+                  )}
+                  {!isMobile && 'Load History'}
+                </AnimatedButton>
+              )}
+            </div>
                   
                   <div className="flex-1 overflow-y-auto my-4 space-y-3 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full" 
                        style={{

@@ -9,10 +9,7 @@ import AddChannelModal from '@/components/telegram/AddChannelModal';
 import ChannelMessagesView from '@/components/telegram/ChannelMessagesView';
 import BotConfigurationModal from '@/components/telegram/BotConfigurationModal';
 import QuickDiagnostics from '@/components/telegram/QuickDiagnostics';
-<<<<<<< HEAD
-=======
 import ChannelSetupGuide from '@/components/telegram/ChannelSetupGuide';
->>>>>>> 7b67ae5eaae0fd292d47a75572423f14da51d421
 import { useTelegramChannels } from '@/contexts/TelegramChannelsContext';
 import { useTelegramBot } from '@/hooks/useTelegramBot';
 import { useToast } from '@/hooks/use-toast';
@@ -174,17 +171,6 @@ const TelegramChannelsPage: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl">
-<<<<<<< HEAD
-=======
-      
-      {/* DEBUG: Simple always-visible element to test deployment */}
-      <div style={{ background: 'red', color: 'white', padding: '15px', margin: '10px 0', fontWeight: 'bold', fontSize: '16px', borderRadius: '8px', textAlign: 'center' }}>
-        🚨 DEBUG v2: Latest code deployed! Bot: {botStatus?.hasBot ? 'CONFIGURED' : 'NOT CONFIGURED'} | 
-        Channels: {channels.length} | Bot: @{botStatus?.botUsername || 'none'} | 
-        Add Button: {botStatus?.hasBot ? 'ENABLED' : 'DISABLED'} | Loading: {isLoading ? 'YES' : 'NO'}
-      </div>
-
->>>>>>> 7b67ae5eaae0fd292d47a75572423f14da51d421
       {/* Alert for 0 messages issue */}
       {botStatus?.hasBot && channels.length > 0 && channels.every(c => c.totalMessages === 0) && (
         <div className="mb-6 p-4 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
