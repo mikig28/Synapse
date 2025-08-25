@@ -6,7 +6,8 @@ import {
   getTelegramBotStatus,
   removeTelegramBot,
   validateTelegramBotToken,
-  removeMonitoredTelegramChat
+  removeMonitoredTelegramChat,
+  testTelegramBotConnectivity
 } from '../controllers/userController';
 import { protect } from '../middleware/authMiddleware'; // Your JWT protection middleware
 
@@ -52,3 +53,8 @@ router.post('/me/telegram-bot/validate', protect, validateTelegramBotToken);
 // @desc    Remove a Telegram chat ID from monitored list
 // @access  Private (requires JWT)
 router.delete('/me/telegram-chats/:chatId', protect, removeMonitoredTelegramChat);
+
+// @route   POST /api/v1/users/me/telegram-bot/test
+// @desc    Test Telegram bot connectivity
+// @access  Private (requires JWT)
+router.post('/me/telegram-bot/test', protect, testTelegramBotConnectivity);

@@ -10,6 +10,8 @@ import ChannelMessagesView from '@/components/telegram/ChannelMessagesView';
 import BotConfigurationModal from '@/components/telegram/BotConfigurationModal';
 import QuickDiagnostics from '@/components/telegram/QuickDiagnostics';
 import ChannelSetupGuide from '@/components/telegram/ChannelSetupGuide';
+import BotSetupVerification from '@/components/telegram/BotSetupVerification';
+import BotAdditionGuide from '@/components/telegram/BotAdditionGuide';
 import { useTelegramChannels } from '@/contexts/TelegramChannelsContext';
 import { useTelegramBot } from '@/hooks/useTelegramBot';
 import { useToast } from '@/hooks/use-toast';
@@ -351,11 +353,27 @@ const TelegramChannelsPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Quick Diagnostics - Show when bot is configured */}
+      {/* Bot Setup Verification - Show when bot is configured */}
       {botStatus?.hasBot && (
-        <QuickDiagnostics 
+        <BotSetupVerification 
           botStatus={botStatus}
           channels={channels}
+          onRefresh={() => {
+            refreshBotStatus();
+            window.location.reload();
+          }}
+        />
+      )}
+
+      {/* Bot Addition Guide - Show when channels need setup */}
+      {botStatus?.hasBot && channels.length > 0 && channels.some(c => c.totalMessages === 0) && (
+        <BotAdditionGuide
+          botUsername={botStatus.botUsername}
+          channels={channels}
+          onRefresh={() => {
+            refreshBotStatus();
+            window.location.reload();
+          }}
         />
       )}
 
@@ -665,10 +683,25 @@ const TelegramChannelsPage: React.FC = () => {
 
         <TabsContent value="setup" className="space-y-4">
           {botStatus?.hasBot ? (
-            <ChannelSetupGuide 
-              botUsername={botStatus.botUsername}
-              onAddChannel={() => setIsAddModalOpen(true)}
-            />
+            <div className="space-y-6">
+              {/* Comprehensive Bot Addition Guide */}
+              {channels.some(c => c.totalMessages === 0) && (
+                <BotAdditionGuide
+                  botUsername={botStatus.botUsername}
+                  channels={channels}
+                  onRefresh={() => {
+                    refreshBotStatus();
+                    window.location.reload();
+                  }}
+                />
+              )}
+              
+              {/* Original Setup Guide */}
+              <ChannelSetupGuide 
+                botUsername={botStatus.botUsername}
+                onAddChannel={() => setIsAddModalOpen(true)}
+              />
+            </div>
           ) : (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
