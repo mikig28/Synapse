@@ -838,7 +838,7 @@ const WhatsAppPage: React.FC = () => {
             isGroup: msg.isGroup || false,
             groupName: msg.groupName || msg.chatName,
             contactName: msg.contactName || msg.senderName || msg.from || 'Unknown',
-            chatId: msg.chatId || chatId || '',
+            chatId: msg.chatId || chatId || msg.from || '',
             time: new Date(msg.timestamp || Date.now()).toLocaleTimeString(),
             isMedia: msg.hasMedia || false
           }));

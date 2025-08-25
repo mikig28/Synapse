@@ -437,40 +437,8 @@ export const getChats = async (req: Request, res: Response) => {
 export const getMessages = async (req: Request, res: Response) => {
   try {
     // Support both URL param and query param for chatId
-    let chatId = req.params.chatId || req.query.chatId;
+    const chatId = req.params.chatId || req.query.chatId as string;
     const limit = parseInt(req.query.limit as string) || 50;
-    
-    // Validate and sanitize chatId to prevent [object Object] errors
-    if (chatId) {
-      // Check if chatId is an object (shouldn't happen but defensive coding)
-      if (typeof chatId === 'object') {
-        console.error('[WAHA Controller] ❌ chatId is an object:', chatId);
-        if ('id' in chatId) {
-          chatId = (chatId as any).id;
-        } else if ('_id' in chatId) {
-          chatId = (chatId as any)._id;
-        } else {
-          return res.status(400).json({
-            success: false,
-            error: 'Invalid chatId format',
-            details: { receivedType: typeof chatId }
-          });
-        }
-      }
-      
-      // Convert to string if needed
-      chatId = String(chatId);
-      
-      // Check for literal "[object Object]" string
-      if (chatId === '[object Object]' || chatId.includes('[object')) {
-        console.error('[WAHA Controller] ❌ Invalid chatId "[object Object]" detected');
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid chatId received',
-          details: { chatId, hint: 'Frontend sent an object instead of string' }
-        });
-      }
-    }
     
     const wahaService = getWAHAService();
     

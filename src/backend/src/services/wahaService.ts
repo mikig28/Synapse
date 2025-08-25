@@ -1054,6 +1054,18 @@ class WAHAService extends EventEmitter {
    */
   async getMessages(chatId: string, limit: number = 50, sessionName: string = this.defaultSession): Promise<WAHAMessage[]> {
     try {
+      // Validate chatId to prevent [object Object] errors
+      if (!chatId || typeof chatId !== 'string') {
+        console.error(`[WAHA Service] ❌ Invalid chatId type:`, typeof chatId, chatId);
+        return [];
+      }
+      
+      // Check for literal "[object Object]" string
+      if (chatId === '[object Object]' || chatId.includes('[object')) {
+        console.error(`[WAHA Service] ❌ Received invalid chatId "[object Object]"`);
+        return [];
+      }
+      
       console.log(`[WAHA Service] Getting messages for chat '${chatId}' in session '${sessionName}'...`);
       
       // Check session status first
