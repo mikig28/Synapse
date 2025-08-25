@@ -271,7 +271,7 @@ export const sendMessage = async (req: Request, res: Response) => {
       }
     });
     
-    const { chatId, message, text } = req.body;
+    const { chatId, message, text, session } = req.body;
     
     if (!chatId || (!message && !text)) {
       console.log('[WAHA Controller] ❌ Missing required fields:', { chatId, message, text });
@@ -283,14 +283,16 @@ export const sendMessage = async (req: Request, res: Response) => {
 
     const wahaService = getWAHAService();
     const messageText = message || text;
+    const sessionName = session || 'default';
     
     console.log('[WAHA Controller] Attempting to send message:', {
       chatId,
       messageLength: messageText.length,
-      messagePreview: messageText.substring(0, 50) + (messageText.length > 50 ? '...' : '')
+      messagePreview: messageText.substring(0, 50) + (messageText.length > 50 ? '...' : ''),
+      session: sessionName
     });
     
-    const result = await wahaService.sendMessage(chatId, messageText);
+    const result = await wahaService.sendMessage(chatId, messageText, sessionName);
     
     console.log('[WAHA Controller] ✅ Message sent successfully:', result);
     res.json({

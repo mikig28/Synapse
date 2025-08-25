@@ -692,9 +692,9 @@ class WAHAService extends EventEmitter {
         // Continue anyway - might still work
       }
       
-      // WAHA API structure: POST /api/{session}/sendText
-      const endpoint = `/api/${sessionName}/sendText`;
-      const payload = { chatId, text };
+      // WAHA API structure: POST /api/sendText (with session in payload)
+      const endpoint = `/api/sendText`;
+      const payload = { session: sessionName, chatId, text };
       
       console.log(`[WAHA Service] Making request to: ${this.wahaBaseUrl}${endpoint}`);
       console.log(`[WAHA Service] Request payload:`, payload);

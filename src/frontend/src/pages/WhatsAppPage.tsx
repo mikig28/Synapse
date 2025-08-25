@@ -1543,6 +1543,7 @@ const WhatsAppPage: React.FC = () => {
       let response: any;
       try {
         response = await api.post('/waha/send', {
+          session: 'default',
           chatId: selectedChat.id,
           text: newMessage,
         });
