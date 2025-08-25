@@ -26,6 +26,7 @@ import {
   autoRecoverSession,
   forceRestart,
   refreshChats,
+  refreshGroups,
   forceHistorySync,
   getMonitoredKeywords,
   addMonitoredKeyword,
@@ -61,6 +62,7 @@ router.get('/private-chats', getPrivateChats);
 router.get('/messages/:chatId', getMessages);
 router.get('/messages', getMessages); // Support query param format
 router.post('/refresh-chats', refreshChats);
+router.post('/refresh-groups', refreshGroups);
 
 // Session management
 router.post('/restart', restartSession);
