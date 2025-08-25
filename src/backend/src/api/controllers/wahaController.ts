@@ -437,7 +437,7 @@ export const getChats = async (req: Request, res: Response) => {
 export const getMessages = async (req: Request, res: Response) => {
   try {
     // Support both URL param and query param for chatId
-    let chatId = req.params.chatId || req.query.chatId;
+    let chatId: string | undefined = req.params.chatId || (req.query.chatId as string | undefined);
     const limit = parseInt(req.query.limit as string) || 50;
     
     // Validate and sanitize chatId to prevent [object Object] errors
@@ -460,6 +460,7 @@ export const getMessages = async (req: Request, res: Response) => {
       
       // Convert to string if needed
       chatId = String(chatId);
+      // TypeScript type guard - chatId is definitely a string now
       
       // Check for literal "[object Object]" string
       if (chatId === '[object Object]' || chatId.includes('[object')) {
@@ -493,7 +494,7 @@ export const getMessages = async (req: Request, res: Response) => {
       }
     }
 
-    const messages = await wahaService.getMessages(chatId, limit);
+    const messages = await wahaService.getMessages(chatId as string, limit);
     console.log('[WAHA Controller] Found messages for chat', chatId, ':', messages.length);
     
     res.json({
