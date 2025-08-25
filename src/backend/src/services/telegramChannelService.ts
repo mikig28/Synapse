@@ -309,8 +309,59 @@ class TelegramChannelService {
           { $unset: { lastError: 1 } }
         );
 
-        console.log(`[TelegramChannelService] ✅ Bot has access to ${channelId}. Messages will be received in real-time.`);
-        return []; // Real-time messages will be handled by the main message handler
+        console.log(`[TelegramChannelService] ✅ Bot has access to ${channelId}. Attempting to fetch recent messages.`);
+        
+        // Try to get recent updates that might contain messages from this channel
+        try {
+          const updates = await bot.getUpdates({ limit: 100, timeout: 10 });
+          const channelMessages: ITelegramChannelMessage[] = [];
+          
+          console.log(`[TelegramChannelService] Retrieved ${updates.length} updates to check for channel messages`);
+          
+          for (const update of updates) {
+            const message = update.channel_post || update.message;
+            if (message && message.chat.id.toString() === channelId) {
+              const converted = this.convertToChannelMessage(message);
+              if (converted) {
+                channelMessages.push(converted);
+                console.log(`[TelegramChannelService] Found message ${converted.messageId} from ${channelId}`);
+              }
+            }
+          }
+          
+          // If no messages found in updates, try alternative methods
+          if (channelMessages.length === 0) {
+            console.log(`[TelegramChannelService] No messages found in updates, bot is ready for real-time monitoring`);
+            
+            // For channels starting with @, try RSS feed as fallback
+            if (channelId.startsWith('@')) {
+              console.log(`[TelegramChannelService] Attempting RSS fallback for ${channelId}`);
+              const rssMessages = await this.tryRSSFeed(channelId);
+              channelMessages.push(...rssMessages.slice(0, 5)); // Limit RSS messages
+            }
+          }
+          
+          console.log(`[TelegramChannelService] Returning ${channelMessages.length} messages for ${channelId}`);
+          return channelMessages.slice(0, 20); // Last 20 messages max
+          
+        } catch (updatesError) {
+          console.error(`[TelegramChannelService] Failed to fetch updates for ${channelId}:`, updatesError);
+          
+          // For public channels, try RSS feed as fallback
+          if (channelId.startsWith('@')) {
+            console.log(`[TelegramChannelService] Attempting RSS fallback for ${channelId} due to updates failure`);
+            try {
+              const rssMessages = await this.tryRSSFeed(channelId);
+              return rssMessages.slice(0, 10); // Limit RSS messages
+            } catch (rssError) {
+              console.error(`[TelegramChannelService] RSS fallback also failed for ${channelId}:`, rssError);
+            }
+          }
+          
+          // Return empty array but log that bot is ready for real-time
+          console.log(`[TelegramChannelService] No historical messages available, but bot is configured for real-time monitoring of ${channelId}`);
+          return [];
+        }
         
       } catch (accessError) {
         console.error(`[TelegramChannelService] ❌ Bot cannot access ${channelId}:`, accessError);

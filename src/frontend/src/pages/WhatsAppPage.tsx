@@ -119,6 +119,71 @@ const WhatsAppPage: React.FC = () => {
   
   const { isAuthenticated, token } = useAuthStore();
 
+  // Helper function to extract chatId from selectedChat.id (handle both string and object cases)
+  const extractChatId = (chatObj: WhatsAppChat | null): string | undefined => {
+    if (!chatObj || !chatObj.id) {
+      console.log('[WhatsApp Frontend] extractChatId: No chat object or ID');
+      return undefined;
+    }
+    
+    console.log('[WhatsApp Frontend] extractChatId: Processing chat ID:', {
+      chatId: chatObj.id,
+      chatIdType: typeof chatObj.id,
+      isObject: typeof chatObj.id === 'object',
+      chatIdKeys: typeof chatObj.id === 'object' ? Object.keys(chatObj.id) : 'N/A'
+    });
+    
+    if (typeof chatObj.id === 'string') {
+      console.log('[WhatsApp Frontend] extractChatId: ID is string, returning:', chatObj.id);
+      return chatObj.id;
+    } else if (typeof chatObj.id === 'object') {
+      // Handle case where id is an object (e.g., { _serialized: "123@g.us" })
+      if ('_serialized' in chatObj.id) {
+        const extracted = (chatObj.id as any)._serialized;
+        console.log('[WhatsApp Frontend] extractChatId: Extracted from _serialized:', extracted);
+        return extracted;
+      } else if ('id' in chatObj.id) {
+        const extracted = (chatObj.id as any).id;
+        console.log('[WhatsApp Frontend] extractChatId: Extracted from id:', extracted);
+        return extracted;
+      } else if ('user' in chatObj.id) {
+        const extracted = (chatObj.id as any).user;
+        console.log('[WhatsApp Frontend] extractChatId: Extracted from user:', extracted);
+        return extracted;
+      } else {
+        // Fallback: convert to string and check if it's valid
+        const stringId = String(chatObj.id);
+        console.log('[WhatsApp Frontend] extractChatId: Fallback string conversion:', stringId);
+        if (stringId !== '[object Object]' && !stringId.includes('[object')) {
+          return stringId;
+        }
+      }
+    }
+    
+    console.log('[WhatsApp Frontend] extractChatId: Could not extract valid ID');
+    return undefined;
+  };
+
+  // Helper function to validate chatId
+  const isValidChatId = (chatId: string | undefined): boolean => {
+    const isValid = chatId && 
+           typeof chatId === 'string' && 
+           chatId !== '[object Object]' && 
+           !chatId.includes('[object');
+    
+    console.log('[WhatsApp Frontend] isValidChatId:', {
+      chatId,
+      chatIdType: typeof chatId,
+      isValid,
+      reason: !chatId ? 'no chatId' : 
+              typeof chatId !== 'string' ? 'not a string' :
+              chatId === '[object Object]' ? 'is [object Object]' :
+              chatId.includes('[object') ? 'contains [object' : 'valid'
+    });
+    
+    return isValid;
+  };
+
   // Detect mobile device
   useEffect(() => {
     const checkMobile = () => {
@@ -316,11 +381,14 @@ const WhatsAppPage: React.FC = () => {
         const updatedMessages = [messageData, ...prevMessages].slice(0, 100);
         
         // Update cache if this message is for the current chat
-        if (messageData.chatId && selectedChat?.id === messageData.chatId) {
-          setMessagesCache(prev => ({
-            ...prev,
-            [messageData.chatId]: updatedMessages
-          }));
+        if (messageData.chatId && selectedChat) {
+          const selectedChatId = extractChatId(selectedChat);
+          if (selectedChatId === messageData.chatId) {
+            setMessagesCache(prev => ({
+              ...prev,
+              [messageData.chatId]: updatedMessages
+            }));
+          }
         }
         
         return updatedMessages;
@@ -481,22 +549,31 @@ const WhatsAppPage: React.FC = () => {
   // Load messages for selected chat if we don't have any yet
   useEffect(() => {
     if (selectedChat) {
-      console.log(`[WhatsApp Frontend] Selected chat: ${selectedChat.name} (${selectedChat.id})`);
+      console.log('[WhatsApp Frontend] selectedChat useEffect triggered:', {
+        chatName: selectedChat.name,
+        chatId: selectedChat.id,
+        chatIdType: typeof selectedChat.id,
+        chatIdKeys: typeof selectedChat.id === 'object' ? Object.keys(selectedChat.id) : 'N/A'
+      });
       
-      // Always fetch fresh messages when selecting a chat
-      if (selectedChat.id && typeof selectedChat.id === 'string') {
-        fetchMessages(selectedChat.id).then(() => {
+      // Extract and validate chatId using helper function
+      const chatId = extractChatId(selectedChat);
+      
+      if (isValidChatId(chatId)) {
+        console.log(`[WhatsApp Frontend] ✅ Fetching messages for valid chatId: ${chatId}`);
+        fetchMessages(chatId).then(() => {
           // If no messages were found, try with a different chat ID format
-          const chatMessages = messages.filter(msg => msg.chatId === selectedChat.id);
-          if (chatMessages.length === 0 && typeof selectedChat.id === 'string' && selectedChat.id.includes('@')) {
+          const chatMessages = messages.filter(msg => msg.chatId === chatId);
+          if (chatMessages.length === 0 && chatId.includes('@')) {
             // Try without domain suffix for some IDs
-            const simplifiedId = selectedChat.id.split('@')[0];
+            const simplifiedId = chatId.split('@')[0];
             console.log(`[WhatsApp Frontend] Trying simplified chat ID: ${simplifiedId}`);
             fetchMessages(simplifiedId);
           }
         });
       } else {
-        console.warn('[WhatsApp Frontend] Invalid selectedChat.id:', selectedChat.id);
+        console.warn('[WhatsApp Frontend] Invalid selectedChat.id, cannot fetch messages:', selectedChat.id);
+        console.warn('[WhatsApp Frontend] selectedChat.id structure:', JSON.stringify(selectedChat.id, null, 2));
       }
     }
   }, [selectedChat?.id]); // Only depend on the ID to avoid circular dependencies
@@ -613,19 +690,33 @@ const WhatsAppPage: React.FC = () => {
           console.log(`[WhatsApp Frontend] ✅ Fetched ${groupsData.length} groups via WAHA`);
           
           // Process groups to ensure they have proper structure
-          const processedGroups = groupsData.map((group: any) => ({
-            id: group.id || group._id,
-            name: group.name || group.subject || 'Unnamed Group',
-            lastMessage: group.lastMessage?.body || group.lastMessage,
-            timestamp: group.timestamp,
-            isGroup: true,
-            participantCount: group.participantCount || group.participants?.length || 0,
-            description: group.description || group.desc,
-            inviteCode: group.inviteCode,
-            picture: group.picture,
-            role: group.role,
-            settings: group.settings
-          }));
+          const processedGroups = groupsData.map((group: any) => {
+            const processedGroup = {
+              id: group.id || group._id,
+              name: group.name || group.subject || 'Unnamed Group',
+              lastMessage: group.lastMessage?.body || group.lastMessage,
+              timestamp: group.timestamp,
+              isGroup: true,
+              participantCount: group.participantCount || group.participants?.length || 0,
+              description: group.description || group.desc,
+              inviteCode: group.inviteCode,
+              picture: group.picture,
+              role: group.role,
+              settings: group.settings
+            };
+            
+            // Log chat ID structure for debugging
+            console.log('[WhatsApp Frontend] Processed group ID:', {
+              originalId: group.id,
+              originalIdType: typeof group.id,
+              originalIdKeys: typeof group.id === 'object' ? Object.keys(group.id) : 'N/A',
+              processedId: processedGroup.id,
+              processedIdType: typeof processedGroup.id,
+              groupName: processedGroup.name
+            });
+            
+            return processedGroup;
+          });
           
           // Show metadata if available
           if (wahaRes.data.metadata) {
@@ -664,15 +755,29 @@ const WhatsAppPage: React.FC = () => {
         console.log(`[WhatsApp Frontend] ✅ Fetched ${groupsData.length} groups via legacy`);
         
         // Process legacy groups
-        const processedGroups = groupsData.map((group: any) => ({
-          id: group.id || group._id,
-          name: group.name || 'Unnamed Group',
-          lastMessage: group.lastMessage,
-          timestamp: group.timestamp,
-          isGroup: true,
-          participantCount: group.participantCount || 0,
-          description: group.description
-        }));
+        const processedGroups = groupsData.map((group: any) => {
+          const processedGroup = {
+            id: group.id || group._id,
+            name: group.name || 'Unnamed Group',
+            lastMessage: group.lastMessage,
+            timestamp: group.timestamp,
+            isGroup: true,
+            participantCount: group.participantCount || 0,
+            description: group.description
+          };
+          
+          // Log chat ID structure for debugging
+          console.log('[WhatsApp Frontend] Processed legacy group ID:', {
+            originalId: group.id,
+            originalIdType: typeof group.id,
+            originalIdKeys: typeof group.id === 'object' ? Object.keys(group.id) : 'N/A',
+            processedId: processedGroup.id,
+            processedIdType: typeof processedGroup.id,
+            groupName: processedGroup.name
+          });
+          
+          return processedGroup;
+        });
         
         setGroups(processedGroups);
         setStatus(prevStatus => prevStatus ? {
@@ -724,14 +829,28 @@ const WhatsAppPage: React.FC = () => {
           console.log(`[WhatsApp Frontend] ✅ Fetched ${chatsData.length} private chats via WAHA`);
           
           // Process private chats to ensure proper structure
-          const processedChats = chatsData.map((chat: any) => ({
-            id: chat.id || chat._id,
-            name: chat.name || chat.pushName || chat.number || 'Unknown Contact',
-            lastMessage: chat.lastMessage?.body || chat.lastMessage,
-            timestamp: chat.timestamp,
-            isGroup: false,
-            description: chat.status || chat.about
-          }));
+          const processedChats = chatsData.map((chat: any) => {
+            const processedChat = {
+              id: chat.id || chat._id,
+              name: chat.name || chat.pushName || chat.number || 'Unknown Contact',
+              lastMessage: chat.lastMessage?.body || chat.lastMessage,
+              timestamp: chat.timestamp,
+              isGroup: false,
+              description: chat.status || chat.about
+            };
+            
+            // Log chat ID structure for debugging
+            console.log('[WhatsApp Frontend] Processed private chat ID:', {
+              originalId: chat.id,
+              originalIdType: typeof chat.id,
+              originalIdKeys: typeof chat.id === 'object' ? Object.keys(chat.id) : 'N/A',
+              processedId: processedChat.id,
+              processedIdType: typeof processedChat.id,
+              chatName: processedChat.name
+            });
+            
+            return processedChat;
+          });
           
           setPrivateChats(processedChats);
           setStatus(prevStatus => prevStatus ? {
@@ -756,13 +875,27 @@ const WhatsAppPage: React.FC = () => {
         const chatsData = legacyRes.data.data || [];
         console.log(`[WhatsApp Frontend] ✅ Fetched ${chatsData.length} private chats via legacy`);
         
-        const processedChats = chatsData.map((chat: any) => ({
-          id: chat.id || chat._id,
-          name: chat.name || 'Unknown Contact',
-          lastMessage: chat.lastMessage,
-          timestamp: chat.timestamp,
-          isGroup: false
-        }));
+        const processedChats = chatsData.map((chat: any) => {
+          const processedChat = {
+            id: chat.id || chat._id,
+            name: chat.name || 'Unknown Contact',
+            lastMessage: chat.lastMessage,
+            timestamp: chat.timestamp,
+            isGroup: false
+          };
+          
+          // Log chat ID structure for debugging
+          console.log('[WhatsApp Frontend] Processed legacy private chat ID:', {
+            originalId: chat.id,
+            originalIdType: typeof chat.id,
+            originalIdKeys: typeof chat.id === 'object' ? Object.keys(chat.id) : 'N/A',
+            processedId: processedChat.id,
+            processedIdType: typeof processedChat.id,
+            chatName: processedChat.name
+          });
+          
+          return processedChat;
+        });
         
         setPrivateChats(processedChats);
         setStatus(prevStatus => prevStatus ? {
@@ -800,7 +933,12 @@ const WhatsAppPage: React.FC = () => {
 
   const fetchMessages = async (chatId?: string, forceRefresh: boolean = false) => {
     try {
-      console.log(`[WhatsApp Frontend] Fetching messages for chatId: ${chatId}, forceRefresh: ${forceRefresh}`);
+      console.log('[WhatsApp Frontend] fetchMessages called:', {
+        chatId,
+        chatIdType: typeof chatId,
+        forceRefresh,
+        chatIdValid: chatId && typeof chatId === 'string' && chatId !== '[object Object]' && !chatId.includes('[object')
+      });
       
       // Set loading state for refresh
       if (forceRefresh) {
@@ -1494,7 +1632,12 @@ const WhatsAppPage: React.FC = () => {
         return;
       }
       
-      console.log(`[WhatsApp Frontend] Fetching history for chatId: ${chatId}, limit: ${limit}`);
+      console.log('[WhatsApp Frontend] fetchChatHistory called:', {
+        chatId,
+        chatIdType: typeof chatId,
+        limit,
+        chatIdValid: chatId && typeof chatId === 'string' && chatId !== '[object Object]' && !chatId.includes('[object')
+      });
       
       // Prefer WAHA modern endpoint; fallback to legacy
       let response: any;
@@ -1548,7 +1691,35 @@ const WhatsAppPage: React.FC = () => {
   };
 
   const sendMessage = async () => {
+    console.log('[WhatsApp Frontend] sendMessage called:', {
+      hasMessage: !!newMessage.trim(),
+      hasSelectedChat: !!selectedChat,
+      isSending: sendingMessage,
+      selectedChatId: selectedChat?.id,
+      selectedChatIdType: typeof selectedChat?.id
+    });
+    
     if (!newMessage.trim() || !selectedChat || sendingMessage) return;
+
+    // Extract and validate chatId using helper function
+    const chatId = extractChatId(selectedChat);
+    
+    console.log('[WhatsApp Frontend] sendMessage chatId extraction:', {
+      extractedChatId: chatId,
+      extractedChatIdType: typeof chatId,
+      isValid: isValidChatId(chatId)
+    });
+    
+    if (!isValidChatId(chatId)) {
+      console.error('[WhatsApp Frontend] Invalid selectedChat.id for sending message:', selectedChat.id);
+      toast({
+        title: "Error",
+        description: "Invalid chat selected. Please try selecting the chat again.",
+        variant: "destructive",
+      });
+      setSendingMessage(false);
+      return;
+    }
 
     setSendingMessage(true);
     try {
@@ -1557,12 +1728,12 @@ const WhatsAppPage: React.FC = () => {
       try {
         response = await api.post('/waha/send', {
           session: 'default',
-          chatId: selectedChat.id,
+          chatId: chatId,
           text: newMessage,
         });
       } catch (e) {
         response = await api.post('/whatsapp/send', {
-          to: selectedChat.id,
+          to: chatId,
           message: newMessage,
         });
       }
@@ -1582,7 +1753,7 @@ const WhatsAppPage: React.FC = () => {
           isGroup: selectedChat.isGroup,
           groupName: selectedChat.isGroup ? selectedChat.name : undefined,
           contactName: 'You',
-          chatId: selectedChat.id,
+          chatId: chatId,
           time: new Date().toLocaleTimeString(),
           isMedia: false
         };
@@ -1591,10 +1762,10 @@ const WhatsAppPage: React.FC = () => {
           const updatedMessages = [sentMessage, ...prevMessages];
           
           // Update cache
-          if (selectedChat.id) {
+          if (chatId) {
             setMessagesCache(prev => ({
               ...prev,
-              [selectedChat.id]: updatedMessages
+              [chatId]: updatedMessages
             }));
           }
           
@@ -1693,27 +1864,62 @@ const WhatsAppPage: React.FC = () => {
 
   // Filter messages for the selected chat
   const displayedMessages = useMemo(() => {
+    console.log('[WhatsApp Frontend] displayedMessages useMemo triggered:', {
+      hasSelectedChat: !!selectedChat,
+      selectedChatId: selectedChat?.id,
+      selectedChatIdType: typeof selectedChat?.id,
+      messagesCount: messages.length
+    });
+    
     if (!selectedChat) {
       return messages.slice(0, 50); // Show recent messages if no chat selected
     }
     
+    // Extract and validate chatId using helper function
+    const chatId = extractChatId(selectedChat);
+    
+    console.log('[WhatsApp Frontend] displayedMessages chatId extraction:', {
+      extractedChatId: chatId,
+      extractedChatIdType: typeof chatId,
+      isValid: isValidChatId(chatId)
+    });
+    
+    // If we couldn't extract a valid chatId, return empty array
+    if (!isValidChatId(chatId)) {
+      console.warn('[WhatsApp Frontend] Cannot filter messages - invalid chatId:', chatId);
+      return [];
+    }
+    
     // Filter messages for the selected chat with type safety
     const chatMessages = messages.filter(msg => {
-      // Ensure both msg.chatId and selectedChat.id are strings before any operations
-      if (!msg.chatId || !selectedChat.id || 
-          typeof msg.chatId !== 'string' || 
-          typeof selectedChat.id !== 'string') {
+      // Ensure msg.chatId is a string before any operations
+      if (!msg.chatId || typeof msg.chatId !== 'string') {
         return false;
       }
       
       // Check various possible chat ID formats with safe string operations
-      return msg.chatId === selectedChat.id || 
-             msg.chatId === selectedChat.id.split('@')[0] ||
-             msg.from === selectedChat.id ||
-             (typeof msg.from === 'string' && msg.from === selectedChat.id.split('@')[0]);
+      const matches = msg.chatId === chatId || 
+                     msg.chatId === chatId.split('@')[0] ||
+                     msg.from === chatId ||
+                     (typeof msg.from === 'string' && msg.from === chatId.split('@')[0]);
+      
+      if (matches) {
+        console.log('[WhatsApp Frontend] Message matched for chat:', {
+          messageId: msg.id,
+          messageChatId: msg.chatId,
+          messageFrom: msg.from,
+          selectedChatId: chatId,
+          matchType: msg.chatId === chatId ? 'exact' :
+                    msg.chatId === chatId.split('@')[0] ? 'simplified' :
+                    msg.from === chatId ? 'from' :
+                    'from-simplified'
+        });
+      }
+      
+      return matches;
     });
     
-    console.log(`[WhatsApp Frontend] Displaying ${chatMessages.length} messages for chat ${selectedChat.name}`);
+    console.log(`[WhatsApp Frontend] Displaying ${chatMessages.length} messages for chat ${selectedChat.name} (chatId: ${chatId})`);
     
     // Sort messages by timestamp (newest first for display, but we'll reverse in the UI)
     return chatMessages.sort((a, b) => a.timestamp - b.timestamp);
@@ -2040,20 +2246,36 @@ const WhatsAppPage: React.FC = () => {
                           whileHover={{ scale: isMobile ? 1 : 1.01 }}
                           whileTap={{ scale: 0.99 }}
                           onClick={() => {
+                            console.log('[WhatsApp Frontend] Group selection attempt:', {
+                              groupId: group.id,
+                              groupIdType: typeof group.id,
+                              groupIdKeys: typeof group.id === 'object' ? Object.keys(group.id) : 'N/A',
+                              groupName: group.name
+                            });
+                            
                             if (group.id && typeof group.id === 'string') {
-                              console.log(`[WhatsApp Frontend] Selected group: ${group.name} (${group.id})`);
+                              console.log(`[WhatsApp Frontend] ✅ Selected group: ${group.name} (${group.id})`);
                               setSelectedChat(group);
                               // Only fetch messages if we don't have any or if it's a different chat
-                              if (selectedChat?.id !== group.id) {
+                              if (selectedChat) {
+                                const selectedChatId = extractChatId(selectedChat);
+                                if (selectedChatId !== group.id) {
+                                  fetchMessages(group.id);
+                                }
+                              } else {
                                 fetchMessages(group.id);
                               }
                               // Keep chat list visible on mobile for easy navigation
                             } else {
-                              console.warn('Invalid group ID:', group.id);
+                              console.warn('[WhatsApp Frontend] ❌ Invalid group ID:', {
+                                groupId: group.id,
+                                groupIdType: typeof group.id,
+                                groupName: group.name
+                              });
                             }
                           }}
                           className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                            selectedChat?.id === group.id
+                            selectedChat && extractChatId(selectedChat) === group.id
                               ? 'bg-violet-500/30 border border-violet-400/50 shadow-lg'
                               : 'bg-white/5 hover:bg-white/10 border border-transparent'
                           }`}
@@ -2139,20 +2361,36 @@ const WhatsAppPage: React.FC = () => {
                           whileHover={{ scale: isMobile ? 1 : 1.01 }}
                           whileTap={{ scale: 0.99 }}
                           onClick={() => {
+                            console.log('[WhatsApp Frontend] Private chat selection attempt:', {
+                              chatId: chat.id,
+                              chatIdType: typeof chat.id,
+                              chatIdKeys: typeof chat.id === 'object' ? Object.keys(chat.id) : 'N/A',
+                              chatName: chat.name
+                            });
+                            
                             if (chat.id && typeof chat.id === 'string') {
-                              console.log(`[WhatsApp Frontend] Selected private chat: ${chat.name} (${chat.id})`);
+                              console.log(`[WhatsApp Frontend] ✅ Selected private chat: ${chat.name} (${chat.id})`);
                               setSelectedChat(chat);
                               // Only fetch messages if we don't have any or if it's a different chat
-                              if (selectedChat?.id !== chat.id) {
+                              if (selectedChat) {
+                                const selectedChatId = extractChatId(selectedChat);
+                                if (selectedChatId !== chat.id) {
+                                  fetchMessages(chat.id);
+                                }
+                              } else {
                                 fetchMessages(chat.id);
                               }
                               // Keep chat list visible on mobile for easy navigation
                             } else {
-                              console.warn('Invalid chat ID:', chat.id);
+                              console.warn('[WhatsApp Frontend] ❌ Invalid chat ID:', {
+                                chatId: chat.id,
+                                chatIdType: typeof chat.id,
+                                chatName: chat.name
+                              });
                             }
                           }}
                           className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                            selectedChat?.id === chat.id
+                            selectedChat && extractChatId(selectedChat) === chat.id
                               ? 'bg-violet-500/30 border border-violet-400/50 shadow-lg'
                               : 'bg-white/5 hover:bg-white/10 border border-transparent'
                           }`}
@@ -2291,7 +2529,16 @@ const WhatsAppPage: React.FC = () => {
                     
                     <div className="flex items-center gap-2">
                       <AnimatedButton
-                        onClick={() => fetchMessages(selectedChat.id, true)}
+                        onClick={() => {
+                          // Extract and validate chatId using helper function
+                          const chatId = extractChatId(selectedChat);
+                          
+                          if (isValidChatId(chatId)) {
+                            fetchMessages(chatId, true);
+                          } else {
+                            console.error('[WhatsApp Frontend] Invalid chatId for refresh:', chatId);
+                          }
+                        }}
                         variant="outline"
                         size="sm"
                         disabled={refreshingMessages}
@@ -2308,10 +2555,32 @@ const WhatsAppPage: React.FC = () => {
                       
                       <AnimatedButton
                         onClick={() => {
-                          if (selectedChat.id && typeof selectedChat.id === 'string') {
-                            fetchChatHistory(selectedChat.id, 10);
+                          console.log('[WhatsApp Frontend] Load History clicked, selectedChat:', selectedChat);
+                          
+                          if (!selectedChat) {
+                            console.error('[WhatsApp Frontend] No chat selected');
+                            toast({
+                              title: "Error",
+                              description: "Please select a chat first",
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+                          
+                          // Extract and validate chatId using helper function
+                          const chatId = extractChatId(selectedChat);
+                          
+                          if (isValidChatId(chatId)) {
+                            console.log('[WhatsApp Frontend] ✅ Loading history for valid chatId:', chatId);
+                            fetchChatHistory(chatId, 10);
                           } else {
-                            console.warn('[WhatsApp Frontend] Invalid selectedChat.id for history fetch:', selectedChat.id);
+                            console.error('[WhatsApp Frontend] ❌ Could not extract valid chat ID from:', selectedChat);
+                            console.error('[WhatsApp Frontend] selectedChat.id structure:', JSON.stringify(selectedChat.id, null, 2));
+                            toast({
+                              title: "Error",
+                              description: "Invalid chat format. Please try selecting the chat again.",
+                              variant: "destructive",
+                            });
                           }
                         }}
                         variant="outline"

@@ -99,7 +99,7 @@ const TelegramChannelsPage: React.FC = () => {
 
   const handleAddChannel = async (channelData: { channelIdentifier: string; keywords: string[] }) => {
     // Prevent adding channels if bot is not configured
-    if (!botStatus?.hasBot || !botStatus.isActive) {
+    if (!botStatus?.hasBot) {
       setIsBotConfigOpen(true);
       return;
     }
@@ -206,7 +206,6 @@ const TelegramChannelsPage: React.FC = () => {
           <AnimatedButton
             onClick={() => botStatus?.hasBot ? setIsAddModalOpen(true) : setIsBotConfigOpen(true)}
             className="flex items-center gap-2"
-            disabled={!botStatus?.hasBot}
             title={!botStatus?.hasBot ? "Configure your bot first" : "Add a channel to monitor"}
           >
             <Plus className="w-4 h-4" />
