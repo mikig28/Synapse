@@ -443,12 +443,15 @@ export const getMessages = async (req: Request, res: Response) => {
     // Validate and sanitize chatId to prevent [object Object] errors
     if (chatId) {
       // Check if chatId is an object (shouldn't happen but defensive coding)
-      if (typeof chatId === 'object') {
+      // Note: typeof null === 'object' in JavaScript, so we need to check for null explicitly
+      if (chatId !== null && typeof chatId === 'object') {
         console.error('[WAHA Controller] ❌ chatId is an object:', chatId);
-        if ('id' in chatId) {
-          chatId = (chatId as any).id;
-        } else if ('_id' in chatId) {
-          chatId = (chatId as any)._id;
+        // Type assertion to tell TypeScript chatId is not null here
+        const chatIdObj = chatId as any;
+        if ('id' in chatIdObj) {
+          chatId = chatIdObj.id;
+        } else if ('_id' in chatIdObj) {
+          chatId = chatIdObj._id;
         } else {
           return res.status(400).json({
             success: false,
