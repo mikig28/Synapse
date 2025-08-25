@@ -9,6 +9,10 @@ import AddChannelModal from '@/components/telegram/AddChannelModal';
 import ChannelMessagesView from '@/components/telegram/ChannelMessagesView';
 import BotConfigurationModal from '@/components/telegram/BotConfigurationModal';
 import QuickDiagnostics from '@/components/telegram/QuickDiagnostics';
+<<<<<<< HEAD
+=======
+import ChannelSetupGuide from '@/components/telegram/ChannelSetupGuide';
+>>>>>>> 7b67ae5eaae0fd292d47a75572423f14da51d421
 import { useTelegramChannels } from '@/contexts/TelegramChannelsContext';
 import { useTelegramBot } from '@/hooks/useTelegramBot';
 import { useToast } from '@/hooks/use-toast';
@@ -170,6 +174,16 @@ const TelegramChannelsPage: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl">
+<<<<<<< HEAD
+=======
+      
+      {/* DEBUG: Simple always-visible element to test deployment */}
+      <div style={{ background: 'red', color: 'white', padding: '10px', margin: '10px 0', fontWeight: 'bold', fontSize: '14px' }}>
+        🚨 DEBUG: If you see this, the latest code is deployed! Bot Status: {botStatus?.hasBot ? 'CONFIGURED' : 'NOT CONFIGURED'}, 
+        Channels: {channels.length}, Bot Username: @{botStatus?.botUsername || 'none'}
+      </div>
+
+>>>>>>> 7b67ae5eaae0fd292d47a75572423f14da51d421
       {/* Alert for 0 messages issue */}
       {botStatus?.hasBot && channels.length > 0 && channels.every(c => c.totalMessages === 0) && (
         <div className="mb-6 p-4 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
@@ -317,9 +331,10 @@ const TelegramChannelsPage: React.FC = () => {
       )}
 
       <Tabs defaultValue="channels" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="channels">Channels ({channels.length})</TabsTrigger>
           <TabsTrigger value="search">Search Messages</TabsTrigger>
+          <TabsTrigger value="setup">Setup Guide</TabsTrigger>
         </TabsList>
 
         <TabsContent value="channels" className="space-y-4">
@@ -360,6 +375,14 @@ const TelegramChannelsPage: React.FC = () => {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Setup Guide - Show when bot is configured but no channels */}
+              {botStatus?.hasBot && (
+                <ChannelSetupGuide 
+                  botUsername={botStatus.botUsername}
+                  onAddChannel={() => setIsAddModalOpen(true)}
+                />
+              )}
 
               {/* Setup Guide */}
               <Card>
@@ -609,6 +632,31 @@ const TelegramChannelsPage: React.FC = () => {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="setup" className="space-y-4">
+          {botStatus?.hasBot ? (
+            <ChannelSetupGuide 
+              botUsername={botStatus.botUsername}
+              onAddChannel={() => setIsAddModalOpen(true)}
+            />
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Bot className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-2">
+                  Configure Your Bot First
+                </h3>
+                <p className="text-muted-foreground mb-4">
+                  You need to set up your personal Telegram bot before you can use the setup guide
+                </p>
+                <AnimatedButton onClick={() => setIsBotConfigOpen(true)}>
+                  <Bot className="w-4 h-4 mr-2" />
+                  Configure Bot
+                </AnimatedButton>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 
