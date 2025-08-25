@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AddChannelModal from '@/components/telegram/AddChannelModal';
 import ChannelMessagesView from '@/components/telegram/ChannelMessagesView';
 import BotConfigurationModal from '@/components/telegram/BotConfigurationModal';
-import BotDiagnostics from '@/components/telegram/BotDiagnostics';
+import QuickDiagnostics from '@/components/telegram/QuickDiagnostics';
 import { useTelegramChannels } from '@/contexts/TelegramChannelsContext';
 import { useTelegramBot } from '@/hooks/useTelegramBot';
 import { useToast } from '@/hooks/use-toast';
@@ -170,6 +170,33 @@ const TelegramChannelsPage: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl">
+      
+      {/* DEBUG: Simple always-visible element to test deployment */}
+      <div style={{ background: 'red', color: 'white', padding: '10px', margin: '10px 0', fontWeight: 'bold', fontSize: '14px' }}>
+        🚨 DEBUG: If you see this, the latest code is deployed! Bot Status: {botStatus?.hasBot ? 'CONFIGURED' : 'NOT CONFIGURED'}, 
+        Channels: {channels.length}, Bot Username: @{botStatus?.botUsername || 'none'}
+      </div>
+
+      {/* Alert for 0 messages issue */}
+      {botStatus?.hasBot && channels.length > 0 && channels.every(c => c.totalMessages === 0) && (
+        <div className="mb-6 p-4 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-semibold text-red-800 dark:text-red-200 mb-1">
+                No Messages Received - Action Required
+              </h3>
+              <p className="text-sm text-red-700 dark:text-red-300 mb-2">
+                Your bot is configured but no messages are appearing. This usually means your bot hasn't been added to the channels/groups yet.
+              </p>
+              <p className="text-sm font-medium text-red-800 dark:text-red-200">
+                → Go to your Telegram channels/groups → Add @{botStatus.botUsername || 'yourbot'} as admin/member → Send test message
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Telegram Channels</h1>
@@ -288,12 +315,11 @@ const TelegramChannelsPage: React.FC = () => {
         </Card>
       )}
 
-      {/* Diagnostics Section - Always show when bot is configured */}
+      {/* Quick Diagnostics - Show when bot is configured */}
       {botStatus?.hasBot && (
-        <BotDiagnostics 
+        <QuickDiagnostics 
           botStatus={botStatus}
           channels={channels}
-          onRefresh={() => window.location.reload()}
         />
       )}
 
