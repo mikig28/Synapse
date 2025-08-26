@@ -120,10 +120,10 @@ const WhatsAppPage: React.FC = () => {
   const { isAuthenticated, token } = useAuthStore();
 
   // Helper function to normalize any chatId to a string (handle both string and object cases)
-  const normalizeChatId = (chatId: any, context: string = 'unknown'): string => {
+  const normalizeChatId = (chatId: any, context: string = 'unknown'): string | null => {
     if (!chatId) {
-      console.warn(`[WhatsApp Frontend] Empty chatId in ${context}`);
-      return '';
+      console.warn(`[WhatsApp Frontend] Empty chatId in ${context}:`, chatId);
+      return null;
     }
     
     if (typeof chatId === 'string') {
@@ -718,12 +718,23 @@ const WhatsAppPage: React.FC = () => {
           console.log(`[WhatsApp Frontend] ✅ Fetched ${groupsData.length} groups via WAHA`);
           
           // Process groups to ensure they have proper structure
-          const processedGroups = groupsData.map((group: any) => {
-            // Normalize the ID to always be a string using helper
-            const normalizedId = normalizeChatId(group.id || group._id, 'WAHA group');
-            
-            const processedGroup = {
-              id: normalizedId,
+          const processedGroups = groupsData
+            .map((group: any) => {
+              // Normalize the ID to always be a string using helper
+              const normalizedId = normalizeChatId(group.id || group._id, 'WAHA group');
+              
+              // Return null for invalid groups so they can be filtered out
+              if (!normalizedId) {
+                console.warn(`[WhatsApp Frontend] ⚠️ Skipping WAHA group with invalid ID:`, {
+                  groupName: group.name || group.subject || 'Unnamed',
+                  originalId: group.id,
+                  _id: group._id
+                });
+                return null;
+              }
+              
+              const processedGroup = {
+                id: normalizedId,
               name: group.name || group.subject || 'Unnamed Group',
               lastMessage: group.lastMessage?.body || group.lastMessage,
               timestamp: group.timestamp,
@@ -747,7 +758,10 @@ const WhatsAppPage: React.FC = () => {
             });
             
             return processedGroup;
-          });
+          })
+          .filter(Boolean); // Remove null entries (invalid groups)
+          
+          console.log(`[WhatsApp Frontend] ✅ Processed ${processedGroups.length} valid groups (filtered out ${groupsData.length - processedGroups.length} invalid)`);
           
           // Show metadata if available
           if (wahaRes.data.metadata) {
@@ -786,12 +800,23 @@ const WhatsAppPage: React.FC = () => {
         console.log(`[WhatsApp Frontend] ✅ Fetched ${groupsData.length} groups via legacy`);
         
         // Process legacy groups
-        const processedGroups = groupsData.map((group: any) => {
-          // Normalize the ID to always be a string using helper
-          const normalizedId = normalizeChatId(group.id || group._id, 'legacy group');
-          
-          const processedGroup = {
-            id: normalizedId,
+        const processedGroups = groupsData
+          .map((group: any) => {
+            // Normalize the ID to always be a string using helper
+            const normalizedId = normalizeChatId(group.id || group._id, 'legacy group');
+            
+            // Return null for invalid groups so they can be filtered out
+            if (!normalizedId) {
+              console.warn(`[WhatsApp Frontend] ⚠️ Skipping legacy group with invalid ID:`, {
+                groupName: group.name || 'Unnamed',
+                originalId: group.id,
+                _id: group._id
+              });
+              return null;
+            }
+            
+            const processedGroup = {
+              id: normalizedId,
             name: group.name || 'Unnamed Group',
             lastMessage: group.lastMessage,
             timestamp: group.timestamp,
@@ -811,7 +836,10 @@ const WhatsAppPage: React.FC = () => {
           });
           
           return processedGroup;
-        });
+        })
+        .filter(Boolean); // Remove null entries (invalid groups)
+        
+        console.log(`[WhatsApp Frontend] ✅ Processed ${processedGroups.length} valid legacy groups (filtered out ${groupsData.length - processedGroups.length} invalid)`);
         
         setGroups(processedGroups);
         setStatus(prevStatus => prevStatus ? {
@@ -863,12 +891,23 @@ const WhatsAppPage: React.FC = () => {
           console.log(`[WhatsApp Frontend] ✅ Fetched ${chatsData.length} private chats via WAHA`);
           
           // Process private chats to ensure proper structure
-          const processedChats = chatsData.map((chat: any) => {
-            // Normalize the ID to always be a string using helper
-            const normalizedId = normalizeChatId(chat.id || chat._id, 'WAHA private chat');
-            
-            const processedChat = {
-              id: normalizedId,
+          const processedChats = chatsData
+            .map((chat: any) => {
+              // Normalize the ID to always be a string using helper
+              const normalizedId = normalizeChatId(chat.id || chat._id, 'WAHA private chat');
+              
+              // Return null for invalid chats so they can be filtered out
+              if (!normalizedId) {
+                console.warn(`[WhatsApp Frontend] ⚠️ Skipping WAHA private chat with invalid ID:`, {
+                  chatName: chat.name || chat.pushName || 'Unknown',
+                  originalId: chat.id,
+                  _id: chat._id
+                });
+                return null;
+              }
+              
+              const processedChat = {
+                id: normalizedId,
               name: chat.name || chat.pushName || chat.number || 'Unknown Contact',
               lastMessage: chat.lastMessage?.body || chat.lastMessage,
               timestamp: chat.timestamp,
@@ -887,7 +926,10 @@ const WhatsAppPage: React.FC = () => {
             });
             
             return processedChat;
-          });
+          })
+          .filter(Boolean); // Remove null entries (invalid chats)
+          
+          console.log(`[WhatsApp Frontend] ✅ Processed ${processedChats.length} valid WAHA private chats (filtered out ${chatsData.length - processedChats.length} invalid)`);
           
           setPrivateChats(processedChats);
           setStatus(prevStatus => prevStatus ? {
@@ -912,12 +954,23 @@ const WhatsAppPage: React.FC = () => {
         const chatsData = legacyRes.data.data || [];
         console.log(`[WhatsApp Frontend] ✅ Fetched ${chatsData.length} private chats via legacy`);
         
-        const processedChats = chatsData.map((chat: any) => {
-          // Normalize the ID to always be a string using helper
-          const normalizedId = normalizeChatId(chat.id || chat._id, 'legacy private chat');
-          
-          const processedChat = {
-            id: normalizedId,
+        const processedChats = chatsData
+          .map((chat: any) => {
+            // Normalize the ID to always be a string using helper
+            const normalizedId = normalizeChatId(chat.id || chat._id, 'legacy private chat');
+            
+            // Return null for invalid chats so they can be filtered out
+            if (!normalizedId) {
+              console.warn(`[WhatsApp Frontend] ⚠️ Skipping legacy private chat with invalid ID:`, {
+                chatName: chat.name || 'Unknown',
+                originalId: chat.id,
+                _id: chat._id
+              });
+              return null;
+            }
+            
+            const processedChat = {
+              id: normalizedId,
             name: chat.name || 'Unknown Contact',
             lastMessage: chat.lastMessage,
             timestamp: chat.timestamp,
@@ -935,7 +988,10 @@ const WhatsAppPage: React.FC = () => {
           });
           
           return processedChat;
-        });
+        })
+        .filter(Boolean); // Remove null entries (invalid chats)
+        
+        console.log(`[WhatsApp Frontend] ✅ Processed ${processedChats.length} valid legacy private chats (filtered out ${chatsData.length - processedChats.length} invalid)`);
         
         setPrivateChats(processedChats);
         setStatus(prevStatus => prevStatus ? {
@@ -2322,10 +2378,15 @@ const WhatsAppPage: React.FC = () => {
                               }
                               // Keep chat list visible on mobile for easy navigation
                             } else {
-                              console.warn('[WhatsApp Frontend] ❌ Invalid group ID:', {
+                              console.error('[WhatsApp Frontend] ❌ Invalid group ID detected (this should not happen after filtering):', {
                                 groupId: group.id,
                                 groupIdType: typeof group.id,
                                 groupName: group.name
+                              });
+                              toast({
+                                title: "Group Error",
+                                description: `Cannot select group "${group.name}" - invalid ID format. This group will be hidden on next refresh.`,
+                                variant: "destructive",
                               });
                             }
                           }}
@@ -2622,18 +2683,28 @@ const WhatsAppPage: React.FC = () => {
                             return;
                           }
                           
-                          // Extract and validate chatId using helper function
-                          const chatId = extractChatId(selectedChat);
+                          // Since we now normalize all IDs during data processing, selectedChat.id should always be a valid string
+                          const chatId = selectedChat.id;
                           
-                          if (isValidChatId(chatId)) {
-                            console.log('[WhatsApp Frontend] ✅ Loading history for valid chatId:', chatId);
+                          console.log('[WhatsApp Frontend] Load History - Chat ID details:', {
+                            chatId,
+                            chatIdType: typeof chatId,
+                            chatName: selectedChat.name,
+                            isValidString: typeof chatId === 'string' && chatId.length > 0
+                          });
+                          
+                          if (typeof chatId === 'string' && chatId.length > 0 && chatId !== '[object Object]') {
+                            console.log('[WhatsApp Frontend] ✅ Loading history for normalized chatId:', chatId);
                             fetchChatHistory(chatId, 10);
                           } else {
-                            console.error('[WhatsApp Frontend] ❌ Could not extract valid chat ID from:', selectedChat);
-                            console.error('[WhatsApp Frontend] selectedChat.id structure:', JSON.stringify(selectedChat.id, null, 2));
+                            console.error('[WhatsApp Frontend] ❌ Invalid chat ID after normalization (this should not happen):', {
+                              selectedChat,
+                              chatId,
+                              chatIdType: typeof chatId
+                            });
                             toast({
-                              title: "Error",
-                              description: "Invalid chat format. Please try selecting the chat again.",
+                              title: "Chat Error", 
+                              description: `Cannot load history for "${selectedChat.name}" - invalid chat ID. Try selecting the chat again or refresh the page.`,
                               variant: "destructive",
                             });
                           }
