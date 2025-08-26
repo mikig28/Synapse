@@ -2357,7 +2357,8 @@ const WhatsAppPage: React.FC = () => {
                             </div>
                           </div>
                         </motion.div>
-                      ))}
+                      );
+                      })}
                     </div>
                   </div>
                 )}
@@ -2440,7 +2441,8 @@ const WhatsAppPage: React.FC = () => {
                             </div>
                           </div>
                         </motion.div>
-                      ))}
+                      );
+                      })}
                     </div>
                   </div>
                 )}
