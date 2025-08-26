@@ -146,6 +146,14 @@ const WhatsAppPage: React.FC = () => {
         const extracted = (chatObj.id as any).id;
         console.log('[WhatsApp Frontend] extractChatId: Extracted from id:', extracted);
         return extracted;
+      } else if ('server' in chatObj.id && 'user' in chatObj.id) {
+        const extracted = `${(chatObj.id as any).user}@${(chatObj.id as any).server}`;
+        console.log('[WhatsApp Frontend] extractChatId: Constructed from user and server:', extracted);
+        return extracted;
+      } else if ('remote' in chatObj.id) {
+        const extracted = (chatObj.id as any).remote;
+        console.log('[WhatsApp Frontend] extractChatId: Extracted from remote:', extracted);
+        return extracted;
       } else if ('user' in chatObj.id) {
         const extracted = (chatObj.id as any).user;
         console.log('[WhatsApp Frontend] extractChatId: Extracted from user:', extracted);
@@ -931,8 +939,14 @@ const WhatsAppPage: React.FC = () => {
     }
   };
 
-  const fetchMessages = async (chatId?: string, forceRefresh: boolean = false) => {
+  const fetchMessages = async (chatIdInput?: any, forceRefresh: boolean = false) => {
     try {
+      let chatId = chatIdInput;
+      // Normalize chatId if an object is passed
+      if (chatId && typeof chatId !== 'string') {
+        chatId = extractChatId({ id: chatId } as WhatsAppChat);
+      }
+
       console.log('[WhatsApp Frontend] fetchMessages called:', {
         chatId,
         chatIdType: typeof chatId,
@@ -2240,9 +2254,11 @@ const WhatsAppPage: React.FC = () => {
                            scrollbarWidth: 'auto',
                            scrollbarColor: '#4ade80 rgba(255,255,255,0.15)'
                          }}>
-                      {filteredGroups.map((group) => (
+                      {filteredGroups.map((group) => {
+                        const groupChatId = extractChatId(group as any);
+                        return (
                         <motion.div
-                          key={group.id}
+                          key={groupChatId || JSON.stringify(group.id)}
                           whileHover={{ scale: isMobile ? 1 : 1.01 }}
                           whileTap={{ scale: 0.99 }}
                           onClick={() => {
@@ -2252,18 +2268,19 @@ const WhatsAppPage: React.FC = () => {
                               groupIdKeys: typeof group.id === 'object' ? Object.keys(group.id) : 'N/A',
                               groupName: group.name
                             });
-                            
-                            if (group.id && typeof group.id === 'string') {
-                              console.log(`[WhatsApp Frontend] ✅ Selected group: ${group.name} (${group.id})`);
-                              setSelectedChat(group);
+
+                            if (isValidChatId(groupChatId)) {
+                              console.log(`[WhatsApp Frontend] ✅ Selected group: ${group.name} (${groupChatId})`);
+                              const normalizedGroup = { ...group, id: groupChatId! } as WhatsAppChat;
+                              setSelectedChat(normalizedGroup);
                               // Only fetch messages if we don't have any or if it's a different chat
                               if (selectedChat) {
                                 const selectedChatId = extractChatId(selectedChat);
-                                if (selectedChatId !== group.id) {
-                                  fetchMessages(group.id);
+                                if (selectedChatId !== groupChatId) {
+                                  fetchMessages(groupChatId);
                                 }
                               } else {
-                                fetchMessages(group.id);
+                                fetchMessages(groupChatId);
                               }
                               // Keep chat list visible on mobile for easy navigation
                             } else {
@@ -2275,11 +2292,12 @@ const WhatsAppPage: React.FC = () => {
                             }
                           }}
                           className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                            selectedChat && extractChatId(selectedChat) === group.id
+                            selectedChat && extractChatId(selectedChat) === groupChatId
                               ? 'bg-violet-500/30 border border-violet-400/50 shadow-lg'
                               : 'bg-white/5 hover:bg-white/10 border border-transparent'
                           }`}
                         >
+                        
                           <div className="flex items-center gap-3">
                             <div className="flex-shrink-0 relative">
                               <Users className={`w-5 h-5 ${
@@ -2339,7 +2357,8 @@ const WhatsAppPage: React.FC = () => {
                             </div>
                           </div>
                         </motion.div>
-                      ))}
+                      );
+                      })}
                     </div>
                   </div>
                 )}
@@ -2355,9 +2374,11 @@ const WhatsAppPage: React.FC = () => {
                            scrollbarWidth: 'auto',
                            scrollbarColor: '#8b5cf6 rgba(255,255,255,0.15)'
                          }}>
-                      {filteredPrivateChats.map((chat) => (
+                      {filteredPrivateChats.map((chat) => {
+                        const privateChatId = extractChatId(chat as any);
+                        return (
                         <motion.div
-                          key={chat.id}
+                          key={privateChatId || JSON.stringify(chat.id)}
                           whileHover={{ scale: isMobile ? 1 : 1.01 }}
                           whileTap={{ scale: 0.99 }}
                           onClick={() => {
@@ -2367,18 +2388,19 @@ const WhatsAppPage: React.FC = () => {
                               chatIdKeys: typeof chat.id === 'object' ? Object.keys(chat.id) : 'N/A',
                               chatName: chat.name
                             });
-                            
-                            if (chat.id && typeof chat.id === 'string') {
-                              console.log(`[WhatsApp Frontend] ✅ Selected private chat: ${chat.name} (${chat.id})`);
-                              setSelectedChat(chat);
+
+                            if (isValidChatId(privateChatId)) {
+                              console.log(`[WhatsApp Frontend] ✅ Selected private chat: ${chat.name} (${privateChatId})`);
+                              const normalizedChat = { ...chat, id: privateChatId! } as WhatsAppChat;
+                              setSelectedChat(normalizedChat);
                               // Only fetch messages if we don't have any or if it's a different chat
                               if (selectedChat) {
                                 const selectedChatId = extractChatId(selectedChat);
-                                if (selectedChatId !== chat.id) {
-                                  fetchMessages(chat.id);
+                                if (selectedChatId !== privateChatId) {
+                                  fetchMessages(privateChatId);
                                 }
                               } else {
-                                fetchMessages(chat.id);
+                                fetchMessages(privateChatId);
                               }
                               // Keep chat list visible on mobile for easy navigation
                             } else {
@@ -2390,7 +2412,7 @@ const WhatsAppPage: React.FC = () => {
                             }
                           }}
                           className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                            selectedChat && extractChatId(selectedChat) === chat.id
+                            selectedChat && extractChatId(selectedChat) === privateChatId
                               ? 'bg-violet-500/30 border border-violet-400/50 shadow-lg'
                               : 'bg-white/5 hover:bg-white/10 border border-transparent'
                           }`}
@@ -2419,7 +2441,8 @@ const WhatsAppPage: React.FC = () => {
                             </div>
                           </div>
                         </motion.div>
-                      ))}
+                      );
+                      })}
                     </div>
                   </div>
                 )}
