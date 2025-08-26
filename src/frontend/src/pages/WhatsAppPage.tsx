@@ -940,6 +940,21 @@ const WhatsAppPage: React.FC = () => {
         chatIdValid: chatId && typeof chatId === 'string' && chatId !== '[object Object]' && !chatId.includes('[object')
       });
       
+      // Validate chatId if provided - CRITICAL: Stop execution if invalid
+      if (chatId && (typeof chatId !== 'string' || chatId === '[object Object]' || chatId.includes('[object'))) {
+        console.error('[WhatsApp Frontend] ❌ Invalid chatId detected in fetchMessages:', {
+          chatId,
+          type: typeof chatId,
+          stringified: String(chatId)
+        });
+        toast({
+          title: "Error",
+          description: "Invalid chat ID format. Please select a chat again.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       // Set loading state for refresh
       if (forceRefresh) {
         setRefreshingMessages(true);
