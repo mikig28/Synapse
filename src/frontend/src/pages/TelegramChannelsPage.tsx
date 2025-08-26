@@ -173,8 +173,33 @@ const TelegramChannelsPage: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl">
+      {/* Alert for bot not active */}
+      {botStatus?.hasBot && !botStatus?.isActive && (
+        <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-semibold text-amber-800 dark:text-amber-200 mb-1">
+                Bot Configured But Not Active
+              </h3>
+              <p className="text-sm text-amber-700 dark:text-amber-300 mb-2">
+                Your bot is configured but not currently active. This might be due to server restart or token validation issues.
+              </p>
+              <AnimatedButton
+                onClick={() => window.location.reload()}
+                size="sm"
+                className="bg-amber-600 hover:bg-amber-700"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh Page
+              </AnimatedButton>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Alert for 0 messages issue */}
-      {botStatus?.hasBot && channels.length > 0 && channels.every(c => c.totalMessages === 0) && (
+      {botStatus?.hasBot && botStatus?.isActive && channels.length > 0 && channels.every(c => c.totalMessages === 0) && (
         <div className="mb-6 p-4 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />

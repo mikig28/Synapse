@@ -9,6 +9,7 @@ import wahaRoutes from './api/routes/wahaRoutes'; // Import WAHA routes (modern)
 import { connectToDatabase } from './config/database'; // Import database connection
 import authRoutes from './api/routes/authRoutes'; // Import auth routes
 import { initializeTelegramService } from './services/telegramServiceNew'; // Import new multi-user Telegram service
+import { telegramBotManager } from './services/telegramBotManager'; // Import telegram bot manager
 import { AgentService } from './services/agentService'; // Import agent service
 import { AgentScheduler } from './services/agentScheduler'; // Import agent scheduler
 import { initializeAgentServices } from './api/controllers/agentsController'; // Import agent services initializer
@@ -621,6 +622,16 @@ const startServer = async () => {
     }
 
     await initializeTelegramService(); // Initialize multi-user Telegram service
+    
+    // Initialize existing bot configurations for users
+    try {
+      console.log('[Server] 🤖 Initializing existing Telegram bots...');
+      await telegramBotManager.initializeExistingBots();
+      console.log('[Server] ✅ Existing Telegram bots initialized successfully');
+    } catch (error) {
+      console.error('[Server] ❌ Failed to initialize existing Telegram bots:', error);
+      // Don't exit - bots can be configured individually later
+    }
 
     // Initialize WAHA service (modern WhatsApp implementation) with retry logic
     console.log('[Server] 🔄 Initializing WAHA service with network retry...');
