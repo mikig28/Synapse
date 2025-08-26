@@ -119,6 +119,34 @@ const WhatsAppPage: React.FC = () => {
   
   const { isAuthenticated, token } = useAuthStore();
 
+  // Helper function to normalize any chatId to a string (handle both string and object cases)
+  const normalizeChatId = (chatId: any, context: string = 'unknown'): string => {
+    if (!chatId) {
+      console.warn(`[WhatsApp Frontend] Empty chatId in ${context}`);
+      return '';
+    }
+    
+    if (typeof chatId === 'string') {
+      return chatId;
+    }
+    
+    if (typeof chatId === 'object' && chatId !== null) {
+      // Extract string ID from object formats
+      if ('_serialized' in chatId) {
+        return chatId._serialized;
+      } else if ('id' in chatId) {
+        return chatId.id;
+      } else {
+        // Fallback: convert object to string, but this shouldn't happen
+        console.warn(`[WhatsApp Frontend] ⚠️ Had to stringify ${context} ID object:`, chatId);
+        return String(chatId);
+      }
+    }
+    
+    // Final fallback
+    return String(chatId);
+  };
+
   // Helper function to extract chatId from selectedChat.id (handle both string and object cases)
   const extractChatId = (chatObj: WhatsAppChat | null): string | undefined => {
     if (!chatObj || !chatObj.id) {
@@ -691,8 +719,11 @@ const WhatsAppPage: React.FC = () => {
           
           // Process groups to ensure they have proper structure
           const processedGroups = groupsData.map((group: any) => {
+            // Normalize the ID to always be a string using helper
+            const normalizedId = normalizeChatId(group.id || group._id, 'WAHA group');
+            
             const processedGroup = {
-              id: group.id || group._id,
+              id: normalizedId,
               name: group.name || group.subject || 'Unnamed Group',
               lastMessage: group.lastMessage?.body || group.lastMessage,
               timestamp: group.timestamp,
@@ -756,8 +787,11 @@ const WhatsAppPage: React.FC = () => {
         
         // Process legacy groups
         const processedGroups = groupsData.map((group: any) => {
+          // Normalize the ID to always be a string using helper
+          const normalizedId = normalizeChatId(group.id || group._id, 'legacy group');
+          
           const processedGroup = {
-            id: group.id || group._id,
+            id: normalizedId,
             name: group.name || 'Unnamed Group',
             lastMessage: group.lastMessage,
             timestamp: group.timestamp,
@@ -830,8 +864,11 @@ const WhatsAppPage: React.FC = () => {
           
           // Process private chats to ensure proper structure
           const processedChats = chatsData.map((chat: any) => {
+            // Normalize the ID to always be a string using helper
+            const normalizedId = normalizeChatId(chat.id || chat._id, 'WAHA private chat');
+            
             const processedChat = {
-              id: chat.id || chat._id,
+              id: normalizedId,
               name: chat.name || chat.pushName || chat.number || 'Unknown Contact',
               lastMessage: chat.lastMessage?.body || chat.lastMessage,
               timestamp: chat.timestamp,
@@ -876,8 +913,11 @@ const WhatsAppPage: React.FC = () => {
         console.log(`[WhatsApp Frontend] ✅ Fetched ${chatsData.length} private chats via legacy`);
         
         const processedChats = chatsData.map((chat: any) => {
+          // Normalize the ID to always be a string using helper
+          const normalizedId = normalizeChatId(chat.id || chat._id, 'legacy private chat');
+          
           const processedChat = {
-            id: chat.id || chat._id,
+            id: normalizedId,
             name: chat.name || 'Unknown Contact',
             lastMessage: chat.lastMessage,
             timestamp: chat.timestamp,
