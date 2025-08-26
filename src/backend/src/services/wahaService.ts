@@ -952,23 +952,46 @@ class WAHAService extends EventEmitter {
         console.log(`[WAHA Service] Using WAHA-compliant groups endpoint: ${endpoint}`);
         const res = await this.httpClient.get(endpoint);
         console.log(`[WAHA Service] Received ${res.data.length} groups`);
-        return res.data.map((g: any) => ({
-          id: String(g.id || g.chatId || g.groupId || ''),
-          name: String(g.name || g.subject || g.title || g.id || 'Unnamed Group'),
-          description: g.description ? String(g.description) : undefined,
-          isGroup: true,
-          lastMessage: g.lastMessage?.body ? String(g.lastMessage.body) : undefined,
-          timestamp: g.lastMessage?.timestamp,
-          participantCount: g.participants?.length || g.participantCount || 0,
-          // Enhanced WAHA group metadata
-          inviteCode: g.invite || g.inviteCode,
-          picture: g.picture,
-          role: g.role, // 'ADMIN', 'MEMBER', etc.
-          settings: {
-            messagesAdminOnly: g.settings?.messagesAdminOnly,
-            infoAdminOnly: g.settings?.infoAdminOnly
+
+        const toJid = (raw: any): string | null => {
+          if (!raw) return null;
+          if (typeof raw === 'string') {
+            if (raw === '[object Object]') return null;
+            return raw;
           }
-        }));
+          if (typeof raw === 'object') {
+            if ('_serialized' in raw) return String(raw._serialized);
+            if ('id' in raw && typeof raw.id === 'string') return raw.id;
+            if ('user' in raw) {
+              const user = String(raw.user);
+              const server = raw.server || raw.domain;
+              const suffix = server ? String(server) : 'g.us';
+              return `${user}@${suffix}`;
+            }
+          }
+          return null;
+        };
+
+        return res.data.map((g: any) => {
+          const normalizedId = toJid(g.id) || toJid(g.chatId) || toJid(g.groupId) || '';
+          return {
+            id: normalizedId,
+            name: String(g.name || g.subject || g.title || normalizedId || 'Unnamed Group'),
+            description: g.description ? String(g.description) : undefined,
+            isGroup: true,
+            lastMessage: g.lastMessage?.body ? String(g.lastMessage.body) : undefined,
+            timestamp: g.lastMessage?.timestamp,
+            participantCount: g.participants?.length || g.participantCount || 0,
+            // Enhanced WAHA group metadata
+            inviteCode: g.invite || g.inviteCode,
+            picture: g.picture,
+            role: g.role, // 'ADMIN', 'MEMBER', etc.
+            settings: {
+              messagesAdminOnly: g.settings?.messagesAdminOnly,
+              infoAdminOnly: g.settings?.infoAdminOnly
+            }
+          } as WAHAChat;
+        });
       } catch (e: any) {
         if (e.response?.status === 404) {
           console.log(`[WAHA Service] /groups endpoint not available, falling back to chats filter`);
