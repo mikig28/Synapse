@@ -21,7 +21,13 @@ import {
   Download,
   ArrowLeft,
   Menu,
-  X
+  X,
+  Image,
+  Video,
+  FileText,
+  Music,
+  ExternalLink,
+  FolderImage
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { io, Socket } from 'socket.io-client';
@@ -41,6 +47,12 @@ interface WhatsAppMessage {
   chatId: string;
   time: string;
   isMedia: boolean;
+  mediaUrl?: string;
+  localMediaGridFsId?: string;
+  mimeType?: string;
+  mediaSize?: number;
+  filename?: string;
+  caption?: string;
 }
 
 interface WhatsAppChat {
@@ -2757,7 +2769,7 @@ const WhatsAppPage: React.FC = () => {
                             {!message.fromMe && message.isGroup && (
                               <p className="text-xs text-blue-200 mb-1">{message.contactName}</p>
                             )}
-                            <p className="text-sm break-words whitespace-pre-wrap">{message.body || '[Media]'}</p>
+                            <p className="text-sm">{message.body || '[Media]'}</p>
                             <p className="text-xs opacity-70 mt-1">{message.time}</p>
                           </div>
                         </motion.div>

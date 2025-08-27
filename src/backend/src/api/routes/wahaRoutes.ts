@@ -30,7 +30,12 @@ import {
   forceHistorySync,
   getMonitoredKeywords,
   addMonitoredKeyword,
-  removeMonitoredKeyword
+  removeMonitoredKeyword,
+  getMediaUrl,
+  downloadMedia,
+  getMediaMessages,
+  moveMediaToImages,
+  deleteMediaMessage
 } from '../controllers/wahaController';
 
 const router = Router();
@@ -75,6 +80,13 @@ router.post('/force-history-sync', forceHistorySync);
 router.get('/monitored-keywords', getMonitoredKeywords);
 router.post('/monitored-keywords', addMonitoredKeyword);
 router.delete('/monitored-keywords/:keyword', removeMonitoredKeyword);
+
+// Media management
+router.get('/media/:messageId/url', getMediaUrl);
+router.get('/media/:messageId/download', downloadMedia);
+router.get('/messages/:chatId/media', getMediaMessages);
+router.post('/media/:messageId/move-to-images', moveMediaToImages);
+router.delete('/media/:messageId', deleteMediaMessage);
 
 // Webhook for WAHA events
 router.post('/webhook', webhook);
