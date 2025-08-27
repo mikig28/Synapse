@@ -245,6 +245,9 @@ class GroupMonitorService {
       // Process image for each monitor
       for (const monitor of monitors) {
         try {
+          // Count each incoming image message as a message processed for the monitor
+          await (monitor as any).incrementStats('messages');
+
           await this.processImageForMonitor(
             monitor,
             messageId,

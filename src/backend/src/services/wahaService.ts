@@ -1408,19 +1408,23 @@ class WAHAService extends EventEmitter {
 
       // Send to group monitor webhook (fire and forget)
       const axios = require('axios');
-      const baseUrl = process.env.FRONTEND_URL || 'https://synapse-backend-7lq6.onrender.com';
-      
-      axios.post(`${baseUrl}/api/v1/group-monitor/webhook/whatsapp-message`, {
-        messageId: messageData.id,
-        groupId: messageData.chatId,
-        senderId: messageData.from,
+      // Use dedicated backend URL, falling back to production backend
+      const backendBaseUrl = (process.env.BACKEND_URL || process.env.API_BASE_URL || '').trim() || 'https://synapse-backend-7lq6.onrender.com';
+
+      // Normalize potential media URL field variations across WAHA engines
+      const normalizedMediaUrl = messageData.mediaUrl || messageData.url || messageData.imageUrl || (messageData.file && messageData.file.url);
+
+      axios.post(`${backendBaseUrl.replace(/\/$/, '')}/api/v1/group-monitor/webhook/whatsapp-message`, {
+        messageId: String(messageData.id),
+        groupId: String(messageData.chatId),
+        senderId: String(messageData.from),
         senderName: messageData.contactName || messageData.from,
-        imageUrl: messageData.mediaUrl,
+        imageUrl: normalizedMediaUrl,
         caption: messageData.body
       }, {
-        timeout: 5000
+        timeout: 8000
       }).catch((error: any) => {
-        console.error('[WAHA Service] ❌ Failed to send image to group monitor:', error.message);
+        console.error('[WAHA Service] ❌ Failed to send image to group monitor:', error?.response?.status || error.message);
       });
 
     } catch (error) {
