@@ -1281,7 +1281,7 @@ class WAHAService extends EventEmitter {
   /**
    * Webhook handler for WAHA events (following WAHA documentation event structure)
    */
-  handleWebhook(payload: any): void {
+  async handleWebhook(payload: any): Promise<void> {
     try {
       console.log('[WAHA Service] Webhook received:', payload);
       
@@ -1758,6 +1758,41 @@ class WAHAService extends EventEmitter {
       clearInterval(this.statusMonitorInterval);
       this.statusMonitorInterval = null;
       console.log('[WAHA Service] 🛑 Status monitoring stopped');
+    }
+  }
+
+  /**
+   * Get media URL for a message
+   */
+  async getMediaUrl(messageId: string, sessionName?: string): Promise<string | null> {
+    try {
+      const session = sessionName || this.defaultSession;
+      const response = await axios.get(`${this.wahaBaseUrl}/api/${session}/messages/${messageId}/media`, {
+        timeout: 30000
+      });
+      
+      return (response.data as any)?.url || null;
+    } catch (error: any) {
+      console.error('[WAHA Service] Error getting media URL:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Download media file from a message
+   */
+  async downloadMedia(messageId: string, sessionName?: string): Promise<Buffer | null> {
+    try {
+      const session = sessionName || this.defaultSession;
+      const response = await axios.get(`${this.wahaBaseUrl}/api/${session}/messages/${messageId}/media`, {
+        responseType: 'arraybuffer',
+        timeout: 60000
+      });
+      
+      return Buffer.from(response.data as ArrayBuffer);
+    } catch (error: any) {
+      console.error('[WAHA Service] Error downloading media:', error.message);
+      return null;
     }
   }
 }
