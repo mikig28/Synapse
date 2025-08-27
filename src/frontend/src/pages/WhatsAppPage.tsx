@@ -136,6 +136,18 @@ const WhatsAppPage: React.FC = () => {
         return chatId._serialized;
       } else if ('id' in chatId) {
         return chatId.id;
+      } else if ('user' in chatId) {
+        // Reconstruct JID from user/server/domain object shape
+        const user = (chatId as any).user;
+        const server = (chatId as any).server || (chatId as any).domain;
+        if (user && typeof user === 'string') {
+          const suffix = server
+            ? String(server)
+            : (context.toLowerCase().includes('group') ? 'g.us' : 'c.us');
+          return `${user}@${suffix}`;
+        }
+        console.warn(`[WhatsApp Frontend] ⚠️ Could not reconstruct ID from user/server in ${context}:`, chatId);
+        return null;
       } else {
         // Fallback: convert object to string, but this shouldn't happen
         console.warn(`[WhatsApp Frontend] ⚠️ Had to stringify ${context} ID object:`, chatId);
@@ -175,9 +187,20 @@ const WhatsAppPage: React.FC = () => {
         console.log('[WhatsApp Frontend] extractChatId: Extracted from id:', extracted);
         return extracted;
       } else if ('user' in chatObj.id) {
-        const extracted = (chatObj.id as any).user;
-        console.log('[WhatsApp Frontend] extractChatId: Extracted from user:', extracted);
-        return extracted;
+        // Some engines provide structured IDs like { user: "123", server: "g.us" }
+        const idObj = chatObj.id as any;
+        const userPart = idObj.user;
+        const serverPart = idObj.server || idObj.domain;
+        let reconstructed: string;
+        if (serverPart) {
+          reconstructed = `${userPart}@${serverPart}`;
+        } else if (chatObj.isGroup) {
+          reconstructed = `${userPart}@g.us`;
+        } else {
+          reconstructed = `${userPart}@c.us`;
+        }
+        console.log('[WhatsApp Frontend] extractChatId: Reconstructed from user/server:', reconstructed);
+        return reconstructed;
       } else {
         // Fallback: convert to string and check if it's valid
         const stringId = String(chatObj.id);
@@ -589,16 +612,7 @@ const WhatsAppPage: React.FC = () => {
 
       if (isValidChatId(chatId)) {
         console.log(`[WhatsApp Frontend] ✅ Fetching messages for valid chatId: ${chatId}`);
-        fetchMessages(chatId).then(() => {
-          // If no messages were found, try with a different chat ID format
-          const chatMessages = messages.filter(msg => msg.chatId === chatId);
-          if (chatMessages.length === 0 && chatId.includes('@')) {
-            // Try without domain suffix for some IDs
-            const simplifiedId = chatId.split('@')[0];
-            console.log(`[WhatsApp Frontend] Trying simplified chat ID: ${simplifiedId}`);
-            fetchMessages(simplifiedId);
-          }
-        });
+        fetchMessages(chatId);
       } else {
         console.warn('[WhatsApp Frontend] Invalid selectedChat.id, cannot fetch messages:', selectedChat.id);
         console.warn('[WhatsApp Frontend] selectedChat.id structure:', JSON.stringify(selectedChat.id, null, 2));
@@ -2001,18 +2015,15 @@ const WhatsAppPage: React.FC = () => {
       return [];
     }
 
-    // Filter messages for the selected chat with type safety
+    // Filter messages for the selected chat with strict JID matching
     const chatMessages = messages.filter(msg => {
       // Ensure msg.chatId is a string before any operations
       if (!msg.chatId || typeof msg.chatId !== 'string') {
         return false;
       }
 
-      // Check various possible chat ID formats with safe string operations
-      const matches = msg.chatId === chatId ||
-                     msg.chatId === chatId.split('@')[0] ||
-                     msg.from === chatId ||
-                     (typeof msg.from === 'string' && msg.from === chatId.split('@')[0]);
+      // Match by exact JID only (avoid stripping domain which can cause group mismatches)
+      const matches = msg.chatId === chatId || msg.from === chatId;
 
       if (matches) {
         console.log('[WhatsApp Frontend] Message matched for chat:', {
@@ -2020,10 +2031,7 @@ const WhatsAppPage: React.FC = () => {
           messageChatId: msg.chatId,
           messageFrom: msg.from,
           selectedChatId: chatId,
-          matchType: msg.chatId === chatId ? 'exact' :
-                    msg.chatId === chatId.split('@')[0] ? 'simplified' :
-                    msg.from === chatId ? 'from' :
-                    'from-simplified'
+          matchType: msg.chatId === chatId ? 'exact' : 'from'
         });
       }
 

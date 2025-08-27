@@ -452,6 +452,12 @@ export const getMessages = async (req: Request, res: Response) => {
           chatId = chatIdObj.id;
         } else if ('_id' in chatIdObj) {
           chatId = chatIdObj._id;
+        } else if ('_serialized' in chatIdObj) {
+          chatId = chatIdObj._serialized;
+        } else if ('user' in chatIdObj) {
+          const user = chatIdObj.user;
+          const server = chatIdObj.server || chatIdObj.domain;
+          chatId = `${user}@${server || 'g.us'}`;
         } else {
           return res.status(400).json({
             success: false,
