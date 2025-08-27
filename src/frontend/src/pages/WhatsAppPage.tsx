@@ -2325,7 +2325,7 @@ const WhatsAppPage: React.FC = () => {
           {/* Chat List - Mobile: Full screen overlay, Desktop: Sidebar */}
           <div className={`
             ${isMobile
-              ? `${showChatList ? 'flex' : 'hidden'} fixed inset-0 z-40 bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 flex-col p-3`
+              ? `${showChatList ? 'flex' : 'hidden'} fixed inset-0 z-40 bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 flex-col p-3 overflow-y-auto`
               : 'lg:col-span-1'
             }
           `}
@@ -2642,7 +2642,7 @@ const WhatsAppPage: React.FC = () => {
           {/* Chat Interface - Mobile: Full screen, Desktop: Main content */}
           <div className={`
             ${isMobile
-              ? `${!showChatList ? 'flex' : 'hidden'} fixed inset-0 z-30 bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 flex-col p-3 pt-20`
+              ? `${!showChatList ? 'flex' : 'hidden'} fixed inset-0 z-30 bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 flex-col p-3 pt-20 overflow-y-auto`
               : 'lg:col-span-2'
             }
           `}>
@@ -2653,7 +2653,8 @@ const WhatsAppPage: React.FC = () => {
                 }}
                 variant="ghost"
                 size="sm"
-                className="fixed top-4 left-4 z-50 p-2 bg-black/40 text-white hover:bg-black/60 rounded-full shadow-lg"
+                className="fixed left-4 z-[10000] p-2 bg-black/40 text-white hover:bg-black/60 rounded-full shadow-lg"
+                style={{ top: 'calc(var(--safe-area-inset-top, 0px) + 1rem)' }}
                 aria-label="Back to chat list"
               >
                 <ArrowLeft className="w-5 h-5" />
