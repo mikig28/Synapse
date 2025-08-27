@@ -386,6 +386,7 @@ const AgentsPageMobileFix: React.FC = memo(() => {
                 onToggle={handleToggleAgent}
                 onDelete={handleDeleteAgent}
                 onReset={handleResetAgentStatus}
+                onSettings={(agentId) => navigate(`/agents/${agentId}/settings`)}
                 isExecuting={executingAgents.has(agent._id)}
                 formatTimeAgo={formatTimeAgo}
                 onShowCrewViewer={(agent) => {

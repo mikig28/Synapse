@@ -18,10 +18,10 @@ import {
 import { useTouchGestures, useFramerTouchGestures, useMobileCapabilities } from '@/hooks/useTouchGestures';
 import { Agent } from '@/types/agent';
 import { WizardData, AgentType, AgentTemplate } from '@/components/wizard/AgentCreationWizard';
-import { MobileAgentTypeSelector } from '@/components/wizard/MobileAgentTypeSelector';
-import { MobileTemplateSelector } from '@/components/wizard/MobileTemplateSelector';
-import { MobileAgentConfiguration } from '@/components/wizard/MobileAgentConfiguration';
-import { MobileReviewAndLaunch } from '@/components/wizard/MobileReviewAndLaunch';
+import { AgentTypeSelector } from '@/components/wizard/AgentTypeSelector';
+import { TemplateSelector } from '@/components/wizard/TemplateSelector';
+import { AgentConfiguration } from '@/components/wizard/AgentConfiguration';
+import { ReviewAndLaunch } from '@/components/wizard/ReviewAndLaunch';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { agentService } from '@/services/agentService';
@@ -45,28 +45,28 @@ const WIZARD_STEPS: WizardStep[] = [
     id: 'type',
     title: 'Agent Type',
     description: 'Choose your AI agent type',
-    component: MobileAgentTypeSelector,
+    component: AgentTypeSelector,
     icon: Bot,
   },
   {
     id: 'template',
     title: 'Template',
     description: 'Select a template',
-    component: MobileTemplateSelector,
+    component: TemplateSelector,
     icon: Sparkles,
   },
   {
     id: 'configuration',
     title: 'Configuration',
     description: 'Configure settings',
-    component: MobileAgentConfiguration,
+    component: AgentConfiguration,
     icon: Bot,
   },
   {
     id: 'review',
     title: 'Review & Launch',
     description: 'Review and create',
-    component: MobileReviewAndLaunch,
+    component: ReviewAndLaunch,
     icon: Sparkles,
   },
 ];

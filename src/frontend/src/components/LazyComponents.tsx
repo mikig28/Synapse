@@ -14,10 +14,6 @@ export const LazyAgentCreationWizard = lazy(() =>
   import('./wizard/AgentCreationWizard').then(module => ({ default: module.AgentCreationWizard }))
 );
 
-export const LazyMobileResponsiveAgentWizard = lazy(() => 
-  import('./wizard/MobileResponsiveAgentWizard').then(module => ({ default: module.MobileResponsiveAgentWizard }))
-);
-
 export const LazyAguiLiveDashboard = lazy(() => 
   import('./AguiLiveDashboard').then(module => ({ default: module.AguiLiveDashboard }))
 );
@@ -773,7 +769,6 @@ export const BundleSizeReporter: React.FC = () => {
 export default {
   LazyMetricsDashboard,
   LazyAgentCreationWizard,
-  LazyMobileResponsiveAgentWizard,
   LazyAguiLiveDashboard,
   LazyCrewExecutionDashboard,
   LazyAgentActivityDashboard,
