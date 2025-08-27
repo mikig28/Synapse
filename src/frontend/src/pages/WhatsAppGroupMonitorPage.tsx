@@ -32,6 +32,7 @@ import {
 import { toast } from '@/hooks/use-toast';
 import useAuthStore from '@/store/authStore';
 import api from '@/services/axiosConfig';
+import { optimizedPollingService } from '@/services/optimizedPollingService';
 
 interface PersonProfile {
   _id: string;
@@ -138,6 +139,49 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isAuthenticated } = useAuthStore();
+
+  // Keep group monitors and filtered images fresh with optimized polling
+  useEffect(() => {
+    if (!isAuthenticated) {
+      optimizedPollingService.stopPolling('group-monitor-refresh');
+      return;
+    }
+
+    optimizedPollingService.startPolling(
+      'group-monitor-refresh',
+      async () => {
+        const [monitorsRes, imagesRes] = await Promise.all([
+          api.get('/group-monitor/monitors'),
+          api.get('/group-monitor/filtered-images')
+        ]);
+        return {
+          monitors: monitorsRes?.data?.data || [],
+          images: imagesRes?.data?.data || []
+        };
+      },
+      (result) => {
+        try {
+          if (Array.isArray(result?.monitors)) setGroupMonitors(result.monitors);
+          if (Array.isArray(result?.images)) setFilteredImages(result.images);
+        } catch (e) {
+          console.error('[Group Monitor Polling] Failed to apply results:', e);
+        }
+      },
+      (error) => {
+        console.warn('[Group Monitor Polling] Error:', error?.message || error);
+      },
+      {
+        baseInterval: 30000,
+        maxInterval: 300000,
+        enableAdaptivePolling: true,
+        enableCircuitBreaker: true
+      }
+    );
+
+    return () => {
+      optimizedPollingService.stopPolling('group-monitor-refresh');
+    };
+  }, [isAuthenticated]);
 
   // Helper function to convert relative URLs to absolute URLs
   const getAbsoluteImageUrl = (url: string): string => {
