@@ -2757,7 +2757,7 @@ const WhatsAppPage: React.FC = () => {
                             {!message.fromMe && message.isGroup && (
                               <p className="text-xs text-blue-200 mb-1">{message.contactName}</p>
                             )}
-                            <p className="text-sm">{message.body || '[Media]'}</p>
+                            <p className="text-sm break-words whitespace-pre-wrap">{message.body || '[Media]'}</p>
                             <p className="text-xs opacity-70 mt-1">{message.time}</p>
                           </div>
                         </motion.div>
