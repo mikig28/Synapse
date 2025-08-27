@@ -440,6 +440,42 @@ export const getMessages = async (req: Request, res: Response) => {
     let chatId: string | undefined = req.params.chatId || (req.query.chatId as string | undefined);
     const limit = parseInt(req.query.limit as string) || 50;
     
+<<<<<<< HEAD
+    // Validate and sanitize chatId to prevent [object Object] errors
+    if (chatId) {
+      // Check if chatId is an object (shouldn't happen but defensive coding)
+      // Note: typeof null === 'object' in JavaScript, so we need to check for null explicitly
+      if (chatId !== null && typeof chatId === 'object') {
+        console.error('[WAHA Controller] ❌ chatId is an object:', chatId);
+        // Type assertion to tell TypeScript chatId is not null here
+        const chatIdObj = chatId as any;
+        if ('id' in chatIdObj) {
+          chatId = chatIdObj.id;
+        } else if ('_id' in chatIdObj) {
+          chatId = chatIdObj._id;
+        } else {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid chatId format',
+            details: { receivedType: typeof chatId }
+          });
+        }
+      }
+      
+      // Convert to string if needed
+      chatId = String(chatId);
+      // TypeScript type guard - chatId is definitely a string now
+      
+      // Check for literal "[object Object]" string
+      if (chatId === '[object Object]' || chatId.includes('[object')) {
+        console.error('[WAHA Controller] ❌ Invalid chatId "[object Object]" detected');
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid chatId received',
+          details: { chatId, hint: 'Frontend sent an object instead of string' }
+        });
+      }
+=======
     // Validate and sanitize chatId to prevent [object Object] errors
     if (chatId) {
       // Check if chatId is an object (shouldn't happen but defensive coding)
@@ -480,6 +516,7 @@ export const getMessages = async (req: Request, res: Response) => {
           details: { chatId, hint: 'Frontend sent an object instead of string' }
         });
       }
+>>>>>>> 2c90f574 (Improve chat ID handling and normalization across frontend and backend (#105))
     }
     
     const wahaService = getWAHAService();

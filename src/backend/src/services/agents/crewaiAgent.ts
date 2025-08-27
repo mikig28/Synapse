@@ -1036,6 +1036,82 @@ Using fallback test crew to demonstrate dashboard functionality.`);
                       (data.organized_content?.linkedin_posts?.length || 0) +
                       (data.organized_content?.telegram_messages?.length || 0);
     
+    // Consolidate source URLs from organized_content for citations
+    const oc = data.organized_content || {};
+    const consolidatedItems: Array<{ item: any; type: string }> = [];
+    if (Array.isArray(oc.news_articles)) {
+      oc.news_articles.forEach((it: any) => consolidatedItems.push({ item: it, type: 'news_website' }));
+    }
+    if (Array.isArray(oc.reddit_posts)) {
+      oc.reddit_posts.forEach((it: any) => consolidatedItems.push({ item: it, type: 'reddit' }));
+    }
+    if (Array.isArray(oc.linkedin_posts)) {
+      oc.linkedin_posts.forEach((it: any) => consolidatedItems.push({ item: it, type: 'linkedin' }));
+    }
+    if (Array.isArray(oc.telegram_messages)) {
+      oc.telegram_messages.forEach((it: any) => consolidatedItems.push({ item: it, type: 'telegram' }));
+    }
+    // Include Twitter/X posts when present under common keys
+    if (Array.isArray((oc as any).twitter_posts)) {
+      (oc as any).twitter_posts.forEach((it: any) => consolidatedItems.push({ item: it, type: 'twitter' }));
+    }
+    if (Array.isArray((oc as any).tweets)) {
+      (oc as any).tweets.forEach((it: any) => consolidatedItems.push({ item: it, type: 'twitter' }));
+    }
+    if (Array.isArray((oc as any).x_posts)) {
+      (oc as any).x_posts.forEach((it: any) => consolidatedItems.push({ item: it, type: 'twitter' }));
+    }
+
+    const allSourceUrlsRaw = consolidatedItems
+      .map(({ item, type }) => this.getValidUrl(item, type))
+      .map((u: any) => (typeof u === 'string' ? this.normalizeUrl(u) : ''))
+      .filter((u: string) => this.isValidUrl(u) && !u.startsWith('#')) as string[];
+    const uniqueSourceUrls = Array.from(new Set(allSourceUrlsRaw)).slice(0, 100);
+
+    const sourceLinksMd = [
+      '## Source Links',
+      ...(
+        uniqueSourceUrls.length
+          ? uniqueSourceUrls.map((u: string) => {
+              let host = 'Source';
+              try { host = new URL(u).hostname; } catch {}
+              return `- [${host}](${u})`;
+            })
+          : ['- No external sources were identified from this run']
+      )
+    ];
+
+    // Build platform-specific resources section
+    const byPlatform: Record<string, string[]> = { reddit: [], linkedin: [], telegram: [], twitter: [] };
+    for (const { item, type } of consolidatedItems) {
+      const url = this.normalizeUrl(this.getValidUrl(item, type));
+      if (!url || url.startsWith('#') || !this.isValidUrl(url)) continue;
+      const key = (type === 'reddit' || type === 'linkedin' || type === 'telegram' || type === 'twitter') ? type : 'news_website';
+      if (key in byPlatform) {
+        byPlatform[key as keyof typeof byPlatform].push(url);
+      }
+    }
+    // Deduplicate and cap per platform
+    (Object.keys(byPlatform) as Array<keyof typeof byPlatform>).forEach(k => {
+      byPlatform[k] = Array.from(new Set(byPlatform[k])).slice(0, 50);
+    });
+
+    const platformResourcesMd = [
+      '## Platform Resources',
+      '',
+      '### Twitter/X',
+      ...(byPlatform.twitter.length ? byPlatform.twitter.map(u => { let host=''; try{host=new URL(u).hostname;}catch{} return `- [${host || 'Link'}](${u})`; }) : ['- None']),
+      '',
+      '### LinkedIn',
+      ...(byPlatform.linkedin.length ? byPlatform.linkedin.map(u => { let host=''; try{host=new URL(u).hostname;}catch{} return `- [${host || 'Link'}](${u})`; }) : ['- None']),
+      '',
+      '### Telegram',
+      ...(byPlatform.telegram.length ? byPlatform.telegram.map(u => { let host=''; try{host=new URL(u).hostname;}catch{} return `- [${host || 'Link'}](${u})`; }) : ['- None']),
+      '',
+      '### Reddit',
+      ...(byPlatform.reddit.length ? byPlatform.reddit.map(u => { let host=''; try{host=new URL(u).hostname;}catch{} return `- [${host || 'Link'}](${u})`; }) : ['- None'])
+    ];
+
     const analysisContent = [
       '# CrewAI Multi-Agent News Analysis Report',
       '',
@@ -1060,6 +1136,10 @@ Using fallback test crew to demonstrate dashboard functionality.`);
       ),
       '',
       '---',
+      ...sourceLinksMd,
+      '',
+      ...platformResourcesMd,
+      '',
       '## News Articles 📰',
       ...this.buildEnhancedSourceSection('News Articles', data.organized_content?.news_articles),
       '',
@@ -1073,6 +1153,7 @@ Using fallback test crew to demonstrate dashboard functionality.`);
       ...this.buildEnhancedSourceSection('Telegram Messages', data.organized_content?.telegram_messages),
       '',
       '---',
+      '',
       '## AI Insights',
       this.formatAIInsights(data.ai_insights),
       '',
@@ -1105,7 +1186,12 @@ Using fallback test crew to demonstrate dashboard functionality.`);
       publishedAt: new Date(),
       tags: ['analysis', 'crewai', 'multi-agent', 'trends'],
       category: 'analysis',
-      status: 'summarized'
+      status: 'summarized',
+      metadata: {
+        ...dataTypeInfo,
+        sourceUrls: uniqueSourceUrls,
+        urlCount: uniqueSourceUrls.length
+      }
     });
 
     try {
@@ -1151,7 +1237,7 @@ Using fallback test crew to demonstrate dashboard functionality.`);
     // Show top items with enhanced formatting
     for (const item of items.slice(0, 20)) { // limit to 20 for better readability
       const sourceType = this.getSourceTypeFromTitle(title);
-      const url = this.getValidUrl(item, sourceType);
+      const url = this.normalizeUrl(this.getValidUrl(item, sourceType));
       const displayTitle = item.title || item.text?.substring(0, 100) || 'Untitled';
       
       // Add simulation indicator and metadata
@@ -1160,7 +1246,12 @@ Using fallback test crew to demonstrate dashboard functionality.`);
       const engagement = item.engagement || item.score || item.likes || '';
       const author = item.author || item.subreddit || item.channel || '';
       
-      let itemLine = `- ${simulationPrefix}**${displayTitle}**`;
+      const isAnchor = typeof url === 'string' && url.startsWith('#');
+      let host = '';
+      try { if (url && !isAnchor && this.isValidUrl(url)) host = new URL(url).hostname; } catch {}
+      const titleMarkdown = (url && !isAnchor && this.isValidUrl(url)) ? `[${displayTitle}](${url})` : `**${displayTitle}**`;
+      let itemLine = `- ${simulationPrefix}${titleMarkdown}`;
+      if (host) itemLine += ` (${host})`;
       if (author) itemLine += ` _(${author})_`;
       if (engagement) itemLine += ` \`${engagement}\``;
       
@@ -1546,9 +1637,14 @@ Using fallback test crew to demonstrate dashboard functionality.`);
   }
   
   private isValidUrl(string: string): boolean {
+    if (!string || typeof string !== 'string') return false;
+    if (!string || typeof string !== 'string') return false;
     try {
       const url = new URL(string);
-      return url.protocol === 'http:' || url.protocol === 'https:';
+      if (!(url.protocol === 'http:' || url.protocol === 'https:')) return false;
+      if (!url.hostname || url.hostname === 'localhost' || url.hostname === '127.0.0.1') return false;
+      if (!/\.[a-z]{2,}$/i.test(url.hostname)) return false;
+      return true;
     } catch (_) {
       return false;
     }

@@ -335,7 +335,7 @@ export const testTelegramBotConnectivity = async (req: AuthenticatedRequest, res
     }
 
     try {
-      // Use getMe to test connectivity - returns User object from Telegram Bot API
+      // Use getMe to test connectivity
       const botInfo = await bot.getMe();
       
       res.status(200).json({
@@ -345,9 +345,9 @@ export const testTelegramBotConnectivity = async (req: AuthenticatedRequest, res
           botId: botInfo.id,
           username: botInfo.username,
           firstName: botInfo.first_name,
-          canJoinGroups: (botInfo as any).can_join_groups || false,
-          canReadAllGroupMessages: (botInfo as any).can_read_all_group_messages || false,
-          supportsInlineQueries: (botInfo as any).supports_inline_queries || false,
+          canJoinGroups: botInfo.can_join_groups,
+          canReadAllGroupMessages: botInfo.can_read_all_group_messages,
+          supportsInlineQueries: botInfo.supports_inline_queries,
         }
       });
     } catch (botError: any) {

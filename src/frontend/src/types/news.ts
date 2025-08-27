@@ -31,6 +31,7 @@ export interface NewsItem {
   };
   createdAt: string;
   updatedAt: string;
+  metadata?: any;
 }
 
 export interface NewsStatistics {

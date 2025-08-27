@@ -10,8 +10,11 @@ import ChannelMessagesView from '@/components/telegram/ChannelMessagesView';
 import BotConfigurationModal from '@/components/telegram/BotConfigurationModal';
 import QuickDiagnostics from '@/components/telegram/QuickDiagnostics';
 import ChannelSetupGuide from '@/components/telegram/ChannelSetupGuide';
+<<<<<<< HEAD
+=======
 import BotSetupVerification from '@/components/telegram/BotSetupVerification';
 import BotAdditionGuide from '@/components/telegram/BotAdditionGuide';
+>>>>>>> 72913319 (fix: Comprehensive Telegram bot setup and 0 messages issue resolution)
 import { useTelegramChannels } from '@/contexts/TelegramChannelsContext';
 import { useTelegramBot } from '@/hooks/useTelegramBot';
 import { useToast } from '@/hooks/use-toast';
@@ -99,7 +102,7 @@ const TelegramChannelsPage: React.FC = () => {
 
   const handleAddChannel = async (channelData: { channelIdentifier: string; keywords: string[] }) => {
     // Prevent adding channels if bot is not configured
-    if (!botStatus?.hasBot) {
+    if (!botStatus?.hasBot || !botStatus.isActive) {
       setIsBotConfigOpen(true);
       return;
     }
@@ -231,6 +234,7 @@ const TelegramChannelsPage: React.FC = () => {
           <AnimatedButton
             onClick={() => botStatus?.hasBot ? setIsAddModalOpen(true) : setIsBotConfigOpen(true)}
             className="flex items-center gap-2"
+            disabled={!botStatus?.hasBot}
             title={!botStatus?.hasBot ? "Configure your bot first" : "Add a channel to monitor"}
           >
             <Plus className="w-4 h-4" />
