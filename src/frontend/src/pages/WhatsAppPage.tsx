@@ -116,6 +116,8 @@ const WhatsAppPage: React.FC = () => {
   const [pairingCode, setPairingCode] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const isAutoLoadingOlderRef = useRef<boolean>(false);
 
   const { isAuthenticated, token } = useAuthStore();
 
@@ -2049,6 +2051,34 @@ const WhatsAppPage: React.FC = () => {
     scrollToBottom();
   }, [displayedMessages]);
 
+  // Auto-load older messages when scrolled to top of chat (mobile-friendly)
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      if (fetchingHistory || isAutoLoadingOlderRef.current) return;
+      if (container.scrollTop <= 40 && selectedChat) {
+        const chatId = extractChatId(selectedChat);
+        if (isValidChatId(chatId)) {
+          isAutoLoadingOlderRef.current = true;
+          const prevScrollHeight = container.scrollHeight;
+          fetchChatHistory(chatId as string, 20)
+            .finally(() => {
+              // Preserve scroll position after prepending messages
+              const newScrollHeight = container.scrollHeight;
+              const delta = newScrollHeight - prevScrollHeight;
+              container.scrollTop = container.scrollTop + delta;
+              isAutoLoadingOlderRef.current = false;
+            });
+        }
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [selectedChat, fetchingHistory]);
+
   const getStatusColor = () => {
     if (!status) return 'text-gray-500';
     if (status.connected && status.isReady && status.isClientReady) return 'text-green-400';
@@ -2616,6 +2646,19 @@ const WhatsAppPage: React.FC = () => {
               : 'lg:col-span-2'
             }
           `}>
+            {isMobile && selectedChat && !showChatList && (
+              <Button
+                onClick={() => {
+                  setShowChatList(true);
+                }}
+                variant="ghost"
+                size="sm"
+                className="fixed top-4 left-4 z-50 p-2 bg-black/40 text-white hover:bg-black/60 rounded-full shadow-lg"
+                aria-label="Back to chat list"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+            )}
             <GlassCard className={`${isMobile ? 'h-full' : 'h-[600px]'} p-4 sm:p-6 flex flex-col`}>
               {selectedChat ? (
                 <>
@@ -2731,11 +2774,34 @@ const WhatsAppPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto my-4 space-y-3 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full"
+                  <div ref={messagesContainerRef} className="flex-1 overflow-y-auto my-4 space-y-3 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full"
                        style={{
                          scrollbarWidth: 'auto',
                          scrollbarColor: '#8b5cf6 rgba(255,255,255,0.2)'
                        }}>
+                    {selectedChat && displayedMessages.length > 0 && (
+                      <div className="sticky top-0 z-10 flex justify-center pt-1">
+                        <Button
+                          onClick={() => {
+                            const chatId = extractChatId(selectedChat);
+                            if (isValidChatId(chatId)) {
+                              fetchChatHistory(chatId as string, 20);
+                            }
+                          }}
+                          variant="outline"
+                          size="sm"
+                          disabled={fetchingHistory}
+                          className="border-white/30 text-white/90 bg-black/20 backdrop-blur px-3 py-1 rounded-full"
+                        >
+                          {fetchingHistory ? (
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <History className="w-4 h-4 mr-2" />
+                          )}
+                          Load older messages
+                        </Button>
+                      </div>
+                    )}
                     {displayedMessages.length === 0 ? (
                       <div className="flex items-center justify-center h-full">
                         <div className="text-center">
