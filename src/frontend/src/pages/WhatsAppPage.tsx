@@ -118,6 +118,7 @@ const WhatsAppPage: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isAutoLoadingOlderRef = useRef<boolean>(false);
+  const shouldAutoScrollRef = useRef<boolean>(true);
 
   const { isAuthenticated, token } = useAuthStore();
 
@@ -2046,10 +2047,13 @@ const WhatsAppPage: React.FC = () => {
     return chatMessages.sort((a, b) => a.timestamp - b.timestamp);
   }, [messages, selectedChat?.id]);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom when messages change, unless user scrolled up or we're loading older messages
   useEffect(() => {
-    scrollToBottom();
-  }, [displayedMessages]);
+    if (fetchingHistory || isAutoLoadingOlderRef.current) return;
+    if (shouldAutoScrollRef.current) {
+      scrollToBottom();
+    }
+  }, [displayedMessages, fetchingHistory]);
 
   // Auto-load older messages when scrolled to top of chat (mobile-friendly)
   useEffect(() => {
@@ -2057,6 +2061,10 @@ const WhatsAppPage: React.FC = () => {
     if (!container) return;
 
     const handleScroll = () => {
+      // Track whether the user is near the bottom to decide auto-scroll behavior
+      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+      shouldAutoScrollRef.current = distanceFromBottom < 100;
+
       if (fetchingHistory || isAutoLoadingOlderRef.current) return;
       if (container.scrollTop <= 40 && selectedChat) {
         const chatId = extractChatId(selectedChat);
@@ -2078,6 +2086,14 @@ const WhatsAppPage: React.FC = () => {
     container.addEventListener('scroll', handleScroll);
     return () => container.removeEventListener('scroll', handleScroll);
   }, [selectedChat, fetchingHistory]);
+
+  // When switching chats, stick to bottom initially
+  useEffect(() => {
+    if (selectedChat) {
+      shouldAutoScrollRef.current = true;
+      setTimeout(() => scrollToBottom(), 0);
+    }
+  }, [selectedChat?.id]);
 
   const getStatusColor = () => {
     if (!status) return 'text-gray-500';
