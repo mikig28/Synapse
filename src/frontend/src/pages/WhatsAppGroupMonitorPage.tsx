@@ -33,7 +33,6 @@ import { toast } from '@/hooks/use-toast';
 import useAuthStore from '@/store/authStore';
 import api from '@/services/axiosConfig';
 import { optimizedPollingService } from '@/services/optimizedPollingService';
-import { io, Socket } from 'socket.io-client';
 
 interface PersonProfile {
   _id: string;
@@ -139,69 +138,7 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<string>('');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { isAuthenticated, token } = useAuthStore();
-
-  // Optional: Socket.IO real-time updates (with polling fallback)
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [isSocketConnected, setIsSocketConnected] = useState(false);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      if (socket) {
-        socket.disconnect();
-        setSocket(null);
-      }
-      setIsSocketConnected(false);
-      return;
-    }
-
-    const SOCKET_SERVER_URL = import.meta.env.VITE_BACKEND_ROOT_URL || window.location.origin;
-    const newSocket = io(SOCKET_SERVER_URL, {
-      auth: token ? { token } : undefined,
-      autoConnect: true,
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 2000,
-      timeout: 10000,
-      transports: ['websocket', 'polling']
-    });
-
-    setSocket(newSocket);
-
-    newSocket.on('connect', () => setIsSocketConnected(true));
-    newSocket.on('disconnect', () => setIsSocketConnected(false));
-
-    // Preferred consolidated payload
-    newSocket.on('group-monitor:update', (data: any) => {
-      try {
-        if (Array.isArray(data?.monitors)) setGroupMonitors(data.monitors);
-        if (Array.isArray(data?.images)) setFilteredImages(data.images);
-      } catch (e) {
-        console.error('[Group Monitor Socket] Failed to apply update:', e);
-      }
-    });
-
-    // Backward-compatible discrete events
-    newSocket.on('group-monitor:monitors', (monitors: any[]) => {
-      if (Array.isArray(monitors)) setGroupMonitors(monitors);
-    });
-    newSocket.on('group-monitor:images', (images: any[]) => {
-      if (Array.isArray(images)) setFilteredImages(images);
-    });
-    newSocket.on('group-monitor:image_added', (image: any) => {
-      if (image && image._id) {
-        setFilteredImages(prev => [image, ...prev]);
-      }
-    });
-
-    return () => {
-      newSocket.off('group-monitor:update');
-      newSocket.off('group-monitor:monitors');
-      newSocket.off('group-monitor:images');
-      newSocket.off('group-monitor:image_added');
-      newSocket.disconnect();
-    };
-  }, [isAuthenticated, token]);
+  const { isAuthenticated } = useAuthStore();
 
   // Keep group monitors and filtered images fresh with optimized polling
   useEffect(() => {
