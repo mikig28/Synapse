@@ -10,11 +10,8 @@ import ChannelMessagesView from '@/components/telegram/ChannelMessagesView';
 import BotConfigurationModal from '@/components/telegram/BotConfigurationModal';
 import QuickDiagnostics from '@/components/telegram/QuickDiagnostics';
 import ChannelSetupGuide from '@/components/telegram/ChannelSetupGuide';
-<<<<<<< HEAD
-=======
 import BotSetupVerification from '@/components/telegram/BotSetupVerification';
 import BotAdditionGuide from '@/components/telegram/BotAdditionGuide';
->>>>>>> 72913319 (fix: Comprehensive Telegram bot setup and 0 messages issue resolution)
 import { useTelegramChannels } from '@/contexts/TelegramChannelsContext';
 import { useTelegramBot } from '@/hooks/useTelegramBot';
 import { useToast } from '@/hooks/use-toast';
