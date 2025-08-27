@@ -27,7 +27,7 @@ import {
   FileText,
   Music,
   ExternalLink,
-  FolderImage
+  Folder
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { io, Socket } from 'socket.io-client';
@@ -2880,7 +2880,7 @@ const WhatsAppPage: React.FC = () => {
                                     className="flex items-center space-x-1 px-2 py-1 bg-blue-500/50 rounded hover:bg-blue-500/70 transition-colors"
                                     title="Move to Images section"
                                   >
-                                    <FolderImage size={12} />
+                                    <Folder size={12} />
                                     <span>Move to Images</span>
                                   </button>
                                 </div>
