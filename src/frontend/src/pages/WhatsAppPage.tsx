@@ -2048,6 +2048,33 @@ const WhatsAppPage: React.FC = () => {
     return chatMessages.sort((a, b) => a.timestamp - b.timestamp);
   }, [messages, selectedChat?.id]);
 
+  // Move media message to Images section
+  const moveMediaToImages = async (messageId: string) => {
+    try {
+      const response = await api.post(`/waha/media/${messageId}/move-to-images`);
+      
+      if (response.data.success) {
+        toast({
+          title: "Success",
+          description: "Media moved to Images section successfully",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: response.data.error || "Failed to move media to Images section",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error moving media to images:', error);
+      toast({
+        title: "Error",
+        description: error?.response?.data?.error || error?.message || "Failed to move media to Images section",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
@@ -2769,7 +2796,99 @@ const WhatsAppPage: React.FC = () => {
                             {!message.fromMe && message.isGroup && (
                               <p className="text-xs text-blue-200 mb-1">{message.contactName}</p>
                             )}
-                            <p className="text-sm">{message.body || '[Media]'}</p>
+                            
+                            {/* Media content */}
+                            {message.isMedia && message.localMediaGridFsId ? (
+                              <div className="space-y-2">
+                                {message.type === 'image' && (
+                                  <div className="relative group">
+                                    <img
+                                      src={`/api/v1/media/${message.localMediaGridFsId}`}
+                                      alt={message.filename || 'WhatsApp Image'}
+                                      className="max-w-full h-auto rounded-md cursor-pointer hover:opacity-80 transition-opacity"
+                                      onClick={() => window.open(`/api/v1/media/${message.localMediaGridFsId}`, '_blank')}
+                                    />
+                                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <button
+                                        onClick={() => window.open(`/api/v1/media/${message.localMediaGridFsId}`, '_blank')}
+                                        className="p-1 bg-black/50 rounded-full text-white hover:bg-black/70"
+                                        title="Open full size"
+                                      >
+                                        <ExternalLink size={14} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {message.type === 'video' && (
+                                  <div className="flex items-center space-x-2 p-2 bg-black/20 rounded">
+                                    <Video size={20} />
+                                    <span className="text-sm">{message.filename || 'Video'}</span>
+                                    <a
+                                      href={`/api/v1/media/${message.localMediaGridFsId}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="ml-auto p-1 hover:bg-white/20 rounded"
+                                      title="Download video"
+                                    >
+                                      <Download size={14} />
+                                    </a>
+                                  </div>
+                                )}
+                                
+                                {message.type === 'audio' && (
+                                  <div className="flex items-center space-x-2 p-2 bg-black/20 rounded">
+                                    <Music size={20} />
+                                    <span className="text-sm">{message.filename || 'Audio'}</span>
+                                    <a
+                                      href={`/api/v1/media/${message.localMediaGridFsId}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="ml-auto p-1 hover:bg-white/20 rounded"
+                                      title="Download audio"
+                                    >
+                                      <Download size={14} />
+                                    </a>
+                                  </div>
+                                )}
+                                
+                                {message.type === 'document' && (
+                                  <div className="flex items-center space-x-2 p-2 bg-black/20 rounded">
+                                    <FileText size={20} />
+                                    <span className="text-sm">{message.filename || 'Document'}</span>
+                                    <a
+                                      href={`/api/v1/media/${message.localMediaGridFsId}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="ml-auto p-1 hover:bg-white/20 rounded"
+                                      title="Download document"
+                                    >
+                                      <Download size={14} />
+                                    </a>
+                                  </div>
+                                )}
+                                
+                                {/* Caption */}
+                                {message.caption && (
+                                  <p className="text-sm mt-2">{message.caption}</p>
+                                )}
+                                
+                                {/* Media actions */}
+                                <div className="flex space-x-2 mt-2 text-xs">
+                                  <button
+                                    onClick={() => moveMediaToImages(message.id)}
+                                    className="flex items-center space-x-1 px-2 py-1 bg-blue-500/50 rounded hover:bg-blue-500/70 transition-colors"
+                                    title="Move to Images section"
+                                  >
+                                    <FolderImage size={12} />
+                                    <span>Move to Images</span>
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-sm">{message.body || (message.isMedia ? '[Media - Processing...]' : '')}</p>
+                            )}
+                            
                             <p className="text-xs opacity-70 mt-1">{message.time}</p>
                           </div>
                         </motion.div>

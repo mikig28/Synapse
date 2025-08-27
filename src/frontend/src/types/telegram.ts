@@ -14,8 +14,12 @@ export interface TelegramItemType {
   updatedAt: string;
   
   // Fields for items created from analysis (Tasks, Notes, Ideas)
-  source?: string; // e.g., 'telegram_voice_memo', 'telegram_text'
+  source?: string; // e.g., 'telegram_voice_memo', 'telegram_text', 'whatsapp', 'telegram'
   rawTranscription?: string; // Full transcription if applicable
+  
+  // Fields for WhatsApp integration
+  from?: string; // Sender information for cross-platform support
+  whatsappMessageId?: string; // Reference to original WhatsApp message
   
   // Fields specific to Task (if the item is a Task)
   title?: string; // If it's a Task, text might be here, or in a dedicated title field
