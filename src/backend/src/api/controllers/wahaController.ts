@@ -568,7 +568,7 @@ export const webhook = async (req: Request, res: Response) => {
     const wahaService = getWAHAService();
     
     // Handle the webhook through the service
-    await wahaService.handleWebhook(req.body);
+    wahaService.handleWebhook(req.body);
     
     // Additional Socket.IO broadcasting for session status changes
     // WAHA event structure: { id, timestamp, event, session, payload }
@@ -1587,7 +1587,7 @@ export const getMediaMessages = async (req: Request, res: Response) => {
     // Transform messages for frontend
     const transformedMessages = mediaMessages.map(msg => ({
       id: msg._id,
-      wahaMessageId: msg.messageId,
+      wahaMessageId: msg.wahaMessageId,
       chatId: msg.to,
       from: msg.from,
       message: msg.message,
@@ -1671,9 +1671,9 @@ export const moveMediaToImages = async (req: Request, res: Response) => {
     // Create new TelegramItem for images section
     const telegramItem = new TelegramItem({
       messageType: 'photo',
-      from: (whatsappMessage.contactId as any)?.name || whatsappMessage.from,
-      fromUsername: (whatsappMessage.contactId as any)?.name || whatsappMessage.from,
-      chatTitle: `WhatsApp: ${(whatsappMessage.contactId as any)?.name || whatsappMessage.from}`,
+      from: whatsappMessage.contactId?.name || whatsappMessage.from,
+      fromUsername: whatsappMessage.contactId?.name || whatsappMessage.from,
+      chatTitle: `WhatsApp: ${whatsappMessage.contactId?.name || whatsappMessage.from}`,
       content: whatsappMessage.caption || '',
       receivedAt: whatsappMessage.timestamp,
       mediaGridFsId: whatsappMessage.localMediaGridFsId,

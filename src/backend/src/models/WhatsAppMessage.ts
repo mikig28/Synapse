@@ -16,9 +16,6 @@ export interface IWhatsAppMessage extends Document {
   mediaUrl?: string;
   mimeType?: string;
   caption?: string;
-  localMediaGridFsId?: mongoose.Types.ObjectId;
-  mediaSize?: number;
-  filename?: string;
   
   // Message context (for replies)
   contextMessageId?: string;
@@ -108,9 +105,6 @@ const WhatsAppMessageSchema: Schema<IWhatsAppMessage> = new Schema(
     mediaUrl: { type: String },
     mimeType: { type: String },
     caption: { type: String },
-    localMediaGridFsId: { type: Schema.Types.ObjectId },
-    mediaSize: { type: Number },
-    filename: { type: String },
     
     // Context fields for replies
     contextMessageId: { type: String },
