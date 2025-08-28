@@ -131,7 +131,33 @@ const WhatsAppPage: React.FC = () => {
   
   const { isAuthenticated, token } = useAuthStore();
 
-
+  // Helper function to normalize any chatId to a string (handle both string and object cases)
+  const normalizeChatId = (chatId: any, context: string = 'unknown'): string | null => {
+    if (!chatId) {
+      console.warn(`[WhatsApp Frontend] Empty chatId in ${context}:`, chatId);
+      return null;
+    }
+    
+    if (typeof chatId === 'string') {
+      return chatId;
+    }
+    
+    if (typeof chatId === 'object' && chatId !== null) {
+      // Extract string ID from object formats
+      if ('_serialized' in chatId) {
+        return chatId._serialized;
+      } else if ('id' in chatId) {
+        return chatId.id;
+      } else {
+        // Fallback: convert object to string, but this shouldn't happen
+        console.warn(`[WhatsApp Frontend] ⚠️ Had to stringify ${context} ID object:`, chatId);
+        return String(chatId);
+      }
+    }
+    
+    // Final fallback
+    return String(chatId);
+  };
 
   // Helper function to extract chatId from selectedChat.id (handle both string and object cases)
   const extractChatId = (chatObj: WhatsAppChat | null): string | undefined => {
@@ -706,11 +732,11 @@ const WhatsAppPage: React.FC = () => {
           // Process groups to ensure they have proper structure
           const processedGroups = groupsData
             .map((group: any) => {
-              // Use extractChatId helper for consistency with interaction functions
-              const extractedId = extractChatId({ id: group.id || group._id } as WhatsAppChat);
+              // Normalize the ID to always be a string using helper
+              const normalizedId = normalizeChatId(group.id || group._id, 'WAHA group');
               
               // Return null for invalid groups so they can be filtered out
-              if (!extractedId) {
+              if (!normalizedId) {
                 console.warn(`[WhatsApp Frontend] ⚠️ Skipping WAHA group with invalid ID:`, {
                   groupName: group.name || group.subject || 'Unnamed',
                   originalId: group.id,
@@ -720,7 +746,7 @@ const WhatsAppPage: React.FC = () => {
               }
               
               const processedGroup = {
-                id: extractedId,
+                id: normalizedId,
               name: group.name || group.subject || 'Unnamed Group',
               lastMessage: group.lastMessage?.body || group.lastMessage,
               timestamp: group.timestamp,
@@ -788,11 +814,11 @@ const WhatsAppPage: React.FC = () => {
         // Process legacy groups
         const processedGroups = groupsData
           .map((group: any) => {
-            // Use extractChatId helper for consistency with interaction functions
-            const extractedId = extractChatId({ id: group.id || group._id } as WhatsAppChat);
+            // Normalize the ID to always be a string using helper
+            const normalizedId = normalizeChatId(group.id || group._id, 'legacy group');
             
             // Return null for invalid groups so they can be filtered out
-            if (!extractedId) {
+            if (!normalizedId) {
               console.warn(`[WhatsApp Frontend] ⚠️ Skipping legacy group with invalid ID:`, {
                 groupName: group.name || 'Unnamed',
                 originalId: group.id,
@@ -802,7 +828,7 @@ const WhatsAppPage: React.FC = () => {
             }
             
             const processedGroup = {
-              id: extractedId,
+              id: normalizedId,
             name: group.name || 'Unnamed Group',
             lastMessage: group.lastMessage,
             timestamp: group.timestamp,
@@ -879,11 +905,11 @@ const WhatsAppPage: React.FC = () => {
           // Process private chats to ensure proper structure
           const processedChats = chatsData
             .map((chat: any) => {
-              // Use extractChatId helper for consistency with interaction functions
-              const extractedId = extractChatId({ id: chat.id || chat._id } as WhatsAppChat);
+              // Normalize the ID to always be a string using helper
+              const normalizedId = normalizeChatId(chat.id || chat._id, 'WAHA private chat');
               
               // Return null for invalid chats so they can be filtered out
-              if (!extractedId) {
+              if (!normalizedId) {
                 console.warn(`[WhatsApp Frontend] ⚠️ Skipping WAHA private chat with invalid ID:`, {
                   chatName: chat.name || chat.pushName || 'Unknown',
                   originalId: chat.id,
@@ -893,7 +919,7 @@ const WhatsAppPage: React.FC = () => {
               }
               
               const processedChat = {
-                id: extractedId,
+                id: normalizedId,
               name: chat.name || chat.pushName || chat.number || 'Unknown Contact',
               lastMessage: chat.lastMessage?.body || chat.lastMessage,
               timestamp: chat.timestamp,
@@ -942,11 +968,11 @@ const WhatsAppPage: React.FC = () => {
         
         const processedChats = chatsData
           .map((chat: any) => {
-            // Use extractChatId helper for consistency with interaction functions
-            const extractedId = extractChatId({ id: chat.id || chat._id } as WhatsAppChat);
+            // Normalize the ID to always be a string using helper
+            const normalizedId = normalizeChatId(chat.id || chat._id, 'legacy private chat');
             
             // Return null for invalid chats so they can be filtered out
-            if (!extractedId) {
+            if (!normalizedId) {
               console.warn(`[WhatsApp Frontend] ⚠️ Skipping legacy private chat with invalid ID:`, {
                 chatName: chat.name || 'Unknown',
                 originalId: chat.id,
@@ -956,7 +982,7 @@ const WhatsAppPage: React.FC = () => {
             }
             
             const processedChat = {
-              id: extractedId,
+              id: normalizedId,
             name: chat.name || 'Unknown Contact',
             lastMessage: chat.lastMessage,
             timestamp: chat.timestamp,
