@@ -224,47 +224,6 @@ class GroupMonitorService {
   }
 
   /**
-   * Process any WhatsApp message in a monitored group
-   */
-  async processGroupMessage(
-    messageId: string,
-    groupId: string,
-    senderId: string,
-    senderName: string,
-    messageType: string,
-    messageContent: string,
-    imageUrl?: string
-  ): Promise<void> {
-    try {
-      // Get active monitors for this group
-      const monitors = await this.getActiveMonitorsForGroup(groupId);
-      
-      if (monitors.length === 0) {
-        return; // No active monitors for this group
-      }
-
-      console.log(`[Group Monitor] Processing ${messageType} message for ${monitors.length} monitors in group: ${groupId}`);
-
-      // Update message statistics for all monitors in this group
-      for (const monitor of monitors) {
-        try {
-          await (monitor as any).incrementStats('messages');
-          console.log(`[Group Monitor] Updated message count for monitor: ${monitor._id}`);
-        } catch (error) {
-          console.error(`[Group Monitor] Error updating message stats for monitor ${monitor._id}:`, error);
-        }
-      }
-
-      // If this is an image message, also process for face recognition
-      if (imageUrl && (messageType === 'image' || messageType === 'imageMessage')) {
-        await this.processImageMessage(messageId, groupId, senderId, senderName, imageUrl, messageContent);
-      }
-    } catch (error) {
-      console.error('[Group Monitor] Error processing group message:', error);
-    }
-  }
-
-  /**
    * Process WhatsApp image message for person detection
    */
   async processImageMessage(

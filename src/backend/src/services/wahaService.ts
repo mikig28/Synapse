@@ -1297,8 +1297,8 @@ class WAHAService extends EventEmitter {
       switch (eventType) {
         case 'message':
           this.emit('message', eventData);
-          // Process all group messages for monitoring (images and text)
-          await this.processGroupMessageForMonitoring(eventData);
+          // Process image messages for group monitoring
+          this.processImageForGroupMonitoring(eventData);
           break;
           
         case 'session.status':
@@ -1363,46 +1363,7 @@ class WAHAService extends EventEmitter {
   }
 
   /**
-   * Process all group messages for monitoring (both text and images)
-   */
-  private async processGroupMessageForMonitoring(messageData: any): Promise<void> {
-    try {
-      // Check if message is from a group
-      if (!messageData.isGroup || !messageData.chatId) {
-        return;
-      }
-
-      console.log('[WAHA Service] Processing group message for monitoring:', {
-        messageId: messageData.id,
-        groupId: messageData.chatId,
-        groupName: messageData.groupName,
-        from: messageData.from,
-        type: messageData.type,
-        isMedia: messageData.isMedia
-      });
-
-      // Import GroupMonitorService dynamically to avoid circular dependencies
-      const { default: GroupMonitorService } = await import('./groupMonitorService');
-      const groupMonitorService = new GroupMonitorService();
-      
-      // Process the group message through Group Monitor Service
-      await groupMonitorService.processGroupMessage(
-        messageData.id,
-        messageData.chatId,
-        messageData.from,
-        messageData.contactName || messageData.from,
-        messageData.type,
-        messageData.body || '',
-        messageData.isMedia ? messageData.mediaUrl : undefined
-      );
-
-    } catch (error) {
-      console.error('[WAHA Service] ❌ Error processing group message for monitoring:', error);
-    }
-  }
-
-  /**
-   * Process image messages for group monitoring (legacy method - now handled by processGroupMessageForMonitoring)
+   * Process image messages for group monitoring
    */
   private async processImageForGroupMonitoring(messageData: any): Promise<void> {
     try {
