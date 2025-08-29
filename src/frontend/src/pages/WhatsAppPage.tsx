@@ -127,16 +127,23 @@ const WhatsAppPage: React.FC = () => {
     }
     
     if (typeof chatId === 'string') {
-      return chatId;
+      const trimmed = chatId.trim();
+      if (!trimmed || trimmed === '[object Object]' || trimmed.includes('[object')) {
+        console.warn(`[WhatsApp Frontend] ⚠️ Invalid string chatId in ${context}:`, trimmed);
+        return null;
+      }
+      return trimmed;
     }
     
     if (typeof chatId === 'object' && chatId !== null) {
       // Extract string ID from object formats
       if ('_serialized' in chatId && typeof (chatId as any)._serialized === 'string') {
-        return (chatId as any)._serialized;
+        const v = (chatId as any)._serialized as string;
+        return v && v !== '[object Object]' && !v.includes('[object') ? v : null;
       }
       if ('id' in chatId && typeof (chatId as any).id === 'string') {
-        return (chatId as any).id;
+        const v = (chatId as any).id as string;
+        return v && v !== '[object Object]' && !v.includes('[object') ? v : null;
       }
       if ('user' in chatId && 'server' in chatId && typeof (chatId as any).user === 'string' && typeof (chatId as any).server === 'string') {
         return `${(chatId as any).user}@${(chatId as any).server}`;
