@@ -30,8 +30,11 @@ import {
   forceHistorySync,
   getMonitoredKeywords,
   addMonitoredKeyword,
-  removeMonitoredKeyword
+  removeMonitoredKeyword,
+  proxyMediaByUrl,
+  saveMediaToImages
 } from '../controllers/wahaController';
+import { authMiddleware } from '../middleware/authMiddleware';
 
 const router = Router();
 
@@ -54,6 +57,10 @@ router.post('/auth/verify', verifyPhoneAuthCode);
 // Messaging
 router.post('/send', sendMessage);
 router.post('/send-media', sendMedia);
+
+// Media utilities
+router.get('/media/proxy', proxyMediaByUrl);
+router.post('/media/save', authMiddleware, saveMediaToImages);
 
 // Chat management
 router.get('/chats', getChats);

@@ -42,6 +42,7 @@ interface WhatsAppMessage {
   time: string;
   isMedia: boolean;
   mediaUrl?: string;
+  mediaSourceUrl?: string;
   mimeType?: string;
   caption?: string;
 }
@@ -1132,7 +1133,10 @@ const WhatsAppPage: React.FC = () => {
             chatId: msg.chatId || chatId || '',
             time: new Date(msg.timestamp || Date.now()).toLocaleTimeString(),
             isMedia: msg.hasMedia || msg.type !== 'text',
-            mediaUrl: msg.mediaUrl || msg.url || (msg.media && msg.media.url) || undefined,
+            mediaSourceUrl: msg.mediaUrl || msg.url || (msg.media && msg.media.url) || undefined,
+            mediaUrl: (msg.mediaUrl || msg.url || (msg.media && msg.media.url))
+              ? `/api/v1/waha/media/proxy?url=${encodeURIComponent(msg.mediaUrl || msg.url || (msg.media && msg.media.url))}`
+              : undefined,
             mimeType: msg.mimeType || msg.mimetype || (msg.media && msg.media.mimetype) || undefined,
             caption: msg.caption || (msg.type === 'image' ? msg.body : undefined)
           }));
@@ -2866,8 +2870,28 @@ const WhatsAppPage: React.FC = () => {
                                 <img
                                   src={message.mediaUrl}
                                   alt={message.caption || 'Image'}
-                                  className="max-h-64 w-auto rounded-md object-contain"
+                                  className="max-h-64 w-auto rounded-md object-contain cursor-pointer hover:opacity-90 transition"
                                   loading="lazy"
+                                  onClick={async () => {
+                                    try {
+                                      const res = await api.post('/waha/media/save', {
+                                        url: message.mediaSourceUrl || message.mediaUrl,
+                                        caption: message.caption || message.body || '',
+                                        fromUsername: message.contactName,
+                                        chatTitle: selectedChat?.name,
+                                        timestamp: message.timestamp
+                                      });
+                                      if (res.data?.success) {
+                                        toast({ title: 'Saved', description: 'Image saved to Images page' });
+                                      } else {
+                                        toast({ title: 'Error', description: res.data?.error || 'Failed to save image', variant: 'destructive' });
+                                      }
+                                    } catch (err: any) {
+                                      console.error('Failed to save image:', err);
+                                      toast({ title: 'Error', description: err?.response?.data?.error || err.message || 'Failed to save image', variant: 'destructive' });
+                                    }
+                                  }}
+                                  title="Click to save to Images"
                                 />
                                 {message.caption && (
                                   <p className="text-sm break-words whitespace-pre-wrap mt-1">{message.caption}</p>

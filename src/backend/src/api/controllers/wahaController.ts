@@ -4,7 +4,13 @@
  */
 
 import { Request, Response } from 'express';
+import axios from 'axios';
+import { Readable } from 'stream';
 import WAHAService from '../../services/wahaService';
+import { getBucket } from '../../config/gridfs';
+import TelegramItem from '../../models/TelegramItem';
+import { AuthenticatedRequest } from '../middleware/authMiddleware';
+import { io } from '../../server';
 import POLLING_CONFIG from '../../config/polling.config';
 
 // Cache for status responses to prevent excessive API calls
@@ -342,6 +348,125 @@ export const sendMedia = async (req: Request, res: Response) => {
       success: false,
       error: 'Failed to send media'
     });
+  }
+};
+
+/**
+ * Proxy a media URL through the backend to avoid CORS/auth issues
+ */
+export const proxyMediaByUrl = async (req: Request, res: Response) => {
+  try {
+    const url = String(req.query.url || '');
+    if (!url || !/^https?:\/\//i.test(url)) {
+      return res.status(400).json({ success: false, error: 'Invalid or missing url parameter' });
+    }
+
+    const headers: Record<string, string> = {};
+    if (process.env.WAHA_API_KEY) {
+      headers['X-API-Key'] = process.env.WAHA_API_KEY;
+    }
+
+    const response = await axios.get(url, {
+      responseType: 'stream',
+      headers,
+      timeout: 30000,
+      validateStatus: () => true
+    });
+
+    if (response.status >= 400) {
+      return res.status(response.status).json({ success: false, error: 'Failed to fetch media' });
+    }
+
+    if (response.headers['content-type']) {
+      res.setHeader('Content-Type', response.headers['content-type']);
+    }
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+
+    (response.data as Readable).pipe(res);
+  } catch (error) {
+    console.error('[WAHA Controller] Proxy media error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: 'Media proxy failed' });
+    }
+  }
+};
+
+/**
+ * Download a WhatsApp media URL and save it to GridFS, creating an Images item
+ */
+export const saveMediaToImages = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Not authenticated' });
+    }
+
+    const { url, caption, fromUsername, chatTitle, timestamp } = req.body || {};
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ success: false, error: 'Missing url in request body' });
+    }
+
+    const headers: Record<string, string> = {};
+    if (process.env.WAHA_API_KEY) {
+      headers['X-API-Key'] = process.env.WAHA_API_KEY;
+    }
+
+    const downloadResponse = await axios.get(url, {
+      responseType: 'stream',
+      headers,
+      timeout: 60000,
+      validateStatus: () => true
+    });
+
+    if (downloadResponse.status >= 400 || !downloadResponse.data) {
+      return res.status(502).json({ success: false, error: 'Failed to download media from source URL' });
+    }
+
+    const contentType = (downloadResponse.headers['content-type'] as string) || 'application/octet-stream';
+    const extension = contentType.includes('/') ? contentType.split('/')[1] : 'bin';
+    const urlPath = (() => { try { return new URL(url).pathname; } catch { return ''; } })();
+    const filenameFromUrl = urlPath ? urlPath.split('/').pop() : undefined;
+    const filename = filenameFromUrl || `whatsapp_${Date.now()}.${extension}`;
+
+    const bucket = getBucket();
+    const uploadStream = bucket.openUploadStream(filename, {
+      contentType,
+      metadata: { source: 'whatsapp', savedAt: new Date().toISOString() }
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      (downloadResponse.data as Readable)
+        .pipe(uploadStream)
+        .on('finish', () => resolve())
+        .on('error', (err: Error) => reject(err));
+    });
+
+    const mediaGridFsId = uploadStream.id.toString();
+
+    const savedItem = await new TelegramItem({
+      synapseUserId: userId,
+      telegramMessageId: Math.floor(Date.now() % 1000000000),
+      chatId: 0,
+      chatTitle: chatTitle || 'WhatsApp',
+      fromUsername: fromUsername || 'WhatsApp',
+      text: caption || '',
+      urls: [],
+      messageType: 'photo',
+      mediaFileId: undefined,
+      mediaGridFsId,
+      receivedAt: timestamp ? new Date(timestamp) : new Date()
+    }).save();
+
+    try {
+      io.emit('new_telegram_item', savedItem.toObject());
+    } catch (emitError) {
+      console.warn('[WAHA Controller] Could not emit new_telegram_item:', emitError);
+    }
+
+    return res.json({ success: true, data: { mediaGridFsId, itemId: savedItem._id } });
+  } catch (error) {
+    console.error('[WAHA Controller] Error saving media to images:', error);
+    res.status(500).json({ success: false, error: 'Failed to save media to images' });
   }
 };
 
