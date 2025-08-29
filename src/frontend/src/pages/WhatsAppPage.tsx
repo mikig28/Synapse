@@ -41,6 +41,9 @@ interface WhatsAppMessage {
   chatId: string;
   time: string;
   isMedia: boolean;
+  mediaUrl?: string;
+  mimeType?: string;
+  caption?: string;
 }
 
 interface WhatsAppChat {
@@ -1128,7 +1131,10 @@ const WhatsAppPage: React.FC = () => {
             contactName: msg.contactName || msg.senderName || msg.from || 'Unknown',
             chatId: msg.chatId || chatId || '',
             time: new Date(msg.timestamp || Date.now()).toLocaleTimeString(),
-            isMedia: msg.hasMedia || false
+            isMedia: msg.hasMedia || msg.type !== 'text',
+            mediaUrl: msg.mediaUrl || msg.url || (msg.media && msg.media.url) || undefined,
+            mimeType: msg.mimeType || msg.mimetype || (msg.media && msg.media.mimetype) || undefined,
+            caption: msg.caption || (msg.type === 'image' ? msg.body : undefined)
           }));
           
           setMessages(processedMessages);
@@ -1178,7 +1184,10 @@ const WhatsAppPage: React.FC = () => {
           contactName: msg.contactName || msg.from || 'Unknown',
           chatId: msg.chatId || chatId || '',
           time: new Date(msg.timestamp || Date.now()).toLocaleTimeString(),
-          isMedia: msg.isMedia || false
+          isMedia: msg.isMedia || msg.type !== 'text',
+          mediaUrl: msg.mediaUrl,
+          mimeType: msg.mimeType,
+          caption: msg.caption
         }));
         
         setMessages(processedMessages);
@@ -2166,7 +2175,6 @@ const WhatsAppPage: React.FC = () => {
                   <AnimatedButton
                     onClick={() => {
                       setShowChatList(true);
-                      setSelectedChat(null);
                     }}
                     variant="ghost"
                     size="sm"
@@ -2718,7 +2726,17 @@ const WhatsAppPage: React.FC = () => {
                         <Phone className="w-6 h-6 text-violet-400" />
                       )}
                       <div className="min-w-0 flex-1">
-                        <h3 className="font-semibold text-white truncate">{selectedChat.name}</h3>
+                        <h3
+                          className="font-semibold text-white truncate cursor-pointer"
+                          onClick={() => {
+                            if (isMobile) {
+                              setShowChatList(true);
+                            }
+                          }}
+                          title={isMobile ? 'Back to chats' : selectedChat.name}
+                        >
+                          {selectedChat.name}
+                        </h3>
                         <p className="text-sm text-blue-200/70">
                           {selectedChat.isGroup 
                             ? `${selectedChat.participantCount ?? 0} members`
@@ -2843,7 +2861,21 @@ const WhatsAppPage: React.FC = () => {
                             {!message.fromMe && message.isGroup && (
                               <p className="text-xs text-blue-200 mb-1">{message.contactName}</p>
                             )}
-                            <p className="text-sm break-words whitespace-pre-wrap">{message.body || '[Media]'}</p>
+                            {message.isMedia && message.type === 'image' && message.mediaUrl ? (
+                              <div className="mt-1">
+                                <img
+                                  src={message.mediaUrl}
+                                  alt={message.caption || 'Image'}
+                                  className="max-h-64 w-auto rounded-md object-contain"
+                                  loading="lazy"
+                                />
+                                {message.caption && (
+                                  <p className="text-sm break-words whitespace-pre-wrap mt-1">{message.caption}</p>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-sm break-words whitespace-pre-wrap">{message.body || '[Media]'}</p>
+                            )}
                             <p className="text-xs opacity-70 mt-1">{message.time}</p>
                           </div>
                         </motion.div>
