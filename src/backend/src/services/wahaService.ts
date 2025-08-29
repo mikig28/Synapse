@@ -142,6 +142,41 @@ class WAHAService extends EventEmitter {
   }
 
   /**
+   * Extract a WhatsApp JID string from any WAHA id shape.
+   * Handles objects like { _serialized }, { id }, or { user, server }.
+   * Returns null for invalid values (including the literal "[object Object]").
+   */
+  private extractJidFromAny(rawId: any): string | null {
+    try {
+      if (!rawId) return null;
+      if (typeof rawId === 'string') {
+        const trimmed = rawId.trim();
+        if (!trimmed || trimmed === '[object Object]' || trimmed.includes('[object')) return null;
+        return trimmed;
+      }
+      if (typeof rawId === 'object') {
+        if (typeof (rawId as any)._serialized === 'string') {
+          const v = String((rawId as any)._serialized).trim();
+          return v && v !== '[object Object]' && !v.includes('[object') ? v : null;
+        }
+        if (typeof (rawId as any).id === 'string') {
+          const v = String((rawId as any).id).trim();
+          return v && v !== '[object Object]' && !v.includes('[object') ? v : null;
+        }
+        if (typeof (rawId as any).user === 'string' && typeof (rawId as any).server === 'string') {
+          return `${(rawId as any).user}@${(rawId as any).server}`;
+        }
+        const stringified = String(rawId).trim();
+        if (!stringified || stringified === '[object Object]' || stringified.includes('[object')) return null;
+        return stringified;
+      }
+      return String(rawId);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Handle authentication event - fetch chats automatically with retry logic
    */
   private async handleAuthentication(authData: any): Promise<void> {
@@ -777,15 +812,19 @@ class WAHAService extends EventEmitter {
       };
 
       const mapChats = (items: any[]): WAHAChat[] => {
-        return (items || []).map((chat: any) => ({
-          id: chat.id,
-          name: chat.name || chat.subject || chat.title || chat.id,
-          // Robust group detection: WAHA may omit isGroup. Treat *@g.us as group.
-          isGroup: Boolean(chat.isGroup) || (typeof chat.id === 'string' && chat.id.includes('@g.us')),
-          lastMessage: chat.lastMessage?.body,
-          timestamp: chat.lastMessage?.timestamp,
-          participantCount: chat.participantCount
-        }));
+        return (items || []).map((chat: any) => {
+          const extractedId = this.extractJidFromAny(chat.id);
+          const safeId = extractedId ?? String(chat.id ?? '');
+          return {
+            id: safeId,
+            name: chat.name || chat.subject || chat.title || safeId,
+            // Robust group detection: WAHA may omit isGroup. Treat *@g.us as group.
+            isGroup: Boolean(chat.isGroup) || (typeof safeId === 'string' && safeId.includes('@g.us')),
+            lastMessage: chat.lastMessage?.body,
+            timestamp: chat.lastMessage?.timestamp,
+            participantCount: chat.participantCount
+          };
+        });
       };
 
       const tryOverview = async (): Promise<WAHAChat[] | null> => {
@@ -953,7 +992,7 @@ class WAHAService extends EventEmitter {
         const res = await this.httpClient.get(endpoint);
         console.log(`[WAHA Service] Received ${res.data.length} groups`);
         return res.data.map((g: any) => ({
-          id: String(g.id || g.chatId || g.groupId || ''),
+          id: this.extractJidFromAny(g.id || g.chatId || g.groupId) || String(g.id || g.chatId || g.groupId || ''),
           name: String(g.name || g.subject || g.title || g.id || 'Unnamed Group'),
           description: g.description ? String(g.description) : undefined,
           isGroup: true,
