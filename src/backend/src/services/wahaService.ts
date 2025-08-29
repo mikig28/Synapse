@@ -1142,7 +1142,11 @@ class WAHAService extends EventEmitter {
         contactName: msg.notifyName || msg.from,
         chatId: msg.chatId,
         time: new Date(msg.timestamp * 1000).toLocaleTimeString(),
-        isMedia: msg.type !== 'text'
+        isMedia: msg.type !== 'text',
+        // Optional media fields when available from WAHA
+        mediaUrl: msg.mediaUrl || msg.url || (msg.media && msg.media.url) || undefined,
+        mimeType: msg.mimeType || msg.mimetype || (msg.media && msg.media.mimetype) || undefined,
+        caption: msg.caption || (msg.type === 'image' ? msg.body : undefined)
       }));
     } catch (error: any) {
       console.error(`[WAHA Service] ❌ Failed to get messages for ${chatId}:`, error.response?.status, error.response?.data);
@@ -1170,7 +1174,10 @@ class WAHAService extends EventEmitter {
             contactName: msg.notifyName || msg.from,
             chatId: msg.chatId,
             time: new Date(msg.timestamp * 1000).toLocaleTimeString(),
-            isMedia: msg.type !== 'text'
+            isMedia: msg.type !== 'text',
+            mediaUrl: msg.mediaUrl || msg.url || (msg.media && msg.media.url) || undefined,
+            mimeType: msg.mimeType || msg.mimetype || (msg.media && msg.media.mimetype) || undefined,
+            caption: msg.caption || (msg.type === 'image' ? msg.body : undefined)
           }));
         } catch (retryErr: any) {
           console.error('[WAHA Service] Alternate JID retry failed:', retryErr.response?.status, retryErr.response?.data);
@@ -1194,7 +1201,10 @@ class WAHAService extends EventEmitter {
             contactName: msg.notifyName || msg.from,
             chatId: msg.chatId,
             time: new Date(msg.timestamp * 1000).toLocaleTimeString(),
-            isMedia: msg.type !== 'text'
+            isMedia: msg.type !== 'text',
+            mediaUrl: msg.mediaUrl || msg.url || (msg.media && msg.media.url) || undefined,
+            mimeType: msg.mimeType || msg.mimetype || (msg.media && msg.media.mimetype) || undefined,
+            caption: msg.caption || (msg.type === 'image' ? msg.body : undefined)
           }));
         } catch (retryErr: any) {
           console.error('[WAHA Service] Alternate JID retry failed:', retryErr.response?.status, retryErr.response?.data);
