@@ -132,15 +132,22 @@ const WhatsAppPage: React.FC = () => {
     
     if (typeof chatId === 'object' && chatId !== null) {
       // Extract string ID from object formats
-      if ('_serialized' in chatId) {
-        return chatId._serialized;
-      } else if ('id' in chatId) {
-        return chatId.id;
-      } else {
-        // Fallback: convert object to string, but this shouldn't happen
-        console.warn(`[WhatsApp Frontend] ⚠️ Had to stringify ${context} ID object:`, chatId);
-        return String(chatId);
+      if ('_serialized' in chatId && typeof (chatId as any)._serialized === 'string') {
+        return (chatId as any)._serialized;
       }
+      if ('id' in chatId && typeof (chatId as any).id === 'string') {
+        return (chatId as any).id;
+      }
+      if ('user' in chatId && 'server' in chatId && typeof (chatId as any).user === 'string' && typeof (chatId as any).server === 'string') {
+        return `${(chatId as any).user}@${(chatId as any).server}`;
+      }
+      // Fallback: avoid returning [object Object]
+      const stringified = String(chatId);
+      if (stringified === '[object Object]' || stringified.includes('[object')) {
+        console.warn(`[WhatsApp Frontend] ⚠️ Could not normalize ${context} ID object:`, chatId);
+        return null;
+      }
+      return stringified;
     }
     
     // Final fallback
@@ -170,13 +177,13 @@ const WhatsAppPage: React.FC = () => {
         const extracted = (chatObj.id as any)._serialized;
         console.log('[WhatsApp Frontend] extractChatId: Extracted from _serialized:', extracted);
         return extracted;
-      } else if ('id' in chatObj.id) {
+      } else if ('user' in chatObj.id && 'server' in chatObj.id) {
+        const extracted = `${(chatObj.id as any).user}@${(chatObj.id as any).server}`;
+        console.log('[WhatsApp Frontend] extractChatId: Composed from user+server:', extracted);
+        return extracted;
+      } else if ('id' in chatObj.id && typeof (chatObj.id as any).id === 'string') {
         const extracted = (chatObj.id as any).id;
         console.log('[WhatsApp Frontend] extractChatId: Extracted from id:', extracted);
-        return extracted;
-      } else if ('user' in chatObj.id) {
-        const extracted = (chatObj.id as any).user;
-        console.log('[WhatsApp Frontend] extractChatId: Extracted from user:', extracted);
         return extracted;
       } else {
         // Fallback: convert to string and check if it's valid
@@ -194,10 +201,13 @@ const WhatsAppPage: React.FC = () => {
 
   // Helper function to validate chatId
   const isValidChatId = (chatId: string | undefined): boolean => {
-    const isValid = !!chatId && 
+    const basicValid = !!chatId && 
            typeof chatId === 'string' && 
            chatId !== '[object Object]' && 
            !chatId.includes('[object');
+    const hasAt = !!chatId && chatId.includes('@');
+    const validSuffix = !!chatId && /@(g\.us|c\.us|s\.whatsapp\.net)$/.test(chatId);
+    const isValid = basicValid && hasAt && validSuffix;
     
     console.log('[WhatsApp Frontend] isValidChatId:', {
       chatId,
@@ -206,7 +216,9 @@ const WhatsAppPage: React.FC = () => {
       reason: !chatId ? 'no chatId' : 
               typeof chatId !== 'string' ? 'not a string' :
               chatId === '[object Object]' ? 'is [object Object]' :
-              chatId.includes('[object') ? 'contains [object' : 'valid'
+              chatId.includes('[object') ? 'contains [object' :
+              !hasAt ? 'missing @ suffix' :
+              !validSuffix ? 'invalid domain suffix' : 'valid'
     });
     
     return isValid as boolean;
@@ -1038,7 +1050,7 @@ const WhatsAppPage: React.FC = () => {
       });
       
       // Validate chatId if provided - CRITICAL: Stop execution if invalid
-      if (chatId && (typeof chatId !== 'string' || chatId === '[object Object]' || chatId.includes('[object'))) {
+      if (chatId && (typeof chatId !== 'string' || chatId === '[object Object]' || chatId.includes('[object') || !chatId.includes('@'))) {
         console.error('[WhatsApp Frontend] ❌ Invalid chatId detected in fetchMessages:', {
           chatId,
           type: typeof chatId,
@@ -1734,7 +1746,7 @@ const WhatsAppPage: React.FC = () => {
       setFetchingHistory(true);
       
       // Validate chatId parameter
-      if (!chatId || typeof chatId !== 'string') {
+      if (!chatId || typeof chatId !== 'string' || chatId === '[object Object]' || chatId.includes('[object') || !chatId.includes('@')) {
         console.error('[WhatsApp Frontend] Invalid chatId for history fetch:', chatId);
         toast({
           title: "Error",
@@ -1748,7 +1760,7 @@ const WhatsAppPage: React.FC = () => {
         chatId,
         chatIdType: typeof chatId,
         limit,
-        chatIdValid: chatId && typeof chatId === 'string' && chatId !== '[object Object]' && !chatId.includes('[object')
+        chatIdValid: chatId && typeof chatId === 'string' && chatId !== '[object Object]' && !chatId.includes('[object') && chatId.includes('@')
       });
       
       // Prefer WAHA modern endpoint; fallback to legacy

@@ -474,6 +474,13 @@ export const getMessages = async (req: Request, res: Response) => {
           details: { chatId, hint: 'Frontend sent an object instead of string' }
         });
       }
+      
+      // If chatId is missing a domain suffix, infer based on pattern
+      if (chatId && typeof chatId === 'string' && !chatId.includes('@')) {
+        const inferred = chatId.includes('-') ? `${chatId}@g.us` : `${chatId}@s.whatsapp.net`;
+        console.warn('[WAHA Controller] ⚠️ chatId missing domain, inferring:', { original: chatId, inferred });
+        chatId = inferred;
+      }
     }
     
     const wahaService = getWAHAService();

@@ -1066,6 +1066,13 @@ class WAHAService extends EventEmitter {
         return [];
       }
       
+      // Normalize chatId: add domain suffix if missing (group vs private)
+      if (!chatId.includes('@')) {
+        const inferred = chatId.includes('-') ? `${chatId}@g.us` : `${chatId}@s.whatsapp.net`;
+        console.warn(`[WAHA Service] ⚠️ chatId missing domain, inferring:`, { original: chatId, inferred });
+        chatId = inferred;
+      }
+      
       console.log(`[WAHA Service] Getting messages for chat '${chatId}' in session '${sessionName}'...`);
       
       // Check session status first
@@ -1078,7 +1085,7 @@ class WAHAService extends EventEmitter {
       }
       
       // WAHA API endpoint structure: /api/{session}/chats/{chatId}/messages
-      const response = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(chatId)}/messages`, {
+      let response = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(chatId)}/messages`, {
         params: { limit },
         timeout: 20000
       });
@@ -1100,6 +1107,60 @@ class WAHAService extends EventEmitter {
       }));
     } catch (error: any) {
       console.error(`[WAHA Service] ❌ Failed to get messages for ${chatId}:`, error.response?.status, error.response?.data);
+      
+      // If invalid chatId and private suffix might be wrong, try alternate domain once
+      const status = error.response?.status;
+      const bodyText = typeof error.response?.data === 'string' ? error.response?.data : JSON.stringify(error.response?.data || {});
+      const looksInvalid = status === 400 || status === 404;
+      if (looksInvalid && chatId && /@s\.whatsapp\.net$/.test(chatId)) {
+        const altId = chatId.replace(/@s\.whatsapp\.net$/, '@c.us');
+        try {
+          console.warn(`[WAHA Service] Retrying with alternate private JID: ${altId}`);
+          const retryRes = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(altId)}/messages`, {
+            params: { limit },
+            timeout: 20000
+          });
+          return retryRes.data.map((msg: any) => ({
+            id: msg.id,
+            body: msg.body || '',
+            from: msg.from,
+            fromMe: msg.fromMe || false,
+            timestamp: msg.timestamp,
+            type: msg.type || 'text',
+            isGroup: msg.chatId?.includes('@g.us') || false,
+            contactName: msg.notifyName || msg.from,
+            chatId: msg.chatId,
+            time: new Date(msg.timestamp * 1000).toLocaleTimeString(),
+            isMedia: msg.type !== 'text'
+          }));
+        } catch (retryErr: any) {
+          console.error('[WAHA Service] Alternate JID retry failed:', retryErr.response?.status, retryErr.response?.data);
+        }
+      } else if (looksInvalid && chatId && /@c\.us$/.test(chatId)) {
+        const altId = chatId.replace(/@c\.us$/, '@s.whatsapp.net');
+        try {
+          console.warn(`[WAHA Service] Retrying with alternate private JID: ${altId}`);
+          const retryRes = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(altId)}/messages`, {
+            params: { limit },
+            timeout: 20000
+          });
+          return retryRes.data.map((msg: any) => ({
+            id: msg.id,
+            body: msg.body || '',
+            from: msg.from,
+            fromMe: msg.fromMe || false,
+            timestamp: msg.timestamp,
+            type: msg.type || 'text',
+            isGroup: msg.chatId?.includes('@g.us') || false,
+            contactName: msg.notifyName || msg.from,
+            chatId: msg.chatId,
+            time: new Date(msg.timestamp * 1000).toLocaleTimeString(),
+            isMedia: msg.type !== 'text'
+          }));
+        } catch (retryErr: any) {
+          console.error('[WAHA Service] Alternate JID retry failed:', retryErr.response?.status, retryErr.response?.data);
+        }
+      }
       
       // Handle specific 422 error for session not ready
       if (error.response?.status === 422) {
