@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { FeedbackModal } from './FeedbackModal';
 import { 
@@ -27,6 +27,37 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [quickType, setQuickType] = useState<'bug' | 'feature' | 'rating' | null>(null);
+  const [isDismissed, setIsDismissed] = useState<boolean>(() => {
+    try {
+      return typeof window !== 'undefined' && localStorage.getItem('feedbackWidgetHidden') === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  // Draggable support
+  const constraintsRef = useRef<HTMLDivElement>(null);
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+
+  useEffect(() => {
+    // Restore last position if available
+    try {
+      const saved = localStorage.getItem('feedbackWidgetPos');
+      if (saved) {
+        const parsed = JSON.parse(saved) as { x: number; y: number };
+        if (typeof parsed.x === 'number') x.set(parsed.x);
+        if (typeof parsed.y === 'number') y.set(parsed.y);
+      }
+    } catch {}
+  }, [x, y]);
+
+  useEffect(() => {
+    try {
+      if (isDismissed) localStorage.setItem('feedbackWidgetHidden', '1');
+      else localStorage.removeItem('feedbackWidgetHidden');
+    } catch {}
+  }, [isDismissed]);
 
   const positionClasses = {
     'bottom-right': 'bottom-6 right-6',
@@ -71,10 +102,26 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
     setIsOpen(false);
   };
 
+  if (isDismissed) return null;
+
   return (
     <>
-      {/* Widget */}
-      <div className={`fixed z-40 ${positionClasses[position]} ${className}`}>
+      {/* Drag constraints layer (doesn't block clicks outside the widget) */}
+      <div ref={constraintsRef} className="fixed inset-0 z-40 pointer-events-none">
+        {/* Widget */}
+        <motion.div
+          className={`absolute ${positionClasses[position]} ${className} pointer-events-auto`}
+          drag
+          dragMomentum={false}
+          dragElastic={0.15}
+          dragConstraints={constraintsRef}
+          style={{ x, y }}
+          onDragEnd={() => {
+            try {
+              localStorage.setItem('feedbackWidgetPos', JSON.stringify({ x: x.get(), y: y.get() }));
+            } catch {}
+          }}
+        >
         <AnimatePresence>
           {isOpen && showQuickActions && (
             <motion.div
@@ -198,6 +245,18 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
               }}
             />
           </Button>
+          {/* Dismiss control */}
+          <button
+            aria-label="Hide feedback widget"
+            title="Hide"
+            className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-black/60 text-white flex items-center justify-center border border-white/20 shadow"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsDismissed(true);
+            }}
+          >
+            <X className="w-3 h-3" />
+          </button>
         </motion.div>
 
         {/* Tooltip */}
@@ -219,6 +278,7 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
             </span>
           </motion.div>
         )}
+        </motion.div>
       </div>
 
       {/* Feedback Modal */}
