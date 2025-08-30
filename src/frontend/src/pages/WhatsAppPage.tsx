@@ -2950,7 +2950,24 @@ const WhatsAppPage: React.FC = () => {
                             {!message.fromMe && message.isGroup && (
                               <p className="text-xs text-blue-200 mb-1">{message.contactName}</p>
                             )}
-                            <p className="text-sm break-words whitespace-pre-wrap">{message.body || '[Media]'}</p>
+                            {message.isMedia && message.type === 'image' ? (
+                              <div className="flex items-center gap-2">
+                                <Camera className="w-4 h-4 text-blue-300" />
+                                <span className="text-sm">Image</span>
+                                <button
+                                  onClick={() => extractImageFromMessage(message.id)}
+                                  className="flex items-center gap-1 bg-white/20 hover:bg-white/30 px-2 py-1 rounded text-xs transition-colors"
+                                  title="Download image"
+                                >
+                                  <Download className="w-3 h-3" />
+                                  Download
+                                </button>
+                              </div>
+                            ) : message.isMedia ? (
+                              <p className="text-sm break-words whitespace-pre-wrap text-blue-300">[{message.type || 'Media'}]</p>
+                            ) : (
+                              <p className="text-sm break-words whitespace-pre-wrap">{message.body}</p>
+                            )}
                             <p className="text-xs opacity-70 mt-1">{message.time}</p>
                           </div>
                         </motion.div>
