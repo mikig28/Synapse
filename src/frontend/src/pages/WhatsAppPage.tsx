@@ -351,10 +351,13 @@ const WhatsAppPage: React.FC = () => {
       auth: { token },
       autoConnect: false,
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 2000,
-      timeout: 10000,
-      transports: ['websocket', 'polling'], // Allow fallback to polling
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      timeout: 20000,
+      transports: ['polling', 'websocket'], // Start with polling, upgrade to websocket
+      forceNew: true,
+      upgrade: true,
+      rememberUpgrade: false
     });
 
     setSocket(newSocket);
