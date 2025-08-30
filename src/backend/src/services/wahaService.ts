@@ -1399,6 +1399,8 @@ class WAHAService extends EventEmitter {
           this.emit('message', eventData);
           // Process image messages for group monitoring
           this.processImageForGroupMonitoring(eventData);
+          // Emit image message event for frontend image extraction
+          this.processImageMessage(eventData);
           break;
           
         case 'session.status':
@@ -1502,6 +1504,65 @@ class WAHAService extends EventEmitter {
 
     } catch (error) {
       console.error('[WAHA Service] ❌ Error processing image for group monitoring:', error);
+    }
+  }
+
+  /**
+   * Process image messages for frontend extraction functionality
+   */
+  private processImageMessage(messageData: any): void {
+    try {
+      // Check if message contains media (image, document, etc.)
+      if (!messageData.isMedia || !messageData.type) {
+        return;
+      }
+
+      // Check if it's an image type
+      const isImage = messageData.type === 'image' || 
+                     messageData.mimeType?.startsWith('image/') ||
+                     (messageData.mediaUrl && messageData.mediaUrl.includes('image'));
+
+      if (!isImage) {
+        return;
+      }
+
+      console.log('[WAHA Service] Processing image message for extraction:', {
+        messageId: messageData.id,
+        chatId: messageData.chatId,
+        isGroup: messageData.isGroup,
+        from: messageData.from,
+        type: messageData.type,
+        mimeType: messageData.mimeType
+      });
+
+      // Prepare image metadata for frontend
+      const imageMessageData = {
+        messageId: messageData.id,
+        chatId: messageData.chatId,
+        chatName: messageData.isGroup ? messageData.groupName : messageData.contactName,
+        senderId: messageData.from,
+        senderName: messageData.contactName || messageData.from,
+        caption: messageData.body || null,
+        isGroup: Boolean(messageData.isGroup),
+        timestamp: messageData.timestamp || Date.now(),
+        mimeType: messageData.mimeType || 'image/jpeg',
+        // Note: We don't include mediaUrl since WAHA Core doesn't provide download URLs
+        hasMedia: true,
+        extractable: true // Indicates this image can be extracted on-demand
+      };
+
+      // Emit to Socket.IO for real-time frontend updates
+      const io_instance = (global as any).io;
+      if (io_instance) {
+        console.log('[WAHA Service] Broadcasting image message to frontend via Socket.IO');
+        io_instance.emit('whatsapp:image-message', imageMessageData);
+      }
+
+      // Also emit as a general event for other listeners
+      this.emit('image-message', imageMessageData);
+
+    } catch (error) {
+      console.error('[WAHA Service] ❌ Error processing image message:', error);
     }
   }
 

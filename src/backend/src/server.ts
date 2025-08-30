@@ -40,6 +40,7 @@ import exportRoutes from './api/routes/exportRoutes'; // Import export routes
 import feedbackRoutes from './api/routes/feedbackRoutes'; // Import feedback routes
 import usageRoutes from './api/routes/usageRoutes'; // Import usage routes
 import telegramChannelRoutes from './api/routes/telegramChannelRoutes'; // Import telegram channel routes
+import whatsappImagesRoutes from './api/routes/whatsappImagesRoutes'; // Import WhatsApp images routes
 import { initializeTaskReminderScheduler } from './services/taskReminderService'; // Import task reminder service
 import { schedulerService } from './services/schedulerService'; // Import scheduler service
 import { agui } from './services/aguiEmitter'; // Import AG-UI emitter
@@ -205,6 +206,7 @@ app.use('/api/v1/export', exportRoutes); // Use export routes
 app.use('/api/v1/feedback', feedbackRoutes); // Use feedback routes
 app.use('/api/v1/usage', usageRoutes); // Use usage routes
 app.use('/api/v1/telegram-channels', telegramChannelRoutes); // Use telegram channels routes
+app.use('/api/v1/whatsapp/images', whatsappImagesRoutes); // Use WhatsApp images extraction routes
 
 // **AG-UI Protocol Endpoints**
 
