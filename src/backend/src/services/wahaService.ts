@@ -1126,7 +1126,7 @@ class WAHAService extends EventEmitter {
       // WAHA API endpoint structure: /api/{session}/chats/{chatId}/messages
       let response = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(chatId)}/messages`, {
         params: { limit },
-        timeout: 20000
+        timeout: 90000 // Increased to match httpClient default for better reliability on Render.com
       });
       
       console.log(`[WAHA Service] Received ${response.data.length} messages`);
@@ -1157,7 +1157,7 @@ class WAHAService extends EventEmitter {
           console.warn(`[WAHA Service] Retrying with alternate private JID: ${altId}`);
           const retryRes = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(altId)}/messages`, {
             params: { limit },
-            timeout: 20000
+            timeout: 90000
           });
           return retryRes.data.map((msg: any) => ({
             id: msg.id,
@@ -1181,7 +1181,7 @@ class WAHAService extends EventEmitter {
           console.warn(`[WAHA Service] Retrying with alternate private JID: ${altId}`);
           const retryRes = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(altId)}/messages`, {
             params: { limit },
-            timeout: 20000
+            timeout: 90000
           });
           return retryRes.data.map((msg: any) => ({
             id: msg.id,
