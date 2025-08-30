@@ -22,7 +22,7 @@ export const extractImage = async (req: AuthenticatedRequest, res: Response) => 
     const { messageId, chatId, chatName, senderId, senderName, caption, isGroup } = req.body;
     
     // Get user ID from authenticated request
-    const userId = req.user?._id?.toString() || req.user?.id?.toString();
+    const userId = req.user?.id?.toString();
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -87,7 +87,7 @@ export const extractImage = async (req: AuthenticatedRequest, res: Response) => 
  */
 export const getUserImages = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user?._id?.toString() || req.user?.id?.toString();
+    const userId = req.user?.id?.toString();
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -146,7 +146,7 @@ export const getUserImages = async (req: AuthenticatedRequest, res: Response) =>
 export const getImageByMessageId = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { messageId } = req.params;
-    const userId = req.user?._id?.toString() || req.user?.id?.toString();
+    const userId = req.user?.id?.toString();
     
     if (!userId) {
       return res.status(401).json({
@@ -191,7 +191,7 @@ export const getImageByMessageId = async (req: AuthenticatedRequest, res: Respon
 export const serveImageFile = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { messageId } = req.params;
-    const userId = req.user?._id?.toString() || req.user?.id?.toString();
+    const userId = req.user?.id?.toString();
     
     if (!userId) {
       return res.status(401).json({
@@ -238,7 +238,7 @@ export const serveImageFile = async (req: AuthenticatedRequest, res: Response) =
 export const updateImage = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { messageId } = req.params;
-    const userId = req.user?._id?.toString() || req.user?.id?.toString();
+    const userId = req.user?.id?.toString();
     const { bookmark, archive, addTags, removeTags } = req.body;
     
     if (!userId) {
@@ -289,7 +289,7 @@ export const updateImage = async (req: AuthenticatedRequest, res: Response) => {
 export const deleteImage = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { messageId } = req.params;
-    const userId = req.user?._id?.toString() || req.user?.id?.toString();
+    const userId = req.user?.id?.toString();
     
     if (!userId) {
       return res.status(401).json({
@@ -333,7 +333,7 @@ export const deleteImage = async (req: AuthenticatedRequest, res: Response) => {
  */
 export const getExtractionStats = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user?._id?.toString() || req.user?.id?.toString();
+    const userId = req.user?.id?.toString();
     
     if (!userId) {
       return res.status(401).json({
@@ -364,7 +364,7 @@ export const getExtractionStats = async (req: AuthenticatedRequest, res: Respons
 export const checkExtractionStatus = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { messageId } = req.params;
-    const userId = req.user?._id?.toString() || req.user?.id?.toString();
+    const userId = req.user?.id?.toString();
     
     if (!userId) {
       return res.status(401).json({

@@ -83,7 +83,7 @@ class WhatsAppImageExtractor {
       });
 
       // Wait for initial load
-      await this.page.waitForTimeout(5000);
+      await new Promise(resolve => setTimeout(resolve, 5000));
 
       this.isInitialized = true;
       console.log('[Image Extractor] ✅ Initialized successfully');
@@ -182,13 +182,13 @@ class WhatsAppImageExtractor {
       if (searchBox) {
         await searchBox.click();
         await searchBox.type(chatId);
-        await this.page.waitForTimeout(2000);
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
         // Click on the first search result
         const firstResult = await this.page.$('[data-testid="chat-list"] > div:first-child');
         if (firstResult) {
           await firstResult.click();
-          await this.page.waitForTimeout(2000);
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
       }
     } catch (error) {
