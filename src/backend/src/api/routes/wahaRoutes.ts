@@ -30,7 +30,8 @@ import {
   forceHistorySync,
   getMonitoredKeywords,
   addMonitoredKeyword,
-  removeMonitoredKeyword
+  removeMonitoredKeyword,
+  extractImageFromMessage
 } from '../controllers/wahaController';
 
 const router = Router();
@@ -75,6 +76,9 @@ router.post('/force-history-sync', forceHistorySync);
 router.get('/monitored-keywords', getMonitoredKeywords);
 router.post('/monitored-keywords', addMonitoredKeyword);
 router.delete('/monitored-keywords/:keyword', removeMonitoredKeyword);
+
+// Media extraction routes
+router.post('/media/:messageId/extract-image', extractImageFromMessage);
 
 // Webhook for WAHA events
 router.post('/webhook', webhook);

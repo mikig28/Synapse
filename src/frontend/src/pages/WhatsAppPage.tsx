@@ -21,7 +21,8 @@ import {
   Download,
   ArrowLeft,
   Menu,
-  X
+  X,
+  Camera
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { io, Socket } from 'socket.io-client';
@@ -74,6 +75,10 @@ interface WhatsAppStatus {
   monitoredKeywords: string[];
   serviceType?: 'waha' | 'baileys'; // Track which service is being used
   sessionStatus?: string;
+  // NEW: Enhanced monitoring fields
+  imagesCount?: number;
+  monitoringActive?: boolean;
+  lastActivity?: string;
 }
 
 const WhatsAppPage: React.FC = () => {
@@ -127,52 +132,24 @@ const WhatsAppPage: React.FC = () => {
     }
     
     if (typeof chatId === 'string') {
-      const trimmed = chatId.trim();
-      if (!trimmed || trimmed === '[object Object]' || trimmed.includes('[object')) {
-        console.warn(`[WhatsApp Frontend] ⚠️ Invalid string chatId in ${context}:`, trimmed);
-        return null;
-      }
-      return trimmed;
+      return chatId;
     }
     
     if (typeof chatId === 'object' && chatId !== null) {
       // Extract string ID from object formats
-      if ('_serialized' in chatId && typeof (chatId as any)._serialized === 'string') {
-        const v = (chatId as any)._serialized as string;
-        return v && v !== '[object Object]' && !v.includes('[object') ? v : null;
+      if ('_serialized' in chatId) {
+        return chatId._serialized;
+      } else if ('id' in chatId) {
+        return chatId.id;
+      } else {
+        // Fallback: convert object to string, but this shouldn't happen
+        console.warn(`[WhatsApp Frontend] ⚠️ Had to stringify ${context} ID object:`, chatId);
+        return String(chatId);
       }
-      if ('id' in chatId && typeof (chatId as any).id === 'string') {
-        const v = (chatId as any).id as string;
-        return v && v !== '[object Object]' && !v.includes('[object') ? v : null;
-      }
-      if ('user' in chatId && 'server' in chatId && typeof (chatId as any).user === 'string' && typeof (chatId as any).server === 'string') {
-        return `${(chatId as any).user}@${(chatId as any).server}`;
-      }
-      // Fallback: avoid returning [object Object]
-      const stringified = String(chatId);
-      if (stringified === '[object Object]' || stringified.includes('[object')) {
-        console.warn(`[WhatsApp Frontend] ⚠️ Could not normalize ${context} ID object:`, chatId);
-        return null;
-      }
-      return stringified;
     }
     
     // Final fallback
     return String(chatId);
-  };
-
-  // Ensure chat ID conforms to WAHA JID format. Adds domain suffix when missing.
-  const ensureWAHAChatId = (rawId: string): string => {
-    try {
-      let id = typeof rawId === 'string' ? rawId : String(rawId);
-      if (!id || id === '[object Object]' || id.includes('[object')) return id;
-      if (id.includes('@')) return id; // already a JID
-      const base = id.split('@')[0];
-      const isGroupLike = base.includes('-');
-      return `${base}${isGroupLike ? '@g.us' : '@s.whatsapp.net'}`;
-    } catch {
-      return rawId as any;
-    }
   };
 
   // Helper function to extract chatId from selectedChat.id (handle both string and object cases)
@@ -198,13 +175,13 @@ const WhatsAppPage: React.FC = () => {
         const extracted = (chatObj.id as any)._serialized;
         console.log('[WhatsApp Frontend] extractChatId: Extracted from _serialized:', extracted);
         return extracted;
-      } else if ('user' in chatObj.id && 'server' in chatObj.id) {
-        const extracted = `${(chatObj.id as any).user}@${(chatObj.id as any).server}`;
-        console.log('[WhatsApp Frontend] extractChatId: Composed from user+server:', extracted);
-        return extracted;
-      } else if ('id' in chatObj.id && typeof (chatObj.id as any).id === 'string') {
+      } else if ('id' in chatObj.id) {
         const extracted = (chatObj.id as any).id;
         console.log('[WhatsApp Frontend] extractChatId: Extracted from id:', extracted);
+        return extracted;
+      } else if ('user' in chatObj.id) {
+        const extracted = (chatObj.id as any).user;
+        console.log('[WhatsApp Frontend] extractChatId: Extracted from user:', extracted);
         return extracted;
       } else {
         // Fallback: convert to string and check if it's valid
@@ -222,27 +199,22 @@ const WhatsAppPage: React.FC = () => {
 
   // Helper function to validate chatId
   const isValidChatId = (chatId: string | undefined): boolean => {
-    const basicValid = !!chatId &&
-           typeof chatId === 'string' &&
-           chatId !== '[object Object]' &&
+    const isValid = chatId && 
+           typeof chatId === 'string' && 
+           chatId !== '[object Object]' && 
            !chatId.includes('[object');
-    const hasAt = !!chatId && chatId.includes('@');
-    const validSuffix = hasAt ? /@(g\.us|c\.us|s\.whatsapp\.net)$/.test(chatId) : false;
-    const numericOrGroup = !!chatId && !hasAt && /^[0-9\-]+$/.test(chatId);
-    const isValid = basicValid && (hasAt ? validSuffix : numericOrGroup);
     
     console.log('[WhatsApp Frontend] isValidChatId:', {
       chatId,
       chatIdType: typeof chatId,
       isValid,
-      reason: !chatId ? 'no chatId' :
+      reason: !chatId ? 'no chatId' : 
               typeof chatId !== 'string' ? 'not a string' :
               chatId === '[object Object]' ? 'is [object Object]' :
-              chatId.includes('[object') ? 'contains [object' :
-              hasAt && !validSuffix ? 'invalid domain suffix' : 'valid or normalizable'
+              chatId.includes('[object') ? 'contains [object' : 'valid'
     });
     
-    return isValid as boolean;
+    return isValid;
   };
 
   // Detect mobile device
@@ -585,6 +557,57 @@ const WhatsAppPage: React.FC = () => {
       setShowQR(false);
     });
 
+    // NEW: Image message monitoring for real-time extraction
+    newSocket.on('whatsapp:image-message', (imageData: any) => {
+      console.log('[WhatsApp Socket.IO] 📷 New image message received:', imageData);
+      
+      // Update message counts in status
+      setStatus(prevStatus => ({
+        ...prevStatus,
+        messagesCount: (prevStatus?.messagesCount || 0) + 1,
+        timestamp: new Date().toISOString()
+      }));
+      
+      // Show notification for extractable images
+      if (imageData.extractable && showMonitoring) {
+        toast({
+          title: "New Image Available",
+          description: `${imageData.senderName} shared an image in ${imageData.chatName}`,
+          action: {
+            label: "Extract",
+            onClick: () => extractImageFromMessage(imageData.messageId)
+          }
+        });
+      }
+    });
+
+    // NEW: Monitoring statistics updates
+    newSocket.on('whatsapp:monitoring-stats', (stats: any) => {
+      console.log('[WhatsApp Socket.IO] 📊 Monitoring stats updated:', stats);
+      
+      // Update status with real-time counts
+      setStatus(prevStatus => ({
+        ...prevStatus,
+        messagesCount: stats.totalMessages || prevStatus?.messagesCount || 0,
+        imagesCount: stats.totalImages || 0,
+        monitoringActive: stats.active || false,
+        lastActivity: stats.lastActivity || new Date().toISOString()
+      }));
+    });
+
+    // NEW: Group message monitoring for keyword detection
+    newSocket.on('whatsapp:keyword-match', (matchData: any) => {
+      console.log('[WhatsApp Socket.IO] 🔍 Keyword match detected:', matchData);
+      
+      if (showMonitoring) {
+        toast({
+          title: `Keyword Match: "${matchData.keyword}"`,
+          description: `${matchData.senderName} in ${matchData.chatName}: ${matchData.message.substring(0, 50)}...`,
+          variant: "default"
+        });
+      }
+    });
+
     return () => {
       console.log('[WhatsApp Socket.IO] Cleaning up socket connection');
       newSocket.off('connect');
@@ -594,6 +617,9 @@ const WhatsAppPage: React.FC = () => {
       newSocket.off('whatsapp:status');
       newSocket.off('whatsapp:chats_updated');
       newSocket.off('whatsapp:authenticated');
+      newSocket.off('whatsapp:image-message');
+      newSocket.off('whatsapp:monitoring-stats');
+      newSocket.off('whatsapp:keyword-match');
       if (newSocket.connected) {
         newSocket.close();
       }
@@ -601,6 +627,67 @@ const WhatsAppPage: React.FC = () => {
       setIsSocketConnected(false);
     };
   }, [isAuthenticated, token, monitoredKeywords]);
+
+  // Automatic message polling for real-time monitoring
+  useEffect(() => {
+    let pollingInterval: NodeJS.Timeout | null = null;
+    
+    if (status?.authenticated && showMonitoring && isSocketConnected) {
+      console.log('[WhatsApp Monitoring] Starting automatic message polling');
+      
+      const pollForNewMessages = async () => {
+        try {
+          // Only poll if we're monitoring and have groups
+          if (groups.length === 0) return;
+          
+          console.log('[WhatsApp Monitoring] Polling for new messages...');
+          
+          // Fetch latest messages from all monitored groups
+          const recentMessages = await api.get('/waha/messages?limit=10');
+          
+          if (recentMessages.data.success && recentMessages.data.data) {
+            const newMessages = recentMessages.data.data;
+            
+            // Update message count
+            if (newMessages.length > 0) {
+              setStatus(prevStatus => ({
+                ...prevStatus,
+                messagesCount: Math.max((prevStatus?.messagesCount || 0), newMessages.length),
+                lastActivity: new Date().toISOString()
+              }));
+              
+              // Count image messages
+              const imageCount = newMessages.filter((msg: any) => 
+                msg.isMedia && (msg.type === 'image' || msg.mimeType?.startsWith('image/'))
+              ).length;
+              
+              if (imageCount > 0) {
+                setStatus(prevStatus => ({
+                  ...prevStatus,
+                  imagesCount: (prevStatus?.imagesCount || 0) + imageCount
+                }));
+              }
+            }
+          }
+        } catch (error) {
+          console.error('[WhatsApp Monitoring] Polling error:', error);
+        }
+      };
+      
+      // Poll every 30 seconds when monitoring is active
+      pollingInterval = setInterval(pollForNewMessages, 30000);
+      
+      // Initial poll
+      pollForNewMessages();
+    }
+    
+    return () => {
+      if (pollingInterval) {
+        console.log('[WhatsApp Monitoring] Stopping automatic message polling');
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [status?.authenticated, showMonitoring, isSocketConnected, groups.length]);
 
   // Define scrollToBottom function early
   const scrollToBottom = () => {
@@ -621,14 +708,13 @@ const WhatsAppPage: React.FC = () => {
       const chatId = extractChatId(selectedChat);
       
       if (isValidChatId(chatId)) {
-        const safeChatId = chatId as string;
-        console.log(`[WhatsApp Frontend] ✅ Fetching messages for valid chatId: ${safeChatId}`);
-        fetchMessages(safeChatId).then(() => {
+        console.log(`[WhatsApp Frontend] ✅ Fetching messages for valid chatId: ${chatId}`);
+        fetchMessages(chatId).then(() => {
           // If no messages were found, try with a different chat ID format
-          const chatMessages = messages.filter(msg => msg.chatId === safeChatId);
-          if (chatMessages.length === 0 && safeChatId.includes('@')) {
+          const chatMessages = messages.filter(msg => msg.chatId === chatId);
+          if (chatMessages.length === 0 && chatId.includes('@')) {
             // Try without domain suffix for some IDs
-            const simplifiedId = safeChatId.split('@')[0];
+            const simplifiedId = chatId.split('@')[0];
             console.log(`[WhatsApp Frontend] Trying simplified chat ID: ${simplifiedId}`);
             fetchMessages(simplifiedId);
           }
@@ -1070,12 +1156,7 @@ const WhatsAppPage: React.FC = () => {
         chatIdValid: chatId && typeof chatId === 'string' && chatId !== '[object Object]' && !chatId.includes('[object')
       });
       
-      // Normalize simple numeric/group ids to WAHA JIDs
-      if (chatId && typeof chatId === 'string' && !chatId.includes('@')) {
-        chatId = ensureWAHAChatId(chatId);
-      }
-
-      // Validate chatId if provided - stop execution if clearly invalid
+      // Validate chatId if provided - CRITICAL: Stop execution if invalid
       if (chatId && (typeof chatId !== 'string' || chatId === '[object Object]' || chatId.includes('[object'))) {
         console.error('[WhatsApp Frontend] ❌ Invalid chatId detected in fetchMessages:', {
           chatId,
@@ -1216,7 +1297,7 @@ const WhatsAppPage: React.FC = () => {
       if (response.data.success) {
         setMonitoredKeywords(response.data.data);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error fetching monitored keywords:', error);
     }
   };
@@ -1437,7 +1518,7 @@ const WhatsAppPage: React.FC = () => {
         });
         setActiveService('waha');
         console.log('✅ QR code generated using WAHA service');
-      } catch (error: any) {
+      } catch (error) {
         console.error('WAHA QR failed, trying legacy:', error);
         // If WAHA fails, show more helpful error message
         if (error.response?.status === 422) {
@@ -1771,13 +1852,8 @@ const WhatsAppPage: React.FC = () => {
     try {
       setFetchingHistory(true);
       
-      // Normalize simple numeric/group ids to WAHA JIDs
-      if (chatId && typeof chatId === 'string' && !chatId.includes('@')) {
-        chatId = ensureWAHAChatId(chatId);
-      }
-
       // Validate chatId parameter
-      if (!chatId || typeof chatId !== 'string' || chatId === '[object Object]' || chatId.includes('[object')) {
+      if (!chatId || typeof chatId !== 'string') {
         console.error('[WhatsApp Frontend] Invalid chatId for history fetch:', chatId);
         toast({
           title: "Error",
@@ -1791,7 +1867,7 @@ const WhatsAppPage: React.FC = () => {
         chatId,
         chatIdType: typeof chatId,
         limit,
-        chatIdValid: chatId && typeof chatId === 'string' && chatId !== '[object Object]' && !chatId.includes('[object') && chatId.includes('@')
+        chatIdValid: chatId && typeof chatId === 'string' && chatId !== '[object Object]' && !chatId.includes('[object')
       });
       
       // Prefer WAHA modern endpoint; fallback to legacy
@@ -1857,10 +1933,7 @@ const WhatsAppPage: React.FC = () => {
     if (!newMessage.trim() || !selectedChat || sendingMessage) return;
 
     // Extract and validate chatId using helper function
-    let chatId = extractChatId(selectedChat);
-    if (chatId && typeof chatId === 'string' && !chatId.includes('@')) {
-      chatId = ensureWAHAChatId(chatId);
-    }
+    const chatId = extractChatId(selectedChat);
     
     console.log('[WhatsApp Frontend] sendMessage chatId extraction:', {
       extractedChatId: chatId,
@@ -1886,7 +1959,7 @@ const WhatsAppPage: React.FC = () => {
       try {
         response = await api.post('/waha/send', {
           session: 'default',
-          chatId: chatId as string,
+          chatId: chatId,
           text: newMessage,
         });
       } catch (e) {
@@ -1911,7 +1984,7 @@ const WhatsAppPage: React.FC = () => {
           isGroup: selectedChat.isGroup,
           groupName: selectedChat.isGroup ? selectedChat.name : undefined,
           contactName: 'You',
-          chatId: chatId as string,
+          chatId: chatId,
           time: new Date().toLocaleTimeString(),
           isMedia: false
         };
@@ -2034,10 +2107,7 @@ const WhatsAppPage: React.FC = () => {
     }
     
     // Extract and validate chatId using helper function
-    let chatId = extractChatId(selectedChat);
-    if (chatId && typeof chatId === 'string' && !chatId.includes('@')) {
-      chatId = ensureWAHAChatId(chatId);
-    }
+    const chatId = extractChatId(selectedChat);
     
     console.log('[WhatsApp Frontend] displayedMessages chatId extraction:', {
       extractedChatId: chatId,
@@ -2058,24 +2128,21 @@ const WhatsAppPage: React.FC = () => {
         return false;
       }
       
-      const safeChatId = chatId as string;
       // Check various possible chat ID formats with safe string operations
-      const baseId = safeChatId.split('@')[0];
-      const msgBase = typeof msg.chatId === 'string' ? msg.chatId.split('@')[0] : '';
-      const matches = msg.chatId === safeChatId ||
-                     msgBase === baseId ||
-                     msg.from === safeChatId ||
-                     (typeof msg.from === 'string' && (msg.from === baseId || msg.from === safeChatId));
+      const matches = msg.chatId === chatId || 
+                     msg.chatId === chatId.split('@')[0] ||
+                     msg.from === chatId ||
+                     (typeof msg.from === 'string' && msg.from === chatId.split('@')[0]);
       
       if (matches) {
         console.log('[WhatsApp Frontend] Message matched for chat:', {
           messageId: msg.id,
           messageChatId: msg.chatId,
           messageFrom: msg.from,
-          selectedChatId: safeChatId,
-          matchType: msg.chatId === safeChatId ? 'exact' :
-                    msgBase === baseId ? 'simplified' :
-                    msg.from === safeChatId ? 'from' :
+          selectedChatId: chatId,
+          matchType: msg.chatId === chatId ? 'exact' :
+                    msg.chatId === chatId.split('@')[0] ? 'simplified' :
+                    msg.from === chatId ? 'from' :
                     'from-simplified'
         });
       }
@@ -2083,8 +2150,7 @@ const WhatsAppPage: React.FC = () => {
       return matches;
     });
     
-    const finalChatIdForLog = chatId as string;
-    console.log(`[WhatsApp Frontend] Displaying ${chatMessages.length} messages for chat ${selectedChat.name} (chatId: ${finalChatIdForLog})`);
+    console.log(`[WhatsApp Frontend] Displaying ${chatMessages.length} messages for chat ${selectedChat.name} (chatId: ${chatId})`);
     
     // Sort messages by timestamp (newest first for display, but we'll reverse in the UI)
     return chatMessages.sort((a, b) => a.timestamp - b.timestamp);
@@ -2112,6 +2178,42 @@ const WhatsAppPage: React.FC = () => {
       toast({
         title: "Error",
         description: error?.response?.data?.error || error?.message || "Failed to move media to Images section",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Extract image from message for monitoring (Shula-style functionality)
+  const extractImageFromMessage = async (messageId: string) => {
+    try {
+      console.log(`[WhatsApp Frontend] Extracting image from message: ${messageId}`);
+      
+      const response = await api.post(`/waha/media/${messageId}/extract-image`);
+      
+      if (response.data.success) {
+        toast({
+          title: "Image Extracted",
+          description: `Image saved successfully: ${response.data.filename || 'Unknown'}`,
+        });
+        
+        // Update monitoring stats if needed
+        setStatus(prevStatus => ({
+          ...prevStatus,
+          imagesCount: (prevStatus?.imagesCount || 0) + 1,
+          lastActivity: new Date().toISOString()
+        }));
+      } else {
+        toast({
+          title: "Extraction Failed",
+          description: response.data.error || "Failed to extract image",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error extracting image:', error);
+      toast({
+        title: "Error",
+        description: error?.response?.data?.error || error?.message || "Failed to extract image",
         variant: "destructive",
       });
     }
@@ -2279,6 +2381,16 @@ const WhatsAppPage: React.FC = () => {
                   </AnimatedButton>
                   
                   <AnimatedButton
+                    onClick={() => setShowMonitoring(true)}
+                    variant="outline"
+                    size="sm"
+                    className="border-amber-400/30 text-amber-200 hover:bg-amber-500/10"
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    Monitoring
+                  </AnimatedButton>
+                  
+                  <AnimatedButton
                     onClick={forceHistorySync}
                     variant="outline"
                     size="sm"
@@ -2355,10 +2467,10 @@ const WhatsAppPage: React.FC = () => {
           
           <GlassCard className="p-3 sm:p-6">
             <div className="flex items-center gap-2 sm:gap-3">
-              <Eye className="w-6 h-6 sm:w-8 sm:h-8 text-amber-400 flex-shrink-0" />
+              <Camera className="w-6 h-6 sm:w-8 sm:h-8 text-amber-400 flex-shrink-0" />
               <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-blue-100/70">Monitored</p>
-                <p className="text-lg sm:text-2xl font-bold text-white">{monitoredKeywords.length}</p>
+                <p className="text-xs sm:text-sm text-blue-100/70">Images</p>
+                <p className="text-lg sm:text-2xl font-bold text-white">{status?.imagesCount || 0}</p>
               </div>
             </div>
           </GlassCard>
@@ -2451,13 +2563,11 @@ const WhatsAppPage: React.FC = () => {
                               // Only fetch messages if we don't have any or if it's a different chat
                               if (selectedChat) {
                                 const selectedChatId = extractChatId(selectedChat);
-                                const targetId = typeof group.id === 'string' && !group.id.includes('@') ? ensureWAHAChatId(group.id) : group.id;
-                                if (selectedChatId !== targetId) {
-                                  fetchMessages(targetId);
+                                if (selectedChatId !== group.id) {
+                                  fetchMessages(group.id);
                                 }
                               } else {
-                                const targetId = typeof group.id === 'string' && !group.id.includes('@') ? ensureWAHAChatId(group.id) : group.id;
-                                fetchMessages(targetId);
+                                fetchMessages(group.id);
                               }
                               // Keep chat list visible on mobile for easy navigation
                             } else {
@@ -2507,7 +2617,7 @@ const WhatsAppPage: React.FC = () => {
                               </div>
                               <div className="flex items-center gap-2 mt-1">
                                 <p className="text-xs text-blue-200/70">
-                                  {(group.participantCount ?? 0) > 0 ? `${group.participantCount} members` : 'Loading members...'}
+                                  {group.participantCount > 0 ? `${group.participantCount} members` : 'Loading members...'}
                                 </p>
                                 {group.description && (
                                   <>
@@ -2573,13 +2683,11 @@ const WhatsAppPage: React.FC = () => {
                               // Only fetch messages if we don't have any or if it's a different chat
                               if (selectedChat) {
                                 const selectedChatId = extractChatId(selectedChat);
-                                const targetId = typeof chat.id === 'string' && !chat.id.includes('@') ? ensureWAHAChatId(chat.id) : chat.id;
-                                if (selectedChatId !== targetId) {
-                                  fetchMessages(targetId);
+                                if (selectedChatId !== chat.id) {
+                                  fetchMessages(chat.id);
                                 }
                               } else {
-                                const targetId = typeof chat.id === 'string' && !chat.id.includes('@') ? ensureWAHAChatId(chat.id) : chat.id;
-                                fetchMessages(targetId);
+                                fetchMessages(chat.id);
                               }
                               // Keep chat list visible on mobile for easy navigation
                             } else {
@@ -2756,6 +2864,8 @@ const WhatsAppPage: React.FC = () => {
                       
                       <AnimatedButton
                         onClick={() => {
+                          console.log('[WhatsApp Frontend] Load History clicked, selectedChat:', selectedChat);
+                          
                           if (!selectedChat) {
                             console.error('[WhatsApp Frontend] No chat selected');
                             toast({
@@ -2766,24 +2876,21 @@ const WhatsAppPage: React.FC = () => {
                             return;
                           }
                           
-                          // Safely extract and normalize chatId before using it
-                          let chatId = extractChatId(selectedChat);
-                          if (chatId && typeof chatId === 'string' && !chatId.includes('@')) {
-                            chatId = ensureWAHAChatId(chatId);
-                          }
+                          // Since we now normalize all IDs during data processing, selectedChat.id should always be a valid string
+                          const chatId = selectedChat.id;
                           
                           console.log('[WhatsApp Frontend] Load History - Chat ID details:', {
                             chatId,
                             chatIdType: typeof chatId,
                             chatName: selectedChat.name,
-                            isValid: isValidChatId(chatId)
+                            isValidString: typeof chatId === 'string' && chatId.length > 0
                           });
                           
-                          if (isValidChatId(chatId)) {
-                            console.log('[WhatsApp Frontend] ✅ Loading history for chatId:', chatId);
-                            fetchChatHistory(chatId as string, 10);
+                          if (typeof chatId === 'string' && chatId.length > 0 && chatId !== '[object Object]') {
+                            console.log('[WhatsApp Frontend] ✅ Loading history for normalized chatId:', chatId);
+                            fetchChatHistory(chatId, 10);
                           } else {
-                            console.error('[WhatsApp Frontend] ❌ Invalid chat ID when loading history:', {
+                            console.error('[WhatsApp Frontend] ❌ Invalid chat ID after normalization (this should not happen):', {
                               selectedChat,
                               chatId,
                               chatIdType: typeof chatId
@@ -3032,6 +3139,18 @@ const WhatsAppPage: React.FC = () => {
                     
                     <AnimatedButton
                       onClick={() => {
+                        setShowMonitoring(true);
+                        setShowMobileMenu(false);
+                      }}
+                      variant="outline"
+                      className="w-full border-amber-400/30 text-amber-200 hover:bg-amber-500/10"
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      Monitoring
+                    </AnimatedButton>
+                    
+                    <AnimatedButton
+                      onClick={() => {
                         forceHistorySync();
                         setShowMobileMenu(false);
                       }}
@@ -3130,7 +3249,15 @@ const WhatsAppPage: React.FC = () => {
               >
                 <GlassCard className="p-6 flex flex-col max-h-full">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-white">Keyword Monitoring</h3>
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-lg font-semibold text-white">WhatsApp Monitoring</h3>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${status?.monitoringActive ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
+                        <span className={`text-xs ${status?.monitoringActive ? 'text-green-300' : 'text-gray-400'}`}>
+                          {status?.monitoringActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    </div>
                     <Button
                       onClick={() => setShowMonitoring(false)}
                       variant="ghost"
@@ -3140,6 +3267,29 @@ const WhatsAppPage: React.FC = () => {
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
+
+                  {/* Real-time Statistics */}
+                  <div className="grid grid-cols-2 gap-3 mb-6">
+                    <div className="bg-white/10 rounded-lg p-3 text-center">
+                      <MessageCircle className="w-5 h-5 text-blue-400 mx-auto mb-1" />
+                      <div className="text-lg font-bold text-white">{status?.messagesCount || 0}</div>
+                      <div className="text-xs text-blue-200/70">Messages</div>
+                    </div>
+                    <div className="bg-white/10 rounded-lg p-3 text-center">
+                      <Camera className="w-5 h-5 text-amber-400 mx-auto mb-1" />
+                      <div className="text-lg font-bold text-white">{status?.imagesCount || 0}</div>
+                      <div className="text-xs text-blue-200/70">Images</div>
+                    </div>
+                  </div>
+
+                  {/* Last Activity */}
+                  {status?.lastActivity && (
+                    <div className="mb-4 text-center">
+                      <p className="text-xs text-blue-200/70">
+                        Last activity: {new Date(status.lastActivity).toLocaleTimeString()}
+                      </p>
+                    </div>
+                  )}
                   
                   <div className="mb-4">
                     <div className="flex gap-2">

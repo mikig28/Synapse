@@ -135,10 +135,27 @@ export const getStatus = async (req: Request, res: Response) => {
       qrAvailable
     });
     
-    // Avoid fetching chats here to keep status fast and prevent 50x under latency
-    const groupsCount = undefined as unknown as number;
-    const privateChatsCount = undefined as unknown as number;
-    const messagesCount = undefined as unknown as number;
+    // Get monitoring stats if available (cached for performance)
+    let groupsCount = undefined as unknown as number;
+    let privateChatsCount = undefined as unknown as number;
+    let messagesCount = undefined as unknown as number;
+    let imagesCount = 0;
+    let lastActivity = new Date().toISOString();
+    
+    // Try to get cached counts from global monitoring stats
+    let globalStats: any = null;
+    try {
+      globalStats = (global as any).wahaMonitoringStats;
+      if (globalStats && globalStats.timestamp && (Date.now() - globalStats.timestamp < 300000)) { // 5 minutes cache
+        groupsCount = globalStats.groupsCount || 0;
+        privateChatsCount = globalStats.privateChatsCount || 0;
+        messagesCount = globalStats.messagesCount || 0;
+        imagesCount = globalStats.imagesCount || 0;
+        lastActivity = globalStats.lastActivity || lastActivity;
+      }
+    } catch (statsError) {
+      // Ignore stats errors, will use defaults
+    }
 
     // Convert WAHA status to format expected by frontend
     const status = {
@@ -154,7 +171,11 @@ export const getStatus = async (req: Request, res: Response) => {
       qrAvailable: qrAvailable,
       timestamp: wahaStatus.timestamp,
       monitoredKeywords: [],
-      serviceType: 'waha'
+      serviceType: 'waha',
+      // Enhanced monitoring fields
+      imagesCount: imagesCount,
+      monitoringActive: isConnected && isAuthenticated,
+      lastActivity: lastActivity
     };
     
     // Cache the status
@@ -473,13 +494,6 @@ export const getMessages = async (req: Request, res: Response) => {
           error: 'Invalid chatId received',
           details: { chatId, hint: 'Frontend sent an object instead of string' }
         });
-      }
-      
-      // If chatId is missing a domain suffix, infer based on pattern
-      if (chatId && typeof chatId === 'string' && !chatId.includes('@')) {
-        const inferred = chatId.includes('-') ? `${chatId}@g.us` : `${chatId}@s.whatsapp.net`;
-        console.warn('[WAHA Controller] ⚠️ chatId missing domain, inferring:', { original: chatId, inferred });
-        chatId = inferred;
       }
     }
     
@@ -1474,6 +1488,57 @@ export const autoRecoverSession = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: error?.message || 'Auto-recovery failed',
+      details: error?.response?.data || error.message
+    });
+  }
+};
+
+/**
+ * Extract image from WhatsApp message (Shula-style functionality)
+ */
+export const extractImageFromMessage = async (req: Request, res: Response) => {
+  try {
+    const { messageId } = req.params;
+    
+    if (!messageId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Message ID is required'
+      });
+    }
+    
+    console.log(`[WAHA Controller] 📷 Extracting image from message: ${messageId}`);
+    const wahaService = getWAHAService();
+    
+    // Extract image using WAHA service
+    const extractionResult = await wahaService.extractImageFromMessage(messageId);
+    
+    if (extractionResult.success) {
+      console.log(`[WAHA Controller] ✅ Image extracted successfully: ${extractionResult.filename}`);
+      
+      res.json({
+        success: true,
+        data: {
+          messageId,
+          filename: extractionResult.filename,
+          filePath: extractionResult.filePath,
+          fileSize: extractionResult.fileSize,
+          mimeType: extractionResult.mimeType,
+          extractedAt: new Date().toISOString(),
+          message: 'Image extracted successfully'
+        }
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: extractionResult.error || 'Failed to extract image from message'
+      });
+    }
+  } catch (error: any) {
+    console.error('[WAHA Controller] ❌ Error extracting image:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to extract image: ' + (error?.message || 'Unknown error'),
       details: error?.response?.data || error.message
     });
   }

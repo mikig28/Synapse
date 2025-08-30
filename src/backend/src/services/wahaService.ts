@@ -1401,6 +1401,8 @@ class WAHAService extends EventEmitter {
           this.processImageForGroupMonitoring(eventData);
           // Emit image message event for frontend image extraction
           this.processImageMessage(eventData);
+          // Update monitoring statistics
+          this.updateMonitoringStats(eventData);
           break;
           
         case 'session.status':
@@ -1880,6 +1882,166 @@ class WAHAService extends EventEmitter {
       clearInterval(this.statusMonitorInterval);
       this.statusMonitorInterval = null;
       console.log('[WAHA Service] 🛑 Status monitoring stopped');
+    }
+  }
+
+  /**
+   * Update global monitoring statistics
+   */
+  private updateMonitoringStats(messageData: any): void {
+    try {
+      // Initialize or update global monitoring stats
+      let stats = (global as any).wahaMonitoringStats || {
+        messagesCount: 0,
+        imagesCount: 0,
+        groupsCount: 0,
+        privateChatsCount: 0,
+        lastActivity: new Date().toISOString(),
+        timestamp: Date.now()
+      };
+      
+      // Increment message count
+      stats.messagesCount += 1;
+      
+      // Check if it's an image message
+      if (messageData.isMedia && messageData.type === 'image') {
+        stats.imagesCount += 1;
+        console.log(`[WAHA Service] 📊 Image count updated: ${stats.imagesCount}`);
+      }
+      
+      // Update last activity
+      stats.lastActivity = new Date().toISOString();
+      stats.timestamp = Date.now();
+      
+      // Store globally
+      (global as any).wahaMonitoringStats = stats;
+      
+      // Emit monitoring stats via Socket.IO for real-time updates
+      const io_instance = (global as any).io;
+      if (io_instance) {
+        io_instance.emit('whatsapp:monitoring-stats', {
+          totalMessages: stats.messagesCount,
+          totalImages: stats.imagesCount,
+          active: true,
+          lastActivity: stats.lastActivity
+        });
+      }
+      
+    } catch (error) {
+      console.error('[WAHA Service] Error updating monitoring stats:', error);
+    }
+  }
+
+  /**
+   * Extract image from WhatsApp message (Shula-style functionality)
+   */
+  public async extractImageFromMessage(messageId: string, sessionName?: string): Promise<any> {
+    try {
+      const session = sessionName || this.defaultSession;
+      console.log(`[WAHA Service] 📷 Extracting image from message: ${messageId} (session: ${session})`);
+      
+      // First, get the message details to verify it contains media
+      const messageUrl = `${this.wahaBaseUrl}/api/messages/${messageId}`;
+      console.log(`[WAHA Service] Getting message details: ${messageUrl}`);
+      
+      const messageResponse = await this.httpClient.get(messageUrl, {
+        params: { session }
+      });
+      
+      if (!messageResponse.data) {
+        return {
+          success: false,
+          error: 'Message not found'
+        };
+      }
+      
+      const messageData = messageResponse.data;
+      
+      // Check if message has media
+      if (!messageData.hasMedia || messageData.type !== 'image') {
+        return {
+          success: false,
+          error: 'Message does not contain an image'
+        };
+      }
+      
+      // Download the image using WAHA API
+      const mediaUrl = `${this.wahaBaseUrl}/api/files/${messageId}`;
+      console.log(`[WAHA Service] Downloading image: ${mediaUrl}`);
+      
+      const mediaResponse = await this.httpClient.get(mediaUrl, {
+        params: { session },
+        responseType: 'stream'
+      });
+      
+      // Create images directory if it doesn't exist
+      const fs = require('fs');
+      const path = require('path');
+      const crypto = require('crypto');
+      
+      const imagesDir = path.join(process.cwd(), 'public', 'images', 'whatsapp');
+      if (!fs.existsSync(imagesDir)) {
+        fs.mkdirSync(imagesDir, { recursive: true });
+      }
+      
+      // Generate unique filename
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const hash = crypto.createHash('md5').update(messageId).digest('hex').substring(0, 8);
+      const extension = messageData.mimeType === 'image/jpeg' ? 'jpg' : 
+                       messageData.mimeType === 'image/png' ? 'png' : 
+                       messageData.mimeType === 'image/gif' ? 'gif' : 'jpg';
+      
+      const filename = `whatsapp-${timestamp}-${hash}.${extension}`;
+      const filePath = path.join(imagesDir, filename);
+      
+      // Save the image
+      const writer = fs.createWriteStream(filePath);
+      mediaResponse.data.pipe(writer);
+      
+      return new Promise((resolve, reject) => {
+        writer.on('finish', () => {
+          const stats = fs.statSync(filePath);
+          console.log(`[WAHA Service] ✅ Image extracted successfully: ${filename} (${stats.size} bytes)`);
+          
+          resolve({
+            success: true,
+            filename,
+            filePath: `/public/images/whatsapp/${filename}`,
+            fileSize: stats.size,
+            mimeType: messageData.mimeType || 'image/jpeg',
+            originalMessageId: messageId,
+            extractedAt: new Date().toISOString()
+          });
+        });
+        
+        writer.on('error', (error) => {
+          console.error(`[WAHA Service] ❌ Error saving image:`, error);
+          reject({
+            success: false,
+            error: 'Failed to save image: ' + error.message
+          });
+        });
+      });
+      
+    } catch (error: any) {
+      console.error(`[WAHA Service] ❌ Error extracting image from message ${messageId}:`, error);
+      
+      if (error.response?.status === 404) {
+        return {
+          success: false,
+          error: 'Message or media not found'
+        };
+      } else if (error.response?.status === 403) {
+        return {
+          success: false,
+          error: 'Not authorized to access media'
+        };
+      } else {
+        return {
+          success: false,
+          error: error.message || 'Failed to extract image'
+        };
+      }
     }
   }
 }
