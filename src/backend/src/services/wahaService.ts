@@ -114,7 +114,7 @@ class WAHAService extends EventEmitter {
 
     this.httpClient = axios.create({
       baseURL: this.wahaBaseUrl,
-      timeout: 90000, // Increased to 90 seconds for Render.com cold starts and heavy chat loads
+      timeout: 180000, // Increased to 3 minutes for Railway deployment and large chat lists
       headers,
     });
 
@@ -829,8 +829,17 @@ class WAHAService extends EventEmitter {
 
       const tryOverview = async (): Promise<WAHAChat[] | null> => {
         try {
-          console.log(`[WAHA Service] Trying chats overview with 90s timeout...`);
-          const res = await this.httpClient.get(`/api/${sessionName}/chats/overview`, { timeout: 90000 });
+          console.log(`[WAHA Service] Trying chats overview with pagination and 180s timeout...`);
+          // Use WAHA-recommended pagination for better performance
+          const res = await this.httpClient.get(`/api/${sessionName}/chats/overview`, { 
+            timeout: 180000,
+            params: {
+              limit: options.limit || 100, // Start with smaller chunks
+              offset: options.offset || 0,
+              sortBy: options.sortBy || 'messageTimestamp',
+              sortOrder: options.sortOrder || 'desc'
+            }
+          });
           const items = normalizeChats(res.data);
           console.log(`[WAHA Service] ✅ Chats overview successful; got ${items.length} items`);
           if (items.length > 0) {
@@ -843,7 +852,7 @@ class WAHAService extends EventEmitter {
           const errorMsg = e?.response?.status === 404 ? 'Overview endpoint not available (404)' : `${e?.message || e}`;
           console.log(`[WAHA Service] ❌ Chats overview failed: ${errorMsg}`);
           if (errorMsg.includes('timeout')) {
-            console.log(`[WAHA Service] Overview endpoint timed out after 90s, will try direct /chats`);
+            console.log(`[WAHA Service] Overview endpoint timed out after 180s, will try direct /chats`);
           }
           return null;
         }
@@ -853,12 +862,13 @@ class WAHAService extends EventEmitter {
         try {
           // Build WAHA-compliant query parameters with performance optimizations
           const params = new URLSearchParams();
-          // Use smaller initial limit to reduce timeout risk
-          const effectiveLimit = options.limit || 50; // Default to 50 chats initially for better performance
+          // Use WAHA-recommended pagination with smaller chunks
+          const effectiveLimit = options.limit || 100; // Increased default as per WAHA docs
           params.append('limit', effectiveLimit.toString());
           if (options.offset) params.append('offset', options.offset.toString());
-          if (options.sortBy) params.append('sortBy', options.sortBy);
-          if (options.sortOrder) params.append('sortOrder', options.sortOrder);
+          // Use WAHA-recommended sorting
+          params.append('sortBy', options.sortBy || 'messageTimestamp');
+          params.append('sortOrder', options.sortOrder || 'desc');
           if (options.exclude?.length) params.append('exclude', options.exclude.join(','));
 
           const queryString = params.toString();
@@ -880,25 +890,20 @@ class WAHAService extends EventEmitter {
         }
       };
 
-      // Optimized attempt sequence: overview(90s) → chats(90s) → chats(60s) with progressive timeout reduction
-      console.log(`[WAHA Service] Starting optimized chat loading sequence for session '${sessionName}'...`);
+      // Optimized attempt sequence with progressive timeout increases (Railway-optimized)
+      console.log(`[WAHA Service] Starting Railway-optimized chat loading sequence for session '${sessionName}'...`);
       let chats: WAHAChat[] | null = await tryOverview();
       
       if (!chats || chats.length === 0) {
         console.log(`[WAHA Service] Overview failed or empty, trying direct /chats with extended timeout...`);
-        chats = await tryChats(90000); // First attempt with 90s timeout for heavy loads/cold starts
+        chats = await tryChats(180000); // First attempt with 3min timeout for Railway deployment
       }
       
       if (!chats || chats.length === 0) {
-        console.log(`[WAHA Service] First /chats attempt failed, retrying with medium timeout...`);
-        await new Promise(resolve => setTimeout(resolve, 3000)); // Longer delay for WAHA to stabilize
-        chats = await tryChats(60000); // Second attempt with 60s timeout
-      }
-      
-      if (!chats || chats.length === 0) {
-        console.log(`[WAHA Service] Second /chats attempt failed, final retry with standard timeout...`);
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Brief delay before final retry
-        chats = await tryChats(30000); // Final attempt with 30s timeout (original failing timeout)
+        console.log(`[WAHA Service] First /chats attempt failed, retrying with reduced limit...`);
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Longer delay for WAHA to stabilize
+        // Try with smaller limit to reduce load directly without recursion
+        chats = await tryChats(120000); // 2min timeout with default parameters
       }
 
       if (!chats || chats.length === 0) {
@@ -977,19 +982,24 @@ class WAHAService extends EventEmitter {
       // For other statuses (STARTING, SCAN_QR_CODE, WORKING, etc.), try to fetch groups anyway
       console.log(`[WAHA Service] getGroups - Session status ${sessionStatus.status}, attempting to fetch groups`);
       try {
-        // Build WAHA-compliant query parameters for groups
+        // Build WAHA-compliant query parameters for groups with performance optimizations
         const params = new URLSearchParams();
-        if (options.limit) params.append('limit', options.limit.toString());
-        if (options.offset) params.append('offset', options.offset.toString());
-        if (options.sortBy) params.append('sortBy', options.sortBy);
-        if (options.sortOrder) params.append('sortOrder', options.sortOrder);
-        if (options.exclude?.length) params.append('exclude', options.exclude.join(','));
+        // Use WAHA-recommended pagination and exclude heavy data
+        params.append('limit', (options.limit || 100).toString()); // Default to 100 as per WAHA docs
+        params.append('offset', (options.offset || 0).toString());
+        params.append('sortBy', options.sortBy || 'subject'); // Use WAHA-recommended sorting
+        params.append('sortOrder', options.sortOrder || 'desc');
+        params.append('exclude', 'participants'); // Exclude participants for better performance as per WAHA docs
+        if (options.exclude?.length) {
+          const allExcludes = ['participants', ...options.exclude];
+          params.set('exclude', allExcludes.join(','));
+        }
 
         const queryString = params.toString();
         const endpoint = `/api/${sessionName}/groups${queryString ? `?${queryString}` : ''}`;
         
-        console.log(`[WAHA Service] Using WAHA-compliant groups endpoint: ${endpoint}`);
-        const res = await this.httpClient.get(endpoint);
+        console.log(`[WAHA Service] Using WAHA-compliant groups endpoint with performance opts: ${endpoint}`);
+        const res = await this.httpClient.get(endpoint, { timeout: 180000 }); // Use 3min timeout
         console.log(`[WAHA Service] Received ${res.data.length} groups`);
         return res.data.map((g: any) => ({
           id: this.extractJidFromAny(g.id || g.chatId || g.groupId) || String(g.id || g.chatId || g.groupId || ''),
@@ -1126,7 +1136,7 @@ class WAHAService extends EventEmitter {
       // WAHA API endpoint structure: /api/{session}/chats/{chatId}/messages
       let response = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(chatId)}/messages`, {
         params: { limit },
-        timeout: 90000 // Increased to match httpClient default for better reliability on Render.com
+        timeout: 180000 // Increased to 3 minutes for Railway deployment
       });
       
       console.log(`[WAHA Service] Received ${response.data.length} messages`);
@@ -1157,7 +1167,7 @@ class WAHAService extends EventEmitter {
           console.warn(`[WAHA Service] Retrying with alternate private JID: ${altId}`);
           const retryRes = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(altId)}/messages`, {
             params: { limit },
-            timeout: 90000
+            timeout: 180000
           });
           return retryRes.data.map((msg: any) => ({
             id: msg.id,
@@ -1181,7 +1191,7 @@ class WAHAService extends EventEmitter {
           console.warn(`[WAHA Service] Retrying with alternate private JID: ${altId}`);
           const retryRes = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(altId)}/messages`, {
             params: { limit },
-            timeout: 90000
+            timeout: 180000
           });
           return retryRes.data.map((msg: any) => ({
             id: msg.id,
