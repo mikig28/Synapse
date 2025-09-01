@@ -169,6 +169,7 @@ TWITTER_API_KEY=your_key          # For Twitter/X integration
 # WhatsApp Integration (WAHA Service)
 WAHA_API_KEY=your_waha_api_key    # Required for WAHA service authentication
 WAHA_SERVICE_URL=https://synapse-waha.onrender.com  # WAHA service endpoint
+WAHA_ENGINE=NOWEB                 # Use NOWEB engine to avoid browser conflicts with Puppeteer
 WHATSAPP_AUTO_REPLY_ENABLED=false # Enable/disable WhatsApp auto-reply
 PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome  # Chrome path for containers
 PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true  # Skip Chromium download in containers
@@ -251,7 +252,72 @@ npm run parse-prd               # Parse requirements document to create initial 
 ### External Services Integration
 - **Python Services**: Separate Docker containers for ML/transcription
 - **CrewAI Agents**: Independent service in src/backend/services/crewai-agents/
-- **WhatsApp Integration**: Baileys library for WhatsApp Web automation
+- **WhatsApp Integration**: WAHA service + Puppeteer for media extraction workaround
+- **Social Media**: Telegram, Twitter, Reddit agent integrations
+
+## WhatsApp Media Handling Architecture
+
+Since WAHA Core (free version) doesn't support automatic media downloads, we implement a dual-service workaround:
+
+### Architecture Overview
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────────────┐
+│   WAHA NOWEB    │───▶│   Message        │───▶│   Frontend Detection    │
+│   (WebSocket)   │    │   Detection      │    │   [📷 Image] [Download] │
+│   No Browser    │    │   + Metadata     │    │                         │
+└─────────────────┘    └──────────────────┘    └─────────────────────────┘
+                                                              │
+                                                              ▼ (User clicks)
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────────────┐
+│   Puppeteer     │◀───│   Image          │◀───│   On-Demand             │
+│   Chrome        │    │   Extraction     │    │   Extraction Request    │
+│   WhatsApp Web  │    │   Service        │    │                         │
+└─────────────────┘    └──────────────────┘    └─────────────────────────┘
+```
+
+### Dual Service Configuration
+
+1. **WAHA Service (NOWEB Engine)**
+   - Handles real-time message detection via WebSocket
+   - No browser conflicts since it doesn't use Puppeteer
+   - Provides metadata: `isMedia: true`, `mimeType: 'image/jpeg'`
+   - Requires QR code authentication once
+
+2. **Puppeteer Service (Our Custom Implementation)**
+   - Separate WhatsApp Web browser session for image extraction
+   - Activated only when user clicks download
+   - Extracts images from WhatsApp Web DOM using blob URLs
+   - Independent authentication (separate QR scan required)
+
+### Session Management Strategy
+
+**Separate Sessions Approach**: Two independent WhatsApp Web sessions
+- **WAHA Session**: Phone number authentication via NOWEB engine
+- **Puppeteer Session**: Separate browser login for image extraction
+- **Benefit**: No session conflicts between services
+- **Limitation**: Requires two QR code scans (WAHA + Image Extractor)
+
+### Implementation Components
+
+- **WAHAService** (`src/backend/src/services/wahaService.ts`): Message detection with NOWEB engine
+- **WhatsAppImageExtractor** (`src/backend/src/services/whatsappImageExtractor.ts`): Puppeteer-based extraction
+- **WhatsAppImageService** (`src/backend/src/services/whatsappImageService.ts`): Orchestration layer
+- **WhatsAppImagesController** (`src/backend/src/api/controllers/whatsappImagesController.ts`): API endpoints
+
+### Key Environment Variables
+```bash
+WAHA_ENGINE=NOWEB                    # Avoid browser conflicts
+WHATSAPP_IMAGES_DIR=storage/images   # Image storage location
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome  # Container Chrome path
+```
+
+### User Experience Flow
+
+1. **Real-time Detection**: User receives WhatsApp image → Frontend shows [📷 Image] [Download]
+2. **On-Demand Extraction**: User clicks Download → Puppeteer extracts → Saves to Images page
+3. **No Automatic Downloads**: Only extracts images user specifically wants
+4. **Cost Effective**: Avoids WAHA Plus subscription while maintaining functionality
+
 - **Social Media**: Telegram, Twitter, Reddit agent integrations
 
 ## Cursor Rules & AI-Assisted Development
