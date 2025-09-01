@@ -729,7 +729,7 @@ class TelegramChannelService {
       }).sort({ updatedAt: -1 });
 
       const channelStatuses = channels.map(channel => {
-        const status = !channel.isActive ? 'inactive' : 
+        const status: 'healthy' | 'error' | 'inactive' = !channel.isActive ? 'inactive' : 
                      channel.lastError ? 'error' : 'healthy';
         
         const errorAge = channel.lastError && channel.lastFetchedAt ? 
