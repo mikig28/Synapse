@@ -469,13 +469,24 @@ class WAHAService extends EventEmitter {
         }
         console.log(`[WAHA Service] Making POST request to /api/sessions with payload:`, createPayload);
         
-        // Create session (minimal payload; webhooks added after successful start)
-        const response = await this.httpClient.post('/api/sessions', createPayload);
-        
-        console.log(`[WAHA Service] ✅ Session creation response:`, response.status);
-        console.log(`[WAHA Service] 📋 Full response data:`, JSON.stringify(response.data, null, 2));
-        sessionData = response.data;
-        sessionExists = true;
+        try {
+          // Create session (minimal payload; webhooks added after successful start)
+          const response = await this.httpClient.post('/api/sessions', createPayload);
+          console.log(`[WAHA Service] ✅ Session creation response:`, response.status);
+          console.log(`[WAHA Service] 📋 Full response data:`, JSON.stringify(response.data, null, 2));
+          sessionData = response.data;
+          sessionExists = true;
+        } catch (createErr: any) {
+          const status = createErr?.response?.status;
+          console.warn(`[WAHA Service] ⚠️ Session create via /api/sessions failed (${status}). Falling back to /api/${sessionName}/start`);
+          // Fallback path (supported by some WAHA versions): create+start in one call
+          const fallbackPayload: any = { name: sessionName };
+          if (engine) fallbackPayload.engine = engine;
+          const startRes = await this.httpClient.post(`/api/${sessionName}/start`, fallbackPayload);
+          console.log(`[WAHA Service] ✅ Fallback start created/started session '${sessionName}':`, startRes.status);
+          sessionData = { name: sessionName, status: 'STARTING' };
+          sessionExists = true;
+        }
         
         // CRITICAL: Wait for WAHA to initialize the session
         console.log(`[WAHA Service] ⏳ Waiting 3 seconds for WAHA to initialize session...`);
@@ -1401,14 +1412,32 @@ class WAHAService extends EventEmitter {
         console.log(`[WAHA Service] 🔧 Creating session with engine: ${engine}`);
       }
       
-      const response = await this.httpClient.post('/api/sessions', createPayload);
-      console.log(`[WAHA Service] ✅ Session recreated with engine configuration`);
+      let responseData: any = null;
+      try {
+        const response = await this.httpClient.post('/api/sessions', createPayload);
+        console.log(`[WAHA Service] ✅ Session recreated with engine configuration`);
+        responseData = response.data;
+      } catch (createErr: any) {
+        const status = createErr?.response?.status;
+        console.warn(`[WAHA Service] ⚠️ Recreate via /api/sessions failed (${status}). Falling back to /api/${sessionName}/start`);
+        const fallbackPayload: any = { name: sessionName };
+        if (engine) fallbackPayload.engine = engine;
+        const startRes = await this.httpClient.post(`/api/${sessionName}/start`, fallbackPayload);
+        console.log(`[WAHA Service] ✅ Fallback start created/started session '${sessionName}':`, startRes.status);
+        responseData = { name: sessionName, status: 'STARTING' };
+      }
       
-      // Start the new session
-      await this.httpClient.post(`/api/sessions/${sessionName}/start`);
-      console.log(`[WAHA Service] ✅ New session '${sessionName}' started`);
+      // Start the new session (idempotent; safe if already started by fallback)
+      try {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await this.httpClient.post(`/api/sessions/${sessionName}/start`);
+        console.log(`[WAHA Service] ✅ New session '${sessionName}' started`);
+      } catch (startErr: any) {
+        const st = startErr?.response?.status;
+        console.log(`[WAHA Service] ℹ️ Start call returned ${st}. It may already be started (expected on fallback path).`);
+      }
       
-      return response.data;
+      return responseData;
     } catch (error: any) {
       console.error(`[WAHA Service] ❌ Error recreating session:`, error);
       throw error;
