@@ -150,13 +150,26 @@ class TelegramChannelService {
    * Fetch messages from a specific channel
    */
   async fetchChannelMessages(channelDbId: string): Promise<void> {
+    let channel: ITelegramChannel | null = null;
+    
     try {
-      const channel = await TelegramChannel.findById(channelDbId);
+      channel = await TelegramChannel.findById(channelDbId);
       if (!channel || !channel.isActive) {
         return;
       }
 
       console.log(`[TelegramChannelService] Fetching messages for: ${channel.channelTitle}`);
+
+      // Check if channel has recent errors and should be skipped temporarily
+      if (channel.lastError && channel.lastFetchedAt) {
+        const timeSinceLastError = Date.now() - channel.lastFetchedAt.getTime();
+        const errorCooldown = 30 * 60 * 1000; // 30 minutes cooldown
+        
+        if (timeSinceLastError < errorCooldown) {
+          console.log(`[TelegramChannelService] Skipping ${channel.channelTitle} - in error cooldown (${Math.round(timeSinceLastError / 1000 / 60)} min ago)`);
+          return;
+        }
+      }
 
       // Get messages using the user's bot instance
       const messages = await this.getRecentChannelMessages(channel.channelId, channel.userId.toString());
@@ -191,10 +204,26 @@ class TelegramChannelService {
               messages: newMessages
             });
           }
+        } else {
+          // Update last fetched time even if no new messages
+          channel.lastFetchedAt = new Date();
+          await channel.save();
         }
+      } else {
+        // Update last fetched time even if no messages returned
+        channel.lastFetchedAt = new Date();
+        await channel.save();
       }
     } catch (error) {
-      console.error(`[TelegramChannelService] Error fetching channel messages:`, error);
+      const errorMessage = (error as Error).message;
+      console.error(`[TelegramChannelService] Error fetching channel messages for ${channel?.channelTitle || 'unknown'}:`, errorMessage);
+      
+      // Don't log the full stack trace for known permission errors
+      if (!errorMessage.includes('Channel/group not found') && 
+          !errorMessage.includes('Bot needs to be added') && 
+          !errorMessage.includes('No active bot found')) {
+        console.error('Full error details:', error);
+      }
     }
   }
 
@@ -264,11 +293,19 @@ class TelegramChannelService {
             console.log(`[TelegramChannelService] ✅ Successfully initialized bot for user ${userId}`);
           } else {
             console.error(`[TelegramChannelService] Failed to initialize bot for user ${userId}:`, initResult.error);
+            // Mark channel as having bot issues
+            await this.markChannelWithError(channelId, userId, `Bot initialization failed: ${initResult.error}`);
+            throw new Error(`Bot initialization failed: ${initResult.error}`);
           }
+        } else {
+          // Mark channel as having no active bot
+          await this.markChannelWithError(channelId, userId, 'No active bot found for user. Please configure your Telegram bot first.');
+          throw new Error('No active bot found for user. Please configure your Telegram bot first.');
         }
       }
       
       if (!bot) {
+        await this.markChannelWithError(channelId, userId, 'No active bot found for user. Please configure your Telegram bot first.');
         throw new Error('No active bot found for user. Please configure your Telegram bot first.');
       }
 
@@ -276,8 +313,12 @@ class TelegramChannelService {
       // This method now focuses on checking if the bot has proper access
       
       try {
-        // Verify bot can access the chat
-        const chat = await bot.getChat(channelId);
+        // Verify bot can access the chat with timeout
+        const chat = await Promise.race([
+          bot.getChat(channelId),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
+        ]) as any;
+        
         console.log(`[TelegramChannelService] Chat accessible for ${channelId}:`, {
           id: chat.id,
           title: chat.title,
@@ -313,7 +354,11 @@ class TelegramChannelService {
         
         // Try to get recent updates that might contain messages from this channel
         try {
-          const updates = await bot.getUpdates({ limit: 100, timeout: 10 });
+          const updates = await Promise.race([
+            bot.getUpdates({ limit: 100, timeout: 10 }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Updates timeout')), 15000))
+          ]) as any[];
+          
           const channelMessages: ITelegramChannelMessage[] = [];
           
           console.log(`[TelegramChannelService] Retrieved ${updates.length} updates to check for channel messages`);
@@ -368,15 +413,7 @@ class TelegramChannelService {
         
         // Update channel with specific error
         const errorMessage = this.getPermissionErrorMessage(channelId, (accessError as Error).message);
-        await TelegramChannel.findOneAndUpdate(
-          { channelId, userId: new mongoose.Types.ObjectId(userId) },
-          { 
-            $set: { 
-              lastError: errorMessage,
-              lastFetchedAt: new Date()
-            }
-          }
-        );
+        await this.markChannelWithError(channelId, userId, errorMessage);
         
         throw new Error(errorMessage);
       }
@@ -388,11 +425,39 @@ class TelegramChannelService {
   }
 
   /**
+   * Mark channel with error and update database
+   */
+  private async markChannelWithError(channelId: string, userId: string, errorMessage: string): Promise<void> {
+    try {
+      await TelegramChannel.findOneAndUpdate(
+        { channelId, userId: new mongoose.Types.ObjectId(userId) },
+        { 
+          $set: { 
+            lastError: errorMessage,
+            lastFetchedAt: new Date()
+          }
+        }
+      );
+      console.log(`[TelegramChannelService] Marked channel ${channelId} with error: ${errorMessage}`);
+    } catch (error) {
+      console.error(`[TelegramChannelService] Error updating channel with error message:`, error);
+    }
+  }
+
+  /**
    * Get user-friendly error message for permission issues
    */
   private getPermissionErrorMessage(channelId: string, originalError: string): string {
     if (originalError.includes('chat not found')) {
       return 'Channel/group not found. Make sure it exists and is accessible.';
+    }
+    
+    if (originalError.includes('Timeout')) {
+      return 'Bot connection timeout. Please check your bot token and network connectivity.';
+    }
+
+    if (originalError.includes('Bot initialization failed')) {
+      return originalError;
     }
     
     if (channelId.startsWith('@')) {
@@ -591,24 +656,137 @@ class TelegramChannelService {
       console.log('[TelegramChannelService] Running periodic channel message fetch...');
       
       try {
-        const activeChannels = await TelegramChannel.find({ isActive: true });
-        console.log(`[TelegramChannelService] Found ${activeChannels.length} active channels to fetch`);
+        // Find active channels, excluding those with recent errors (within last 30 minutes)
+        const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+        const activeChannels = await TelegramChannel.find({ 
+          isActive: true,
+          $or: [
+            { lastError: { $exists: false } },
+            { lastError: null },
+            { lastFetchedAt: { $lt: thirtyMinutesAgo } }
+          ]
+        });
+        
+        const channelsWithErrors = await TelegramChannel.countDocuments({
+          isActive: true,
+          lastError: { $exists: true, $ne: null },
+          lastFetchedAt: { $gte: thirtyMinutesAgo }
+        });
+
+        console.log(`[TelegramChannelService] Found ${activeChannels.length} active channels to fetch (${channelsWithErrors} skipped due to recent errors)`);
+
+        let successCount = 0;
+        let errorCount = 0;
 
         for (const channel of activeChannels) {
           try {
             await this.fetchChannelMessages(channel._id.toString());
+            successCount++;
             // Add small delay between channels to avoid rate limiting
             await new Promise(resolve => setTimeout(resolve, 2000));
           } catch (error) {
-            console.error(`[TelegramChannelService] Error fetching messages for channel ${channel.channelTitle}:`, error);
+            errorCount++;
+            const errorMessage = (error as Error).message;
+            // Only log unexpected errors, not permission errors which are handled in fetchChannelMessages
+            if (!errorMessage.includes('Channel/group not found') && 
+                !errorMessage.includes('Bot needs to be added') && 
+                !errorMessage.includes('No active bot found')) {
+              console.error(`[TelegramChannelService] Unexpected error fetching messages for channel ${channel.channelTitle}:`, error);
+            }
           }
         }
+
+        console.log(`[TelegramChannelService] Periodic fetch completed: ${successCount} successful, ${errorCount} errors, ${channelsWithErrors} skipped`);
       } catch (error) {
-        console.error('[TelegramChannelService] Error in periodic fetch:', error);
+        console.error('[TelegramChannelService] Error in periodic fetch initialization:', error);
       }
     });
 
-    console.log('[TelegramChannelService] ✅ Periodic fetching initialized (every 30 minutes)');
+    console.log('[TelegramChannelService] ✅ Periodic fetching initialized (every 30 minutes with error handling)');
+  }
+
+  /**
+   * Get channel health status for a user
+   */
+  async getChannelHealthStatus(userId: string): Promise<{
+    total: number;
+    active: number;
+    withErrors: number;
+    channels: Array<{
+      id: string;
+      title: string;
+      channelId: string;
+      isActive: boolean;
+      lastError?: string;
+      lastFetchedAt?: Date;
+      errorAge?: number; // minutes since last error
+      status: 'healthy' | 'error' | 'inactive';
+    }>;
+  }> {
+    try {
+      const channels = await TelegramChannel.find({
+        userId: new mongoose.Types.ObjectId(userId)
+      }).sort({ updatedAt: -1 });
+
+      const channelStatuses = channels.map(channel => {
+        const status = !channel.isActive ? 'inactive' : 
+                     channel.lastError ? 'error' : 'healthy';
+        
+        const errorAge = channel.lastError && channel.lastFetchedAt ? 
+          Math.round((Date.now() - channel.lastFetchedAt.getTime()) / (1000 * 60)) : 
+          undefined;
+
+        return {
+          id: channel._id.toString(),
+          title: channel.channelTitle,
+          channelId: channel.channelId,
+          isActive: channel.isActive,
+          lastError: channel.lastError,
+          lastFetchedAt: channel.lastFetchedAt,
+          errorAge,
+          status
+        };
+      });
+
+      return {
+        total: channels.length,
+        active: channelStatuses.filter(c => c.isActive).length,
+        withErrors: channelStatuses.filter(c => c.lastError).length,
+        channels: channelStatuses
+      };
+    } catch (error) {
+      console.error('[TelegramChannelService] Error getting channel health status:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Clear error status for a channel (forces retry)
+   */
+  async clearChannelError(userId: string, channelId: string): Promise<ITelegramChannel> {
+    try {
+      const channel = await TelegramChannel.findOneAndUpdate(
+        {
+          userId: new mongoose.Types.ObjectId(userId),
+          _id: new mongoose.Types.ObjectId(channelId)
+        },
+        { 
+          $unset: { lastError: 1 },
+          $set: { lastFetchedAt: new Date(Date.now() - 31 * 60 * 1000) } // Set to 31 minutes ago to force retry
+        },
+        { new: true }
+      );
+
+      if (!channel) {
+        throw new Error('Channel not found or not owned by user');
+      }
+
+      console.log(`[TelegramChannelService] ✅ Cleared error for channel: ${channel.channelTitle}`);
+      return channel;
+    } catch (error) {
+      console.error('[TelegramChannelService] Error clearing channel error:', error);
+      throw error;
+    }
   }
 
   /**
