@@ -634,8 +634,22 @@ class WAHAService extends EventEmitter {
       }
       
       if (error.response?.status === 404) {
-        console.error(`[WAHA Service] Session '${sessionName}' not found`);
-        throw new Error('Session not found. Please create a new session.');
+        console.warn(`[WAHA Service] Session '${sessionName}' not found. Attempting auto-create/start...`);
+        try {
+          // Reuse robust start flow (has fallback to /api/{session}/start)
+          await this.startSession(sessionName);
+          // Brief delay then retry status fetch
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          const retry = await this.httpClient.get(`/api/sessions/${sessionName}`);
+          // Cache and return
+          this.sessionStatusCache.data = retry.data;
+          this.sessionStatusCache.timestamp = Date.now();
+          console.log(`[WAHA Service] ✅ Auto-created session '${sessionName}', status: ${retry.data?.status}`);
+          return retry.data;
+        } catch (autoErr: any) {
+          console.error(`[WAHA Service] ❌ Auto-create failed for '${sessionName}':`, autoErr?.response?.status || autoErr?.message);
+          throw new Error('Session not found. Please create a new session.');
+        }
       }
       
       console.error('[WAHA Service] Error getting session status:', error.message);
