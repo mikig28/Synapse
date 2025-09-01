@@ -1147,12 +1147,16 @@ class WAHAService extends EventEmitter {
         from: msg.from,
         fromMe: msg.fromMe || false,
         timestamp: msg.timestamp,
-        type: msg.type || 'text',
+        type: msg.type !== 'text' ? msg.type : 
+              (msg.mimeType?.startsWith('image/') ? 'image' :
+               msg.mimeType?.startsWith('video/') ? 'video' :
+               msg.mimeType?.startsWith('audio/') ? 'audio' :
+               msg.hasMedia || msg.mediaUrl ? 'media' : 'text'),
         isGroup: msg.chatId?.includes('@g.us') || false,
         contactName: msg.notifyName || msg.from,
         chatId: msg.chatId,
         time: new Date(msg.timestamp * 1000).toLocaleTimeString(),
-        isMedia: msg.type !== 'text'
+        isMedia: msg.type !== 'text' || Boolean(msg.hasMedia || msg.mediaUrl || msg.mimeType)
       }));
     } catch (error: any) {
       console.error(`[WAHA Service] ❌ Failed to get messages for ${chatId}:`, error.response?.status, error.response?.data);
@@ -1175,12 +1179,16 @@ class WAHAService extends EventEmitter {
             from: msg.from,
             fromMe: msg.fromMe || false,
             timestamp: msg.timestamp,
-            type: msg.type || 'text',
+            type: msg.type !== 'text' ? msg.type : 
+              (msg.mimeType?.startsWith('image/') ? 'image' :
+               msg.mimeType?.startsWith('video/') ? 'video' :
+               msg.mimeType?.startsWith('audio/') ? 'audio' :
+               msg.hasMedia || msg.mediaUrl ? 'media' : 'text'),
             isGroup: msg.chatId?.includes('@g.us') || false,
             contactName: msg.notifyName || msg.from,
             chatId: msg.chatId,
             time: new Date(msg.timestamp * 1000).toLocaleTimeString(),
-            isMedia: msg.type !== 'text'
+            isMedia: msg.type !== 'text' || Boolean(msg.hasMedia || msg.mediaUrl || msg.mimeType)
           }));
         } catch (retryErr: any) {
           console.error('[WAHA Service] Alternate JID retry failed:', retryErr.response?.status, retryErr.response?.data);
@@ -1199,12 +1207,16 @@ class WAHAService extends EventEmitter {
             from: msg.from,
             fromMe: msg.fromMe || false,
             timestamp: msg.timestamp,
-            type: msg.type || 'text',
+            type: msg.type !== 'text' ? msg.type : 
+              (msg.mimeType?.startsWith('image/') ? 'image' :
+               msg.mimeType?.startsWith('video/') ? 'video' :
+               msg.mimeType?.startsWith('audio/') ? 'audio' :
+               msg.hasMedia || msg.mediaUrl ? 'media' : 'text'),
             isGroup: msg.chatId?.includes('@g.us') || false,
             contactName: msg.notifyName || msg.from,
             chatId: msg.chatId,
             time: new Date(msg.timestamp * 1000).toLocaleTimeString(),
-            isMedia: msg.type !== 'text'
+            isMedia: msg.type !== 'text' || Boolean(msg.hasMedia || msg.mediaUrl || msg.mimeType)
           }));
         } catch (retryErr: any) {
           console.error('[WAHA Service] Alternate JID retry failed:', retryErr.response?.status, retryErr.response?.data);
