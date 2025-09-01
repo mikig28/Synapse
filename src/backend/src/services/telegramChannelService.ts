@@ -13,6 +13,7 @@ class TelegramChannelService {
   constructor() {
     console.log('[TelegramChannelService] Initialized with multi-user bot manager');
     this.initializePeriodicFetch();
+    this.setupBotMessageListeners();
   }
 
   /**
@@ -350,63 +351,28 @@ class TelegramChannelService {
           { $unset: { lastError: 1 } }
         );
 
-        console.log(`[TelegramChannelService] ✅ Bot has access to ${channelId}. Attempting to fetch recent messages.`);
+        console.log(`[TelegramChannelService] ✅ Bot has access to ${channelId}. Bot is ready for real-time monitoring.`);
         
-        // Try to get recent updates that might contain messages from this channel
-        try {
-          const updates = await Promise.race([
-            bot.getUpdates({ limit: 100, timeout: 10 }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Updates timeout')), 15000))
-          ]) as any[];
-          
-          const channelMessages: ITelegramChannelMessage[] = [];
-          
-          console.log(`[TelegramChannelService] Retrieved ${updates.length} updates to check for channel messages`);
-          
-          for (const update of updates) {
-            const message = update.channel_post || update.message;
-            if (message && message.chat.id.toString() === channelId) {
-              const converted = this.convertToChannelMessage(message);
-              if (converted) {
-                channelMessages.push(converted);
-                console.log(`[TelegramChannelService] Found message ${converted.messageId} from ${channelId}`);
-              }
-            }
+        // Since the bot is in polling mode, we cannot use getUpdates() as it conflicts with polling
+        // Instead, we rely on real-time message handlers and RSS feeds for historical data
+        const channelMessages: ITelegramChannelMessage[] = [];
+        
+        // For public channels, try RSS feed to get some historical messages
+        if (channelId.startsWith('@')) {
+          console.log(`[TelegramChannelService] Attempting RSS fallback for historical messages: ${channelId}`);
+          try {
+            const rssMessages = await this.tryRSSFeed(channelId);
+            channelMessages.push(...rssMessages.slice(0, 10)); // Limit RSS messages
+            console.log(`[TelegramChannelService] Retrieved ${rssMessages.length} messages from RSS feed for ${channelId}`);
+          } catch (rssError) {
+            console.error(`[TelegramChannelService] RSS fallback failed for ${channelId}:`, rssError);
           }
-          
-          // If no messages found in updates, try alternative methods
-          if (channelMessages.length === 0) {
-            console.log(`[TelegramChannelService] No messages found in updates, bot is ready for real-time monitoring`);
-            
-            // For channels starting with @, try RSS feed as fallback
-            if (channelId.startsWith('@')) {
-              console.log(`[TelegramChannelService] Attempting RSS fallback for ${channelId}`);
-              const rssMessages = await this.tryRSSFeed(channelId);
-              channelMessages.push(...rssMessages.slice(0, 5)); // Limit RSS messages
-            }
-          }
-          
-          console.log(`[TelegramChannelService] Returning ${channelMessages.length} messages for ${channelId}`);
-          return channelMessages.slice(0, 20); // Last 20 messages max
-          
-        } catch (updatesError) {
-          console.error(`[TelegramChannelService] Failed to fetch updates for ${channelId}:`, updatesError);
-          
-          // For public channels, try RSS feed as fallback
-          if (channelId.startsWith('@')) {
-            console.log(`[TelegramChannelService] Attempting RSS fallback for ${channelId} due to updates failure`);
-            try {
-              const rssMessages = await this.tryRSSFeed(channelId);
-              return rssMessages.slice(0, 10); // Limit RSS messages
-            } catch (rssError) {
-              console.error(`[TelegramChannelService] RSS fallback also failed for ${channelId}:`, rssError);
-            }
-          }
-          
-          // Return empty array but log that bot is ready for real-time
-          console.log(`[TelegramChannelService] No historical messages available, but bot is configured for real-time monitoring of ${channelId}`);
-          return [];
         }
+        
+        // Log that real-time monitoring is active
+        console.log(`[TelegramChannelService] Bot is configured for real-time monitoring of ${channelId}. New messages will be received automatically.`);
+        
+        return channelMessages;
         
       } catch (accessError) {
         console.error(`[TelegramChannelService] ❌ Bot cannot access ${channelId}:`, accessError);
@@ -703,6 +669,99 @@ class TelegramChannelService {
     });
 
     console.log('[TelegramChannelService] ✅ Periodic fetching initialized (every 30 minutes with error handling)');
+  }
+
+  /**
+   * Setup listeners for real-time bot messages
+   */
+  private setupBotMessageListeners(): void {
+    // Listen for messages from all user bots
+    telegramBotManager.on('message', async ({ userId, message, bot }) => {
+      try {
+        await this.processIncomingMessage(userId, message);
+      } catch (error) {
+        console.error('[TelegramChannelService] Error processing incoming message:', error);
+      }
+    });
+
+    console.log('[TelegramChannelService] ✅ Bot message listeners initialized');
+  }
+
+  /**
+   * Process incoming message from bot and save to relevant channels
+   */
+  private async processIncomingMessage(userId: string, message: any): Promise<void> {
+    try {
+      // Check if this message is from a monitored channel
+      const chatId = message.chat.id.toString();
+      
+      // Find channels that match this chat ID for this user
+      const matchingChannels = await TelegramChannel.find({
+        userId: new mongoose.Types.ObjectId(userId),
+        channelId: chatId,
+        isActive: true
+      });
+
+      if (matchingChannels.length === 0) {
+        // Not a monitored channel, ignore
+        return;
+      }
+
+      // Convert message to our format
+      const channelMessage = this.convertToChannelMessage(message);
+      if (!channelMessage) {
+        return;
+      }
+
+      console.log(`[TelegramChannelService] Processing real-time message ${channelMessage.messageId} from ${chatId}`);
+
+      // Add message to each matching channel
+      for (const channel of matchingChannels) {
+        try {
+          // Check if message already exists
+          const existingMessage = channel.messages.find(m => m.messageId === channelMessage.messageId);
+          if (existingMessage) {
+            continue; // Skip duplicates
+          }
+
+          // Filter by keywords if specified
+          const filteredMessages = this.filterMessagesByKeywords([channelMessage], channel.keywords);
+          if (filteredMessages.length === 0) {
+            continue; // Message doesn't match keywords
+          }
+
+          // Add the message
+          channel.messages.push(channelMessage);
+          channel.totalMessages += 1;
+          channel.lastFetchedAt = new Date();
+          channel.lastFetchedMessageId = channelMessage.messageId;
+
+          // Clear any previous errors since we're receiving messages
+          if (channel.lastError) {
+            channel.lastError = undefined;
+          }
+
+          await channel.save();
+
+          console.log(`[TelegramChannelService] ✅ Added real-time message ${channelMessage.messageId} to channel: ${channel.channelTitle}`);
+
+          // Emit real-time update to frontend
+          if (io) {
+            io.emit('new_telegram_channel_messages', {
+              userId: userId,
+              channelId: channel._id.toString(),
+              messages: [channelMessage]
+            });
+          }
+
+        } catch (error) {
+          console.error(`[TelegramChannelService] Error adding message to channel ${channel.channelTitle}:`, error);
+        }
+      }
+
+    } catch (error) {
+      console.error('[TelegramChannelService] Error in processIncomingMessage:', error);
+    }
   }
 
   /**
