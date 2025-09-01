@@ -1543,3 +1543,58 @@ export const extractImageFromMessage = async (req: Request, res: Response) => {
     });
   }
 };
+/**
+ * Recreate session with new engine configuration
+ * Use this when you change WAHA_ENGINE environment variable
+ */
+export const recreateSession = async (req: Request, res: Response) => {
+  try {
+    console.log('[WAHA Controller] 🔄 Session recreation request received');
+    const wahaService = getWAHAService();
+    
+    // Get current session info
+    let currentStatus;
+    try {
+      currentStatus = await wahaService.getSessionStatus();
+      console.log('[WAHA Controller] Current session status:', currentStatus);
+    } catch (error) {
+      currentStatus = { status: 'UNKNOWN', engine: { engine: 'UNKNOWN' } };
+    }
+    
+    // Recreate session with new engine configuration
+    console.log('[WAHA Controller] 🔧 Recreating session with new engine configuration...');
+    const newSession = await wahaService.recreateSessionWithEngine();
+    
+    // Get updated status
+    let newStatus;
+    try {
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for session to initialize
+      newStatus = await wahaService.getSessionStatus();
+    } catch (error) {
+      newStatus = { status: 'STARTING', engine: { engine: 'CONFIGURING' } };
+    }
+    
+    console.log('[WAHA Controller] ✅ Session recreation completed');
+    res.json({
+      success: true,
+      data: {
+        message: 'Session recreated with new engine configuration',
+        previousEngine: currentStatus?.engine?.engine || 'UNKNOWN',
+        newEngine: newStatus?.engine?.engine || 'CONFIGURING',
+        sessionStatus: newStatus?.status || 'STARTING',
+        needsQR: newStatus?.status === 'SCAN_QR_CODE' || newStatus?.status === 'STARTING'
+      }
+    });
+    
+  } catch (error: any) {
+    console.error('[WAHA Controller] ❌ Error recreating session:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to recreate session: ' + (error?.message || 'Unknown error'),
+      details: {
+        status: error?.response?.status,
+        message: error?.response?.data || error.message
+      }
+    });
+  }
+};

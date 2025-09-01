@@ -1366,6 +1366,56 @@ class WAHAService extends EventEmitter {
   }
 
   /**
+   * Force recreate session with new engine configuration
+   */
+  async recreateSessionWithEngine(sessionName: string = this.defaultSession): Promise<any> {
+    try {
+      console.log(`[WAHA Service] 🔄 Force recreating session '${sessionName}' with new engine configuration...`);
+      
+      // First, delete the existing session
+      try {
+        await this.httpClient.delete(`/api/sessions/${sessionName}`);
+        console.log(`[WAHA Service] ✅ Deleted existing session '${sessionName}'`);
+      } catch (deleteError: any) {
+        if (deleteError.response?.status === 404) {
+          console.log(`[WAHA Service] Session '${sessionName}' doesn't exist (404) - proceeding to create new one`);
+        } else {
+          console.warn(`[WAHA Service] ⚠️ Could not delete session:`, deleteError.response?.status);
+        }
+      }
+      
+      // Wait for cleanup
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Clear cache
+      this.sessionStatusCache.data = null;
+      this.sessionStatusCache.timestamp = 0;
+      this.connectionStatus = 'disconnected';
+      this.isReady = false;
+      
+      // Create new session with current engine configuration
+      const engine = process.env.WAHA_ENGINE?.trim();
+      const createPayload: any = { name: sessionName };
+      if (engine) {
+        createPayload.engine = engine;
+        console.log(`[WAHA Service] 🔧 Creating session with engine: ${engine}`);
+      }
+      
+      const response = await this.httpClient.post('/api/sessions', createPayload);
+      console.log(`[WAHA Service] ✅ Session recreated with engine configuration`);
+      
+      // Start the new session
+      await this.httpClient.post(`/api/sessions/${sessionName}/start`);
+      console.log(`[WAHA Service] ✅ New session '${sessionName}' started`);
+      
+      return response.data;
+    } catch (error: any) {
+      console.error(`[WAHA Service] ❌ Error recreating session:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Restart session by stopping and starting it
    */
   async restartSession(sessionName: string = this.defaultSession): Promise<WAHASession> {
