@@ -78,6 +78,12 @@ class WAHAService extends EventEmitter {
   // Health check cache
   private lastHealthCheckResult: { healthy: boolean; details: any } | null = null;
   private lastHealthCheckTimestamp: number = 0;
+  
+  // Groups endpoint circuit breaker
+  private groupsEndpointFailures = 0;
+  private groupsEndpointLastFailure = 0;
+  private readonly GROUPS_CIRCUIT_BREAKER_THRESHOLD = 3;
+  private readonly GROUPS_CIRCUIT_BREAKER_RESET_TIME = 300000; // 5 minutes
 
   private constructor() {
     super();
@@ -981,6 +987,18 @@ class WAHAService extends EventEmitter {
       
       // For other statuses (STARTING, SCAN_QR_CODE, WORKING, etc.), try to fetch groups anyway
       console.log(`[WAHA Service] getGroups - Session status ${sessionStatus.status}, attempting to fetch groups`);
+      
+      // Check circuit breaker for groups endpoint
+      const now = Date.now();
+      const isCircuitBreakerOpen = this.groupsEndpointFailures >= this.GROUPS_CIRCUIT_BREAKER_THRESHOLD &&
+                                   (now - this.groupsEndpointLastFailure) < this.GROUPS_CIRCUIT_BREAKER_RESET_TIME;
+
+      if (isCircuitBreakerOpen) {
+        console.log(`[WAHA Service] Groups endpoint circuit breaker is open (${this.groupsEndpointFailures} failures), skipping direct endpoint and using chats filter`);
+        const chats = await this.getChats(sessionName);
+        return chats.filter(c => c.isGroup || (typeof c.id === 'string' && c.id.includes('@g.us')));
+      }
+
       try {
         // Build WAHA-compliant query parameters for groups with performance optimizations
         const params = new URLSearchParams();
@@ -1000,6 +1018,9 @@ class WAHAService extends EventEmitter {
         
         console.log(`[WAHA Service] Using WAHA-compliant groups endpoint with performance opts: ${endpoint}`);
         const res = await this.httpClient.get(endpoint, { timeout: 180000 }); // Use 3min timeout
+        
+        // Reset circuit breaker on success
+        this.groupsEndpointFailures = 0;
         console.log(`[WAHA Service] Received ${res.data.length} groups`);
         return res.data.map((g: any) => ({
           id: this.extractJidFromAny(g.id || g.chatId || g.groupId) || String(g.id || g.chatId || g.groupId || ''),
@@ -1019,13 +1040,26 @@ class WAHAService extends EventEmitter {
           }
         }));
       } catch (e: any) {
-        if (e.response?.status === 404) {
-          console.log(`[WAHA Service] /groups endpoint not available, falling back to chats filter`);
+        const status = e.response?.status;
+        
+        // Increment circuit breaker for 500 errors
+        if (status === 500) {
+          this.groupsEndpointFailures++;
+          this.groupsEndpointLastFailure = Date.now();
+          console.log(`[WAHA Service] /groups endpoint server error (500) - likely engine compatibility issue, circuit breaker: ${this.groupsEndpointFailures}/${this.GROUPS_CIRCUIT_BREAKER_THRESHOLD}, falling back to chats filter`);
+        } else if (status === 404) {
+          console.log(`[WAHA Service] /groups endpoint not available (404), falling back to chats filter`);
         } else {
-          console.warn(`[WAHA Service] Groups endpoint error, falling back to chats filter`, e.message);
+          console.warn(`[WAHA Service] Groups endpoint error (${status}), falling back to chats filter:`, e.message);
         }
-        const chats = await this.getChats(sessionName);
-        return chats.filter(c => c.isGroup || (typeof c.id === 'string' && c.id.includes('@g.us')));
+        
+        try {
+          const chats = await this.getChats(sessionName);
+          return chats.filter(c => c.isGroup || (typeof c.id === 'string' && c.id.includes('@g.us')));
+        } catch (fallbackError: any) {
+          console.error('[WAHA Service] Fallback getChats also failed:', fallbackError.message);
+          return [];
+        }
       }
     } catch (err: any) {
       console.error('[WAHA Service] Failed to get groups:', err.response?.status, err.message);
@@ -1055,11 +1089,16 @@ class WAHAService extends EventEmitter {
       console.log(`[WAHA Service] ✅ Groups refreshed successfully`);
       return { success: true, message: 'Groups refreshed successfully' };
     } catch (refreshError: any) {
-      // If refresh endpoint doesn't exist (404), that's expected for many WAHA engines
-      if (refreshError.response?.status === 404) {
+      const status = refreshError.response?.status;
+      // If refresh endpoint doesn't exist (404) or is not supported (422), that's expected for many WAHA engines
+      if (status === 404) {
         console.log(`[WAHA Service] Groups refresh endpoint not available (404) - this is normal for some WAHA engines`);
         console.log(`[WAHA Service] Groups are automatically refreshed by the WAHA service`);
         return { success: true, message: 'Groups are automatically refreshed by WAHA service (no manual refresh needed)' };
+      } else if (status === 422) {
+        console.log(`[WAHA Service] Groups refresh endpoint not supported (422) - likely engine compatibility issue (NOWEB engine doesn't support this)`);
+        console.log(`[WAHA Service] Groups are automatically refreshed by the WAHA service`);
+        return { success: true, message: 'Groups refresh not supported by current engine (NOWEB) - groups are automatically managed' };
       } else if (refreshError.code === 'ECONNABORTED' || refreshError.message?.includes('timeout')) {
         console.log(`[WAHA Service] Groups refresh timed out - this may indicate heavy processing`);
         return { success: true, message: 'Groups refresh initiated (may take time to complete)' };
