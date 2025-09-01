@@ -13,13 +13,21 @@ import { Label } from '@/components/ui/label';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Badge } from '@/components/ui/badge';
 
+interface BotStatus {
+  hasBot: boolean;
+  isActive: boolean;
+  botUsername?: string;
+  monitoredChats: number;
+}
+
 interface AddChannelModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (data: { channelIdentifier: string; keywords: string[] }) => Promise<void>;
+  botStatus?: BotStatus | null;
 }
 
-const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAdd }) => {
+const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAdd, botStatus }) => {
   const [channelIdentifier, setChannelIdentifier] = useState('');
   const [keywordInput, setKeywordInput] = useState('');
   const [keywords, setKeywords] = useState<string[]>([]);
@@ -111,6 +119,24 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
             Add a public Telegram channel or group to monitor for new messages.
           </DialogDescription>
         </DialogHeader>
+
+        {/* Bot Status Warning */}
+        {!botStatus?.hasBot && (
+          <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-amber-800 dark:text-amber-200 mb-1">
+                  Bot Configuration Required
+                </h4>
+                <p className="text-sm text-amber-700 dark:text-amber-300">
+                  You'll need to configure your Telegram bot first before you can add channels. 
+                  After filling out this form, you'll be guided through the bot setup process.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">

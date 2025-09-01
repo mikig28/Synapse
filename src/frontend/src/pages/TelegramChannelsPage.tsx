@@ -229,9 +229,9 @@ const TelegramChannelsPage: React.FC = () => {
         <div className="flex gap-2 mt-4 md:mt-0">
           {/* Always show Add Channel button */}
           <AnimatedButton
-            onClick={() => botStatus?.hasBot ? setIsAddModalOpen(true) : setIsBotConfigOpen(true)}
+            onClick={() => setIsAddModalOpen(true)}
             className="flex items-center gap-2"
-            title={!botStatus?.hasBot ? "Configure your bot first" : "Add a channel to monitor"}
+            title="Add a channel to monitor"
           >
             <Plus className="w-4 h-4" />
             Add Channel
@@ -353,7 +353,7 @@ const TelegramChannelsPage: React.FC = () => {
             </div>
             <div className="flex gap-3">
               <AnimatedButton
-                onClick={() => botStatus?.hasBot ? setIsAddModalOpen(true) : setIsBotConfigOpen(true)}
+                onClick={() => setIsAddModalOpen(true)}
                 className="flex items-center gap-2"
                 size="lg"
               >
@@ -764,6 +764,7 @@ const TelegramChannelsPage: React.FC = () => {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onAdd={handleAddChannel}
+        botStatus={botStatus}
       />
 
       {selectedChannel && (
