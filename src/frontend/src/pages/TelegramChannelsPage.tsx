@@ -530,30 +530,31 @@ const TelegramChannelsPage: React.FC = () => {
               </Card>
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {channels.map((channel) => (
-                <Card key={channel._id} className="cursor-pointer hover:shadow-lg transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg line-clamp-2">
+                <Card key={channel._id} className="flex flex-col h-full hover:shadow-lg transition-shadow">
+                  <CardHeader className="pb-3 flex-shrink-0">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-base font-semibold line-clamp-2 mb-1">
                           {channel.channelTitle}
                         </CardTitle>
                         {channel.channelUsername && (
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-sm text-muted-foreground truncate">
                             @{channel.channelUsername}
                           </p>
                         )}
                       </div>
                       
-                      <div className="flex items-center gap-2">
-                        <Badge className={getChannelTypeColor(channel.channelType)}>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Badge className={`${getChannelTypeColor(channel.channelType)} text-xs px-2 py-0.5`}>
                           {channel.channelType}
                         </Badge>
                         
                         <button
                           onClick={() => handleToggleChannelStatus(channel._id, channel.isActive)}
-                          className="text-muted-foreground hover:text-foreground"
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                          title={channel.isActive ? "Disable monitoring" : "Enable monitoring"}
                         >
                           {channel.isActive ? (
                             <ToggleRight className="w-5 h-5 text-green-600" />
@@ -565,17 +566,21 @@ const TelegramChannelsPage: React.FC = () => {
                     </div>
                   </CardHeader>
                   
-                  <CardContent className="pt-0">
-                    <div className="space-y-2 mb-3">
-                      <div className="flex items-center justify-between text-sm text-muted-foreground">
-                        <span>{channel.totalMessages} messages</span>
+                  <CardContent className="pt-0 flex-1 flex flex-col">
+                    {/* Stats Section */}
+                    <div className="space-y-3 mb-4">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium text-foreground">{channel.totalMessages} messages</span>
                         {channel.lastFetchedAt && (
-                          <span>Last: {formatDate(channel.lastFetchedAt)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {formatDate(channel.lastFetchedAt)}
+                          </span>
                         )}
                       </div>
                       
+                      {/* Status Alerts */}
                       {channel.lastError && (
-                        <div className="bg-orange-50 dark:bg-orange-950 border-l-2 border-orange-400 p-2 rounded">
+                        <div className="bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
                           <p className="text-xs text-orange-700 dark:text-orange-300">
                             <strong>Setup needed:</strong> Bot requires permissions to read messages
                           </p>
@@ -583,7 +588,7 @@ const TelegramChannelsPage: React.FC = () => {
                       )}
                       
                       {channel.totalMessages === 0 && !channel.lastError && (
-                        <div className="bg-blue-50 dark:bg-blue-950 border-l-2 border-blue-400 p-2 rounded">
+                        <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
                           <p className="text-xs text-blue-700 dark:text-blue-300">
                             <strong>Waiting for messages:</strong> Make sure the bot is added to the channel/group
                           </p>
@@ -591,46 +596,53 @@ const TelegramChannelsPage: React.FC = () => {
                       )}
                     </div>
                     
+                    {/* Keywords Section */}
                     {channel.keywords.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {channel.keywords.slice(0, 3).map((keyword, index) => (
-                          <Badge key={index} variant="secondary" className="text-xs">
-                            {keyword}
-                          </Badge>
-                        ))}
-                        {channel.keywords.length > 3 && (
-                          <Badge variant="secondary" className="text-xs">
-                            +{channel.keywords.length - 3}
-                          </Badge>
-                        )}
+                      <div className="mb-4">
+                        <div className="flex flex-wrap gap-1">
+                          {channel.keywords.slice(0, 3).map((keyword, index) => (
+                            <Badge key={index} variant="secondary" className="text-xs px-2 py-1">
+                              {keyword}
+                            </Badge>
+                          ))}
+                          {channel.keywords.length > 3 && (
+                            <Badge variant="secondary" className="text-xs px-2 py-1">
+                              +{channel.keywords.length - 3} more
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     )}
                     
-                    <div className="flex items-center justify-between">
-                      <AnimatedButton
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedChannel(channel)}
-                      >
-                        View Messages
-                      </AnimatedButton>
-                      
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => handleForceChannelFetch(channel._id)}
-                          className="p-2 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted"
-                          title="Force fetch new messages"
+                    {/* Actions Section - Fixed at bottom */}
+                    <div className="mt-auto pt-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <AnimatedButton
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedChannel(channel)}
+                          className="flex-1"
                         >
-                          <RefreshCw className="w-4 h-4" />
-                        </button>
+                          View Messages
+                        </AnimatedButton>
                         
-                        <button
-                          onClick={() => handleRemoveChannel(channel._id)}
-                          className="p-2 text-muted-foreground hover:text-destructive rounded-md hover:bg-muted"
-                          title="Remove channel"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleForceChannelFetch(channel._id)}
+                            className="p-2 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
+                            title="Force fetch new messages"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                          </button>
+                          
+                          <button
+                            onClick={() => handleRemoveChannel(channel._id)}
+                            className="p-2 text-muted-foreground hover:text-destructive rounded-md hover:bg-muted transition-colors"
+                            title="Remove channel"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
