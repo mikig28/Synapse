@@ -112,8 +112,8 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="w-full max-w-4xl max-h-[95vh] overflow-hidden mx-4 my-2">
+        <DialogHeader className="sticky top-0 bg-background z-10 pb-4">
           <DialogTitle>Add Telegram Channel</DialogTitle>
           <DialogDescription>
             Add a public Telegram channel or group to monitor for new messages.
@@ -138,7 +138,8 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="flex flex-col max-h-full">
+        <form onSubmit={handleSubmit} className="space-y-4 flex-1 overflow-y-auto pr-2">
           <div className="space-y-2">
             <Label htmlFor="channelIdentifier" className="flex items-center gap-2">
               Channel Identifier
@@ -153,9 +154,9 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
             />
             
             {/* Channel Type Examples */}
-            <div className="bg-muted/30 rounded-lg p-3 space-y-2">
-              <h4 className="text-xs font-medium text-foreground mb-2">📋 Channel Types & Examples:</h4>
-              <div className="grid gap-2 text-xs">
+            <div className="bg-muted/30 rounded-lg p-4 space-y-3">
+              <h4 className="text-sm font-medium text-foreground mb-2">📋 Channel Types & Examples:</h4>
+              <div className="grid gap-3 text-sm">
                 <div className="flex items-start gap-2">
                   <div className="bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded text-blue-700 dark:text-blue-300 font-mono text-[10px] min-w-fit">
                     @channel
@@ -312,24 +313,29 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
               </p>
             </div>
           </div>
+        </form>
 
-          <DialogFooter className="flex gap-2">
+        <DialogFooter className="sticky bottom-0 bg-background border-t pt-4 mt-4">
+          <div className="flex gap-2 w-full">
             <AnimatedButton
               type="button"
               variant="outline"
               onClick={handleClose}
+              className="flex-1"
             >
               Cancel
             </AnimatedButton>
             <AnimatedButton
-              type="submit"
+              onClick={handleSubmit}
               loading={isSubmitting}
               disabled={!channelIdentifier.trim()}
+              className="flex-1"
             >
               Add Channel
             </AnimatedButton>
-          </DialogFooter>
-        </form>
+          </div>
+        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
