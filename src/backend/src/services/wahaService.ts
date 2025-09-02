@@ -85,6 +85,17 @@ class WAHAService extends EventEmitter {
   private readonly GROUPS_CIRCUIT_BREAKER_THRESHOLD = 3;
   private readonly GROUPS_CIRCUIT_BREAKER_RESET_TIME = 300000; // 5 minutes
 
+  /**
+   * Clear all caches to force fresh status check
+   */
+  public clearAllCaches(): void {
+    console.log('[WAHA Service] 🗑️ Clearing all caches to force fresh status');
+    this.sessionStatusCache.data = null;
+    this.sessionStatusCache.timestamp = 0;
+    this.lastHealthCheckResult = null;
+    this.lastHealthCheckTimestamp = 0;
+  }
+
   private constructor() {
     super();
     

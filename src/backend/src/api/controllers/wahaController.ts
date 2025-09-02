@@ -1598,3 +1598,41 @@ export const recreateSession = async (req: Request, res: Response) => {
     });
   }
 };
+
+/**
+ * Clear WAHA service caches and force fresh status check
+ */
+export const clearCaches = async (req: Request, res: Response) => {
+  try {
+    console.log('[WAHA Controller] 🗑️ Cache clearing request received');
+    const wahaService = getWAHAService();
+    
+    // Clear all caches
+    wahaService.clearAllCaches();
+    
+    // Get fresh status
+    const freshStatus = await wahaService.getSessionStatus();
+    
+    console.log('[WAHA Controller] ✅ Caches cleared, fresh status retrieved');
+    res.json({
+      success: true,
+      data: {
+        message: 'Caches cleared successfully',
+        freshStatus: {
+          status: freshStatus.status,
+          isAuthenticated: !!freshStatus.me,
+          engine: freshStatus.engine,
+          me: freshStatus.me
+        }
+      }
+    });
+    
+  } catch (error: any) {
+    console.error('[WAHA Controller] ❌ Error clearing caches:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to clear caches: ' + (error?.message || 'Unknown error'),
+      details: error?.response?.data || error.message
+    });
+  }
+};

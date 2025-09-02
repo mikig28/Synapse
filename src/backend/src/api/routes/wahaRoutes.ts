@@ -24,6 +24,7 @@ import {
   restartSession,
   restartFailedSession,
   recreateSession,
+  clearCaches,
   autoRecoverSession,
   forceRestart,
   refreshChats,
@@ -70,6 +71,7 @@ router.post('/refresh-groups', refreshGroups);
 router.post('/restart', restartSession);
 router.post('/restart-failed', restartFailedSession);
 router.post('/recreate-session', recreateSession);
+router.post('/clear-caches', clearCaches);
 router.post('/auto-recover', autoRecoverSession);
 router.post('/force-restart', forceRestart);
 router.post('/force-history-sync', forceHistorySync);
