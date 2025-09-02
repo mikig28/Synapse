@@ -112,8 +112,8 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="w-full max-w-4xl max-h-[95vh] overflow-hidden mx-4 my-2">
-        <DialogHeader className="sticky top-0 bg-background z-10 pb-4">
+      <DialogContent className="w-full max-w-4xl max-h-[90vh] sm:max-h-[95vh] overflow-hidden mx-2 sm:mx-4 my-2 sm:my-4">
+        <DialogHeader className="flex-shrink-0 pb-4">
           <DialogTitle>Add Telegram Channel</DialogTitle>
           <DialogDescription>
             Add a public Telegram channel or group to monitor for new messages.
@@ -122,7 +122,7 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
 
         {/* Bot Status Warning */}
         {!botStatus?.hasBot && (
-          <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+          <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4 flex-shrink-0">
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
               <div>
@@ -138,8 +138,8 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
           </div>
         )}
 
-        <div className="flex flex-col max-h-full">
-        <form onSubmit={handleSubmit} className="space-y-4 flex-1 overflow-y-auto pr-2">
+        <div className="flex flex-col min-h-0 flex-1">
+        <div className="flex-1 overflow-y-auto pr-2 space-y-4">
           <div className="space-y-2">
             <Label htmlFor="channelIdentifier" className="flex items-center gap-2">
               Channel Identifier
@@ -254,12 +254,6 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
             </div>
           </div>
 
-          {error && (
-            <div className="text-sm text-destructive">
-              {error}
-            </div>
-          )}
-
           {/* Setup Requirements */}
           <div className="space-y-3">
             <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
@@ -313,15 +307,21 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
               </p>
             </div>
           </div>
-        </form>
 
-        <DialogFooter className="sticky bottom-0 bg-background border-t pt-4 mt-4">
-          <div className="flex gap-2 w-full">
+          {error && (
+            <div className="text-sm text-destructive bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-3">
+              {error}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="flex-shrink-0 border-t pt-4 mt-4">
+          <div className="flex gap-2 w-full flex-col sm:flex-row">
             <AnimatedButton
               type="button"
               variant="outline"
               onClick={handleClose}
-              className="flex-1"
+              className="flex-1 w-full sm:w-auto"
             >
               Cancel
             </AnimatedButton>
@@ -329,7 +329,7 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
               onClick={handleSubmit}
               loading={isSubmitting}
               disabled={!channelIdentifier.trim()}
-              className="flex-1"
+              className="flex-1 w-full sm:w-auto"
             >
               Add Channel
             </AnimatedButton>

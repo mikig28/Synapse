@@ -172,7 +172,7 @@ const TelegramChannelsPage: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-7xl">
+    <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6 max-w-7xl">
       {/* Alert for bot not active */}
       {botStatus?.hasBot && !botStatus?.isActive && (
         <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
@@ -218,19 +218,19 @@ const TelegramChannelsPage: React.FC = () => {
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Telegram Channels</h1>
-          <p className="text-muted-foreground">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
+        <div className="flex-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Telegram Channels</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Monitor public Telegram channels and groups for relevant content
           </p>
         </div>
         
-        <div className="flex gap-2 mt-4 md:mt-0">
+        <div className="flex flex-wrap gap-2 w-full lg:w-auto">
           {/* Always show Add Channel button */}
           <AnimatedButton
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 flex-1 sm:flex-none"
             title="Add a channel to monitor"
           >
             <Plus className="w-4 h-4" />
@@ -241,7 +241,7 @@ const TelegramChannelsPage: React.FC = () => {
           {!botStatus?.hasBot && (
             <AnimatedButton
               onClick={() => setIsBotConfigOpen(true)}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 flex-1 sm:flex-none"
               variant="outline"
             >
               <Bot className="w-4 h-4" />
@@ -253,6 +253,7 @@ const TelegramChannelsPage: React.FC = () => {
             variant="outline"
             onClick={() => window.location.reload()}
             title="Refresh page"
+            className="px-3"
           >
             <RefreshCw className="w-4 h-4" />
           </AnimatedButton>
@@ -342,19 +343,19 @@ const TelegramChannelsPage: React.FC = () => {
       )}
 
       {/* Quick Actions Bar */}
-      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 border-blue-200 dark:border-blue-800">
+      <Card className="mb-6 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 border-blue-200 dark:border-blue-800">
         <CardContent className="py-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="text-center sm:text-left">
+            <div className="text-center sm:text-left flex-1">
               <h3 className="font-semibold text-foreground">Quick Actions</h3>
               <p className="text-sm text-muted-foreground">
                 Add channels/groups to monitor or configure your bot
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
               <AnimatedButton
                 onClick={() => setIsAddModalOpen(true)}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 justify-center w-full sm:w-auto"
                 size="lg"
               >
                 <Plus className="w-4 h-4" />
@@ -365,7 +366,7 @@ const TelegramChannelsPage: React.FC = () => {
                 <AnimatedButton
                   onClick={() => setIsBotConfigOpen(true)}
                   variant="outline"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 justify-center w-full sm:w-auto"
                   size="lg"
                 >
                   <Bot className="w-4 h-4" />
@@ -530,124 +531,129 @@ const TelegramChannelsPage: React.FC = () => {
               </Card>
             </div>
           ) : (
-            <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {channels.map((channel) => (
-                <Card key={channel._id} className="flex flex-col h-full hover:shadow-lg transition-shadow">
-                  <CardHeader className="pb-3 flex-shrink-0">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <CardTitle className="text-base font-semibold line-clamp-2 mb-1">
-                          {channel.channelTitle}
-                        </CardTitle>
-                        {channel.channelUsername && (
-                          <p className="text-sm text-muted-foreground truncate">
-                            @{channel.channelUsername}
-                          </p>
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <Badge className={`${getChannelTypeColor(channel.channelType)} text-xs px-2 py-0.5`}>
-                          {channel.channelType}
-                        </Badge>
-                        
-                        <button
-                          onClick={() => handleToggleChannelStatus(channel._id, channel.isActive)}
-                          className="text-muted-foreground hover:text-foreground transition-colors"
-                          title={channel.isActive ? "Disable monitoring" : "Enable monitoring"}
-                        >
-                          {channel.isActive ? (
-                            <ToggleRight className="w-5 h-5 text-green-600" />
-                          ) : (
-                            <ToggleLeft className="w-5 h-5 text-gray-400" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  
-                  <CardContent className="pt-0 flex-1 flex flex-col">
-                    {/* Stats Section */}
-                    <div className="space-y-3 mb-4">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium text-foreground">{channel.totalMessages} messages</span>
-                        {channel.lastFetchedAt && (
-                          <span className="text-xs text-muted-foreground">
-                            {formatDate(channel.lastFetchedAt)}
-                          </span>
-                        )}
-                      </div>
-                      
-                      {/* Status Alerts */}
-                      {channel.lastError && (
-                        <div className="bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
-                          <p className="text-xs text-orange-700 dark:text-orange-300">
-                            <strong>Setup needed:</strong> Bot requires permissions to read messages
-                          </p>
-                        </div>
-                      )}
-                      
-                      {channel.totalMessages === 0 && !channel.lastError && (
-                        <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                          <p className="text-xs text-blue-700 dark:text-blue-300">
-                            <strong>Waiting for messages:</strong> Make sure the bot is added to the channel/group
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Keywords Section */}
-                    {channel.keywords.length > 0 && (
-                      <div className="mb-4">
-                        <div className="flex flex-wrap gap-1">
-                          {channel.keywords.slice(0, 3).map((keyword, index) => (
-                            <Badge key={index} variant="secondary" className="text-xs px-2 py-1">
-                              {keyword}
-                            </Badge>
-                          ))}
-                          {channel.keywords.length > 3 && (
-                            <Badge variant="secondary" className="text-xs px-2 py-1">
-                              +{channel.keywords.length - 3} more
-                            </Badge>
+            <div className="container mx-auto px-0">
+              <div className="grid gap-6 grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4">
+                {channels.map((channel) => (
+                  <Card key={channel._id} className="flex flex-col min-h-[400px] max-h-[500px] hover:shadow-lg transition-shadow">
+                    <CardHeader className="pb-3 flex-shrink-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <CardTitle className="text-base font-semibold line-clamp-2 mb-1 leading-tight">
+                            {channel.channelTitle}
+                          </CardTitle>
+                          {channel.channelUsername && (
+                            <p className="text-sm text-muted-foreground truncate">
+                              @{channel.channelUsername}
+                            </p>
                           )}
                         </div>
-                      </div>
-                    )}
-                    
-                    {/* Actions Section - Fixed at bottom */}
-                    <div className="mt-auto pt-4">
-                      <div className="flex items-center justify-between gap-2">
-                        <AnimatedButton
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSelectedChannel(channel)}
-                          className="flex-1"
-                        >
-                          View Messages
-                        </AnimatedButton>
                         
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => handleForceChannelFetch(channel._id)}
-                            className="p-2 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
-                            title="Force fetch new messages"
-                          >
-                            <RefreshCw className="w-4 h-4" />
-                          </button>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Badge className={`${getChannelTypeColor(channel.channelType)} text-xs px-2 py-0.5`}>
+                            {channel.channelType}
+                          </Badge>
                           
                           <button
-                            onClick={() => handleRemoveChannel(channel._id)}
-                            className="p-2 text-muted-foreground hover:text-destructive rounded-md hover:bg-muted transition-colors"
-                            title="Remove channel"
+                            onClick={() => handleToggleChannelStatus(channel._id, channel.isActive)}
+                            className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded"
+                            title={channel.isActive ? "Disable monitoring" : "Enable monitoring"}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            {channel.isActive ? (
+                              <ToggleRight className="w-5 h-5 text-green-600" />
+                            ) : (
+                              <ToggleLeft className="w-5 h-5 text-gray-400" />
+                            )}
                           </button>
                         </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardHeader>
+                    
+                    <CardContent className="pt-0 flex-1 flex flex-col overflow-hidden">
+                      {/* Stats Section */}
+                      <div className="space-y-3 mb-4 flex-shrink-0">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium text-foreground">{channel.totalMessages} messages</span>
+                          {channel.lastFetchedAt && (
+                            <span className="text-xs text-muted-foreground">
+                              {formatDate(channel.lastFetchedAt)}
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Status Alerts */}
+                        {channel.lastError && (
+                          <div className="bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
+                            <p className="text-xs text-orange-700 dark:text-orange-300 leading-tight">
+                              <strong>Setup needed:</strong> Bot requires permissions to read messages
+                            </p>
+                          </div>
+                        )}
+                        
+                        {channel.totalMessages === 0 && !channel.lastError && (
+                          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                            <p className="text-xs text-blue-700 dark:text-blue-300 leading-tight">
+                              <strong>Waiting for messages:</strong> Make sure the bot is added to the channel/group
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Keywords Section */}
+                      {channel.keywords.length > 0 && (
+                        <div className="mb-4 flex-shrink-0">
+                          <div className="flex flex-wrap gap-1">
+                            {channel.keywords.slice(0, 3).map((keyword, index) => (
+                              <Badge key={index} variant="secondary" className="text-xs px-2 py-1">
+                                {keyword}
+                              </Badge>
+                            ))}
+                            {channel.keywords.length > 3 && (
+                              <Badge variant="secondary" className="text-xs px-2 py-1">
+                                +{channel.keywords.length - 3} more
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Spacer to push actions to bottom */}
+                      <div className="flex-1"></div>
+                      
+                      {/* Actions Section - Fixed at bottom */}
+                      <div className="flex-shrink-0 pt-4 border-t border-muted/30 mt-auto">
+                        <div className="flex items-center gap-3">
+                          <AnimatedButton
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedChannel(channel)}
+                            className="flex-1 text-sm py-2 px-3"
+                          >
+                            View Messages
+                          </AnimatedButton>
+                          
+                          <div className="flex gap-1 flex-shrink-0">
+                            <button
+                              onClick={() => handleForceChannelFetch(channel._id)}
+                              className="p-2 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted/50 transition-colors flex-shrink-0"
+                              title="Force fetch new messages"
+                            >
+                              <RefreshCw className="w-4 h-4" />
+                            </button>
+                            
+                            <button
+                              onClick={() => handleRemoveChannel(channel._id)}
+                              className="p-2 text-muted-foreground hover:text-destructive rounded-md hover:bg-muted/50 transition-colors flex-shrink-0"
+                              title="Remove channel"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
           )}
         </TabsContent>
