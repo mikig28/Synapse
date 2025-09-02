@@ -107,8 +107,17 @@ const TelegramChannelsPage: React.FC = () => {
     try {
       await addChannel(channelData);
       setIsAddModalOpen(false);
-    } catch (error) {
-      // Error is handled by context
+      toast({
+        title: "Success",
+        description: "Channel added successfully and monitoring started",
+      });
+    } catch (error: any) {
+      console.error('Error adding channel:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to add channel",
+        variant: "destructive"
+      });
     }
   };
 
@@ -229,7 +238,11 @@ const TelegramChannelsPage: React.FC = () => {
         <div className="flex flex-wrap gap-2 w-full lg:w-auto">
           {/* Always show Add Channel button */}
           <AnimatedButton
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={() => {
+              console.log('Add Channel button clicked, current modal state:', isAddModalOpen);
+              setIsAddModalOpen(true);
+              console.log('Modal state set to true');
+            }}
             className="flex items-center gap-2 flex-1 sm:flex-none"
             title="Add a channel to monitor"
           >
@@ -354,7 +367,10 @@ const TelegramChannelsPage: React.FC = () => {
             </div>
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
               <AnimatedButton
-                onClick={() => setIsAddModalOpen(true)}
+                onClick={() => {
+                  console.log('Quick Actions Add Channel button clicked');
+                  setIsAddModalOpen(true);
+                }}
                 className="flex items-center gap-2 justify-center w-full sm:w-auto"
                 size="lg"
               >
@@ -534,7 +550,7 @@ const TelegramChannelsPage: React.FC = () => {
             <div className="container mx-auto px-0">
               <div className="grid gap-6 grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4">
                 {channels.map((channel) => (
-                  <Card key={channel._id} className="flex flex-col min-h-[400px] max-h-[500px] hover:shadow-lg transition-shadow">
+                  <Card key={channel._id} className="flex flex-col min-h-[450px] hover:shadow-lg transition-shadow">
                     <CardHeader className="pb-3 flex-shrink-0">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
@@ -568,7 +584,7 @@ const TelegramChannelsPage: React.FC = () => {
                       </div>
                     </CardHeader>
                     
-                    <CardContent className="pt-0 flex-1 flex flex-col overflow-hidden">
+                    <CardContent className="pt-0 flex-1 flex flex-col">
                       {/* Stats Section */}
                       <div className="space-y-3 mb-4 flex-shrink-0">
                         <div className="flex items-center justify-between text-sm">
@@ -778,9 +794,13 @@ const TelegramChannelsPage: React.FC = () => {
         currentBotInfo={botStatus || undefined}
       />
 
+      {console.log('Rendering AddChannelModal, isOpen:', isAddModalOpen)}
       <AddChannelModal
         isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
+        onClose={() => {
+          console.log('Modal onClose called');
+          setIsAddModalOpen(false);
+        }}
         onAdd={handleAddChannel}
         botStatus={botStatus}
       />
