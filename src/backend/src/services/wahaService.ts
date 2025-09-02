@@ -870,66 +870,91 @@ class WAHAService extends EventEmitter {
       };
 
       const tryOverview = async (): Promise<WAHAChat[] | null> => {
-        try {
-          console.log(`[WAHA Service] Trying chats overview with pagination and 180s timeout...`);
-          // Use WAHA-recommended pagination for better performance
-          const res = await this.httpClient.get(`/api/${sessionName}/chats/overview`, { 
-            timeout: 180000,
-            params: {
-              limit: options.limit || 100, // Start with smaller chunks
-              offset: options.offset || 0,
-              sortBy: options.sortBy || 'messageTimestamp',
-              sortOrder: options.sortOrder || 'desc'
+        const candidates = Array.from(new Set([
+          options.sortBy || 'conversationTimestamp',
+          'messageTimestamp',
+          'id',
+          'name'
+        ]));
+
+        for (const sortBy of candidates) {
+          try {
+            console.log(`[WAHA Service] Trying chats overview with sortBy='${sortBy}' and 180s timeout...`);
+            // Use WAHA-recommended pagination for better performance
+            const res = await this.httpClient.get(`/api/${sessionName}/chats/overview`, { 
+              timeout: 180000,
+              params: {
+                limit: options.limit || 100, // Start with smaller chunks
+                offset: options.offset || 0,
+                sortBy,
+                sortOrder: options.sortOrder || 'desc'
+              }
+            });
+            const items = normalizeChats(res.data);
+            console.log(`[WAHA Service] ✅ Chats overview successful; got ${items.length} items (sortBy='${sortBy}')`);
+            if (items.length > 0) {
+              return mapChats(items);
             }
-          });
-          const items = normalizeChats(res.data);
-          console.log(`[WAHA Service] ✅ Chats overview successful; got ${items.length} items`);
-          if (items.length > 0) {
-            return mapChats(items);
-          } else {
-            console.log('[WAHA Service] Overview endpoint returned empty result, will try direct /chats');
-            return null;
+          } catch (e: any) {
+            const status = e?.response?.status;
+            const errorMsg = status === 404 ? 'Overview endpoint not available (404)' : `${e?.message || e}`;
+            console.log(`[WAHA Service] ❌ Chats overview failed for sortBy='${sortBy}': ${errorMsg}`);
+            if (errorMsg.includes('timeout')) {
+              console.log(`[WAHA Service] Overview endpoint timed out after 180s (sortBy='${sortBy}')`);
+            }
+            if (status && status !== 400) {
+              // For non-400 errors, no need to try more values
+              break;
+            }
           }
-        } catch (e: any) {
-          const errorMsg = e?.response?.status === 404 ? 'Overview endpoint not available (404)' : `${e?.message || e}`;
-          console.log(`[WAHA Service] ❌ Chats overview failed: ${errorMsg}`);
-          if (errorMsg.includes('timeout')) {
-            console.log(`[WAHA Service] Overview endpoint timed out after 180s, will try direct /chats`);
-          }
-          return null;
         }
+        console.log('[WAHA Service] Overview endpoint returned no usable result, will try direct /chats');
+        return null;
       };
 
       const tryChats = async (timeoutMs: number): Promise<WAHAChat[] | null> => {
-        try {
-          // Build WAHA-compliant query parameters with performance optimizations
-          const params = new URLSearchParams();
-          // Use WAHA-recommended pagination with smaller chunks
-          const effectiveLimit = options.limit || 100; // Increased default as per WAHA docs
-          params.append('limit', effectiveLimit.toString());
-          if (options.offset) params.append('offset', options.offset.toString());
-          // Use WAHA-recommended sorting
-          params.append('sortBy', options.sortBy || 'messageTimestamp');
-          params.append('sortOrder', options.sortOrder || 'desc');
-          if (options.exclude?.length) params.append('exclude', options.exclude.join(','));
+        const candidates = Array.from(new Set([
+          options.sortBy || 'conversationTimestamp',
+          'messageTimestamp',
+          'id',
+          'name'
+        ]));
 
-          const queryString = params.toString();
-          const endpoint = `/api/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
-          
-          console.log(`[WAHA Service] Trying direct /chats endpoint with ${timeoutMs/1000}s timeout...`);
-          console.log(`[WAHA Service] Using WAHA-compliant endpoint: ${endpoint}`);
-          const res = await this.httpClient.get(endpoint, { timeout: timeoutMs });
-          const items = normalizeChats(res.data);
-          console.log(`[WAHA Service] ✅ Direct /chats successful; got ${items.length} items`);
-          return mapChats(items);
-        } catch (e: any) {
-          const errorMsg = e?.message || e;
-          console.log(`[WAHA Service] ❌ /chats failed (${timeoutMs/1000}s): ${errorMsg}`);
-          if (errorMsg.includes('timeout')) {
-            console.log(`[WAHA Service] Direct chats endpoint timed out after ${timeoutMs/1000}s`);
+        for (const sortBy of candidates) {
+          try {
+            // Build WAHA-compliant query parameters with performance optimizations
+            const params = new URLSearchParams();
+            const effectiveLimit = options.limit || 100; // Increased default as per WAHA docs
+            params.append('limit', effectiveLimit.toString());
+            if (options.offset) params.append('offset', options.offset.toString());
+            params.append('sortBy', sortBy);
+            params.append('sortOrder', options.sortOrder || 'desc');
+            if (options.exclude?.length) params.append('exclude', options.exclude.join(','));
+
+            const queryString = params.toString();
+            const endpoint = `/api/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
+            
+            console.log(`[WAHA Service] Trying direct /chats with sortBy='${sortBy}' and ${timeoutMs/1000}s timeout...`);
+            console.log(`[WAHA Service] Using WAHA-compliant endpoint: ${endpoint}`);
+            const res = await this.httpClient.get(endpoint, { timeout: timeoutMs });
+            const items = normalizeChats(res.data);
+            console.log(`[WAHA Service] ✅ Direct /chats successful; got ${items.length} items (sortBy='${sortBy}')`);
+            return mapChats(items);
+          } catch (e: any) {
+            const status = e?.response?.status;
+            const errorMsg = e?.message || e;
+            console.log(`[WAHA Service] ❌ /chats failed (sortBy='${sortBy}', ${timeoutMs/1000}s): ${errorMsg}`);
+            if (errorMsg.includes('timeout')) {
+              console.log(`[WAHA Service] Direct chats endpoint timed out after ${timeoutMs/1000}s (sortBy='${sortBy}')`);
+            }
+            if (status && status !== 400) {
+              // For non-400 errors, no point trying other sortBy values with this timeout
+              break;
+            }
           }
-          return null;
         }
+
+        return null;
       };
 
       // Optimized attempt sequence with progressive timeout increases (Railway-optimized)
@@ -1055,10 +1080,19 @@ class WAHAService extends EventEmitter {
         console.log(`[WAHA Service] Using WAHA-compliant groups endpoint with performance opts: ${endpoint}`);
         const res = await this.httpClient.get(endpoint, { timeout: 180000 }); // Use 3min timeout
         
+        // Normalize response to array shape
+        const items = Array.isArray(res.data)
+          ? res.data
+          : Array.isArray(res.data?.groups)
+            ? res.data.groups
+            : Array.isArray(res.data?.data)
+              ? res.data.data
+              : [];
+
         // Reset circuit breaker on success
         this.groupsEndpointFailures = 0;
-        console.log(`[WAHA Service] Received ${res.data.length} groups`);
-        return res.data.map((g: any) => ({
+        console.log(`[WAHA Service] Received ${items.length} groups`);
+        return items.map((g: any) => ({
           id: this.extractJidFromAny(g.id || g.chatId || g.groupId) || String(g.id || g.chatId || g.groupId || ''),
           name: String(g.name || g.subject || g.title || g.id || 'Unnamed Group'),
           description: g.description ? String(g.description) : undefined,
