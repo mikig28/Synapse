@@ -953,6 +953,32 @@ class WAHAService extends EventEmitter {
             }
           }
         }
+        // Minimal-parameter fallback: no query params
+        try {
+          const minimalEndpoint = `/api/${sessionName}/chats`;
+          console.log(`[WAHA Service] Trying minimal /chats without params: ${minimalEndpoint}`);
+          const res = await this.httpClient.get(minimalEndpoint, { timeout: timeoutMs });
+          const items = normalizeChats(res.data);
+          console.log(`[WAHA Service] ✅ Minimal /chats successful; got ${items.length} items`);
+          if (items.length > 0) return mapChats(items);
+        } catch (e: any) {
+          console.log(`[WAHA Service] ❌ Minimal /chats failed:`, e?.response?.status || e?.message || e);
+        }
+
+        // Alternate endpoint fallback: global endpoint with session param
+        try {
+          const altParams = new URLSearchParams();
+          altParams.append('session', sessionName);
+          const altQuery = altParams.toString();
+          const altEndpoint = `/api/chats${altQuery ? `?${altQuery}` : ''}`;
+          console.log(`[WAHA Service] Trying alternate endpoint: ${altEndpoint}`);
+          const res = await this.httpClient.get(altEndpoint, { timeout: timeoutMs });
+          const items = normalizeChats(res.data);
+          console.log(`[WAHA Service] ✅ Alternate /api/chats successful; got ${items.length} items`);
+          if (items.length > 0) return mapChats(items);
+        } catch (e: any) {
+          console.log(`[WAHA Service] ❌ Alternate /api/chats failed:`, e?.response?.status || e?.message || e);
+        }
 
         return null;
       };
