@@ -701,8 +701,8 @@ class WAHAService extends EventEmitter {
       await this.waitForSessionState(sessionName, ['SCAN_QR_CODE'], 30000); // 30 seconds for stability
       
       // Get QR code using WAHA's proper endpoint: GET /api/{session}/auth/qr (per official docs)
-      console.log(`[WAHA Service] Requesting QR code from GET /api/${sessionName}/auth/qr`);
-      const response = await this.httpClient.get(`/api/${sessionName}/auth/qr`, {
+      console.log(`[WAHA Service] Requesting QR code from GET /api/sessions/${sessionName}/auth/qr`);
+      const response = await this.httpClient.get(`/api/sessions/${sessionName}/auth/qr`, {
         responseType: 'arraybuffer',
         timeout: 15000, // 15 second timeout for QR generation
         validateStatus: (status: number) => status === 200 // Only accept 200 status
@@ -805,7 +805,7 @@ class WAHAService extends EventEmitter {
       console.log(`[WAHA Service] Sending media to ${chatId} in session '${sessionName}'...`);
       
       // WAHA API structure: POST /api/{session}/sendFile
-      const response = await this.httpClient.post(`/api/${sessionName}/sendFile`, {
+      const response = await this.httpClient.post(`/api/sessions/${sessionName}/sendFile`, {
         chatId,
         file: {
           url: mediaUrl
@@ -881,7 +881,7 @@ class WAHAService extends EventEmitter {
           try {
             console.log(`[WAHA Service] Trying chats overview with sortBy='${sortBy}' and 180s timeout...`);
             // Use WAHA-recommended pagination for better performance
-            const res = await this.httpClient.get(`/api/${sessionName}/chats/overview`, { 
+            const res = await this.httpClient.get(`/api/sessions/${sessionName}/chats/overview`, { 
               timeout: 180000,
               params: {
                 limit: options.limit || 100, // Start with smaller chunks
@@ -932,7 +932,7 @@ class WAHAService extends EventEmitter {
             if (options.exclude?.length) params.append('exclude', options.exclude.join(','));
 
             const queryString = params.toString();
-            const endpoint = `/api/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
+            const endpoint = `/api/sessions/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
             
             console.log(`[WAHA Service] Trying direct /chats with sortBy='${sortBy}' and ${timeoutMs/1000}s timeout...`);
             console.log(`[WAHA Service] Using WAHA-compliant endpoint: ${endpoint}`);
@@ -955,7 +955,7 @@ class WAHAService extends EventEmitter {
         }
         // Minimal-parameter fallback: no query params
         try {
-          const minimalEndpoint = `/api/${sessionName}/chats`;
+          const minimalEndpoint = `/api/sessions/${sessionName}/chats`;
           console.log(`[WAHA Service] Trying minimal /chats without params: ${minimalEndpoint}`);
           const res = await this.httpClient.get(minimalEndpoint, { timeout: timeoutMs });
           const items = normalizeChats(res.data);
@@ -1101,7 +1101,7 @@ class WAHAService extends EventEmitter {
         }
 
         const queryString = params.toString();
-        const endpoint = `/api/${sessionName}/groups${queryString ? `?${queryString}` : ''}`;
+        const endpoint = `/api/sessions/${sessionName}/groups${queryString ? `?${queryString}` : ''}`;
         
         console.log(`[WAHA Service] Using WAHA-compliant groups endpoint with performance opts: ${endpoint}`);
         const res = await this.httpClient.get(endpoint, { timeout: 180000 }); // Use 3min timeout
@@ -1181,7 +1181,7 @@ class WAHAService extends EventEmitter {
     
     // Try WAHA-compliant refresh endpoint first
     try {
-      const response = await this.httpClient.post(`/api/${sessionName}/groups/refresh`, {}, { timeout: 15000 });
+      const response = await this.httpClient.post(`/api/sessions/${sessionName}/groups/refresh`, {}, { timeout: 15000 });
       console.log(`[WAHA Service] ✅ Groups refreshed successfully`);
       return { success: true, message: 'Groups refreshed successfully' };
     } catch (refreshError: any) {
@@ -1211,7 +1211,7 @@ class WAHAService extends EventEmitter {
   async getGroupParticipants(groupId: string, sessionName: string = this.defaultSession): Promise<any[]> {
     try {
       console.log(`[WAHA Service] Getting participants for group '${groupId}'`);
-      const response = await this.httpClient.get(`/api/${sessionName}/groups/${encodeURIComponent(groupId)}/participants`);
+      const response = await this.httpClient.get(`/api/sessions/${sessionName}/groups/${encodeURIComponent(groupId)}/participants`);
       return response.data || [];
     } catch (error: any) {
       console.error(`[WAHA Service] ❌ Failed to get group participants:`, error);
@@ -1225,7 +1225,7 @@ class WAHAService extends EventEmitter {
   async getGroupDetails(groupId: string, sessionName: string = this.defaultSession): Promise<any> {
     try {
       console.log(`[WAHA Service] Getting details for group '${groupId}'`);
-      const response = await this.httpClient.get(`/api/${sessionName}/groups/${encodeURIComponent(groupId)}`);
+      const response = await this.httpClient.get(`/api/sessions/${sessionName}/groups/${encodeURIComponent(groupId)}`);
       return response.data;
     } catch (error: any) {
       console.error(`[WAHA Service] ❌ Failed to get group details:`, error);
@@ -1269,7 +1269,7 @@ class WAHAService extends EventEmitter {
       }
       
       // WAHA API endpoint structure: /api/{session}/chats/{chatId}/messages
-      let response = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(chatId)}/messages`, {
+      let response = await this.httpClient.get(`/api/sessions/${sessionName}/chats/${encodeURIComponent(chatId)}/messages`, {
         params: { limit },
         timeout: 180000 // Increased to 3 minutes for Railway deployment
       });
@@ -1304,7 +1304,7 @@ class WAHAService extends EventEmitter {
         const altId = chatId.replace(/@s\.whatsapp\.net$/, '@c.us');
         try {
           console.warn(`[WAHA Service] Retrying with alternate private JID: ${altId}`);
-          const retryRes = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(altId)}/messages`, {
+          const retryRes = await this.httpClient.get(`/api/sessions/${sessionName}/chats/${encodeURIComponent(altId)}/messages`, {
             params: { limit },
             timeout: 180000
           });
@@ -1332,7 +1332,7 @@ class WAHAService extends EventEmitter {
         const altId = chatId.replace(/@c\.us$/, '@s.whatsapp.net');
         try {
           console.warn(`[WAHA Service] Retrying with alternate private JID: ${altId}`);
-          const retryRes = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(altId)}/messages`, {
+          const retryRes = await this.httpClient.get(`/api/sessions/${sessionName}/chats/${encodeURIComponent(altId)}/messages`, {
             params: { limit },
             timeout: 180000
           });
@@ -1804,7 +1804,7 @@ class WAHAService extends EventEmitter {
       await this.startSession(sessionName);
       
       // Use WAHA's phone authentication endpoint (may not be supported by all engines)
-      const response = await this.httpClient.post(`/api/${sessionName}/auth/request-code`, {
+      const response = await this.httpClient.post(`/api/sessions/${sessionName}/auth/request-code`, {
         phoneNumber: phoneNumber.replace(/\D/g, '') // Remove non-digits
       });
       
@@ -1844,7 +1844,7 @@ class WAHAService extends EventEmitter {
       console.log(`[WAHA Service] Verifying phone code for: ${phoneNumber}`);
       
       // Use WAHA's phone verification endpoint (may not be supported by all engines)
-      const response = await this.httpClient.post(`/api/${sessionName}/auth/authorize-code`, {
+      const response = await this.httpClient.post(`/api/sessions/${sessionName}/auth/authorize-code`, {
         phoneNumber: phoneNumber.replace(/\D/g, ''),
         code: code
       });
