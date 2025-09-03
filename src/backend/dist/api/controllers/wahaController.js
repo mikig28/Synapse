@@ -7,7 +7,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.autoRecoverSession = exports.restartFailedSession = exports.initializeSession = exports.healthCheck = exports.removeMonitoredKeyword = exports.addMonitoredKeyword = exports.getMonitoredKeywords = exports.forceHistorySync = exports.refreshChats = exports.refreshGroups = exports.getGroupDetails = exports.getGroupParticipants = exports.forceRestart = exports.restartSession = exports.getPrivateChats = exports.getGroups = exports.verifyPhoneAuthCode = exports.sendPhoneAuthCode = exports.webhook = exports.stopSession = exports.startSession = exports.getMessages = exports.getChats = exports.sendMedia = exports.sendMessage = exports.getQR = exports.getStatus = exports.getMonitoringStats = void 0;
+exports.clearCaches = exports.recreateSession = exports.extractImageFromMessage = exports.autoRecoverSession = exports.restartFailedSession = exports.initializeSession = exports.healthCheck = exports.removeMonitoredKeyword = exports.addMonitoredKeyword = exports.getMonitoredKeywords = exports.forceHistorySync = exports.refreshChats = exports.refreshGroups = exports.getGroupDetails = exports.getGroupParticipants = exports.forceRestart = exports.restartSession = exports.getPrivateChats = exports.getGroups = exports.verifyPhoneAuthCode = exports.sendPhoneAuthCode = exports.webhook = exports.stopSession = exports.startSession = exports.getMessages = exports.getChats = exports.sendMedia = exports.sendMessage = exports.getQR = exports.getStatus = exports.getMonitoringStats = void 0;
 const wahaService_1 = __importDefault(require("../../services/wahaService"));
 const polling_config_1 = __importDefault(require("../../config/polling.config"));
 const statusCache = {
@@ -122,10 +122,27 @@ const getStatus = async (req, res) => {
             isConnected,
             qrAvailable
         });
-        // Avoid fetching chats here to keep status fast and prevent 50x under latency
-        const groupsCount = undefined;
-        const privateChatsCount = undefined;
-        const messagesCount = undefined;
+        // Get monitoring stats if available (cached for performance)
+        let groupsCount = undefined;
+        let privateChatsCount = undefined;
+        let messagesCount = undefined;
+        let imagesCount = 0;
+        let lastActivity = new Date().toISOString();
+        // Try to get cached counts from global monitoring stats
+        let globalStats = null;
+        try {
+            globalStats = global.wahaMonitoringStats;
+            if (globalStats && globalStats.timestamp && (Date.now() - globalStats.timestamp < 300000)) { // 5 minutes cache
+                groupsCount = globalStats.groupsCount || 0;
+                privateChatsCount = globalStats.privateChatsCount || 0;
+                messagesCount = globalStats.messagesCount || 0;
+                imagesCount = globalStats.imagesCount || 0;
+                lastActivity = globalStats.lastActivity || lastActivity;
+            }
+        }
+        catch (statsError) {
+            // Ignore stats errors, will use defaults
+        }
         // Convert WAHA status to format expected by frontend
         const status = {
             connected: isConnected,
@@ -140,7 +157,11 @@ const getStatus = async (req, res) => {
             qrAvailable: qrAvailable,
             timestamp: wahaStatus.timestamp,
             monitoredKeywords: [],
-            serviceType: 'waha'
+            serviceType: 'waha',
+            // Enhanced monitoring fields
+            imagesCount: imagesCount,
+            monitoringActive: isConnected && isAuthenticated,
+            lastActivity: lastActivity
         };
         // Cache the status
         statusCache.data = status;
@@ -441,12 +462,6 @@ const getMessages = async (req, res) => {
                     error: 'Invalid chatId received',
                     details: { chatId, hint: 'Frontend sent an object instead of string' }
                 });
-            }
-            // If chatId is missing a domain suffix, infer based on pattern
-            if (chatId && typeof chatId === 'string' && !chatId.includes('@')) {
-                const inferred = chatId.includes('-') ? `${chatId}@g.us` : `${chatId}@s.whatsapp.net`;
-                console.warn('[WAHA Controller] ⚠️ chatId missing domain, inferring:', { original: chatId, inferred });
-                chatId = inferred;
             }
         }
         const wahaService = getWAHAService();
@@ -1397,3 +1412,140 @@ const autoRecoverSession = async (req, res) => {
     }
 };
 exports.autoRecoverSession = autoRecoverSession;
+/**
+ * Extract image from WhatsApp message (Shula-style functionality)
+ */
+const extractImageFromMessage = async (req, res) => {
+    try {
+        const { messageId } = req.params;
+        if (!messageId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Message ID is required'
+            });
+        }
+        console.log(`[WAHA Controller] 📷 Extracting image from message: ${messageId}`);
+        const wahaService = getWAHAService();
+        // Extract image using WAHA service
+        const extractionResult = await wahaService.extractImageFromMessage(messageId);
+        if (extractionResult.success) {
+            console.log(`[WAHA Controller] ✅ Image extracted successfully: ${extractionResult.filename}`);
+            res.json({
+                success: true,
+                data: {
+                    messageId,
+                    filename: extractionResult.filename,
+                    filePath: extractionResult.filePath,
+                    fileSize: extractionResult.fileSize,
+                    mimeType: extractionResult.mimeType,
+                    extractedAt: new Date().toISOString(),
+                    message: 'Image extracted successfully'
+                }
+            });
+        }
+        else {
+            res.status(400).json({
+                success: false,
+                error: extractionResult.error || 'Failed to extract image from message'
+            });
+        }
+    }
+    catch (error) {
+        console.error('[WAHA Controller] ❌ Error extracting image:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to extract image: ' + (error?.message || 'Unknown error'),
+            details: error?.response?.data || error.message
+        });
+    }
+};
+exports.extractImageFromMessage = extractImageFromMessage;
+/**
+ * Recreate session with new engine configuration
+ * Use this when you change WAHA_ENGINE environment variable
+ */
+const recreateSession = async (req, res) => {
+    try {
+        console.log('[WAHA Controller] 🔄 Session recreation request received');
+        const wahaService = getWAHAService();
+        // Get current session info
+        let currentStatus;
+        try {
+            currentStatus = await wahaService.getSessionStatus();
+            console.log('[WAHA Controller] Current session status:', currentStatus);
+        }
+        catch (error) {
+            currentStatus = { status: 'UNKNOWN', engine: { engine: 'UNKNOWN' } };
+        }
+        // Recreate session with new engine configuration
+        console.log('[WAHA Controller] 🔧 Recreating session with new engine configuration...');
+        const newSession = await wahaService.recreateSessionWithEngine();
+        // Get updated status
+        let newStatus;
+        try {
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for session to initialize
+            newStatus = await wahaService.getSessionStatus();
+        }
+        catch (error) {
+            newStatus = { status: 'STARTING', engine: { engine: 'CONFIGURING' } };
+        }
+        console.log('[WAHA Controller] ✅ Session recreation completed');
+        res.json({
+            success: true,
+            data: {
+                message: 'Session recreated with new engine configuration',
+                previousEngine: currentStatus?.engine?.engine || 'UNKNOWN',
+                newEngine: newStatus?.engine?.engine || 'CONFIGURING',
+                sessionStatus: newStatus?.status || 'STARTING',
+                needsQR: newStatus?.status === 'SCAN_QR_CODE' || newStatus?.status === 'STARTING'
+            }
+        });
+    }
+    catch (error) {
+        console.error('[WAHA Controller] ❌ Error recreating session:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to recreate session: ' + (error?.message || 'Unknown error'),
+            details: {
+                status: error?.response?.status,
+                message: error?.response?.data || error.message
+            }
+        });
+    }
+};
+exports.recreateSession = recreateSession;
+/**
+ * Clear WAHA service caches and force fresh status check
+ */
+const clearCaches = async (req, res) => {
+    try {
+        console.log('[WAHA Controller] 🗑️ Cache clearing request received');
+        const wahaService = getWAHAService();
+        // Clear all caches
+        wahaService.clearAllCaches();
+        // Get fresh status
+        const freshStatus = await wahaService.getSessionStatus();
+        console.log('[WAHA Controller] ✅ Caches cleared, fresh status retrieved');
+        res.json({
+            success: true,
+            data: {
+                message: 'Caches cleared successfully',
+                freshStatus: {
+                    status: freshStatus.status,
+                    isAuthenticated: !!freshStatus.me,
+                    engine: freshStatus.engine,
+                    me: freshStatus.me
+                }
+            }
+        });
+    }
+    catch (error) {
+        console.error('[WAHA Controller] ❌ Error clearing caches:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to clear caches: ' + (error?.message || 'Unknown error'),
+            details: error?.response?.data || error.message
+        });
+    }
+};
+exports.clearCaches = clearCaches;

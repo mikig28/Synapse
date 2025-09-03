@@ -212,8 +212,13 @@ class TelegramBotManager extends events_1.EventEmitter {
      */
     setupBotHandlers(botInstance) {
         const { bot, userId } = botInstance;
-        // Basic message handler
+        // Basic message handler (for groups and private chats)
         bot.on('message', async (msg) => {
+            botInstance.lastActivity = new Date();
+            this.emit('message', { userId, message: msg, bot });
+        });
+        // Channel post handler (for channels)
+        bot.on('channel_post', async (msg) => {
             botInstance.lastActivity = new Date();
             this.emit('message', { userId, message: msg, bot });
         });
