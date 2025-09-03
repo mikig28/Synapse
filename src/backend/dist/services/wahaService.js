@@ -432,7 +432,7 @@ class WAHAService extends events_1.EventEmitter {
                 const engine = process.env.WAHA_ENGINE?.trim();
                 const createPayload = { name: sessionName };
                 if (engine) {
-                    createPayload.engine = engine;
+                    // Engine may be part of config in newer WAHA versions; log for visibility
                     console.log(`[WAHA Service] Using configured WAHA engine: ${engine}`);
                 }
                 // If NOWEB and store enabled via env, include config in session creation per docs
@@ -449,6 +449,8 @@ class WAHAService extends events_1.EventEmitter {
                     };
                     console.log(`[WAHA Service] Enabling NOWEB store in session create (enabled=true, fullSync=${nowebFullSyncEnv})`);
                 }
+                // Per WAHA spec, include start=true to create and start in one step
+                createPayload.start = true;
                 console.log(`[WAHA Service] Making POST request to /api/sessions with payload:`, createPayload);
                 try {
                     // Create session (minimal payload; webhooks added after successful start)
@@ -460,25 +462,17 @@ class WAHAService extends events_1.EventEmitter {
                 }
                 catch (createErr) {
                     const status = createErr?.response?.status;
-                    console.warn(`[WAHA Service] ⚠️ Session create via /api/sessions failed (${status}). Falling back to /api/${sessionName}/start`);
-                    // Fallback path (supported by some WAHA versions): create+start in one call
-                    const fallbackPayload = { name: sessionName };
-                    if (engine)
-                        fallbackPayload.engine = engine;
-                    if (engine && engine.toUpperCase() === 'NOWEB' && nowebStoreEnabledEnv) {
-                        fallbackPayload.config = {
-                            noweb: {
-                                store: {
-                                    enabled: true,
-                                    fullSync: nowebFullSyncEnv
-                                }
-                            }
-                        };
+                    console.warn(`[WAHA Service] ⚠️ Session create via /api/sessions failed (${status}). Will try deprecated /api/sessions/start upsert as last resort`);
+                    try {
+                        const deprecatedStartPayload = { name: sessionName };
+                        const startRes = await this.httpClient.post(`/api/sessions/start`, deprecatedStartPayload);
+                        console.log(`[WAHA Service] ✅ Deprecated upsert/start created/started session '${sessionName}':`, startRes.status);
+                        sessionData = { name: sessionName, status: 'STARTING' };
+                        sessionExists = true;
                     }
-                    const startRes = await this.httpClient.post(`/api/${sessionName}/start`, fallbackPayload);
-                    console.log(`[WAHA Service] ✅ Fallback start created/started session '${sessionName}':`, startRes.status);
-                    sessionData = { name: sessionName, status: 'STARTING' };
-                    sessionExists = true;
+                    catch (fallbackErr) {
+                        throw createErr;
+                    }
                 }
                 // CRITICAL: Wait for WAHA to initialize the session
                 console.log(`[WAHA Service] ⏳ Waiting 3 seconds for WAHA to initialize session...`);
@@ -526,17 +520,19 @@ class WAHAService extends events_1.EventEmitter {
                                 throw checkErr;
                             }
                         }
-                        // Try primary start endpoint, then legacy fallback on 404
+                        // Try start endpoint (idempotent). Create used start=true, so this is just ensuring running
                         let startResponse;
                         try {
                             startResponse = await this.httpClient.post(`/api/sessions/${sessionName}/start`);
-                            console.log(`[WAHA Service] ✅ Session '${sessionName}' start response (primary):`, startResponse.status);
+                            console.log(`[WAHA Service] ✅ Session '${sessionName}' start response:`, startResponse.status);
                         }
                         catch (startPrimaryErr) {
-                            if (startPrimaryErr?.response?.status === 404) {
-                                console.warn(`[WAHA Service] Start 404 on /api/sessions/${sessionName}/start. Trying legacy /api/${sessionName}/start...`);
-                                startResponse = await this.httpClient.post(`/api/${sessionName}/start`);
-                                console.log(`[WAHA Service] ✅ Session '${sessionName}' start response (legacy):`, startResponse.status);
+                            if (startPrimaryErr?.response?.status === 409 || startPrimaryErr?.response?.status === 422) {
+                                console.log(`[WAHA Service] Start not needed or invalid state (${startPrimaryErr.response.status}), proceeding`);
+                            }
+                            else if (startPrimaryErr?.response?.status === 404) {
+                                console.warn(`[WAHA Service] Start 404 on /api/sessions/${sessionName}/start (session not found). Will retry after brief delay.`);
+                                throw startPrimaryErr;
                             }
                             else {
                                 throw startPrimaryErr;
@@ -652,18 +648,8 @@ class WAHAService extends events_1.EventEmitter {
             }
             catch (primaryErr) {
                 if (primaryErr?.response?.status === 404) {
-                    console.warn(`[WAHA Service] getSessionStatus 404 on /api/sessions/${sessionName}. Trying legacy paths...`);
-                    try {
-                        response = await this.httpClient.get(`/api/${sessionName}`);
-                    }
-                    catch (legacyErr) {
-                        if (legacyErr?.response?.status === 404) {
-                            response = await this.httpClient.get(`/api/${sessionName}/status`);
-                        }
-                        else {
-                            throw legacyErr;
-                        }
-                    }
+                    console.warn(`[WAHA Service] getSessionStatus 404 on /api/sessions/${sessionName}. Session likely not created yet.`);
+                    throw primaryErr;
                 }
                 else {
                     throw primaryErr;
@@ -686,9 +672,8 @@ class WAHAService extends events_1.EventEmitter {
                 return this.sessionStatusCache.data;
             }
             if (error.response?.status === 404) {
-                console.warn(`[WAHA Service] Session '${sessionName}' not found on all paths. Attempting auto-create/start...`);
+                console.warn(`[WAHA Service] Session '${sessionName}' not found. Attempting create/start via /api/sessions with start=true...`);
                 try {
-                    // Reuse robust start flow (has fallback to /api/{session}/start)
                     await this.startSession(sessionName);
                     // Brief delay then retry status fetch
                     await new Promise(resolve => setTimeout(resolve, 1000));
