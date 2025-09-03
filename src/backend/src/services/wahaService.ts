@@ -840,6 +840,11 @@ class WAHAService extends EventEmitter {
       // Check session status first
       const sessionStatus = await this.getSessionStatus(sessionName);
       console.log(`[WAHA Service] Session '${sessionName}' status: ${sessionStatus.status}`);
+      const engineName = String(sessionStatus?.engine?.engine || '').toUpperCase();
+      if (engineName === 'NOWEB') {
+        console.log(`[WAHA Service] Engine NOWEB does not expose chats listing endpoints; returning empty list`);
+        return [];
+      }
       
       if (sessionStatus.status !== 'WORKING') {
         console.log(`[WAHA Service] Session not in WORKING status (${sessionStatus.status}), returning empty chats`);
@@ -1108,6 +1113,11 @@ class WAHAService extends EventEmitter {
       // Ensure session is working - but be more lenient
       const sessionStatus = await this.getSessionStatus(sessionName);
       console.log(`[WAHA Service] getGroups - Session status: ${sessionStatus.status}`);
+      const engineName = String(sessionStatus?.engine?.engine || '').toUpperCase();
+      if (engineName === 'NOWEB') {
+        console.log(`[WAHA Service] getGroups - Engine NOWEB does not expose groups endpoints; returning []`);
+        return [];
+      }
       
       // Allow groups to be fetched if session is in a working state
       if (sessionStatus.status === 'STOPPED' || sessionStatus.status === 'FAILED') {
@@ -1224,6 +1234,12 @@ class WAHAService extends EventEmitter {
     
     // Try WAHA-compliant refresh endpoint first
     try {
+      const status = await this.getSessionStatus(sessionName);
+      const engineName = String(status?.engine?.engine || '').toUpperCase();
+      if (engineName === 'NOWEB') {
+        console.log(`[WAHA Service] Groups refresh not supported by NOWEB engine`);
+        return { success: true, message: 'Groups refresh not supported by NOWEB engine' };
+      }
       const response = await this.httpClient.post(`/api/sessions/${sessionName}/groups/refresh`, {}, { timeout: 15000 });
       console.log(`[WAHA Service] ✅ Groups refreshed successfully`);
       return { success: true, message: 'Groups refreshed successfully' };
