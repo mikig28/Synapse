@@ -13,15 +13,15 @@ WORKDIR /app
 ENV HOME=/home/nodeuser
 
 # Copy package files from backend directory
-COPY package*.json ./
+COPY src/backend/package*.json ./
 
 # Install dependencies (no browser dependencies needed)
 RUN npm ci --legacy-peer-deps
 
 # Copy source code and config files from backend directory
-COPY src/ ./src/
-COPY tsconfig.json ./
-COPY public/ ./public/
+COPY src/backend/src/ ./src/
+COPY src/backend/tsconfig.json ./
+COPY src/backend/public/ ./public/
 
 # Create uploads directory
 RUN mkdir -p ./public/uploads
