@@ -899,6 +899,28 @@ class WAHAService extends EventEmitter {
             const status = e?.response?.status;
             const errorMsg = status === 404 ? 'Overview endpoint not available (404)' : `${e?.message || e}`;
             console.log(`[WAHA Service] ❌ Chats overview failed for sortBy='${sortBy}': ${errorMsg}`);
+            // Legacy path fallback if 404
+            if (status === 404) {
+              try {
+                console.log(`[WAHA Service] Trying legacy overview path: /api/${sessionName}/chats/overview`);
+                const resLegacy = await this.httpClient.get(`/api/${sessionName}/chats/overview`, {
+                  timeout: 180000,
+                  params: {
+                    limit: options.limit || 100,
+                    offset: options.offset || 0,
+                    sortBy,
+                    sortOrder: options.sortOrder || 'desc'
+                  }
+                });
+                const itemsLegacy = normalizeChats(resLegacy.data);
+                console.log(`[WAHA Service] ✅ Legacy overview successful; got ${itemsLegacy.length} items (sortBy='${sortBy}')`);
+                if (itemsLegacy.length > 0) {
+                  return mapChats(itemsLegacy);
+                }
+              } catch (legacyErr: any) {
+                console.log(`[WAHA Service] ❌ Legacy overview failed:`, legacyErr?.response?.status || legacyErr?.message || legacyErr);
+              }
+            }
             if (errorMsg.includes('timeout')) {
               console.log(`[WAHA Service] Overview endpoint timed out after 180s (sortBy='${sortBy}')`);
             }
@@ -944,6 +966,27 @@ class WAHAService extends EventEmitter {
             const status = e?.response?.status;
             const errorMsg = e?.message || e;
             console.log(`[WAHA Service] ❌ /chats failed (sortBy='${sortBy}', ${timeoutMs/1000}s): ${errorMsg}`);
+            // Legacy path fallback if 404
+            if (status === 404) {
+              try {
+                const params = new URLSearchParams();
+                const effectiveLimit = options.limit || 100;
+                params.append('limit', effectiveLimit.toString());
+                if (options.offset) params.append('offset', options.offset.toString());
+                params.append('sortBy', sortBy);
+                params.append('sortOrder', options.sortOrder || 'desc');
+                if (options.exclude?.length) params.append('exclude', options.exclude.join(','));
+                const queryString = params.toString();
+                const legacyEndpoint = `/api/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
+                console.log(`[WAHA Service] Trying legacy /chats endpoint: ${legacyEndpoint}`);
+                const resLegacy = await this.httpClient.get(legacyEndpoint, { timeout: timeoutMs });
+                const itemsLegacy = normalizeChats(resLegacy.data);
+                console.log(`[WAHA Service] ✅ Legacy /chats successful; got ${itemsLegacy.length} items (sortBy='${sortBy}')`);
+                return mapChats(itemsLegacy);
+              } catch (legacyErr: any) {
+                console.log(`[WAHA Service] ❌ Legacy /chats failed:`, legacyErr?.response?.status || legacyErr?.message || legacyErr);
+              }
+            }
             if (errorMsg.includes('timeout')) {
               console.log(`[WAHA Service] Direct chats endpoint timed out after ${timeoutMs/1000}s (sortBy='${sortBy}')`);
             }
