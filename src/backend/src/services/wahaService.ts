@@ -741,13 +741,27 @@ class WAHAService extends EventEmitter {
       console.log(`[WAHA Service] Waiting for session '${sessionName}' to reach QR ready state...`);
       await this.waitForSessionState(sessionName, ['SCAN_QR_CODE'], 30000); // 30 seconds for stability
       
-      // Get QR code using WAHA's proper endpoint: GET /api/{session}/auth/qr (per official docs)
-      console.log(`[WAHA Service] Requesting QR code from GET /api/sessions/${sessionName}/auth/qr`);
-      const response = await this.httpClient.get(`/api/sessions/${sessionName}/auth/qr`, {
-        responseType: 'arraybuffer',
-        timeout: 15000, // 15 second timeout for QR generation
-        validateStatus: (status: number) => status === 200 // Only accept 200 status
-      });
+      // Get QR code using WAHA's proper endpoint; support both path formats
+      console.log(`[WAHA Service] Requesting QR code for session '${sessionName}'`);
+      let response;
+      try {
+        response = await this.httpClient.get(`/api/sessions/${sessionName}/auth/qr`, {
+          responseType: 'arraybuffer',
+          timeout: 15000,
+          validateStatus: (status: number) => status === 200
+        });
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          console.log(`[WAHA Service] Trying alternate QR endpoint path for session '${sessionName}'`);
+          response = await this.httpClient.get(`/api/${sessionName}/auth/qr`, {
+            responseType: 'arraybuffer',
+            timeout: 15000,
+            validateStatus: (status: number) => status === 200
+          });
+        } else {
+          throw err;
+        }
+      }
       
       console.log(`[WAHA Service] QR code response received, status: ${response.status}`);
       
@@ -888,8 +902,9 @@ class WAHAService extends EventEmitter {
         return [];
       }
       
-      if (sessionStatus.status !== 'WORKING') {
-        console.log(`[WAHA Service] Session not in WORKING status (${sessionStatus.status}), returning empty chats`);
+      // Be lenient: allow fetching during STARTING or SCAN_QR_CODE to detect availability
+      if (sessionStatus.status === 'STOPPED' || sessionStatus.status === 'FAILED') {
+        console.log(`[WAHA Service] Session ${sessionStatus.status}, returning empty chats`);
         return [];
       }
       
@@ -971,6 +986,27 @@ class WAHAService extends EventEmitter {
             if (errorMsg.includes('timeout')) {
               console.log(`[WAHA Service] Overview endpoint timed out after 180s (sortBy='${sortBy}')`);
             }
+            if (status === 404) {
+              try {
+                console.log(`[WAHA Service] Trying alternate overview endpoint format for sortBy='${sortBy}'...`);
+                const resAlt = await this.httpClient.get(`/api/${sessionName}/chats/overview`, { 
+                  timeout: 180000,
+                  params: {
+                    limit: options.limit || 100,
+                    offset: options.offset || 0,
+                    sortBy,
+                    sortOrder: options.sortOrder || 'desc'
+                  }
+                });
+                const itemsAlt = normalizeChats(resAlt.data);
+                console.log(`[WAHA Service] ✅ Alternate chats overview successful; got ${itemsAlt.length} items (sortBy='${sortBy}')`);
+                if (itemsAlt.length > 0) {
+                  return mapChats(itemsAlt);
+                }
+              } catch (altErr: any) {
+                console.log(`[WAHA Service] ❌ Alternate chats overview failed:`, altErr?.response?.status || altErr?.message || altErr);
+              }
+            }
             if (status && status !== 400) {
               // For non-400 errors, no need to try more values
               break;
@@ -1037,6 +1073,18 @@ class WAHAService extends EventEmitter {
             if (errorMsg.includes('timeout')) {
               console.log(`[WAHA Service] Direct chats endpoint timed out after ${timeoutMs/1000}s (sortBy='${sortBy}')`);
             }
+            if (status === 404) {
+              try {
+                const altEndpoint = `/api/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
+                console.log(`[WAHA Service] Trying alternate direct /chats endpoint: ${altEndpoint}`);
+                const resAlt = await this.httpClient.get(altEndpoint, { timeout: timeoutMs });
+                const itemsAlt = normalizeChats(resAlt.data);
+                console.log(`[WAHA Service] ✅ Alternate direct /chats successful; got ${itemsAlt.length} items (sortBy='${sortBy}')`);
+                return mapChats(itemsAlt);
+              } catch (altErr: any) {
+                console.log(`[WAHA Service] ❌ Alternate direct /chats failed:`, altErr?.response?.status || altErr?.message || altErr);
+              }
+            }
             if (status && status !== 400) {
               // For non-400 errors, no point trying other sortBy values with this timeout
               break;
@@ -1053,6 +1101,18 @@ class WAHAService extends EventEmitter {
           if (items.length > 0) return mapChats(items);
         } catch (e: any) {
           console.log(`[WAHA Service] ❌ Minimal /chats failed:`, e?.response?.status || e?.message || e);
+        }
+
+        // Minimal-parameter alternate path fallback
+        try {
+          const minimalAltEndpoint = `/api/${sessionName}/chats`;
+          console.log(`[WAHA Service] Trying minimal alternate /chats without params: ${minimalAltEndpoint}`);
+          const resAlt = await this.httpClient.get(minimalAltEndpoint, { timeout: timeoutMs });
+          const itemsAlt = normalizeChats(resAlt.data);
+          console.log(`[WAHA Service] ✅ Minimal alternate /chats successful; got ${itemsAlt.length} items`);
+          if (itemsAlt.length > 0) return mapChats(itemsAlt);
+        } catch (altErr: any) {
+          console.log(`[WAHA Service] ❌ Minimal alternate /chats failed:`, altErr?.response?.status || altErr?.message || altErr);
         }
 
         // Alternate endpoint fallback: global endpoint with session param
@@ -1313,8 +1373,18 @@ class WAHAService extends EventEmitter {
   async getGroupParticipants(groupId: string, sessionName: string = this.defaultSession): Promise<any[]> {
     try {
       console.log(`[WAHA Service] Getting participants for group '${groupId}'`);
-      const response = await this.httpClient.get(`/api/sessions/${sessionName}/groups/${encodeURIComponent(groupId)}/participants`);
-      return response.data || [];
+      try {
+        const response = await this.httpClient.get(`/api/sessions/${sessionName}/groups/${encodeURIComponent(groupId)}/participants`);
+        return response.data || [];
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          const alt = `/api/${sessionName}/groups/${encodeURIComponent(groupId)}/participants`;
+          console.log(`[WAHA Service] Trying alternate participants endpoint: ${alt}`);
+          const responseAlt = await this.httpClient.get(alt);
+          return responseAlt.data || [];
+        }
+        throw err;
+      }
     } catch (error: any) {
       console.error(`[WAHA Service] ❌ Failed to get group participants:`, error);
       return [];
@@ -1327,8 +1397,18 @@ class WAHAService extends EventEmitter {
   async getGroupDetails(groupId: string, sessionName: string = this.defaultSession): Promise<any> {
     try {
       console.log(`[WAHA Service] Getting details for group '${groupId}'`);
-      const response = await this.httpClient.get(`/api/sessions/${sessionName}/groups/${encodeURIComponent(groupId)}`);
-      return response.data;
+      try {
+        const response = await this.httpClient.get(`/api/sessions/${sessionName}/groups/${encodeURIComponent(groupId)}`);
+        return response.data;
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          const alt = `/api/${sessionName}/groups/${encodeURIComponent(groupId)}`;
+          console.log(`[WAHA Service] Trying alternate group details endpoint: ${alt}`);
+          const responseAlt = await this.httpClient.get(alt);
+          return responseAlt.data;
+        }
+        throw err;
+      }
     } catch (error: any) {
       console.error(`[WAHA Service] ❌ Failed to get group details:`, error);
       return null;
@@ -1365,16 +1445,30 @@ class WAHAService extends EventEmitter {
       const sessionStatus = await this.getSessionStatus(sessionName);
       console.log(`[WAHA Service] Session '${sessionName}' status: ${sessionStatus.status}`);
       
-      if (sessionStatus.status !== 'WORKING') {
-        console.log(`[WAHA Service] Session not in WORKING status (${sessionStatus.status}), returning empty messages`);
+      if (sessionStatus.status === 'STOPPED' || sessionStatus.status === 'FAILED') {
+        console.log(`[WAHA Service] Session ${sessionStatus.status}, returning empty messages`);
         return [];
       }
       
-      // WAHA API endpoint structure: /api/{session}/chats/{chatId}/messages
-      let response = await this.httpClient.get(`/api/sessions/${sessionName}/chats/${encodeURIComponent(chatId)}/messages`, {
-        params: { limit },
-        timeout: 180000 // Increased to 3 minutes for Railway deployment
-      });
+      // WAHA API endpoint structure: prefer /api/sessions/{session}/..., fallback to /api/{session}/...
+      let response;
+      try {
+        response = await this.httpClient.get(`/api/sessions/${sessionName}/chats/${encodeURIComponent(chatId)}/messages`, {
+          params: { limit },
+          timeout: 180000 // Increased to 3 minutes for Railway deployment
+        });
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          const altEndpoint = `/api/${sessionName}/chats/${encodeURIComponent(chatId)}/messages`;
+          console.log(`[WAHA Service] Trying alternate messages endpoint: ${altEndpoint}`);
+          response = await this.httpClient.get(altEndpoint, {
+            params: { limit },
+            timeout: 180000
+          });
+        } else {
+          throw err;
+        }
+      }
       
       console.log(`[WAHA Service] Received ${response.data.length} messages`);
       
@@ -1482,8 +1576,8 @@ class WAHAService extends EventEmitter {
       const sessionStatus = await this.getSessionStatus(sessionName);
       console.log(`[WAHA Service] Session '${sessionName}' status: ${sessionStatus.status}`);
       
-      if (sessionStatus.status !== 'WORKING') {
-        console.log(`[WAHA Service] Session not in WORKING status (${sessionStatus.status}), returning empty messages`);
+      if (sessionStatus.status === 'STOPPED' || sessionStatus.status === 'FAILED') {
+        console.log(`[WAHA Service] Session ${sessionStatus.status}, returning empty messages`);
         return [];
       }
       
