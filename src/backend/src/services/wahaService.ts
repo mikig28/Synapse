@@ -478,6 +478,20 @@ class WAHAService extends EventEmitter {
           createPayload.engine = engine;
           console.log(`[WAHA Service] Using configured WAHA engine: ${engine}`);
         }
+        // If NOWEB and store enabled via env, include config in session creation per docs
+        const nowebStoreEnabledEnv = String(process.env.WAHA_NOWEB_STORE_ENABLED || '').toLowerCase() === 'true';
+        const nowebFullSyncEnv = String(process.env.WAHA_NOWEB_STORE_FULLSYNC || '').toLowerCase() === 'true';
+        if (engine && engine.toUpperCase() === 'NOWEB' && nowebStoreEnabledEnv) {
+          createPayload.config = {
+            noweb: {
+              store: {
+                enabled: true,
+                fullSync: nowebFullSyncEnv
+              }
+            }
+          };
+          console.log(`[WAHA Service] Enabling NOWEB store in session create (enabled=true, fullSync=${nowebFullSyncEnv})`);
+        }
         console.log(`[WAHA Service] Making POST request to /api/sessions with payload:`, createPayload);
         
         try {
@@ -493,6 +507,16 @@ class WAHAService extends EventEmitter {
           // Fallback path (supported by some WAHA versions): create+start in one call
           const fallbackPayload: any = { name: sessionName };
           if (engine) fallbackPayload.engine = engine;
+          if (engine && engine.toUpperCase() === 'NOWEB' && nowebStoreEnabledEnv) {
+            fallbackPayload.config = {
+              noweb: {
+                store: {
+                  enabled: true,
+                  fullSync: nowebFullSyncEnv
+                }
+              }
+            };
+          }
           const startRes = await this.httpClient.post(`/api/${sessionName}/start`, fallbackPayload);
           console.log(`[WAHA Service] ✅ Fallback start created/started session '${sessionName}':`, startRes.status);
           sessionData = { name: sessionName, status: 'STARTING' };
@@ -841,8 +865,9 @@ class WAHAService extends EventEmitter {
       const sessionStatus = await this.getSessionStatus(sessionName);
       console.log(`[WAHA Service] Session '${sessionName}' status: ${sessionStatus.status}`);
       const engineName = String(sessionStatus?.engine?.engine || '').toUpperCase();
-      if (engineName === 'NOWEB') {
-        console.log(`[WAHA Service] Engine NOWEB does not expose chats listing endpoints; returning empty list`);
+      const nowebStoreEnabledEnv = String(process.env.WAHA_NOWEB_STORE_ENABLED || '').toLowerCase() === 'true';
+      if (engineName === 'NOWEB' && !nowebStoreEnabledEnv) {
+        console.log(`[WAHA Service] Engine NOWEB without store: skipping chats listing (set WAHA_NOWEB_STORE_ENABLED=true to enable)`);
         return [];
       }
       
@@ -1114,8 +1139,9 @@ class WAHAService extends EventEmitter {
       const sessionStatus = await this.getSessionStatus(sessionName);
       console.log(`[WAHA Service] getGroups - Session status: ${sessionStatus.status}`);
       const engineName = String(sessionStatus?.engine?.engine || '').toUpperCase();
-      if (engineName === 'NOWEB') {
-        console.log(`[WAHA Service] getGroups - Engine NOWEB does not expose groups endpoints; returning []`);
+      const nowebStoreEnabledEnv = String(process.env.WAHA_NOWEB_STORE_ENABLED || '').toLowerCase() === 'true';
+      if (engineName === 'NOWEB' && !nowebStoreEnabledEnv) {
+        console.log(`[WAHA Service] getGroups - NOWEB without store: skipping groups listing (set WAHA_NOWEB_STORE_ENABLED=true)`);
         return [];
       }
       
