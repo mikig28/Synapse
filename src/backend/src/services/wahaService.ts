@@ -444,7 +444,28 @@ class WAHAService extends EventEmitter {
       let sessionData = null;
       
       try {
-        const existingSession = await this.httpClient.get(`/api/sessions/${sessionName}`);
+        let existingSession;
+        try {
+          existingSession = await this.httpClient.get(`/api/sessions/${sessionName}`);
+        } catch (primaryCheckErr: any) {
+          // Fallback to legacy status path if primary path is 404
+          if (primaryCheckErr?.response?.status === 404) {
+            console.warn(`[WAHA Service] /api/sessions/${sessionName} returned 404. Trying legacy /api/${sessionName} status path...`);
+            try {
+              existingSession = await this.httpClient.get(`/api/${sessionName}`);
+            } catch (legacyStatusErr: any) {
+              // Some versions expose explicit status endpoint
+              if (legacyStatusErr?.response?.status === 404) {
+                console.warn(`[WAHA Service] Legacy /api/${sessionName} also 404. Trying /api/${sessionName}/status...`);
+                existingSession = await this.httpClient.get(`/api/${sessionName}/status`);
+              } else {
+                throw legacyStatusErr;
+              }
+            }
+          } else {
+            throw primaryCheckErr;
+          }
+        }
         sessionExists = true;
         sessionData = existingSession.data;
         console.log(`[WAHA Service] Session '${sessionName}' exists with status: ${sessionData?.status || 'unknown'}`);
@@ -469,7 +490,16 @@ class WAHAService extends EventEmitter {
         // If session is stopped, we need to start it
         if (sessionData?.status === 'STOPPED') {
           console.log(`[WAHA Service] Session '${sessionName}' is stopped, attempting to start...`);
-          await this.httpClient.post(`/api/sessions/${sessionName}/start`);
+          try {
+            await this.httpClient.post(`/api/sessions/${sessionName}/start`);
+          } catch (startStoppedErr: any) {
+            if (startStoppedErr?.response?.status === 404) {
+              console.warn(`[WAHA Service] Start via /api/sessions/${sessionName}/start 404. Trying legacy /api/${sessionName}/start...`);
+              await this.httpClient.post(`/api/${sessionName}/start`);
+            } else {
+              throw startStoppedErr;
+            }
+          }
           console.log(`[WAHA Service] ✅ Session '${sessionName}' started from stopped state`);
           return sessionData;
         } else if (sessionData?.status === 'WORKING' || sessionData?.status === 'SCAN_QR_CODE' || sessionData?.status === 'STARTING') {
@@ -565,11 +595,41 @@ class WAHAService extends EventEmitter {
             console.log(`[WAHA Service] 🚀 Starting session '${sessionName}' (attempt ${attempts}/${maxAttempts}) with POST /api/sessions/${sessionName}/start`);
             
             // First verify session exists before starting
-            const sessionCheck = await this.httpClient.get(`/api/sessions/${sessionName}`);
-            console.log(`[WAHA Service] ✅ Session exists before start attempt:`, sessionCheck.data);
-            
-            const startResponse = await this.httpClient.post(`/api/sessions/${sessionName}/start`);
-            console.log(`[WAHA Service] ✅ Session '${sessionName}' start response:`, startResponse.status, startResponse.data);
+            try {
+              const sessionCheck = await this.httpClient.get(`/api/sessions/${sessionName}`);
+              console.log(`[WAHA Service] ✅ Session exists before start attempt (primary path)`);
+            } catch (checkErr: any) {
+              if (checkErr?.response?.status === 404) {
+                console.warn(`[WAHA Service] Session check 404 at /api/sessions/${sessionName}. Trying legacy /api/${sessionName}...`);
+                try {
+                  await this.httpClient.get(`/api/${sessionName}`);
+                  console.log(`[WAHA Service] ✅ Session exists via legacy path`);
+                } catch (legacyCheckErr: any) {
+                  if (legacyCheckErr?.response?.status === 404) {
+                    console.warn(`[WAHA Service] Session not found on both paths. Proceeding to start which may create implicitly...`);
+                  } else {
+                    throw legacyCheckErr;
+                  }
+                }
+              } else {
+                throw checkErr;
+              }
+            }
+
+            // Try primary start endpoint, then legacy fallback on 404
+            let startResponse;
+            try {
+              startResponse = await this.httpClient.post(`/api/sessions/${sessionName}/start`);
+              console.log(`[WAHA Service] ✅ Session '${sessionName}' start response (primary):`, startResponse.status);
+            } catch (startPrimaryErr: any) {
+              if (startPrimaryErr?.response?.status === 404) {
+                console.warn(`[WAHA Service] Start 404 on /api/sessions/${sessionName}/start. Trying legacy /api/${sessionName}/start...`);
+                startResponse = await this.httpClient.post(`/api/${sessionName}/start`);
+                console.log(`[WAHA Service] ✅ Session '${sessionName}' start response (legacy):`, startResponse.status);
+              } else {
+                throw startPrimaryErr;
+              }
+            }
             startSuccess = true;
             
           } catch (startError: any) {
@@ -593,7 +653,8 @@ class WAHAService extends EventEmitter {
           // After successful start, add webhooks
           try {
             console.log(`[WAHA Service] 🔗 Adding webhooks to session '${sessionName}'...`);
-            await this.httpClient.post(`/api/sessions/${sessionName}/config`, {
+            // Try primary config endpoint, then legacy
+            const configPayload = {
               webhooks: [
                 {
                   url: fullWebhookUrl,
@@ -605,7 +666,17 @@ class WAHAService extends EventEmitter {
                   }
                 }
               ]
-            });
+            } as any;
+            try {
+              await this.httpClient.post(`/api/sessions/${sessionName}/config`, configPayload);
+            } catch (configErr: any) {
+              if (configErr?.response?.status === 404) {
+                console.warn(`[WAHA Service] Config 404 on /api/sessions/${sessionName}/config. Trying legacy /api/${sessionName}/config...`);
+                await this.httpClient.post(`/api/${sessionName}/config`, configPayload);
+              } else {
+                throw configErr;
+              }
+            }
             console.log(`[WAHA Service] ✅ Webhooks added successfully`);
           } catch (webhookError) {
             console.error(`[WAHA Service] ⚠️ Failed to add webhooks (non-critical):`, webhookError);
@@ -664,8 +735,25 @@ class WAHAService extends EventEmitter {
         console.log('[WAHA Service] Returning cached session status');
         return this.sessionStatusCache.data;
       }
-
-      const response = await this.httpClient.get(`/api/sessions/${sessionName}`);
+      let response;
+      try {
+        response = await this.httpClient.get(`/api/sessions/${sessionName}`);
+      } catch (primaryErr: any) {
+        if (primaryErr?.response?.status === 404) {
+          console.warn(`[WAHA Service] getSessionStatus 404 on /api/sessions/${sessionName}. Trying legacy paths...`);
+          try {
+            response = await this.httpClient.get(`/api/${sessionName}`);
+          } catch (legacyErr: any) {
+            if (legacyErr?.response?.status === 404) {
+              response = await this.httpClient.get(`/api/${sessionName}/status`);
+            } else {
+              throw legacyErr;
+            }
+          }
+        } else {
+          throw primaryErr;
+        }
+      }
       
       // Cache the response
       this.sessionStatusCache.data = response.data;
@@ -686,13 +774,31 @@ class WAHAService extends EventEmitter {
       }
       
       if (error.response?.status === 404) {
-        console.warn(`[WAHA Service] Session '${sessionName}' not found. Attempting auto-create/start...`);
+        console.warn(`[WAHA Service] Session '${sessionName}' not found on all paths. Attempting auto-create/start...`);
         try {
           // Reuse robust start flow (has fallback to /api/{session}/start)
           await this.startSession(sessionName);
           // Brief delay then retry status fetch
           await new Promise(resolve => setTimeout(resolve, 1000));
-          const retry = await this.httpClient.get(`/api/sessions/${sessionName}`);
+          let retry;
+          try {
+            retry = await this.httpClient.get(`/api/sessions/${sessionName}`);
+          } catch (retryErr: any) {
+            if (retryErr?.response?.status === 404) {
+              // Try legacy again
+              try {
+                retry = await this.httpClient.get(`/api/${sessionName}`);
+              } catch (retryLegacyErr: any) {
+                if (retryLegacyErr?.response?.status === 404) {
+                  retry = await this.httpClient.get(`/api/${sessionName}/status`);
+                } else {
+                  throw retryLegacyErr;
+                }
+              }
+            } else {
+              throw retryErr;
+            }
+          }
           // Cache and return
           this.sessionStatusCache.data = retry.data;
           this.sessionStatusCache.timestamp = Date.now();
@@ -742,12 +848,26 @@ class WAHAService extends EventEmitter {
       await this.waitForSessionState(sessionName, ['SCAN_QR_CODE'], 30000); // 30 seconds for stability
       
       // Get QR code using WAHA's proper endpoint: GET /api/{session}/auth/qr (per official docs)
-      console.log(`[WAHA Service] Requesting QR code from GET /api/sessions/${sessionName}/auth/qr`);
-      const response = await this.httpClient.get(`/api/sessions/${sessionName}/auth/qr`, {
-        responseType: 'arraybuffer',
-        timeout: 15000, // 15 second timeout for QR generation
-        validateStatus: (status: number) => status === 200 // Only accept 200 status
-      });
+      console.log(`[WAHA Service] Requesting QR code from GET /api/sessions/${sessionName}/auth/qr (with legacy fallback)`);
+      let response;
+      try {
+        response = await this.httpClient.get(`/api/sessions/${sessionName}/auth/qr`, {
+          responseType: 'arraybuffer',
+          timeout: 15000, // 15 second timeout for QR generation
+          validateStatus: (status: number) => status === 200 // Only accept 200 status
+        });
+      } catch (qrErr: any) {
+        if (qrErr?.response?.status === 404) {
+          console.warn(`[WAHA Service] QR 404 on /api/sessions/${sessionName}/auth/qr. Trying legacy /api/${sessionName}/auth/qr...`);
+          response = await this.httpClient.get(`/api/${sessionName}/auth/qr`, {
+            responseType: 'arraybuffer',
+            timeout: 15000,
+            validateStatus: (status: number) => status === 200
+          });
+        } else {
+          throw qrErr;
+        }
+      }
       
       console.log(`[WAHA Service] QR code response received, status: ${response.status}`);
       

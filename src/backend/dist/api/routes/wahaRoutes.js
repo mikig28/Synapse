@@ -34,6 +34,8 @@ router.post('/refresh-groups', wahaController_1.refreshGroups);
 // Session management
 router.post('/restart', wahaController_1.restartSession);
 router.post('/restart-failed', wahaController_1.restartFailedSession);
+router.post('/recreate-session', wahaController_1.recreateSession);
+router.post('/clear-caches', wahaController_1.clearCaches);
 router.post('/auto-recover', wahaController_1.autoRecoverSession);
 router.post('/force-restart', wahaController_1.forceRestart);
 router.post('/force-history-sync', wahaController_1.forceHistorySync);
@@ -41,6 +43,8 @@ router.post('/force-history-sync', wahaController_1.forceHistorySync);
 router.get('/monitored-keywords', wahaController_1.getMonitoredKeywords);
 router.post('/monitored-keywords', wahaController_1.addMonitoredKeyword);
 router.delete('/monitored-keywords/:keyword', wahaController_1.removeMonitoredKeyword);
+// Media extraction routes
+router.post('/media/:messageId/extract-image', wahaController_1.extractImageFromMessage);
 // Webhook for WAHA events
 router.post('/webhook', wahaController_1.webhook);
 // Legacy compatibility routes (for gradual migration)
