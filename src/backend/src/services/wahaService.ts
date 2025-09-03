@@ -448,6 +448,23 @@ class WAHAService extends EventEmitter {
         sessionExists = true;
         sessionData = existingSession.data;
         console.log(`[WAHA Service] Session '${sessionName}' exists with status: ${sessionData?.status || 'unknown'}`);
+
+        // If engine changed vs env, recreate with the configured engine
+        try {
+          const configuredEngine = (process.env.WAHA_ENGINE || '').trim().toUpperCase();
+          const currentEngine = String(sessionData?.engine?.engine || '').toUpperCase();
+          if (configuredEngine && currentEngine && configuredEngine !== currentEngine) {
+            console.log(`[WAHA Service] ⚙️ Engine mismatch detected (current=${currentEngine}, configured=${configuredEngine}), recreating session with new engine...`);
+            await this.recreateSessionWithEngine(sessionName);
+            // Brief delay then refetch status
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            const refreshed = await this.httpClient.get(`/api/sessions/${sessionName}`);
+            sessionData = refreshed.data;
+            console.log(`[WAHA Service] ✅ Session recreated with engine: ${sessionData?.engine?.engine}`);
+          }
+        } catch (engineCheckErr) {
+          console.warn('[WAHA Service] Engine mismatch handling failed (non-fatal):', engineCheckErr);
+        }
         
         // If session is stopped, we need to start it
         if (sessionData?.status === 'STOPPED') {
