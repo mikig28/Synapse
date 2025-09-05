@@ -6,6 +6,7 @@ import http from 'http'; // Import http module
 import { Server as SocketIOServer } from 'socket.io'; // Import Server from socket.io
 import whatsappRoutes from './api/routes/whatsappRoutes'; // Import WhatsApp routes (legacy)
 import wahaRoutes from './api/routes/wahaRoutes'; // Import WAHA routes (modern)
+import whatsappUnifiedRoutes from './api/routes/whatsappUnifiedRoutes'; // Import WhatsApp Unified routes (complete)
 import { connectToDatabase } from './config/database'; // Import database connection
 import authRoutes from './api/routes/authRoutes'; // Import auth routes
 import { initializeTelegramService } from './services/telegramServiceNew'; // Import new multi-user Telegram service
@@ -16,6 +17,7 @@ import { initializeAgentServices } from './api/controllers/agentsController'; //
 import { registerAgentExecutors } from './services/agents'; // Import agent executors registry
 import WhatsAppBaileysService from './services/whatsappBaileysService'; // Import WhatsApp Baileys service (legacy)
 import WAHAService from './services/wahaService'; // Import WAHA service (modern)
+import WhatsAppUnifiedService from './services/whatsappUnifiedService'; // Import WhatsApp Unified service (complete)
 import captureRoutes from './api/routes/captureRoutes'; // Import capture routes
 import path from 'path'; // <-- Import path module
 import fs from 'fs'; // <-- Import fs module
@@ -179,8 +181,9 @@ console.log(`[Static Files] Serving static files from /public mapped to physical
 // Serve static files from the 'public' directory
 app.use('/public', express.static(publicDir)); // Serve files under /public URL path
 
-// API Routes - WhatsApp (WAHA as primary service)
-app.use('/api/v1/whatsapp', wahaRoutes); // Primary WAHA routes
+// API Routes - WhatsApp (Unified as primary, WAHA as fallback)
+app.use('/api/v1/whatsapp-unified', whatsappUnifiedRoutes); // NEW: Unified WhatsApp Web functionality
+app.use('/api/v1/whatsapp', wahaRoutes); // WAHA routes for monitoring/fallback
 app.use('/api/v1/whatsapp-legacy', whatsappRoutes); // Legacy Baileys routes (fallback)
 app.use('/api/v1/waha', wahaRoutes); // Keep WAHA routes for direct access
 app.use('/api/v1/auth', authRoutes);
@@ -698,6 +701,18 @@ const initializeServicesInBackground = async () => {
         const wahaService = WAHAService.getInstance();
         await wahaService.initialize();
         console.log('[Server] ✅ WAHA service initialized successfully');
+        
+        // Initialize WhatsApp Unified Service after WAHA is ready
+        try {
+          console.log('[Server] 🚀 Initializing WhatsApp Unified service...');
+          const unifiedService = WhatsAppUnifiedService.getInstance();
+          await unifiedService.initialize();
+          console.log('[Server] ✅ WhatsApp Unified service initialized successfully (full WhatsApp Web functionality available)');
+        } catch (unifiedError) {
+          console.warn('[Server] ⚠️ WhatsApp Unified service failed to initialize:', unifiedError);
+          console.log('[Server] Continuing with WAHA-only functionality...');
+        }
+        
         wahaInitialized = true;
         break;
       } catch (wahaError) {
@@ -721,6 +736,16 @@ const initializeServicesInBackground = async () => {
           const wahaService = WAHAService.getInstance();
           await wahaService.initialize();
           console.log('[Server] ✅ WAHA service connected via background retry!');
+          
+          // Initialize unified service after background WAHA success
+          try {
+            const unifiedService = WhatsAppUnifiedService.getInstance();
+            await unifiedService.initialize();
+            console.log('[Server] ✅ WhatsApp Unified service initialized via background retry!');
+          } catch (unifiedError) {
+            console.warn('[Server] ⚠️ WhatsApp Unified service failed in background retry:', unifiedError);
+          }
+          
           clearInterval(backgroundRetry);
         } catch (error) {
           console.log('[Server] Background WAHA retry failed, will try again...');

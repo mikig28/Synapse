@@ -5,7 +5,9 @@
       "Bash(timeout 30 npx tsc --noEmit --skipLibCheck)",
       "Bash(git add:*)",
       "WebFetch(domain:waha.devlike.pro)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(curl:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   }
