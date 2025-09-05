@@ -520,7 +520,7 @@ class WAHAService extends EventEmitter {
       if (!sessionExists) {
         console.log(`[WAHA Service] Creating new session '${sessionName}'...`);
         const engine = process.env.WAHA_ENGINE?.trim();
-        const createPayload: any = { name: sessionName };
+        const createPayload: any = { name: sessionName, start: true };
         if (engine) {
           createPayload.engine = engine;
           console.log(`[WAHA Service] Using configured WAHA engine: ${engine}`);
@@ -552,7 +552,7 @@ class WAHAService extends EventEmitter {
           const status = createErr?.response?.status;
           console.warn(`[WAHA Service] ⚠️ Session create via /api/sessions failed (${status}). Falling back to /api/${sessionName}/start`);
           // Fallback path (supported by some WAHA versions): create+start in one call
-          const fallbackPayload: any = { name: sessionName };
+          const fallbackPayload: any = { name: sessionName, start: true };
           if (engine) fallbackPayload.engine = engine;
           if (engine && engine.toUpperCase() === 'NOWEB' && nowebStoreEnabledEnv) {
             fallbackPayload.config = {
@@ -1727,7 +1727,7 @@ class WAHAService extends EventEmitter {
       } catch (createErr: any) {
         const status = createErr?.response?.status;
         console.warn(`[WAHA Service] ⚠️ Recreate via /api/sessions failed (${status}). Falling back to /api/${sessionName}/start`);
-        const fallbackPayload: any = { name: sessionName };
+        const fallbackPayload: any = { name: sessionName, start: true };
         if (engine) fallbackPayload.engine = engine;
         const startRes = await this.httpClient.post(`/api/${sessionName}/start`, fallbackPayload);
         console.log(`[WAHA Service] ✅ Fallback start created/started session '${sessionName}':`, startRes.status);
