@@ -1003,8 +1003,12 @@ class WAHAService extends EventEmitter {
       console.log(`[WAHA Service] Session '${sessionName}' status: ${sessionStatus.status}`);
       const engineName = String(sessionStatus?.engine?.engine || '').toUpperCase();
       const nowebStoreEnabledEnv = String(process.env.WAHA_NOWEB_STORE_ENABLED || '').toLowerCase() === 'true';
+      
+      console.log(`[WAHA Service DEBUG] Engine: ${engineName}, WAHA_NOWEB_STORE_ENABLED: ${process.env.WAHA_NOWEB_STORE_ENABLED}, parsed: ${nowebStoreEnabledEnv}`);
+      
       if (engineName === 'NOWEB' && !nowebStoreEnabledEnv) {
-        console.log(`[WAHA Service] Engine NOWEB without store: skipping chats listing (set WAHA_NOWEB_STORE_ENABLED=true to enable)`);
+        console.log(`[WAHA Service] ⚠️ CRITICAL: Engine NOWEB without store: skipping chats listing`);
+        console.log(`[WAHA Service] ⚠️ SOLUTION: Set WAHA_NOWEB_STORE_ENABLED=true in your backend environment variables`);
         return [];
       }
       

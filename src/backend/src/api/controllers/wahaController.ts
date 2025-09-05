@@ -921,8 +921,13 @@ export const getPrivateChats = async (req: Request, res: Response) => {
     console.log('[WAHA Controller] Fetching private chats...', { limit, offset, sortBy, sortOrder });
     const startTime = Date.now();
 
-    // Request chats with options to let service use WAHA-compliant params
+    // DEBUG: Add detailed logging to trace getChats execution
+    console.log('[WAHA Controller DEBUG] About to call wahaService.getChats()...');
     const chats = await wahaService.getChats(undefined, { limit, offset, sortBy, sortOrder });
+    console.log('[WAHA Controller DEBUG] getChats returned:', {
+      chatCount: chats?.length || 0,
+      chats: chats?.slice(0, 3).map(c => ({ id: c.id, name: c.name, isGroup: c.isGroup })) || []
+    });
     
     // Filter only private chats (not @g.us)
     let privateChats = chats.filter(chat => !chat.isGroup && !(typeof chat.id === 'string' && chat.id.includes('@g.us')));
