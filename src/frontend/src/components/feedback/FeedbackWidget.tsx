@@ -27,6 +27,8 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [quickType, setQuickType] = useState<'bug' | 'feature' | 'rating' | null>(null);
+  const [isVisible, setIsVisible] = useState(true);
+  const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
 
   const positionClasses = {
     'bottom-right': 'bottom-6 right-6',
@@ -71,10 +73,31 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
     setIsOpen(false);
   };
 
+  if (!isVisible) return null;
+
   return (
     <>
       {/* Widget */}
-      <div className={`fixed z-40 ${positionClasses[position]} ${className}`}>
+      <motion.div
+        drag
+        dragMomentum={false}
+        dragElastic={0}
+        style={{ x: dragPosition.x, y: dragPosition.y, touchAction: 'none' }}
+        onDragEnd={(_, info) => {
+          setDragPosition(prev => ({
+            x: prev.x + info.offset.x,
+            y: prev.y + info.offset.y
+          }));
+        }}
+        className={`fixed z-40 ${positionClasses[position]} ${className} relative`}
+      >
+        <button
+          onClick={() => setIsVisible(false)}
+          className="absolute -top-2 -right-2 bg-muted text-muted-foreground hover:bg-muted/80 rounded-full p-1 shadow"
+          aria-label="Dismiss feedback widget"
+        >
+          <X className="w-3 h-3" />
+        </button>
         <AnimatePresence>
           {isOpen && showQuickActions && (
             <motion.div
@@ -186,12 +209,12 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
 
             {/* Pulse Animation */}
             <motion.div
-              className="absolute inset-0 rounded-full bg-primary"
-              animate={{ 
+              className="absolute inset-0 rounded-full bg-primary pointer-events-none"
+              animate={{
                 scale: [1, 1.2, 1],
                 opacity: [0.7, 0, 0.7]
               }}
-              transition={{ 
+              transition={{
                 duration: 3,
                 repeat: Infinity,
                 ease: "easeInOut"
@@ -204,9 +227,9 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
         {!isOpen && (
           <motion.div
             className={`
-              absolute ${position.includes('right') ? 'right-16' : 'left-16'} 
+              absolute ${position.includes('right') ? 'right-16' : 'left-16'}
               ${position.includes('bottom') ? 'bottom-2' : 'top-2'}
-              bg-card border border-border rounded-lg px-3 py-2 
+              bg-card border border-border rounded-lg px-3 py-2
               shadow-lg backdrop-blur-sm
               pointer-events-none opacity-0 group-hover:opacity-100
               transition-opacity duration-200
@@ -219,7 +242,7 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
             </span>
           </motion.div>
         )}
-      </div>
+      </motion.div>
 
       {/* Feedback Modal */}
       <FeedbackModal
