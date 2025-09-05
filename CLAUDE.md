@@ -169,9 +169,18 @@ TWITTER_API_KEY=your_key          # For Twitter/X integration
 # WhatsApp Integration (WAHA Service)
 WAHA_API_KEY=your_waha_api_key    # Required for WAHA service authentication
 WAHA_SERVICE_URL=https://synapse-waha.onrender.com  # WAHA service endpoint
-WAHA_ENGINE=NOWEB                 # Use NOWEB engine to avoid browser conflicts with Puppeteer
+
+# Engine Configuration (choose ONE based on your needs)
+# Option 1: NOWEB (read-only, lightweight, free tier)
+WAHA_ENGINE=NOWEB                 # Use NOWEB engine for monitoring only
 WAHA_NOWEB_STORE_ENABLED=true     # Required: Enable NOWEB store for chats/messages access
 WAHA_NOWEB_STORE_FULLSYNC=true    # Required: Enable full sync for complete message history
+
+# Option 2: WEBJS (full functionality, sending + media, requires more resources)  
+# WAHA_ENGINE=WEBJS                # Use WEBJS engine for full WhatsApp Web functionality
+# WAHA_WEBJS_STORE_ENABLED=true    # Required: Enable WEBJS store for chats/messages access
+# WAHA_WEBJS_HEADLESS=true         # Run browser in headless mode (recommended for production)
+
 WHATSAPP_AUTO_REPLY_ENABLED=false # Enable/disable WhatsApp auto-reply
 PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome  # Chrome path for containers
 PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true  # Skip Chromium download in containers

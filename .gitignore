@@ -44,7 +44,8 @@ tasks/
 !src/frontend/src/components/tasks/*.tsx
 
 # Build output
-/src/frontend/dist/ 
+/src/frontend/dist/
+/src/backend/dist/ 
 
 # Claude Code project (keep separate)
 claudia/

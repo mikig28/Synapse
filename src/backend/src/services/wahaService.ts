@@ -525,9 +525,11 @@ class WAHAService extends EventEmitter {
           createPayload.engine = engine;
           console.log(`[WAHA Service] Using configured WAHA engine: ${engine}`);
         }
-        // If NOWEB and store enabled via env, include config in session creation per docs
+        // Engine-specific configuration for WAHA compliance
         const nowebStoreEnabledEnv = String(process.env.WAHA_NOWEB_STORE_ENABLED || '').toLowerCase() === 'true';
         const nowebFullSyncEnv = String(process.env.WAHA_NOWEB_STORE_FULLSYNC || '').toLowerCase() === 'true';
+        const webjsStoreEnabledEnv = String(process.env.WAHA_WEBJS_STORE_ENABLED || '').toLowerCase() === 'true';
+        
         if (engine && engine.toUpperCase() === 'NOWEB' && nowebStoreEnabledEnv) {
           createPayload.config = {
             noweb: {
@@ -538,6 +540,15 @@ class WAHAService extends EventEmitter {
             }
           };
           console.log(`[WAHA Service] Enabling NOWEB store in session create (enabled=true, fullSync=${nowebFullSyncEnv})`);
+        } else if (engine && engine.toUpperCase() === 'WEBJS' && webjsStoreEnabledEnv) {
+          createPayload.config = {
+            webjs: {
+              store: {
+                enabled: true
+              }
+            }
+          };
+          console.log(`[WAHA Service] Enabling WEBJS store in session create (enabled=true)`);
         }
         console.log(`[WAHA Service] Making POST request to /api/sessions with payload:`, createPayload);
         
@@ -1003,12 +1014,19 @@ class WAHAService extends EventEmitter {
       console.log(`[WAHA Service] Session '${sessionName}' status: ${sessionStatus.status}`);
       const engineName = String(sessionStatus?.engine?.engine || '').toUpperCase();
       const nowebStoreEnabledEnv = String(process.env.WAHA_NOWEB_STORE_ENABLED || '').toLowerCase() === 'true';
+      const webjsStoreEnabledEnv = String(process.env.WAHA_WEBJS_STORE_ENABLED || '').toLowerCase() === 'true';
       
-      console.log(`[WAHA Service DEBUG] Engine: ${engineName}, WAHA_NOWEB_STORE_ENABLED: ${process.env.WAHA_NOWEB_STORE_ENABLED}, parsed: ${nowebStoreEnabledEnv}`);
+      console.log(`[WAHA Service DEBUG] Engine: ${engineName}, WAHA_NOWEB_STORE_ENABLED: ${process.env.WAHA_NOWEB_STORE_ENABLED}, WAHA_WEBJS_STORE_ENABLED: ${process.env.WAHA_WEBJS_STORE_ENABLED}`);
       
       if (engineName === 'NOWEB' && !nowebStoreEnabledEnv) {
         console.log(`[WAHA Service] ⚠️ CRITICAL: Engine NOWEB without store: skipping chats listing`);
         console.log(`[WAHA Service] ⚠️ SOLUTION: Set WAHA_NOWEB_STORE_ENABLED=true in your backend environment variables`);
+        return [];
+      }
+      
+      if (engineName === 'WEBJS' && !webjsStoreEnabledEnv) {
+        console.log(`[WAHA Service] ⚠️ CRITICAL: Engine WEBJS without store: skipping chats listing`);
+        console.log(`[WAHA Service] ⚠️ SOLUTION: Set WAHA_WEBJS_STORE_ENABLED=true in your backend environment variables`);
         return [];
       }
       
@@ -1281,8 +1299,15 @@ class WAHAService extends EventEmitter {
       console.log(`[WAHA Service] getGroups - Session status: ${sessionStatus.status}`);
       const engineName = String(sessionStatus?.engine?.engine || '').toUpperCase();
       const nowebStoreEnabledEnv = String(process.env.WAHA_NOWEB_STORE_ENABLED || '').toLowerCase() === 'true';
+      const webjsStoreEnabledEnv = String(process.env.WAHA_WEBJS_STORE_ENABLED || '').toLowerCase() === 'true';
+      
       if (engineName === 'NOWEB' && !nowebStoreEnabledEnv) {
         console.log(`[WAHA Service] getGroups - NOWEB without store: skipping groups listing (set WAHA_NOWEB_STORE_ENABLED=true)`);
+        return [];
+      }
+      
+      if (engineName === 'WEBJS' && !webjsStoreEnabledEnv) {
+        console.log(`[WAHA Service] getGroups - WEBJS without store: skipping groups listing (set WAHA_WEBJS_STORE_ENABLED=true)`);
         return [];
       }
       
@@ -1406,6 +1431,10 @@ class WAHAService extends EventEmitter {
       if (engineName === 'NOWEB') {
         console.log(`[WAHA Service] Groups refresh not supported by NOWEB engine`);
         return { success: true, message: 'Groups refresh not supported by NOWEB engine' };
+      }
+      // WEBJS engine supports groups refresh
+      if (engineName === 'WEBJS') {
+        console.log(`[WAHA Service] Using WEBJS engine - groups refresh supported`);
       }
       const response = await this.httpClient.post(`/api/${sessionName}/groups/refresh`, {}, { timeout: 15000 });
       console.log(`[WAHA Service] ✅ Groups refreshed successfully`);
