@@ -1030,9 +1030,14 @@ class WAHAService extends EventEmitter {
         return [];
       }
       
-      if (sessionStatus.status !== 'WORKING') {
-        console.log(`[WAHA Service] Session not in WORKING status (${sessionStatus.status}), returning empty chats`);
+      if (sessionStatus.status === 'STOPPED' || sessionStatus.status === 'FAILED') {
+        console.log(`[WAHA Service] Session not ready (${sessionStatus.status}), returning empty chats`);
         return [];
+      }
+      
+      if (sessionStatus.status === 'STARTING') {
+        console.log(`[WAHA Service] ⚠️ WEBJS session still starting (${sessionStatus.status}), this may take a few minutes for full sync...`);
+        console.log(`[WAHA Service] Attempting to fetch chats anyway - some may be incomplete during initial sync`);
       }
       
       const normalizeChats = (raw: any): any[] => {
@@ -1215,20 +1220,26 @@ class WAHAService extends EventEmitter {
         return null;
       };
 
-      // Optimized attempt sequence with progressive timeout increases (Railway-optimized)
-      console.log(`[WAHA Service] Starting Railway-optimized chat loading sequence for session '${sessionName}'...`);
+      // WEBJS-optimized attempt sequence with extended timeouts for initial sync
+      const isWebJS = engineName === 'WEBJS';
+      const baseTimeout = isWebJS ? 300000 : 180000; // 5min for WEBJS, 3min for others
+      
+      console.log(`[WAHA Service] Starting ${engineName}-optimized chat loading sequence for session '${sessionName}'...`);
+      if (isWebJS) {
+        console.log(`[WAHA Service] Using extended timeouts for WEBJS engine (initial sync can take 5+ minutes)`);
+      }
+      
       let chats: WAHAChat[] | null = await tryOverview();
       
       if (!chats || chats.length === 0) {
         console.log(`[WAHA Service] Overview failed or empty, trying direct /chats with extended timeout...`);
-        chats = await tryChats(180000); // First attempt with 3min timeout for Railway deployment
+        chats = await tryChats(baseTimeout); // Extended timeout for WEBJS initial sync
       }
       
       if (!chats || chats.length === 0) {
         console.log(`[WAHA Service] First /chats attempt failed, retrying with reduced limit...`);
-        await new Promise(resolve => setTimeout(resolve, 5000)); // Longer delay for WAHA to stabilize
-        // Try with smaller limit to reduce load directly without recursion
-        chats = await tryChats(120000); // 2min timeout with default parameters
+        await new Promise(resolve => setTimeout(resolve, 10000)); // Longer delay for WEBJS to stabilize
+        chats = await tryChats(baseTimeout * 0.6); // Reduced timeout for retry
       }
 
       if (!chats || chats.length === 0) {
