@@ -26,6 +26,8 @@ services:
     env: docker
     dockerfilePath: ./src/backend/Dockerfile
     envVars:
+      - key: PORT
+        value: 10000
       - key: NODE_ENV
         value: production
       - key: MONGODB_URI
