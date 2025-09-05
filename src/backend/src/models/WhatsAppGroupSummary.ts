@@ -49,6 +49,10 @@ export interface IWhatsAppGroupSummary extends Document {
   errorMessage?: string;
   createdAt: Date;
   updatedAt: Date;
+  
+  // Methods
+  markCompleted(processingTimeMs: number): Promise<void>;
+  markFailed(errorMessage: string): Promise<void>;
 }
 
 const SenderSummarySchema = new Schema({

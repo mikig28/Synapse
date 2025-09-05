@@ -1,5 +1,4 @@
 import { startOfDay, endOfDay, parseISO, isValid } from 'date-fns';
-import { zonedTimeToUtc, utcToZonedTime } from 'date-fns-tz';
 import WhatsAppMessage from '../models/WhatsAppMessage';
 import WhatsAppContact from '../models/WhatsAppContact';
 import WhatsAppGroupSummary, { IWhatsAppGroupSummary } from '../models/WhatsAppGroupSummary';
@@ -50,10 +49,9 @@ export class MessageSummarizationService {
     if (request.date) {
       const date = parseISO(request.date);
       if (isValid(date)) {
-        // Convert to user's timezone for day boundaries
-        const zonedDate = utcToZonedTime(date, timezone);
-        const start = zonedTimeToUtc(startOfDay(zonedDate), timezone);
-        const end = zonedTimeToUtc(endOfDay(zonedDate), timezone);
+        // Use simple day boundaries (UTC)
+        const start = startOfDay(date);
+        const end = endOfDay(date);
         
         return {
           start,
@@ -64,10 +62,9 @@ export class MessageSummarizationService {
       }
     }
 
-    // Default to today in user's timezone
-    const zonedNow = utcToZonedTime(now, timezone);
-    const start = zonedTimeToUtc(startOfDay(zonedNow), timezone);
-    const end = zonedTimeToUtc(endOfDay(zonedNow), timezone);
+    // Default to today (UTC)
+    const start = startOfDay(now);
+    const end = endOfDay(now);
 
     return {
       start,
@@ -139,7 +136,7 @@ export class MessageSummarizationService {
         try {
           const contact = msg.contactId as any;
           const senderPhone = msg.from;
-          const senderName = contact?.name || msg.metadata?.contactName || `Contact ${senderPhone}`;
+          const senderName = contact?.name || `Contact ${senderPhone}`;
 
           messages.push({
             id: msg.messageId,

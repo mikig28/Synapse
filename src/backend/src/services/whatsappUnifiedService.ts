@@ -5,9 +5,8 @@
  */
 
 import { EventEmitter } from 'events';
-import WAHAService from './wahaService';
+import WAHAService, { WAHAChat, WAHAMessage } from './wahaService';
 import WhatsAppImageExtractor from './whatsappImageExtractor';
-import { WAHAChat, WAHAMessage } from '../types/waha';
 
 export interface UnifiedChat {
   id: string;
@@ -170,7 +169,7 @@ class WhatsAppUnifiedService extends EventEmitter {
       const wahaGroups = await this.wahaService.getGroups(undefined, {
         limit: options?.limit,
         offset: options?.offset,
-        sortBy: options?.sortBy,
+        sortBy: options?.sortBy === 'name' ? 'subject' : (options?.sortBy as 'id' | 'subject'),
         sortOrder: options?.sortOrder
       });
       
@@ -390,17 +389,17 @@ class WhatsAppUnifiedService extends EventEmitter {
       timestamp: wahaMessage.timestamp,
       sender: {
         id: wahaMessage.from,
-        name: wahaMessage.fromName,
+        name: wahaMessage.contactName,
         isMe: wahaMessage.fromMe
       },
       type: this.detectMessageType(wahaMessage),
-      media: wahaMessage.hasMedia ? {
-        url: wahaMessage.mediaUrl,
-        mimeType: wahaMessage.mimeType,
-        filename: wahaMessage.filename,
+      media: wahaMessage.isMedia ? {
+        url: undefined, // WAHA message doesn't include direct URL
+        filename: undefined,
+        mimeType: undefined,
         downloaded: false
       } : undefined,
-      deliveryStatus: wahaMessage.ack ? 'delivered' : 'sent'
+      deliveryStatus: 'sent' // Default status since WAHA doesn't provide ack
     };
   }
 
