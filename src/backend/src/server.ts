@@ -614,6 +614,58 @@ const startServer = async () => {
     await mongoose.connect(mongoUri);
     await connectToDatabase(); // Calls the Mongoose connection logic
 
+    // Make io available globally for real-time updates
+    (global as any).io = io;
+
+    // **AG-UI Protocol: Bridge AG-UI events to Socket.IO**
+    agui.subscribe((event) => {
+      try {
+        // Emit AG-UI events to all connected Socket.IO clients
+        const eventUserId = (event as any).userId;
+        const eventSessionId = (event as any).sessionId;
+
+        if (eventUserId) {
+          // Send to specific user
+          io.to(`user_${eventUserId}`).emit('ag_ui_event', event);
+        } else if (eventSessionId) {
+          // Send to specific session
+          io.to(`session_${eventSessionId}`).emit('ag_ui_event', event);
+        } else {
+          // Broadcast to all connected clients
+          io.emit('ag_ui_event', event);
+        }
+
+        console.log(`[AG-UI Bridge] Bridged event ${event.type} via Socket.IO`);
+      } catch (error) {
+        console.error('[AG-UI Bridge] Error bridging event to Socket.IO:', error);
+      }
+    });
+
+    console.log('[AG-UI] Protocol initialized and bridged to Socket.IO');
+
+    // Start HTTP server immediately for Render port detection
+    httpServer.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Server is running on port ${PORT}`);
+      console.log(`🌐 Server is binding to 0.0.0.0:${PORT}`);
+      console.log(`📦 Environment PORT: ${process.env.PORT || 'not set'}`);
+      console.log(`🔧 NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+      console.log(`✅ Health check available at: http://0.0.0.0:${PORT}/health`);
+      console.log(`🎯 RENDER DEPLOYMENT READY - Service is accessible!`);
+      
+      // Initialize other services asynchronously in background to prevent deployment timeout
+      initializeServicesInBackground();
+    });
+  } catch (error) {
+    console.error('[server]: Failed to start server or connect to database', error);
+    process.exit(1);
+  }
+};
+
+// Initialize all other services asynchronously after server is running
+const initializeServicesInBackground = async () => {
+  console.log('[Server] 🔄 Starting background service initialization...');
+  
+  try {
     // Initialize search indexes for optimal search performance
     try {
       await initializeSearchIndexes();
@@ -716,50 +768,13 @@ const startServer = async () => {
     initializeTaskReminderScheduler();
     console.log('[Server] Task reminder scheduler initialized');
 
-    // Make io available globally for real-time updates
-    (global as any).io = io;
-
     // Make agent service available globally for AG-UI commands
     (global as any).agentService = agentService;
 
-    // **AG-UI Protocol: Bridge AG-UI events to Socket.IO**
-    agui.subscribe((event) => {
-      try {
-        // Emit AG-UI events to all connected Socket.IO clients
-        const eventUserId = (event as any).userId;
-        const eventSessionId = (event as any).sessionId;
-
-        if (eventUserId) {
-          // Send to specific user
-          io.to(`user_${eventUserId}`).emit('ag_ui_event', event);
-        } else if (eventSessionId) {
-          // Send to specific session
-          io.to(`session_${eventSessionId}`).emit('ag_ui_event', event);
-        } else {
-          // Broadcast to all connected clients
-          io.emit('ag_ui_event', event);
-        }
-
-        console.log(`[AG-UI Bridge] Bridged event ${event.type} via Socket.IO`);
-      } catch (error) {
-        console.error('[AG-UI Bridge] Error bridging event to Socket.IO:', error);
-      }
-    });
-
-    console.log('[AG-UI] Protocol initialized and bridged to Socket.IO');
-
-    httpServer.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Server is running on port ${PORT}`);
-      console.log(`🌐 Server is binding to 0.0.0.0:${PORT}`);
-      console.log(`📦 Environment PORT: ${process.env.PORT || 'not set'}`);
-      console.log(`🔧 NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
-      console.log(`✅ Health check available at: http://0.0.0.0:${PORT}/health`);
-      console.log(`🎯 RENDER DEPLOYMENT READY - Service is accessible!`);
-      // The "[mongoose]: Mongoose connected to DB" log from database.ts confirms success
-    });
+    console.log('[Server] ✅ All background services initialized successfully');
   } catch (error) {
-    console.error('[server]: Failed to start server or connect to database', error);
-    process.exit(1);
+    console.error('[Server] ❌ Background service initialization failed:', error);
+    // Don't crash the server - let it continue with basic functionality
   }
 };
 
