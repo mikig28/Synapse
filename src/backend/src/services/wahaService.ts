@@ -530,22 +530,37 @@ class WAHAService extends EventEmitter {
         const nowebFullSyncEnv = String(process.env.WAHA_NOWEB_STORE_FULLSYNC || '').toLowerCase() === 'true';
         const webjsStoreEnabledEnv = String(process.env.WAHA_WEBJS_STORE_ENABLED || '').toLowerCase() === 'true';
         
+        // Initialize config object
+        if (!createPayload.config) {
+          createPayload.config = {};
+        }
+        
+        // Add webhook configuration
+        createPayload.config.webhooks = [
+          {
+            url: fullWebhookUrl,
+            events: ['session.status', 'message'],
+            hmac: null,
+            retries: {
+              delaySeconds: 2,
+              attempts: 15
+            }
+          }
+        ];
+        console.log(`[WAHA Service] 🔗 Adding webhook configuration to session: ${fullWebhookUrl}`);
+        
         if (engine && engine.toUpperCase() === 'NOWEB' && nowebStoreEnabledEnv) {
-          createPayload.config = {
-            noweb: {
-              store: {
-                enabled: true,
-                fullSync: nowebFullSyncEnv
-              }
+          createPayload.config.noweb = {
+            store: {
+              enabled: true,
+              fullSync: nowebFullSyncEnv
             }
           };
           console.log(`[WAHA Service] Enabling NOWEB store in session create (enabled=true, fullSync=${nowebFullSyncEnv})`);
         } else if (engine && engine.toUpperCase() === 'WEBJS' && webjsStoreEnabledEnv) {
-          createPayload.config = {
-            webjs: {
-              store: {
-                enabled: true
-              }
+          createPayload.config.webjs = {
+            store: {
+              enabled: true
             }
           };
           console.log(`[WAHA Service] Enabling WEBJS store in session create (enabled=true)`);
@@ -565,13 +580,31 @@ class WAHAService extends EventEmitter {
           // Fallback path (supported by some WAHA versions): create+start in one call
           const fallbackPayload: any = { name: sessionName, start: true };
           if (engine) fallbackPayload.engine = engine;
+          
+          // Initialize config object for fallback
+          if (!fallbackPayload.config) {
+            fallbackPayload.config = {};
+          }
+          
+          // Add webhook configuration to fallback
+          fallbackPayload.config.webhooks = [
+            {
+              url: fullWebhookUrl,
+              events: ['session.status', 'message'],
+              hmac: null,
+              retries: {
+                delaySeconds: 2,
+                attempts: 15
+              }
+            }
+          ];
+          console.log(`[WAHA Service] 🔗 Adding webhook configuration to fallback session: ${fullWebhookUrl}`);
+          
           if (engine && engine.toUpperCase() === 'NOWEB' && nowebStoreEnabledEnv) {
-            fallbackPayload.config = {
-              noweb: {
-                store: {
-                  enabled: true,
-                  fullSync: nowebFullSyncEnv
-                }
+            fallbackPayload.config.noweb = {
+              store: {
+                enabled: true,
+                fullSync: nowebFullSyncEnv
               }
             };
           }
@@ -661,37 +694,7 @@ class WAHAService extends EventEmitter {
         if (!startSuccess) {
           console.error(`[WAHA Service] ❌ Failed to start session after ${maxAttempts} attempts`);
         } else {
-          // After successful start, add webhooks
-          try {
-            console.log(`[WAHA Service] 🔗 Adding webhooks to session '${sessionName}'...`);
-            // Try primary config endpoint, then legacy
-            const configPayload = {
-              webhooks: [
-                {
-                  url: fullWebhookUrl,
-                  events: ['session.status', 'message'],
-                  hmac: null,
-                  retries: {
-                    delaySeconds: 2,
-                    attempts: 15
-                  }
-                }
-              ]
-            } as any;
-            try {
-              await this.httpClient.post(`/api/sessions/${sessionName}/config`, configPayload);
-            } catch (configErr: any) {
-              if (configErr?.response?.status === 404) {
-                console.warn(`[WAHA Service] Config 404 on /api/sessions/${sessionName}/config. Trying legacy /api/${sessionName}/config...`);
-                await this.httpClient.post(`/api/${sessionName}/config`, configPayload);
-              } else {
-                throw configErr;
-              }
-            }
-            console.log(`[WAHA Service] ✅ Webhooks added successfully`);
-          } catch (webhookError) {
-            console.error(`[WAHA Service] ⚠️ Failed to add webhooks (non-critical):`, webhookError);
-          }
+          console.log(`[WAHA Service] ✅ Webhooks configured during session creation - no need to add separately`);
         }
       }
       
