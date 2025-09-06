@@ -396,7 +396,7 @@ export class WhatsAppSummarizationService {
     const topSenderNames = topSenders.map(s => s.senderName).join(', ');
     
     // Media analysis
-    const totalMedia = Object.values(messageTypes).reduce((sum: number, count: number) => sum + count, 0) - messageTypes.text;
+    const totalMedia = Object.values(messageTypes).reduce((sum: number, count: any) => sum + (Number(count) || 0), 0) - (Number(messageTypes.text) || 0);
     const mediaPercentage = totalMessages > 0 ? Math.round((totalMedia / totalMessages) * 100) : 0;
     
     // Keywords summary
