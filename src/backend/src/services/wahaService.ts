@@ -2587,7 +2587,7 @@ class WAHAService extends EventEmitter {
         
         try {
           // Get recent messages from this group
-          const messages = await this.getMessages(sessionName, chat.id, { limit: 10 });
+          const messages = await this.getMessages(chat.id, 10, sessionName);
           
           for (const message of messages) {
             // Only process messages newer than our last poll
@@ -2601,8 +2601,8 @@ class WAHAService extends EventEmitter {
                 body: message.body,
                 timestamp: messageTimestamp,
                 isGroup: true,
-                isMedia: message.hasMedia || false,
-                mediaUrl: message.hasMedia ? message.body : undefined
+                isMedia: message.isMedia || false,
+                mediaUrl: message.isMedia ? message.body : undefined
               });
             }
           }
