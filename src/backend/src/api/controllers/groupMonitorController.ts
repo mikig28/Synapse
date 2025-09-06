@@ -575,7 +575,7 @@ class GroupMonitorController {
     try {
       const { messageId, groupId, senderId, senderName, imageUrl, caption } = req.body;
 
-      if (!messageId || !groupId || !senderId || !imageUrl) {
+      if (!messageId || !groupId || !senderId) {
         res.status(400).json({
           success: false,
           error: 'Missing required message data'
@@ -583,8 +583,8 @@ class GroupMonitorController {
         return;
       }
 
-      // Process the image in the background
-      this.groupMonitorService.processImageMessage(
+      // Process the message in the background
+      this.groupMonitorService.processGroupMessage(
         messageId,
         groupId,
         senderId,
@@ -592,7 +592,7 @@ class GroupMonitorController {
         imageUrl,
         caption
       ).catch(error => {
-        console.error('Background image processing failed:', error);
+        console.error('Background message processing failed:', error);
       });
 
       res.json({
