@@ -168,7 +168,7 @@ TWITTER_API_KEY=your_key          # For Twitter/X integration
 
 # WhatsApp Integration (WAHA Service)
 WAHA_API_KEY=your_waha_api_key    # Required for WAHA service authentication
-WAHA_SERVICE_URL=https://synapse-waha.onrender.com  # WAHA service endpoint
+WAHA_SERVICE_URL=https://waha-synapse-production.up.railway.app  # WAHA service endpoint
 
 # Engine Configuration (choose ONE based on your needs)
 # Option 1: NOWEB (read-only, lightweight, free tier)

@@ -99,7 +99,7 @@ class WAHAService extends EventEmitter {
   private constructor() {
     super();
     
-    this.wahaBaseUrl = process.env.WAHA_SERVICE_URL || 'https://synapse-waha.onrender.com';
+    this.wahaBaseUrl = process.env.WAHA_SERVICE_URL || 'https://waha-synapse-production.up.railway.app';
     // Normalize base URL: ensure scheme and no trailing slash
     try {
       let normalized = (this.wahaBaseUrl || '').trim();
@@ -108,10 +108,10 @@ class WAHAService extends EventEmitter {
       }
       // Remove trailing slashes to avoid double slashes in requests
       normalized = normalized.replace(/\/+$|\/$/g, '');
-      this.wahaBaseUrl = normalized || 'https://synapse-waha.onrender.com';
+      this.wahaBaseUrl = normalized || 'https://waha-synapse-production.up.railway.app';
     } catch (e) {
       console.error('[WAHA Service] ⚠️ Invalid WAHA_SERVICE_URL, falling back to default:', e);
-      this.wahaBaseUrl = 'https://synapse-waha.onrender.com';
+      this.wahaBaseUrl = 'https://waha-synapse-production.up.railway.app';
     }
     
     // Get WAHA API key from environment variables

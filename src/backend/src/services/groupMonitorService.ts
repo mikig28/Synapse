@@ -2,6 +2,7 @@ import GroupMonitor, { IGroupMonitor } from '../models/GroupMonitor';
 import FilteredImage, { IFilteredImage } from '../models/FilteredImage';
 import PersonProfile from '../models/PersonProfile';
 import WAHAService from './wahaService';
+import WhatsAppBaileysService from './whatsappBaileysService';
 import axios from 'axios';
 import mongoose, { Types } from 'mongoose';
 
