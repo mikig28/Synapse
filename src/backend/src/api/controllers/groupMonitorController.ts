@@ -1,17 +1,24 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
+import { z } from 'zod';
 import PersonProfileService from '../../services/personProfileService';
 import GroupMonitorService from '../../services/groupMonitorService';
 import FilteredImage from '../../models/FilteredImage';
 import { AuthRequest } from '../../types/express';
 
-interface WhatsAppMessageWebhookBody {
-  messageId: string;
-  groupId: string;
-  senderId: string;
-  senderName?: string;
-  imageUrl?: string;
-  caption?: string;
-}
+const WhatsAppMessageSchema = z.object({
+  messageId: z.string().min(1).max(128),
+  groupId: z.string().min(1).max(128),
+  senderId: z.string().min(1).max(128),
+  senderName: z.string().trim().optional(),
+  imageUrl: z
+    .string()
+    .url()
+    .refine(u => /^https?:\/\//i.test(u), 'Only http(s) allowed')
+    .optional(),
+  caption: z.string().max(2048).optional()
+});
+type WhatsAppMessageWebhookBody = z.infer<typeof WhatsAppMessageSchema>;
 
 class GroupMonitorController {
   private personProfileService: PersonProfileService;
@@ -20,6 +27,13 @@ class GroupMonitorController {
   constructor() {
     this.personProfileService = new PersonProfileService();
     this.groupMonitorService = new GroupMonitorService();
+  }
+
+  private timingSafeEqual(a: string, b: string): boolean {
+    const ab = Buffer.from(a);
+    const bb = Buffer.from(b);
+    if (ab.length !== bb.length) return false;
+    return crypto.timingSafeEqual(ab, bb);
   }
 
   // Person Profile endpoints
@@ -580,55 +594,38 @@ class GroupMonitorController {
   }
 
   // Webhook for processing WhatsApp messages
-  async processWhatsAppMessage(req: Request, res: Response): Promise<void> {
+  async processWhatsAppMessage(
+    req: Request<unknown, { success: boolean; message?: string; error?: string; details?: unknown }, WhatsAppMessageWebhookBody>,
+    res: Response<{ success: boolean; message?: string; error?: string; details?: unknown }>
+  ): Promise<void> {
     try {
-      // Authenticate webhook
-      const secret = req.header('x-webhook-secret');
-      if (
-        process.env.GROUP_MONITOR_WEBHOOK_SECRET &&
-        secret !== process.env.GROUP_MONITOR_WEBHOOK_SECRET
-      ) {
+      const secret = req.header('x-webhook-secret') ?? '';
+      const expected = process.env.GROUP_MONITOR_WEBHOOK_SECRET;
+      if (expected && !this.timingSafeEqual(secret, expected)) {
         res.status(401).json({ success: false, error: 'Unauthorized webhook' });
         return;
       }
 
-      // Narrow req.body to unknown fields for runtime validation
-      const {
-        messageId,
-        groupId,
-        senderId,
-        senderName,
-        imageUrl,
-        caption
-      } = req.body as Partial<WhatsAppMessageWebhookBody> & Record<string, unknown>;
-
-      // Validate required string fields
-      const required = [messageId, groupId, senderId].every(
-        v => typeof v === 'string' && v.trim().length > 0
-      );
-      if (!required) {
-        res.status(400).json({
-          success: false,
-          error: 'Missing required message data'
-        });
+      const parsed = WhatsAppMessageSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ success: false, error: 'Invalid payload', details: parsed.error.issues });
         return;
       }
+      const { messageId, groupId, senderId, senderName, imageUrl, caption } = parsed.data;
 
-      // Process the message in the background
       void this.groupMonitorService
         .processGroupMessage(
-          messageId as string,
-          groupId as string,
-          senderId as string,
-          (typeof senderName === 'string' && senderName.trim()) ? senderName : 'Unknown',
-          typeof imageUrl === 'string' ? imageUrl : undefined,
-          typeof caption === 'string' ? caption : undefined
+          messageId,
+          groupId,
+          senderId,
+          senderName?.trim() || 'Unknown',
+          imageUrl,
+          caption
         )
         .catch(error => {
           console.error('Background message processing failed:', error);
         });
 
-      // Return 202 Accepted since work runs asynchronously
       res.status(202).json({
         success: true,
         message: 'Message processing initiated'

@@ -246,9 +246,8 @@ class GroupMonitorService {
           await monitor.incrementStats('messages');
 
           if (imageUrl) {
-            // Basic URL-scheme allowlist to reduce SSRF risk
-            if (!/^https?:\/\//i.test(imageUrl)) {
-              console.warn('Skipping non-http(s) image URL for monitor', monitor._id.toString());
+            if (!this.isSafeHttpUrl(imageUrl)) {
+              console.warn('Skipping unsafe image URL for monitor', monitor._id.toString());
               return;
             }
             await monitor.incrementStats('images');
@@ -266,7 +265,7 @@ class GroupMonitorService {
         }
       });
 
-      const pool = 3;
+      const pool = Number(process.env.GROUP_MONITOR_CONCURRENCY ?? '3') || 3;
       for (let i = 0; i < tasks.length; i += pool) {
         await Promise.all(
           tasks.slice(i, i + pool).map(t => t().catch(err => console.error('monitor task failed', err)))
@@ -274,6 +273,17 @@ class GroupMonitorService {
       }
     } catch (error) {
       console.error('Error processing group message:', error);
+    }
+  }
+
+  private isSafeHttpUrl(urlStr: string): boolean {
+    try {
+      const u = new URL(urlStr.trim());
+      if (!['http:', 'https:'].includes(u.protocol)) return false;
+      const blocked = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
+      return !blocked.has(u.hostname.toLowerCase());
+    } catch {
+      return false;
     }
   }
 

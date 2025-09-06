@@ -3,7 +3,7 @@
  * Replaces the complex WhatsAppBaileysService with simple HTTP calls to WAHA microservice
  */
 
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
 import { EventEmitter } from 'events';
 
 export interface WAHAMessage {
@@ -37,6 +37,15 @@ export interface WAHAChat {
     messagesAdminOnly?: boolean;
     infoAdminOnly?: boolean;
   };
+}
+
+interface WAHAMonitoringStats {
+  messagesCount: number;
+  imagesCount: number;
+  groupsCount: number;
+  privateChatsCount: number;
+  lastActivity: string;
+  timestamp: number;
 }
 
 export interface WAHAStatus {
@@ -141,8 +150,8 @@ class WAHAService extends EventEmitter {
     // Get WAHA API key from environment variables
     const wahaApiKey = process.env.WAHA_API_KEY;
     
-    const headers: any = {
-      'Content-Type': 'application/json',
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
     };
     
     // Add API key authentication if provided
@@ -160,17 +169,17 @@ class WAHAService extends EventEmitter {
     });
 
     // Setup request interceptors for logging
-    this.httpClient.interceptors.request.use((config: any) => {
+    this.httpClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
       console.log(`[WAHA API] ${config.method?.toUpperCase()} ${config.url}`);
       return config;
     });
 
     this.httpClient.interceptors.response.use(
-      (response: any) => {
+      (response: AxiosResponse) => {
         console.log(`[WAHA API] ✅ ${response.status} ${response.config.url}`);
         return response;
       },
-      (error: any) => {
+      (error: AxiosError) => {
         console.error(`[WAHA API] ❌ ${error.response?.status || 'NETWORK_ERROR'} ${error.config?.url}:`, error.message);
         return Promise.reject(error);
       }
@@ -187,7 +196,7 @@ class WAHAService extends EventEmitter {
    * Handles objects like { _serialized }, { id }, or { user, server }.
    * Returns null for invalid values (including the literal "[object Object]").
    */
-  private extractJidFromAny(rawId: any): string | null {
+  private extractJidFromAny(rawId: unknown): string | null {
     try {
       if (!rawId) return null;
       if (typeof rawId === 'string') {
@@ -195,19 +204,20 @@ class WAHAService extends EventEmitter {
         if (!trimmed || trimmed === '[object Object]' || trimmed.includes('[object')) return null;
         return trimmed;
       }
-      if (typeof rawId === 'object') {
-        if (typeof (rawId as any)._serialized === 'string') {
-          const v = String((rawId as any)._serialized).trim();
+      if (typeof rawId === 'object' && rawId !== null) {
+        const obj = rawId as Record<string, unknown>;
+        if (typeof obj._serialized === 'string') {
+          const v = String(obj._serialized).trim();
           return v && v !== '[object Object]' && !v.includes('[object') ? v : null;
         }
-        if (typeof (rawId as any).id === 'string') {
-          const v = String((rawId as any).id).trim();
+        if (typeof obj.id === 'string') {
+          const v = String(obj.id).trim();
           return v && v !== '[object Object]' && !v.includes('[object') ? v : null;
         }
-        if (typeof (rawId as any).user === 'string' && typeof (rawId as any).server === 'string') {
-          return `${(rawId as any).user}@${(rawId as any).server}`;
+        if (typeof obj.user === 'string' && typeof obj.server === 'string') {
+          return `${obj.user}@${obj.server}`;
         }
-        const stringified = String(rawId).trim();
+        const stringified = String(rawId as object).trim();
         if (!stringified || stringified === '[object Object]' || stringified.includes('[object')) return null;
         return stringified;
       }
@@ -580,7 +590,9 @@ class WAHAService extends EventEmitter {
           // Create session (minimal payload; webhooks added after successful start)
           const response = await this.httpClient.post('/api/sessions', createPayload);
           console.log(`[WAHA Service] ✅ Session creation response:`, response.status);
-          console.log(`[WAHA Service] 📋 Full response data:`, JSON.stringify(response.data, null, 2));
+          if (process.env.DEBUG === 'true') {
+            console.log(`[WAHA Service] 📋 Full response data:`, JSON.stringify(response.data, null, 2));
+          }
           sessionData = response.data;
           sessionExists = true;
         } catch (createErr: any) {
@@ -1939,7 +1951,6 @@ class WAHAService extends EventEmitter {
             console.error('[WAHA Service] processMessageForGroupMonitoring error:', err)
           );
           setImmediate(() => {
-            this.processImageMessage(messagePayload);
             this.updateMonitoringStats(messagePayload);
           });
           break;
@@ -2057,11 +2068,14 @@ class WAHAService extends EventEmitter {
       });
 
       const baseUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+      const secret = process.env.GROUP_MONITOR_WEBHOOK_SECRET;
+      if (!secret) {
+        console.warn('[WAHA Service] GROUP_MONITOR_WEBHOOK_SECRET not set; skipping group-monitor forward to avoid 403 spam');
+        return;
+      }
       axios.post(`${baseUrl}/api/v1/group-monitor/webhook/whatsapp-message`, payload, {
         timeout: 5000,
-        headers: {
-          'X-Webhook-Secret': process.env.GROUP_MONITOR_WEBHOOK_SECRET || ''
-        }
+        headers: { 'X-Webhook-Secret': secret }
       }).catch((error: unknown) => {
         const msg = error instanceof Error ? error.message : String(error);
         console.error('[WAHA Service] ❌ Failed to send message to group monitor:', msg);
@@ -2072,64 +2086,6 @@ class WAHAService extends EventEmitter {
     }
   }
 
-  /**
-   * Process image messages for frontend extraction functionality
-   */
-  private processImageMessage(messageData: any): void {
-    try {
-      // Check if message contains media (image, document, etc.)
-      if (!messageData.isMedia || !messageData.type) {
-        return;
-      }
-
-      // Check if it's an image type
-      const isImage = messageData.type === 'image' || 
-                     messageData.mimeType?.startsWith('image/') ||
-                     (messageData.mediaUrl && messageData.mediaUrl.includes('image'));
-
-      if (!isImage) {
-        return;
-      }
-
-      console.log('[WAHA Service] Processing image message for extraction:', {
-        messageId: messageData.id,
-        chatId: messageData.chatId,
-        isGroup: messageData.isGroup,
-        from: messageData.from,
-        type: messageData.type,
-        mimeType: messageData.mimeType
-      });
-
-      // Prepare image metadata for frontend
-      const imageMessageData = {
-        messageId: messageData.id,
-        chatId: messageData.chatId,
-        chatName: messageData.isGroup ? messageData.groupName : messageData.contactName,
-        senderId: messageData.from,
-        senderName: messageData.contactName || messageData.from,
-        caption: messageData.body || null,
-        isGroup: Boolean(messageData.isGroup),
-        timestamp: messageData.timestamp || Date.now(),
-        mimeType: messageData.mimeType || 'image/jpeg',
-        // Note: We don't include mediaUrl since WAHA Core doesn't provide download URLs
-        hasMedia: true,
-        extractable: true // Indicates this image can be extracted on-demand
-      };
-
-      // Emit to Socket.IO for real-time frontend updates
-      const io_instance = (global as any).io;
-      if (io_instance) {
-        console.log('[WAHA Service] Broadcasting image message to frontend via Socket.IO');
-        io_instance.emit('whatsapp:image-message', imageMessageData);
-      }
-
-      // Also emit as a general event for other listeners
-      this.emit('image-message', imageMessageData);
-
-    } catch (error) {
-      console.error('[WAHA Service] ❌ Error processing image message:', error);
-    }
-  }
 
   /**
    * Request phone authentication code (using WAHA API - may not be available in all engines)
@@ -2451,10 +2407,10 @@ class WAHAService extends EventEmitter {
   /**
    * Update global monitoring statistics
    */
-  private updateMonitoringStats(messageData: any): void {
+  private updateMonitoringStats(messageData: WAHAWebhookMessagePayload): void {
     try {
-      // Initialize or update global monitoring stats
-      let stats = (global as any).wahaMonitoringStats || {
+      const g = global as { wahaMonitoringStats?: WAHAMonitoringStats; io?: { emit: (event: string, data: unknown) => void } };
+      let stats: WAHAMonitoringStats = g.wahaMonitoringStats || {
         messagesCount: 0,
         imagesCount: 0,
         groupsCount: 0,
@@ -2462,34 +2418,29 @@ class WAHAService extends EventEmitter {
         lastActivity: new Date().toISOString(),
         timestamp: Date.now()
       };
-      
-      // Increment message count
+
       stats.messagesCount += 1;
-      
-      // Check if it's an image message
-      if (messageData.isMedia && messageData.type === 'image') {
+
+      if (messageData.isMedia && (messageData.type === 'image' || messageData.mimeType?.startsWith('image/'))) {
         stats.imagesCount += 1;
         console.log(`[WAHA Service] 📊 Image count updated: ${stats.imagesCount}`);
       }
-      
-      // Update last activity
+
       stats.lastActivity = new Date().toISOString();
       stats.timestamp = Date.now();
-      
-      // Store globally
-      (global as any).wahaMonitoringStats = stats;
-      
-      // Emit monitoring stats via Socket.IO for real-time updates
-      const io_instance = (global as any).io;
-      if (io_instance) {
-        io_instance.emit('whatsapp:monitoring-stats', {
+
+      g.wahaMonitoringStats = stats;
+
+      const ioInstance = g.io;
+      if (ioInstance) {
+        ioInstance.emit('whatsapp:monitoring-stats', {
           totalMessages: stats.messagesCount,
           totalImages: stats.imagesCount,
           active: true,
           lastActivity: stats.lastActivity
         });
       }
-      
+
     } catch (error) {
       console.error('[WAHA Service] Error updating monitoring stats:', error);
     }
