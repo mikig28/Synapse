@@ -1900,8 +1900,8 @@ class WAHAService extends EventEmitter {
       switch (eventType) {
         case 'message':
           this.emit('message', eventData);
-          // Process image messages for group monitoring
-          this.processImageForGroupMonitoring(eventData);
+          // Forward message data for group monitoring
+          this.processMessageForGroupMonitoring(eventData);
           // Emit image message event for frontend image extraction
           this.processImageMessage(eventData);
           // Update monitoring statistics
@@ -1970,45 +1970,41 @@ class WAHAService extends EventEmitter {
   }
 
   /**
-   * Process image messages for group monitoring
+   * Forward messages to group monitor service
    */
-  private async processImageForGroupMonitoring(messageData: any): Promise<void> {
+  private async processMessageForGroupMonitoring(messageData: any): Promise<void> {
     try {
-      // Check if message is an image and from a group
-      if (!messageData.isMedia || 
-          messageData.type !== 'image' || 
-          !messageData.isGroup ||
-          !messageData.mediaUrl) {
+      // Only process group messages
+      if (!messageData.isGroup) {
         return;
       }
 
-      console.log('[WAHA Service] Processing image for group monitoring:', {
-        messageId: messageData.id,
-        groupId: messageData.chatId,
-        groupName: messageData.groupName,
-        from: messageData.from,
-        mediaUrl: messageData.mediaUrl
-      });
-
-      // Send to group monitor webhook (fire and forget)
-      const axios = require('axios');
-      const baseUrl = process.env.FRONTEND_URL || 'https://synapse-backend-7lq6.onrender.com';
-      
-      axios.post(`${baseUrl}/api/v1/group-monitor/webhook/whatsapp-message`, {
+      const payload: any = {
         messageId: messageData.id,
         groupId: messageData.chatId,
         senderId: messageData.from,
         senderName: messageData.contactName || messageData.from,
-        imageUrl: messageData.mediaUrl,
         caption: messageData.body
-      }, {
+      };
+
+      if (messageData.isMedia && messageData.type === 'image' && messageData.mediaUrl) {
+        payload.imageUrl = messageData.mediaUrl;
+      }
+
+      console.log('[WAHA Service] Forwarding message for group monitoring:', payload);
+
+      // Send to group monitor webhook (fire and forget)
+      const axios = require('axios');
+      const baseUrl = process.env.FRONTEND_URL || 'https://synapse-backend-7lq6.onrender.com';
+
+      axios.post(`${baseUrl}/api/v1/group-monitor/webhook/whatsapp-message`, payload, {
         timeout: 5000
       }).catch((error: any) => {
-        console.error('[WAHA Service] ❌ Failed to send image to group monitor:', error.message);
+        console.error('[WAHA Service] ❌ Failed to send message to group monitor:', error.message);
       });
 
     } catch (error) {
-      console.error('[WAHA Service] ❌ Error processing image for group monitoring:', error);
+      console.error('[WAHA Service] ❌ Error processing message for group monitoring:', error);
     }
   }
 
