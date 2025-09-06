@@ -112,34 +112,34 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="w-full max-w-4xl max-h-[90vh] sm:max-h-[95vh] overflow-hidden mx-2 sm:mx-4 my-2 sm:my-4">
-        <DialogHeader className="flex-shrink-0 pb-4">
+      <DialogContent className="w-full max-w-[95vw] sm:max-w-2xl max-h-[85vh] grid grid-rows-[auto,1fr,auto] overflow-hidden mx-2 sm:mx-4 my-2 sm:my-4">
+        <DialogHeader className="pb-2">
           <DialogTitle>Add Telegram Channel</DialogTitle>
           <DialogDescription>
             Add a public Telegram channel or group to monitor for new messages.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Bot Status Warning */}
-        {!botStatus?.hasBot && (
-          <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4 flex-shrink-0">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-medium text-amber-800 dark:text-amber-200 mb-1">
-                  Bot Configuration Required
-                </h4>
-                <p className="text-sm text-amber-700 dark:text-amber-300">
-                  You'll need to configure your Telegram bot first before you can add channels. 
-                  After filling out this form, you'll be guided through the bot setup process.
-                </p>
+        {/* Scrollable Content */}
+        <div className="overflow-y-auto pr-2 space-y-4">
+          {/* Bot Status Warning */}
+          {!botStatus?.hasBot && (
+            <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-medium text-amber-800 dark:text-amber-200 mb-1">
+                    Bot Configuration Required
+                  </h4>
+                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                    You'll need to configure your Telegram bot first before you can add channels. 
+                    After filling out this form, you'll be guided through the bot setup process.
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <div className="flex flex-col min-h-0 flex-1">
-        <div className="flex-1 overflow-y-auto pr-2 space-y-4">
           <div className="space-y-2">
             <Label htmlFor="channelIdentifier" className="flex items-center gap-2">
               Channel Identifier
@@ -315,7 +315,7 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
           )}
         </div>
 
-        <DialogFooter className="flex-shrink-0 border-t pt-4 mt-4">
+        <DialogFooter className="border-t pt-4 mt-2">
           <div className="flex gap-2 w-full flex-col sm:flex-row">
             <AnimatedButton
               type="button"
@@ -335,7 +335,6 @@ const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClose, onAd
             </AnimatedButton>
           </div>
         </DialogFooter>
-        </div>
       </DialogContent>
     </Dialog>
   );
