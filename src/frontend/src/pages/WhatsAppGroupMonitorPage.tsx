@@ -758,7 +758,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
         </motion.div>
 
         {/* Navigation Tabs */}
-        <div className="flex gap-4 mb-6">
+        <div className="flex flex-wrap gap-4 mb-6 w-full overflow-x-auto">
           <Button
             onClick={() => setSelectedView('persons')}
             variant={selectedView === 'persons' ? 'default' : 'outline'}
@@ -1127,7 +1127,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                         
                         {/* Summary Actions */}
                         <div className="space-y-3">
-                          <div className="flex gap-2">
+                          <div className="flex flex-col sm:flex-row gap-2">
                             <Button
                               onClick={() => generateTodaySummary(group.id)}
                               disabled={isLoading}
