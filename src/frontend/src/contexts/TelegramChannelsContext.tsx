@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
-import axiosInstance from '@/services/axiosConfig';
+import axiosInstance, { BACKEND_ROOT_URL } from '@/services/axiosConfig';
 import useAuthStore from '@/store/authStore';
 import { useToast } from '@/hooks/use-toast';
 
@@ -48,10 +48,10 @@ interface TelegramChannelsContextType {
 
 const TelegramChannelsContext = createContext<TelegramChannelsContextType | undefined>(undefined);
 
-// Use Vite environment variable for deployed URL, fallback to localhost for local dev
+// Socket server should match the backend root URL by default.
+// Allow override via VITE_SOCKET_IO_URL when needed (e.g., staging).
 const SOCKET_SERVER_URL =
-  import.meta.env.VITE_SOCKET_IO_URL ||
-  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001');
+  import.meta.env.VITE_SOCKET_IO_URL || BACKEND_ROOT_URL;
 
 export const TelegramChannelsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [channels, setChannels] = useState<TelegramChannel[]>([]);
@@ -198,7 +198,14 @@ export const TelegramChannelsProvider: React.FC<{ children: ReactNode }> = ({ ch
           title: "Success",
           description: "Channel added successfully",
         });
-        // Note: Real-time update will be handled by socket event
+        // Optimistically update local state with the newly created channel
+        if (response.data.data) {
+          setChannels(prev => [response.data.data, ...prev]);
+        } else {
+          // Fallback: fetch channels in case server doesn't return the entity
+          fetchChannels();
+        }
+        // Also rely on real-time updates when available
         return;
       }
     } catch (error: any) {
