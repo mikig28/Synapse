@@ -23,27 +23,40 @@ class TelegramChannelService {
     try {
       console.log(`[TelegramChannelService] Adding channel: ${channelIdentifier} for user: ${userId}`);
 
-      // Validate channel exists and get info
-      const channelInfo = await this.getChannelInfo(channelIdentifier, userId);
+      // First, try to resolve channel info via Bot API
+      let channelInfo: any | null = null;
+      try {
+        channelInfo = await this.getChannelInfo(channelIdentifier, userId);
+      } catch (infoErr) {
+        console.warn(`[TelegramChannelService] getChannelInfo failed for ${channelIdentifier}:`, (infoErr as Error).message);
+        // Fallback: if it's a public channel by @username, allow adding without immediate bot access
+        if (!channelIdentifier.startsWith('@')) {
+          // For non-@ identifiers, we must have a resolvable chat
+          throw infoErr;
+        }
+      }
       
-      // Check if channel already exists for this user
+      // Determine a unique channelId key we will store
+      const resolvedChannelId = channelInfo?.id ? channelInfo.id.toString() : channelIdentifier; // use @username fallback
+
+      // Check if channel already exists for this user (by either numeric id or @username)
       const existingChannel = await TelegramChannel.findOne({
         userId: new mongoose.Types.ObjectId(userId),
-        channelId: channelInfo.id.toString()
+        channelId: resolvedChannelId
       });
 
       if (existingChannel) {
         throw new Error('Channel is already being monitored');
       }
 
-      // Create new channel record
+      // Create new channel record (fill what we know)
       const newChannel = new TelegramChannel({
         userId: new mongoose.Types.ObjectId(userId),
-        channelId: channelInfo.id.toString(),
-        channelTitle: channelInfo.title,
-        channelUsername: channelInfo.username,
-        channelDescription: channelInfo.description,
-        channelType: this.getChannelType(channelInfo.type),
+        channelId: resolvedChannelId,
+        channelTitle: channelInfo?.title || (channelIdentifier.startsWith('@') ? channelIdentifier.slice(1) : resolvedChannelId),
+        channelUsername: channelInfo?.username || (channelIdentifier.startsWith('@') ? channelIdentifier.slice(1) : undefined),
+        channelDescription: channelInfo?.description,
+        channelType: this.getChannelType(channelInfo?.type || (channelIdentifier.startsWith('@') ? 'channel' : 'group')),
         keywords: keywords || [],
         messages: [],
         isActive: true,
@@ -51,18 +64,24 @@ class TelegramChannelService {
       });
 
       await newChannel.save();
-      console.log(`[TelegramChannelService] ✅ Channel added: ${channelInfo.title}`);
+      console.log(`[TelegramChannelService] ✅ Channel added: ${newChannel.channelTitle}`);
 
-      // Fetch initial messages
-      await this.fetchChannelMessages(newChannel._id.toString());
-
-      // Emit real-time update
+      // Emit real-time update IMMEDIATELY so UI reflects the new channel without waiting
       if (io) {
         io.emit('new_telegram_channel', {
           userId,
           channel: newChannel.toObject()
         });
       }
+
+      // Fetch initial messages in the background (non-blocking)
+      // This avoids long waits/timeouts on the addChannel API
+      this.fetchChannelMessages(newChannel._id.toString())
+        .catch((err) => {
+          const msg = (err as Error).message;
+          // Log concise error; detailed logging is handled inside fetchChannelMessages
+          console.error(`[TelegramChannelService] Background fetch failed for ${newChannel.channelTitle}: ${msg}`);
+        });
 
       return newChannel;
     } catch (error) {
@@ -381,12 +400,44 @@ class TelegramChannelService {
         const errorMessage = this.getPermissionErrorMessage(channelId, (accessError as Error).message);
         await this.markChannelWithError(channelId, userId, errorMessage);
         
-        throw new Error(errorMessage);
+        // Attempt RSS fallback for public channels even when bot cannot access
+        if (channelId.startsWith('@')) {
+          try {
+            const rssMessages = await this.tryRSSFeed(channelId);
+            if (rssMessages.length > 0) {
+              // Append RSS messages to channel
+              const channelDoc = await TelegramChannel.findOne({ channelId, userId: new mongoose.Types.ObjectId(userId) });
+              if (channelDoc) {
+                const newMessages = rssMessages.filter(msg => !channelDoc.messages.find(existing => existing.messageId === msg.messageId));
+                if (newMessages.length > 0) {
+                  channelDoc.messages.push(...newMessages);
+                  channelDoc.totalMessages += newMessages.length;
+                  channelDoc.lastFetchedAt = new Date();
+                  await channelDoc.save();
+
+                  // Emit real-time updates for new messages
+                  if (io) {
+                    io.emit('new_telegram_channel_messages', {
+                      userId: userId,
+                      channelId: channelDoc._id.toString(),
+                      messages: newMessages
+                    });
+                  }
+                }
+              }
+            }
+          } catch (rssErr) {
+            console.error(`[TelegramChannelService] RSS fallback failed after access error for ${channelId}:`, rssErr);
+          }
+        }
+        
+        // Return empty array so callers can continue gracefully without failing the add flow
+        return [];
       }
       
     } catch (error) {
       console.error(`[TelegramChannelService] Error in getRecentChannelMessages:`, error);
-      throw error;
+      return [];
     }
   }
 
