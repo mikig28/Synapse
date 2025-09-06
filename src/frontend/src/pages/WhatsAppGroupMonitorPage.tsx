@@ -350,8 +350,15 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   };
 
   const createGroupMonitor = async () => {
+    // Derive group name from selected group if it's missing
+    const selectedGroup = whatsAppGroups.find(g => String(g.id) === String(monitorForm.groupId));
+    const payload = {
+      ...monitorForm,
+      groupName: monitorForm.groupName || selectedGroup?.name || '',
+    };
+
     // Enhanced validation with specific error messages
-    if (!monitorForm.groupId) {
+    if (!payload.groupId) {
       toast({
         title: "Validation Error",
         description: "Please select a WhatsApp group",
@@ -360,7 +367,7 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
       return;
     }
 
-    if (!monitorForm.groupName) {
+    if (!payload.groupName) {
       toast({
         title: "Validation Error",
         description: "Group name is missing. Please reselect the group",
@@ -369,7 +376,7 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
       return;
     }
 
-    if (monitorForm.targetPersons.length === 0) {
+    if (payload.targetPersons.length === 0) {
       toast({
         title: "Validation Error",
         description: "Please select at least one person to monitor",
@@ -379,10 +386,10 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
     }
 
     try {
-      console.log('Creating group monitor with data:', monitorForm);
-      const response = await api.post('/group-monitor/monitors', monitorForm);
+      console.log('Creating group monitor with data:', payload);
+      const response = await api.post('/group-monitor/monitors', payload);
       if (response.data.success) {
-        setGroupMonitors([...groupMonitors, response.data.data]);
+        setGroupMonitors(prev => [...prev, response.data.data]);
         setMonitorForm({
           groupId: '',
           groupName: '',
@@ -403,10 +410,10 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error creating group monitor:', error);
-      console.error('Request data was:', monitorForm);
-      
+      console.error('Request data was:', payload);
+
       const errorMessage = error.response?.data?.error || error.message || "Failed to create group monitor";
-      
+
       toast({
         title: "Error",
         description: errorMessage,
@@ -758,49 +765,49 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
         </motion.div>
 
         {/* Navigation Tabs */}
-        <div className="flex gap-4 mb-6">
+        <div className="grid grid-cols-2 gap-4 mb-6 w-full sm:flex sm:flex-wrap sm:overflow-x-auto">
           <Button
             onClick={() => setSelectedView('persons')}
             variant={selectedView === 'persons' ? 'default' : 'outline'}
-            className={selectedView === 'persons' 
-              ? 'bg-violet-500 hover:bg-violet-600' 
-              : 'border-white/30 text-white hover:bg-white/10'
+            className={selectedView === 'persons'
+              ? 'w-full sm:w-auto bg-violet-500 hover:bg-violet-600'
+              : 'w-full sm:w-auto border-white/30 text-white hover:bg-white/10'
             }
           >
             <UserPlus className="w-4 h-4 mr-2" />
             Person Profiles
           </Button>
-          
+
           <Button
             onClick={() => setSelectedView('monitors')}
             variant={selectedView === 'monitors' ? 'default' : 'outline'}
-            className={selectedView === 'monitors' 
-              ? 'bg-violet-500 hover:bg-violet-600' 
-              : 'border-white/30 text-white hover:bg-white/10'
+            className={selectedView === 'monitors'
+              ? 'w-full sm:w-auto bg-violet-500 hover:bg-violet-600'
+              : 'w-full sm:w-auto border-white/30 text-white hover:bg-white/10'
             }
           >
             <Eye className="w-4 h-4 mr-2" />
             Group Monitors
           </Button>
-          
+
           <Button
             onClick={() => setSelectedView('summaries')}
             variant={selectedView === 'summaries' ? 'default' : 'outline'}
-            className={selectedView === 'summaries' 
-              ? 'bg-violet-500 hover:bg-violet-600' 
-              : 'border-white/30 text-white hover:bg-white/10'
+            className={selectedView === 'summaries'
+              ? 'w-full sm:w-auto bg-violet-500 hover:bg-violet-600'
+              : 'w-full sm:w-auto border-white/30 text-white hover:bg-white/10'
             }
           >
             <FileText className="w-4 h-4 mr-2" />
             Daily Summaries
           </Button>
-          
+
           <Button
             onClick={() => setSelectedView('images')}
             variant={selectedView === 'images' ? 'default' : 'outline'}
-            className={selectedView === 'images' 
-              ? 'bg-violet-500 hover:bg-violet-600' 
-              : 'border-white/30 text-white hover:bg-white/10'
+            className={selectedView === 'images'
+              ? 'w-full sm:w-auto bg-violet-500 hover:bg-violet-600'
+              : 'w-full sm:w-auto border-white/30 text-white hover:bg-white/10'
             }
           >
             <ImageIcon className="w-4 h-4 mr-2" />
@@ -1127,7 +1134,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                         
                         {/* Summary Actions */}
                         <div className="space-y-3">
-                          <div className="flex gap-2">
+                          <div className="flex flex-col sm:flex-row gap-2">
                             <Button
                               onClick={() => generateTodaySummary(group.id)}
                               disabled={isLoading}
@@ -1453,8 +1460,8 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                         value={monitorForm.groupId}
                         onChange={(e) => {
                           const selectedGroupId = e.target.value;
-                          const selectedGroup = whatsAppGroups.find(g => g.id === selectedGroupId);
-                          
+                          const selectedGroup = whatsAppGroups.find(g => String(g.id) === selectedGroupId);
+
                           if (selectedGroupId && selectedGroup) {
                             setMonitorForm(prev => ({
                               ...prev,
@@ -1473,7 +1480,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                       >
                         <option value="">Select a group</option>
                         {whatsAppGroups.map(group => (
-                          <option key={group.id} value={group.id}>
+                          <option key={group.id} value={String(group.id)}>
                             {group.name} ({group.participantCount} members)
                           </option>
                         ))}
@@ -1582,7 +1589,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                     <div className="flex gap-3 pt-4">
                       <Button
                         onClick={createGroupMonitor}
-                        disabled={!monitorForm.groupId || !monitorForm.groupName || monitorForm.targetPersons.length === 0}
+                        disabled={!monitorForm.groupId || monitorForm.targetPersons.length === 0}
                         className="flex-1 bg-green-500 hover:bg-green-600"
                       >
                         Create Monitor
