@@ -352,7 +352,7 @@ export class WhatsAppSummarizationService {
       if (type in types) {
         (types as any)[type]++;
       } else {
-        types.other++;
+        (types as any).other++;
       }
     });
     

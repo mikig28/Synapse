@@ -394,7 +394,7 @@ export const getChats = async (req: Request, res: Response) => {
     const options = {
       limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
       offset: req.query.offset ? parseInt(req.query.offset as string) : undefined,
-      sortBy: req.query.sortBy as 'conversationTimestamp' | 'id' | 'name' | undefined,
+      sortBy: 'id' as 'id', // Fixed to only supported sortBy value
       sortOrder: req.query.sortOrder as 'desc' | 'asc' | undefined,
       exclude: req.query.exclude ? (req.query.exclude as string).split(',') : undefined
     };
@@ -915,7 +915,7 @@ export const getPrivateChats = async (req: Request, res: Response) => {
     // Parse pagination/sorting options
     const limit = req.query.limit ? Math.max(1, Math.min(500, parseInt(req.query.limit as string))) : undefined;
     const offset = req.query.offset ? Math.max(0, parseInt(req.query.offset as string)) : undefined;
-    const sortBy = (req.query.sortBy as 'conversationTimestamp' | 'id' | 'name' | undefined) || 'conversationTimestamp';
+    const sortBy = 'id'; // Fixed to only supported sortBy value
     const sortOrder = (req.query.sortOrder as 'desc' | 'asc' | undefined) || 'desc';
     
     console.log('[WAHA Controller] Fetching private chats...', { limit, offset, sortBy, sortOrder });
@@ -933,13 +933,8 @@ export const getPrivateChats = async (req: Request, res: Response) => {
     let privateChats = chats.filter(chat => !chat.isGroup && !(typeof chat.id === 'string' && chat.id.includes('@g.us')));
 
     // Sort client-side as a fallback if WAHA ignored params
-    if (sortBy === 'conversationTimestamp') {
-      privateChats = privateChats.sort((a, b) => (sortOrder === 'desc' ? (b.timestamp || 0) - (a.timestamp || 0) : (a.timestamp || 0) - (b.timestamp || 0)));
-    } else if (sortBy === 'name') {
-      privateChats = privateChats.sort((a, b) => (sortOrder === 'desc' ? (b.name || '').localeCompare(a.name || '') : (a.name || '').localeCompare(b.name || '')));
-    } else if (sortBy === 'id') {
-      privateChats = privateChats.sort((a, b) => (sortOrder === 'desc' ? (b.id || '').localeCompare(a.id || '') : (a.id || '').localeCompare(b.id || '')));
-    }
+    // Since sortBy is always 'id', only handle that case
+    privateChats = privateChats.sort((a, b) => (sortOrder === 'desc' ? (b.id || '').localeCompare(a.id || '') : (a.id || '').localeCompare(b.id || '')));
 
     // Apply pagination client-side if WAHA ignored params
     const total = privateChats.length;

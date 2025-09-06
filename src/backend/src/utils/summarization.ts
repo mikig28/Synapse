@@ -370,7 +370,7 @@ export function calculateMessageTypeDistribution(messages: MessageData[]): {
     } else if (type.includes('document')) {
       distribution.document++;
     } else {
-      distribution.other++;
+      (distribution as any).other++;
     }
   }
   

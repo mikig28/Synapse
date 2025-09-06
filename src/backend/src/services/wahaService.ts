@@ -1004,7 +1004,7 @@ class WAHAService extends EventEmitter {
     options: {
       limit?: number;
       offset?: number;
-      sortBy?: 'conversationTimestamp' | 'id' | 'name';
+      sortBy?: 'id'; // This WAHA instance only supports 'id'
       sortOrder?: 'desc' | 'asc';
       exclude?: string[];
     } = {}
@@ -1068,10 +1068,8 @@ class WAHAService extends EventEmitter {
 
       const tryOverview = async (): Promise<WAHAChat[] | null> => {
         const candidates = Array.from(new Set([
-          options.sortBy || 'conversationTimestamp',
-          'messageTimestamp',
-          'id',
-          'name'
+          options.sortBy || 'id',
+          'id'  // This WAHA instance only supports 'id' sortBy
         ]));
 
         for (const sortBy of candidates) {
@@ -1133,10 +1131,8 @@ class WAHAService extends EventEmitter {
 
       const tryChats = async (timeoutMs: number): Promise<WAHAChat[] | null> => {
         const candidates = Array.from(new Set([
-          options.sortBy || 'conversationTimestamp',
-          'messageTimestamp',
-          'id',
-          'name'
+          options.sortBy || 'id',
+          'id'  // This WAHA instance only supports 'id' sortBy
         ]));
 
         for (const sortBy of candidates) {
@@ -2544,6 +2540,81 @@ class WAHAService extends EventEmitter {
           error: error.message || 'Failed to extract image'
         };
       }
+    }
+  }
+
+  /**
+   * Start polling for new messages to forward to group monitoring
+   * Since this WAHA instance doesn't support webhooks, we need to poll
+   */
+  private pollingInterval: NodeJS.Timeout | null = null;
+  private lastPolledTimestamp: number = Date.now();
+
+  startMessagePolling(intervalMs: number = 30000): void {
+    if (this.pollingInterval) {
+      console.log('[WAHA Service] Message polling already running');
+      return;
+    }
+
+    console.log(`[WAHA Service] 🔄 Starting message polling every ${intervalMs/1000}s for group monitoring`);
+    
+    this.pollingInterval = setInterval(async () => {
+      try {
+        await this.pollForNewMessages();
+      } catch (error) {
+        console.error('[WAHA Service] ❌ Error during message polling:', error);
+      }
+    }, intervalMs);
+  }
+
+  stopMessagePolling(): void {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+      console.log('[WAHA Service] ⏹️ Stopped message polling');
+    }
+  }
+
+  private async pollForNewMessages(): Promise<void> {
+    try {
+      const sessionName = this.defaultSession;
+      
+      // Get all chats to check for new messages
+      const chats = await this.getChats(sessionName, { limit: 50 });
+      
+      for (const chat of chats) {
+        if (!chat.isGroup) continue; // Only check group chats for monitoring
+        
+        try {
+          // Get recent messages from this group
+          const messages = await this.getMessages(sessionName, chat.id, { limit: 10 });
+          
+          for (const message of messages) {
+            // Only process messages newer than our last poll
+            const messageTimestamp = message.timestamp || 0;
+            if (messageTimestamp > this.lastPolledTimestamp) {
+              // Forward to group monitoring webhook
+              await this.processMessageForGroupMonitoring({
+                id: message.id,
+                chatId: chat.id,
+                from: message.from,
+                body: message.body,
+                timestamp: messageTimestamp,
+                isGroup: true,
+                isMedia: message.hasMedia || false,
+                mediaUrl: message.hasMedia ? message.body : undefined
+              });
+            }
+          }
+        } catch (messageError) {
+          // Don't log errors for individual chats to avoid spam
+          // console.error(`[WAHA Service] Error polling messages from ${chat.id}:`, messageError);
+        }
+      }
+      
+      this.lastPolledTimestamp = Date.now();
+    } catch (error) {
+      console.error('[WAHA Service] ❌ Error polling for new messages:', error);
     }
   }
 }

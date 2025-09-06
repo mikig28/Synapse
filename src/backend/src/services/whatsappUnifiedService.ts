@@ -161,7 +161,7 @@ class WhatsAppUnifiedService extends EventEmitter {
       const wahaChats = await this.wahaService.getChats(undefined, {
         limit: options?.limit,
         offset: options?.offset,
-        sortBy: options?.sortBy,
+        sortBy: 'id', // Fixed to only supported sortBy value
         sortOrder: options?.sortOrder
       });
       
