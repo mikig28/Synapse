@@ -536,9 +536,17 @@ export const getGroupSummaryStats = async (req: Request, res: Response) => {
           video: typeStats.video || typeStats.videoMessage || 0,
           audio: typeStats.audio || typeStats.audioMessage || 0,
           document: typeStats.document || typeStats.documentMessage || 0,
-          other: Object.values(typeStats).reduce((sum: number, count: number) => sum + count, 0) - 
-                 (typeStats.text || 0) - (typeStats.image || 0) - (typeStats.video || 0) - 
-                 (typeStats.audio || 0) - (typeStats.document || 0)
+          // Calculate "other" types by summing all type counts and subtracting known types
+          other:
+            (Object.values(typeStats) as number[]).reduce(
+              (sum, count) => sum + Number(count),
+              0
+            ) -
+            Number(typeStats.text || 0) -
+            Number(typeStats.image || 0) -
+            Number(typeStats.video || 0) -
+            Number(typeStats.audio || 0) -
+            Number(typeStats.document || 0)
         },
         averageMessagesPerDay: Math.round(totalMessages / daysBack),
         averageMessagesPerSender: uniqueSenders.length > 0 ? Math.round(totalMessages / uniqueSenders.length) : 0
