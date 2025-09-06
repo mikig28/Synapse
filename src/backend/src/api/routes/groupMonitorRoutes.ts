@@ -5,7 +5,14 @@ import GroupMonitorController from '../controllers/groupMonitorController';
 const router = express.Router();
 const groupMonitorController = new GroupMonitorController();
 
-// Apply authentication middleware to all routes
+// Public routes (no authentication required)
+// Service status route (no auth required)
+router.get('/status', (req, res) => groupMonitorController.getServiceStatus(req, res));
+
+// Webhook for processing WhatsApp messages (no auth required - called by WhatsApp service)
+router.post('/webhook/whatsapp-message', (req, res) => groupMonitorController.processWhatsAppMessage(req, res));
+
+// Apply authentication middleware to protected routes
 router.use(authMiddleware);
 
 // Person Profile routes
@@ -27,11 +34,5 @@ router.get('/monitors/:id/statistics', (req, res) => groupMonitorController.getM
 router.get('/filtered-images', (req, res) => groupMonitorController.getFilteredImages(req, res));
 router.put('/filtered-images/:id/archive', (req, res) => groupMonitorController.archiveFilteredImage(req, res));
 router.post('/filtered-images/:id/tags', (req, res) => groupMonitorController.addImageTag(req, res));
-
-// Service status route (no auth required)
-router.get('/status', (req, res) => groupMonitorController.getServiceStatus(req, res));
-
-// Webhook for processing WhatsApp messages (no auth required - called by WhatsApp service)
-router.post('/webhook/whatsapp-message', (req, res) => groupMonitorController.processWhatsAppMessage(req, res));
 
 export default router;
