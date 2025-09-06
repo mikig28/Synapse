@@ -758,49 +758,49 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
         </motion.div>
 
         {/* Navigation Tabs */}
-        <div className="flex flex-wrap gap-4 mb-6 w-full overflow-x-auto">
+        <div className="grid grid-cols-2 gap-4 mb-6 w-full sm:flex sm:flex-wrap sm:overflow-x-auto">
           <Button
             onClick={() => setSelectedView('persons')}
             variant={selectedView === 'persons' ? 'default' : 'outline'}
-            className={selectedView === 'persons' 
-              ? 'bg-violet-500 hover:bg-violet-600' 
-              : 'border-white/30 text-white hover:bg-white/10'
+            className={selectedView === 'persons'
+              ? 'w-full sm:w-auto bg-violet-500 hover:bg-violet-600'
+              : 'w-full sm:w-auto border-white/30 text-white hover:bg-white/10'
             }
           >
             <UserPlus className="w-4 h-4 mr-2" />
             Person Profiles
           </Button>
-          
+
           <Button
             onClick={() => setSelectedView('monitors')}
             variant={selectedView === 'monitors' ? 'default' : 'outline'}
-            className={selectedView === 'monitors' 
-              ? 'bg-violet-500 hover:bg-violet-600' 
-              : 'border-white/30 text-white hover:bg-white/10'
+            className={selectedView === 'monitors'
+              ? 'w-full sm:w-auto bg-violet-500 hover:bg-violet-600'
+              : 'w-full sm:w-auto border-white/30 text-white hover:bg-white/10'
             }
           >
             <Eye className="w-4 h-4 mr-2" />
             Group Monitors
           </Button>
-          
+
           <Button
             onClick={() => setSelectedView('summaries')}
             variant={selectedView === 'summaries' ? 'default' : 'outline'}
-            className={selectedView === 'summaries' 
-              ? 'bg-violet-500 hover:bg-violet-600' 
-              : 'border-white/30 text-white hover:bg-white/10'
+            className={selectedView === 'summaries'
+              ? 'w-full sm:w-auto bg-violet-500 hover:bg-violet-600'
+              : 'w-full sm:w-auto border-white/30 text-white hover:bg-white/10'
             }
           >
             <FileText className="w-4 h-4 mr-2" />
             Daily Summaries
           </Button>
-          
+
           <Button
             onClick={() => setSelectedView('images')}
             variant={selectedView === 'images' ? 'default' : 'outline'}
-            className={selectedView === 'images' 
-              ? 'bg-violet-500 hover:bg-violet-600' 
-              : 'border-white/30 text-white hover:bg-white/10'
+            className={selectedView === 'images'
+              ? 'w-full sm:w-auto bg-violet-500 hover:bg-violet-600'
+              : 'w-full sm:w-auto border-white/30 text-white hover:bg-white/10'
             }
           >
             <ImageIcon className="w-4 h-4 mr-2" />
