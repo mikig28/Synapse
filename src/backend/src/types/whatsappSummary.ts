@@ -151,3 +151,35 @@ export interface MessagesResponse extends PaginatedResponse<MessageData> {
     end: string;
   };
 }
+
+// Additional types for the Daily Summary feature
+export interface GroupSelection {
+  groupId: string;
+  groupName: string;
+  isSelected: boolean;
+  participantCount?: number;
+  lastActivity?: Date;
+}
+
+export interface DailySummaryRequest {
+  groupIds: string[];
+  date: string; // ISO date string (YYYY-MM-DD)
+  timezone: string;
+}
+
+export interface BulkSummaryResponse extends ApiResponse {
+  data?: {
+    summaries: GroupSummaryData[];
+    failed: {
+      groupId: string;
+      groupName: string;
+      error: string;
+    }[];
+    processingStats: {
+      totalGroups: number;
+      successful: number;
+      failed: number;
+      totalProcessingTimeMs: number;
+    };
+  };
+}

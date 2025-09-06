@@ -1,5 +1,16 @@
 import api from './axiosConfig';
 import { optimizedPollingService } from './optimizedPollingService';
+import {
+  GroupInfo,
+  GroupSelection,
+  MessageData,
+  GroupSummaryData,
+  DateRange,
+  SummaryRequest,
+  TodaySummaryRequest,
+  MessagesResponse,
+  ApiResponse
+} from '../types/whatsappSummary';
 
 export interface WhatsAppMessage {
   id: string;
@@ -74,6 +85,7 @@ export interface WhatsAppConfig {
 class WhatsAppService {
   private baseUrl = '/whatsapp';    // Legacy API endpoint
   private wahaUrl = '/waha'; // Modern WAHA API endpoint (api.baseURL already includes /api/v1)
+  private summaryUrl = '/whatsapp-summary'; // Summary API endpoint
   private pollingEnabled = false;
   private listeners = new Map<string, Set<(data: any) => void>>();
   private lastKnownData = new Map<string, any>();
@@ -328,6 +340,234 @@ class WhatsAppService {
     } else {
       return timestamp.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     }
+  }
+
+  // Summary-related methods
+  
+  /**
+   * Get available groups for summary generation
+   */
+  async getAvailableGroups(): Promise<GroupInfo[]> {
+    try {
+      const response = await api.get(`${this.summaryUrl}/groups`);
+      return response.data.data.map((group: any) => ({
+        ...group,
+        lastActivity: group.lastActivity ? new Date(group.lastActivity) : undefined
+      }));
+    } catch (error) {
+      console.error('Failed to fetch available groups:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get messages for a specific group and time range
+   */
+  async getGroupMessages(
+    groupId: string, 
+    start: Date, 
+    end: Date, 
+    page = 1, 
+    limit = 1000
+  ): Promise<MessagesResponse> {
+    try {
+      const response = await api.get(`${this.summaryUrl}/groups/${groupId}/messages`, {
+        params: {
+          start: start.toISOString(),
+          end: end.toISOString(),
+          page,
+          limit
+        }
+      });
+      
+      const data = response.data;
+      return {
+        ...data,
+        data: data.data.map((message: any) => ({
+          ...message,
+          timestamp: new Date(message.timestamp)
+        }))
+      };
+    } catch (error) {
+      console.error('Failed to fetch group messages:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate daily summary for a specific group
+   */
+  async generateDailySummary(request: SummaryRequest): Promise<GroupSummaryData> {
+    try {
+      const response = await api.post(`${this.summaryUrl}/generate`, request);
+      const summary = response.data.data;
+      
+      // Parse dates in the response
+      return {
+        ...summary,
+        timeRange: {
+          start: new Date(summary.timeRange.start),
+          end: new Date(summary.timeRange.end)
+        }
+      };
+    } catch (error) {
+      console.error('Failed to generate daily summary:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate today's summary for a specific group
+   */
+  async generateTodaySummary(request: TodaySummaryRequest): Promise<GroupSummaryData> {
+    try {
+      const response = await api.post(`${this.summaryUrl}/generate-today`, request);
+      const summary = response.data.data;
+      
+      // Parse dates in the response
+      return {
+        ...summary,
+        timeRange: {
+          start: new Date(summary.timeRange.start),
+          end: new Date(summary.timeRange.end)
+        }
+      };
+    } catch (error) {
+      console.error('Failed to generate today summary:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get available date ranges for a group
+   */
+  async getAvailableDateRanges(groupId: string): Promise<DateRange[]> {
+    try {
+      const response = await api.get(`${this.summaryUrl}/groups/${groupId}/date-ranges`);
+      return response.data.data.map((range: any) => ({
+        ...range,
+        start: new Date(range.start),
+        end: new Date(range.end)
+      }));
+    } catch (error) {
+      console.error('Failed to fetch date ranges:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get summary statistics for a group
+   */
+  async getGroupSummaryStats(groupId: string, days = 7): Promise<any> {
+    try {
+      const response = await api.get(`${this.summaryUrl}/groups/${groupId}/stats`, {
+        params: { days }
+      });
+      return response.data.data;
+    } catch (error) {
+      console.error('Failed to fetch group summary stats:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Helper method to create date ranges
+   */
+  createDateRange(type: 'today' | 'yesterday' | 'last24h' | 'custom', customStart?: Date, customEnd?: Date): DateRange {
+    const now = new Date();
+    
+    switch (type) {
+      case 'today':
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+        return {
+          start: todayStart,
+          end: todayEnd,
+          label: 'Today',
+          type: 'today'
+        };
+        
+      case 'yesterday':
+        const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+        const yesterdayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+        return {
+          start: yesterdayStart,
+          end: yesterdayEnd,
+          label: 'Yesterday',
+          type: 'yesterday'
+        };
+        
+      case 'last24h':
+        const last24hStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        return {
+          start: last24hStart,
+          end: now,
+          label: 'Last 24 Hours',
+          type: 'last24h'
+        };
+        
+      case 'custom':
+        if (!customStart || !customEnd) {
+          throw new Error('Custom date range requires start and end dates');
+        }
+        return {
+          start: customStart,
+          end: customEnd,
+          label: `${customStart.toLocaleDateString()} - ${customEnd.toLocaleDateString()}`,
+          type: 'custom'
+        };
+        
+      default:
+        throw new Error(`Unknown date range type: ${type}`);
+    }
+  }
+
+  /**
+   * Format summary data for display
+   */
+  formatSummaryForDisplay(summary: GroupSummaryData): {
+    title: string;
+    subtitle: string;
+    stats: Array<{ label: string; value: string | number; highlight?: boolean }>;
+    topSenders: Array<{ name: string; count: number; summary: string }>;
+    keywords: string[];
+    emojis: string[];
+  } {
+    const { timeRange, totalMessages, activeParticipants, senderInsights, topKeywords, topEmojis } = summary;
+    
+    const title = `${summary.groupName} Summary`;
+    const subtitle = `${timeRange.start.toLocaleDateString()} - ${timeRange.end.toLocaleDateString()}`;
+    
+    const stats = [
+      { label: 'Messages', value: totalMessages, highlight: true },
+      { label: 'Participants', value: activeParticipants },
+      { label: 'Processing Time', value: `${summary.processingStats.processingTimeMs}ms` }
+    ];
+    
+    const topSenders = senderInsights.slice(0, 5).map(sender => ({
+      name: sender.senderName,
+      count: sender.messageCount,
+      summary: sender.summary
+    }));
+    
+    const keywords = topKeywords.slice(0, 10).map(k => k.keyword);
+    const emojis = topEmojis.slice(0, 10).map(e => e.emoji);
+    
+    return {
+      title,
+      subtitle,
+      stats,
+      topSenders,
+      keywords,
+      emojis
+    };
+  }
+
+  /**
+   * Get user's timezone
+   */
+  getUserTimezone(): string {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
   }
 
   // Enhanced polling methods with optimized service

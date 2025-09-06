@@ -27,11 +27,24 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
-  Archive
+  Archive,
+  FileText,
+  Calendar,
+  BarChart3,
+  Download,
+  Sparkles
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import useAuthStore from '@/store/authStore';
 import api from '@/services/axiosConfig';
+import whatsappService from '@/services/whatsappService';
+import {
+  GroupInfo,
+  GroupSelection,
+  GroupSummaryData,
+  DateRange,
+  DATE_RANGE_PRESETS
+} from '@/types/whatsappSummary';
 
 interface PersonProfile {
   _id: string;
@@ -105,7 +118,22 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   const [filteredImages, setFilteredImages] = useState<FilteredImage[]>([]);
   const [whatsAppGroups, setWhatsAppGroups] = useState<WhatsAppChat[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedView, setSelectedView] = useState<'persons' | 'monitors' | 'images'>('persons');
+  const [selectedView, setSelectedView] = useState<'persons' | 'monitors' | 'images' | 'summaries'>('persons');
+  
+  // Summary-related state
+  const [availableGroups, setAvailableGroups] = useState<GroupInfo[]>([]);
+  const [selectedGroups, setSelectedGroups] = useState<GroupSelection[]>([]);
+  const [selectedDateRange, setSelectedDateRange] = useState<DateRange>(
+    whatsappService.createDateRange('today')
+  );
+  const [customDateRange, setCustomDateRange] = useState<{ start: Date | null; end: Date | null }>({
+    start: null,
+    end: null
+  });
+  const [groupSummaries, setGroupSummaries] = useState<Map<string, GroupSummaryData>>(new Map());
+  const [loadingSummaries, setLoadingSummaries] = useState<Set<string>>(new Set());
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [selectedSummary, setSelectedSummary] = useState<GroupSummaryData | null>(null);
   
   // Person Profile Form
   const [showPersonForm, setShowPersonForm] = useState(false);
@@ -153,6 +181,12 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
     }
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    if (selectedView === 'summaries' && availableGroups.length === 0) {
+      fetchAvailableGroups();
+    }
+  }, [selectedView]);
+
   const fetchAllData = async () => {
     setLoading(true);
     try {
@@ -171,6 +205,27 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAvailableGroups = async () => {
+    try {
+      const groups = await whatsappService.getAvailableGroups();
+      setAvailableGroups(groups);
+      
+      // Initialize selected groups state
+      const groupSelections: GroupSelection[] = groups.map(group => ({
+        ...group,
+        isSelected: false
+      }));
+      setSelectedGroups(groupSelections);
+    } catch (error) {
+      console.error('Error fetching available groups:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load WhatsApp groups for summaries",
+        variant: "destructive",
+      });
     }
   };
 
@@ -456,6 +511,140 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
     }
   };
 
+  // Summary-related methods
+  const handleGroupSelection = (groupId: string) => {
+    setSelectedGroups(groups =>
+      groups.map(group =>
+        group.id === groupId ? { ...group, isSelected: !group.isSelected } : group
+      )
+    );
+  };
+
+  const handleDateRangeChange = (range: DateRange) => {
+    setSelectedDateRange(range);
+    if (range.type === 'custom') {
+      setCustomDateRange({
+        start: range.start,
+        end: range.end
+      });
+    }
+  };
+
+  const generateGroupSummary = async (groupId: string) => {
+    const group = selectedGroups.find(g => g.id === groupId);
+    if (!group) return;
+
+    setLoadingSummaries(prev => new Set([...prev, groupId]));
+    
+    try {
+      let dateToUse = selectedDateRange.start;
+      
+      // For custom range, use the start date
+      if (selectedDateRange.type === 'custom' && customDateRange.start) {
+        dateToUse = customDateRange.start;
+      }
+
+      const summary = await whatsappService.generateDailySummary({
+        groupId: group.id,
+        date: dateToUse.toISOString().split('T')[0], // YYYY-MM-DD format
+        timezone: whatsappService.getUserTimezone()
+      });
+
+      setGroupSummaries(prev => new Map(prev.set(groupId, summary)));
+      setSelectedSummary(summary);
+      setShowSummaryModal(true);
+
+      toast({
+        title: "Success",
+        description: `Summary generated for ${group.name}`,
+      });
+    } catch (error: any) {
+      console.error('Error generating summary:', error);
+      toast({
+        title: "Error",
+        description: `Failed to generate summary: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingSummaries(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(groupId);
+        return newSet;
+      });
+    }
+  };
+
+  const generateTodaySummary = async (groupId: string) => {
+    const group = selectedGroups.find(g => g.id === groupId);
+    if (!group) return;
+
+    setLoadingSummaries(prev => new Set([...prev, groupId]));
+    
+    try {
+      const summary = await whatsappService.generateTodaySummary({
+        groupId: group.id,
+        timezone: whatsappService.getUserTimezone()
+      });
+
+      setGroupSummaries(prev => new Map(prev.set(groupId, summary)));
+      setSelectedSummary(summary);
+      setShowSummaryModal(true);
+
+      toast({
+        title: "Success",
+        description: `Today's summary generated for ${group.name}`,
+      });
+    } catch (error: any) {
+      console.error('Error generating today summary:', error);
+      toast({
+        title: "Error",
+        description: `Failed to generate today's summary: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingSummaries(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(groupId);
+        return newSet;
+      });
+    }
+  };
+
+  const downloadSummary = (summary: GroupSummaryData) => {
+    const formatted = whatsappService.formatSummaryForDisplay(summary);
+    
+    const content = `${formatted.title}
+${formatted.subtitle}
+
+OVERVIEW
+${summary.overallSummary}
+
+STATISTICS
+${formatted.stats.map(stat => `${stat.label}: ${stat.value}`).join('\n')}
+
+TOP PARTICIPANTS
+${formatted.topSenders.map(sender => `• ${sender.name} (${sender.count} messages): ${sender.summary}`).join('\n')}
+
+TOP KEYWORDS
+${formatted.keywords.join(', ')}
+
+TOP EMOJIS
+${formatted.emojis.join(' ')}
+
+Generated on ${new Date().toLocaleString()}
+Processing time: ${summary.processingStats.processingTimeMs}ms`;
+
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${summary.groupName}-summary-${summary.timeRange.start.toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const filteredPersonProfiles = personProfiles.filter(person =>
     person.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -592,6 +781,18 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
           >
             <Eye className="w-4 h-4 mr-2" />
             Group Monitors
+          </Button>
+          
+          <Button
+            onClick={() => setSelectedView('summaries')}
+            variant={selectedView === 'summaries' ? 'default' : 'outline'}
+            className={selectedView === 'summaries' 
+              ? 'bg-violet-500 hover:bg-violet-600' 
+              : 'border-white/30 text-white hover:bg-white/10'
+            }
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            Daily Summaries
           </Button>
           
           <Button
@@ -833,6 +1034,185 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
                   </GlassCard>
                 </motion.div>
               ))}
+            </div>
+          )}
+
+          {selectedView === 'summaries' && (
+            <div className="space-y-6">
+              {/* Date Range Selector */}
+              <GlassCard className="p-6">
+                <h3 className="text-lg font-semibold text-white mb-4">Select Time Range</h3>
+                <div className="flex flex-wrap gap-3 mb-4">
+                  <Button
+                    onClick={() => handleDateRangeChange(whatsappService.createDateRange('today'))}
+                    variant={selectedDateRange.type === 'today' ? 'default' : 'outline'}
+                    size="sm"
+                    className={selectedDateRange.type === 'today'
+                      ? 'bg-blue-500 hover:bg-blue-600'
+                      : 'border-white/30 text-white hover:bg-white/10'
+                    }
+                  >
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Today
+                  </Button>
+                  
+                  <Button
+                    onClick={() => handleDateRangeChange(whatsappService.createDateRange('yesterday'))}
+                    variant={selectedDateRange.type === 'yesterday' ? 'default' : 'outline'}
+                    size="sm"
+                    className={selectedDateRange.type === 'yesterday'
+                      ? 'bg-blue-500 hover:bg-blue-600'
+                      : 'border-white/30 text-white hover:bg-white/10'
+                    }
+                  >
+                    Yesterday
+                  </Button>
+                  
+                  <Button
+                    onClick={() => handleDateRangeChange(whatsappService.createDateRange('last24h'))}
+                    variant={selectedDateRange.type === 'last24h' ? 'default' : 'outline'}
+                    size="sm"
+                    className={selectedDateRange.type === 'last24h'
+                      ? 'bg-blue-500 hover:bg-blue-600'
+                      : 'border-white/30 text-white hover:bg-white/10'
+                    }
+                  >
+                    Last 24H
+                  </Button>
+                </div>
+                
+                <p className="text-sm text-blue-200/70">
+                  Selected: {selectedDateRange.label}
+                </p>
+              </GlassCard>
+
+              {/* Groups Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {selectedGroups.map((group) => {
+                  const isLoading = loadingSummaries.has(group.id);
+                  const summary = groupSummaries.get(group.id);
+                  
+                  return (
+                    <motion.div
+                      key={group.id}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                    >
+                      <GlassCard className="p-6">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            <h3 className="text-lg font-semibold text-white mb-2">{group.name}</h3>
+                            <div className="space-y-1 text-sm text-blue-200/70">
+                              {group.participantCount && (
+                                <div className="flex items-center gap-2">
+                                  <Users className="w-4 h-4" />
+                                  <span>{group.participantCount} participants</span>
+                                </div>
+                              )}
+                              {group.messageCount !== undefined && (
+                                <div className="flex items-center gap-2">
+                                  <MessageSquare className="w-4 h-4" />
+                                  <span>{group.messageCount} recent messages</span>
+                                </div>
+                              )}
+                              {group.lastActivity && (
+                                <div className="flex items-center gap-2">
+                                  <Clock className="w-4 h-4" />
+                                  <span>Last: {group.lastActivity.toLocaleDateString()}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Summary Actions */}
+                        <div className="space-y-3">
+                          <div className="flex gap-2">
+                            <Button
+                              onClick={() => generateTodaySummary(group.id)}
+                              disabled={isLoading}
+                              size="sm"
+                              className="flex-1 bg-green-500 hover:bg-green-600"
+                            >
+                              {isLoading ? (
+                                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                              ) : (
+                                <Sparkles className="w-4 h-4 mr-2" />
+                              )}
+                              Today's Summary
+                            </Button>
+                            
+                            <Button
+                              onClick={() => generateGroupSummary(group.id)}
+                              disabled={isLoading}
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 border-white/30 text-white hover:bg-white/10"
+                            >
+                              {isLoading ? (
+                                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                              ) : (
+                                <BarChart3 className="w-4 h-4 mr-2" />
+                              )}
+                              Custom Date
+                            </Button>
+                          </div>
+                          
+                          {summary && (
+                            <div className="mt-3 p-3 bg-white/5 rounded-lg">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium text-green-300">
+                                  Last Summary Generated
+                                </span>
+                                <Button
+                                  onClick={() => downloadSummary(summary)}
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-blue-300 hover:text-blue-200"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </Button>
+                              </div>
+                              <div className="text-xs text-blue-200/70 space-y-1">
+                                <div>{summary.totalMessages} messages from {summary.activeParticipants} participants</div>
+                                <div>{summary.timeRange.start.toLocaleDateString()} - {summary.timeRange.end.toLocaleDateString()}</div>
+                              </div>
+                              <Button
+                                onClick={() => {
+                                  setSelectedSummary(summary);
+                                  setShowSummaryModal(true);
+                                }}
+                                size="sm"
+                                variant="ghost"
+                                className="w-full mt-2 text-blue-300 hover:bg-white/10"
+                              >
+                                View Full Summary
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </GlassCard>
+                    </motion.div>
+                  );
+                })}
+              </div>
+
+              {selectedGroups.length === 0 && (
+                <GlassCard className="p-8 text-center">
+                  <Activity className="w-12 h-12 text-blue-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-white mb-2">No Groups Available</h3>
+                  <p className="text-blue-200/70">
+                    Make sure your WhatsApp is connected and you have active group chats.
+                  </p>
+                  <Button
+                    onClick={fetchAvailableGroups}
+                    className="mt-4"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Refresh Groups
+                  </Button>
+                </GlassCard>
+              )}
             </div>
           )}
 
@@ -1215,6 +1595,186 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
                         Cancel
                       </Button>
                     </div>
+                  </div>
+                </GlassCard>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Summary Modal */}
+        <AnimatePresence>
+          {showSummaryModal && selectedSummary && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="max-w-4xl w-full max-h-[90vh] overflow-hidden"
+              >
+                <GlassCard className="h-full flex flex-col">
+                  {/* Header */}
+                  <div className="flex items-center justify-between p-6 border-b border-white/10">
+                    <div>
+                      <h3 className="text-xl font-semibold text-white">{selectedSummary.groupName} Summary</h3>
+                      <p className="text-sm text-blue-200/70">
+                        {selectedSummary.timeRange.start.toLocaleDateString()} - {selectedSummary.timeRange.end.toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={() => downloadSummary(selectedSummary)}
+                        size="sm"
+                        variant="outline"
+                        className="border-white/30 text-white hover:bg-white/10"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Download
+                      </Button>
+                      <Button
+                        onClick={() => setShowSummaryModal(false)}
+                        size="sm"
+                        variant="ghost"
+                        className="text-white hover:bg-white/10"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {/* Overview */}
+                    <div>
+                      <h4 className="text-lg font-semibold text-white mb-3">Overview</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <div className="bg-white/5 rounded-lg p-3">
+                          <div className="text-2xl font-bold text-green-400">{selectedSummary.totalMessages}</div>
+                          <div className="text-sm text-blue-200/70">Messages</div>
+                        </div>
+                        <div className="bg-white/5 rounded-lg p-3">
+                          <div className="text-2xl font-bold text-blue-400">{selectedSummary.activeParticipants}</div>
+                          <div className="text-sm text-blue-200/70">Participants</div>
+                        </div>
+                        <div className="bg-white/5 rounded-lg p-3">
+                          <div className="text-2xl font-bold text-purple-400">{selectedSummary.topKeywords.length}</div>
+                          <div className="text-sm text-blue-200/70">Topics</div>
+                        </div>
+                        <div className="bg-white/5 rounded-lg p-3">
+                          <div className="text-2xl font-bold text-yellow-400">{selectedSummary.processingStats.processingTimeMs}ms</div>
+                          <div className="text-sm text-blue-200/70">Processing</div>
+                        </div>
+                      </div>
+                      <div className="bg-white/5 rounded-lg p-4">
+                        <p className="text-white">{selectedSummary.overallSummary}</p>
+                      </div>
+                    </div>
+
+                    {/* Top Participants */}
+                    <div>
+                      <h4 className="text-lg font-semibold text-white mb-3">Top Participants</h4>
+                      <div className="space-y-3">
+                        {selectedSummary.senderInsights.slice(0, 5).map((sender) => (
+                          <div key={sender.senderPhone} className="bg-white/5 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-medium text-white">{sender.senderName}</span>
+                              <span className="text-sm bg-blue-500/20 text-blue-300 px-2 py-1 rounded">
+                                {sender.messageCount} messages
+                              </span>
+                            </div>
+                            <p className="text-sm text-blue-200/70 mb-2">{sender.summary}</p>
+                            {sender.topKeywords.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {sender.topKeywords.slice(0, 3).map((keyword) => (
+                                  <span
+                                    key={keyword.keyword}
+                                    className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded"
+                                  >
+                                    {keyword.keyword}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Keywords and Activity */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Top Keywords */}
+                      <div>
+                        <h4 className="text-lg font-semibold text-white mb-3">Top Keywords</h4>
+                        <div className="bg-white/5 rounded-lg p-4">
+                          <div className="flex flex-wrap gap-2">
+                            {selectedSummary.topKeywords.slice(0, 10).map((keyword) => (
+                              <span
+                                key={keyword.keyword}
+                                className="bg-blue-500/20 text-blue-300 px-3 py-1 rounded-full text-sm"
+                              >
+                                {keyword.keyword} ({keyword.count})
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Top Emojis */}
+                      <div>
+                        <h4 className="text-lg font-semibold text-white mb-3">Top Emojis</h4>
+                        <div className="bg-white/5 rounded-lg p-4">
+                          <div className="flex flex-wrap gap-2">
+                            {selectedSummary.topEmojis.slice(0, 10).map((emoji) => (
+                              <span
+                                key={emoji.emoji}
+                                className="bg-yellow-500/20 text-yellow-300 px-3 py-1 rounded-full text-sm"
+                              >
+                                {emoji.emoji} {emoji.count}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Message Types */}
+                    <div>
+                      <h4 className="text-lg font-semibold text-white mb-3">Message Breakdown</h4>
+                      <div className="bg-white/5 rounded-lg p-4">
+                        <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
+                          {Object.entries(selectedSummary.messageTypes).map(([type, count]) => (
+                            <div key={type} className="text-center">
+                              <div className="text-lg font-semibold text-white">{count}</div>
+                              <div className="text-sm text-blue-200/70 capitalize">{type}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Activity Peaks */}
+                    {selectedSummary.activityPeaks.length > 0 && (
+                      <div>
+                        <h4 className="text-lg font-semibold text-white mb-3">Peak Activity Hours</h4>
+                        <div className="bg-white/5 rounded-lg p-4">
+                          <div className="flex flex-wrap gap-2">
+                            {selectedSummary.activityPeaks.slice(0, 6).map((peak) => (
+                              <span
+                                key={peak.hour}
+                                className="bg-green-500/20 text-green-300 px-3 py-1 rounded-full text-sm"
+                              >
+                                {peak.hour}:00 ({peak.count} messages)
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </GlassCard>
               </motion.div>
