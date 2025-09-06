@@ -4,6 +4,15 @@ import GroupMonitorService from '../../services/groupMonitorService';
 import FilteredImage from '../../models/FilteredImage';
 import { AuthRequest } from '../../types/express';
 
+interface WhatsAppMessageWebhookBody {
+  messageId: string;
+  groupId: string;
+  senderId: string;
+  senderName?: string;
+  imageUrl?: string;
+  caption?: string;
+}
+
 class GroupMonitorController {
   private personProfileService: PersonProfileService;
   private groupMonitorService: GroupMonitorService;
@@ -573,9 +582,31 @@ class GroupMonitorController {
   // Webhook for processing WhatsApp messages
   async processWhatsAppMessage(req: Request, res: Response): Promise<void> {
     try {
-      const { messageId, groupId, senderId, senderName, imageUrl, caption } = req.body;
+      // Authenticate webhook
+      const secret = req.header('x-webhook-secret');
+      if (
+        process.env.GROUP_MONITOR_WEBHOOK_SECRET &&
+        secret !== process.env.GROUP_MONITOR_WEBHOOK_SECRET
+      ) {
+        res.status(401).json({ success: false, error: 'Unauthorized webhook' });
+        return;
+      }
 
-      if (!messageId || !groupId || !senderId || !imageUrl) {
+      // Narrow req.body to unknown fields for runtime validation
+      const {
+        messageId,
+        groupId,
+        senderId,
+        senderName,
+        imageUrl,
+        caption
+      } = req.body as Partial<WhatsAppMessageWebhookBody> & Record<string, unknown>;
+
+      // Validate required string fields
+      const required = [messageId, groupId, senderId].every(
+        v => typeof v === 'string' && v.trim().length > 0
+      );
+      if (!required) {
         res.status(400).json({
           success: false,
           error: 'Missing required message data'
@@ -583,28 +614,28 @@ class GroupMonitorController {
         return;
       }
 
-      // Process the image in the background
-      this.groupMonitorService.processImageMessage(
-        messageId,
-        groupId,
-        senderId,
-        senderName || 'Unknown',
-        imageUrl,
-        caption
-      ).catch(error => {
-        console.error('Background image processing failed:', error);
-      });
+      // Process the message in the background
+      void this.groupMonitorService
+        .processGroupMessage(
+          messageId as string,
+          groupId as string,
+          senderId as string,
+          (typeof senderName === 'string' && senderName.trim()) ? senderName : 'Unknown',
+          typeof imageUrl === 'string' ? imageUrl : undefined,
+          typeof caption === 'string' ? caption : undefined
+        )
+        .catch(error => {
+          console.error('Background message processing failed:', error);
+        });
 
-      res.json({
+      // Return 202 Accepted since work runs asynchronously
+      res.status(202).json({
         success: true,
         message: 'Message processing initiated'
       });
-    } catch (error) {
-      console.error('Error processing WhatsApp message:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to process message'
-      });
+    } catch (err) {
+      console.error('Error handling WhatsApp webhook:', err);
+      res.status(500).json({ success: false, error: 'Internal server error' });
     }
   }
 }

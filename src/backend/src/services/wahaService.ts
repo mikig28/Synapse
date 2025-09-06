@@ -3,7 +3,7 @@
  * Replaces the complex WhatsAppBaileysService with simple HTTP calls to WAHA microservice
  */
 
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import { EventEmitter } from 'events';
 
 export interface WAHAMessage {
@@ -49,12 +49,36 @@ export interface WAHAStatus {
 export interface WAHASession {
   name: string;
   status: 'STARTING' | 'SCAN_QR_CODE' | 'WORKING' | 'STOPPED' | 'FAILED';
-  config?: any;
+  config?: unknown;
 }
+
+export type WAHAWebhookEvent = {
+  id: string;
+  timestamp: number | string;
+  event: 'message' | 'session.status' | string;
+  session: string;
+  payload: unknown;
+};
+
+export type WAHAWebhookMessagePayload = {
+  id: string;
+  chatId?: string;
+  from?: string;
+  body?: string;
+  type?: string;
+  mimeType?: string;
+  isMedia?: boolean;
+  mediaUrl?: string;
+  notifyName?: string;
+  contactName?: string;
+  isGroup?: boolean;
+  groupName?: string;
+  timestamp?: number;
+};
 
 class WAHAService extends EventEmitter {
   private static instance: WAHAService | null = null;
-  private httpClient: any;
+  private httpClient: AxiosInstance;
   private wahaBaseUrl: string;
   private defaultSession: string = 'default';
   private isReady = false;
@@ -67,7 +91,7 @@ class WAHAService extends EventEmitter {
   
   // Session status cache
   private sessionStatusCache: {
-    data: any;
+    data: unknown;
     timestamp: number;
   } = {
     data: null,
@@ -76,7 +100,7 @@ class WAHAService extends EventEmitter {
   private readonly SESSION_CACHE_DURATION = 10000; // 10 seconds
 
   // Health check cache
-  private lastHealthCheckResult: { healthy: boolean; details: any } | null = null;
+  private lastHealthCheckResult: { healthy: boolean; details: unknown } | null = null;
   private lastHealthCheckTimestamp: number = 0;
   
   // Groups endpoint circuit breaker
@@ -1884,37 +1908,51 @@ class WAHAService extends EventEmitter {
   /**
    * Webhook handler for WAHA events (following WAHA documentation event structure)
    */
-  handleWebhook(payload: any): void {
+  handleWebhook(payload: WAHAWebhookEvent): void {
     try {
-      console.log('[WAHA Service] Webhook received:', payload);
-      
-      // WAHA event structure: { id, timestamp, event, session, payload }
+      console.log('[WAHA Service] Webhook received:', {
+        id: payload.id,
+        event: payload.event,
+        session: payload.session
+      });
+
       const eventType = payload.event;
       const sessionName = payload.session;
       const eventData = payload.payload;
       const eventId = payload.id;
       const eventTimestamp = payload.timestamp;
-      
+
       console.log(`[WAHA Service] Processing event '${eventType}' for session '${sessionName}'`);
-      
+
       switch (eventType) {
-        case 'message':
-          this.emit('message', eventData);
-          // Process image messages for group monitoring
-          this.processImageForGroupMonitoring(eventData);
-          // Emit image message event for frontend image extraction
-          this.processImageMessage(eventData);
-          // Update monitoring statistics
-          this.updateMonitoringStats(eventData);
+        case 'message': {
+          if (!eventData || typeof eventData !== 'object') {
+            console.warn('[WAHA Service] Skipping message event with empty payload');
+            break;
+          }
+          const messagePayload = eventData as WAHAWebhookMessagePayload;
+          // WAHA sometimes omits the isGroup flag. Derive it from the chat id.
+          messagePayload.isGroup = this.isGroupMessage(messagePayload);
+
+          this.emit('message', messagePayload);
+          void this.processMessageForGroupMonitoring(messagePayload).catch(err =>
+            console.error('[WAHA Service] processMessageForGroupMonitoring error:', err)
+          );
+          setImmediate(() => {
+            this.processImageMessage(messagePayload);
+            this.updateMonitoringStats(messagePayload);
+          });
           break;
-          
-        case 'session.status':
+        }
+
+        case 'session.status': {
+          const statusData = eventData as { status?: string };
           const previousIsReady = this.isReady;
-          const newStatus = eventData.status;
-          
+          const newStatus = statusData?.status;
+
           this.connectionStatus = newStatus;
           this.isReady = newStatus === 'WORKING';
-          
+
           console.log('[WAHA Service] Session status change:', {
             eventId,
             sessionName,
@@ -1923,19 +1961,17 @@ class WAHAService extends EventEmitter {
             isNowReady: this.isReady,
             timestamp: eventTimestamp
           });
-          
-          // Emit authentication event if we just became authenticated
+
           if (!previousIsReady && this.isReady && newStatus === 'WORKING') {
             console.log('[WAHA Service] 🎉 Authentication detected via webhook! Session is now WORKING');
             this.emit('authenticated', {
               method: 'qr',
               sessionStatus: newStatus,
-              sessionName: sessionName,
-              eventId: eventId,
+              sessionName,
+              eventId,
               timestamp: new Date().toISOString()
             });
-            
-            // Broadcast to Socket.IO if available
+
             const io_instance = (global as any).io;
             if (io_instance) {
               console.log('[WAHA Service] Broadcasting authentication via Socket.IO');
@@ -1945,24 +1981,28 @@ class WAHAService extends EventEmitter {
                 isReady: true,
                 authMethod: 'qr',
                 serviceType: 'waha',
-                sessionName: sessionName,
+                sessionName,
                 timestamp: new Date().toISOString()
               });
             }
           }
-          
+
           this.emit('status_change', {
-            ...eventData,
+            ...statusData,
             authenticated: this.isReady,
             connected: this.isReady,
-            sessionName: sessionName,
-            eventId: eventId,
+            sessionName,
+            eventId,
             timestamp: new Date().toISOString()
           });
           break;
-          
+        }
+
         default:
-          console.log(`[WAHA Service] Unknown webhook event: ${eventType}`, payload);
+          console.log(`[WAHA Service] Unknown webhook event: ${eventType}`, {
+            id: payload.id,
+            event: payload.event
+          });
       }
     } catch (error) {
       console.error('[WAHA Service] ❌ Webhook handling error:', error);
@@ -1970,45 +2010,65 @@ class WAHAService extends EventEmitter {
   }
 
   /**
-   * Process image messages for group monitoring
+   * Determine if message payload is from a group chat
    */
-  private async processImageForGroupMonitoring(messageData: any): Promise<void> {
+  private isGroupMessage(data: Partial<WAHAWebhookMessagePayload> | null | undefined): boolean {
+    if (!data) return false;
+    if (typeof data.isGroup === 'boolean') return data.isGroup;
+    const jid = data.chatId || data.from || data.id || '';
+    if (typeof jid !== 'string') return false;
+    return jid.includes('@g.us') || (!jid.includes('@') && jid.includes('-'));
+  }
+
+  /**
+   * Forward messages to group monitor service
+   */
+  private async processMessageForGroupMonitoring(messageData: WAHAWebhookMessagePayload): Promise<void> {
     try {
-      // Check if message is an image and from a group
-      if (!messageData.isMedia || 
-          messageData.type !== 'image' || 
-          !messageData.isGroup ||
-          !messageData.mediaUrl) {
+      // Only process group messages
+      if (!this.isGroupMessage(messageData)) {
         return;
       }
 
-      console.log('[WAHA Service] Processing image for group monitoring:', {
+      const payload: {
+        messageId: string;
+        groupId: string;
+        senderId: string;
+        senderName: string;
+        caption?: string;
+        imageUrl?: string;
+      } = {
         messageId: messageData.id,
-        groupId: messageData.chatId,
-        groupName: messageData.groupName,
-        from: messageData.from,
-        mediaUrl: messageData.mediaUrl
+        groupId: messageData.chatId || messageData.from || '',
+        senderId: messageData.from || '',
+        senderName: messageData.contactName || messageData.from || 'Unknown',
+        caption: messageData.body
+      };
+
+      const imageUrl = messageData.mediaUrl;
+      if (imageUrl && (messageData.type === 'image' || messageData.mimeType?.startsWith('image/'))) {
+        payload.imageUrl = imageUrl;
+      }
+
+      console.log('[WAHA Service] Forwarding message for group monitoring:', {
+        messageId: payload.messageId,
+        groupId: payload.groupId,
+        hasImage: Boolean(payload.imageUrl)
       });
 
-      // Send to group monitor webhook (fire and forget)
-      const axios = require('axios');
-      const baseUrl = process.env.FRONTEND_URL || 'https://synapse-backend-7lq6.onrender.com';
-      
-      axios.post(`${baseUrl}/api/v1/group-monitor/webhook/whatsapp-message`, {
-        messageId: messageData.id,
-        groupId: messageData.chatId,
-        senderId: messageData.from,
-        senderName: messageData.contactName || messageData.from,
-        imageUrl: messageData.mediaUrl,
-        caption: messageData.body
-      }, {
-        timeout: 5000
-      }).catch((error: any) => {
-        console.error('[WAHA Service] ❌ Failed to send image to group monitor:', error.message);
+      const baseUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+      axios.post(`${baseUrl}/api/v1/group-monitor/webhook/whatsapp-message`, payload, {
+        timeout: 5000,
+        headers: {
+          'X-Webhook-Secret': process.env.GROUP_MONITOR_WEBHOOK_SECRET || ''
+        }
+      }).catch((error: unknown) => {
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error('[WAHA Service] ❌ Failed to send message to group monitor:', msg);
       });
 
     } catch (error) {
-      console.error('[WAHA Service] ❌ Error processing image for group monitoring:', error);
+      console.error('[WAHA Service] ❌ Error processing message for group monitoring:', error);
     }
   }
 

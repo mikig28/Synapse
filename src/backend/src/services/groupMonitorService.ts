@@ -224,42 +224,56 @@ class GroupMonitorService {
   }
 
   /**
-   * Process WhatsApp image message for person detection
+   * Process WhatsApp group message (image optional)
    */
-  async processImageMessage(
+  async processGroupMessage(
     messageId: string,
     groupId: string,
     senderId: string,
     senderName: string,
-    imageUrl: string,
+    imageUrl?: string,
     caption?: string
   ): Promise<void> {
     try {
       // Get active monitors for this group
       const monitors = await this.getActiveMonitorsForGroup(groupId);
-      
+
       if (monitors.length === 0) {
         return; // No active monitors for this group
       }
-
-      // Process image for each monitor
-      for (const monitor of monitors) {
+      const tasks = monitors.map(monitor => async () => {
         try {
-          await this.processImageForMonitor(
-            monitor,
-            messageId,
-            senderId,
-            senderName,
-            imageUrl,
-            caption
-          );
+          await monitor.incrementStats('messages');
+
+          if (imageUrl) {
+            // Basic URL-scheme allowlist to reduce SSRF risk
+            if (!/^https?:\/\//i.test(imageUrl)) {
+              console.warn('Skipping non-http(s) image URL for monitor', monitor._id.toString());
+              return;
+            }
+            await monitor.incrementStats('images');
+            await this.processImageForMonitor(
+              monitor,
+              messageId,
+              senderId,
+              senderName,
+              imageUrl,
+              caption
+            );
+          }
         } catch (error) {
-          console.error(`Error processing image for monitor ${monitor._id}:`, error);
-          // Continue with other monitors
+          console.error(`Error processing message for monitor ${monitor._id}:`, error);
         }
+      });
+
+      const pool = 3;
+      for (let i = 0; i < tasks.length; i += pool) {
+        await Promise.all(
+          tasks.slice(i, i + pool).map(t => t().catch(err => console.error('monitor task failed', err)))
+        );
       }
     } catch (error) {
-      console.error('Error processing image message:', error);
+      console.error('Error processing group message:', error);
     }
   }
 
@@ -283,9 +297,6 @@ class GroupMonitorService {
       // Call face recognition service
       const matchResult = await this.matchFacesInImage(imageUrl, targetPersonIds, monitor.settings.confidenceThreshold);
 
-      // Update monitor statistics
-      await (monitor as any).incrementStats('images');
-
       if (!matchResult.success) {
         console.error('Face matching failed:', matchResult.error);
         return;
@@ -296,7 +307,7 @@ class GroupMonitorService {
 
       if (detectedPersons.length > 0) {
         // Update monitor statistics
-        await (monitor as any).incrementStats('persons');
+        await monitor.incrementStats('persons');
 
         // Create filtered image record
         const filteredImage = await this.createFilteredImageRecord(
