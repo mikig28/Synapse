@@ -8,7 +8,8 @@
       "Bash(grep:*)",
       "Bash(curl:*)",
       "Bash(git commit:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "mcp__context7__get-library-docs"
     ],
     "deny": []
   }
