@@ -100,7 +100,14 @@ const TelegramChannelsPage: React.FC = () => {
   const handleAddChannel = async (channelData: { channelIdentifier: string; keywords: string[] }) => {
     // Prevent adding channels if bot is not configured
     if (!botStatus?.hasBot) {
+      // Close the add modal and open bot config to guide the user immediately
+      setIsAddModalOpen(false);
       setIsBotConfigOpen(true);
+      toast({
+        title: "Bot setup required",
+        description: "Please configure your Telegram bot before adding channels/groups.",
+        variant: "destructive"
+      });
       return;
     }
 

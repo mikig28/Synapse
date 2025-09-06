@@ -53,16 +53,22 @@ class TelegramChannelService {
       await newChannel.save();
       console.log(`[TelegramChannelService] ✅ Channel added: ${channelInfo.title}`);
 
-      // Fetch initial messages
-      await this.fetchChannelMessages(newChannel._id.toString());
-
-      // Emit real-time update
+      // Emit real-time update IMMEDIATELY so UI reflects the new channel without waiting
       if (io) {
         io.emit('new_telegram_channel', {
           userId,
           channel: newChannel.toObject()
         });
       }
+
+      // Fetch initial messages in the background (non-blocking)
+      // This avoids long waits/timeouts on the addChannel API
+      this.fetchChannelMessages(newChannel._id.toString())
+        .catch((err) => {
+          const msg = (err as Error).message;
+          // Log concise error; detailed logging is handled inside fetchChannelMessages
+          console.error(`[TelegramChannelService] Background fetch failed for ${newChannel.channelTitle}: ${msg}`);
+        });
 
       return newChannel;
     } catch (error) {
