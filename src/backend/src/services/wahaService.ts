@@ -1995,7 +1995,7 @@ class WAHAService extends EventEmitter {
 
       // Send to group monitor webhook (fire and forget)
       const axios = require('axios');
-      const baseUrl = process.env.FRONTEND_URL || 'https://synapse-backend-7lq6.onrender.com';
+      const baseUrl = process.env.BACKEND_URL || 'https://synapse-backend-7lq6.onrender.com';
 
       axios.post(`${baseUrl}/api/v1/group-monitor/webhook/whatsapp-message`, payload, {
         timeout: 5000
