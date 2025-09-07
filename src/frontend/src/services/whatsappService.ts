@@ -421,7 +421,12 @@ class WhatsAppService {
    */
   async generateTodaySummary(request: TodaySummaryRequest): Promise<GroupSummaryData> {
     try {
+      console.log('[WhatsAppService] Making request to generate-today-direct:', request);
+      console.log('[WhatsAppService] Full URL:', `${api.defaults.baseURL}${this.summaryUrl}/generate-today-direct`);
+
       const response = await api.post(`${this.summaryUrl}/generate-today-direct`, request);
+      console.log('[WhatsAppService] Response received:', response.status, response.data);
+
       const summary = response.data.data;
       
       // Parse dates in the response
@@ -432,9 +437,19 @@ class WhatsAppService {
           end: new Date(summary.timeRange.end)
         }
       };
-    } catch (error) {
-      console.error('Failed to generate today summary:', error);
-      throw error;
+    } catch (error: any) {
+      console.error('[WhatsAppService] Error generating today summary:', error);
+
+      // Handle specific error types
+      if (error.response?.status === 401) {
+        console.error('[WhatsAppService] Authentication error - please log in again');
+        throw new Error('Authentication required. Please log in again.');
+      } else if (error.response?.status === 404) {
+        console.error('[WhatsAppService] Endpoint not found');
+        throw new Error('Service endpoint not found. Please try again later.');
+      }
+
+      throw new Error(error.response?.data?.error || error.message || 'Failed to generate today summary');
     }
   }
 
