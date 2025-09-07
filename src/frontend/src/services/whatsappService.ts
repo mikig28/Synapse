@@ -421,7 +421,7 @@ class WhatsAppService {
    */
   async generateTodaySummary(request: TodaySummaryRequest): Promise<GroupSummaryData> {
     try {
-      const response = await api.post(`${this.summaryUrl}/generate-today`, request);
+      const response = await api.post(`${this.summaryUrl}/generate-today-direct`, request);
       const summary = response.data.data;
       
       // Parse dates in the response

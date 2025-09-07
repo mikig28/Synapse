@@ -44,7 +44,7 @@ import usageRoutes from './api/routes/usageRoutes'; // Import usage routes
 import telegramChannelRoutes from './api/routes/telegramChannelRoutes'; // Import telegram channel routes
 import whatsappImagesRoutes from './api/routes/whatsappImagesRoutes'; // Import WhatsApp images routes
 import whatsappSummaryRoutes from './api/routes/whatsappSummaryRoutes'; // Import WhatsApp summary routes
-import { generateTodaySummary } from './api/controllers/whatsappSummaryController'; // Direct import for testing
+import { generateTodaySummary } from './api/controllers/whatsappSummaryController'; // Direct import for WhatsApp summary endpoint
 import { authMiddleware } from './api/middleware/authMiddleware'; // Import auth middleware
 import { initializeTaskReminderScheduler } from './services/taskReminderService'; // Import task reminder service
 import { schedulerService } from './services/schedulerService'; // Import scheduler service
@@ -217,9 +217,9 @@ console.log('[Server] Loading WhatsApp summary routes...');
 app.use('/api/v1/whatsapp-summary', whatsappSummaryRoutes); // Use WhatsApp summary routes
 console.log('[Server] WhatsApp summary routes loaded successfully');
 
-// TEMPORARY: Direct route for testing  
-app.post('/api/v1/whatsapp-summary/generate-today-direct', authMiddleware, generateTodaySummary); // Bypass routing issue with auth
-console.log('[Server] Direct route added for testing');
+// Direct route for WhatsApp summary generation (primary endpoint)
+app.post('/api/v1/whatsapp-summary/generate-today-direct', authMiddleware, generateTodaySummary);
+console.log('[Server] WhatsApp summary direct route loaded successfully');
 
 // **AG-UI Protocol Endpoints**
 
