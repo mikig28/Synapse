@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import WhatsAppMessage from '../../models/WhatsAppMessage';
 import WhatsAppContact from '../../models/WhatsAppContact';
 import WhatsAppBaileysService from '../../services/whatsappBaileysService';
+import WAHAService from '../../services/wahaService';
 import WhatsAppSummarizationService from '../../services/whatsappSummarizationService';
 import {
   GroupInfo,
@@ -20,47 +21,105 @@ const summarizationService = new WhatsAppSummarizationService();
  */
 export const getAvailableGroups = async (req: Request, res: Response) => {
   try {
-    const whatsappService = WhatsAppBaileysService.getInstance();
-    const groups = whatsappService.getGroups();
+    console.log('[WhatsApp Summary] Fetching available groups...');
     
-    // Enhance groups with message count and last activity from database
-    const enhancedGroups: GroupInfo[] = await Promise.all(
-      groups.map(async (group) => {
-        try {
-          // Count messages for this group from the last 7 days
-          const sevenDaysAgo = new Date();
-          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-          
-          const messageCount = await WhatsAppMessage.countDocuments({
-            'metadata.isGroup': true,
-            'metadata.groupName': group.name,
-            timestamp: { $gte: sevenDaysAgo }
-          });
-          
-          // Get last activity
-          const lastMessage = await WhatsAppMessage.findOne({
-            'metadata.isGroup': true,
-            'metadata.groupName': group.name
-          }).sort({ timestamp: -1 });
-          
-          return {
-            id: group.id,
-            name: group.name,
-            participantCount: group.participantCount,
-            messageCount,
-            lastActivity: lastMessage?.timestamp
-          };
-        } catch (error) {
-          console.error(`Error fetching data for group ${group.name}:`, error);
-          return {
-            id: group.id,
-            name: group.name,
-            participantCount: group.participantCount,
-            messageCount: 0
-          };
+    // First try to get groups from WAHA service (modern, more reliable)
+    let serviceGroups: any[] = [];
+    try {
+      const wahaService = WAHAService.getInstance();
+      serviceGroups = await wahaService.getGroups();
+      console.log(`[WhatsApp Summary] Got ${serviceGroups.length} groups from WAHA service`);
+    } catch (wahaError) {
+      console.warn('[WhatsApp Summary] WAHA service failed, trying Baileys fallback:', wahaError);
+      
+      // Fallback to Baileys service
+      try {
+        const baileysService = WhatsAppBaileysService.getInstance();
+        serviceGroups = baileysService.getGroups();
+        console.log(`[WhatsApp Summary] Got ${serviceGroups.length} groups from Baileys fallback`);
+      } catch (baileysError) {
+        console.warn('[WhatsApp Summary] Both WAHA and Baileys failed:', baileysError);
+      }
+    }
+    
+    // Get groups from database (fallback and enhancement)
+    const dbGroups = await WhatsAppMessage.aggregate([
+      {
+        $match: {
+          'metadata.isGroup': true,
+          'metadata.groupName': { $exists: true, $ne: null, $ne: '' }
         }
-      })
-    );
+      },
+      {
+        $group: {
+          _id: '$metadata.groupName',
+          groupId: { $first: '$metadata.groupId' },
+          lastActivity: { $max: '$timestamp' },
+          totalMessages: { $sum: 1 },
+          recentMessages: {
+            $sum: {
+              $cond: {
+                if: { $gte: ['$timestamp', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)] },
+                then: 1,
+                else: 0
+              }
+            }
+          },
+          participantCount: { $addToSet: '$from' }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          id: { $ifNull: ['$groupId', { $toString: '$_id' }] },
+          name: '$_id',
+          lastActivity: '$lastActivity',
+          messageCount: '$recentMessages',
+          totalMessages: '$totalMessages',
+          participantCount: { $size: '$participantCount' }
+        }
+      },
+      {
+        $match: {
+          messageCount: { $gt: 0 } // Only include groups with recent activity
+        }
+      },
+      {
+        $sort: { messageCount: -1 } // Sort by most active groups first
+      }
+    ]);
+    
+    console.log(`[WhatsApp Summary] Got ${dbGroups.length} groups from database`);
+    
+    // Merge service groups with database groups (prioritize service data)
+    const groupsMap = new Map<string, GroupInfo>();
+    
+    // Add database groups first
+    dbGroups.forEach((group) => {
+      groupsMap.set(group.name, {
+        id: group.id,
+        name: group.name,
+        participantCount: group.participantCount,
+        messageCount: group.messageCount,
+        lastActivity: group.lastActivity
+      });
+    });
+    
+    // Override with service groups if available (they have more accurate real-time data)
+    serviceGroups.forEach((group) => {
+      const dbGroup = groupsMap.get(group.name);
+      groupsMap.set(group.name, {
+        id: group.id,
+        name: group.name,
+        participantCount: group.participantCount || dbGroup?.participantCount || 0,
+        messageCount: dbGroup?.messageCount || 0,
+        lastActivity: dbGroup?.lastActivity
+      });
+    });
+    
+    const enhancedGroups = Array.from(groupsMap.values());
+    
+    console.log(`[WhatsApp Summary] Returning ${enhancedGroups.length} enhanced groups`);
     
     res.json({
       success: true,
