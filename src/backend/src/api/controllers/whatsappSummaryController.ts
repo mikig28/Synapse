@@ -47,7 +47,7 @@ export const getAvailableGroups = async (req: Request, res: Response) => {
       {
         $match: {
           'metadata.isGroup': true,
-          'metadata.groupName': { $exists: true, $ne: null, $ne: '' }
+          'metadata.groupName': { $exists: true, $nin: [null, ''] }
         }
       },
       {
