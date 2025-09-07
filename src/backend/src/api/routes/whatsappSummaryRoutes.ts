@@ -9,6 +9,8 @@ import {
 } from '../controllers/whatsappSummaryController';
 import { authMiddleware } from '../middleware/authMiddleware';
 
+// WhatsApp Summary API Routes - Daily Summary Feature
+
 const router = express.Router();
 
 // Apply authentication middleware to all routes

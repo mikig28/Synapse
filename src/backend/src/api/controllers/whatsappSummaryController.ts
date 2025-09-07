@@ -380,9 +380,11 @@ export const generateDailySummary = async (req: Request, res: Response) => {
  */
 export const generateTodaySummary = async (req: Request, res: Response) => {
   try {
+    console.log('[WhatsApp Summary] generateTodaySummary called with body:', req.body);
     const { groupId, timezone = 'UTC' } = req.body;
     
     if (!groupId) {
+      console.log('[WhatsApp Summary] generateTodaySummary error: No groupId provided');
       return res.status(400).json({
         success: false,
         error: 'Group ID is required'
