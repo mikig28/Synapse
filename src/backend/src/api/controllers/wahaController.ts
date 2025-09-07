@@ -404,7 +404,7 @@ export const getChats = async (req: Request, res: Response) => {
     
     console.log('[WAHA Controller] Getting chats with options:', options);
     const startTime = Date.now();
-    const chats = await wahaService.getChats(undefined, options);
+    const chats = await wahaService.getChats('default', options);
     const duration = Date.now() - startTime;
     
     console.log(`[WAHA Controller] ✅ Successfully fetched ${chats.length} chats in ${duration}ms`);
@@ -828,13 +828,13 @@ export const getGroups = async (req: Request, res: Response) => {
     const startTime = Date.now();
     
     // Try WAHA-compliant groups endpoint first
-    let groups = await wahaService.getGroups(undefined, options);
+    let groups = await wahaService.getGroups('default', options);
     if (!groups || groups.length === 0) {
       console.log('[WAHA Controller] No groups found, trying refresh...');
       // Ask WAHA to refresh then try again quickly
       const refreshResult = await wahaService.refreshGroups();
       console.log('[WAHA Controller] Group refresh result:', refreshResult);
-      groups = await wahaService.getGroups(undefined, options);
+      groups = await wahaService.getGroups('default', options);
     }
     
     const duration = Date.now() - startTime;
@@ -926,7 +926,7 @@ export const getPrivateChats = async (req: Request, res: Response) => {
 
     // DEBUG: Add detailed logging to trace getChats execution
     console.log('[WAHA Controller DEBUG] About to call wahaService.getChats()...');
-    const chats = await wahaService.getChats(undefined, { limit, offset, sortBy, sortOrder });
+    const chats = await wahaService.getChats('default', { limit, offset, sortBy, sortOrder });
     console.log('[WAHA Controller DEBUG] getChats returned:', {
       chatCount: chats?.length || 0,
       chats: chats?.slice(0, 3).map(c => ({ id: c.id, name: c.name, isGroup: c.isGroup })) || []
