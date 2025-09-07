@@ -44,7 +44,7 @@ export interface WhatsAppContact {
   unreadCount: number;
   lastMessage?: string;
   lastMessageTimestamp?: Date;
-  
+
   // Extended fields
   email?: string;
   company?: string;
@@ -60,6 +60,29 @@ export interface WhatsAppContact {
   tags?: string[];
   notes?: string;
 }
+
+// Debug function to check authentication status
+export const checkAuthStatus = () => {
+  const token = useAuthStore.getState().token;
+  const isAuthenticated = useAuthStore.getState().isAuthenticated;
+  const user = useAuthStore.getState().user;
+
+  console.log('[WhatsAppService] Auth Status Check:', {
+    hasToken: !!token,
+    isAuthenticated,
+    hasUser: !!user,
+    tokenLength: token ? token.length : 0,
+    userEmail: user?.email
+  });
+
+  alert(`Auth Status:
+  - Authenticated: ${isAuthenticated}
+  - Has Token: ${!!token}
+  - Has User: ${!!user}
+  - User Email: ${user?.email || 'None'}`);
+
+  return { isAuthenticated, hasToken: !!token, user };
+};
 
 export interface WhatsAppStats {
   totalContacts: number;
@@ -453,9 +476,11 @@ class WhatsAppService {
       // Handle specific error types
       if (error.response?.status === 401) {
         console.error('[WhatsAppService] Authentication error - please log in again');
+        alert('Authentication required. Please log in again.');
         throw new Error('Authentication required. Please log in again.');
       } else if (error.response?.status === 404) {
         console.error('[WhatsAppService] Endpoint not found');
+        alert('Service endpoint not found. Please try again later.');
         throw new Error('Service endpoint not found. Please try again later.');
       }
 
