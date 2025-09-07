@@ -116,6 +116,7 @@ export class WhatsAppSummaryService {
         timezone
       };
 
+      // TEMPORARY: Using direct route to bypass routing issues
       const response = await api.post<ApiResponse<GroupSummaryData>>('/whatsapp-summary/generate-today-direct', request);
       
       if (response.data.success && response.data.data) {
