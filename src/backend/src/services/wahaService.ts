@@ -5,6 +5,9 @@
 
 import axios from 'axios';
 import { EventEmitter } from 'events';
+import { WhatsAppMediaService, whatsappMediaService, MediaFileInfo } from './whatsappMediaService';
+import WhatsAppMessage from '../models/WhatsAppMessage';
+import WhatsAppContact from '../models/WhatsAppContact';
 
 export interface WAHAMessage {
   id: string;
@@ -64,6 +67,7 @@ class WAHAService extends EventEmitter {
   private lastQrGeneratedAt: number | null = null;
   private readonly qrReuseWindowMs = 25000; // reuse same QR for up to ~25s
   private readonly qrRequestCooldownMs = 5000; // avoid hammering WAHA
+  private mediaService: WhatsAppMediaService;
   
   // Session status cache
   private sessionStatusCache: {
@@ -152,8 +156,11 @@ class WAHAService extends EventEmitter {
       }
     );
 
+    // Initialize media service for downloading files
+    this.mediaService = whatsappMediaService;
+
     console.log(`[WAHA Service] Initialized with base URL: ${this.wahaBaseUrl}`);
-    
+
     // Set up event listeners for authentication
     this.on('authenticated', this.handleAuthentication.bind(this));
   }
@@ -1901,8 +1908,8 @@ class WAHAService extends EventEmitter {
           this.emit('message', eventData);
           // Forward message data for group monitoring
           this.processMessageForGroupMonitoring(eventData);
-          // Emit image message event for frontend image extraction
-          this.processImageMessage(eventData);
+          // Process media messages and download files
+          this.processMediaMessage(eventData);
           // Update monitoring statistics
           this.updateMonitoringStats(eventData);
           break;
@@ -2008,35 +2015,47 @@ class WAHAService extends EventEmitter {
   }
 
   /**
-   * Process image messages for frontend extraction functionality
+   * Process media messages and download files from WAHA
    */
-  private processImageMessage(messageData: any): void {
+  private async processMediaMessage(messageData: any): Promise<void> {
     try {
-      // Check if message contains media (image, document, etc.)
-      if (!messageData.isMedia || !messageData.type) {
+      // Check if message contains media
+      if (!messageData.hasMedia && !messageData.isMedia && !messageData.media) {
         return;
       }
 
-      // Check if it's an image type
-      const isImage = messageData.type === 'image' || 
-                     messageData.mimeType?.startsWith('image/') ||
-                     (messageData.mediaUrl && messageData.mediaUrl.includes('image'));
-
-      if (!isImage) {
-        return;
-      }
-
-      console.log('[WAHA Service] Processing image message for extraction:', {
+      console.log('[WAHA Service] Processing media message:', {
         messageId: messageData.id,
         chatId: messageData.chatId,
-        isGroup: messageData.isGroup,
-        from: messageData.from,
+        hasMedia: messageData.hasMedia,
+        isMedia: messageData.isMedia,
+        media: messageData.media,
         type: messageData.type,
         mimeType: messageData.mimeType
       });
 
-      // Prepare image metadata for frontend
-      const imageMessageData = {
+      // Check if we have media information from WAHA webhook
+      let mediaInfo: MediaFileInfo | null = null;
+
+      if (messageData.media && messageData.media.url) {
+        // New WAHA format with media object
+        mediaInfo = {
+          url: messageData.media.url,
+          mimetype: messageData.media.mimetype || messageData.mimeType || 'application/octet-stream',
+          filename: messageData.media.filename || null,
+          error: messageData.media.error || null
+        };
+      } else if (messageData.mediaUrl) {
+        // Legacy format or polling format
+        mediaInfo = {
+          url: messageData.mediaUrl,
+          mimetype: messageData.mimeType || 'application/octet-stream',
+          filename: null
+        };
+      }
+
+      // Prepare base message data for frontend
+      const baseMessageData = {
         messageId: messageData.id,
         chatId: messageData.chatId,
         chatName: messageData.isGroup ? messageData.groupName : messageData.contactName,
@@ -2045,24 +2064,182 @@ class WAHAService extends EventEmitter {
         caption: messageData.body || null,
         isGroup: Boolean(messageData.isGroup),
         timestamp: messageData.timestamp || Date.now(),
-        mimeType: messageData.mimeType || 'image/jpeg',
-        // Note: We don't include mediaUrl since WAHA Core doesn't provide download URLs
+        mimeType: messageData.mimeType || messageData.media?.mimetype || 'application/octet-stream',
         hasMedia: true,
-        extractable: true // Indicates this image can be extracted on-demand
+        mediaType: this.getMediaType(messageData.mimeType || messageData.media?.mimetype),
+        mediaUrl: mediaInfo?.url || null,
+        localPath: null as string | null,
+        fileSize: null as number | null,
+        filename: mediaInfo?.filename || null
       };
+
+      let downloadResult = null;
+
+      // Attempt to download media if we have a URL
+      if (mediaInfo && mediaInfo.url && !mediaInfo.error) {
+        try {
+          console.log(`[WAHA Service] Downloading media file for message ${messageData.id}`);
+          downloadResult = await this.mediaService.downloadMedia(mediaInfo, messageData.id, messageData.chatId);
+
+          if (downloadResult.success) {
+            baseMessageData.localPath = downloadResult.localPath!;
+            baseMessageData.fileSize = downloadResult.fileSize!;
+
+            console.log(`[WAHA Service] ✅ Media downloaded successfully:`, {
+              messageId: messageData.id,
+              localPath: downloadResult.localPath,
+              fileSize: downloadResult.fileSize
+            });
+          } else {
+            console.warn(`[WAHA Service] ⚠️ Media download failed:`, downloadResult.error);
+            baseMessageData.localPath = null;
+          }
+        } catch (downloadError: any) {
+          console.error(`[WAHA Service] ❌ Error downloading media:`, downloadError);
+          baseMessageData.localPath = null;
+        }
+      } else if (mediaInfo?.error) {
+        console.warn(`[WAHA Service] ⚠️ Media has error from WAHA:`, mediaInfo.error);
+      } else {
+        console.log(`[WAHA Service] No media URL available for message ${messageData.id} - media may need to be downloaded on-demand`);
+      }
+
+      // Save message with media information to database
+      const mediaInfoForDB = {
+        localPath: baseMessageData.localPath,
+        fileSize: baseMessageData.fileSize,
+        mediaType: baseMessageData.mediaType,
+        downloadStatus: baseMessageData.localPath ? 'completed' : downloadResult?.success === false ? 'failed' : 'pending',
+        downloadError: downloadResult?.success === false ? downloadResult.error : undefined
+      };
+
+      await this.saveMessageWithMedia(messageData, mediaInfoForDB);
 
       // Emit to Socket.IO for real-time frontend updates
       const io_instance = (global as any).io;
       if (io_instance) {
-        console.log('[WAHA Service] Broadcasting image message to frontend via Socket.IO');
-        io_instance.emit('whatsapp:image-message', imageMessageData);
+        console.log('[WAHA Service] Broadcasting media message to frontend via Socket.IO');
+        io_instance.emit('whatsapp:media-message', baseMessageData);
       }
 
       // Also emit as a general event for other listeners
-      this.emit('image-message', imageMessageData);
+      this.emit('media-message', baseMessageData);
+
+      // Emit specific event based on media type for specialized handling
+      const mediaType = baseMessageData.mediaType;
+      if (mediaType === 'image') {
+        this.emit('image-message', baseMessageData);
+      } else if (mediaType === 'document') {
+        this.emit('document-message', baseMessageData);
+      } else if (mediaType === 'voice') {
+        this.emit('voice-message', baseMessageData);
+      } else if (mediaType === 'video') {
+        this.emit('video-message', baseMessageData);
+      }
 
     } catch (error) {
-      console.error('[WAHA Service] ❌ Error processing image message:', error);
+      console.error('[WAHA Service] ❌ Error processing media message:', error);
+    }
+  }
+
+  /**
+   * Determine media type from MIME type
+   */
+  private getMediaType(mimetype: string | undefined): string {
+    if (!mimetype) return 'unknown';
+
+    const type = mimetype.toLowerCase();
+
+    if (type.startsWith('image/')) {
+      return 'image';
+    } else if (type.startsWith('audio/') || type.includes('voice') || type.includes('ogg')) {
+      return 'voice';
+    } else if (type.startsWith('video/')) {
+      return 'video';
+    } else if (type.startsWith('application/') || type.startsWith('text/')) {
+      return 'document';
+    } else {
+      return 'unknown';
+    }
+  }
+
+  /**
+   * Save message with media information to database
+   */
+  private async saveMessageWithMedia(messageData: any, mediaInfo: {
+    localPath?: string;
+    fileSize?: number;
+    mediaType: string;
+    downloadStatus: 'pending' | 'downloading' | 'completed' | 'failed';
+    downloadError?: string;
+  }): Promise<void> {
+    try {
+      // Find or create contact
+      let contact = await WhatsAppContact.findOne({ phoneNumber: messageData.from });
+      if (!contact) {
+        contact = new WhatsAppContact({
+          phoneNumber: messageData.from,
+          name: messageData.contactName || messageData.from,
+          isGroup: Boolean(messageData.isGroup),
+          groupName: messageData.isGroup ? messageData.groupName : undefined,
+          lastMessageAt: new Date(messageData.timestamp || Date.now())
+        });
+        await contact.save();
+      } else {
+        // Update last message timestamp
+        contact.lastMessageAt = new Date(messageData.timestamp || Date.now());
+        await contact.save();
+      }
+
+      // Check if message already exists
+      const existingMessage = await WhatsAppMessage.findOne({ messageId: messageData.id });
+      if (existingMessage) {
+        console.log(`[WAHA Service] Message ${messageData.id} already exists, updating media info`);
+
+        // Update existing message with media information
+        existingMessage.mediaUrl = messageData.media?.url || messageData.mediaUrl;
+        existingMessage.mimeType = messageData.media?.mimetype || messageData.mimeType;
+        existingMessage.caption = messageData.body || null;
+        existingMessage.localPath = mediaInfo.localPath;
+        existingMessage.fileSize = mediaInfo.fileSize;
+        existingMessage.mediaType = mediaInfo.mediaType as any;
+        existingMessage.filename = messageData.media?.filename;
+        existingMessage.downloadStatus = mediaInfo.downloadStatus;
+        existingMessage.downloadError = mediaInfo.downloadError;
+
+        await existingMessage.save();
+        return;
+      }
+
+      // Create new message
+      const newMessage = new WhatsAppMessage({
+        messageId: messageData.id,
+        from: messageData.from,
+        to: messageData.chatId,
+        message: messageData.body || '',
+        timestamp: new Date(messageData.timestamp || Date.now()),
+        type: messageData.type || 'text',
+        status: 'received',
+        isIncoming: true,
+        contactId: contact._id,
+
+        // Media fields
+        mediaUrl: messageData.media?.url || messageData.mediaUrl,
+        mimeType: messageData.media?.mimetype || messageData.mimeType,
+        caption: messageData.body || null,
+        localPath: mediaInfo.localPath,
+        fileSize: mediaInfo.fileSize,
+        mediaType: mediaInfo.mediaType as any,
+        filename: messageData.media?.filename,
+        downloadStatus: mediaInfo.downloadStatus,
+        downloadError: mediaInfo.downloadError
+      });
+
+      await newMessage.save();
+      console.log(`[WAHA Service] Saved message ${messageData.id} with media to database`);
+
+    } catch (error) {
+      console.error(`[WAHA Service] ❌ Error saving message with media to database:`, error);
     }
   }
 
@@ -2593,8 +2770,8 @@ class WAHAService extends EventEmitter {
             // Only process messages newer than our last poll
             const messageTimestamp = message.timestamp || 0;
             if (messageTimestamp > this.lastPolledTimestamp) {
-              // Forward to group monitoring webhook
-              await this.processMessageForGroupMonitoring({
+              // Prepare message data for processing
+              const messageData = {
                 id: message.id,
                 chatId: chat.id,
                 from: message.from,
@@ -2602,8 +2779,20 @@ class WAHAService extends EventEmitter {
                 timestamp: messageTimestamp,
                 isGroup: true,
                 isMedia: message.isMedia || false,
-                mediaUrl: message.isMedia ? message.body : undefined
-              });
+                mediaUrl: message.isMedia ? message.body : undefined,
+                type: message.type,
+                mimeType: message.mimeType,
+                hasMedia: message.hasMedia,
+                media: message.media,
+                contactName: message.contactName,
+                groupName: chat.name
+              };
+
+              // Forward to group monitoring webhook
+              await this.processMessageForGroupMonitoring(messageData);
+
+              // Process media messages and download files
+              await this.processMediaMessage(messageData);
             }
           }
         } catch (messageError) {

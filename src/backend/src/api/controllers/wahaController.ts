@@ -6,6 +6,9 @@
 import { Request, Response } from 'express';
 import WAHAService from '../../services/wahaService';
 import POLLING_CONFIG from '../../config/polling.config';
+import { whatsappMediaService } from '../../services/whatsappMediaService';
+import * as path from 'path';
+import * as fs from 'fs';
 
 // Cache for status responses to prevent excessive API calls
 interface StatusCache {
@@ -1633,6 +1636,130 @@ export const clearCaches = async (req: Request, res: Response) => {
       success: false,
       error: 'Failed to clear caches: ' + (error?.message || 'Unknown error'),
       details: error?.response?.data || error.message
+    });
+  }
+};
+
+/**
+ * Serve downloaded WhatsApp media files
+ */
+export const getMediaFile = async (req: Request, res: Response) => {
+  try {
+    const { messageId } = req.params;
+
+    if (!messageId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Message ID is required'
+      });
+    }
+
+    console.log(`[WAHA Controller] Serving media file for message: ${messageId}`);
+
+    // Find the media file
+    const mediaFile = whatsappMediaService.getMediaFile(messageId);
+
+    if (!mediaFile || !mediaFile.exists) {
+      return res.status(404).json({
+        success: false,
+        error: 'Media file not found'
+      });
+    }
+
+    // Check if file exists on disk
+    if (!fs.existsSync(mediaFile.path!)) {
+      return res.status(404).json({
+        success: false,
+        error: 'Media file not found on disk'
+      });
+    }
+
+    // Get file stats
+    const stat = fs.statSync(mediaFile.path!);
+
+    // Set appropriate headers
+    const ext = path.extname(mediaFile.path!).toLowerCase();
+    let contentType = 'application/octet-stream';
+
+    // Set content type based on file extension
+    switch (ext) {
+      case '.jpg':
+      case '.jpeg':
+        contentType = 'image/jpeg';
+        break;
+      case '.png':
+        contentType = 'image/png';
+        break;
+      case '.gif':
+        contentType = 'image/gif';
+        break;
+      case '.webp':
+        contentType = 'image/webp';
+        break;
+      case '.mp4':
+        contentType = 'video/mp4';
+        break;
+      case '.mp3':
+        contentType = 'audio/mpeg';
+        break;
+      case '.ogg':
+        contentType = 'audio/ogg';
+        break;
+      case '.wav':
+        contentType = 'audio/wav';
+        break;
+      case '.pdf':
+        contentType = 'application/pdf';
+        break;
+      default:
+        contentType = 'application/octet-stream';
+    }
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Length', stat.size);
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+
+    // Stream the file
+    const fileStream = fs.createReadStream(mediaFile.path!);
+    fileStream.pipe(res);
+
+    // Handle stream errors
+    fileStream.on('error', (error) => {
+      console.error(`[WAHA Controller] Error streaming media file ${messageId}:`, error);
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          error: 'Error streaming media file'
+        });
+      }
+    });
+
+  } catch (error: any) {
+    console.error('[WAHA Controller] ❌ Error serving media file:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to serve media file'
+    });
+  }
+};
+
+/**
+ * Get media download statistics
+ */
+export const getMediaStats = async (req: Request, res: Response) => {
+  try {
+    const stats = whatsappMediaService.getStorageStats();
+
+    res.json({
+      success: true,
+      data: stats
+    });
+
+  } catch (error: any) {
+    console.error('[WAHA Controller] ❌ Error getting media stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get media statistics'
     });
   }
 };

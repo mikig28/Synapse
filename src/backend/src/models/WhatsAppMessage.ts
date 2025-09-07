@@ -16,6 +16,14 @@ export interface IWhatsAppMessage extends Document {
   mediaUrl?: string;
   mimeType?: string;
   caption?: string;
+
+  // Media download information
+  localPath?: string;
+  fileSize?: number;
+  mediaType?: 'image' | 'document' | 'voice' | 'video' | 'unknown';
+  filename?: string;
+  downloadStatus?: 'pending' | 'downloading' | 'completed' | 'failed';
+  downloadError?: string;
   
   // Message context (for replies)
   contextMessageId?: string;
@@ -105,6 +113,21 @@ const WhatsAppMessageSchema: Schema<IWhatsAppMessage> = new Schema(
     mediaUrl: { type: String },
     mimeType: { type: String },
     caption: { type: String },
+
+    // Media download fields
+    localPath: { type: String },
+    fileSize: { type: Number },
+    mediaType: {
+      type: String,
+      enum: ['image', 'document', 'voice', 'video', 'unknown']
+    },
+    filename: { type: String },
+    downloadStatus: {
+      type: String,
+      enum: ['pending', 'downloading', 'completed', 'failed'],
+      default: 'pending'
+    },
+    downloadError: { type: String },
     
     // Context fields for replies
     contextMessageId: { type: String },
@@ -171,6 +194,90 @@ WhatsAppMessageSchema.statics.getUnreadCount = function(contactId: string) {
     isIncoming: true,
     status: { $in: ['received', 'delivered'] }
   });
+};
+
+// Static method to get messages with media
+WhatsAppMessageSchema.statics.getMessagesWithMedia = function(contactId?: string, mediaType?: string, limit: number = 50) {
+  const query: any = {};
+
+  if (contactId) {
+    query.contactId = contactId;
+  }
+
+  // Only messages that have media
+  query.mediaUrl = { $exists: true, $ne: null };
+
+  if (mediaType) {
+    query.mediaType = mediaType;
+  }
+
+  return this.find(query)
+    .sort({ timestamp: -1 })
+    .limit(limit)
+    .populate('contactId');
+};
+
+// Static method to get media download statistics
+WhatsAppMessageSchema.statics.getMediaStats = function(contactId?: string) {
+  const matchStage: any = {};
+
+  if (contactId) {
+    matchStage.contactId = contactId;
+  }
+
+  // Only messages with media
+  matchStage.mediaUrl = { $exists: true, $ne: null };
+
+  return this.aggregate([
+    { $match: matchStage },
+    {
+      $group: {
+        _id: {
+          mediaType: '$mediaType',
+          downloadStatus: '$downloadStatus'
+        },
+        count: { $sum: 1 },
+        totalSize: { $sum: { $ifNull: ['$fileSize', 0] } }
+      }
+    },
+    {
+      $group: {
+        _id: '$_id.mediaType',
+        totalFiles: { $sum: '$count' },
+        totalSize: { $sum: '$totalSize' },
+        downloadStatuses: {
+          $push: {
+            status: '$_id.downloadStatus',
+            count: '$count'
+          }
+        }
+      }
+    }
+  ]);
+};
+
+// Method to update media download status
+WhatsAppMessageSchema.methods.updateMediaDownloadStatus = function(
+  status: 'pending' | 'downloading' | 'completed' | 'failed',
+  localPath?: string,
+  fileSize?: number,
+  error?: string
+) {
+  this.downloadStatus = status;
+
+  if (localPath) {
+    this.localPath = localPath;
+  }
+
+  if (fileSize) {
+    this.fileSize = fileSize;
+  }
+
+  if (error) {
+    this.downloadError = error;
+  }
+
+  return this.save();
 };
 
 const WhatsAppMessage = mongoose.model<IWhatsAppMessage>('WhatsAppMessage', WhatsAppMessageSchema);

@@ -33,7 +33,9 @@ import {
   getMonitoredKeywords,
   addMonitoredKeyword,
   removeMonitoredKeyword,
-  extractImageFromMessage
+  extractImageFromMessage,
+  getMediaFile,
+  getMediaStats
 } from '../controllers/wahaController';
 
 const router = Router();
@@ -83,6 +85,10 @@ router.delete('/monitored-keywords/:keyword', removeMonitoredKeyword);
 
 // Media extraction routes
 router.post('/media/:messageId/extract-image', extractImageFromMessage);
+
+// Media serving routes
+router.get('/media/:messageId', getMediaFile);
+router.get('/media-stats', getMediaStats);
 
 // Webhook for WAHA events
 router.post('/webhook', webhook);
