@@ -129,7 +129,7 @@ export class WhatsAppMediaService extends EventEmitter {
 
       // Save file to disk
       const writer = fs.createWriteStream(localPath);
-      response.data.pipe(writer);
+      (response.data as any).pipe(writer);
 
       return new Promise((resolve) => {
         writer.on('finish', () => {

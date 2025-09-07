@@ -22,6 +22,14 @@ export interface WAHAMessage {
   chatId: string;
   time: string;
   isMedia: boolean;
+  mimeType?: string;
+  hasMedia?: boolean;
+  media?: {
+    url?: string;
+    mimetype?: string;
+    filename?: string;
+    error?: string;
+  };
 }
 
 export interface WAHAChat {
@@ -2109,7 +2117,7 @@ class WAHAService extends EventEmitter {
         localPath: baseMessageData.localPath,
         fileSize: baseMessageData.fileSize,
         mediaType: baseMessageData.mediaType,
-        downloadStatus: baseMessageData.localPath ? 'completed' : downloadResult?.success === false ? 'failed' : 'pending',
+        downloadStatus: (baseMessageData.localPath ? 'completed' : downloadResult?.success === false ? 'failed' : 'pending') as 'pending' | 'downloading' | 'completed' | 'failed',
         downloadError: downloadResult?.success === false ? downloadResult.error : undefined
       };
 
@@ -2187,7 +2195,7 @@ class WAHAService extends EventEmitter {
         await contact.save();
       } else {
         // Update last message timestamp
-        contact.lastMessageAt = new Date(messageData.timestamp || Date.now());
+        contact.lastMessageTimestamp = new Date(messageData.timestamp || Date.now());
         await contact.save();
       }
 
