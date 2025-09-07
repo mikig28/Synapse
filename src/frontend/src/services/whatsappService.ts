@@ -85,7 +85,7 @@ export interface WhatsAppConfig {
 class WhatsAppService {
   private baseUrl = '/whatsapp';    // Legacy API endpoint
   private wahaUrl = '/waha'; // Modern WAHA API endpoint (api.baseURL already includes /api/v1)
-  private summaryUrl = '/whatsapp-summary'; // Summary API endpoint
+  private summaryUrl = 'whatsapp-summary'; // Summary API endpoint (no leading slash since baseURL includes /api/v1)
   private pollingEnabled = false;
   private listeners = new Map<string, Set<(data: any) => void>>();
   private lastKnownData = new Map<string, any>();
