@@ -195,7 +195,7 @@ const ImagesPage: React.FC = () => {
                   {/* Image */}
                   <div className="relative overflow-hidden">
                     <a 
-                      href={item.mediaGridFsId ? `/api/v1/media/${item.mediaGridFsId}` : '#'}
+                      href={item.mediaGridFsId ? `/media/${item.mediaGridFsId}` : '#'}
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="block relative group"

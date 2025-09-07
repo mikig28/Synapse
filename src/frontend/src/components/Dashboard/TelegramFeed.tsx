@@ -86,7 +86,7 @@ const TelegramFeed: React.FC = () => {
 
             {item.messageType === 'photo' && item.mediaGridFsId && (
               <div className="mt-2 rounded-lg overflow-hidden max-w-full h-auto">
-                <a href={`/api/v1/media/${item.mediaGridFsId}`} target="_blank" rel="noopener noreferrer" className="block">
+                <a href={`/media/${item.mediaGridFsId}`} target="_blank" rel="noopener noreferrer" className="block">
                   <SecureImage 
                     imageId={item.mediaGridFsId}
                     alt="Telegram attachment" 
