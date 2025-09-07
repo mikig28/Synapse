@@ -27,7 +27,7 @@ export const getAvailableGroups = async (req: Request, res: Response) => {
     let serviceGroups: any[] = [];
     try {
       const wahaService = WAHAService.getInstance();
-      serviceGroups = await wahaService.getGroups();
+      serviceGroups = await wahaService.getGroups('default'); // Use default session
       console.log(`[WhatsApp Summary] Got ${serviceGroups.length} groups from WAHA service`);
     } catch (wahaError) {
       console.warn('[WhatsApp Summary] WAHA service failed, trying Baileys fallback:', wahaError);
