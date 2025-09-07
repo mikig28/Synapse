@@ -44,6 +44,7 @@ import usageRoutes from './api/routes/usageRoutes'; // Import usage routes
 import telegramChannelRoutes from './api/routes/telegramChannelRoutes'; // Import telegram channel routes
 import whatsappImagesRoutes from './api/routes/whatsappImagesRoutes'; // Import WhatsApp images routes
 import whatsappSummaryRoutes from './api/routes/whatsappSummaryRoutes'; // Import WhatsApp summary routes
+import { generateTodaySummary } from './api/controllers/whatsappSummaryController'; // Direct import for testing
 import { initializeTaskReminderScheduler } from './services/taskReminderService'; // Import task reminder service
 import { schedulerService } from './services/schedulerService'; // Import scheduler service
 import { agui } from './services/aguiEmitter'; // Import AG-UI emitter
@@ -211,7 +212,13 @@ app.use('/api/v1/feedback', feedbackRoutes); // Use feedback routes
 app.use('/api/v1/usage', usageRoutes); // Use usage routes
 app.use('/api/v1/telegram-channels', telegramChannelRoutes); // Use telegram channels routes
 app.use('/api/v1/whatsapp/images', whatsappImagesRoutes); // Use WhatsApp images extraction routes
+console.log('[Server] Loading WhatsApp summary routes...');
 app.use('/api/v1/whatsapp-summary', whatsappSummaryRoutes); // Use WhatsApp summary routes
+console.log('[Server] WhatsApp summary routes loaded successfully');
+
+// TEMPORARY: Direct route for testing
+app.post('/api/v1/whatsapp-summary/generate-today-direct', generateTodaySummary); // Bypass routing issue
+console.log('[Server] Direct route added for testing');
 
 // **AG-UI Protocol Endpoints**
 
