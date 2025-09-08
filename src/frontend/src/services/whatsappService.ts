@@ -450,13 +450,26 @@ class WhatsAppService {
       const isAuthenticated = useAuthStore.getState().isAuthenticated;
 
       console.log('[WhatsAppService] Auth check - Token exists:', !!token, 'Is authenticated:', isAuthenticated);
-      console.log('[WhatsAppService] Making request to generate-today:', request);
-      console.log('[WhatsAppService] Full URL:', `${api.defaults.baseURL}/${this.summaryUrl}/generate-today`);
+      console.log('[WhatsAppService] Making request to generate-today (with fallback):', request);
+      console.log('[WhatsAppService] Full URL (primary):', `${api.defaults.baseURL}/${this.summaryUrl}/generate-today`);
 
       if (!isAuthenticated || !token) {
         throw new Error('Not authenticated. Please log in first.');
       }
-      const response = await api.post(`${this.summaryUrl}/generate-today`, request);
+      let response;
+      try {
+        response = await api.post(`${this.summaryUrl}/generate-today`, request);
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          console.warn('[WhatsAppService] /generate-today not found on backend, falling back to /generate with today date');
+          const today = new Date().toISOString().split('T')[0];
+          const fallbackPayload: any = { groupId: (request as any).groupId, date: today, timezone: (request as any).timezone };
+          console.log('[WhatsAppService] Fallback payload:', fallbackPayload);
+          response = await api.post(`${this.summaryUrl}/generate`, fallbackPayload);
+        } else {
+          throw err;
+        }
+      }
       console.log('[WhatsAppService] Response received:', response.status, response.data);
 
       const summary = response.data.data;
