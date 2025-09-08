@@ -315,8 +315,9 @@ export const generateDailySummary = async (req: Request, res: Response) => {
         .sort({ timestamp: -1 })
         .lean();
 
-      if (lastMsg?.metadata?.groupName) {
-        groupInfo = { id: groupId, name: lastMsg.metadata.groupName, participantCount: 0 };
+      const dbGroupName = (lastMsg as any)?.metadata?.groupName as string | undefined;
+      if (typeof dbGroupName === 'string' && dbGroupName.length > 0) {
+        groupInfo = { id: groupId, name: dbGroupName, participantCount: 0 };
       }
     }
 
