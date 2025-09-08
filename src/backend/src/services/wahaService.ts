@@ -2226,17 +2226,33 @@ class WAHAService extends EventEmitter {
         return;
       }
 
+      // Determine if this is a group message and extract group info
+      const isGroup = !!messageData.chatId && (
+        messageData.chatId.endsWith('@g.us') || 
+        messageData.isGroup === true ||
+        !!messageData.groupName
+      );
+      
       // Create new message
       const newMessage = new WhatsAppMessage({
         messageId: messageData.id,
         from: messageData.from,
-        to: 'business', // For incoming messages, recipient is our business
+        to: isGroup ? messageData.chatId : 'business', // For groups, use chatId; for DMs, use business
         message: messageData.body || '',
         timestamp: new Date(messageData.timestamp || Date.now()),
         type: messageData.type || 'text',
         status: 'received',
         isIncoming: true,
         contactId: contact._id,
+
+        // Metadata for group identification
+        metadata: {
+          isGroup: isGroup,
+          groupId: isGroup ? messageData.chatId : undefined,
+          groupName: isGroup && messageData.groupName ? messageData.groupName : undefined,
+          forwarded: false,
+          forwardedMany: false
+        },
 
         // Media fields
         mediaUrl: messageData.media?.url || messageData.mediaUrl,

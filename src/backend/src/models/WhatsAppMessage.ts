@@ -37,6 +37,9 @@ export interface IWhatsAppMessage extends Document {
   metadata?: {
     forwarded?: boolean;
     forwardedMany?: boolean;
+    isGroup?: boolean;
+    groupId?: string;
+    groupName?: string;
     referral?: {
       sourceUrl?: string;
       sourceId?: string;
@@ -141,6 +144,9 @@ const WhatsAppMessageSchema: Schema<IWhatsAppMessage> = new Schema(
     metadata: {
       forwarded: { type: Boolean, default: false },
       forwardedMany: { type: Boolean, default: false },
+      isGroup: { type: Boolean, default: false, index: true },
+      groupId: { type: String, index: true },
+      groupName: { type: String, index: true },
       referral: {
         sourceUrl: String,
         sourceId: String,
@@ -164,6 +170,11 @@ const WhatsAppMessageSchema: Schema<IWhatsAppMessage> = new Schema(
 WhatsAppMessageSchema.index({ contactId: 1, timestamp: -1 });
 WhatsAppMessageSchema.index({ from: 1, to: 1, timestamp: -1 });
 WhatsAppMessageSchema.index({ isIncoming: 1, timestamp: -1 });
+
+// Group message indexes for efficient summary queries
+WhatsAppMessageSchema.index({ 'metadata.isGroup': 1, 'metadata.groupId': 1, timestamp: -1 });
+WhatsAppMessageSchema.index({ 'metadata.isGroup': 1, 'metadata.groupName': 1, timestamp: -1 });
+WhatsAppMessageSchema.index({ 'metadata.isGroup': 1, isIncoming: 1, timestamp: -1 });
 
 // Text search index for message content
 WhatsAppMessageSchema.index({ message: 'text' });

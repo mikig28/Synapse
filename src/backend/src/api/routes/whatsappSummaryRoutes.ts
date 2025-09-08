@@ -5,7 +5,8 @@ import {
   generateDailySummary,
   generateTodaySummary,
   getAvailableDateRanges,
-  getGroupSummaryStats
+  getGroupSummaryStats,
+  debugMessages
 } from '../controllers/whatsappSummaryController';
 import { authMiddleware } from '../middleware/authMiddleware';
 
@@ -27,5 +28,10 @@ router.get('/groups/:groupId/messages', getGroupMessages);
 // Summary generation routes
 router.post('/generate', generateDailySummary);
 router.post('/generate-today', generateTodaySummary);
+
+// Debug routes (only in non-production environments)
+if (process.env.NODE_ENV !== 'production') {
+  router.get('/debug/messages', debugMessages);
+}
 
 export default router;

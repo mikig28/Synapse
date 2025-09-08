@@ -13,6 +13,15 @@ import {
   MessagesResponse,
   SummaryGenerationOptions
 } from '../../types/whatsappSummary';
+import { 
+  getLocalDayWindow, 
+  getTodayWindow, 
+  getYesterdayWindow, 
+  getLast24HoursWindow, 
+  parseTimezone, 
+  logTimeWindow,
+  getQueryBounds
+} from '../../utils/timeWindow';
 
 const summarizationService = new WhatsAppSummarizationService();
 
@@ -255,7 +264,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     const {
       groupId,
       date,
-      timezone = 'UTC',
+      timezone = 'Asia/Jerusalem',
       options = {}
     }: {
       groupId: string;
@@ -265,27 +274,31 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     } = req.body;
     
     if (!groupId || !date) {
+      console.log('[WhatsApp Summary] generateDailySummary validation failed:', { groupId, date });
       return res.status(400).json({
         success: false,
         error: 'Group ID and date are required'
       } as ApiResponse);
     }
     
-    // Parse date and create day boundaries
-    const targetDate = new Date(date);
-    if (isNaN(targetDate.getTime())) {
+    // Parse and validate timezone
+    const validTimezone = parseTimezone(timezone);
+    console.log(`[WhatsApp Summary] Processing request for groupId: ${groupId}, date: ${date}, timezone: ${validTimezone}`);
+    
+    // Create timezone-safe day boundaries
+    let timeWindow;
+    try {
+      timeWindow = getLocalDayWindow(validTimezone, date);
+      logTimeWindow(timeWindow, 'Daily Summary');
+    } catch (error) {
+      console.error('[WhatsApp Summary] Invalid date or timezone:', error);
       return res.status(400).json({
         success: false,
         error: 'Invalid date format. Use YYYY-MM-DD'
       } as ApiResponse);
     }
     
-    // Create start and end of day in user's timezone
-    const startOfDay = new Date(targetDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    
-    const endOfDay = new Date(targetDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    const { utcStart, utcEnd } = getQueryBounds(timeWindow);
     
     // Get group info with fallbacks: Baileys -> WAHA -> Database
     const baileysService = WhatsAppBaileysService.getInstance();
@@ -328,44 +341,96 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       } as ApiResponse);
     }
     
-    // Fetch messages for the day
-    let messages = await WhatsAppMessage.find({
-      $or: [
-        { to: groupId },
-        { from: groupId }
-      ],
+    // Build comprehensive query for group messages
+    const baseQuery = {
+      'metadata.isGroup': true,
+      isIncoming: true, // Only incoming messages for summary
       timestamp: {
-        $gte: startOfDay,
-        $lte: endOfDay
+        $gte: utcStart,
+        $lte: utcEnd
       }
-    })
-    .populate('contactId')
-    .sort({ timestamp: 1 })
-    .lean();
-    
-    // Fallback: if no messages found for the calendar day (timezone mismatches), use last 24 hours
-    if (messages.length === 0) {
-      const endFallback = new Date();
-      const startFallback = new Date(endFallback.getTime() - 24 * 60 * 60 * 1000);
-      messages = await WhatsAppMessage.find({
-        $or: [
-          { to: groupId },
-          { from: groupId }
-        ],
-        timestamp: { $gte: startFallback, $lte: endFallback }
-      })
-      .populate('contactId')
-      .sort({ timestamp: 1 })
-      .lean();
+    };
 
-      // If still no messages, return an empty summary with the original day range
+    // Try multiple approaches to find group messages
+    const queries = [
+      // Primary: Direct group ID match
+      { 
+        ...baseQuery, 
+        'metadata.groupId': groupId 
+      },
+      // Secondary: Group name match (if we have groupInfo)
+      ...(groupInfo ? [{ 
+        ...baseQuery, 
+        'metadata.groupName': groupInfo.name 
+      }] : []),
+      // Tertiary: Legacy approach for backwards compatibility
+      { 
+        ...baseQuery,
+        to: groupId
+      }
+    ];
+
+    let messages: any[] = [];
+    let queryUsed = '';
+
+    // Try each query until we find messages
+    for (let i = 0; i < queries.length && messages.length === 0; i++) {
+      const query = queries[i];
+      queryUsed = `Query ${i + 1}`;
+      
+      console.log(`[WhatsApp Summary] ${queryUsed} for groupId ${groupId}:`, JSON.stringify(query, null, 2));
+      
+      messages = await WhatsAppMessage.find(query)
+        .populate('contactId')
+        .sort({ timestamp: 1 })
+        .lean();
+        
+      console.log(`[WhatsApp Summary] ${queryUsed} returned ${messages.length} messages`);
+      
+      if (messages.length > 0) {
+        const firstMsg = messages[0];
+        const lastMsg = messages[messages.length - 1];
+        console.log(`[WhatsApp Summary] Messages time range: ${firstMsg.timestamp.toISOString()} to ${lastMsg.timestamp.toISOString()}`);
+      }
+    }
+    
+    // Fallback: if no messages found for the calendar day, use last 24 hours
+    if (messages.length === 0) {
+      console.log('[WhatsApp Summary] No messages found for calendar day, trying 24h fallback');
+      const fallbackWindow = getLast24HoursWindow(validTimezone);
+      const { utcStart: fallbackStart, utcEnd: fallbackEnd } = getQueryBounds(fallbackWindow);
+      
+      logTimeWindow(fallbackWindow, 'Fallback 24h');
+      
+      const fallbackQuery = {
+        'metadata.isGroup': true,
+        isIncoming: true,
+        $or: [
+          { 'metadata.groupId': groupId },
+          ...(groupInfo ? [{ 'metadata.groupName': groupInfo.name }] : []),
+          { to: groupId }
+        ],
+        timestamp: { $gte: fallbackStart, $lte: fallbackEnd }
+      };
+      
+      console.log('[WhatsApp Summary] Fallback query:', JSON.stringify(fallbackQuery, null, 2));
+      
+      messages = await WhatsAppMessage.find(fallbackQuery)
+        .populate('contactId')
+        .sort({ timestamp: 1 })
+        .lean();
+        
+      console.log(`[WhatsApp Summary] Fallback query returned ${messages.length} messages`);
+
+      // If still no messages, return an empty summary
       if (messages.length === 0) {
+        console.log('[WhatsApp Summary] No messages found even with fallback, returning empty summary');
         return res.json({
           success: true,
           data: {
             groupId,
             groupName: groupInfo.name,
-            timeRange: { start: startOfDay, end: endOfDay },
+            timeRange: { start: timeWindow.localStart, end: timeWindow.localEnd },
             totalMessages: 0,
             activeParticipants: 0,
             senderInsights: [],
@@ -379,9 +444,8 @@ export const generateDailySummary = async (req: Request, res: Response) => {
         } as ApiResponse<GroupSummaryData>);
       }
 
-      // Overwrite the time range to reflect the fallback window
-      startOfDay.setTime(startFallback.getTime());
-      endOfDay.setTime(endFallback.getTime());
+      // Use fallback time range
+      timeWindow = fallbackWindow;
     }
     
     // Transform to MessageData format
@@ -395,18 +459,22 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     }));
     
     // Generate summary
+    console.log(`[WhatsApp Summary] Generating summary for ${messages.length} messages using ${queryUsed || 'successful query'}`);
+    
     const summary = await summarizationService.generateGroupSummary(
       groupId,
       groupInfo.name,
       messageData,
       {
-        start: startOfDay,
-        end: endOfDay,
-        label: `${date}`,
+        start: timeWindow.localStart,
+        end: timeWindow.localEnd,
+        label: timeWindow.label || `${date}`,
         type: 'custom'
       },
-      { ...options, timezone }
+      { ...options, timezone: validTimezone }
     );
+    
+    console.log(`[WhatsApp Summary] Summary generated successfully: ${summary.totalMessages} messages, ${summary.activeParticipants} participants`);
     
     res.json({
       success: true,
@@ -428,7 +496,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
 export const generateTodaySummary = async (req: Request, res: Response) => {
   try {
     console.log('[WhatsApp Summary] generateTodaySummary called with body:', req.body);
-    const { groupId, timezone = 'UTC' } = req.body;
+    const { groupId, timezone = 'Asia/Jerusalem' } = req.body;
     
     if (!groupId) {
       console.log('[WhatsApp Summary] generateTodaySummary error: No groupId provided');
@@ -438,11 +506,17 @@ export const generateTodaySummary = async (req: Request, res: Response) => {
       } as ApiResponse);
     }
     
-    // Use today's date
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    // Parse and validate timezone
+    const validTimezone = parseTimezone(timezone);
+    
+    // Get today's date in the user's timezone to avoid timezone confusion
+    const todayWindow = getTodayWindow(validTimezone);
+    const todayDateString = todayWindow.localStart.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    console.log(`[WhatsApp Summary] generateTodaySummary using date: ${todayDateString} in timezone: ${validTimezone}`);
     
     // Forward to generateDailySummary with today's date
-    req.body = { groupId, date: today, timezone };
+    req.body = { groupId, date: todayDateString, timezone: validTimezone };
     await generateDailySummary(req, res);
     
   } catch (error) {
@@ -549,6 +623,96 @@ export const getAvailableDateRanges = async (req: Request, res: Response) => {
       success: false,
       error: 'Failed to fetch date ranges'
     } as ApiResponse);
+  }
+};
+
+/**
+ * Debug endpoint to diagnose message query issues
+ */
+export const debugMessages = async (req: Request, res: Response) => {
+  try {
+    const { groupId, date, timezone = 'Asia/Jerusalem' } = req.query;
+    
+    if (!groupId || !date) {
+      return res.status(400).json({
+        success: false,
+        error: 'groupId and date are required'
+      });
+    }
+    
+    const validTimezone = parseTimezone(timezone as string);
+    const timeWindow = getLocalDayWindow(validTimezone, date as string);
+    const { utcStart, utcEnd } = getQueryBounds(timeWindow);
+    
+    // Test different query approaches
+    const queries = [
+      { 
+        name: 'Group ID + metadata.isGroup',
+        query: {
+          'metadata.isGroup': true,
+          'metadata.groupId': groupId,
+          timestamp: { $gte: utcStart, $lte: utcEnd }
+        }
+      },
+      {
+        name: 'to field (legacy)',
+        query: {
+          to: groupId,
+          timestamp: { $gte: utcStart, $lte: utcEnd }
+        }
+      },
+      {
+        name: 'All messages in time range',
+        query: {
+          timestamp: { $gte: utcStart, $lte: utcEnd }
+        }
+      }
+    ];
+    
+    const results = [];
+    
+    for (const { name, query } of queries) {
+      const count = await WhatsAppMessage.countDocuments(query);
+      const sample = await WhatsAppMessage.find(query).limit(3).lean();
+      
+      results.push({
+        queryName: name,
+        query,
+        matchCount: count,
+        sampleMessages: sample.map(msg => ({
+          id: msg._id,
+          from: msg.from,
+          to: msg.to,
+          timestamp: msg.timestamp,
+          message: msg.message.substring(0, 100),
+          metadata: msg.metadata,
+          isIncoming: msg.isIncoming
+        }))
+      });
+    }
+    
+    res.json({
+      success: true,
+      debugInfo: {
+        groupId,
+        date,
+        timezone: validTimezone,
+        timeWindow: {
+          localStart: timeWindow.localStart.toISOString(),
+          localEnd: timeWindow.localEnd.toISOString(),
+          utcStart: utcStart.toISOString(),
+          utcEnd: utcEnd.toISOString()
+        },
+        queryResults: results
+      }
+    });
+    
+  } catch (error) {
+    console.error('[WhatsApp Summary] Debug error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Debug failed: ' + (error as Error).message
+    });
   }
 };
 
