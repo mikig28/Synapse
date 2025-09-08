@@ -450,14 +450,13 @@ class WhatsAppService {
       const isAuthenticated = useAuthStore.getState().isAuthenticated;
 
       console.log('[WhatsAppService] Auth check - Token exists:', !!token, 'Is authenticated:', isAuthenticated);
-      console.log('[WhatsAppService] Making request to generate-today-noauth:', request);
-      console.log('[WhatsAppService] Full URL:', `${api.defaults.baseURL}${this.summaryUrl}/generate-today-noauth`);
+      console.log('[WhatsAppService] Making request to generate-today:', request);
+      console.log('[WhatsAppService] Full URL:', `${api.defaults.baseURL}/${this.summaryUrl}/generate-today`);
 
-      // TEMPORARY: Skip auth check for testing
-      // if (!isAuthenticated || !token) {
-      //   throw new Error('Not authenticated. Please log in first.');
-      // }
-      const response = await api.post(`${this.summaryUrl}/generate-today-noauth`, request);
+      if (!isAuthenticated || !token) {
+        throw new Error('Not authenticated. Please log in first.');
+      }
+      const response = await api.post(`${this.summaryUrl}/generate-today`, request);
       console.log('[WhatsAppService] Response received:', response.status, response.data);
 
       const summary = response.data.data;
