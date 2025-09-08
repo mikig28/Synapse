@@ -227,33 +227,38 @@ app.get('/api/v1/whatsapp-summary/test', (req: Request, res: Response) => {
 app.post('/api/v1/whatsapp-summary/generate-today-direct', authMiddleware, generateTodaySummary);
 console.log('[Server] WhatsApp summary direct route loaded successfully');
 
-// TEMPORARY: Inline route to bypass import issues
+// REAL WhatsApp Summary Generation Route (no auth for testing)
 app.post('/api/v1/whatsapp-summary/generate-today-noauth', async (req: Request, res: Response) => {
   try {
-    console.log('[Inline Route] generate-today-noauth called with body:', req.body);
-    res.json({
-      success: true,
-      data: {
-        groupId: req.body.groupId || "test-group",
-        groupName: "Test Group",
-        totalMessages: 42,
-        activeParticipants: 5,
-        timeRange: {
-          start: new Date(),
-          end: new Date()
-        },
-        overallSummary: "This is a test summary generated successfully! The Daily Summary feature is working.",
-        senderInsights: [],
-        topKeywords: [],
-        topEmojis: [],
-        activityPeaks: [],
-        messageTypes: { text: 42, image: 0, video: 0, audio: 0, document: 0, other: 0 },
-        processingStats: { processingTimeMs: 100, messagesAnalyzed: 42, participantsFound: 5 }
-      }
-    });
+    console.log('[WhatsApp Summary] Real implementation called with body:', req.body);
+    const { groupId, timezone = 'UTC' } = req.body;
+
+    if (!groupId) {
+      console.log('[WhatsApp Summary] Error: No groupId provided');
+      return res.status(400).json({
+        success: false,
+        error: 'Group ID is required'
+      });
+    }
+
+    // Use today's date
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    console.log(`[WhatsApp Summary] Generating summary for group ${groupId} on date ${today}`);
+
+    // Create a mock request object with the required body
+    const mockReq = {
+      body: { groupId, date: today, timezone }
+    } as Request;
+
+    // Call the real controller function
+    await generateTodaySummary(mockReq, res);
+
   } catch (error) {
-    console.error('[Inline Route] Error:', error);
-    res.status(500).json({ success: false, error: 'Test route failed' });
+    console.error('[WhatsApp Summary] Real implementation error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate WhatsApp summary: ' + (error as Error).message
+    });
   }
 });
 console.log('[Server] Inline test route loaded successfully');
