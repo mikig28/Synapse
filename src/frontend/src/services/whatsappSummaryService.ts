@@ -116,8 +116,8 @@ export class WhatsAppSummaryService {
         timezone
       };
 
-      // TEMPORARY: Using direct route to bypass routing issues
-      const response = await api.post<ApiResponse<GroupSummaryData>>('/whatsapp-summary/generate-today-direct', request);
+      // TEMPORARY: Using no-auth route to bypass authentication issues  
+      const response = await api.post<ApiResponse<GroupSummaryData>>('/whatsapp-summary/generate-today-noauth', request);
       
       if (response.data.success && response.data.data) {
         // Convert date strings back to Date objects

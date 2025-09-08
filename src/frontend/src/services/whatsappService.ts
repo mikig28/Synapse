@@ -456,7 +456,6 @@ class WhatsAppService {
       if (!isAuthenticated || !token) {
         throw new Error('Not authenticated. Please log in first.');
       }
-
       const response = await api.post(`${this.summaryUrl}/generate-today-direct`, request);
       console.log('[WhatsAppService] Response received:', response.status, response.data);
 

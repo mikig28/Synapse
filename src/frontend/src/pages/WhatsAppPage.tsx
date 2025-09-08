@@ -4,15 +4,15 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { 
-  MessageCircle, 
-  Send, 
-  Phone, 
-  Search, 
-  QrCode, 
-  RefreshCw, 
-  Settings, 
-  Users, 
+import {
+  MessageCircle,
+  Send,
+  Phone,
+  Search,
+  QrCode,
+  RefreshCw,
+  Settings,
+  Users,
   Eye,
   EyeOff,
   Wifi,
@@ -22,7 +22,8 @@ import {
   ArrowLeft,
   Menu,
   X,
-  Camera
+  Camera,
+  Calendar
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { io, Socket } from 'socket.io-client';
@@ -1689,6 +1690,92 @@ const WhatsAppPage: React.FC = () => {
     }
   };
 
+  const generateDailySummary = async () => {
+    try {
+      if (!selectedChat) {
+        toast({
+          title: "No Chat Selected",
+          description: "Please select a group to generate a daily summary.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const chatId = extractChatId(selectedChat);
+      if (!chatId) {
+        toast({
+          title: "Invalid Chat",
+          description: "Cannot generate summary for this chat. Please try selecting it again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log(`[WhatsApp Frontend] 📊 Generating daily summary for: ${selectedChat.name}`);
+
+      // Show loading state
+      setRefreshingMessages(true);
+
+      toast({
+        title: "Generating Summary",
+        description: `Creating daily summary for ${selectedChat.name}...`,
+      });
+
+      // Import whatsappService for summary functionality
+      const { whatsappService } = await import('@/services/whatsappService');
+
+      // Create date range for today
+      const todayRange = whatsappService.createDateRange('today');
+
+      try {
+        const summary = await whatsappService.generateTodaySummary({
+          groupId: chatId,
+          timeRange: todayRange,
+        });
+
+        console.log('[WhatsApp Frontend] ✅ Daily summary generated:', summary);
+
+        toast({
+          title: "Summary Generated",
+          description: `Daily summary for ${selectedChat.name} has been created successfully.`,
+        });
+
+        // Here you could show the summary in a modal or display it in the UI
+        // For now, we'll just show a success message
+
+      } catch (summaryError: any) {
+        console.error('[WhatsApp Frontend] ❌ Daily summary generation failed:', summaryError);
+
+        let errorMsg = "Failed to generate daily summary";
+        let suggestion = "Please try again later";
+
+        if (summaryError.response?.status === 404) {
+          errorMsg = "Summary service not available";
+          suggestion = "The summary service may not be configured yet.";
+        } else if (summaryError.response?.data?.error) {
+          errorMsg = summaryError.response.data.error;
+        }
+
+        toast({
+          title: "Summary Failed",
+          description: `${errorMsg}. ${suggestion}`,
+          variant: "destructive",
+        });
+      }
+
+    } catch (error: any) {
+      console.error('[WhatsApp Frontend] ❌ Error in daily summary generation:', error);
+
+      toast({
+        title: "Summary Error",
+        description: "An unexpected error occurred while generating the summary.",
+        variant: "destructive",
+      });
+    } finally {
+      setRefreshingMessages(false);
+    }
+  };
+
   const refreshGroups = async () => {
     try {
       setLoadingChats(true);
@@ -2372,7 +2459,24 @@ const WhatsAppPage: React.FC = () => {
                     <RefreshCw className="w-4 h-4 mr-2" />
                     Refresh Chats
                   </AnimatedButton>
-                  
+
+                  {selectedChat && selectedChat.isGroup && (
+                    <AnimatedButton
+                      onClick={generateDailySummary}
+                      variant="outline"
+                      size="sm"
+                      disabled={refreshingMessages}
+                      className="border-purple-400/30 text-purple-200 hover:bg-purple-500/10"
+                    >
+                      {refreshingMessages ? (
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Calendar className="w-4 h-4 mr-2" />
+                      )}
+                      Daily Summary
+                    </AnimatedButton>
+                  )}
+
                   <AnimatedButton
                     onClick={refreshGroups}
                     variant="outline"
@@ -2807,7 +2911,7 @@ const WhatsAppPage: React.FC = () => {
             <GlassCard className={`${isMobile ? 'h-full' : 'h-[600px]'} p-4 sm:p-6 flex flex-col`}>
               {selectedChat ? (
                 <>
-                  <div className="flex items-center justify-between pb-4 border-b border-white/20">
+                  <div className="flex items-center justify-between pb-4 border-b border-white/20 flex-shrink-0">
                     <div className="flex items-center gap-3">
                       {isMobile && (
                         <Button
@@ -2919,11 +3023,12 @@ const WhatsAppPage: React.FC = () => {
                       </AnimatedButton>
                     </div>
                   </div>
-                  
-                  <div className="flex-1 overflow-y-auto my-4 space-y-3 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full" 
+
+                  <div className="flex-1 overflow-y-auto my-4 space-y-3 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full min-h-0"
                        style={{
                          scrollbarWidth: 'auto',
-                         scrollbarColor: '#8b5cf6 rgba(255,255,255,0.2)'
+                         scrollbarColor: '#8b5cf6 rgba(255,255,255,0.2)',
+                         maxHeight: 'calc(100% - 120px)' // Ensure buttons stay visible
                        }}>
                     {displayedMessages.length === 0 ? (
                       <div className="flex items-center justify-center h-full">
