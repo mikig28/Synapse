@@ -98,20 +98,32 @@ const TelegramChannelsPage: React.FC = () => {
   };
 
   const handleAddChannel = async (channelData: { channelIdentifier: string; keywords: string[] }) => {
-    // Prevent adding channels if bot is not configured
-    if (!botStatus?.hasBot) {
+    const identifier = channelData.channelIdentifier?.trim() || '';
+    const isPublicChannel = identifier.startsWith('@');
+
+    // If bot is not configured, allow adding ONLY public channels (via RSS fallback),
+    // but require bot for groups/private (numeric or negative IDs).
+    if (!botStatus?.hasBot && !isPublicChannel) {
       // Close the add modal and open bot config to guide the user immediately
       setIsAddModalOpen(false);
       setIsBotConfigOpen(true);
       toast({
         title: "Bot setup required",
-        description: "Please configure your Telegram bot before adding channels/groups.",
+        description: "For groups/private channels you must configure your Telegram bot first.",
         variant: "destructive"
       });
       return;
     }
 
     try {
+      if (!botStatus?.hasBot && isPublicChannel) {
+        // Inform the user we're adding with limited functionality until bot is configured
+        toast({
+          title: "Adding public channel without bot",
+          description: "We'll use a limited RSS fallback until you configure your bot for real-time updates.",
+        });
+      }
+
       await addChannel(channelData);
       setIsAddModalOpen(false);
       toast({
