@@ -8,7 +8,9 @@
     "prebuild": "node -e \"const fs = require('fs'); if (fs.existsSync('./dist')) { fs.rmSync('./dist', { recursive: true, force: true }); }\"",
     "start": "node dist/server.js",
     "dev": "nodemon src/server.ts",
-    "migrate:whatsapp": "tsx scripts/migrateWhatsAppMetadata.ts"
+    "migrate:whatsapp": "tsx scripts/migrateWhatsAppMetadata.ts",
+    "migrate:quick": "tsx src/utils/quickMigrateMetadata.ts",
+    "diagnose:messages": "tsx src/utils/diagnoseDatabaseMessages.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.1.3",
