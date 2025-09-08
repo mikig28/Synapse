@@ -339,8 +339,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
         $gte: startOfDay,
         $lte: endOfDay
       },
-      isIncoming: true,
-      message: { $ne: '', $exists: true }
+      isIncoming: true
     })
     .populate('contactId')
     .sort({ timestamp: 1 })
