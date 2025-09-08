@@ -2182,6 +2182,13 @@ class WAHAService extends EventEmitter {
     downloadError?: string;
   }): Promise<void> {
     try {
+      console.log(`[WAHA Service] Saving media message:`, {
+        messageId: messageData.id,
+        from: messageData.from,
+        chatId: messageData.chatId,
+        hasChatId: !!messageData.chatId
+      });
+
       // Find or create contact
       let contact = await WhatsAppContact.findOne({ phoneNumber: messageData.from });
       if (!contact) {
@@ -2223,7 +2230,7 @@ class WAHAService extends EventEmitter {
       const newMessage = new WhatsAppMessage({
         messageId: messageData.id,
         from: messageData.from,
-        to: messageData.chatId,
+        to: 'business', // For incoming messages, recipient is our business
         message: messageData.body || '',
         timestamp: new Date(messageData.timestamp || Date.now()),
         type: messageData.type || 'text',
