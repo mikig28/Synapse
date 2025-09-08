@@ -298,7 +298,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       } as ApiResponse);
     }
     
-    const { utcStart, utcEnd } = getQueryBounds(timeWindow);
+    const { start: utcStart, end: utcEnd } = getQueryBounds(timeWindow);
     
     // Get group info with fallbacks: Baileys -> WAHA -> Database
     const baileysService = WhatsAppBaileysService.getInstance();
@@ -398,7 +398,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     if (messages.length === 0) {
       console.log('[WhatsApp Summary] No messages found for calendar day, trying 24h fallback');
       const fallbackWindow = getLast24HoursWindow(validTimezone);
-      const { utcStart: fallbackStart, utcEnd: fallbackEnd } = getQueryBounds(fallbackWindow);
+      const { start: fallbackStart, end: fallbackEnd } = getQueryBounds(fallbackWindow);
       
       logTimeWindow(fallbackWindow, 'Fallback 24h');
       
@@ -642,7 +642,7 @@ export const debugMessages = async (req: Request, res: Response) => {
     
     const validTimezone = parseTimezone(timezone as string);
     const timeWindow = getLocalDayWindow(validTimezone, date as string);
-    const { utcStart, utcEnd } = getQueryBounds(timeWindow);
+    const { start: utcStart, end: utcEnd } = getQueryBounds(timeWindow);
     
     // Test different query approaches
     const queries = [

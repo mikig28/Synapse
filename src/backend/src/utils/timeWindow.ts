@@ -1,4 +1,4 @@
-import { zonedTimeToUtc, utcToZonedTime, format } from 'date-fns-tz';
+import { toZonedTime, fromZonedTime, format } from 'date-fns-tz';
 import { startOfDay, endOfDay, addDays, subDays } from 'date-fns';
 
 export interface TimeWindow {
@@ -33,7 +33,7 @@ export function getLocalDayWindow(
   }
 
   // Get the date in the target timezone (this handles DST automatically)
-  const zonedDate = utcToZonedTime(targetDate, timezone);
+  const zonedDate = toZonedTime(targetDate, timezone);
   
   // Create start and end of day in the target timezone
   const localStart = startOfDay(zonedDate);
@@ -42,8 +42,8 @@ export function getLocalDayWindow(
     : startOfDay(addDays(zonedDate, 1)); // 00:00:00 next day (exclusive)
   
   // Convert to UTC for database queries
-  const utcStart = zonedTimeToUtc(localStart, timezone);
-  const utcEnd = zonedTimeToUtc(localEnd, timezone);
+  const utcStart = fromZonedTime(localStart, timezone);
+  const utcEnd = fromZonedTime(localEnd, timezone);
 
   return {
     localStart,
@@ -79,8 +79,8 @@ export function getLast24HoursWindow(timezone?: string): TimeWindow {
   const utcStart = subDays(now, 1);
   
   // If timezone provided, convert to local times for display
-  const localEnd = timezone ? utcToZonedTime(utcEnd, timezone) : utcEnd;
-  const localStart = timezone ? utcToZonedTime(utcStart, timezone) : utcStart;
+  const localEnd = timezone ? toZonedTime(utcEnd, timezone) : utcEnd;
+  const localStart = timezone ? toZonedTime(utcStart, timezone) : utcStart;
   
   return {
     localStart,
@@ -111,14 +111,14 @@ export function getCustomWindow(
   }
 
   // Convert to timezone-specific dates
-  const localStart = utcToZonedTime(parsedStart, timezone);
+  const localStart = toZonedTime(parsedStart, timezone);
   const localEnd = inclusive 
-    ? endOfDay(utcToZonedTime(parsedEnd, timezone))
-    : startOfDay(addDays(utcToZonedTime(parsedEnd, timezone), 1));
+    ? endOfDay(toZonedTime(parsedEnd, timezone))
+    : startOfDay(addDays(toZonedTime(parsedEnd, timezone), 1));
   
   // Convert back to UTC for DB queries
-  const utcStart = zonedTimeToUtc(localStart, timezone);
-  const utcEnd = zonedTimeToUtc(localEnd, timezone);
+  const utcStart = fromZonedTime(localStart, timezone);
+  const utcEnd = fromZonedTime(localEnd, timezone);
 
   return {
     localStart,
