@@ -330,10 +330,9 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     
     // Fetch messages for the day
     let messages = await WhatsAppMessage.find({
-      'metadata.isGroup': true,
       $or: [
-        { 'metadata.groupName': groupInfo.name },
-        { 'metadata.groupId': groupId }
+        { to: groupId },
+        { from: groupId }
       ],
       timestamp: {
         $gte: startOfDay,
@@ -349,10 +348,9 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       const endFallback = new Date();
       const startFallback = new Date(endFallback.getTime() - 24 * 60 * 60 * 1000);
       messages = await WhatsAppMessage.find({
-        'metadata.isGroup': true,
         $or: [
-          { 'metadata.groupName': groupInfo.name },
-          { 'metadata.groupId': groupId }
+          { to: groupId },
+          { from: groupId }
         ],
         timestamp: { $gte: startFallback, $lte: endFallback }
       })
