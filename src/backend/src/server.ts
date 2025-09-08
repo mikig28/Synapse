@@ -44,6 +44,7 @@ import usageRoutes from './api/routes/usageRoutes'; // Import usage routes
 import telegramChannelRoutes from './api/routes/telegramChannelRoutes'; // Import telegram channel routes
 import whatsappImagesRoutes from './api/routes/whatsappImagesRoutes'; // Import WhatsApp images routes
 import whatsappSummaryRoutes from './api/routes/whatsappSummaryRoutes'; // Import WhatsApp summary routes
+import migrationRoutes from './api/routes/migrationRoutes'; // Import migration routes
 import { generateTodaySummary } from './api/controllers/whatsappSummaryController'; // Direct import for WhatsApp summary endpoint
 import { authMiddleware } from './api/middleware/authMiddleware'; // Import auth middleware
 import { initializeTaskReminderScheduler } from './services/taskReminderService'; // Import task reminder service
@@ -257,6 +258,13 @@ console.log('[Server] WhatsApp summary direct route loaded successfully');
 console.log('[Server] Loading WhatsApp summary routes...');
 app.use('/api/v1/whatsapp-summary', whatsappSummaryRoutes); // Use WhatsApp summary routes
 console.log('[Server] WhatsApp summary routes loaded successfully');
+
+// Migration routes (only in non-production)
+if (process.env.NODE_ENV !== 'production') {
+  console.log('[Server] Loading migration routes (development only)...');
+  app.use('/api/v1/migration', migrationRoutes); // Use migration routes
+  console.log('[Server] Migration routes loaded successfully');
+}
 
 // **AG-UI Protocol Endpoints**
 
