@@ -213,21 +213,14 @@ app.use('/api/v1/feedback', feedbackRoutes); // Use feedback routes
 app.use('/api/v1/usage', usageRoutes); // Use usage routes
 app.use('/api/v1/telegram-channels', telegramChannelRoutes); // Use telegram channels routes
 app.use('/api/v1/whatsapp/images', whatsappImagesRoutes); // Use WhatsApp images extraction routes
-console.log('[Server] Loading WhatsApp summary routes...');
-app.use('/api/v1/whatsapp-summary', whatsappSummaryRoutes); // Use WhatsApp summary routes
-console.log('[Server] WhatsApp summary routes loaded successfully');
 
-// TEMPORARY: Simple test endpoint (no auth required)
+// TEMPORARY: Simple test endpoint (no auth required) - BEFORE routes
 app.get('/api/v1/whatsapp-summary/test', (req: Request, res: Response) => {
   console.log('[Server] Test endpoint hit successfully');
   res.json({ success: true, message: 'WhatsApp summary service is running', timestamp: new Date().toISOString() });
 });
 
-// Direct route for WhatsApp summary generation (primary endpoint)
-app.post('/api/v1/whatsapp-summary/generate-today-direct', authMiddleware, generateTodaySummary);
-console.log('[Server] WhatsApp summary direct route loaded successfully');
-
-// REAL WhatsApp Summary Generation Route (no auth for testing)
+// REAL WhatsApp Summary Generation Route (no auth for testing) - BEFORE routes
 app.post('/api/v1/whatsapp-summary/generate-today-noauth', async (req: Request, res: Response) => {
   try {
     console.log('[WhatsApp Summary] Real implementation called with body:', req.body);
@@ -261,7 +254,15 @@ app.post('/api/v1/whatsapp-summary/generate-today-noauth', async (req: Request, 
     });
   }
 });
-console.log('[Server] Inline test route loaded successfully');
+console.log('[Server] WhatsApp no-auth summary route loaded successfully');
+
+// Direct route for WhatsApp summary generation (primary endpoint)
+app.post('/api/v1/whatsapp-summary/generate-today-direct', authMiddleware, generateTodaySummary);
+console.log('[Server] WhatsApp summary direct route loaded successfully');
+
+console.log('[Server] Loading WhatsApp summary routes...');
+app.use('/api/v1/whatsapp-summary', whatsappSummaryRoutes); // Use WhatsApp summary routes
+console.log('[Server] WhatsApp summary routes loaded successfully');
 
 // **AG-UI Protocol Endpoints**
 
