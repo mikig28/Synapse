@@ -29,6 +29,8 @@ import { toast } from '@/hooks/use-toast';
 import { io, Socket } from 'socket.io-client';
 import useAuthStore from '@/store/authStore';
 import api from '@/services/axiosConfig';
+import SummaryModal from '@/components/whatsapp/SummaryModal';
+import { GroupSummaryData } from '@/types/whatsappSummary';
 
 interface WhatsAppMessage {
   id: string;
@@ -111,6 +113,9 @@ const WhatsAppPage: React.FC = () => {
   const [fetchingHistory, setFetchingHistory] = useState(false);
   const [refreshingMessages, setRefreshingMessages] = useState(false);
   const [chatsFetchAttempts, setChatsFetchAttempts] = useState(0);
+  // Summary modal state
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [selectedSummary, setSelectedSummary] = useState<GroupSummaryData | null>(null);
   
   // Mobile-specific states
   const [isMobile, setIsMobile] = useState(false);
@@ -1724,24 +1729,22 @@ const WhatsAppPage: React.FC = () => {
       // Import whatsappService for summary functionality
       const { whatsappService } = await import('@/services/whatsappService');
 
-      // Create date range for today
-      const todayRange = whatsappService.createDateRange('today');
-
       try {
         const summary = await whatsappService.generateTodaySummary({
           groupId: chatId,
-          timeRange: todayRange,
+          timezone: whatsappService.getUserTimezone()
         });
 
         console.log('[WhatsApp Frontend] ✅ Daily summary generated:', summary);
+
+        // Show modal with the generated summary
+        setSelectedSummary(summary);
+        setShowSummaryModal(true);
 
         toast({
           title: "Summary Generated",
           description: `Daily summary for ${selectedChat.name} has been created successfully.`,
         });
-
-        // Here you could show the summary in a modal or display it in the UI
-        // For now, we'll just show a success message
 
       } catch (summaryError: any) {
         console.error('[WhatsApp Frontend] ❌ Daily summary generation failed:', summaryError);
@@ -2344,6 +2347,7 @@ const WhatsAppPage: React.FC = () => {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 p-3 sm:p-6">
       <div className="max-w-7xl mx-auto">
         <motion.div
@@ -3662,6 +3666,17 @@ const WhatsAppPage: React.FC = () => {
         </AnimatePresence>
       </div>
     </div>
+
+    {/* Summary Modal */}
+    <AnimatePresence>
+      {showSummaryModal && selectedSummary && (
+        <SummaryModal
+          summary={selectedSummary!}
+          onClose={() => setShowSummaryModal(false)}
+        />
+      )}
+    </AnimatePresence>
+    </>
   );
 };
 
