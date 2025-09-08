@@ -329,7 +329,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     }
     
     // Fetch messages for the day
-    const messages = await WhatsAppMessage.find({
+    let messages = await WhatsAppMessage.find({
       'metadata.isGroup': true,
       $or: [
         { 'metadata.groupName': groupInfo.name },
@@ -338,31 +338,52 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       timestamp: {
         $gte: startOfDay,
         $lte: endOfDay
-      },
-      isIncoming: true
+      }
     })
     .populate('contactId')
     .sort({ timestamp: 1 })
     .lean();
     
+    // Fallback: if no messages found for the calendar day (timezone mismatches), use last 24 hours
     if (messages.length === 0) {
-      return res.json({
-        success: true,
-        data: {
-          groupId,
-          groupName: groupInfo.name,
-          timeRange: { start: startOfDay, end: endOfDay },
-          totalMessages: 0,
-          activeParticipants: 0,
-          senderInsights: [],
-          overallSummary: 'No messages found for this day.',
-          topKeywords: [],
-          topEmojis: [],
-          activityPeaks: [],
-          messageTypes: { text: 0, image: 0, video: 0, audio: 0, document: 0, other: 0 },
-          processingStats: { processingTimeMs: 0, messagesAnalyzed: 0, participantsFound: 0 }
-        } as GroupSummaryData
-      } as ApiResponse<GroupSummaryData>);
+      const endFallback = new Date();
+      const startFallback = new Date(endFallback.getTime() - 24 * 60 * 60 * 1000);
+      messages = await WhatsAppMessage.find({
+        'metadata.isGroup': true,
+        $or: [
+          { 'metadata.groupName': groupInfo.name },
+          { 'metadata.groupId': groupId }
+        ],
+        timestamp: { $gte: startFallback, $lte: endFallback }
+      })
+      .populate('contactId')
+      .sort({ timestamp: 1 })
+      .lean();
+
+      // If still no messages, return an empty summary with the original day range
+      if (messages.length === 0) {
+        return res.json({
+          success: true,
+          data: {
+            groupId,
+            groupName: groupInfo.name,
+            timeRange: { start: startOfDay, end: endOfDay },
+            totalMessages: 0,
+            activeParticipants: 0,
+            senderInsights: [],
+            overallSummary: 'No messages found for this period.',
+            topKeywords: [],
+            topEmojis: [],
+            activityPeaks: [],
+            messageTypes: { text: 0, image: 0, video: 0, audio: 0, document: 0, other: 0 },
+            processingStats: { processingTimeMs: 0, messagesAnalyzed: 0, participantsFound: 0 }
+          } as GroupSummaryData
+        } as ApiResponse<GroupSummaryData>);
+      }
+
+      // Overwrite the time range to reflect the fallback window
+      startOfDay.setTime(startFallback.getTime());
+      endOfDay.setTime(endFallback.getTime());
     }
     
     // Transform to MessageData format
