@@ -121,17 +121,11 @@ app.use(cors({
 
 // Add explicit CORS headers middleware
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
+  const origin = req.headers.origin || '*';
 
-  // Always set CORS headers for Socket.IO compatibility
-  if (origin && [
-    "https://synapse-frontend.onrender.com",
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://localhost:5174"
-  ].includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-  }
+  // Reflect origin for all allowed requests (wildcard for non-credentialed requests)
+  res.header('Access-Control-Allow-Origin', origin);
+  res.header('Vary', 'Origin');
 
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, Accept, Origin, Cache-Control');
