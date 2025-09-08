@@ -287,11 +287,39 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     const endOfDay = new Date(targetDate);
     endOfDay.setHours(23, 59, 59, 999);
     
-    // Get group info
-    const whatsappService = WhatsAppBaileysService.getInstance();
-    const groups = whatsappService.getGroups();
-    const groupInfo = groups.find(g => g.id === groupId);
-    
+    // Get group info with fallbacks: Baileys -> WAHA -> Database
+    const baileysService = WhatsAppBaileysService.getInstance();
+    const baileysGroups = baileysService.getGroups();
+    let groupInfo: any = baileysGroups.find((g: any) => g.id === groupId);
+
+    if (!groupInfo) {
+      try {
+        const wahaService = WAHAService.getInstance();
+        const wahaGroups = await wahaService.getGroups('default');
+        const wahaMatch = wahaGroups.find((g: any) => g.id === groupId);
+        if (wahaMatch) {
+          groupInfo = { id: wahaMatch.id, name: wahaMatch.name, participantCount: wahaMatch.participantCount };
+        }
+      } catch (wahaError) {
+        console.warn('[WhatsApp Summary] WAHA group lookup failed:', wahaError);
+      }
+    }
+
+    if (!groupInfo) {
+      // Fallback to database for last known group name by groupId
+      const lastMsg = await WhatsAppMessage.findOne({
+        'metadata.isGroup': true,
+        'metadata.groupId': groupId,
+        'metadata.groupName': { $exists: true, $nin: [null, ''] }
+      })
+        .sort({ timestamp: -1 })
+        .lean();
+
+      if (lastMsg?.metadata?.groupName) {
+        groupInfo = { id: groupId, name: lastMsg.metadata.groupName, participantCount: 0 };
+      }
+    }
+
     if (!groupInfo) {
       return res.status(404).json({
         success: false,
