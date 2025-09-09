@@ -11,13 +11,9 @@ import { quickMigrateMetadata } from '../../utils/quickMigrateMetadata';
  */
 export const migrateWhatsAppMetadata = async (req: Request, res: Response) => {
   try {
-    // Security check - only allow in development/staging
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(403).json({
-        success: false,
-        error: 'Migration endpoints are disabled in production for security'
-      });
-    }
+    // Migration is temporarily enabled in production for the WhatsApp metadata fix
+    console.log('[Migration API] NODE_ENV:', process.env.NODE_ENV);
+    console.log('[Migration API] Migration temporarily enabled for WhatsApp metadata fix');
 
     console.log('[Migration API] Starting WhatsApp metadata migration...');
     

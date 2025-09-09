@@ -259,12 +259,10 @@ console.log('[Server] Loading WhatsApp summary routes...');
 app.use('/api/v1/whatsapp-summary', whatsappSummaryRoutes); // Use WhatsApp summary routes
 console.log('[Server] WhatsApp summary routes loaded successfully');
 
-// Migration routes (only in non-production)
-if (process.env.NODE_ENV !== 'production') {
-  console.log('[Server] Loading migration routes (development only)...');
-  app.use('/api/v1/migration', migrationRoutes); // Use migration routes
-  console.log('[Server] Migration routes loaded successfully');
-}
+// Migration routes (enabled temporarily for the WhatsApp metadata fix)
+console.log('[Server] Loading migration routes (temporarily enabled for WhatsApp metadata fix)...');
+app.use('/api/v1/migration', migrationRoutes); // Use migration routes
+console.log('[Server] Migration routes loaded successfully');
 
 // **AG-UI Protocol Endpoints**
 
