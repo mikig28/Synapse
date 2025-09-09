@@ -1,5 +1,9 @@
+import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import WhatsAppMessage from '../models/WhatsAppMessage';
+
+// Load environment variables
+dotenv.config();
 
 /**
  * Quick migration script to populate metadata fields in existing WhatsApp messages
@@ -44,13 +48,20 @@ async function quickMigration(): Promise<void> {
       const groupId = message.to;
       const groupName = extractGroupName(groupId) || `Group ${groupId.substring(0, 12)}...`;
       
-      // Update metadata
+      // Update metadata carefully to avoid undefined values
+      const existingMetadata = message.metadata || {};
       message.metadata = {
-        ...message.metadata,
+        forwarded: existingMetadata.forwarded,
+        forwardedMany: existingMetadata.forwardedMany,
         isGroup: true,
         groupId: groupId,
         groupName: groupName
       };
+      
+      // Only include referral if it exists and is valid
+      if (existingMetadata.referral && typeof existingMetadata.referral === 'object') {
+        message.metadata.referral = existingMetadata.referral;
+      }
       
       await message.save();
       updated++;
@@ -78,12 +89,20 @@ async function quickMigration(): Promise<void> {
     const groupId = message.from;
     const groupName = extractGroupName(groupId) || `Group ${groupId.substring(0, 12)}...`;
     
+    // Update metadata carefully to avoid undefined values
+    const existingMetadata = message.metadata || {};
     message.metadata = {
-      ...message.metadata,
+      forwarded: existingMetadata.forwarded,
+      forwardedMany: existingMetadata.forwardedMany,
       isGroup: true,
       groupId: groupId,
       groupName: groupName
     };
+    
+    // Only include referral if it exists and is valid
+    if (existingMetadata.referral && typeof existingMetadata.referral === 'object') {
+      message.metadata.referral = existingMetadata.referral;
+    }
     
     await message.save();
     updated++;
@@ -103,10 +122,18 @@ async function quickMigration(): Promise<void> {
   console.log(`[Migration] Found ${directMessages.length} direct messages to update`);
   
   for (const message of directMessages) {
+    // Update metadata carefully to avoid undefined values
+    const existingMetadata = message.metadata || {};
     message.metadata = {
-      ...message.metadata,
+      forwarded: existingMetadata.forwarded,
+      forwardedMany: existingMetadata.forwardedMany,
       isGroup: false
     };
+    
+    // Only include referral if it exists and is valid
+    if (existingMetadata.referral && typeof existingMetadata.referral === 'object') {
+      message.metadata.referral = existingMetadata.referral;
+    }
     
     await message.save();
     updated++;
