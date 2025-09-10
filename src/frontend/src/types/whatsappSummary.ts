@@ -51,6 +51,14 @@ export interface SenderInsights {
   };
 }
 
+export interface AIInsights {
+  keyTopics: string[];
+  sentiment: 'positive' | 'neutral' | 'negative' | 'mixed';
+  actionItems: string[];
+  importantEvents: string[];
+  decisionsMade: string[];
+}
+
 export interface GroupSummaryData {
   groupId: string;
   groupName: string;
@@ -81,6 +89,7 @@ export interface GroupSummaryData {
     messagesAnalyzed: number;
     participantsFound: number;
   };
+  aiInsights?: AIInsights; // Optional AI-generated insights
 }
 
 export interface DateRange {
@@ -147,62 +156,73 @@ export interface SummaryGenerationOptions {
   timezone?: string; // User's timezone for date boundaries
 }
 
-// UI State types
-export interface GroupMonitorState {
-  selectedGroups: GroupSelection[];
-  selectedDateRange: DateRange;
-  customDateRange: {
-    start: Date | null;
-    end: Date | null;
-  };
-  loading: boolean;
-  error: string | null;
-  summaries: Map<string, GroupSummaryData>; // groupId -> summary
-  availableGroups: GroupInfo[];
-}
-
-// Summary display types
-export interface SummaryDisplayProps {
-  summary: GroupSummaryData;
-  onClose: () => void;
-  loading?: boolean;
-}
-
-// Date picker types
-export interface DatePickerProps {
-  selectedRange: DateRange;
-  onChange: (range: DateRange) => void;
-  availableRanges?: DateRange[];
-}
-
-// Group selector types
-export interface GroupSelectorProps {
-  groups: GroupSelection[];
-  onChange: (groups: GroupSelection[]) => void;
-  loading?: boolean;
-}
-
-export interface GroupCardProps {
-  group: GroupSelection;
-  onToggle: (groupId: string) => void;
-  onGenerateSummary: (groupId: string) => void;
-  summary?: GroupSummaryData;
-  loading?: boolean;
-}
-
-// Constants for UI
+// Date range preset types
 export const DATE_RANGE_PRESETS = {
-  TODAY: 'today' as const,
-  YESTERDAY: 'yesterday' as const,
-  LAST_24H: 'last24h' as const,
-  CUSTOM: 'custom' as const,
-};
+  TODAY: 'today',
+  YESTERDAY: 'yesterday',
+  LAST_24H: 'last24h',
+  LAST_WEEK: 'lastWeek',
+  LAST_MONTH: 'lastMonth',
+  CUSTOM: 'custom'
+} as const;
 
+export type DateRangePreset = typeof DATE_RANGE_PRESETS[keyof typeof DATE_RANGE_PRESETS];
+
+// Group statistics interface
+export interface GroupStatistics {
+  groupId: string;
+  groupName: string;
+  period: string;
+  totalMessages: number;
+  activeSenders: number;
+  messageTypes: {
+    text: number;
+    image: number;
+    video: number;
+    audio: number;
+    document: number;
+    other: number;
+  };
+  averageMessagesPerDay: number;
+  averageMessagesPerSender: number;
+}
+
+// Message type enums
 export const MESSAGE_TYPES = {
-  TEXT: 'text' as const,
-  IMAGE: 'image' as const,
-  VIDEO: 'video' as const,
-  AUDIO: 'audio' as const,
-  DOCUMENT: 'document' as const,
-  OTHER: 'other' as const,
-};
+  TEXT: 'text',
+  IMAGE: 'image',
+  VIDEO: 'video',
+  AUDIO: 'audio',
+  DOCUMENT: 'document',
+  STICKER: 'sticker',
+  LOCATION: 'location',
+  CONTACT: 'contact',
+  OTHER: 'other'
+} as const;
+
+export type MessageType = typeof MESSAGE_TYPES[keyof typeof MESSAGE_TYPES];
+
+// Summary display formatting
+export interface SummaryDisplayData {
+  title: string;
+  subtitle: string;
+  stats: Array<{
+    label: string;
+    value: string | number;
+    icon?: string;
+  }>;
+  topSenders: Array<{
+    name: string;
+    count: number;
+    summary: string;
+  }>;
+  keywords: string[];
+  emojis: string[];
+  insights?: {
+    topics: string[];
+    sentiment: string;
+    actionItems: string[];
+    events: string[];
+    decisions: string[];
+  };
+}

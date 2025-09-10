@@ -4,6 +4,7 @@ import WhatsAppContact from '../../models/WhatsAppContact';
 import WhatsAppBaileysService from '../../services/whatsappBaileysService';
 import WAHAService from '../../services/wahaService';
 import WhatsAppSummarizationService from '../../services/whatsappSummarizationService';
+import WhatsAppAISummarizationService from '../../services/whatsappAISummarizationService';
 import {
   GroupInfo,
   MessageData,
@@ -23,7 +24,12 @@ import {
   getQueryBounds
 } from '../../utils/timeWindow';
 
-const summarizationService = new WhatsAppSummarizationService();
+// Use AI-enhanced summarization service if available, otherwise fall back to basic
+const summarizationService = process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY
+  ? new WhatsAppAISummarizationService()
+  : new WhatsAppSummarizationService();
+
+console.log('[WhatsApp Summary] Using', summarizationService.constructor.name);
 
 /**
  * Get available WhatsApp groups for summary generation

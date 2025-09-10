@@ -84,7 +84,17 @@ export interface GroupSummaryData {
     processingTimeMs: number;
     messagesAnalyzed: number;
     participantsFound: number;
-  };
+    aiInsights?: AIInsights; // Optional AI-generated insights
+};
+}
+
+
+export interface AIInsights {
+  keyTopics: string[];
+  sentiment: 'positive' | 'neutral' | 'negative' | 'mixed';
+  actionItems: string[];
+  importantEvents: string[];
+  decisionsMade: string[];
 }
 
 export interface SummaryResponse {

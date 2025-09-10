@@ -619,7 +619,28 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
 
   const downloadSummary = (summary: GroupSummaryData) => {
     const formatted = whatsappService.formatSummaryForDisplay(summary);
-    
+// Add AI insights to downloaded summary
+let aiInsightsText = '';
+if (summary.aiInsights) {
+  aiInsightsText = `
+
+AI INSIGHTS
+------------
+Sentiment: ${summary.aiInsights.sentiment}
+
+Key Topics:
+${summary.aiInsights.keyTopics.map(topic => `• ${topic}`).join('\n')}
+
+Action Items:
+${summary.aiInsights.actionItems.length > 0 ? summary.aiInsights.actionItems.map(item => `☐ ${item}`).join('\n') : 'None identified'}
+
+Important Events:
+${summary.aiInsights.importantEvents.length > 0 ? summary.aiInsights.importantEvents.map(event => `• ${event}`).join('\n') : 'None identified'}
+
+Decisions Made:
+${summary.aiInsights.decisionsMade.length > 0 ? summary.aiInsights.decisionsMade.map(decision => `✓ ${decision}`).join('\n') : 'None identified'}`;
+}
+
     const content = `${formatted.title}
 ${formatted.subtitle}
 
@@ -636,7 +657,7 @@ TOP KEYWORDS
 ${formatted.keywords.join(', ')}
 
 TOP EMOJIS
-${formatted.emojis.join(' ')}
+${formatted.emojis.join(' ')}${aiInsightsText}
 
 Generated on ${new Date().toLocaleString()}
 Processing time: ${summary.processingStats.processingTimeMs}ms`;
@@ -1682,6 +1703,91 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                       </div>
                     </div>
 
+
+                    {/* AI Insights Section */}
+                    {selectedSummary.aiInsights && (
+                      <div className="space-y-4">
+                        <h4 className="text-lg font-semibold text-white flex items-center gap-2">
+                          <Sparkles className="w-5 h-5 text-yellow-400" />
+                          AI-Generated Insights
+                        </h4>
+                        
+                        {/* Sentiment */}
+                        <div className="bg-white/5 rounded-lg p-4">
+                          <h5 className="text-sm font-semibold text-blue-200 mb-2">Overall Sentiment</h5>
+                          <div className="flex items-center gap-2">
+                            <span className={\`px-3 py-1 rounded-full text-sm font-medium \${
+                              selectedSummary.aiInsights.sentiment === 'positive' ? 'bg-green-500/20 text-green-300' :
+                              selectedSummary.aiInsights.sentiment === 'negative' ? 'bg-red-500/20 text-red-300' :
+                              selectedSummary.aiInsights.sentiment === 'mixed' ? 'bg-yellow-500/20 text-yellow-300' :
+                              'bg-gray-500/20 text-gray-300'
+                            }\`}>
+                              {selectedSummary.aiInsights.sentiment.charAt(0).toUpperCase() + selectedSummary.aiInsights.sentiment.slice(1)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Key Topics */}
+                        {selectedSummary.aiInsights.keyTopics.length > 0 && (
+                          <div className="bg-white/5 rounded-lg p-4">
+                            <h5 className="text-sm font-semibold text-blue-200 mb-2">Key Discussion Topics</h5>
+                            <div className="space-y-2">
+                              {selectedSummary.aiInsights.keyTopics.map((topic, index) => (
+                                <div key={index} className="flex items-start gap-2">
+                                  <span className="text-blue-400 mt-1">•</span>
+                                  <span className="text-white text-sm">{topic}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Action Items */}
+                        {selectedSummary.aiInsights.actionItems.length > 0 && (
+                          <div className="bg-white/5 rounded-lg p-4 border-l-4 border-green-400">
+                            <h5 className="text-sm font-semibold text-green-300 mb-2">Action Items</h5>
+                            <div className="space-y-2">
+                              {selectedSummary.aiInsights.actionItems.map((item, index) => (
+                                <div key={index} className="flex items-start gap-2">
+                                  <CheckCircle className="w-4 h-4 text-green-400 mt-0.5" />
+                                  <span className="text-white text-sm">{item}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Important Events */}
+                        {selectedSummary.aiInsights.importantEvents.length > 0 && (
+                          <div className="bg-white/5 rounded-lg p-4 border-l-4 border-purple-400">
+                            <h5 className="text-sm font-semibold text-purple-300 mb-2">Important Events</h5>
+                            <div className="space-y-2">
+                              {selectedSummary.aiInsights.importantEvents.map((event, index) => (
+                                <div key={index} className="flex items-start gap-2">
+                                  <AlertTriangle className="w-4 h-4 text-purple-400 mt-0.5" />
+                                  <span className="text-white text-sm">{event}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Decisions Made */}
+                        {selectedSummary.aiInsights.decisionsMade.length > 0 && (
+                          <div className="bg-white/5 rounded-lg p-4 border-l-4 border-blue-400">
+                            <h5 className="text-sm font-semibold text-blue-300 mb-2">Decisions Made</h5>
+                            <div className="space-y-2">
+                              {selectedSummary.aiInsights.decisionsMade.map((decision, index) => (
+                                <div key={index} className="flex items-start gap-2">
+                                  <CheckCircle className="w-4 h-4 text-blue-400 mt-0.5" />
+                                  <span className="text-white text-sm">{decision}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {/* Top Participants */}
                     <div>
                       <h4 className="text-lg font-semibold text-white mb-3">Top Participants</h4>
