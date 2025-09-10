@@ -8,6 +8,8 @@ import {
   SummaryGenerationOptions,
   DateRange
 } from '../types/whatsappSummary';
+import 'openai/shims/node';
+import { OpenAI } from 'openai';
 
 export class WhatsAppSummarizationService {
   private readonly defaultOptions: Required<SummaryGenerationOptions> = {
@@ -51,9 +53,15 @@ export class WhatsAppSummarizationService {
     
     // Analyze message types
     const messageTypes = this.analyzeMessageTypes(cleanMessages);
-    
-    // Generate overall summary
-    const overallSummary = this.generateOverallSummary(senderInsights, topKeywords, messageTypes, opts);
+
+    // Generate summary of conversation content
+    const overallSummary = await this.generateContentSummary(
+      cleanMessages,
+      senderInsights,
+      topKeywords,
+      messageTypes,
+      opts
+    );
     
     // Calculate activity peaks
     const activityPeaks = this.calculateActivityPeaks(cleanMessages);
@@ -375,6 +383,50 @@ export class WhatsAppSummarizationService {
       .filter(peak => peak.count > 0)
       .sort((a, b) => b.count - a.count)
       .slice(0, 6); // Top 6 peak hours
+  }
+
+  /**
+   * Generate a summary of the conversation content. Falls back to
+   * metadata-based summary when an AI provider isn't configured.
+   */
+  private async generateContentSummary(
+    messages: MessageData[],
+    senderInsights: SenderInsights[],
+    topKeywords: KeywordAnalysis[],
+    messageTypes: any,
+    options: Required<SummaryGenerationOptions>
+  ): Promise<string> {
+    const apiKey = process.env.OPENAI_API_KEY;
+    const conversation = messages
+      .slice(-50) // limit to recent messages to avoid very long prompts
+      .map(m => `${m.senderName}: ${m.message}`)
+      .join('\n');
+
+    if (!apiKey || conversation.trim().length === 0) {
+      return this.generateOverallSummary(senderInsights, topKeywords, messageTypes, options);
+    }
+
+    try {
+      const openai = new OpenAI({ apiKey });
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'Summarize the following WhatsApp group conversation.' },
+          { role: 'user', content: conversation }
+        ],
+        temperature: 0.2,
+      });
+
+      const content = completion.choices?.[0]?.message?.content?.trim();
+      if (content) {
+        return content;
+      }
+    } catch (err) {
+      console.error('[WhatsAppSummarization] AI summary failed:', err);
+    }
+
+    // Fallback summary
+    return this.generateOverallSummary(senderInsights, topKeywords, messageTypes, options);
   }
 
   /**
