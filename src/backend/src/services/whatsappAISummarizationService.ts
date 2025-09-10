@@ -359,7 +359,7 @@ ${conversationText}`;
       topSenders.map(async (sender) => {
         try {
           const senderMessages = messages.filter(m => m.senderPhone === sender.senderPhone);
-          const senderSummary = await this.generateSenderSummary(
+          const senderSummary = await this.generateAISenderSummary(
             sender.senderName,
             senderMessages
           );
@@ -382,7 +382,7 @@ ${conversationText}`;
   /**
    * Generate AI-powered summary for individual sender
    */
-  private async generateSenderSummary(
+  private async generateAISenderSummary(
     senderName: string,
     messages: MessageData[]
   ): Promise<string> {

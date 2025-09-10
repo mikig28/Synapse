@@ -1716,12 +1716,12 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                         <div className="bg-white/5 rounded-lg p-4">
                           <h5 className="text-sm font-semibold text-blue-200 mb-2">Overall Sentiment</h5>
                           <div className="flex items-center gap-2">
-                            <span className={\`px-3 py-1 rounded-full text-sm font-medium \${
+                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                               selectedSummary.aiInsights.sentiment === 'positive' ? 'bg-green-500/20 text-green-300' :
                               selectedSummary.aiInsights.sentiment === 'negative' ? 'bg-red-500/20 text-red-300' :
                               selectedSummary.aiInsights.sentiment === 'mixed' ? 'bg-yellow-500/20 text-yellow-300' :
                               'bg-gray-500/20 text-gray-300'
-                            }\`}>
+                            }`}>
                               {selectedSummary.aiInsights.sentiment.charAt(0).toUpperCase() + selectedSummary.aiInsights.sentiment.slice(1)}
                             </span>
                           </div>
