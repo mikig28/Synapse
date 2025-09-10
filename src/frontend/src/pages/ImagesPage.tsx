@@ -121,7 +121,7 @@ const ImagesPage: React.FC = () => {
             Captured Images
           </h1>
           <p className="text-pink-100/80 text-lg max-w-2xl mx-auto">
-            Your visual memories and moments captured through Telegram
+            Your visual memories and moments captured through Telegram and WhatsApp
           </p>
         </motion.div>
 
@@ -150,7 +150,7 @@ const ImagesPage: React.FC = () => {
               <Camera className="w-16 h-16 text-pink-400/50 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-white mb-2">No images yet</h3>
               <p className="text-pink-100/70 mb-6">
-                Send photos to your Telegram bot to see them here
+                Send photos to your Telegram bot or move WhatsApp images to see them here
               </p>
             </GlassCard>
           </motion.div>
@@ -178,10 +178,24 @@ const ImagesPage: React.FC = () => {
                     <Trash2 size={16} />
                   </motion.button>
 
+                  {/* Source Badge */}
+                  <div className="absolute top-2 left-2 z-10">
+                    <span
+                      className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        item.source === 'whatsapp'
+                          ? 'bg-green-500/80 text-white'
+                          : 'bg-blue-500/80 text-white'
+                      }`}
+                      title={`Source: ${item.source === 'whatsapp' ? 'WhatsApp' : 'Telegram'}`}
+                    >
+                      {item.source === 'whatsapp' ? 'WA' : 'TG'}
+                    </span>
+                  </div>
+
                   {/* Image */}
                   <div className="relative overflow-hidden">
                     <a 
-                      href={item.mediaGridFsId ? `/api/v1/media/${item.mediaGridFsId}` : '#'}
+                      href={item.mediaGridFsId ? `/media/${item.mediaGridFsId}` : '#'}
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="block relative group"

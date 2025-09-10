@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { FeedbackModal } from './FeedbackModal';
@@ -27,36 +27,14 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [quickType, setQuickType] = useState<'bug' | 'feature' | 'rating' | null>(null);
-  const [hidden, setHidden] = useState(false);
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [isVisible, setIsVisible] = useState(true);
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('feedbackWidgetPos');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (typeof parsed?.x === 'number' && typeof parsed?.y === 'number') {
-          setPos(parsed);
-          return;
-        }
-      }
-    } catch {}
-
-    const margin = 24;
-    const size = 56;
-    const vw = typeof window !== 'undefined' ? window.innerWidth : 800;
-    const vh = typeof window !== 'undefined' ? window.innerHeight : 600;
-
-    const defaults: Record<string, { x: number; y: number }> = {
-      'bottom-right': { x: vw - margin - size, y: vh - margin - size },
-      'bottom-left': { x: margin, y: vh - margin - size },
-      'top-right': { x: vw - margin - size, y: margin },
-      'top-left': { x: margin, y: margin }
-    };
-    setPos(defaults[position]);
-  }, [position]);
-
-  // Note: positionClasses no longer used after adding free-drag support
+  const positionClasses = {
+    'bottom-right': 'bottom-6 right-6',
+    'bottom-left': 'bottom-6 left-6',
+    'top-right': 'top-6 right-6',
+    'top-left': 'top-6 left-6'
+  };
 
   const quickActions = [
     {
@@ -94,33 +72,24 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
     setIsOpen(false);
   };
 
-  if (hidden) {
-    return null;
-  }
+  if (!isVisible) return null;
 
   return (
     <>
       {/* Widget */}
       <motion.div
-        className={`fixed z-40 ${className} cursor-grab active:cursor-grabbing`}
-        style={{ left: 0, top: 0, x: pos?.x ?? 0, y: pos?.y ?? 0 }}
         drag
         dragMomentum={false}
-        dragElastic={0.2}
-        onDragEnd={(event, info) => {
-          const margin = 8;
-          const width = 64;
-          const height = 64;
-          const maxX = (window.innerWidth || 0) - width - margin;
-          const maxY = (window.innerHeight || 0) - height - margin;
-          const clamp = (val: number, min: number, max: number) => Math.min(Math.max(val, min), max);
-          const newX = clamp((pos?.x ?? 0) + info.offset.x, margin, Math.max(margin, maxX));
-          const newY = clamp((pos?.y ?? 0) + info.offset.y, margin, Math.max(margin, maxY));
-          const next = { x: newX, y: newY };
-          setPos(next);
-          try { localStorage.setItem('feedbackWidgetPos', JSON.stringify(next)); } catch {}
-        }}
+        style={{ touchAction: 'none' }}
+        className={`fixed z-40 ${positionClasses[position]} ${className} relative`}
       >
+        <button
+          onClick={() => setIsVisible(false)}
+          className="absolute -top-1 -right-1 bg-background dark:bg-foreground text-foreground dark:text-background hover:bg-background/80 dark:hover:bg-foreground/80 rounded-full p-1 shadow-md border border-border dark:border-background/20"
+          aria-label="Dismiss feedback widget"
+        >
+          <X className="w-3 h-3" />
+        </button>
         <AnimatePresence>
           {isOpen && showQuickActions && (
             <motion.div
@@ -202,14 +171,6 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
               ${isOpen ? 'rotate-45' : ''}
             `}
           >
-            <button
-              type="button"
-              aria-label="Dismiss feedback button"
-              onClick={(e) => { e.stopPropagation(); setHidden(true); }}
-              className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80"
-            >
-              <X className="w-3 h-3" />
-            </button>
             <AnimatePresence mode="wait">
               {isOpen ? (
                 <motion.div
@@ -240,12 +201,12 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
 
             {/* Pulse Animation */}
             <motion.div
-              className="absolute inset-0 rounded-full bg-primary"
-              animate={{ 
+              className="absolute inset-0 rounded-full bg-primary pointer-events-none"
+              animate={{
                 scale: [1, 1.2, 1],
                 opacity: [0.7, 0, 0.7]
               }}
-              transition={{ 
+              transition={{
                 duration: 3,
                 repeat: Infinity,
                 ease: "easeInOut"
@@ -258,9 +219,9 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
         {!isOpen && (
           <motion.div
             className={`
-              absolute ${position.includes('right') ? 'right-16' : 'left-16'} 
+              absolute ${position.includes('right') ? 'right-16' : 'left-16'}
               ${position.includes('bottom') ? 'bottom-2' : 'top-2'}
-              bg-card border border-border rounded-lg px-3 py-2 
+              bg-card border border-border rounded-lg px-3 py-2
               shadow-lg backdrop-blur-sm
               pointer-events-none opacity-0 group-hover:opacity-100
               transition-opacity duration-200

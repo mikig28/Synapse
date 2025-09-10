@@ -6,6 +6,7 @@ import http from 'http'; // Import http module
 import { Server as SocketIOServer } from 'socket.io'; // Import Server from socket.io
 import whatsappRoutes from './api/routes/whatsappRoutes'; // Import WhatsApp routes (legacy)
 import wahaRoutes from './api/routes/wahaRoutes'; // Import WAHA routes (modern)
+import whatsappUnifiedRoutes from './api/routes/whatsappUnifiedRoutes'; // Import WhatsApp Unified routes (complete)
 import { connectToDatabase } from './config/database'; // Import database connection
 import authRoutes from './api/routes/authRoutes'; // Import auth routes
 import { initializeTelegramService } from './services/telegramServiceNew'; // Import new multi-user Telegram service
@@ -16,6 +17,7 @@ import { initializeAgentServices } from './api/controllers/agentsController'; //
 import { registerAgentExecutors } from './services/agents'; // Import agent executors registry
 import WhatsAppBaileysService from './services/whatsappBaileysService'; // Import WhatsApp Baileys service (legacy)
 import WAHAService from './services/wahaService'; // Import WAHA service (modern)
+import WhatsAppUnifiedService from './services/whatsappUnifiedService'; // Import WhatsApp Unified service (complete)
 import captureRoutes from './api/routes/captureRoutes'; // Import capture routes
 import path from 'path'; // <-- Import path module
 import fs from 'fs'; // <-- Import fs module
@@ -40,6 +42,11 @@ import exportRoutes from './api/routes/exportRoutes'; // Import export routes
 import feedbackRoutes from './api/routes/feedbackRoutes'; // Import feedback routes
 import usageRoutes from './api/routes/usageRoutes'; // Import usage routes
 import telegramChannelRoutes from './api/routes/telegramChannelRoutes'; // Import telegram channel routes
+import whatsappImagesRoutes from './api/routes/whatsappImagesRoutes'; // Import WhatsApp images routes
+import whatsappSummaryRoutes from './api/routes/whatsappSummaryRoutes'; // Import WhatsApp summary routes
+import migrationRoutes from './api/routes/migrationRoutes'; // Import migration routes
+import { generateTodaySummary } from './api/controllers/whatsappSummaryController'; // Direct import for WhatsApp summary endpoint
+import { authMiddleware } from './api/middleware/authMiddleware'; // Import auth middleware
 import { initializeTaskReminderScheduler } from './services/taskReminderService'; // Import task reminder service
 import { schedulerService } from './services/schedulerService'; // Import scheduler service
 import { agui } from './services/aguiEmitter'; // Import AG-UI emitter
@@ -115,17 +122,11 @@ app.use(cors({
 
 // Add explicit CORS headers middleware
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
+  const origin = req.headers.origin || '*';
 
-  // Always set CORS headers for Socket.IO compatibility
-  if (origin && [
-    "https://synapse-frontend.onrender.com",
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://localhost:5174"
-  ].includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-  }
+  // Reflect origin for all allowed requests (wildcard for non-credentialed requests)
+  res.header('Access-Control-Allow-Origin', origin);
+  res.header('Vary', 'Origin');
 
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, Accept, Origin, Cache-Control');
@@ -178,8 +179,9 @@ console.log(`[Static Files] Serving static files from /public mapped to physical
 // Serve static files from the 'public' directory
 app.use('/public', express.static(publicDir)); // Serve files under /public URL path
 
-// API Routes - WhatsApp (WAHA as primary service)
-app.use('/api/v1/whatsapp', wahaRoutes); // Primary WAHA routes
+// API Routes - WhatsApp (Unified as primary, WAHA as fallback)
+app.use('/api/v1/whatsapp-unified', whatsappUnifiedRoutes); // NEW: Unified WhatsApp Web functionality
+app.use('/api/v1/whatsapp', wahaRoutes); // WAHA routes for monitoring/fallback
 app.use('/api/v1/whatsapp-legacy', whatsappRoutes); // Legacy Baileys routes (fallback)
 app.use('/api/v1/waha', wahaRoutes); // Keep WAHA routes for direct access
 app.use('/api/v1/auth', authRoutes);
@@ -205,6 +207,62 @@ app.use('/api/v1/export', exportRoutes); // Use export routes
 app.use('/api/v1/feedback', feedbackRoutes); // Use feedback routes
 app.use('/api/v1/usage', usageRoutes); // Use usage routes
 app.use('/api/v1/telegram-channels', telegramChannelRoutes); // Use telegram channels routes
+app.use('/api/v1/whatsapp/images', whatsappImagesRoutes); // Use WhatsApp images extraction routes
+
+// TEMPORARY: Simple test endpoint (no auth required) - BEFORE routes
+app.get('/api/v1/whatsapp-summary/test', (req: Request, res: Response) => {
+  console.log('[Server] Test endpoint hit successfully');
+  res.json({ success: true, message: 'WhatsApp summary service is running', timestamp: new Date().toISOString() });
+});
+
+// REAL WhatsApp Summary Generation Route (no auth for testing) - BEFORE routes
+app.post('/api/v1/whatsapp-summary/generate-today-noauth', async (req: Request, res: Response) => {
+  try {
+    console.log('[WhatsApp Summary] Real implementation called with body:', req.body);
+    const { groupId, timezone = 'UTC' } = req.body;
+
+    if (!groupId) {
+      console.log('[WhatsApp Summary] Error: No groupId provided');
+      return res.status(400).json({
+        success: false,
+        error: 'Group ID is required'
+      });
+    }
+
+    // Use today's date
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    console.log(`[WhatsApp Summary] Generating summary for group ${groupId} on date ${today}`);
+
+    // Create a mock request object with the required body
+    const mockReq = {
+      body: { groupId, date: today, timezone }
+    } as Request;
+
+    // Call the real controller function
+    await generateTodaySummary(mockReq, res);
+
+  } catch (error) {
+    console.error('[WhatsApp Summary] Real implementation error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate WhatsApp summary: ' + (error as Error).message
+    });
+  }
+});
+console.log('[Server] WhatsApp no-auth summary route loaded successfully');
+
+// Direct route for WhatsApp summary generation (primary endpoint)
+app.post('/api/v1/whatsapp-summary/generate-today-direct', authMiddleware, generateTodaySummary);
+console.log('[Server] WhatsApp summary direct route loaded successfully');
+
+console.log('[Server] Loading WhatsApp summary routes...');
+app.use('/api/v1/whatsapp-summary', whatsappSummaryRoutes); // Use WhatsApp summary routes
+console.log('[Server] WhatsApp summary routes loaded successfully');
+
+// Migration routes (enabled temporarily for the WhatsApp metadata fix)
+console.log('[Server] Loading migration routes (temporarily enabled for WhatsApp metadata fix)...');
+app.use('/api/v1/migration', migrationRoutes); // Use migration routes
+console.log('[Server] Migration routes loaded successfully');
 
 // **AG-UI Protocol Endpoints**
 
@@ -612,6 +670,58 @@ const startServer = async () => {
     await mongoose.connect(mongoUri);
     await connectToDatabase(); // Calls the Mongoose connection logic
 
+    // Make io available globally for real-time updates
+    (global as any).io = io;
+
+    // **AG-UI Protocol: Bridge AG-UI events to Socket.IO**
+    agui.subscribe((event) => {
+      try {
+        // Emit AG-UI events to all connected Socket.IO clients
+        const eventUserId = (event as any).userId;
+        const eventSessionId = (event as any).sessionId;
+
+        if (eventUserId) {
+          // Send to specific user
+          io.to(`user_${eventUserId}`).emit('ag_ui_event', event);
+        } else if (eventSessionId) {
+          // Send to specific session
+          io.to(`session_${eventSessionId}`).emit('ag_ui_event', event);
+        } else {
+          // Broadcast to all connected clients
+          io.emit('ag_ui_event', event);
+        }
+
+        console.log(`[AG-UI Bridge] Bridged event ${event.type} via Socket.IO`);
+      } catch (error) {
+        console.error('[AG-UI Bridge] Error bridging event to Socket.IO:', error);
+      }
+    });
+
+    console.log('[AG-UI] Protocol initialized and bridged to Socket.IO');
+
+    // Start HTTP server immediately for Render port detection
+    httpServer.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Server is running on port ${PORT}`);
+      console.log(`🌐 Server is binding to 0.0.0.0:${PORT}`);
+      console.log(`📦 Environment PORT: ${process.env.PORT || 'not set'}`);
+      console.log(`🔧 NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+      console.log(`✅ Health check available at: http://0.0.0.0:${PORT}/health`);
+      console.log(`🎯 RENDER DEPLOYMENT READY - Service is accessible!`);
+      
+      // Initialize other services asynchronously in background to prevent deployment timeout
+      initializeServicesInBackground();
+    });
+  } catch (error) {
+    console.error('[server]: Failed to start server or connect to database', error);
+    process.exit(1);
+  }
+};
+
+// Initialize all other services asynchronously after server is running
+const initializeServicesInBackground = async () => {
+  console.log('[Server] 🔄 Starting background service initialization...');
+  
+  try {
     // Initialize search indexes for optimal search performance
     try {
       await initializeSearchIndexes();
@@ -644,6 +754,18 @@ const startServer = async () => {
         const wahaService = WAHAService.getInstance();
         await wahaService.initialize();
         console.log('[Server] ✅ WAHA service initialized successfully');
+        
+        // Initialize WhatsApp Unified Service after WAHA is ready
+        try {
+          console.log('[Server] 🚀 Initializing WhatsApp Unified service...');
+          const unifiedService = WhatsAppUnifiedService.getInstance();
+          await unifiedService.initialize();
+          console.log('[Server] ✅ WhatsApp Unified service initialized successfully (full WhatsApp Web functionality available)');
+        } catch (unifiedError) {
+          console.warn('[Server] ⚠️ WhatsApp Unified service failed to initialize:', unifiedError);
+          console.log('[Server] Continuing with WAHA-only functionality...');
+        }
+        
         wahaInitialized = true;
         break;
       } catch (wahaError) {
@@ -667,6 +789,16 @@ const startServer = async () => {
           const wahaService = WAHAService.getInstance();
           await wahaService.initialize();
           console.log('[Server] ✅ WAHA service connected via background retry!');
+          
+          // Initialize unified service after background WAHA success
+          try {
+            const unifiedService = WhatsAppUnifiedService.getInstance();
+            await unifiedService.initialize();
+            console.log('[Server] ✅ WhatsApp Unified service initialized via background retry!');
+          } catch (unifiedError) {
+            console.warn('[Server] ⚠️ WhatsApp Unified service failed in background retry:', unifiedError);
+          }
+          
           clearInterval(backgroundRetry);
         } catch (error) {
           console.log('[Server] Background WAHA retry failed, will try again...');
@@ -714,50 +846,13 @@ const startServer = async () => {
     initializeTaskReminderScheduler();
     console.log('[Server] Task reminder scheduler initialized');
 
-    // Make io available globally for real-time updates
-    (global as any).io = io;
-
     // Make agent service available globally for AG-UI commands
     (global as any).agentService = agentService;
 
-    // **AG-UI Protocol: Bridge AG-UI events to Socket.IO**
-    agui.subscribe((event) => {
-      try {
-        // Emit AG-UI events to all connected Socket.IO clients
-        const eventUserId = (event as any).userId;
-        const eventSessionId = (event as any).sessionId;
-
-        if (eventUserId) {
-          // Send to specific user
-          io.to(`user_${eventUserId}`).emit('ag_ui_event', event);
-        } else if (eventSessionId) {
-          // Send to specific session
-          io.to(`session_${eventSessionId}`).emit('ag_ui_event', event);
-        } else {
-          // Broadcast to all connected clients
-          io.emit('ag_ui_event', event);
-        }
-
-        console.log(`[AG-UI Bridge] Bridged event ${event.type} via Socket.IO`);
-      } catch (error) {
-        console.error('[AG-UI Bridge] Error bridging event to Socket.IO:', error);
-      }
-    });
-
-    console.log('[AG-UI] Protocol initialized and bridged to Socket.IO');
-
-    httpServer.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Server is running on port ${PORT}`);
-      console.log(`🌐 Server is binding to 0.0.0.0:${PORT}`);
-      console.log(`📦 Environment PORT: ${process.env.PORT || 'not set'}`);
-      console.log(`🔧 NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
-      console.log(`✅ Health check available at: http://0.0.0.0:${PORT}/health`);
-      console.log(`🎯 RENDER DEPLOYMENT READY - Service is accessible!`);
-      // The "[mongoose]: Mongoose connected to DB" log from database.ts confirms success
-    });
+    console.log('[Server] ✅ All background services initialized successfully');
   } catch (error) {
-    console.error('[server]: Failed to start server or connect to database', error);
-    process.exit(1);
+    console.error('[Server] ❌ Background service initialization failed:', error);
+    // Don't crash the server - let it continue with basic functionality
   }
 };
 

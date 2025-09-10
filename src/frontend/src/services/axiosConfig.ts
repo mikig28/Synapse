@@ -10,6 +10,12 @@ export const BACKEND_ROOT_URL = import.meta.env.VITE_BACKEND_ROOT_URL || 'http:/
 // Define the common path for your API endpoints.
 const API_PATH = '/api/v1'; // Standard API path for production backend
 
+// Normalize the backend root to avoid double-appending /api or /api/v1
+const API_BASE_ROOT = BACKEND_ROOT_URL
+  .replace(/\/+$/, '')            // remove trailing slashes
+  .replace(/\/api(?:\/v1)?$/, ''); // strip trailing /api or /api/v1 if present
+const FULL_API_BASE_URL = `${API_BASE_ROOT}${API_PATH}`;
+
 // Validate backend URL configuration
 const isValidBackendUrl = !!BACKEND_ROOT_URL && BACKEND_ROOT_URL.startsWith('http');
 if (!isValidBackendUrl) {
@@ -30,7 +36,8 @@ if (import.meta.env.PROD && (!import.meta.env.VITE_BACKEND_ROOT_URL || import.me
 console.log('[AxiosConfig] Environment:', import.meta.env.MODE);
 console.log('[AxiosConfig] VITE_BACKEND_ROOT_URL from env:', import.meta.env.VITE_BACKEND_ROOT_URL);
 console.log('[AxiosConfig] BACKEND_ROOT_URL resolved to:', BACKEND_ROOT_URL);
-console.log('[AxiosConfig] Full API Base URL:', `${BACKEND_ROOT_URL}${API_PATH}`);
+console.log('[AxiosConfig] API_BASE_ROOT normalized to:', API_BASE_ROOT);
+console.log('[AxiosConfig] Full API Base URL:', FULL_API_BASE_URL);
 console.log('[AxiosConfig] Is valid backend URL:', isValidBackendUrl);
 
 // Suppress Chrome extension errors that might interfere with our app
@@ -54,7 +61,7 @@ if (typeof window !== 'undefined') {
 }
 
 const axiosInstance = axios.create({
-  baseURL: `${BACKEND_ROOT_URL}${API_PATH}`, // e.g., http://localhost:3001/api/v1 or https://your-backend.onrender.com/api/v1
+  baseURL: FULL_API_BASE_URL, // e.g., http://localhost:3001/api/v1 or https://your-backend.onrender.com/api/v1
   timeout: 60000, // 60 second timeout (increased from 30s)
   headers: {
     'Content-Type': 'application/json',
@@ -64,7 +71,7 @@ const axiosInstance = axios.create({
 
 // Export the root URL for constructing paths to static assets (like images)
 // This ensures static assets are fetched from the correct base, without the /api/v1 path.
-export const STATIC_ASSETS_BASE_URL = BACKEND_ROOT_URL;
+export const STATIC_ASSETS_BASE_URL = API_BASE_ROOT;
 
 // Request interceptor to add token to headers
 axiosInstance.interceptors.request.use(

@@ -23,6 +23,8 @@ import {
   getPrivateChats,
   restartSession,
   restartFailedSession,
+  recreateSession,
+  clearCaches,
   autoRecoverSession,
   forceRestart,
   refreshChats,
@@ -30,7 +32,10 @@ import {
   forceHistorySync,
   getMonitoredKeywords,
   addMonitoredKeyword,
-  removeMonitoredKeyword
+  removeMonitoredKeyword,
+  extractImageFromMessage,
+  getMediaFile,
+  getMediaStats
 } from '../controllers/wahaController';
 
 const router = Router();
@@ -67,6 +72,8 @@ router.post('/refresh-groups', refreshGroups);
 // Session management
 router.post('/restart', restartSession);
 router.post('/restart-failed', restartFailedSession);
+router.post('/recreate-session', recreateSession);
+router.post('/clear-caches', clearCaches);
 router.post('/auto-recover', autoRecoverSession);
 router.post('/force-restart', forceRestart);
 router.post('/force-history-sync', forceHistorySync);
@@ -75,6 +82,13 @@ router.post('/force-history-sync', forceHistorySync);
 router.get('/monitored-keywords', getMonitoredKeywords);
 router.post('/monitored-keywords', addMonitoredKeyword);
 router.delete('/monitored-keywords/:keyword', removeMonitoredKeyword);
+
+// Media extraction routes
+router.post('/media/:messageId/extract-image', extractImageFromMessage);
+
+// Media serving routes
+router.get('/media/:messageId', getMediaFile);
+router.get('/media-stats', getMediaStats);
 
 // Webhook for WAHA events
 router.post('/webhook', webhook);

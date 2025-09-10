@@ -1,3 +1,5 @@
-[33mace96062[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m fix(waha): Increase timeout limits to handle WAHA service delays
-[33mbe93e669[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m debug(whatsapp): Bypass isReady validation to debug session status
-[33m24dee142[m debug(whatsapp): Temporarily disable sortBy parameters to test chat loading
+[33m8eaf4e86[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Remove problematic file with special characters
+[33m6991a83b[m Fix WhatsApp summary API double path issue
+[33mf2107d75[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Refactor: Pass 'default' to WAHA service calls (#143)
+[33md71cc1bd[m fix(whatsapp): add missing session parameter to WAHA getGroups call
+[33mdf29e62d[m fix(whatsapp): use WAHA service for Daily Summary groups detection

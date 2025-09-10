@@ -4,7 +4,12 @@
       "Bash(npm run type-check:*)",
       "Bash(timeout 30 npx tsc --noEmit --skipLibCheck)",
       "Bash(git add:*)",
-      "WebFetch(domain:waha.devlike.pro)"
+      "WebFetch(domain:waha.devlike.pro)",
+      "Bash(grep:*)",
+      "Bash(curl:*)",
+      "Bash(git commit:*)",
+      "Bash(sed:*)",
+      "mcp__context7__get-library-docs"
     ],
     "deny": []
   }

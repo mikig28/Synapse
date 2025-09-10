@@ -168,7 +168,19 @@ TWITTER_API_KEY=your_key          # For Twitter/X integration
 
 # WhatsApp Integration (WAHA Service)
 WAHA_API_KEY=your_waha_api_key    # Required for WAHA service authentication
-WAHA_SERVICE_URL=https://synapse-waha.onrender.com  # WAHA service endpoint
+WAHA_SERVICE_URL=https://waha-synapse-production.up.railway.app  # WAHA service endpoint
+
+# Engine Configuration (choose ONE based on your needs)
+# Option 1: NOWEB (read-only, lightweight, free tier)
+WAHA_ENGINE=NOWEB                 # Use NOWEB engine for monitoring only
+WAHA_NOWEB_STORE_ENABLED=true     # Required: Enable NOWEB store for chats/messages access
+WAHA_NOWEB_STORE_FULLSYNC=true    # Required: Enable full sync for complete message history
+
+# Option 2: WEBJS (full functionality, sending + media, requires more resources)  
+# WAHA_ENGINE=WEBJS                # Use WEBJS engine for full WhatsApp Web functionality
+# WAHA_WEBJS_STORE_ENABLED=true    # Required: Enable WEBJS store for chats/messages access
+# WAHA_WEBJS_HEADLESS=true         # Run browser in headless mode (recommended for production)
+
 WHATSAPP_AUTO_REPLY_ENABLED=false # Enable/disable WhatsApp auto-reply
 PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome  # Chrome path for containers
 PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true  # Skip Chromium download in containers
@@ -251,7 +263,190 @@ npm run parse-prd               # Parse requirements document to create initial 
 ### External Services Integration
 - **Python Services**: Separate Docker containers for ML/transcription
 - **CrewAI Agents**: Independent service in src/backend/services/crewai-agents/
-- **WhatsApp Integration**: Baileys library for WhatsApp Web automation
+- **WhatsApp Integration**: WAHA service + Puppeteer for media extraction workaround
+- **Social Media**: Telegram, Twitter, Reddit agent integrations
+
+## WhatsApp Media Handling Architecture
+
+Since WAHA Core (free version) doesn't support automatic media downloads, we implement a dual-service workaround:
+
+### Architecture Overview
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────────────┐
+│   WAHA NOWEB    │───▶│   Message        │───▶│   Frontend Detection    │
+│   (WebSocket)   │    │   Detection      │    │   [📷 Image] [Download] │
+│   No Browser    │    │   + Metadata     │    │                         │
+└─────────────────┘    └──────────────────┘    └─────────────────────────┘
+                                                              │
+                                                              ▼ (User clicks)
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────────────┐
+│   Puppeteer     │◀───│   Image          │◀───│   On-Demand             │
+│   Chrome        │    │   Extraction     │    │   Extraction Request    │
+│   WhatsApp Web  │    │   Service        │    │                         │
+└─────────────────┘    └──────────────────┘    └─────────────────────────┘
+```
+
+### Dual Service Configuration
+
+1. **WAHA Service (NOWEB Engine)**
+   - Handles real-time message detection via WebSocket
+   - No browser conflicts since it doesn't use Puppeteer
+   - Provides metadata: `isMedia: true`, `mimeType: 'image/jpeg'`
+   - Requires QR code authentication once
+
+2. **Puppeteer Service (Our Custom Implementation)**
+   - Separate WhatsApp Web browser session for image extraction
+   - Activated only when user clicks download
+   - Extracts images from WhatsApp Web DOM using blob URLs
+   - Independent authentication (separate QR scan required)
+
+### Session Management Strategy
+
+**Separate Sessions Approach**: Two independent WhatsApp Web sessions
+- **WAHA Session**: Phone number authentication via NOWEB engine
+- **Puppeteer Session**: Separate browser login for image extraction
+- **Benefit**: No session conflicts between services
+- **Limitation**: Requires two QR code scans (WAHA + Image Extractor)
+
+### Implementation Components
+
+- **WAHAService** (`src/backend/src/services/wahaService.ts`): Message detection with NOWEB engine
+- **WhatsAppImageExtractor** (`src/backend/src/services/whatsappImageExtractor.ts`): Puppeteer-based extraction
+- **WhatsAppImageService** (`src/backend/src/services/whatsappImageService.ts`): Orchestration layer
+- **WhatsAppImagesController** (`src/backend/src/api/controllers/whatsappImagesController.ts`): API endpoints
+
+### Key Environment Variables
+```bash
+WAHA_ENGINE=NOWEB                    # Avoid browser conflicts
+WHATSAPP_IMAGES_DIR=storage/images   # Image storage location
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome  # Container Chrome path
+```
+
+### User Experience Flow
+
+1. **Real-time Detection**: User receives WhatsApp image → Frontend shows [📷 Image] [Download]
+2. **On-Demand Extraction**: User clicks Download → Puppeteer extracts → Saves to Images page
+3. **No Automatic Downloads**: Only extracts images user specifically wants
+4. **Cost Effective**: Avoids WAHA Plus subscription while maintaining functionality
+
+## WhatsApp Daily Summary Feature
+
+This project includes an advanced WhatsApp Daily Summary system that provides AI-powered analysis of group conversations with per-group summary generation.
+
+### Feature Overview
+- **Per-Group Analysis**: Generate summaries for specific WhatsApp groups
+- **Flexible Time Ranges**: Support for Today, Yesterday, Last 24H, and custom date ranges
+- **AI-Powered Summarization**: Deterministic text processing with keyword extraction, emoji analysis, and sender insights
+- **Real-time Processing**: On-demand summary generation with progress indicators
+- **Export Functionality**: Download summaries as structured text files
+
+### Architecture Components
+
+#### Backend Services
+- **WhatsAppSummarizationService** (`src/backend/src/services/whatsappSummarizationService.ts`):
+  - Deterministic text processing algorithms
+  - N-gram keyword extraction with stop-word filtering
+  - Emoji frequency analysis
+  - Sender activity pattern recognition
+  - Configurable summary length limits (40-60 words per sender, 300-500 word total)
+
+#### API Endpoints
+- **WhatsAppSummaryController** (`src/backend/src/api/controllers/whatsappSummaryController.ts`):
+  - `GET /api/v1/whatsapp-summary/groups` - List available groups for summarization
+  - `GET /api/v1/whatsapp-summary/groups/:groupId/messages` - Fetch messages by date range
+  - `POST /api/v1/whatsapp-summary/generate` - Generate custom date summary
+  - `POST /api/v1/whatsapp-summary/generate-today` - Generate today's summary
+  - `GET /api/v1/whatsapp-summary/groups/:groupId/stats` - Group statistics
+
+#### Frontend Components
+- **Enhanced WhatsAppGroupMonitorPage** with "Daily Summaries" tab
+- **Group Cards**: Individual summary generation buttons per group
+- **Date Range Selector**: Today/Yesterday/Last 24H/Custom options
+- **Summary Modal**: Rich display with participant insights, keywords, emojis, and activity patterns
+
+### Key Features
+
+#### Summary Content Structure
+```typescript
+interface GroupSummaryData {
+  groupName: string;
+  timeRange: { start: Date; end: Date };
+  totalMessages: number;
+  activeParticipants: number;
+  senderInsights: SenderInsights[];     // Per-participant analysis
+  overallSummary: string;               // Group overview
+  topKeywords: KeywordAnalysis[];       // Most frequent topics
+  topEmojis: EmojiAnalysis[];          // Most used emojis
+  activityPeaks: { hour: number; count: number }[]; // Peak activity times
+  messageTypes: MessageTypeBreakdown;   // Text/Image/Video/etc distribution
+}
+```
+
+#### Text Processing Features
+- **Keyword Extraction**: Unigram and bigram analysis with frequency counting
+- **Stop Word Filtering**: Removes common words (the, and, is, etc.)
+- **Emoji Analysis**: Unicode emoji detection and frequency analysis  
+- **Activity Pattern Recognition**: Hour-by-hour message distribution
+- **Message Type Categorization**: Text, image, video, audio, document classification
+
+#### Performance Optimizations
+- **Paginated Message Fetching**: Handles groups with >10k messages/day
+- **Progressive Loading**: Real-time loading states and progress indicators
+- **Rate Limiting**: Built-in API rate limiting for summary generation
+- **Caching**: Summary results cached per group/date combination
+
+#### Security & Validation
+- **Authorization**: Group access validation via existing auth middleware
+- **Input Sanitization**: All user inputs sanitized and validated
+- **Rate Limiting**: Prevents abuse of summary generation endpoints
+- **Timezone Handling**: Proper local timezone support for date boundaries
+
+### Usage Instructions
+
+#### Frontend Usage
+1. Navigate to WhatsApp Group Monitor page
+2. Click on "Daily Summaries" tab
+3. Select desired time range (Today/Yesterday/Last 24H/Custom)
+4. Click "Today's Summary" or "Custom Date" on any group card
+5. View detailed summary in modal popup
+6. Download summary as text file if needed
+
+#### API Usage
+```bash
+# Get available groups
+curl -X GET /api/v1/whatsapp-summary/groups
+
+# Generate today's summary for a group
+curl -X POST /api/v1/whatsapp-summary/generate-today \
+  -H "Content-Type: application/json" \
+  -d '{"groupId": "group123", "timezone": "America/New_York"}'
+
+# Generate custom date summary
+curl -X POST /api/v1/whatsapp-summary/generate \
+  -H "Content-Type: application/json" \
+  -d '{"groupId": "group123", "date": "2024-01-01", "timezone": "America/New_York"}'
+```
+
+### Testing
+- **Unit Tests**: Comprehensive test suite for summarization algorithms (`src/backend/src/services/__tests__/whatsappSummarizationService.test.ts`)
+- **Edge Case Handling**: Empty messages, missing display names, system messages
+- **Performance Testing**: Validated with 1000+ message datasets
+- **Integration Testing**: Full API endpoint testing
+
+### Configuration Options
+```typescript
+interface SummaryGenerationOptions {
+  maxSummaryLength?: number;           // Default: 500 words
+  maxSenderSummaryLength?: number;     // Default: 60 words  
+  includeEmojis?: boolean;             // Default: true
+  includeKeywords?: boolean;           // Default: true
+  minMessageCount?: number;            // Default: 1
+  keywordMinCount?: number;            // Default: 2
+  emojiMinCount?: number;              // Default: 2
+  excludeSystemMessages?: boolean;     // Default: true
+}
+```
+
 - **Social Media**: Telegram, Twitter, Reddit agent integrations
 
 ## Cursor Rules & AI-Assisted Development

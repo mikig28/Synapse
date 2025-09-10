@@ -4,15 +4,15 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { 
-  MessageCircle, 
-  Send, 
-  Phone, 
-  Search, 
-  QrCode, 
-  RefreshCw, 
-  Settings, 
-  Users, 
+import {
+  MessageCircle,
+  Send,
+  Phone,
+  Search,
+  QrCode,
+  RefreshCw,
+  Settings,
+  Users,
   Eye,
   EyeOff,
   Wifi,
@@ -21,12 +21,16 @@ import {
   Download,
   ArrowLeft,
   Menu,
-  X
+  X,
+  Camera,
+  Calendar
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { io, Socket } from 'socket.io-client';
 import useAuthStore from '@/store/authStore';
 import api from '@/services/axiosConfig';
+import SummaryModal from '@/components/whatsapp/SummaryModal';
+import { GroupSummaryData } from '@/types/whatsappSummary';
 
 interface WhatsAppMessage {
   id: string;
@@ -74,6 +78,10 @@ interface WhatsAppStatus {
   monitoredKeywords: string[];
   serviceType?: 'waha' | 'baileys'; // Track which service is being used
   sessionStatus?: string;
+  // NEW: Enhanced monitoring fields
+  imagesCount?: number;
+  monitoringActive?: boolean;
+  lastActivity?: string;
 }
 
 const WhatsAppPage: React.FC = () => {
@@ -105,6 +113,9 @@ const WhatsAppPage: React.FC = () => {
   const [fetchingHistory, setFetchingHistory] = useState(false);
   const [refreshingMessages, setRefreshingMessages] = useState(false);
   const [chatsFetchAttempts, setChatsFetchAttempts] = useState(0);
+  // Summary modal state
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [selectedSummary, setSelectedSummary] = useState<GroupSummaryData | null>(null);
   
   // Mobile-specific states
   const [isMobile, setIsMobile] = useState(false);
@@ -326,10 +337,13 @@ const WhatsAppPage: React.FC = () => {
       auth: { token },
       autoConnect: false,
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 2000,
-      timeout: 10000,
-      transports: ['websocket', 'polling'], // Allow fallback to polling
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      timeout: 20000,
+      transports: ['polling', 'websocket'], // Start with polling, upgrade to websocket
+      forceNew: true,
+      upgrade: true,
+      rememberUpgrade: false
     });
 
     setSocket(newSocket);
@@ -532,6 +546,57 @@ const WhatsAppPage: React.FC = () => {
       setShowQR(false);
     });
 
+    // NEW: Image message monitoring for real-time extraction
+    newSocket.on('whatsapp:image-message', (imageData: any) => {
+      console.log('[WhatsApp Socket.IO] 📷 New image message received:', imageData);
+      
+      // Update message counts in status
+      setStatus(prevStatus => ({
+        ...prevStatus,
+        messagesCount: (prevStatus?.messagesCount || 0) + 1,
+        timestamp: new Date().toISOString()
+      }));
+      
+      // Show notification for extractable images
+      if (imageData.extractable && showMonitoring) {
+        toast({
+          title: "New Image Available",
+          description: `${imageData.senderName} shared an image in ${imageData.chatName}`,
+          action: {
+            label: "Extract",
+            onClick: () => extractImageFromMessage(imageData.messageId)
+          }
+        });
+      }
+    });
+
+    // NEW: Monitoring statistics updates
+    newSocket.on('whatsapp:monitoring-stats', (stats: any) => {
+      console.log('[WhatsApp Socket.IO] 📊 Monitoring stats updated:', stats);
+      
+      // Update status with real-time counts
+      setStatus(prevStatus => ({
+        ...prevStatus,
+        messagesCount: stats.totalMessages || prevStatus?.messagesCount || 0,
+        imagesCount: stats.totalImages || 0,
+        monitoringActive: stats.active || false,
+        lastActivity: stats.lastActivity || new Date().toISOString()
+      }));
+    });
+
+    // NEW: Group message monitoring for keyword detection
+    newSocket.on('whatsapp:keyword-match', (matchData: any) => {
+      console.log('[WhatsApp Socket.IO] 🔍 Keyword match detected:', matchData);
+      
+      if (showMonitoring) {
+        toast({
+          title: `Keyword Match: "${matchData.keyword}"`,
+          description: `${matchData.senderName} in ${matchData.chatName}: ${matchData.message.substring(0, 50)}...`,
+          variant: "default"
+        });
+      }
+    });
+
     return () => {
       console.log('[WhatsApp Socket.IO] Cleaning up socket connection');
       newSocket.off('connect');
@@ -541,6 +606,9 @@ const WhatsAppPage: React.FC = () => {
       newSocket.off('whatsapp:status');
       newSocket.off('whatsapp:chats_updated');
       newSocket.off('whatsapp:authenticated');
+      newSocket.off('whatsapp:image-message');
+      newSocket.off('whatsapp:monitoring-stats');
+      newSocket.off('whatsapp:keyword-match');
       if (newSocket.connected) {
         newSocket.close();
       }
@@ -548,6 +616,67 @@ const WhatsAppPage: React.FC = () => {
       setIsSocketConnected(false);
     };
   }, [isAuthenticated, token, monitoredKeywords]);
+
+  // Automatic message polling for real-time monitoring
+  useEffect(() => {
+    let pollingInterval: NodeJS.Timeout | null = null;
+    
+    if (status?.authenticated && showMonitoring && isSocketConnected) {
+      console.log('[WhatsApp Monitoring] Starting automatic message polling');
+      
+      const pollForNewMessages = async () => {
+        try {
+          // Only poll if we're monitoring and have groups
+          if (groups.length === 0) return;
+          
+          console.log('[WhatsApp Monitoring] Polling for new messages...');
+          
+          // Fetch latest messages from all monitored groups
+          const recentMessages = await api.get('/waha/messages?limit=10');
+          
+          if (recentMessages.data.success && recentMessages.data.data) {
+            const newMessages = recentMessages.data.data;
+            
+            // Update message count
+            if (newMessages.length > 0) {
+              setStatus(prevStatus => ({
+                ...prevStatus,
+                messagesCount: Math.max((prevStatus?.messagesCount || 0), newMessages.length),
+                lastActivity: new Date().toISOString()
+              }));
+              
+              // Count image messages
+              const imageCount = newMessages.filter((msg: any) => 
+                msg.isMedia && (msg.type === 'image' || msg.mimeType?.startsWith('image/'))
+              ).length;
+              
+              if (imageCount > 0) {
+                setStatus(prevStatus => ({
+                  ...prevStatus,
+                  imagesCount: (prevStatus?.imagesCount || 0) + imageCount
+                }));
+              }
+            }
+          }
+        } catch (error) {
+          console.error('[WhatsApp Monitoring] Polling error:', error);
+        }
+      };
+      
+      // Poll every 30 seconds when monitoring is active
+      pollingInterval = setInterval(pollForNewMessages, 30000);
+      
+      // Initial poll
+      pollForNewMessages();
+    }
+    
+    return () => {
+      if (pollingInterval) {
+        console.log('[WhatsApp Monitoring] Stopping automatic message polling');
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [status?.authenticated, showMonitoring, isSocketConnected, groups.length]);
 
   // Define scrollToBottom function early
   const scrollToBottom = () => {
@@ -1469,6 +1598,90 @@ const WhatsAppPage: React.FC = () => {
     }
   };
 
+  const generateDailySummary = async () => {
+    try {
+      if (!selectedChat) {
+        toast({
+          title: "No Chat Selected",
+          description: "Please select a group to generate a daily summary.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const chatId = extractChatId(selectedChat);
+      if (!chatId) {
+        toast({
+          title: "Invalid Chat",
+          description: "Cannot generate summary for this chat. Please try selecting it again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log(`[WhatsApp Frontend] 📊 Generating daily summary for: ${selectedChat.name}`);
+
+      // Show loading state
+      setRefreshingMessages(true);
+
+      toast({
+        title: "Generating Summary",
+        description: `Creating daily summary for ${selectedChat.name}...`,
+      });
+
+      // Import whatsappService for summary functionality
+      const { whatsappService } = await import('@/services/whatsappService');
+
+      try {
+        const summary = await whatsappService.generateTodaySummary({
+          groupId: chatId,
+          timezone: whatsappService.getUserTimezone()
+        });
+
+        console.log('[WhatsApp Frontend] ✅ Daily summary generated:', summary);
+
+        // Show modal with the generated summary
+        setSelectedSummary(summary);
+        setShowSummaryModal(true);
+
+        toast({
+          title: "Summary Generated",
+          description: `Daily summary for ${selectedChat.name} has been created successfully.`,
+        });
+
+      } catch (summaryError: any) {
+        console.error('[WhatsApp Frontend] ❌ Daily summary generation failed:', summaryError);
+
+        let errorMsg = "Failed to generate daily summary";
+        let suggestion = "Please try again later";
+
+        if (summaryError.response?.status === 404) {
+          errorMsg = "Summary service not available";
+          suggestion = "The summary service may not be configured yet.";
+        } else if (summaryError.response?.data?.error) {
+          errorMsg = summaryError.response.data.error;
+        }
+
+        toast({
+          title: "Summary Failed",
+          description: `${errorMsg}. ${suggestion}`,
+          variant: "destructive",
+        });
+      }
+
+    } catch (error: any) {
+      console.error('[WhatsApp Frontend] ❌ Error in daily summary generation:', error);
+
+      toast({
+        title: "Summary Error",
+        description: "An unexpected error occurred while generating the summary.",
+        variant: "destructive",
+      });
+    } finally {
+      setRefreshingMessages(false);
+    }
+  };
+
   const refreshGroups = async () => {
     try {
       setLoadingChats(true);
@@ -1939,6 +2152,69 @@ const WhatsAppPage: React.FC = () => {
     return chatMessages.sort((a, b) => a.timestamp - b.timestamp);
   }, [messages, selectedChat?.id]);
 
+  // Move media message to Images section
+  const moveMediaToImages = async (messageId: string) => {
+    try {
+      const response = await api.post(`/waha/media/${messageId}/move-to-images`);
+      
+      if (response.data.success) {
+        toast({
+          title: "Success",
+          description: "Media moved to Images section successfully",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: response.data.error || "Failed to move media to Images section",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error moving media to images:', error);
+      toast({
+        title: "Error",
+        description: error?.response?.data?.error || error?.message || "Failed to move media to Images section",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Extract image from message for monitoring (Shula-style functionality)
+  const extractImageFromMessage = async (messageId: string) => {
+    try {
+      console.log(`[WhatsApp Frontend] Extracting image from message: ${messageId}`);
+      
+      const response = await api.post(`/waha/media/${messageId}/extract-image`);
+      
+      if (response.data.success) {
+        toast({
+          title: "Image Extracted",
+          description: `Image saved successfully: ${response.data.filename || 'Unknown'}`,
+        });
+        
+        // Update monitoring stats if needed
+        setStatus(prevStatus => ({
+          ...prevStatus,
+          imagesCount: (prevStatus?.imagesCount || 0) + 1,
+          lastActivity: new Date().toISOString()
+        }));
+      } else {
+        toast({
+          title: "Extraction Failed",
+          description: response.data.error || "Failed to extract image",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error extracting image:', error);
+      toast({
+        title: "Error",
+        description: error?.response?.data?.error || error?.message || "Failed to extract image",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
@@ -1974,6 +2250,7 @@ const WhatsAppPage: React.FC = () => {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 p-3 sm:p-6">
       <div className="max-w-7xl mx-auto">
         <motion.div
@@ -2089,7 +2366,24 @@ const WhatsAppPage: React.FC = () => {
                     <RefreshCw className="w-4 h-4 mr-2" />
                     Refresh Chats
                   </AnimatedButton>
-                  
+
+                  {selectedChat && selectedChat.isGroup && (
+                    <AnimatedButton
+                      onClick={generateDailySummary}
+                      variant="outline"
+                      size="sm"
+                      disabled={refreshingMessages}
+                      className="border-purple-400/30 text-purple-200 hover:bg-purple-500/10"
+                    >
+                      {refreshingMessages ? (
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Calendar className="w-4 h-4 mr-2" />
+                      )}
+                      Daily Summary
+                    </AnimatedButton>
+                  )}
+
                   <AnimatedButton
                     onClick={refreshGroups}
                     variant="outline"
@@ -2098,6 +2392,16 @@ const WhatsAppPage: React.FC = () => {
                   >
                     <Users className="w-4 h-4 mr-2" />
                     Refresh Groups
+                  </AnimatedButton>
+                  
+                  <AnimatedButton
+                    onClick={() => setShowMonitoring(true)}
+                    variant="outline"
+                    size="sm"
+                    className="border-amber-400/30 text-amber-200 hover:bg-amber-500/10"
+                  >
+                    <Eye className="w-4 h-4 mr-2" />
+                    Monitoring
                   </AnimatedButton>
                   
                   <AnimatedButton
@@ -2177,10 +2481,10 @@ const WhatsAppPage: React.FC = () => {
           
           <GlassCard className="p-3 sm:p-6">
             <div className="flex items-center gap-2 sm:gap-3">
-              <Eye className="w-6 h-6 sm:w-8 sm:h-8 text-amber-400 flex-shrink-0" />
+              <Camera className="w-6 h-6 sm:w-8 sm:h-8 text-amber-400 flex-shrink-0" />
               <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-blue-100/70">Monitored</p>
-                <p className="text-lg sm:text-2xl font-bold text-white">{monitoredKeywords.length}</p>
+                <p className="text-xs sm:text-sm text-blue-100/70">Images</p>
+                <p className="text-lg sm:text-2xl font-bold text-white">{status?.imagesCount || 0}</p>
               </div>
             </div>
           </GlassCard>
@@ -2518,7 +2822,7 @@ const WhatsAppPage: React.FC = () => {
             <GlassCard className={`${isMobile ? 'h-full' : 'h-[600px]'} p-4 sm:p-6 flex flex-col`}>
               {selectedChat ? (
                 <>
-                  <div className="flex items-center justify-between pb-4 border-b border-white/20">
+                  <div className="flex items-center justify-between pb-4 border-b border-white/20 flex-shrink-0">
                     <div className="flex items-center gap-3">
                       {isMobile && (
                         <Button
@@ -2620,11 +2924,12 @@ const WhatsAppPage: React.FC = () => {
                       </AnimatedButton>
                     </div>
                   </div>
-                  
-                  <div className="flex-1 overflow-y-auto my-4 space-y-3 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full" 
+
+                  <div className="flex-1 overflow-y-auto my-4 space-y-3 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full min-h-0"
                        style={{
                          scrollbarWidth: 'auto',
-                         scrollbarColor: '#8b5cf6 rgba(255,255,255,0.2)'
+                         scrollbarColor: '#8b5cf6 rgba(255,255,255,0.2)',
+                         maxHeight: 'calc(100% - 120px)' // Ensure buttons stay visible
                        }}>
                     {displayedMessages.length === 0 ? (
                       <div className="flex items-center justify-center h-full">
@@ -2654,7 +2959,24 @@ const WhatsAppPage: React.FC = () => {
                             {!message.fromMe && message.isGroup && (
                               <p className="text-xs text-blue-200 mb-1">{message.contactName}</p>
                             )}
-                            <p className="text-sm">{message.body || '[Media]'}</p>
+{message.isMedia && message.type === 'image' ? (
+                              <div className="flex items-center gap-2">
+                                <Camera className="w-4 h-4 text-blue-300" />
+                                <span className="text-sm">Image</span>
+                                <button
+                                  onClick={() => extractImageFromMessage(message.id)}
+                                  className="flex items-center gap-1 bg-white/20 hover:bg-white/30 px-2 py-1 rounded text-xs transition-colors"
+                                  title="Download image"
+                                >
+                                  <Download className="w-3 h-3" />
+                                  Download
+                                </button>
+                              </div>
+                            ) : message.isMedia ? (
+                              <p className="text-sm break-words whitespace-pre-wrap text-blue-300">[{message.type || 'Media'}]</p>
+                            ) : (
+                              <p className="text-sm break-words whitespace-pre-wrap">{message.body || '[No content]'}</p>
+                            )}
                             <p className="text-xs opacity-70 mt-1">{message.time}</p>
                           </div>
                         </motion.div>
@@ -2843,6 +3165,18 @@ const WhatsAppPage: React.FC = () => {
                     
                     <AnimatedButton
                       onClick={() => {
+                        setShowMonitoring(true);
+                        setShowMobileMenu(false);
+                      }}
+                      variant="outline"
+                      className="w-full border-amber-400/30 text-amber-200 hover:bg-amber-500/10"
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      Monitoring
+                    </AnimatedButton>
+                    
+                    <AnimatedButton
+                      onClick={() => {
                         forceHistorySync();
                         setShowMobileMenu(false);
                       }}
@@ -2941,7 +3275,15 @@ const WhatsAppPage: React.FC = () => {
               >
                 <GlassCard className="p-6 flex flex-col max-h-full">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-white">Keyword Monitoring</h3>
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-lg font-semibold text-white">WhatsApp Monitoring</h3>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${status?.monitoringActive ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
+                        <span className={`text-xs ${status?.monitoringActive ? 'text-green-300' : 'text-gray-400'}`}>
+                          {status?.monitoringActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    </div>
                     <Button
                       onClick={() => setShowMonitoring(false)}
                       variant="ghost"
@@ -2951,6 +3293,29 @@ const WhatsAppPage: React.FC = () => {
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
+
+                  {/* Real-time Statistics */}
+                  <div className="grid grid-cols-2 gap-3 mb-6">
+                    <div className="bg-white/10 rounded-lg p-3 text-center">
+                      <MessageCircle className="w-5 h-5 text-blue-400 mx-auto mb-1" />
+                      <div className="text-lg font-bold text-white">{status?.messagesCount || 0}</div>
+                      <div className="text-xs text-blue-200/70">Messages</div>
+                    </div>
+                    <div className="bg-white/10 rounded-lg p-3 text-center">
+                      <Camera className="w-5 h-5 text-amber-400 mx-auto mb-1" />
+                      <div className="text-lg font-bold text-white">{status?.imagesCount || 0}</div>
+                      <div className="text-xs text-blue-200/70">Images</div>
+                    </div>
+                  </div>
+
+                  {/* Last Activity */}
+                  {status?.lastActivity && (
+                    <div className="mb-4 text-center">
+                      <p className="text-xs text-blue-200/70">
+                        Last activity: {new Date(status.lastActivity).toLocaleTimeString()}
+                      </p>
+                    </div>
+                  )}
                   
                   <div className="mb-4">
                     <div className="flex gap-2">
@@ -3198,6 +3563,17 @@ const WhatsAppPage: React.FC = () => {
         </AnimatePresence>
       </div>
     </div>
+
+    {/* Summary Modal */}
+    <AnimatePresence>
+      {showSummaryModal && selectedSummary && (
+        <SummaryModal
+          summary={selectedSummary!}
+          onClose={() => setShowSummaryModal(false)}
+        />
+      )}
+    </AnimatePresence>
+    </>
   );
 };
 

@@ -106,6 +106,9 @@ export const addChannel = async (req: AuthenticatedRequest, res: Response) => {
     } else if (error.message.includes('Chat not found')) {
       statusCode = 404;
       message = 'Channel not found. Make sure the channel exists and is public.';
+    } else if (error.message.includes('No active bot found')) {
+      statusCode = 409;
+      message = 'No active Telegram bot configured for this user. Please configure your bot first.';
     }
 
     res.status(statusCode).json({ 

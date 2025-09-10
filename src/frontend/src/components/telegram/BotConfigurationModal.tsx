@@ -265,7 +265,13 @@ const BotConfigurationModal: React.FC<BotConfigurationModalProps> = ({
           {/* Bot Token Input */}
           <div>
             <h3 className="font-medium mb-3">Enter Your Bot Token</h3>
-            <div className="space-y-3">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveBotToken();
+              }}
+              className="space-y-3"
+            >
               <div className="relative">
                 <Input
                   type={showToken ? "text" : "password"}
@@ -317,6 +323,7 @@ const BotConfigurationModal: React.FC<BotConfigurationModalProps> = ({
 
               <div className="flex gap-3">
                 <AnimatedButton
+                  type="button"
                   variant="outline"
                   onClick={validateBotToken}
                   disabled={!botToken.trim() || isValidating}
@@ -334,7 +341,7 @@ const BotConfigurationModal: React.FC<BotConfigurationModalProps> = ({
                 </AnimatedButton>
                 
                 <AnimatedButton
-                  onClick={saveBotToken}
+                  type="submit"
                   disabled={!validationResult?.valid || isSaving}
                   loading={isSaving}
                   className="flex-1"
@@ -349,7 +356,7 @@ const BotConfigurationModal: React.FC<BotConfigurationModalProps> = ({
                   )}
                 </AnimatedButton>
               </div>
-            </div>
+            </form>
           </div>
 
           {/* Help Section */}

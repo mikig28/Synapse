@@ -6,6 +6,9 @@
 import { Request, Response } from 'express';
 import WAHAService from '../../services/wahaService';
 import POLLING_CONFIG from '../../config/polling.config';
+import { whatsappMediaService } from '../../services/whatsappMediaService';
+import * as path from 'path';
+import * as fs from 'fs';
 
 // Cache for status responses to prevent excessive API calls
 interface StatusCache {
@@ -135,10 +138,27 @@ export const getStatus = async (req: Request, res: Response) => {
       qrAvailable
     });
     
-    // Avoid fetching chats here to keep status fast and prevent 50x under latency
-    const groupsCount = undefined as unknown as number;
-    const privateChatsCount = undefined as unknown as number;
-    const messagesCount = undefined as unknown as number;
+    // Get monitoring stats if available (cached for performance)
+    let groupsCount = undefined as unknown as number;
+    let privateChatsCount = undefined as unknown as number;
+    let messagesCount = undefined as unknown as number;
+    let imagesCount = 0;
+    let lastActivity = new Date().toISOString();
+    
+    // Try to get cached counts from global monitoring stats
+    let globalStats: any = null;
+    try {
+      globalStats = (global as any).wahaMonitoringStats;
+      if (globalStats && globalStats.timestamp && (Date.now() - globalStats.timestamp < 300000)) { // 5 minutes cache
+        groupsCount = globalStats.groupsCount || 0;
+        privateChatsCount = globalStats.privateChatsCount || 0;
+        messagesCount = globalStats.messagesCount || 0;
+        imagesCount = globalStats.imagesCount || 0;
+        lastActivity = globalStats.lastActivity || lastActivity;
+      }
+    } catch (statsError) {
+      // Ignore stats errors, will use defaults
+    }
 
     // Convert WAHA status to format expected by frontend
     const status = {
@@ -154,7 +174,11 @@ export const getStatus = async (req: Request, res: Response) => {
       qrAvailable: qrAvailable,
       timestamp: wahaStatus.timestamp,
       monitoredKeywords: [],
-      serviceType: 'waha'
+      serviceType: 'waha',
+      // Enhanced monitoring fields
+      imagesCount: imagesCount,
+      monitoringActive: isConnected && isAuthenticated,
+      lastActivity: lastActivity
     };
     
     // Cache the status
@@ -373,14 +397,14 @@ export const getChats = async (req: Request, res: Response) => {
     const options = {
       limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
       offset: req.query.offset ? parseInt(req.query.offset as string) : undefined,
-      sortBy: req.query.sortBy as 'conversationTimestamp' | 'id' | 'name' | undefined,
+      sortBy: 'id' as 'id', // Fixed to only supported sortBy value
       sortOrder: req.query.sortOrder as 'desc' | 'asc' | undefined,
       exclude: req.query.exclude ? (req.query.exclude as string).split(',') : undefined
     };
     
     console.log('[WAHA Controller] Getting chats with options:', options);
     const startTime = Date.now();
-    const chats = await wahaService.getChats(undefined, options);
+    const chats = await wahaService.getChats('default', options);
     const duration = Date.now() - startTime;
     
     console.log(`[WAHA Controller] ✅ Successfully fetched ${chats.length} chats in ${duration}ms`);
@@ -847,13 +871,13 @@ export const getGroups = async (req: Request, res: Response) => {
     const startTime = Date.now();
     
     // Try WAHA-compliant groups endpoint first
-    let groups = await wahaService.getGroups(undefined, options);
+    let groups = await wahaService.getGroups('default', options);
     if (!groups || groups.length === 0) {
       console.log('[WAHA Controller] No groups found, trying refresh...');
       // Ask WAHA to refresh then try again quickly
       const refreshResult = await wahaService.refreshGroups();
       console.log('[WAHA Controller] Group refresh result:', refreshResult);
-      groups = await wahaService.getGroups(undefined, options);
+      groups = await wahaService.getGroups('default', options);
     }
     
     const duration = Date.now() - startTime;
@@ -937,26 +961,26 @@ export const getPrivateChats = async (req: Request, res: Response) => {
     // Parse pagination/sorting options
     const limit = req.query.limit ? Math.max(1, Math.min(500, parseInt(req.query.limit as string))) : undefined;
     const offset = req.query.offset ? Math.max(0, parseInt(req.query.offset as string)) : undefined;
-    const sortBy = (req.query.sortBy as 'conversationTimestamp' | 'id' | 'name' | undefined) || 'conversationTimestamp';
+    const sortBy = 'id'; // Fixed to only supported sortBy value
     const sortOrder = (req.query.sortOrder as 'desc' | 'asc' | undefined) || 'desc';
     
     console.log('[WAHA Controller] Fetching private chats...', { limit, offset, sortBy, sortOrder });
     const startTime = Date.now();
 
-    // Request chats with options to let service use WAHA-compliant params
-    const chats = await wahaService.getChats(undefined, { limit, offset, sortBy, sortOrder });
+    // DEBUG: Add detailed logging to trace getChats execution
+    console.log('[WAHA Controller DEBUG] About to call wahaService.getChats()...');
+    const chats = await wahaService.getChats('default', { limit, offset, sortBy, sortOrder });
+    console.log('[WAHA Controller DEBUG] getChats returned:', {
+      chatCount: chats?.length || 0,
+      chats: chats?.slice(0, 3).map(c => ({ id: c.id, name: c.name, isGroup: c.isGroup })) || []
+    });
     
     // Filter only private chats (not @g.us)
     let privateChats = chats.filter(chat => !chat.isGroup && !(typeof chat.id === 'string' && chat.id.includes('@g.us')));
 
     // Sort client-side as a fallback if WAHA ignored params
-    if (sortBy === 'conversationTimestamp') {
-      privateChats = privateChats.sort((a, b) => (sortOrder === 'desc' ? (b.timestamp || 0) - (a.timestamp || 0) : (a.timestamp || 0) - (b.timestamp || 0)));
-    } else if (sortBy === 'name') {
-      privateChats = privateChats.sort((a, b) => (sortOrder === 'desc' ? (b.name || '').localeCompare(a.name || '') : (a.name || '').localeCompare(b.name || '')));
-    } else if (sortBy === 'id') {
-      privateChats = privateChats.sort((a, b) => (sortOrder === 'desc' ? (b.id || '').localeCompare(a.id || '') : (a.id || '').localeCompare(b.id || '')));
-    }
+    // Since sortBy is always 'id', only handle that case
+    privateChats = privateChats.sort((a, b) => (sortOrder === 'desc' ? (b.id || '').localeCompare(a.id || '') : (a.id || '').localeCompare(b.id || '')));
 
     // Apply pagination client-side if WAHA ignored params
     const total = privateChats.length;
@@ -1511,6 +1535,274 @@ export const autoRecoverSession = async (req: Request, res: Response) => {
       success: false,
       error: error?.message || 'Auto-recovery failed',
       details: error?.response?.data || error.message
+    });
+  }
+};
+
+/**
+ * Extract image from WhatsApp message (Shula-style functionality)
+ */
+export const extractImageFromMessage = async (req: Request, res: Response) => {
+  try {
+    const { messageId } = req.params;
+    
+    if (!messageId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Message ID is required'
+      });
+    }
+    
+    console.log(`[WAHA Controller] 📷 Extracting image from message: ${messageId}`);
+    const wahaService = getWAHAService();
+    
+    // Extract image using WAHA service
+    const extractionResult = await wahaService.extractImageFromMessage(messageId);
+    
+    if (extractionResult.success) {
+      console.log(`[WAHA Controller] ✅ Image extracted successfully: ${extractionResult.filename}`);
+      
+      res.json({
+        success: true,
+        data: {
+          messageId,
+          filename: extractionResult.filename,
+          filePath: extractionResult.filePath,
+          fileSize: extractionResult.fileSize,
+          mimeType: extractionResult.mimeType,
+          extractedAt: new Date().toISOString(),
+          message: 'Image extracted successfully'
+        }
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: extractionResult.error || 'Failed to extract image from message'
+      });
+    }
+  } catch (error: any) {
+    console.error('[WAHA Controller] ❌ Error extracting image:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to extract image: ' + (error?.message || 'Unknown error'),
+      details: error?.response?.data || error.message
+    });
+  }
+};
+/**
+ * Recreate session with new engine configuration
+ * Use this when you change WAHA_ENGINE environment variable
+ */
+export const recreateSession = async (req: Request, res: Response) => {
+  try {
+    console.log('[WAHA Controller] 🔄 Session recreation request received');
+    const wahaService = getWAHAService();
+    
+    // Get current session info
+    let currentStatus;
+    try {
+      currentStatus = await wahaService.getSessionStatus();
+      console.log('[WAHA Controller] Current session status:', currentStatus);
+    } catch (error) {
+      currentStatus = { status: 'UNKNOWN', engine: { engine: 'UNKNOWN' } };
+    }
+    
+    // Recreate session with new engine configuration
+    console.log('[WAHA Controller] 🔧 Recreating session with new engine configuration...');
+    const newSession = await wahaService.recreateSessionWithEngine();
+    
+    // Get updated status
+    let newStatus;
+    try {
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for session to initialize
+      newStatus = await wahaService.getSessionStatus();
+    } catch (error) {
+      newStatus = { status: 'STARTING', engine: { engine: 'CONFIGURING' } };
+    }
+    
+    console.log('[WAHA Controller] ✅ Session recreation completed');
+    res.json({
+      success: true,
+      data: {
+        message: 'Session recreated with new engine configuration',
+        previousEngine: currentStatus?.engine?.engine || 'UNKNOWN',
+        newEngine: newStatus?.engine?.engine || 'CONFIGURING',
+        sessionStatus: newStatus?.status || 'STARTING',
+        needsQR: newStatus?.status === 'SCAN_QR_CODE' || newStatus?.status === 'STARTING'
+      }
+    });
+    
+  } catch (error: any) {
+    console.error('[WAHA Controller] ❌ Error recreating session:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to recreate session: ' + (error?.message || 'Unknown error'),
+      details: {
+        status: error?.response?.status,
+        message: error?.response?.data || error.message
+      }
+    });
+  }
+};
+
+/**
+ * Clear WAHA service caches and force fresh status check
+ */
+export const clearCaches = async (req: Request, res: Response) => {
+  try {
+    console.log('[WAHA Controller] 🗑️ Cache clearing request received');
+    const wahaService = getWAHAService();
+    
+    // Clear all caches
+    wahaService.clearAllCaches();
+    
+    // Get fresh status
+    const freshStatus = await wahaService.getSessionStatus();
+    
+    console.log('[WAHA Controller] ✅ Caches cleared, fresh status retrieved');
+    res.json({
+      success: true,
+      data: {
+        message: 'Caches cleared successfully',
+        freshStatus: {
+          status: freshStatus.status,
+          isAuthenticated: !!freshStatus.me,
+          engine: freshStatus.engine,
+          me: freshStatus.me
+        }
+      }
+    });
+    
+  } catch (error: any) {
+    console.error('[WAHA Controller] ❌ Error clearing caches:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to clear caches: ' + (error?.message || 'Unknown error'),
+      details: error?.response?.data || error.message
+    });
+  }
+};
+
+/**
+ * Serve downloaded WhatsApp media files
+ */
+export const getMediaFile = async (req: Request, res: Response) => {
+  try {
+    const { messageId } = req.params;
+
+    if (!messageId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Message ID is required'
+      });
+    }
+
+    console.log(`[WAHA Controller] Serving media file for message: ${messageId}`);
+
+    // Find the media file
+    const mediaFile = whatsappMediaService.getMediaFile(messageId);
+
+    if (!mediaFile || !mediaFile.exists) {
+      return res.status(404).json({
+        success: false,
+        error: 'Media file not found'
+      });
+    }
+
+    // Check if file exists on disk
+    if (!fs.existsSync(mediaFile.path!)) {
+      return res.status(404).json({
+        success: false,
+        error: 'Media file not found on disk'
+      });
+    }
+
+    // Get file stats
+    const stat = fs.statSync(mediaFile.path!);
+
+    // Set appropriate headers
+    const ext = path.extname(mediaFile.path!).toLowerCase();
+    let contentType = 'application/octet-stream';
+
+    // Set content type based on file extension
+    switch (ext) {
+      case '.jpg':
+      case '.jpeg':
+        contentType = 'image/jpeg';
+        break;
+      case '.png':
+        contentType = 'image/png';
+        break;
+      case '.gif':
+        contentType = 'image/gif';
+        break;
+      case '.webp':
+        contentType = 'image/webp';
+        break;
+      case '.mp4':
+        contentType = 'video/mp4';
+        break;
+      case '.mp3':
+        contentType = 'audio/mpeg';
+        break;
+      case '.ogg':
+        contentType = 'audio/ogg';
+        break;
+      case '.wav':
+        contentType = 'audio/wav';
+        break;
+      case '.pdf':
+        contentType = 'application/pdf';
+        break;
+      default:
+        contentType = 'application/octet-stream';
+    }
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Length', stat.size);
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+
+    // Stream the file
+    const fileStream = fs.createReadStream(mediaFile.path!);
+    fileStream.pipe(res);
+
+    // Handle stream errors
+    fileStream.on('error', (error) => {
+      console.error(`[WAHA Controller] Error streaming media file ${messageId}:`, error);
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          error: 'Error streaming media file'
+        });
+      }
+    });
+
+  } catch (error: any) {
+    console.error('[WAHA Controller] ❌ Error serving media file:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to serve media file'
+    });
+  }
+};
+
+/**
+ * Get media download statistics
+ */
+export const getMediaStats = async (req: Request, res: Response) => {
+  try {
+    const stats = whatsappMediaService.getStorageStats();
+
+    res.json({
+      success: true,
+      data: stats
+    });
+
+  } catch (error: any) {
+    console.error('[WAHA Controller] ❌ Error getting media stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get media statistics'
     });
   }
 };
