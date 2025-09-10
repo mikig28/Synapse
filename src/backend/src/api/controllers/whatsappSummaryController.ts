@@ -204,7 +204,7 @@ export const getGroupMessages = async (req: Request, res: Response) => {
         $gte: startDate,
         $lte: endDate
       },
-      // isIncoming filter removed to get all messages // Only incoming messages for summary
+      isIncoming: true // Only incoming messages for summary
     };
     
     const pageNum = parseInt(page as string);
@@ -350,11 +350,11 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     // Build comprehensive query for group messages
     const baseQuery = {
       'metadata.isGroup': true,
-      // Remove isIncoming filter to get all messages in the group
-      $or: [{ timestamp: { $gte: utcStart, $lte: utcEnd }}, { createdAt: {  // Use createdAt instead of timestamp (timestamp field is corrupted)
+      // Don't filter by isIncoming - get all messages in the group
+      createdAt: {  // Use createdAt instead of timestamp (timestamp field is corrupted)
         $gte: utcStart,
         $lte: utcEnd
-      }}]
+      }
     };
 
     // Try multiple approaches to find group messages
@@ -410,7 +410,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       
       const fallbackQuery = {
         'metadata.isGroup': true,
-        // isIncoming filter removed to get all messages,
+        // Don't filter by isIncoming
         $or: [
           { 'metadata.groupId': groupId },
           ...(groupInfo ? [{ 'metadata.groupName': groupInfo.name }] : []),
@@ -575,7 +575,7 @@ export const getAvailableDateRanges = async (req: Request, res: Response) => {
         { 'metadata.groupId': groupId }
       ],
       createdAt: { $gte: today.start, $lte: today.end },
-      // isIncoming filter removed to get all messages
+      isIncoming: true
     });
     
     dateRanges.push({ ...today, messageCount: todayCount });
@@ -593,7 +593,7 @@ export const getAvailableDateRanges = async (req: Request, res: Response) => {
         { 'metadata.groupId': groupId }
       ],
       createdAt: { $gte: yesterdayStart, $lte: yesterdayEnd },
-      // isIncoming filter removed to get all messages
+      isIncoming: true
     });
     
     dateRanges.push({
@@ -613,7 +613,7 @@ export const getAvailableDateRanges = async (req: Request, res: Response) => {
         { 'metadata.groupId': groupId }
       ],
       createdAt: { $gte: last24h.start, $lte: last24h.end },
-      // isIncoming filter removed to get all messages
+      isIncoming: true
     });
     
     dateRanges.push({ ...last24h, messageCount: last24hCount });
@@ -761,7 +761,7 @@ export const getGroupSummaryStats = async (req: Request, res: Response) => {
           { 'metadata.groupId': groupId }
         ],
         timestamp: { $gte: startDate },
-        // isIncoming filter removed to get all messages
+        isIncoming: true
       }),
       
       WhatsAppMessage.distinct('from', {
@@ -771,7 +771,7 @@ export const getGroupSummaryStats = async (req: Request, res: Response) => {
           { 'metadata.groupId': groupId }
         ],
         timestamp: { $gte: startDate },
-        // isIncoming filter removed to get all messages
+        isIncoming: true
       }),
       
       WhatsAppMessage.aggregate([
@@ -783,7 +783,7 @@ export const getGroupSummaryStats = async (req: Request, res: Response) => {
               { 'metadata.groupId': groupId }
             ],
             timestamp: { $gte: startDate },
-            // isIncoming filter removed to get all messages
+            isIncoming: true
           }
         },
         {
