@@ -6,8 +6,21 @@ import {
   KeywordAnalysis,
   EmojiAnalysis,
   SummaryGenerationOptions,
-  DateRange
+  DateRange,
+  MessageTypesDistribution
 } from '../types/whatsappSummary';
+import 'openai/shims/node';
+import OpenAI from 'openai';
+import pLimit from 'p-limit';
+import emojiRegex from 'emoji-regex';
+
+const summarizeLimit = pLimit(Number(process.env.OPENAI_CONCURRENCY ?? 2));
+const SUMMARY_CACHE_TTL_MS = Number(process.env.WHATSAPP_SUMMARY_CACHE_TTL_MS ?? 5 * 60 * 1000);
+interface CachedSummary {
+  data: GroupSummaryData;
+  timestamp: number;
+}
+const summaryCache = new Map<string, CachedSummary>();
 
 export class WhatsAppSummarizationService {
   private readonly defaultOptions: Required<SummaryGenerationOptions> = {
@@ -35,6 +48,12 @@ export class WhatsAppSummarizationService {
     const startTime = Date.now();
     const opts = { ...this.defaultOptions, ...options };
 
+    const cacheKey = `${groupId}:${timeRange.start.toISOString()}:${timeRange.end.toISOString()}`;
+    const cached = summaryCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < SUMMARY_CACHE_TTL_MS) {
+      return { ...cached.data, cached: true } as GroupSummaryData;
+    }
+
     // Filter and clean messages
     const cleanMessages = this.filterMessages(messages, opts);
     
@@ -51,16 +70,29 @@ export class WhatsAppSummarizationService {
     
     // Analyze message types
     const messageTypes = this.analyzeMessageTypes(cleanMessages);
-    
-    // Generate overall summary
-    const overallSummary = this.generateOverallSummary(senderInsights, topKeywords, messageTypes, opts);
+
+    // Generate summary of conversation content
+    let overallSummary: string;
+    try {
+      overallSummary = await summarizeLimit(() =>
+        this.generateContentSummary(
+          cleanMessages,
+          senderInsights,
+          topKeywords,
+          messageTypes,
+          opts
+        )
+      );
+    } catch {
+      overallSummary = this.generateOverallSummary(senderInsights, topKeywords, messageTypes, opts);
+    }
     
     // Calculate activity peaks
-    const activityPeaks = this.calculateActivityPeaks(cleanMessages);
+    const activityPeaks = this.calculateActivityPeaks(cleanMessages, opts.timezone);
     
     const processingTimeMs = Date.now() - startTime;
 
-    return {
+    const result: GroupSummaryData = {
       groupId,
       groupName,
       timeRange: {
@@ -81,6 +113,9 @@ export class WhatsAppSummarizationService {
         participantsFound: messageGroups.length
       }
     };
+
+    summaryCache.set(cacheKey, { data: result, timestamp: Date.now() });
+    return result;
   }
 
   /**
@@ -88,6 +123,8 @@ export class WhatsAppSummarizationService {
    */
   private filterMessages(messages: MessageData[], options: Required<SummaryGenerationOptions>): MessageData[] {
     return messages.filter(message => {
+      if (!message || typeof message.message !== 'string') return false;
+      const text = message.message.toLowerCase();
       // Exclude system messages if configured
       if (options.excludeSystemMessages) {
         const systemMessagePatterns = [
@@ -99,16 +136,16 @@ export class WhatsAppSummarizationService {
           'changed this group\'s icon',
           'deleted for everyone'
         ];
-        
-        const isSystemMessage = systemMessagePatterns.some(pattern => 
-          message.message.toLowerCase().includes(pattern.toLowerCase())
+
+        const isSystemMessage = systemMessagePatterns.some(pattern =>
+          text.includes(pattern.toLowerCase())
         );
-        
+
         if (isSystemMessage) return false;
       }
-      
+
       // Must have actual content
-      return message.message.trim().length > 0;
+      return text.trim().length > 0;
     });
   }
 
@@ -272,8 +309,8 @@ export class WhatsAppSummarizationService {
    * Extract emoji analysis
    */
   private extractEmojis(text: string, minCount: number = 2, maxEmojis: number = 10): EmojiAnalysis[] {
-    const emojiRegex = /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu;
-    const emojis = text.match(emojiRegex) || [];
+    const regex = emojiRegex();
+    const emojis = text.match(regex) ?? [];
     const totalEmojis = emojis.length;
     
     if (totalEmojis === 0) return [];
@@ -337,44 +374,106 @@ export class WhatsAppSummarizationService {
   /**
    * Analyze message types distribution
    */
-  private analyzeMessageTypes(messages: MessageData[]): {
-    text: number;
-    image: number;
-    video: number;
-    audio: number;
-    document: number;
-    other: number;
-  } {
-    const types = { text: 0, image: 0, video: 0, audio: 0, document: 0, other: 0 };
-    
+  private analyzeMessageTypes(messages: MessageData[]): MessageTypesDistribution {
+    const types: MessageTypesDistribution = { text: 0, image: 0, video: 0, audio: 0, document: 0, other: 0 };
+
     messages.forEach(message => {
-      const type = message.type.toLowerCase();
-      if (type in types) {
-        (types as any)[type]++;
+      const type = (message.type ?? 'other').toLowerCase();
+      if (Object.hasOwn(types, type)) {
+        types[type as keyof MessageTypesDistribution]++;
       } else {
-        (types as any).other++;
+        types.other++;
       }
     });
-    
+
     return types;
   }
 
   /**
    * Calculate activity peaks by hour
    */
-  private calculateActivityPeaks(messages: MessageData[]): { hour: number; count: number }[] {
+  private calculateActivityPeaks(messages: MessageData[], timezone: string): { hour: number; count: number }[] {
     const hourCounts = new Array(24).fill(0);
-    
+    const formatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: timezone });
+
     messages.forEach(message => {
-      const hour = message.timestamp.getHours();
+      const hour = Number(formatter.format(message.timestamp));
       hourCounts[hour]++;
     });
-    
+
     return hourCounts
       .map((count, hour) => ({ hour, count }))
       .filter(peak => peak.count > 0)
       .sort((a, b) => b.count - a.count)
-      .slice(0, 6); // Top 6 peak hours
+      .slice(0, 6);
+  }
+
+  /**
+   * Generate a summary of the conversation content. Falls back to
+   * metadata-based summary when an AI provider isn't configured.
+   */
+  private async generateContentSummary(
+    messages: MessageData[],
+    senderInsights: SenderInsights[],
+    topKeywords: KeywordAnalysis[],
+    messageTypes: MessageTypesDistribution,
+    options: Required<SummaryGenerationOptions>
+  ): Promise<string> {
+    const apiKey = process.env.OPENAI_API_KEY;
+    const maxMessages = 50;
+    const maxCharsPerMsg = 280;
+    const conversation = messages
+      .slice(-maxMessages)
+      .map(m => {
+        const name = m.senderName || `Contact ${m.senderPhone}`;
+        const text = (m.message ?? '')
+          .replace(/\s+/g, ' ')
+          .slice(0, maxCharsPerMsg);
+        return `${name}: ${text}`;
+      })
+      .join('\n');
+
+    if (!apiKey || conversation.trim().length === 0) {
+      return this.generateOverallSummary(senderInsights, topKeywords, messageTypes, options);
+    }
+
+    const model = process.env.WHATSAPP_SUMMARIZER_MODEL ?? 'gpt-4.1-mini';
+    const maxRetries = Number(process.env.OPENAI_MAX_RETRIES ?? 2);
+    const timeoutMs = Number(process.env.OPENAI_TIMEOUT_MS ?? 10000);
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const openai = new OpenAI({ apiKey, maxRetries });
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), timeoutMs);
+        const response = await openai.responses
+          .create({
+            model,
+            input: [
+              { role: 'system', content: 'Summarize the following WhatsApp group conversation.' },
+              { role: 'user', content: conversation }
+            ],
+            temperature: 0.2,
+            signal: controller.signal
+          })
+          .finally(() => clearTimeout(timeout));
+
+        const content = response.output_text?.trim();
+        if (content) {
+          return content;
+        }
+        throw new Error('Empty AI response');
+      } catch (err) {
+        if (attempt >= maxRetries) {
+          console.error('[WhatsAppSummarization] AI summary failed:', err);
+          break;
+        }
+        const delay = 2 ** attempt * 1000;
+        await new Promise(res => setTimeout(res, delay));
+      }
+    }
+
+    return this.generateOverallSummary(senderInsights, topKeywords, messageTypes, options);
   }
 
   /**
@@ -383,7 +482,7 @@ export class WhatsAppSummarizationService {
   private generateOverallSummary(
     senderInsights: SenderInsights[],
     topKeywords: KeywordAnalysis[],
-    messageTypes: any,
+    messageTypes: MessageTypesDistribution,
     options: Required<SummaryGenerationOptions>
   ): string {
     const totalMessages = senderInsights.reduce((sum, sender) => sum + sender.messageCount, 0);
@@ -396,8 +495,8 @@ export class WhatsAppSummarizationService {
     const topSenderNames = topSenders.map(s => s.senderName).join(', ');
     
     // Media analysis
-    const totalMedia = 0; // Temporarily disabled due to TypeScript build issues
-    const mediaPercentage = totalMessages > 0 ? Math.round((Number(totalMedia) / Number(totalMessages)) * 100) : 0;
+    const totalMedia = messageTypes.image + messageTypes.video + messageTypes.audio + messageTypes.document;
+    const mediaPercentage = totalMessages > 0 ? Math.round((totalMedia / totalMessages) * 100) : 0;
     
     // Keywords summary
     const keywordSummary = topKeywords.length > 0 ? 
@@ -445,10 +544,12 @@ export class WhatsAppSummarizationService {
    * Generate date range for "today" in user's timezone
    */
   public static getTodayRange(timezone: string = 'UTC'): DateRange {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    
+    const nowTz = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }));
+    const startLocal = new Date(nowTz.getFullYear(), nowTz.getMonth(), nowTz.getDate());
+    const endLocal = new Date(nowTz.getFullYear(), nowTz.getMonth(), nowTz.getDate(), 23, 59, 59, 999);
+    const start = new Date(startLocal.toLocaleString('en-US', { timeZone: 'UTC' }));
+    const end = new Date(endLocal.toLocaleString('en-US', { timeZone: 'UTC' }));
+
     return {
       start,
       end,

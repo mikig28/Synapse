@@ -39,7 +39,9 @@
     "node-cron": "^4.2.1",
     "node-fetch": "^3.3.2",
     "openai": "^4.100.0",
-    "ora": "^8.2.0"
+    "ora": "^8.2.0",
+    "emoji-regex": "^10.4.0",
+    "p-limit": "^3.1.0"
   },
   "devDependencies": {
     "@stagewise/toolbar": "^0.2.1",

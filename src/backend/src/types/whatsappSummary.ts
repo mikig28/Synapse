@@ -20,9 +20,20 @@ export interface MessageData {
   id: string;
   message: string;
   timestamp: Date;
-  type: string;
+  type: MessageType;
   senderName: string;
   senderPhone: string;
+}
+
+export type MessageType = 'text' | 'image' | 'video' | 'audio' | 'document' | 'other';
+
+export interface MessageTypesDistribution {
+  text: number;
+  image: number;
+  video: number;
+  audio: number;
+  document: number;
+  other: number;
 }
 
 export interface KeywordAnalysis {
@@ -72,14 +83,7 @@ export interface GroupSummaryData {
     hour: number;
     count: number;
   }[];
-  messageTypes: {
-    text: number;
-    image: number;
-    video: number;
-    audio: number;
-    document: number;
-    other: number;
-  };
+  messageTypes: MessageTypesDistribution;
   processingStats: {
     processingTimeMs: number;
     messagesAnalyzed: number;
