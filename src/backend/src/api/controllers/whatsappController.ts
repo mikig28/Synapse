@@ -192,11 +192,18 @@ async function processWhatsAppWebMessage(messageData: WhatsAppWebMessage) {
     // Normalize message type for database storage
     const normalizedType = normalizeMessageType(messageData.type);
     
+    // Determine chat identifiers for proper grouping
+    const chatId = (messageData as any).chatId || messageData.chatId;
+    const isGroup = !!messageData.isGroup;
+    const groupId = isGroup ? (chatId || undefined) : undefined;
+    const groupName = isGroup ? ((messageData as any).groupName || undefined) : undefined;
+
     // Save the message
     const whatsappMessage = new WhatsAppMessage({
       messageId: messageData.id,
       from: phoneNumber,
-      to: 'business', // Our business number
+      // Store the chat JID so summaries can filter by group
+      to: chatId || 'business',
       message: messageData.body || '',
       timestamp: new Date(messageData.timestamp * 1000),
       type: normalizedType,
@@ -204,8 +211,9 @@ async function processWhatsAppWebMessage(messageData: WhatsAppWebMessage) {
       isIncoming: true,
       contactId: contact._id,
       metadata: {
-        isGroup: messageData.isGroup,
-        groupName: messageData.groupName,
+        isGroup,
+        groupId,
+        groupName,
         contactName: messageData.contactName,
         originalType: messageData.type // Store original type for debugging
       }
