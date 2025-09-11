@@ -1920,6 +1920,60 @@ class WAHAService extends EventEmitter {
           this.processMediaMessage(eventData);
           // Update monitoring statistics
           this.updateMonitoringStats(eventData);
+          // Persist to Mongo so summarization can query it
+          try {
+            const WhatsAppMessageModel = require('../models/WhatsAppMessage').default;
+            const WhatsAppContactModel = require('../models/WhatsAppContact').default;
+            const fromPhone = String(eventData.from || '').split('@')[0] || '';
+            if (fromPhone) {
+              let contact = await WhatsAppContactModel.findOne({ phoneNumber: fromPhone });
+              if (!contact) {
+                contact = new WhatsAppContactModel({
+                  phoneNumber: fromPhone,
+                  name: eventData.contactName || `Contact ${fromPhone}`,
+                  isOnline: true,
+                  lastSeen: new Date(),
+                  unreadCount: 1,
+                  isBusinessContact: !!eventData.isGroup,
+                  totalMessages: 1,
+                  totalIncomingMessages: 1,
+                  totalOutgoingMessages: 0
+                });
+                await contact.save();
+              } else {
+                contact.lastSeen = new Date();
+                contact.unreadCount += 1;
+                contact.isOnline = true;
+                contact.lastMessage = eventData.body || '[Media]';
+                contact.lastMessageTimestamp = new Date();
+                contact.totalMessages += 1;
+                contact.totalIncomingMessages += 1;
+                await contact.save();
+              }
+
+              const chatId = eventData.chatId || eventData.to || undefined;
+              const isGroupMsg = !!eventData.isGroup || (typeof chatId === 'string' && chatId.endsWith('@g.us'));
+              const doc = new WhatsAppMessageModel({
+                messageId: eventData.id,
+                from: fromPhone,
+                to: chatId || 'business',
+                message: eventData.body || '',
+                timestamp: new Date((eventData.timestamp || Date.now()) * (String(eventData.timestamp).length < 13 ? 1000 : 1)),
+                type: eventData.type || 'text',
+                status: 'received',
+                isIncoming: true,
+                contactId: contact._id,
+                metadata: {
+                  isGroup: isGroupMsg,
+                  groupId: isGroupMsg ? chatId : undefined,
+                  groupName: isGroupMsg ? (eventData.groupName || eventData.chatName || undefined) : undefined
+                }
+              });
+              await doc.save().catch(() => {});
+            }
+          } catch (persistError) {
+            console.log('[WAHA Service] Persistence warning:', (persistError as Error).message);
+          }
           break;
           
         case 'session.status':
