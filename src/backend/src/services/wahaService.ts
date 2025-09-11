@@ -1898,7 +1898,7 @@ class WAHAService extends EventEmitter {
   /**
    * Webhook handler for WAHA events (following WAHA documentation event structure)
    */
-  handleWebhook(payload: any): void {
+  async handleWebhook(payload: any): Promise<void> {
     try {
       console.log('[WAHA Service] Webhook received:', payload);
       
