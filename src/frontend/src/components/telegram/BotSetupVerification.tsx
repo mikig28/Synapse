@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { telegramBotService } from '@/services/telegramBotService';
+import telegramBotService from '@/services/telegramBotService';
 
 interface BotStatus {
   hasBot: boolean;
