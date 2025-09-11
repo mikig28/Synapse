@@ -347,6 +347,22 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       } as ApiResponse);
     }
     
+
+    // Diagnostic: Check what fields exist in the database
+    const diagnosticSample = await WhatsAppMessage.findOne({ 'metadata.isGroup': true }).lean();
+    if (diagnosticSample) {
+      console.log('[WhatsApp Summary] Sample message structure:', {
+        hasTimestamp: !!diagnosticSample.timestamp,
+        hasCreatedAt: !!diagnosticSample.createdAt,
+        timestampType: typeof diagnosticSample.timestamp,
+        createdAtType: typeof diagnosticSample.createdAt,
+        timestampValue: diagnosticSample.timestamp,
+        createdAtValue: diagnosticSample.createdAt
+      });
+    } else {
+      console.log('[WhatsApp Summary] WARNING: No group messages found in database!');
+    }
+
     // Build comprehensive query for group messages
     const baseQuery = {
       'metadata.isGroup': true,
