@@ -69,7 +69,7 @@ export const getAvailableGroups = async (req: Request, res: Response) => {
         $group: {
           _id: '$metadata.groupName',
           groupId: { $first: '$metadata.groupId' },
-          lastActivity: { $max: '$timestamp' },
+          lastActivity: { $max: { $ifNull: ['$timestamp', '$createdAt'] } },
           totalMessages: { $sum: 1 },
           recentMessages: {
             $sum: {
@@ -203,14 +203,23 @@ export const getGroupMessages = async (req: Request, res: Response) => {
       'metadata.isGroup': true,
       $or: [
         { 'metadata.groupName': groupInfo.name },
-        { 'metadata.groupId': groupId }
+        { 'metadata.groupId': groupId },
+        { 'metadata.groupName': groupId }
       ],
-      timestamp: {
-        $gte: startDate,
-        $lte: endDate
-      },
-      isIncoming: true // Only incoming messages for summary
-    };
+      $orTimestamp: [
+        { timestamp: { $gte: startDate, $lte: endDate } },
+        { createdAt: { $gte: startDate, $lte: endDate } }
+      ],
+      isIncoming: true // Only incoming messages for summary listing
+    } as any;
+    // Mongo doesn't recognize custom operators; convert helper key to $or
+    (query as any)['$or'] = (query as any)['$or'];
+    (query as any)['$and'] = [
+      {
+        $or: query.$orTimestamp
+      }
+    ];
+    delete (query as any)['$orTimestamp'];
     
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
@@ -230,7 +239,7 @@ export const getGroupMessages = async (req: Request, res: Response) => {
     const messageData: MessageData[] = messages.map(msg => ({
       id: msg.messageId || msg._id.toString(),
       message: msg.message || '',
-      timestamp: msg.timestamp,
+      timestamp: (msg as any).timestamp || (msg as any).createdAt,
       type: msg.type || 'text',
       senderName: (msg.contactId as any)?.name || `Contact ${msg.from}`,
       senderPhone: msg.from
@@ -329,6 +338,14 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       }
     }
 
+    // Additional fallbacks when the frontend provided a group name instead of an ID
+    const looksLikeGroupName = !String(groupId).includes('@') && /[^\d]/.test(String(groupId));
+
+    if (!groupInfo && looksLikeGroupName) {
+      // Treat the provided groupId as a group name directly
+      groupInfo = { id: String(groupId), name: String(groupId), participantCount: 0 };
+    }
+
     if (!groupInfo) {
       // Fallback to database for last known group name by groupId
       const lastMsg = await WhatsAppMessage.findOne({
@@ -342,6 +359,19 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       const dbGroupName = (lastMsg as any)?.metadata?.groupName as string | undefined;
       if (typeof dbGroupName === 'string' && dbGroupName.length > 0) {
         groupInfo = { id: groupId, name: dbGroupName, participantCount: 0 };
+      }
+    }
+
+    if (!groupInfo) {
+      // Final DB fallback: try by group name equal to provided id
+      const lastByName = await WhatsAppMessage.findOne({
+        'metadata.isGroup': true,
+        'metadata.groupName': groupId
+      })
+        .sort({ timestamp: -1 })
+        .lean();
+      if (lastByName) {
+        groupInfo = { id: lastByName.metadata?.groupId || String(groupId), name: lastByName.metadata?.groupName || String(groupId), participantCount: 0 };
       }
     }
 
@@ -389,6 +419,11 @@ export const generateDailySummary = async (req: Request, res: Response) => {
         ...baseQuery, 
         'metadata.groupName': groupInfo.name 
       }] : []),
+      // Also try when the provided identifier is actually a group name
+      { 
+        ...baseQuery,
+        'metadata.groupName': groupId 
+      },
       // Tertiary: Legacy approach for backwards compatibility
       { 
         ...baseQuery,
@@ -408,7 +443,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       
       messages = await WhatsAppMessage.find(query)
         .populate('contactId')
-        .sort({ timestamp: 1 })  // Sort by timestamp
+        .sort({ createdAt: 1, timestamp: 1 })  // Sort robustly by available time fields
         .lean();
         
       console.log(`[WhatsApp Summary] ${queryUsed} returned ${messages.length} messages`);
@@ -416,7 +451,11 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       if (messages.length > 0) {
         const firstMsg = messages[0];
         const lastMsg = messages[messages.length - 1];
-        console.log(`[WhatsApp Summary] Messages time range: ${firstMsg.createdAt.toISOString()} to ${lastMsg.createdAt.toISOString()}`);
+        const firstTs = (firstMsg as any).timestamp || (firstMsg as any).createdAt;
+        const lastTs = (lastMsg as any).timestamp || (lastMsg as any).createdAt;
+        if (firstTs && lastTs) {
+          console.log(`[WhatsApp Summary] Messages time range: ${new Date(firstTs).toISOString()} to ${new Date(lastTs).toISOString()}`);
+        }
       }
     }
     
@@ -436,6 +475,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
             $or: [
               { 'metadata.groupId': groupId },
               ...(groupInfo ? [{ 'metadata.groupName': groupInfo.name }] : []),
+              { 'metadata.groupName': groupId },
               { to: groupId }
             ]
           },
@@ -452,7 +492,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       
       messages = await WhatsAppMessage.find(fallbackQuery)
         .populate('contactId')
-        .sort({ createdAt: 1 })  // Sort by createdAt since that has correct timestamps
+        .sort({ createdAt: 1, timestamp: 1 })
         .lean();
         
       console.log(`[WhatsApp Summary] Fallback query returned ${messages.length} messages`);
@@ -487,7 +527,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     const messageData: MessageData[] = messages.map(msg => ({
       id: msg.messageId || msg._id.toString(),
       message: msg.message || '',
-      timestamp: msg.timestamp,
+      timestamp: (msg as any).timestamp || (msg as any).createdAt,
       type: msg.type || 'text',
       senderName: (msg.contactId as any)?.name || `Contact ${msg.from}`,
       senderPhone: msg.from
@@ -599,11 +639,20 @@ export const getAvailableDateRanges = async (req: Request, res: Response) => {
     const today = WhatsAppSummarizationService.getTodayRange();
     const todayCount = await WhatsAppMessage.countDocuments({
       'metadata.isGroup': true,
-      $or: [
-        { 'metadata.groupName': groupInfo.name },
-        { 'metadata.groupId': groupId }
+      $and: [
+        {
+          $or: [
+            { 'metadata.groupName': groupInfo.name },
+            { 'metadata.groupId': groupId }
+          ]
+        },
+        {
+          $or: [
+            { createdAt: { $gte: today.start, $lte: today.end } },
+            { timestamp: { $gte: today.start, $lte: today.end } }
+          ]
+        }
       ],
-      createdAt: { $gte: today.start, $lte: today.end },
       isIncoming: true
     });
     
@@ -617,11 +666,20 @@ export const getAvailableDateRanges = async (req: Request, res: Response) => {
     
     const yesterdayCount = await WhatsAppMessage.countDocuments({
       'metadata.isGroup': true,
-      $or: [
-        { 'metadata.groupName': groupInfo.name },
-        { 'metadata.groupId': groupId }
+      $and: [
+        {
+          $or: [
+            { 'metadata.groupName': groupInfo.name },
+            { 'metadata.groupId': groupId }
+          ]
+        },
+        {
+          $or: [
+            { createdAt: { $gte: yesterdayStart, $lte: yesterdayEnd } },
+            { timestamp: { $gte: yesterdayStart, $lte: yesterdayEnd } }
+          ]
+        }
       ],
-      createdAt: { $gte: yesterdayStart, $lte: yesterdayEnd },
       isIncoming: true
     });
     
@@ -637,11 +695,20 @@ export const getAvailableDateRanges = async (req: Request, res: Response) => {
     const last24h = WhatsAppSummarizationService.getLast24HoursRange();
     const last24hCount = await WhatsAppMessage.countDocuments({
       'metadata.isGroup': true,
-      $or: [
-        { 'metadata.groupName': groupInfo.name },
-        { 'metadata.groupId': groupId }
+      $and: [
+        {
+          $or: [
+            { 'metadata.groupName': groupInfo.name },
+            { 'metadata.groupId': groupId }
+          ]
+        },
+        {
+          $or: [
+            { createdAt: { $gte: last24h.start, $lte: last24h.end } },
+            { timestamp: { $gte: last24h.start, $lte: last24h.end } }
+          ]
+        }
       ],
-      createdAt: { $gte: last24h.start, $lte: last24h.end },
       isIncoming: true
     });
     
@@ -785,34 +852,64 @@ export const getGroupSummaryStats = async (req: Request, res: Response) => {
     const [totalMessages, uniqueSenders, messageTypes] = await Promise.all([
       WhatsAppMessage.countDocuments({
         'metadata.isGroup': true,
-        $or: [
-          { 'metadata.groupName': groupInfo.name },
-          { 'metadata.groupId': groupId }
-        ],
-        timestamp: { $gte: startDate },
-        isIncoming: true
+        $and: [
+          {
+            $or: [
+              { 'metadata.groupName': groupInfo.name },
+              { 'metadata.groupId': groupId },
+              { 'metadata.groupName': groupId }
+            ]
+          },
+          {
+            $or: [
+              { timestamp: { $gte: startDate } },
+              { createdAt: { $gte: startDate } }
+            ]
+          },
+          { isIncoming: true }
+        ]
       }),
       
       WhatsAppMessage.distinct('from', {
         'metadata.isGroup': true,
-        $or: [
-          { 'metadata.groupName': groupInfo.name },
-          { 'metadata.groupId': groupId }
-        ],
-        timestamp: { $gte: startDate },
-        isIncoming: true
+        $and: [
+          {
+            $or: [
+              { 'metadata.groupName': groupInfo.name },
+              { 'metadata.groupId': groupId },
+              { 'metadata.groupName': groupId }
+            ]
+          },
+          {
+            $or: [
+              { timestamp: { $gte: startDate } },
+              { createdAt: { $gte: startDate } }
+            ]
+          },
+          { isIncoming: true }
+        ]
       }),
       
       WhatsAppMessage.aggregate([
         {
           $match: {
             'metadata.isGroup': true,
-            $or: [
-              { 'metadata.groupName': groupInfo.name },
-              { 'metadata.groupId': groupId }
-            ],
-            timestamp: { $gte: startDate },
-            isIncoming: true
+            $and: [
+              {
+                $or: [
+                  { 'metadata.groupName': groupInfo.name },
+                  { 'metadata.groupId': groupId },
+                  { 'metadata.groupName': groupId }
+                ]
+              },
+              {
+                $or: [
+                  { timestamp: { $gte: startDate } },
+                  { createdAt: { $gte: startDate } }
+                ]
+              },
+              { isIncoming: true }
+            ]
           }
         },
         {
