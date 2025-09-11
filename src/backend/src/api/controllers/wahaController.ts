@@ -588,11 +588,47 @@ export const stopSession = async (req: Request, res: Response) => {
  */
 export const webhook = async (req: Request, res: Response) => {
   try {
-    console.log('[WAHA Controller] WAHA webhook received:', req.body);
+    const payload = req.body;
+    
+    // Validate WAHA webhook payload structure
+    if (!payload.event || !payload.session) {
+      console.warn('[WAHA Controller] ⚠️ Invalid webhook payload - missing event or session:', payload);
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid webhook payload: missing event or session'
+      });
+    }
+    
+    console.log('[WAHA Controller] 📡 WAHA webhook received:', {
+      event: payload.event,
+      session: payload.session,
+      id: payload.id,
+      timestamp: payload.timestamp,
+      payloadType: typeof payload.payload,
+      headers: {
+        'x-webhook-request-id': req.headers['x-webhook-request-id'],
+        'x-webhook-timestamp': req.headers['x-webhook-timestamp'],
+        'x-webhook-hmac': req.headers['x-webhook-hmac'] ? 'present' : 'absent'
+      }
+    });
+    
+    // Log message events specifically for debugging
+    if (payload.event === 'message') {
+      console.log('[WAHA Controller] 💬 Message webhook payload:', {
+        messageId: payload.payload?.id,
+        from: payload.payload?.from,
+        to: payload.payload?.to,
+        body: payload.payload?.body?.substring(0, 100),
+        hasMedia: payload.payload?.hasMedia,
+        isGroup: payload.payload?.isGroup,
+        timestamp: payload.payload?.timestamp
+      });
+    }
+    
     const wahaService = getWAHAService();
     
     // Handle the webhook through the service
-    wahaService.handleWebhook(req.body);
+    wahaService.handleWebhook(payload);
     
     // Additional Socket.IO broadcasting for session status changes
     // WAHA event structure: { id, timestamp, event, session, payload }
@@ -1760,6 +1796,158 @@ export const getMediaStats = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: 'Failed to get media statistics'
+    });
+  }
+};
+
+/**
+ * Trigger manual message polling for testing
+ */
+export const triggerMessagePolling = async (req: Request, res: Response) => {
+  try {
+    console.log('[WAHA Controller] 🔄 Manual message polling triggered');
+    const wahaService = getWAHAService();
+    
+    // Set polling timestamp for specified hours back or default 24 hours
+    const hoursBack = req.query.hoursBack ? parseInt(req.query.hoursBack as string) : 24;
+    const oldTimestamp = (wahaService as any).lastPolledTimestamp;
+    
+    // Temporarily set polling timestamp to capture recent messages
+    (wahaService as any).lastPolledTimestamp = Date.now() - (hoursBack * 60 * 60 * 1000);
+    console.log(`[WAHA Controller] 📅 Set polling timestamp to ${hoursBack} hours ago: ${new Date((wahaService as any).lastPolledTimestamp)}`);
+    
+    // Trigger manual polling
+    await (wahaService as any).pollForNewMessages();
+    
+    console.log('[WAHA Controller] ✅ Manual polling completed');
+    res.json({
+      success: true,
+      message: `Manual message polling completed for last ${hoursBack} hours`,
+      data: {
+        hoursBack,
+        pollingTimestamp: new Date((wahaService as any).lastPolledTimestamp).toISOString(),
+        previousTimestamp: new Date(oldTimestamp).toISOString()
+      }
+    });
+    
+  } catch (error: any) {
+    console.error('[WAHA Controller] ❌ Error triggering manual polling:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to trigger manual polling: ' + error.message
+    });
+  }
+};
+
+/**
+ * Create historical message backfill for specific date range
+ */
+export const backfillMessages = async (req: Request, res: Response) => {
+  try {
+    const { startDate, endDate, groupId } = req.body;
+    
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        error: 'startDate and endDate are required (YYYY-MM-DD format)'
+      });
+    }
+    
+    console.log(`[WAHA Controller] 📥 Starting message backfill: ${startDate} to ${endDate}`);
+    const wahaService = getWAHAService();
+    
+    // Convert dates to timestamps
+    const startTimestamp = new Date(startDate + 'T00:00:00Z').getTime();
+    const endTimestamp = new Date(endDate + 'T23:59:59Z').getTime();
+    
+    // Temporarily set polling timestamp to start date
+    const originalTimestamp = (wahaService as any).lastPolledTimestamp;
+    (wahaService as any).lastPolledTimestamp = startTimestamp;
+    
+    let totalMessages = 0;
+    const results = [];
+    
+    // Get all chats or specific group
+    const chats = groupId ? 
+      [await wahaService.getGroupDetails(groupId)] : 
+      await wahaService.getChats('default', { limit: 100 });
+    
+    console.log(`[WAHA Controller] Processing ${chats.length} chats for backfill`);
+    
+    for (const chat of chats) {
+      if (!chat.isGroup && !groupId) continue; // Only groups unless specific groupId provided
+      
+      try {
+        // Get messages for this chat
+        const messages = await wahaService.getMessages(chat.id, 100);
+        
+        for (const message of messages) {
+          const messageTimestamp = (message.timestamp || 0) * 1000; // Convert to milliseconds
+          
+          // Only process messages in our date range
+          if (messageTimestamp >= startTimestamp && messageTimestamp <= endTimestamp) {
+            // Prepare message data
+            const messageData = {
+              id: message.id,
+              timestamp: message.timestamp,
+              from: message.from,
+              fromMe: message.fromMe,
+              body: message.body,
+              type: message.type || 'text',
+              chatId: chat.id,
+              isGroup: chat.isGroup,
+              groupName: chat.name,
+              contactName: message.contactName || message.from,
+              hasMedia: message.hasMedia || false,
+              mimeType: message.mimeType,
+              mediaUrl: message.mediaUrl
+            };
+            
+            // Save to database
+            await (wahaService as any).saveMessageToDatabase(messageData);
+            totalMessages++;
+          }
+        }
+        
+        results.push({
+          chatId: chat.id,
+          chatName: chat.name,
+          messageCount: messages.filter(m => {
+            const ts = (m.timestamp || 0) * 1000;
+            return ts >= startTimestamp && ts <= endTimestamp;
+          }).length
+        });
+        
+      } catch (chatError) {
+        console.error(`[WAHA Controller] Error processing chat ${chat.id}:`, chatError);
+        results.push({
+          chatId: chat.id,
+          chatName: chat.name,
+          error: chatError.message
+        });
+      }
+    }
+    
+    // Restore original timestamp
+    (wahaService as any).lastPolledTimestamp = originalTimestamp;
+    
+    console.log(`[WAHA Controller] ✅ Backfill completed: ${totalMessages} messages processed`);
+    res.json({
+      success: true,
+      message: `Message backfill completed`,
+      data: {
+        totalMessages,
+        dateRange: { startDate, endDate },
+        chatsProcessed: results.length,
+        results
+      }
+    });
+    
+  } catch (error: any) {
+    console.error('[WAHA Controller] ❌ Error during message backfill:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to backfill messages: ' + error.message
     });
   }
 };

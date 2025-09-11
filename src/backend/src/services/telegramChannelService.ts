@@ -4,16 +4,18 @@ import User from '../models/User';
 import mongoose from 'mongoose';
 import { io } from '../server';
 import cron from 'node-cron';
-import fetch from 'node-fetch';
+import Parser from 'rss-parser';
 import { telegramBotManager } from './telegramBotManager'; // Import bot manager
 
 class TelegramChannelService {
   private cronJobs: Map<string, cron.ScheduledTask> = new Map();
+  private rssParser: Parser<any>;
 
   constructor() {
     console.log('[TelegramChannelService] Initialized with multi-user bot manager');
     this.initializePeriodicFetch();
     this.setupBotMessageListeners();
+    this.rssParser = new Parser({ timeout: 10000 });
   }
 
   /**
@@ -380,7 +382,7 @@ class TelegramChannelService {
         if (channelId.startsWith('@')) {
           console.log(`[TelegramChannelService] Attempting RSS fallback for historical messages: ${channelId}`);
           try {
-            const rssMessages = await this.tryRSSFeed(channelId);
+            const rssMessages = await this.tryRSSFeedFromRSS(channelId);
             channelMessages.push(...rssMessages.slice(0, 10)); // Limit RSS messages
             console.log(`[TelegramChannelService] Retrieved ${rssMessages.length} messages from RSS feed for ${channelId}`);
           } catch (rssError) {
@@ -403,7 +405,7 @@ class TelegramChannelService {
         // Attempt RSS fallback for public channels even when bot cannot access
         if (channelId.startsWith('@')) {
           try {
-            const rssMessages = await this.tryRSSFeed(channelId);
+            const rssMessages = await this.tryRSSFeedFromRSS(channelId);
             if (rssMessages.length > 0) {
               // Append RSS messages to channel
               const channelDoc = await TelegramChannel.findOne({ channelId, userId: new mongoose.Types.ObjectId(userId) });
@@ -504,8 +506,7 @@ class TelegramChannelService {
       const response = await fetch(rssUrl, {
         headers: {
           'User-Agent': 'TelegramChannelMonitor/1.0'
-        },
-        timeout: 10000
+        }
       });
       
       if (!response.ok) {
@@ -546,6 +547,52 @@ class TelegramChannelService {
       console.log(`[TelegramChannelService] RSS feed failed for ${channelId}:`, error);
       return [];
     }
+  }
+
+  /**
+   * Try to fetch messages via RSS feed for public channels (robust parser)
+   */
+  private async tryRSSFeedFromRSS(channelId: string): Promise<ITelegramChannelMessage[]> {
+    const channelName = channelId.replace('@', '');
+    const rssEndpoints = [
+      `https://rsshub.app/telegram/channel/${channelName}`,
+      `https://rsshub.rssforever.com/telegram/channel/${channelName}`,
+      `https://rsshub.woodland.cafe/telegram/channel/${channelName}`
+    ];
+
+    for (const rssUrl of rssEndpoints) {
+      try {
+        console.log(`[TelegramChannelService] Trying RSS feed: ${rssUrl}`);
+        const feed = await this.rssParser.parseURL(rssUrl);
+        if (!feed?.items?.length) {
+          console.log(`[TelegramChannelService] RSS feed empty at ${rssUrl}`);
+          continue;
+        }
+
+        const messages: ITelegramChannelMessage[] = [];
+        for (const item of feed.items.slice(0, 10)) {
+          const rawText = (item.contentSnippet || item.content || item.title || '').toString();
+          const rawDate = (item.isoDate || item.pubDate || new Date().toISOString()).toString();
+          const msg: ITelegramChannelMessage = {
+            messageId: Math.floor(Math.random() * 1_000_000),
+            text: rawText,
+            date: new Date(rawDate),
+            author: channelName,
+            urls: this.extractUrls(rawText),
+            hashtags: this.extractHashtags(rawText)
+          };
+          messages.push(msg);
+        }
+
+        console.log(`[TelegramChannelService] RSS feed success for ${channelId}: ${messages.length} items`);
+        return messages;
+      } catch (err) {
+        console.warn(`[TelegramChannelService] RSS feed attempt failed for ${rssUrl}:`, (err as Error).message);
+      }
+    }
+
+    console.log(`[TelegramChannelService] All RSS endpoints failed for ${channelId}`);
+    return [];
   }
 
   /**

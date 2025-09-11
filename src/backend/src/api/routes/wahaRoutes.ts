@@ -35,7 +35,9 @@ import {
   removeMonitoredKeyword,
   extractImageFromMessage,
   getMediaFile,
-  getMediaStats
+  getMediaStats,
+  triggerMessagePolling,
+  backfillMessages
 } from '../controllers/wahaController';
 
 const router = Router();
@@ -89,6 +91,10 @@ router.post('/media/:messageId/extract-image', extractImageFromMessage);
 // Media serving routes
 router.get('/media/:messageId', getMediaFile);
 router.get('/media-stats', getMediaStats);
+
+// Message polling and backfill routes
+router.post('/trigger-polling', triggerMessagePolling);
+router.post('/backfill-messages', backfillMessages);
 
 // Webhook for WAHA events
 router.post('/webhook', webhook);

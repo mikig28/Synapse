@@ -24,6 +24,7 @@ export interface WAHAMessage {
   isMedia: boolean;
   mimeType?: string;
   hasMedia?: boolean;
+  mediaUrl?: string; // Added for compatibility
   media?: {
     url?: string;
     mimetype?: string;
@@ -306,6 +307,14 @@ class WAHAService extends EventEmitter {
       
       this.emit('ready');
       
+      // Initialize polling timestamp to capture last 24 hours of messages
+      this.lastPolledTimestamp = Date.now() - (24 * 60 * 60 * 1000); // 24 hours ago
+      console.log(`[WAHA Service] 📅 Set polling timestamp to capture last 24 hours: ${new Date(this.lastPolledTimestamp)}`);
+      
+      // Start automatic message polling as fallback for webhooks
+      this.startMessagePolling(30000); // Poll every 30 seconds
+      console.log('[WAHA Service] 🔄 Started automatic message polling fallback');
+      
       // Start status monitoring after successful initialization
       this.startStatusMonitoring();
       
@@ -550,19 +559,25 @@ class WAHAService extends EventEmitter {
           createPayload.config = {};
         }
         
-        // Add webhook configuration
+        // Add webhook configuration - use environment variables if available
+        const webhookEvents = process.env.WHATSAPP_HOOK_EVENTS ? 
+          process.env.WHATSAPP_HOOK_EVENTS.split(',').map(e => e.trim()) : 
+          ['session.status', 'message', 'message.any'];
+        
         createPayload.config.webhooks = [
           {
-            url: fullWebhookUrl,
-            events: ['session.status', 'message'],
-            hmac: null,
+            url: process.env.WHATSAPP_HOOK_URL || fullWebhookUrl,
+            events: webhookEvents,
+            hmac: process.env.WHATSAPP_HOOK_HMAC ? { key: process.env.WHATSAPP_HOOK_HMAC } : null,
             retries: {
               delaySeconds: 2,
               attempts: 15
-            }
+            },
+            customHeaders: this.parseCustomHeaders(process.env.WHATSAPP_HOOK_CUSTOM_HEADERS)
           }
         ];
-        console.log(`[WAHA Service] 🔗 Adding webhook configuration to session: ${fullWebhookUrl}`);
+        console.log(`[WAHA Service] 🔗 Adding webhook configuration to session: ${process.env.WHATSAPP_HOOK_URL || fullWebhookUrl}`);
+        console.log(`[WAHA Service] 📡 Webhook events: ${webhookEvents.join(', ')}`);
         
         if (engine && engine.toUpperCase() === 'NOWEB' && nowebStoreEnabledEnv) {
           createPayload.config.noweb = {
@@ -2054,8 +2069,18 @@ class WAHAService extends EventEmitter {
         timestamp: messageData.timestamp
       });
 
-      // Convert WAHA timestamp to Date
-      const timestamp = messageData.timestamp ? new Date(messageData.timestamp * 1000) : new Date();
+      // Convert WAHA timestamp to Date (WAHA uses Unix timestamp in seconds)
+      let timestamp: Date;
+      if (messageData.timestamp) {
+        // WAHA timestamps are in seconds, convert to milliseconds
+        const tsNumber = Number(messageData.timestamp);
+        // Check if it's already in milliseconds (>1000000000000) or seconds
+        timestamp = tsNumber > 1000000000000 ? new Date(tsNumber) : new Date(tsNumber * 1000);
+      } else {
+        timestamp = new Date();
+      }
+      
+      console.log(`[WAHA Service] 📅 Message timestamp: ${messageData.timestamp} → ${timestamp.toISOString()}`);
 
       // Create or find contact
       let contact = await WhatsAppContact.findOne({ phoneNumber: messageData.from });
@@ -2284,6 +2309,25 @@ class WAHAService extends EventEmitter {
     } catch (error) {
       console.error('[WAHA Service] ❌ Error processing media message:', error);
     }
+  }
+
+  /**
+   * Parse custom headers from environment variable format
+   */
+  private parseCustomHeaders(customHeadersEnv: string | undefined): { [key: string]: string } | undefined {
+    if (!customHeadersEnv) return undefined;
+    
+    const headers: { [key: string]: string } = {};
+    const pairs = customHeadersEnv.split(';');
+    
+    for (const pair of pairs) {
+      const [key, value] = pair.split(':');
+      if (key && value) {
+        headers[key.trim()] = value.trim();
+      }
+    }
+    
+    return Object.keys(headers).length > 0 ? headers : undefined;
   }
 
   /**
