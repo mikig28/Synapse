@@ -69,12 +69,19 @@ export const getAvailableGroups = async (req: Request, res: Response) => {
         $group: {
           _id: '$metadata.groupName',
           groupId: { $first: '$metadata.groupId' },
-          lastActivity: { $max: '$timestamp' },
+          lastActivity: { 
+            $max: { 
+              $ifNull: ['$timestamp', '$createdAt'] 
+            } 
+          },
           totalMessages: { $sum: 1 },
           recentMessages: {
             $sum: {
               $cond: {
-                if: { $gte: ['$timestamp', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)] },
+                if: { $or: [
+                    { $gte: ['$timestamp', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)] },
+                    { $gte: ['$createdAt', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)] }
+                  ] },
                 then: 1,
                 else: 0
               }
@@ -348,34 +355,27 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     }
     
     // Build comprehensive query for group messages
-    // First, determine which timestamp field to use
-    const timestampField = await WhatsAppMessage.findOne({ 'metadata.isGroup': true })
-      .select('timestamp createdAt')
-      .lean()
-      .then(msg => {
-        if (msg) {
-          // Check which field has a valid date
-          if (msg.timestamp instanceof Date && !isNaN(msg.timestamp.getTime())) {
-            console.log('[WhatsApp Summary] Using "timestamp" field for queries');
-            return 'timestamp';
-          } else if (msg.createdAt instanceof Date && !isNaN(msg.createdAt.getTime())) {
-            console.log('[WhatsApp Summary] Using "createdAt" field for queries');
-            return 'createdAt';
-          }
-        }
-        // Default to createdAt if no messages found or both fields invalid
-        console.log('[WhatsApp Summary] Defaulting to "createdAt" field for queries');
-        return 'createdAt';
-      });
-
+    // Use $or to check both timestamp fields since different messages may have different fields
     const baseQuery = {
       'metadata.isGroup': true,
       // Don't filter by isIncoming - get all messages in the group
-      [timestampField]: {
-        $gte: utcStart,
-        $lte: utcEnd
-      }
+      $or: [
+        { 
+          timestamp: {
+            $gte: utcStart,
+            $lte: utcEnd
+          }
+        },
+        {
+          createdAt: {
+            $gte: utcStart,
+            $lte: utcEnd
+          }
+        }
+      ]
     };
+    
+    console.log('[WhatsApp Summary] Using dual timestamp field query (timestamp OR createdAt)');
 
     // Try multiple approaches to find group messages
     const queries = [
@@ -408,7 +408,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       
       messages = await WhatsAppMessage.find(query)
         .populate('contactId')
-        .sort({ [timestampField]: 1 })  // Sort by the detected timestamp field
+        .sort({ timestamp: 1, createdAt: 1 })  // Sort by the detected timestamp field
         .lean();
         
       console.log(`[WhatsApp Summary] ${queryUsed} returned ${messages.length} messages`);
@@ -416,8 +416,8 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       if (messages.length > 0) {
         const firstMsg = messages[0];
         const lastMsg = messages[messages.length - 1];
-        const firstTime = firstMsg[timestampField] || firstMsg.createdAt || firstMsg.timestamp;
-        const lastTime = lastMsg[timestampField] || lastMsg.createdAt || lastMsg.timestamp;
+        const firstTime = firstMsg.timestamp || firstMsg.createdAt;
+        const lastTime = lastMsg.timestamp || lastMsg.createdAt;
         console.log(`[WhatsApp Summary] Messages time range: ${firstTime?.toISOString()} to ${lastTime?.toISOString()}`);
       }
     }
@@ -433,19 +433,38 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       const fallbackQuery = {
       'metadata.isGroup': true,
       // Don't filter by isIncoming
-      $or: [
-        { 'metadata.groupId': groupId },
-        ...(groupInfo ? [{ 'metadata.groupName': groupInfo.name }] : []),
-        { to: groupId }
-      ],
-      [timestampField]: { $gte: fallbackStart, $lte: fallbackEnd }
+      $and: [
+        {
+          $or: [
+            { 'metadata.groupId': groupId },
+            ...(groupInfo ? [{ 'metadata.groupName': groupInfo.name }] : []),
+            { to: groupId }
+          ]
+        },
+        {
+          $or: [
+            { 
+              timestamp: {
+                $gte: fallbackStart,
+                $lte: fallbackEnd
+              }
+            },
+            {
+              createdAt: {
+                $gte: fallbackStart,
+                $lte: fallbackEnd
+              }
+            }
+          ]
+        }
+      ]
     };
       
       console.log('[WhatsApp Summary] Fallback query:', JSON.stringify(fallbackQuery, null, 2));
       
       messages = await WhatsAppMessage.find(fallbackQuery)
         .populate('contactId')
-        .sort({ [timestampField]: 1 })  // Sort by the detected timestamp field
+        .sort({ timestamp: 1, createdAt: 1 })  // Sort by the detected timestamp field
         .lean();
         
       console.log(`[WhatsApp Summary] Fallback query returned ${messages.length} messages`);
