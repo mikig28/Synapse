@@ -83,7 +83,8 @@ export const getAvailableGroups = async (req: Request, res: Response) => {
                 then: 1,
                 else: 0
               }
-            }          },
+            }
+          },
           participantCount: { $addToSet: '$from' }
         }
       },
@@ -430,14 +431,20 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       const fallbackQuery = {
         'metadata.isGroup': true,
         // Don't filter by isIncoming
-        $or: [
-          { 'metadata.groupId': groupId },
-          ...(groupInfo ? [{ 'metadata.groupName': groupInfo.name }] : []),
-          { to: groupId }
-        ],
-        $or: [
-          { timestamp: { $gte: fallbackStart, $lte: fallbackEnd } },
-          { createdAt: { $gte: fallbackStart, $lte: fallbackEnd } }
+        $and: [
+          {
+            $or: [
+              { 'metadata.groupId': groupId },
+              ...(groupInfo ? [{ 'metadata.groupName': groupInfo.name }] : []),
+              { to: groupId }
+            ]
+          },
+          {
+            $or: [
+              { timestamp: { $gte: fallbackStart, $lte: fallbackEnd } },
+              { createdAt: { $gte: fallbackStart, $lte: fallbackEnd } }
+            ]
+          }
         ]
       };
       
