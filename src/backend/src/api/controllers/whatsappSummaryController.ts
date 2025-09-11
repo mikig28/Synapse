@@ -399,35 +399,40 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     }
 
     // Build comprehensive query for group messages
-    const baseQuery = {
-      'metadata.isGroup': true,
-      // Don't filter by isIncoming - get all messages in the group
-      $or: [
-        { timestamp: { $gte: utcStart, $lte: utcEnd } },
-        { createdAt: { $gte: utcStart, $lte: utcEnd } }
-      ]
+    // Try both createdAt and timestamp to be robust across historical data variants
+    const baseQuery: any = {
+      'metadata.isGroup': true
     };
+
+    const dateRangeOr = [
+      { createdAt: { $gte: utcStart, $lte: utcEnd } },
+      { timestamp: { $gte: utcStart, $lte: utcEnd } }
+    ];
     // Try multiple approaches to find group messages
     const queries = [
       // Primary: Direct group ID match
       { 
         ...baseQuery, 
-        'metadata.groupId': groupId 
+        'metadata.groupId': groupId,
+        $or: dateRangeOr
       },
       // Secondary: Group name match (if we have groupInfo)
       ...(groupInfo ? [{ 
         ...baseQuery, 
-        'metadata.groupName': groupInfo.name 
+        'metadata.groupName': groupInfo.name,
+        $or: dateRangeOr
       }] : []),
       // Also try when the provided identifier is actually a group name
       { 
         ...baseQuery,
-        'metadata.groupName': groupId 
+        'metadata.groupName': groupId,
+        $or: dateRangeOr
       },
       // Tertiary: Legacy approach for backwards compatibility
       { 
         ...baseQuery,
-        to: groupId
+        to: groupId,
+        $or: dateRangeOr
       }
     ];
 
@@ -443,7 +448,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       
       messages = await WhatsAppMessage.find(query)
         .populate('contactId')
-        .sort({ createdAt: 1, timestamp: 1 })  // Sort robustly by available time fields
+        .sort({ createdAt: 1, timestamp: 1 })
         .lean();
         
       console.log(`[WhatsApp Summary] ${queryUsed} returned ${messages.length} messages`);
@@ -469,7 +474,6 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       
       const fallbackQuery = {
         'metadata.isGroup': true,
-        // Don't filter by isIncoming
         $and: [
           {
             $or: [

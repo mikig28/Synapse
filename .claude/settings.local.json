@@ -9,7 +9,8 @@
       "Bash(curl:*)",
       "Bash(git commit:*)",
       "Bash(sed:*)",
-      "mcp__context7__get-library-docs"
+      "mcp__context7__get-library-docs",
+      "Bash(MONGODB_URI=\"mongodb+srv://mikig20:5AWJfSRAb1eCvLKk@cluster0.7tekyw1.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0\" node -e \"\nconst mongoose = require(''mongoose'');\nasync function check() {\n  await mongoose.connect(process.env.MONGODB_URI);\n  const WhatsAppMessage = mongoose.model(''WhatsAppMessage'', new mongoose.Schema({}, {strict: false}));\n  \n  const total = await WhatsAppMessage.countDocuments({});\n  const withMetadata = await WhatsAppMessage.countDocuments({''metadata.isGroup'': {$exists: true}});\n  const groupMessages = await WhatsAppMessage.countDocuments({''metadata.isGroup'': true});\n  \n  console.log(''Total messages:'', total);\n  console.log(''Messages with metadata.isGroup:'', withMetadata);\n  console.log(''Group messages:'', groupMessages);\n  console.log(''Migration needed:'', total - withMetadata, ''messages'');\n  \n  await mongoose.disconnect();\n}\ncheck().catch(console.error);\n\")"
     ],
     "deny": []
   }
