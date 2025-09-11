@@ -74,12 +74,16 @@ export const getAvailableGroups = async (req: Request, res: Response) => {
           recentMessages: {
             $sum: {
               $cond: {
-                if: { $gte: ['$timestamp', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)] },
+                if: { 
+                  $gte: [
+                    { $ifNull: ['$timestamp', '$createdAt'] },
+                    new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+                  ]
+                },
                 then: 1,
                 else: 0
               }
-            }
-          },
+            }          },
           participantCount: { $addToSet: '$from' }
         }
       },
@@ -367,12 +371,11 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     const baseQuery = {
       'metadata.isGroup': true,
       // Don't filter by isIncoming - get all messages in the group
-      timestamp: {  // Try timestamp field first
-        $gte: utcStart,
-        $lte: utcEnd
-      }
+      $or: [
+        { timestamp: { $gte: utcStart, $lte: utcEnd } },
+        { createdAt: { $gte: utcStart, $lte: utcEnd } }
+      ]
     };
-
     // Try multiple approaches to find group messages
     const queries = [
       // Primary: Direct group ID match
@@ -432,7 +435,10 @@ export const generateDailySummary = async (req: Request, res: Response) => {
           ...(groupInfo ? [{ 'metadata.groupName': groupInfo.name }] : []),
           { to: groupId }
         ],
-        timestamp: { $gte: fallbackStart, $lte: fallbackEnd }
+        $or: [
+          { timestamp: { $gte: fallbackStart, $lte: fallbackEnd } },
+          { createdAt: { $gte: fallbackStart, $lte: fallbackEnd } }
+        ]
       };
       
       console.log('[WhatsApp Summary] Fallback query:', JSON.stringify(fallbackQuery, null, 2));
