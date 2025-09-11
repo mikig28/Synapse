@@ -351,7 +351,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     const baseQuery = {
       'metadata.isGroup': true,
       // Don't filter by isIncoming - get all messages in the group
-      createdAt: {  // Use createdAt instead of timestamp (timestamp field is corrupted)
+      timestamp: {  // Try timestamp field first
         $gte: utcStart,
         $lte: utcEnd
       }
@@ -388,7 +388,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       
       messages = await WhatsAppMessage.find(query)
         .populate('contactId')
-        .sort({ createdAt: 1 })  // Sort by createdAt since that has correct timestamps
+        .sort({ timestamp: 1 })  // Sort by timestamp
         .lean();
         
       console.log(`[WhatsApp Summary] ${queryUsed} returned ${messages.length} messages`);
@@ -416,7 +416,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
           ...(groupInfo ? [{ 'metadata.groupName': groupInfo.name }] : []),
           { to: groupId }
         ],
-        createdAt: { $gte: fallbackStart, $lte: fallbackEnd }
+        timestamp: { $gte: fallbackStart, $lte: fallbackEnd }
       };
       
       console.log('[WhatsApp Summary] Fallback query:', JSON.stringify(fallbackQuery, null, 2));
