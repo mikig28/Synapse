@@ -1914,6 +1914,8 @@ class WAHAService extends EventEmitter {
       switch (eventType) {
         case 'message':
           this.emit('message', eventData);
+          // Save message to WhatsApp messages database
+          this.saveMessageToDatabase(eventData);
           // Forward message data for group monitoring
           this.processMessageForGroupMonitoring(eventData);
           // Process media messages and download files
@@ -2034,6 +2036,86 @@ class WAHAService extends EventEmitter {
       }
     } catch (error) {
       console.error('[WAHA Service] ❌ Webhook handling error:', error);
+    }
+  }
+
+  /**
+   * Save message to WhatsApp messages database
+   */
+  private async saveMessageToDatabase(messageData: any): Promise<void> {
+    try {
+      console.log('[WAHA Service] Saving message to database:', {
+        messageId: messageData.id,
+        chatId: messageData.chatId,
+        from: messageData.from,
+        body: messageData.body?.substring(0, 100) + (messageData.body?.length > 100 ? '...' : ''),
+        isGroup: messageData.isGroup,
+        type: messageData.type,
+        timestamp: messageData.timestamp
+      });
+
+      // Convert WAHA timestamp to Date
+      const timestamp = messageData.timestamp ? new Date(messageData.timestamp * 1000) : new Date();
+
+      // Create or find contact
+      let contact = await WhatsAppContact.findOne({ phoneNumber: messageData.from });
+      if (!contact) {
+        contact = new WhatsAppContact({
+          name: messageData.contactName || messageData.from,
+          phoneNumber: messageData.from,
+          lastMessageTimestamp: timestamp
+        });
+        await contact.save();
+        console.log('[WAHA Service] Created new contact:', contact._id);
+      } else {
+        // Update last message timestamp
+        contact.lastMessageTimestamp = timestamp;
+        await contact.save();
+      }
+
+      // Prepare message data
+      const messageDoc = {
+        messageId: messageData.id,
+        from: messageData.from,
+        to: messageData.chatId,
+        message: messageData.body || '',
+        timestamp: timestamp,
+        type: this.mapMessageType(messageData.type),
+        status: messageData.fromMe ? 'sent' : 'received',
+        isIncoming: !messageData.fromMe,
+        contactId: contact._id,
+        
+        // Media information
+        mediaId: messageData.media?.id,
+        mediaUrl: messageData.media?.url || messageData.mediaUrl,
+        mimeType: messageData.media?.mimetype || messageData.mimeType,
+        caption: messageData.body,
+        mediaType: messageData.hasMedia || messageData.isMedia ? this.getMediaType(messageData.media?.mimetype || messageData.mimeType) : undefined,
+        
+        // Metadata
+        metadata: {
+          forwarded: messageData.forwarded || false,
+          forwardedMany: messageData.forwardedMany || false,
+          isGroup: messageData.isGroup || false,
+          groupId: messageData.isGroup ? messageData.chatId : undefined,
+          groupName: messageData.isGroup ? messageData.groupName : undefined
+        }
+      };
+
+      // Check if message already exists
+      const existingMessage = await WhatsAppMessage.findOne({ messageId: messageData.id });
+      if (existingMessage) {
+        console.log('[WAHA Service] Message already exists, skipping:', messageData.id);
+        return;
+      }
+
+      // Save message
+      const message = new WhatsAppMessage(messageDoc);
+      await message.save();
+      console.log('[WAHA Service] ✅ Message saved to database:', messageData.id);
+
+    } catch (error) {
+      console.error('[WAHA Service] ❌ Error saving message to database:', error);
     }
   }
 
@@ -2202,6 +2284,33 @@ class WAHAService extends EventEmitter {
     } catch (error) {
       console.error('[WAHA Service] ❌ Error processing media message:', error);
     }
+  }
+
+  /**
+   * Map WAHA message type to WhatsApp message type
+   */
+  private mapMessageType(wahaType: string): string {
+    const typeMap: { [key: string]: string } = {
+      'text': 'text',
+      'image': 'image',
+      'video': 'video',
+      'audio': 'audio',
+      'voice': 'audio',
+      'document': 'document',
+      'sticker': 'stickerMessage',
+      'location': 'location',
+      'contact': 'contact',
+      'poll': 'pollCreationMessage',
+      'reaction': 'reactionMessage',
+      'group_invite': 'groupInviteMessage',
+      'buttons': 'buttonsMessage',
+      'list': 'listMessage',
+      'template': 'templateMessage',
+      'order': 'orderMessage',
+      'payment': 'paymentMessage'
+    };
+    
+    return typeMap[wahaType] || 'text';
   }
 
   /**
@@ -2873,6 +2982,9 @@ class WAHAService extends EventEmitter {
                 groupName: chat.name
               };
 
+              // Save message to database first
+              await this.saveMessageToDatabase(messageData);
+              
               // Forward to group monitoring webhook
               await this.processMessageForGroupMonitoring(messageData);
 
