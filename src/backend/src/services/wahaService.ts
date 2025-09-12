@@ -1107,9 +1107,9 @@ class WAHAService extends EventEmitter {
             console.log(`[WAHA Service] Trying chats overview with sortBy='${sortBy}' and 180s timeout...`);
             // Use WAHA sessions-based endpoint first (modern WAHA)
             const res = await this.httpClient.get(`/api/sessions/${sessionName}/chats/overview`, { 
-              timeout: 180000,
+              timeout: 60000,
               params: {
-                limit: options.limit || 100, // Start with smaller chunks
+                limit: Math.min(options.limit || 100, 30), // Use smaller pages
                 offset: options.offset || 0,
                 sortBy,
                 sortOrder: options.sortOrder || 'desc'
@@ -1129,9 +1129,9 @@ class WAHAService extends EventEmitter {
               try {
                 console.log(`[WAHA Service] Trying legacy overview path: /api/${sessionName}/chats/overview`);
                 const resLegacy = await this.httpClient.get(`/api/${sessionName}/chats/overview`, {
-                  timeout: 180000,
+                  timeout: 60000,
                   params: {
-                    limit: options.limit || 100,
+                    limit: Math.min(options.limit || 100, 30),
                     offset: options.offset || 0,
                     sortBy,
                     sortOrder: options.sortOrder || 'desc'
@@ -1169,7 +1169,7 @@ class WAHAService extends EventEmitter {
           try {
             // Build WAHA-compliant query parameters with performance optimizations
             const params = new URLSearchParams();
-            const effectiveLimit = options.limit || 100; // Increased default as per WAHA docs
+            const effectiveLimit = Math.min(options.limit || 100, 50); // keep smaller to avoid timeouts
             params.append('limit', effectiveLimit.toString());
             if (options.offset) params.append('offset', options.offset.toString());
             params.append('sortBy', sortBy);
@@ -1183,7 +1183,7 @@ class WAHAService extends EventEmitter {
 
             console.log(`[WAHA Service] Trying direct /chats (legacy-first) with sortBy='${sortBy}' and ${timeoutMs/1000}s timeout...`);
             console.log(`[WAHA Service] Using legacy endpoint: ${legacyEndpoint}`);
-            let res = await this.httpClient.get(legacyEndpoint, { timeout: timeoutMs });
+            let res = await this.httpClient.get(legacyEndpoint, { timeout: Math.min(timeoutMs, 60000) });
             const items = normalizeChats(res.data);
             console.log(`[WAHA Service] ✅ Direct /chats successful; got ${items.length} items (sortBy='${sortBy}')`);
             return mapChats(items);
@@ -1195,7 +1195,7 @@ class WAHAService extends EventEmitter {
             if (status === 404) {
               try {
                 const params2 = new URLSearchParams();
-                const effectiveLimit2 = options.limit || 100;
+                const effectiveLimit2 = Math.min(options.limit || 100, 50);
                 params2.append('limit', effectiveLimit2.toString());
                 if (options.offset) params2.append('offset', options.offset.toString());
                 params2.append('sortBy', sortBy);
@@ -1204,7 +1204,7 @@ class WAHAService extends EventEmitter {
                 const queryString2 = params2.toString();
                 const sessionsEndpoint2 = `/api/sessions/${sessionName}/chats${queryString2 ? `?${queryString2}` : ''}`;
                 console.log(`[WAHA Service] Trying sessions /chats endpoint: ${sessionsEndpoint2}`);
-                const resSessions = await this.httpClient.get(sessionsEndpoint2, { timeout: timeoutMs });
+                const resSessions = await this.httpClient.get(sessionsEndpoint2, { timeout: Math.min(timeoutMs, 60000) });
                 const itemsSessions = normalizeChats(resSessions.data);
                 console.log(`[WAHA Service] ✅ Sessions /chats successful; got ${itemsSessions.length} items (sortBy='${sortBy}')`);
                 return mapChats(itemsSessions);
@@ -1225,7 +1225,7 @@ class WAHAService extends EventEmitter {
         try {
           const minimalLegacy = `/api/${sessionName}/chats`;
           console.log(`[WAHA Service] Trying minimal legacy /chats without params: ${minimalLegacy}`);
-          const resMinLegacy = await this.httpClient.get(minimalLegacy, { timeout: timeoutMs });
+          const resMinLegacy = await this.httpClient.get(minimalLegacy, { timeout: 45000 });
           const itemsMinLegacy = normalizeChats(resMinLegacy.data);
           console.log(`[WAHA Service] ✅ Minimal legacy /chats successful; got ${itemsMinLegacy.length} items`);
           if (itemsMinLegacy.length > 0) return mapChats(itemsMinLegacy);
@@ -1234,7 +1234,7 @@ class WAHAService extends EventEmitter {
           try {
             const minimalSessions = `/api/sessions/${sessionName}/chats`;
             console.log(`[WAHA Service] Trying minimal sessions /chats without params: ${minimalSessions}`);
-            const resMinSessions = await this.httpClient.get(minimalSessions, { timeout: timeoutMs });
+            const resMinSessions = await this.httpClient.get(minimalSessions, { timeout: 45000 });
             const itemsMinSessions = normalizeChats(resMinSessions.data);
             console.log(`[WAHA Service] ✅ Minimal sessions /chats successful; got ${itemsMinSessions.length} items`);
             if (itemsMinSessions.length > 0) return mapChats(itemsMinSessions);
@@ -1271,12 +1271,8 @@ class WAHAService extends EventEmitter {
         console.log(`[WAHA Service] Using extended timeouts for WEBJS engine (initial sync can take 5+ minutes)`);
       }
       
-      let chats: WAHAChat[] | null = await tryOverview();
-      
-      if (!chats || chats.length === 0) {
-        console.log(`[WAHA Service] Overview failed or empty, trying direct /chats with extended timeout...`);
-        chats = await tryChats(baseTimeout); // Extended timeout for WEBJS initial sync
-      }
+      // Skip overview endpoint (not supported on many builds); use direct /chats path
+      let chats: WAHAChat[] | null = await tryChats(baseTimeout);
       
       if (!chats || chats.length === 0) {
         console.log(`[WAHA Service] First /chats attempt failed, retrying with reduced limit...`);

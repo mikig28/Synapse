@@ -76,9 +76,11 @@ services:
       # Logging Configuration
       - key: LOG_LEVEL
         value: "info"
-      # Optional WAHA Overrides (uncomment if needed)
-      # - key: WAHA_ENGINE
-      #   value: "WEBJS"
+      # WAHA Engine Configuration (WEBJS with store enabled)
+      - key: WAHA_ENGINE
+        value: "WEBJS"
+      - key: WAHA_WEBJS_STORE_ENABLED
+        value: "true"
       # - key: WAHA_CHATS_LIMIT
       #   value: "300"
 
