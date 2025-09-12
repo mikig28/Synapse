@@ -85,7 +85,7 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
       >
         <button
           onClick={() => setIsVisible(false)}
-          className="absolute -top-1 -right-1 bg-background dark:bg-foreground text-foreground dark:text-background hover:bg-background/80 dark:hover:bg-foreground/80 rounded-full p-1 shadow-md border border-border dark:border-background/20"
+          className="absolute top-0 right-0 bg-background dark:bg-foreground text-foreground dark:text-background hover:bg-background/80 dark:hover:bg-foreground/80 rounded-full p-1 shadow-md border border-border dark:border-background/20"
           aria-label="Dismiss feedback widget"
         >
           <X className="w-3 h-3" />
