@@ -1105,8 +1105,8 @@ class WAHAService extends EventEmitter {
         for (const sortBy of candidates) {
           try {
             console.log(`[WAHA Service] Trying chats overview with sortBy='${sortBy}' and 180s timeout...`);
-            // Use WAHA-recommended pagination for better performance
-            const res = await this.httpClient.get(`/api/${sessionName}/chats/overview`, { 
+            // Use WAHA sessions-based endpoint first (modern WAHA)
+            const res = await this.httpClient.get(`/api/sessions/${sessionName}/chats/overview`, { 
               timeout: 180000,
               params: {
                 limit: options.limit || 100, // Start with smaller chunks
@@ -1177,7 +1177,7 @@ class WAHAService extends EventEmitter {
             if (options.exclude?.length) params.append('exclude', options.exclude.join(','));
 
             const queryString = params.toString();
-            const endpoint = `/api/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
+            const endpoint = `/api/sessions/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
             
             console.log(`[WAHA Service] Trying direct /chats with sortBy='${sortBy}' and ${timeoutMs/1000}s timeout...`);
             console.log(`[WAHA Service] Using WAHA-compliant endpoint: ${endpoint}`);
@@ -1221,7 +1221,7 @@ class WAHAService extends EventEmitter {
         }
         // Minimal-parameter fallback: no query params
         try {
-          const minimalEndpoint = `/api/${sessionName}/chats`;
+          const minimalEndpoint = `/api/sessions/${sessionName}/chats`;
           console.log(`[WAHA Service] Trying minimal /chats without params: ${minimalEndpoint}`);
           const res = await this.httpClient.get(minimalEndpoint, { timeout: timeoutMs });
           const items = normalizeChats(res.data);
@@ -1386,7 +1386,7 @@ class WAHAService extends EventEmitter {
         }
 
         const queryString = params.toString();
-        const endpoint = `/api/${sessionName}/groups${queryString ? `?${queryString}` : ''}`;
+        const endpoint = `/api/sessions/${sessionName}/groups${queryString ? `?${queryString}` : ''}`;
         
         console.log(`[WAHA Service] Using WAHA-compliant groups endpoint with performance opts: ${endpoint}`);
         const res = await this.httpClient.get(endpoint, { timeout: 180000 }); // Use 3min timeout
@@ -1476,7 +1476,7 @@ class WAHAService extends EventEmitter {
       if (engineName === 'WEBJS') {
         console.log(`[WAHA Service] Using WEBJS engine - groups refresh supported`);
       }
-      const response = await this.httpClient.post(`/api/${sessionName}/groups/refresh`, {}, { timeout: 15000 });
+      const response = await this.httpClient.post(`/api/sessions/${sessionName}/groups/refresh`, {}, { timeout: 15000 });
       console.log(`[WAHA Service] ✅ Groups refreshed successfully`);
       return { success: true, message: 'Groups refreshed successfully' };
     } catch (refreshError: any) {
