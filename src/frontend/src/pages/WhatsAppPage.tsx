@@ -125,7 +125,10 @@ const WhatsAppPage: React.FC = () => {
   
   // NEW: store pairing code returned by backend (if engine supports it)
   const [pairingCode, setPairingCode] = useState<string | null>(null);
-  
+
+  // Map of contact IDs to human-friendly names
+  const [contactsMap, setContactsMap] = useState<Record<string, string>>({});
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const { isAuthenticated, token } = useAuthStore();
@@ -254,6 +257,7 @@ const WhatsAppPage: React.FC = () => {
     fetchStatus();
     fetchGroups();
     fetchPrivateChats();
+    fetchContacts();
     fetchMessages();
     fetchMonitoredKeywords();
     
@@ -339,6 +343,20 @@ const WhatsAppPage: React.FC = () => {
       }
     };
   }, [status?.authenticated]); // Watch for authentication state changes
+
+  useEffect(() => {
+    if (Object.keys(contactsMap).length > 0) {
+      setMessages(prev =>
+        prev.map(msg => ({
+          ...msg,
+          contactName:
+            msg.contactName && msg.contactName !== 'Unknown'
+              ? msg.contactName
+              : contactsMap[msg.from] || msg.contactName,
+        }))
+      );
+    }
+  }, [contactsMap]);
 
   // Socket.io connection setup
   useEffect(() => {
@@ -825,6 +843,43 @@ const WhatsAppPage: React.FC = () => {
     }
   };
 
+  const fetchContacts = async () => {
+    try {
+      // Try modern WAHA endpoint first
+      try {
+        const wahaRes = await api.get('/waha/contacts');
+        if (wahaRes.data.success) {
+          const map: Record<string, string> = {};
+          (wahaRes.data.data || []).forEach((c: any) => {
+            const id = normalizeChatId(c.id || c._id, 'WAHA contact');
+            if (id) {
+              map[id] = c.name || c.pushname || c.verifiedName || c.number || id;
+            }
+          });
+          setContactsMap(map);
+          return;
+        }
+      } catch (wahaError) {
+        console.error('[WhatsApp Frontend] WAHA contacts endpoint failed:', wahaError);
+      }
+
+      // Fallback to legacy endpoint
+      const legacyRes = await api.get('/whatsapp/contacts');
+      if (legacyRes.data.success) {
+        const map: Record<string, string> = {};
+        (legacyRes.data.data || []).forEach((c: any) => {
+          const id = normalizeChatId(c.id || c._id, 'legacy contact');
+          if (id) {
+            map[id] = c.name || c.pushname || c.verifiedName || c.number || id;
+          }
+        });
+        setContactsMap(map);
+      }
+    } catch (error) {
+      console.error('Error fetching contacts:', error);
+    }
+  };
+
   const fetchGroups = async (showLoading = false, options?: { limit?: number; offset?: number }) => {
     try {
       if (showLoading) setLoadingChats(true);
@@ -1215,7 +1270,7 @@ const WhatsAppPage: React.FC = () => {
             type: msg.type || 'text',
             isGroup: msg.isGroup || false,
             groupName: msg.groupName || msg.chatName,
-            contactName: msg.contactName || msg.senderName || msg.from || 'Unknown',
+            contactName: msg.contactName || msg.senderName || contactsMap[msg.from] || msg.from || 'Unknown',
             chatId: msg.chatId || chatId || '',
             time: new Date(msg.timestamp || Date.now()).toLocaleTimeString(),
             isMedia: msg.hasMedia || false
@@ -1265,7 +1320,7 @@ const WhatsAppPage: React.FC = () => {
           type: msg.type || 'text',
           isGroup: msg.isGroup || false,
           groupName: msg.groupName,
-          contactName: msg.contactName || msg.from || 'Unknown',
+          contactName: msg.contactName || contactsMap[msg.from] || msg.from || 'Unknown',
           chatId: msg.chatId || chatId || '',
           time: new Date(msg.timestamp || Date.now()).toLocaleTimeString(),
           isMedia: msg.isMedia || false
@@ -1647,7 +1702,8 @@ const WhatsAppPage: React.FC = () => {
         // Fetch updated data with pagination support
         await Promise.all([
           fetchGroups(false, { limit: 100 }), // Load first 100 groups with pagination
-          fetchPrivateChats(false)
+          fetchPrivateChats(false),
+          fetchContacts()
         ]);
         
         // Update status counts
@@ -2333,19 +2389,6 @@ const WhatsAppPage: React.FC = () => {
 
   const StatusIcon = getStatusIcon();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 p-6">
-        <div className="flex items-center justify-center min-h-full">
-          <GlassCard className="p-8 text-center">
-            <RefreshCw className="w-8 h-8 text-violet-300 animate-spin mx-auto mb-4" />
-            <p className="text-white">Loading WhatsApp...</p>
-          </GlassCard>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
     <div className="min-h-screen bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 p-3 sm:p-6">
@@ -2541,6 +2584,15 @@ const WhatsAppPage: React.FC = () => {
           </div>
         </motion.div>
 
+        {loading ? (
+          <div className="flex items-center justify-center min-h-[50vh]">
+            <GlassCard className="p-8 text-center">
+              <RefreshCw className="w-8 h-8 text-violet-300 animate-spin mx-auto mb-4" />
+              <p className="text-white">Loading WhatsApp...</p>
+            </GlassCard>
+          </div>
+        ) : (
+          <>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -3184,6 +3236,8 @@ const WhatsAppPage: React.FC = () => {
             </div>
           )}
         </div>
+          </>
+        )}
 
         {/* Mobile Menu Modal */}
         <AnimatePresence>
