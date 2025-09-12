@@ -3059,8 +3059,8 @@ const WhatsAppPage: React.FC = () => {
                                 : 'bg-white/20 text-white'
                             }`}
                           >
-                            {!message.fromMe && message.isGroup && (
-                              <p className="text-xs text-blue-200 mb-1">{message.contactName}</p>
+                            {!message.fromMe && (
+                              <p className="text-xs text-blue-200 mb-1">{message.contactName || (!message.isGroup ? (selectedChat?.name) : undefined) || (message.from?.includes('@') ? message.from.split('@')[0] : message.from) || 'Unknown'}</p>
                             )}
 {message.isMedia && message.type === 'image' ? (
                               <div className="flex items-center gap-2">
