@@ -1177,11 +1177,13 @@ class WAHAService extends EventEmitter {
             if (options.exclude?.length) params.append('exclude', options.exclude.join(','));
 
             const queryString = params.toString();
-            const endpoint = `/api/sessions/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
-            
-            console.log(`[WAHA Service] Trying direct /chats with sortBy='${sortBy}' and ${timeoutMs/1000}s timeout...`);
-            console.log(`[WAHA Service] Using WAHA-compliant endpoint: ${endpoint}`);
-            const res = await this.httpClient.get(endpoint, { timeout: timeoutMs });
+            // Prefer legacy path first for maximum compatibility, then sessions path
+            const legacyEndpoint = `/api/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
+            const sessionsEndpoint = `/api/sessions/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
+
+            console.log(`[WAHA Service] Trying direct /chats (legacy-first) with sortBy='${sortBy}' and ${timeoutMs/1000}s timeout...`);
+            console.log(`[WAHA Service] Using legacy endpoint: ${legacyEndpoint}`);
+            let res = await this.httpClient.get(legacyEndpoint, { timeout: timeoutMs });
             const items = normalizeChats(res.data);
             console.log(`[WAHA Service] ✅ Direct /chats successful; got ${items.length} items (sortBy='${sortBy}')`);
             return mapChats(items);
@@ -1189,25 +1191,25 @@ class WAHAService extends EventEmitter {
             const status = e?.response?.status;
             const errorMsg = e?.message || e;
             console.log(`[WAHA Service] ❌ /chats failed (sortBy='${sortBy}', ${timeoutMs/1000}s): ${errorMsg}`);
-            // Legacy path fallback if 404
+            // If legacy path 404s, try sessions path
             if (status === 404) {
               try {
-                const params = new URLSearchParams();
-                const effectiveLimit = options.limit || 100;
-                params.append('limit', effectiveLimit.toString());
-                if (options.offset) params.append('offset', options.offset.toString());
-                params.append('sortBy', sortBy);
-                params.append('sortOrder', options.sortOrder || 'desc');
-                if (options.exclude?.length) params.append('exclude', options.exclude.join(','));
-                const queryString = params.toString();
-                const legacyEndpoint = `/api/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
-                console.log(`[WAHA Service] Trying legacy /chats endpoint: ${legacyEndpoint}`);
-                const resLegacy = await this.httpClient.get(legacyEndpoint, { timeout: timeoutMs });
-                const itemsLegacy = normalizeChats(resLegacy.data);
-                console.log(`[WAHA Service] ✅ Legacy /chats successful; got ${itemsLegacy.length} items (sortBy='${sortBy}')`);
-                return mapChats(itemsLegacy);
+                const params2 = new URLSearchParams();
+                const effectiveLimit2 = options.limit || 100;
+                params2.append('limit', effectiveLimit2.toString());
+                if (options.offset) params2.append('offset', options.offset.toString());
+                params2.append('sortBy', sortBy);
+                params2.append('sortOrder', options.sortOrder || 'desc');
+                if (options.exclude?.length) params2.append('exclude', options.exclude.join(','));
+                const queryString2 = params2.toString();
+                const sessionsEndpoint2 = `/api/sessions/${sessionName}/chats${queryString2 ? `?${queryString2}` : ''}`;
+                console.log(`[WAHA Service] Trying sessions /chats endpoint: ${sessionsEndpoint2}`);
+                const resSessions = await this.httpClient.get(sessionsEndpoint2, { timeout: timeoutMs });
+                const itemsSessions = normalizeChats(resSessions.data);
+                console.log(`[WAHA Service] ✅ Sessions /chats successful; got ${itemsSessions.length} items (sortBy='${sortBy}')`);
+                return mapChats(itemsSessions);
               } catch (legacyErr: any) {
-                console.log(`[WAHA Service] ❌ Legacy /chats failed:`, legacyErr?.response?.status || legacyErr?.message || legacyErr);
+                console.log(`[WAHA Service] ❌ Sessions /chats failed:`, legacyErr?.response?.status || legacyErr?.message || legacyErr);
               }
             }
             if (errorMsg.includes('timeout')) {
@@ -1219,16 +1221,26 @@ class WAHAService extends EventEmitter {
             }
           }
         }
-        // Minimal-parameter fallback: no query params
+        // Minimal-parameter fallback: try legacy, then sessions without params
         try {
-          const minimalEndpoint = `/api/sessions/${sessionName}/chats`;
-          console.log(`[WAHA Service] Trying minimal /chats without params: ${minimalEndpoint}`);
-          const res = await this.httpClient.get(minimalEndpoint, { timeout: timeoutMs });
-          const items = normalizeChats(res.data);
-          console.log(`[WAHA Service] ✅ Minimal /chats successful; got ${items.length} items`);
-          if (items.length > 0) return mapChats(items);
-        } catch (e: any) {
-          console.log(`[WAHA Service] ❌ Minimal /chats failed:`, e?.response?.status || e?.message || e);
+          const minimalLegacy = `/api/${sessionName}/chats`;
+          console.log(`[WAHA Service] Trying minimal legacy /chats without params: ${minimalLegacy}`);
+          const resMinLegacy = await this.httpClient.get(minimalLegacy, { timeout: timeoutMs });
+          const itemsMinLegacy = normalizeChats(resMinLegacy.data);
+          console.log(`[WAHA Service] ✅ Minimal legacy /chats successful; got ${itemsMinLegacy.length} items`);
+          if (itemsMinLegacy.length > 0) return mapChats(itemsMinLegacy);
+        } catch (e1: any) {
+          console.log(`[WAHA Service] ❌ Minimal legacy /chats failed:`, e1?.response?.status || e1?.message || e1);
+          try {
+            const minimalSessions = `/api/sessions/${sessionName}/chats`;
+            console.log(`[WAHA Service] Trying minimal sessions /chats without params: ${minimalSessions}`);
+            const resMinSessions = await this.httpClient.get(minimalSessions, { timeout: timeoutMs });
+            const itemsMinSessions = normalizeChats(resMinSessions.data);
+            console.log(`[WAHA Service] ✅ Minimal sessions /chats successful; got ${itemsMinSessions.length} items`);
+            if (itemsMinSessions.length > 0) return mapChats(itemsMinSessions);
+          } catch (e2: any) {
+            console.log(`[WAHA Service] ❌ Minimal sessions /chats failed:`, e2?.response?.status || e2?.message || e2);
+          }
         }
 
         // Alternate endpoint fallback: global endpoint with session param
@@ -1251,7 +1263,8 @@ class WAHAService extends EventEmitter {
 
       // WEBJS-optimized attempt sequence with extended timeouts for initial sync
       const isWebJS = engineName === 'WEBJS';
-      const baseTimeout = isWebJS ? 300000 : 180000; // 5min for WEBJS, 3min for others
+      // Reduce timeouts to fit platform proxy limits (avoid 502/120s timeouts). Use shorter retries instead.
+      const baseTimeout = isWebJS ? 110000 : 90000; // ~110s WEBJS, 90s others
       
       console.log(`[WAHA Service] Starting ${engineName}-optimized chat loading sequence for session '${sessionName}'...`);
       if (isWebJS) {
@@ -1267,8 +1280,8 @@ class WAHAService extends EventEmitter {
       
       if (!chats || chats.length === 0) {
         console.log(`[WAHA Service] First /chats attempt failed, retrying with reduced limit...`);
-        await new Promise(resolve => setTimeout(resolve, 10000)); // Longer delay for WEBJS to stabilize
-        chats = await tryChats(baseTimeout * 0.6); // Reduced timeout for retry
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        chats = await tryChats(Math.floor(baseTimeout * 0.6));
       }
 
       if (!chats || chats.length === 0) {
