@@ -37,15 +37,11 @@ export interface IWhatsAppMessage extends Document {
   metadata?: {
     forwarded?: boolean;
     forwardedMany?: boolean;
-    isGroup?: boolean;
-    groupId?: string;
-    groupName?: string;
     referral?: {
       sourceUrl?: string;
       sourceId?: string;
       sourceType?: string;
     };
-    // Group/summary metadata used by summary queries
     isGroup?: boolean;
     groupId?: string;
     groupName?: string;
@@ -148,16 +144,12 @@ const WhatsAppMessageSchema: Schema<IWhatsAppMessage> = new Schema(
     metadata: {
       forwarded: { type: Boolean, default: false },
       forwardedMany: { type: Boolean, default: false },
-      isGroup: { type: Boolean, default: false, index: true },
-      groupId: { type: String, index: true },
-      groupName: { type: String, index: true },
       referral: {
         sourceUrl: String,
         sourceId: String,
         sourceType: String
       },
-      // Group/summary metadata used by summary queries
-      isGroup: { type: Boolean, index: true },
+      isGroup: { type: Boolean, default: false, index: true },
       groupId: { type: String, index: true },
       groupName: { type: String, index: true }
     }
