@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import WhatsAppMessage from '../../models/WhatsAppMessage';
 import WhatsAppContact from '../../models/WhatsAppContact';
-import WhatsAppBaileysService from '../../services/whatsappBaileysService';
+import WAHAService from '../../services/wahaService';
 import WhatsAppSummarizationService from '../../services/whatsappSummarizationService';
 import {
   GroupInfo,
@@ -20,8 +20,8 @@ const summarizationService = new WhatsAppSummarizationService();
  */
 export const getAvailableGroups = async (req: Request, res: Response) => {
   try {
-    const whatsappService = WhatsAppBaileysService.getInstance();
-    const groups = whatsappService.getGroups();
+    const wahaService = WAHAService.getInstance();
+    const groups = await wahaService.getGroups();
     
     // Enhance groups with message count and last activity from database
     const enhancedGroups: GroupInfo[] = await Promise.all(
@@ -108,8 +108,8 @@ export const getGroupMessages = async (req: Request, res: Response) => {
     }
     
     // Get group info from WhatsApp service
-    const whatsappService = WhatsAppBaileysService.getInstance();
-    const groups = whatsappService.getGroups();
+    const wahaService = WAHAService.getInstance();
+    const groups = await wahaService.getGroups();
     const groupInfo = groups.find(g => g.id === groupId);
     
     if (!groupInfo) {
@@ -119,7 +119,7 @@ export const getGroupMessages = async (req: Request, res: Response) => {
       } as ApiResponse);
     }
     
-    // Query messages from database
+    // Query messages from database (may be empty if not persisted with expected metadata)
     const query = {
       'metadata.isGroup': true,
       $or: [
@@ -131,13 +131,13 @@ export const getGroupMessages = async (req: Request, res: Response) => {
         $lte: endDate
       },
       isIncoming: true // Only incoming messages for summary
-    };
+    } as any;
     
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
     const skip = (pageNum - 1) * limitNum;
     
-    const [messages, totalCount] = await Promise.all([
+    let [messages, totalCount] = await Promise.all([
       WhatsAppMessage.find(query)
         .populate('contactId')
         .sort({ timestamp: 1 }) // Chronological order
@@ -146,18 +146,65 @@ export const getGroupMessages = async (req: Request, res: Response) => {
         .lean(),
       WhatsAppMessage.countDocuments(query)
     ]);
+
+    let messageData: MessageData[] = [];
+
+    if (messages.length === 0) {
+      // Fallback: use in-memory Baileys store
+      console.log('[WhatsApp Summary] No DB messages found, falling back to in-memory store for group:', groupId);
+      try {
+        // Fetch a large batch from memory and filter by date
+        const inMem = await wahaService.getMessages(groupId, 5000);
+        const normalized = (inMem as any[])
+          .filter((m: any) => m && (m.chatId === groupId || m.id || true))
+          .filter((m: any) => {
+            // Convert timestamp which may be in seconds to Date
+            const ts = typeof m.timestamp === 'number' && m.timestamp < 2e10
+              ? new Date(m.timestamp * 1000)
+              : new Date(m.timestamp);
+            // Keep only incoming (not from me)
+            const incoming = m.fromMe === false || m.isIncoming === true;
+            return incoming && ts >= startDate && ts <= endDate;
+          })
+          .sort((a: any, b: any) => {
+            const ta = typeof a.timestamp === 'number' && a.timestamp < 2e10 ? a.timestamp * 1000 : +new Date(a.timestamp);
+            const tb = typeof b.timestamp === 'number' && b.timestamp < 2e10 ? b.timestamp * 1000 : +new Date(b.timestamp);
+            return ta - tb;
+          });
+
+        totalCount = normalized.length;
+        const paged = normalized.slice(skip, skip + limitNum);
+        messages = paged as any[];
+
+        messageData = paged.map((m: any) => {
+          const tsDate = typeof m.timestamp === 'number' && m.timestamp < 2e10 ? new Date(m.timestamp * 1000) : new Date(m.timestamp);
+          return {
+            id: m.id || m.key?.id || `${m.chatId || groupId}-${tsDate.getTime()}`,
+            message: m.body || m.text || m.message || '',
+            timestamp: tsDate,
+            type: m.type || 'text',
+            senderName: m.contactName || m.from || 'Unknown',
+            senderPhone: m.from || ''
+          } as MessageData;
+        });
+      } catch (fallbackErr) {
+        console.warn('[WhatsApp Summary] In-memory fallback failed:', (fallbackErr as Error).message);
+      }
+    }
+
+    if (messages.length > 0 && messageData.length === 0) {
+      // Transform DB result
+      messageData = messages.map((msg: any) => ({
+        id: msg.messageId || msg._id.toString(),
+        message: msg.message || '',
+        timestamp: msg.timestamp,
+        type: msg.type || 'text',
+        senderName: (msg.contactId as any)?.name || `Contact ${msg.from}`,
+        senderPhone: msg.from
+      }));
+    }
     
-    // Transform to MessageData format
-    const messageData: MessageData[] = messages.map(msg => ({
-      id: msg.messageId || msg._id.toString(),
-      message: msg.message || '',
-      timestamp: msg.timestamp,
-      type: msg.type || 'text',
-      senderName: (msg.contactId as any)?.name || `Contact ${msg.from}`,
-      senderPhone: msg.from
-    }));
-    
-    const hasMore = totalCount > skip + messages.length;
+    const hasMore = totalCount > skip + (messages?.length || 0);
     
     res.json({
       success: true,
@@ -229,8 +276,8 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     endOfDay.setHours(23, 59, 59, 999);
     
     // Get group info
-    const whatsappService = WhatsAppBaileysService.getInstance();
-    const groups = whatsappService.getGroups();
+    const wahaService = WAHAService.getInstance();
+    const groups = await wahaService.getGroups();
     const groupInfo = groups.find(g => g.id === groupId);
     
     if (!groupInfo) {
@@ -240,8 +287,8 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       } as ApiResponse);
     }
     
-    // Fetch messages for the day
-    const messages = await WhatsAppMessage.find({
+    // Fetch messages for the day from DB first
+    let dbMessages = await WhatsAppMessage.find({
       'metadata.isGroup': true,
       $or: [
         { 'metadata.groupName': groupInfo.name },
@@ -257,8 +304,39 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     .populate('contactId')
     .sort({ timestamp: 1 })
     .lean();
+
+    // If DB yields nothing (common when metadata fields are not persisted), fall back to in-memory store
+    if (!dbMessages || dbMessages.length === 0) {
+      console.log('[WhatsApp Summary] No DB messages found, using in-memory messages for summary:', groupId);
+      try {
+        const inMem = await wahaService.getMessages(groupId, 5000);
+        dbMessages = (inMem as any[])
+          .filter((m: any) => m && (m.chatId === groupId || true))
+          .filter((m: any) => {
+            const ts = typeof m.timestamp === 'number' && m.timestamp < 2e10
+              ? new Date(m.timestamp * 1000)
+              : new Date(m.timestamp);
+            const incoming = m.fromMe === false || m.isIncoming === true;
+            // Exclude empty text if present
+            const hasContent = (m.body || m.text || '').trim().length > 0 || m.isMedia;
+            return incoming && ts >= startOfDay && ts <= endOfDay && hasContent;
+          })
+          .map((m: any) => ({
+            _id: { toString: () => m.id || `${groupId}-${m.timestamp}` },
+            messageId: m.id,
+            message: m.body || m.text || '',
+            timestamp: typeof m.timestamp === 'number' && m.timestamp < 2e10 ? new Date(m.timestamp * 1000) : new Date(m.timestamp),
+            type: m.type || 'text',
+            from: m.from || '',
+            contactId: { name: m.contactName || 'Unknown' }
+          }));
+      } catch (fallbackErr) {
+        console.warn('[WhatsApp Summary] In-memory fallback failed:', (fallbackErr as Error).message);
+        dbMessages = [];
+      }
+    }
     
-    if (messages.length === 0) {
+    if (!dbMessages || dbMessages.length === 0) {
       return res.json({
         success: true,
         data: {
@@ -279,7 +357,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     }
     
     // Transform to MessageData format
-    const messageData: MessageData[] = messages.map(msg => ({
+    const messageData: MessageData[] = dbMessages.map((msg: any) => ({
       id: msg.messageId || msg._id.toString(),
       message: msg.message || '',
       timestamp: msg.timestamp,

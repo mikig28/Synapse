@@ -5,6 +5,8 @@
 
 import axios from 'axios';
 import { EventEmitter } from 'events';
+import WhatsAppMessage from '../models/WhatsAppMessage';
+import WhatsAppContact from '../models/WhatsAppContact';
 
 export interface WAHAMessage {
   id: string;
@@ -84,6 +86,142 @@ class WAHAService extends EventEmitter {
   private groupsEndpointLastFailure = 0;
   private readonly GROUPS_CIRCUIT_BREAKER_THRESHOLD = 3;
   private readonly GROUPS_CIRCUIT_BREAKER_RESET_TIME = 300000; // 5 minutes
+
+  /**
+   * Persist a WAHA message item to MongoDB with summary metadata
+   */
+  private async persistWAHAMessage(item: any): Promise<void> {
+    try {
+      if (!item) return;
+
+      // Extract fields with fallbacks
+      const chatIdRaw = item.chatId || item.chat?.id || item.chat?.chatId || item.chat || item.to;
+      if (!chatIdRaw) return;
+      let chatId: string = String(chatIdRaw);
+      if (!chatId.includes('@')) {
+        chatId = chatId.includes('-') ? `${chatId}@g.us` : `${chatId}@s.whatsapp.net`;
+      }
+
+      const messageId = item.id || item.messageId || `${chatId}-${item.timestamp || Date.now()}`;
+      const fromJid = item.from || item.author || item.sender?.id || item.participant || '';
+      const fromMe: boolean = Boolean(item.fromMe);
+      const isIncoming = !fromMe;
+      const notifyName = item.notifyName || item.senderName || item.sender?.name || item.pushname || '';
+      const type = item.type || (item.mimeType ? (item.mimeType.startsWith('image/') ? 'image' : item.mimeType.startsWith('video/') ? 'video' : item.mimeType.startsWith('audio/') ? 'audio' : 'media') : 'text');
+      const body = item.body || item.text || item.message || item.caption || '';
+
+      const tsNum = typeof item.timestamp === 'number' ? item.timestamp : (typeof item.ts === 'number' ? item.ts : Date.now());
+      const ts = tsNum < 2e10 ? new Date(tsNum * 1000) : new Date(tsNum);
+
+      const isGroup = chatId.includes('@g.us');
+      const groupName = isGroup ? (item.chat?.name || item.groupName || notifyName) : undefined;
+
+      // Ensure contact exists (by phone number portion of JID if possible)
+      const phone = typeof fromJid === 'string' && fromJid.includes('@') ? fromJid.split('@')[0] : String(fromJid || '');
+      let contact = await WhatsAppContact.findOne({ phoneNumber: phone });
+      if (!contact) {
+        contact = await WhatsAppContact.create({
+          phoneNumber: phone,
+          name: notifyName || phone,
+          isOnline: false,
+          lastSeen: ts,
+          unreadCount: isIncoming ? 1 : 0,
+          isBusinessContact: isGroup || false,
+          totalMessages: 1,
+          totalIncomingMessages: isIncoming ? 1 : 0,
+          totalOutgoingMessages: isIncoming ? 0 : 1
+        } as any);
+      } else {
+        // Lightweight stat updates
+        contact.lastSeen = ts;
+        contact.lastMessage = body || '[Media]';
+        contact.lastMessageTimestamp = ts;
+        contact.totalMessages = (contact.totalMessages || 0) + 1;
+        if (isIncoming) {
+          contact.totalIncomingMessages = (contact.totalIncomingMessages || 0) + 1;
+          contact.unreadCount = (contact.unreadCount || 0) + 1;
+        } else {
+          contact.totalOutgoingMessages = (contact.totalOutgoingMessages || 0) + 1;
+        }
+        await contact.save();
+      }
+
+      const doc = {
+        messageId,
+        from: fromJid || '',
+        to: chatId,
+        message: body || '',
+        timestamp: ts,
+        type,
+        status: fromMe ? 'sent' as const : 'received' as const,
+        isIncoming,
+        contactId: contact._id,
+        metadata: {
+          isGroup,
+          groupId: isGroup ? chatId : undefined,
+          groupName
+        }
+      } as any;
+
+      await WhatsAppMessage.updateOne(
+        { messageId: doc.messageId },
+        { $setOnInsert: doc },
+        { upsert: true }
+      );
+    } catch (err) {
+      console.warn('[WAHA Service] ⚠️ Persist WAHA message failed:', (err as any)?.message || err);
+    }
+  }
+
+  /**
+   * Handle WAHA webhook events to persist messages and react to status
+   */
+  public async handleWebhook(body: any): Promise<void> {
+    try {
+      const event = body?.event || body?.type;
+      const payload = body?.payload ?? body?.message ?? body?.data ?? body;
+
+      // Persist messages for common event names
+      if (event && typeof event === 'string') {
+        const e = event.toLowerCase();
+        if (e.includes('message')) {
+          if (Array.isArray(payload)) {
+            for (const item of payload) {
+              await this.persistWAHAMessage(item);
+            }
+          } else {
+            await this.persistWAHAMessage(payload);
+          }
+          return;
+        }
+        if (e === 'messages.upsert' || e === 'messages' || e === 'chat.message' || e === 'chat.messages') {
+          if (Array.isArray(payload)) {
+            for (const item of payload) {
+              await this.persistWAHAMessage(item);
+            }
+          } else {
+            await this.persistWAHAMessage(payload);
+          }
+          return;
+        }
+        // Ignore other events (session.status handled in controller)
+        return;
+      }
+
+      // If no event field, attempt to persist if payload looks like a message
+      if (payload && (payload.chatId || payload.id || payload.from)) {
+        if (Array.isArray(payload)) {
+          for (const item of payload) {
+            await this.persistWAHAMessage(item);
+          }
+        } else {
+          await this.persistWAHAMessage(payload);
+        }
+      }
+    } catch (err) {
+      console.warn('[WAHA Service] ⚠️ handleWebhook error:', (err as any)?.message || err);
+    }
+  }
 
   /**
    * Clear all caches to force fresh status check

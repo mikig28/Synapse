@@ -34,6 +34,10 @@ export interface IWhatsAppMessage extends Document {
       sourceId?: string;
       sourceType?: string;
     };
+    // Group/summary metadata used by summary queries
+    isGroup?: boolean;
+    groupId?: string;
+    groupName?: string;
   };
   
   createdAt: Date;
@@ -122,7 +126,11 @@ const WhatsAppMessageSchema: Schema<IWhatsAppMessage> = new Schema(
         sourceUrl: String,
         sourceId: String,
         sourceType: String
-      }
+      },
+      // Group/summary metadata used by summary queries
+      isGroup: { type: Boolean, index: true },
+      groupId: { type: String, index: true },
+      groupName: { type: String, index: true }
     }
   },
   { 
@@ -130,8 +138,7 @@ const WhatsAppMessageSchema: Schema<IWhatsAppMessage> = new Schema(
     // Optimize for common queries
     index: [
       { contactId: 1, timestamp: -1 },
-      { from: 1, timestamp: -1 },
-      { to: 1, timestamp: -1 },
+      { from: 1, to: 1, timestamp: -1 },
       { status: 1, timestamp: -1 }
     ]
   }
@@ -141,6 +148,9 @@ const WhatsAppMessageSchema: Schema<IWhatsAppMessage> = new Schema(
 WhatsAppMessageSchema.index({ contactId: 1, timestamp: -1 });
 WhatsAppMessageSchema.index({ from: 1, to: 1, timestamp: -1 });
 WhatsAppMessageSchema.index({ isIncoming: 1, timestamp: -1 });
+// Summary query indexes
+WhatsAppMessageSchema.index({ 'metadata.isGroup': 1, 'metadata.groupId': 1, timestamp: -1 });
+WhatsAppMessageSchema.index({ 'metadata.groupName': 1, timestamp: -1 });
 
 // Text search index for message content
 WhatsAppMessageSchema.index({ message: 'text' });
