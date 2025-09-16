@@ -116,8 +116,12 @@ export class WhatsAppSummaryService {
         timezone
       };
 
-      // Use authenticated route in production
-      const response = await api.post<ApiResponse<GroupSummaryData>>('/whatsapp-summary/generate-today', request);
+      // Use authenticated route in production, with fallback to /generate
+      let response = await api.post<ApiResponse<GroupSummaryData>>('/whatsapp-summary/generate-today', request);
+      if (!response.data?.success || !response.data?.data) {
+        const today = new Date().toISOString().split('T')[0];
+        response = await api.post<ApiResponse<GroupSummaryData>>('/whatsapp-summary/generate', { groupId, date: today, timezone });
+      }
       
       if (response.data.success && response.data.data) {
         // Convert date strings back to Date objects

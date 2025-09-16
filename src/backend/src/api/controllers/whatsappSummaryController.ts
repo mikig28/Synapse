@@ -484,6 +484,41 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       }
     }
     
+    // If DB has no messages for this period, fall back to pulling directly from WAHA for this group
+    if (messages.length === 0) {
+      try {
+        console.log('[WhatsApp Summary] No DB messages found, trying WAHA direct fetch fallback');
+        const wahaService = WAHAService.getInstance();
+        // Pull a reasonable batch and filter client-side by our UTC window
+        const raw = await wahaService.getMessages(groupId, 500, 'default');
+        const startMs = utcStart.getTime();
+        const endMs = utcEnd.getTime();
+        const filtered = raw.filter((m: any) => {
+          const tsNum = Number(m?.timestamp);
+          if (!isFinite(tsNum)) return false;
+          // WAHA timestamps are seconds; convert to ms if needed
+          const tsMs = tsNum > 1000000000000 ? tsNum : tsNum * 1000;
+          return tsMs >= startMs && tsMs <= endMs;
+        });
+        console.log(`[WhatsApp Summary] WAHA fallback found ${filtered.length} messages in time range`);
+        if (filtered.length > 0) {
+          // Normalize to the minimal fields we use downstream
+          messages = filtered.map((m: any) => ({
+            messageId: m.id,
+            message: m.body || '',
+            // Store as Date for downstream sorting/mapping
+            timestamp: new Date((Number(m.timestamp) > 1000000000000 ? Number(m.timestamp) : Number(m.timestamp) * 1000) || Date.now()),
+            createdAt: new Date((Number(m.timestamp) > 1000000000000 ? Number(m.timestamp) : Number(m.timestamp) * 1000) || Date.now()),
+            type: m.type || 'text',
+            from: m.from
+          }));
+          queryUsed = 'WAHA direct fetch';
+        }
+      } catch (wahaFallbackError: any) {
+        console.warn('[WhatsApp Summary] WAHA fallback failed:', wahaFallbackError?.message || wahaFallbackError);
+      }
+    }
+    
     // Fallback: if no messages found for the calendar day, use last 24 hours
     if (messages.length === 0) {
       console.log('[WhatsApp Summary] No messages found for calendar day, trying 24h fallback');
