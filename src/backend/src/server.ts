@@ -181,8 +181,11 @@ app.use('/public', express.static(publicDir)); // Serve files under /public URL 
 
 // API Routes - WhatsApp (Unified as primary, WAHA as fallback)
 app.use('/api/v1/whatsapp-unified', whatsappUnifiedRoutes); // NEW: Unified WhatsApp Web functionality
-app.use('/api/v1/whatsapp', wahaRoutes); // WAHA routes for monitoring/fallback
-app.use('/api/v1/whatsapp-legacy', whatsappRoutes); // Legacy Baileys routes (fallback)
+app.use('/api/v1/whatsapp', wahaRoutes); // WAHA routes (primary per WAHA docs)
+app.use('/api/v1/whatsapp-legacy', whatsappRoutes); // Legacy Baileys routes (explicit)
+// Compatibility: also expose legacy endpoints under /whatsapp for paths WAHA doesn't implement (e.g., /contacts)
+// Express will try WAHA first; if no route matches, it continues to legacy, avoiding conflicts.
+app.use('/api/v1/whatsapp', whatsappRoutes);
 app.use('/api/v1/waha', wahaRoutes); // Keep WAHA routes for direct access
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/capture', captureRoutes); // Use capture routes
