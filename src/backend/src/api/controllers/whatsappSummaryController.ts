@@ -352,6 +352,17 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     }
     
     const { start: utcStart, end: utcEnd } = getQueryBounds(timeWindow);
+
+    // Enforce an overall time budget to avoid 120s proxy timeouts (Render)
+    const overallTimeoutMs = Number(process.env.WHATSAPP_SUMMARY_TIMEOUT_MS || 60000);
+    const startedAt = Date.now();
+    const timeLeft = () => Math.max(1000, overallTimeoutMs - (Date.now() - startedAt));
+    const withTimeout = async <T>(p: Promise<T>, ms: number, label: string): Promise<T> => {
+      return await Promise.race<Promise<T>>([
+        p,
+        new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms))
+      ]) as T;
+    };
     
 // Get group info from WAHA, then fallbacks to DB/name inference
     const wahaService = WAHAService.getInstance();
@@ -489,8 +500,10 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       try {
         console.log('[WhatsApp Summary] No DB messages found, trying WAHA direct fetch fallback');
         const wahaService = WAHAService.getInstance();
-        // Pull a reasonable batch and filter client-side by our UTC window
-        const raw = await wahaService.getMessages(groupId, 500, 'default');
+        // Pull a smaller batch and filter client-side by our UTC window; cap by remaining budget
+        const limit = 150; // smaller for faster response
+        const wahaFetch = wahaService.getMessages(groupId, limit, 'default');
+        const raw = await withTimeout(wahaFetch, Math.min(20000, timeLeft()), 'WAHA messages fetch');
         const startMs = utcStart.getTime();
         const endMs = utcEnd.getTime();
         const filtered = raw.filter((m: any) => {
@@ -595,7 +608,10 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     // Generate summary
     console.log(`[WhatsApp Summary] Generating summary for ${messages.length} messages using ${queryUsed || 'successful query'}`);
     
-    const summary = await summarizationService.generateGroupSummary(
+    let summary: GroupSummaryData;
+    try {
+      summary = await withTimeout(
+        summarizationService.generateGroupSummary(
       groupId,
       groupInfo.name,
       messageData,
@@ -613,7 +629,26 @@ export const generateDailySummary = async (req: Request, res: Response) => {
         speakerAttribution: (options as any)?.speakerAttribution ?? true,
         maxSpeakerAttributions: (options as any)?.maxSpeakerAttributions ?? 5
       }
-    );
+        ),
+        Math.min(30000, timeLeft()),
+        'Summarization'
+      );
+    } catch (summTimeoutErr) {
+      console.warn('[WhatsApp Summary] AI summarization timed out, falling back to basic summary:', (summTimeoutErr as Error).message);
+      const basicService = new WhatsAppSummarizationService();
+      summary = await basicService.generateGroupSummary(
+        groupId,
+        groupInfo.name,
+        messageData,
+        {
+          start: timeWindow.localStart,
+          end: timeWindow.localEnd,
+          label: timeWindow.label || `${date}`,
+          type: 'custom'
+        },
+        { ...options, timezone: validTimezone }
+      );
+    }
     
     console.log(`[WhatsApp Summary] Summary generated successfully: ${summary.totalMessages} messages, ${summary.activeParticipants} participants`);
     
