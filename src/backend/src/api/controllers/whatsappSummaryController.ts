@@ -677,6 +677,7 @@ export const getAvailableDateRanges = async (req: Request, res: Response) => {
 
     // Today
     const today = getTodayWindow(tz);
+    const { start: todayStart, end: todayEnd } = getQueryBounds(today);
     const todayCount = await WhatsAppMessage.countDocuments({
       'metadata.isGroup': true,
       $and: [
@@ -689,8 +690,8 @@ export const getAvailableDateRanges = async (req: Request, res: Response) => {
         },
         {
           $or: [
-            { createdAt: { $gte: today.start, $lte: today.end } },
-            { timestamp: { $gte: today.start, $lte: today.end } }
+            { createdAt: { $gte: todayStart, $lte: todayEnd } },
+            { timestamp: { $gte: todayStart, $lte: todayEnd } }
           ]
         }
       ],
@@ -701,6 +702,7 @@ export const getAvailableDateRanges = async (req: Request, res: Response) => {
     
     // Yesterday
     const yesterday = getYesterdayWindow(tz);
+    const { start: yesterdayStart, end: yesterdayEnd } = getQueryBounds(yesterday);
 
     const yesterdayCount = await WhatsAppMessage.countDocuments({
       'metadata.isGroup': true,
@@ -714,8 +716,8 @@ export const getAvailableDateRanges = async (req: Request, res: Response) => {
         },
         {
           $or: [
-            { createdAt: { $gte: yesterday.start, $lte: yesterday.end } },
-            { timestamp: { $gte: yesterday.start, $lte: yesterday.end } }
+            { createdAt: { $gte: yesterdayStart, $lte: yesterdayEnd } },
+            { timestamp: { $gte: yesterdayStart, $lte: yesterdayEnd } }
           ]
         }
       ],
@@ -723,8 +725,8 @@ export const getAvailableDateRanges = async (req: Request, res: Response) => {
     });
 
     dateRanges.push({
-      start: yesterday.start,
-      end: yesterday.end,
+      start: yesterdayStart,
+      end: yesterdayEnd,
       label: 'Yesterday',
       type: 'yesterday' as const,
       messageCount: yesterdayCount
@@ -732,6 +734,7 @@ export const getAvailableDateRanges = async (req: Request, res: Response) => {
     
     // Last 24 hours
     const last24h = getLast24HoursWindow(tz);
+    const { start: last24hStart, end: last24hEnd } = getQueryBounds(last24h);
     const last24hCount = await WhatsAppMessage.countDocuments({
       'metadata.isGroup': true,
       $and: [
@@ -744,8 +747,8 @@ export const getAvailableDateRanges = async (req: Request, res: Response) => {
         },
         {
           $or: [
-            { createdAt: { $gte: last24h.start, $lte: last24h.end } },
-            { timestamp: { $gte: last24h.start, $lte: last24h.end } }
+            { createdAt: { $gte: last24hStart, $lte: last24hEnd } },
+            { timestamp: { $gte: last24hStart, $lte: last24hEnd } }
           ]
         }
       ],
