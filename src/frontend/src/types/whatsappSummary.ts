@@ -57,6 +57,7 @@ export interface AIInsights {
   actionItems: string[];
   importantEvents: string[];
   decisionsMade: string[];
+  speakerAttributions?: { speakerName: string; bullets: string[] }[];
 }
 
 export interface GroupSummaryData {
@@ -154,6 +155,9 @@ export interface SummaryGenerationOptions {
   emojiMinCount?: number; // Minimum count for emoji inclusion (default 2)
   excludeSystemMessages?: boolean; // Default true
   timezone?: string; // User's timezone for date boundaries
+  targetLanguage?: 'auto' | 'en' | 'he' | string;
+  speakerAttribution?: boolean;
+  maxSpeakerAttributions?: number;
 }
 
 // Date range preset types

@@ -19,7 +19,11 @@ export class WhatsAppSummarizationService {
     keywordMinCount: 2,
     emojiMinCount: 2,
     excludeSystemMessages: true,
-    timezone: 'UTC'
+    timezone: 'UTC',
+    // Defaults for new fields
+    targetLanguage: 'auto',
+    speakerAttribution: false,
+    maxSpeakerAttributions: 5
   };
 
   /**
