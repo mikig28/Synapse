@@ -80,13 +80,19 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
       <motion.div
         drag
         dragMomentum={false}
-        style={{ touchAction: 'none' }}
-        className={`fixed z-40 ${positionClasses[position]} ${className} relative`}
+        style={{
+          touchAction: 'none',
+          // Keep safely inside viewport corners (accounts for notches/taskbars)
+          paddingRight: 'env(safe-area-inset-right)',
+          paddingBottom: 'env(safe-area-inset-bottom)'
+        }}
+        className={`fixed z-40 ${positionClasses[position]} ${className} relative group`}
       >
         <button
           onClick={() => setIsVisible(false)}
-          className="absolute -top-2 -right-2 bg-background dark:bg-foreground text-foreground dark:text-background hover:bg-background/80 dark:hover:bg-foreground/80 rounded-full p-1 shadow-md border border-border dark:border-background/20 z-10"
+          className="absolute top-0 right-0 bg-background dark:bg-foreground text-foreground dark:text-background hover:bg-background/80 dark:hover:bg-foreground/80 rounded-full p-1 shadow-md border border-border dark:border-background/20 z-10 translate-x-1 -translate-y-1"
           aria-label="Dismiss feedback widget"
+          title="Hide"
         >
           <X className="w-3 h-3" />
         </button>
