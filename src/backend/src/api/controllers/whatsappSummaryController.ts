@@ -500,9 +500,30 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       try {
         console.log('[WhatsApp Summary] No DB messages found, trying WAHA direct fetch fallback');
         const wahaService = WAHAService.getInstance();
+        // Resolve the best WAHA chat id to use
+        let fetchChatId: string = groupId;
+        try {
+          // Try WAHA groups first
+          const wahaGroups = await withTimeout(wahaService.getGroups('default', { limit: 200 }), Math.min(8000, timeLeft()), 'WAHA groups');
+          const byId = wahaGroups.find((g: any) => String(g.id) === String(groupId));
+          const byName = !byId && groupInfo?.name ? wahaGroups.find((g: any) => String(g.name) === String(groupInfo.name)) : null;
+          if (byId?.id) fetchChatId = byId.id;
+          else if (byName?.id) fetchChatId = byName.id;
+          else {
+            // Fallback to chats list
+            const chats = await withTimeout(wahaService.getChats('default'), Math.min(8000, timeLeft()), 'WAHA chats');
+            const chatById = chats.find((c: any) => String(c.id) === String(groupId));
+            const chatByName = !chatById && groupInfo?.name ? chats.find((c: any) => String(c.name) === String(groupInfo.name)) : null;
+            if (chatById?.id) fetchChatId = chatById.id;
+            else if (chatByName?.id) fetchChatId = chatByName.id;
+          }
+        } catch (resolveErr) {
+          console.warn('[WhatsApp Summary] WAHA chat id resolution failed, using provided groupId', (resolveErr as Error).message);
+        }
+
         // Pull a smaller batch and filter client-side by our UTC window; cap by remaining budget
         const limit = 150; // smaller for faster response
-        const wahaFetch = wahaService.getMessages(groupId, limit, 'default');
+        const wahaFetch = wahaService.getMessages(fetchChatId, limit, 'default');
         const raw = await withTimeout(wahaFetch, Math.min(20000, timeLeft()), 'WAHA messages fetch');
         const startMs = utcStart.getTime();
         const endMs = utcEnd.getTime();
