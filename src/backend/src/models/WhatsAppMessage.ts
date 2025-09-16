@@ -1,5 +1,18 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export interface IWhatsAppMessageMetadata {
+  forwarded?: boolean;
+  forwardedMany?: boolean;
+  referral?: {
+    sourceUrl?: string;
+    sourceId?: string;
+    sourceType?: string;
+  };
+  isGroup?: boolean;
+  groupId?: string;
+  groupName?: string;
+}
+
 export interface IWhatsAppMessage extends Document {
   messageId: string;
   from: string;
@@ -34,26 +47,30 @@ export interface IWhatsAppMessage extends Document {
   phoneNumberId?: string;
   
   // Metadata
-  metadata?: {
-    forwarded?: boolean;
-    forwardedMany?: boolean;
-    isGroup?: boolean;
-    groupId?: string;
-    groupName?: string;
-    referral?: {
-      sourceUrl?: string;
-      sourceId?: string;
-      sourceType?: string;
-    };
-    // Group/summary metadata used by summary queries
-    isGroup?: boolean;
-    groupId?: string;
-    groupName?: string;
-  };
+  metadata?: IWhatsAppMessageMetadata;
   
   createdAt: Date;
   updatedAt: Date;
 }
+
+const WhatsAppMessageMetadataSchema: Schema<IWhatsAppMessageMetadata> = new Schema(
+  {
+    forwarded: { type: Boolean, default: false },
+    forwardedMany: { type: Boolean, default: false },
+    referral: {
+      sourceUrl: String,
+      sourceId: String,
+      sourceType: String
+    },
+    isGroup: { type: Boolean, default: false, index: true },
+    groupId: { type: String, index: true },
+    groupName: { type: String, index: true }
+  },
+  {
+    _id: false,
+    id: false
+  }
+);
 
 const WhatsAppMessageSchema: Schema<IWhatsAppMessage> = new Schema(
   {
@@ -146,20 +163,8 @@ const WhatsAppMessageSchema: Schema<IWhatsAppMessage> = new Schema(
     
     // Metadata
     metadata: {
-      forwarded: { type: Boolean, default: false },
-      forwardedMany: { type: Boolean, default: false },
-      isGroup: { type: Boolean, default: false, index: true },
-      groupId: { type: String, index: true },
-      groupName: { type: String, index: true },
-      referral: {
-        sourceUrl: String,
-        sourceId: String,
-        sourceType: String
-      },
-      // Group/summary metadata used by summary queries
-      isGroup: { type: Boolean, index: true },
-      groupId: { type: String, index: true },
-      groupName: { type: String, index: true }
+      type: WhatsAppMessageMetadataSchema,
+      default: {}
     }
   },
   { 
@@ -182,7 +187,6 @@ WhatsAppMessageSchema.index({ 'metadata.isGroup': 1, 'metadata.groupId': 1, time
 WhatsAppMessageSchema.index({ 'metadata.groupName': 1, timestamp: -1 });
 
 // Group message indexes for efficient summary queries
-WhatsAppMessageSchema.index({ 'metadata.isGroup': 1, 'metadata.groupId': 1, timestamp: -1 });
 WhatsAppMessageSchema.index({ 'metadata.isGroup': 1, 'metadata.groupName': 1, timestamp: -1 });
 WhatsAppMessageSchema.index({ 'metadata.isGroup': 1, isIncoming: 1, timestamp: -1 });
 
