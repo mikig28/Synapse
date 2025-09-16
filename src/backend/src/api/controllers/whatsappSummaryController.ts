@@ -605,7 +605,14 @@ export const generateDailySummary = async (req: Request, res: Response) => {
         label: timeWindow.label || `${date}`,
         type: 'custom'
       },
-      { ...options, timezone: validTimezone }
+      { 
+        ...options, 
+        timezone: validTimezone,
+        // Auto-language selection with per-speaker attribution enabled by default
+        targetLanguage: (options as any)?.targetLanguage || 'auto',
+        speakerAttribution: (options as any)?.speakerAttribution ?? true,
+        maxSpeakerAttributions: (options as any)?.maxSpeakerAttributions ?? 5
+      }
     );
     
     console.log(`[WhatsApp Summary] Summary generated successfully: ${summary.totalMessages} messages, ${summary.activeParticipants} participants`);

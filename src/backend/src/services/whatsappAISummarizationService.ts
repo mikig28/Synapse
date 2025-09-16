@@ -28,6 +28,7 @@ interface ContentSummary {
   actionItems: string[];
   importantEvents: string[];
   decisionsMade: string[];
+  speakerAttributions?: { speakerName: string; bullets: string[] }[];
 }
 
 export class WhatsAppAISummarizationService extends WhatsAppSummarizationService {
@@ -72,8 +73,15 @@ export class WhatsAppAISummarizationService extends WhatsAppSummarizationService
     }
 
     try {
+      // Determine output language
+      const targetLanguage = await this.resolveTargetLanguage(messages, options.targetLanguage || 'auto');
+
       // Generate AI-powered content summary
-      const contentSummary = await this.generateAIContentSummary(messages, groupName);
+      const contentSummary = await this.generateAIContentSummary(messages, groupName, {
+        language: targetLanguage,
+        withAttribution: options.speakerAttribution === true,
+        maxSpeakers: options.maxSpeakerAttributions || 5
+      });
 
       // Enhance sender insights with AI summaries
       const enhancedSenderInsights = await this.enhanceSenderInsights(
@@ -92,7 +100,8 @@ export class WhatsAppAISummarizationService extends WhatsAppSummarizationService
           sentiment: contentSummary.sentiment,
           actionItems: contentSummary.actionItems,
           importantEvents: contentSummary.importantEvents,
-          decisionsMade: contentSummary.decisionsMade
+          decisionsMade: contentSummary.decisionsMade,
+          speakerAttributions: contentSummary.speakerAttributions
         }
       } as any;
     } catch (error) {
@@ -102,24 +111,44 @@ export class WhatsAppAISummarizationService extends WhatsAppSummarizationService
     }
   }
 
+  private async resolveTargetLanguage(messages: MessageData[], preferred: 'auto' | string): Promise<string> {
+    if (preferred && preferred !== 'auto') return preferred;
+    // Simple heuristic: detect if majority of characters are Hebrew vs Latin
+    const recent = messages.slice(-200);
+    let he = 0, en = 0;
+    for (const m of recent) {
+      const text = (m.message || '').slice(0, 400);
+      for (let i = 0; i < text.length; i++) {
+        const code = text.charCodeAt(i);
+        // Hebrew block: 0x0590 - 0x05FF
+        if (code >= 0x0590 && code <= 0x05FF) he++;
+        // Basic Latin and Latin-1 supplement/extended ranges (rough heuristic)
+        else if ((code >= 0x0041 && code <= 0x007A) || (code >= 0x00C0 && code <= 0x024F)) en++;
+      }
+    }
+    if (he === 0 && en === 0) return 'en';
+    return he > en ? 'he' : 'en';
+  }
+
   /**
    * Generate AI-powered content summary using the configured provider
    */
   private async generateAIContentSummary(
     messages: MessageData[],
-    groupName: string
+    groupName: string,
+    opts: { language: string; withAttribution: boolean; maxSpeakers: number }
   ): Promise<ContentSummary> {
     // Prepare messages for AI analysis (limit to recent messages to manage token usage)
-    const recentMessages = messages.slice(-100); // Last 100 messages
+    const recentMessages = messages.slice(-150); // Last N messages
     const conversationText = this.formatMessagesForAI(recentMessages);
 
     switch (this.aiProvider.name) {
       case 'openai':
-        return await this.generateOpenAISummary(conversationText, groupName);
+        return await this.generateOpenAISummary(conversationText, groupName, opts);
       case 'anthropic':
-        return await this.generateAnthropicSummary(conversationText, groupName);
+        return await this.generateAnthropicSummary(conversationText, groupName, opts);
       case 'gemini':
-        return await this.generateGeminiSummary(conversationText, groupName);
+        return await this.generateGeminiSummary(conversationText, groupName, opts);
       default:
         throw new Error('No AI provider configured');
     }
@@ -131,10 +160,7 @@ export class WhatsAppAISummarizationService extends WhatsAppSummarizationService
   private formatMessagesForAI(messages: MessageData[]): string {
     return messages
       .map(msg => {
-        const time = msg.timestamp.toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        });
+        const time = msg.timestamp.toISOString().substring(11, 16);
         return `[${time}] ${msg.senderName}: ${msg.message}`;
       })
       .join('\n');
@@ -145,73 +171,60 @@ export class WhatsAppAISummarizationService extends WhatsAppSummarizationService
    */
   private async generateOpenAISummary(
     conversationText: string,
-    groupName: string
+    groupName: string,
+    opts: { language: string; withAttribution: boolean; maxSpeakers: number }
   ): Promise<ContentSummary> {
-    const prompt = `You are an expert at analyzing WhatsApp group conversations. Please analyze the following conversation from the group "${groupName}" and provide a comprehensive summary.
+    const attributionClause = opts.withAttribution
+      ? `\n7. Provide a concise bullet list of per-participant contributions (up to ${opts.maxSpeakers} speakers) as { "speakerAttributions": [{ "speakerName": "...", "bullets": ["point1", "point2"] }] }\n` : '\n';
+
+    const languageClause = opts.language && opts.language !== 'auto'
+      ? `Write the entire output in ${opts.language === 'he' ? 'Hebrew' : opts.language}.`
+      : 'Write the entire output in the same language as the majority of the messages.';
+
+    const prompt = `You are an expert at analyzing WhatsApp group conversations. Analyze the following conversation from the group "${groupName}" and provide a comprehensive summary. ${languageClause}
 
 Conversation:
 ${conversationText}
 
-Please provide:
-1. An overall summary of the conversation (2-3 paragraphs highlighting the main discussion points, important topics, and key takeaways)
-2. Key topics discussed (list the main subjects/themes)
-3. Overall sentiment of the conversation (positive, neutral, negative, or mixed)
-4. Any action items or tasks mentioned
-5. Important events or announcements shared
-6. Any decisions that were made
+Please provide a JSON object with the following structure:
+1. overallSummary: 2-3 paragraphs highlighting main discussion points, events, decisions, and takeaways
+2. keyTopics: array of main subjects/themes
+3. sentiment: one of positive|neutral|negative|mixed
+4. actionItems: array of tasks mentioned (with owners if clear)
+5. importantEvents: array of significant events/announcements
+6. decisionsMade: array of decisions reached
+${attributionClause}
+Format strictly as JSON.`;
 
-Format your response as a JSON object with the following structure:
-{
-  "overallSummary": "detailed summary here",
-  "keyTopics": ["topic1", "topic2", ...],
-  "sentiment": "positive|neutral|negative|mixed",
-  "actionItems": ["action1", "action2", ...],
-  "importantEvents": ["event1", "event2", ...],
-  "decisionsMade": ["decision1", "decision2", ...]
-}`;
+    const response = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'You are a precise analyst that outputs strictly valid JSON without extra commentary.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.2,
+        max_tokens: 1500,
+        response_format: { type: 'json_object' }
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    const content = response.data?.choices?.[0]?.message?.content;
+    if (!content) throw new Error('No content in OpenAI response');
 
     try {
-      const response = await axios.post(
-        'https://api.openai.com/v1/chat/completions',
-        {
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a helpful assistant that analyzes WhatsApp group conversations and provides detailed summaries.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: 0.3,
-          max_tokens: 1500,
-          response_format: { type: "json_object" }
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      const content = response.data?.choices?.[0]?.message?.content;
-      if (!content) {
-        throw new Error('No content in OpenAI response');
-      }
-
-      try {
-        const parsed = JSON.parse(content);
-        return this.validateContentSummary(parsed);
-      } catch (parseError) {
-        console.error('[WhatsApp AI Summary] Failed to parse OpenAI response:', parseError);
-        return this.getDefaultContentSummary();
-      }
-    } catch (error) {
-      console.error('[WhatsApp AI Summary] OpenAI API error:', error);
-      throw error;
+      const parsed = JSON.parse(content);
+      return this.validateContentSummary(parsed);
+    } catch (e) {
+      console.error('[WhatsApp AI Summary] Failed to parse OpenAI response:', e);
+      return this.getDefaultContentSummary();
     }
   }
 
@@ -220,64 +233,56 @@ Format your response as a JSON object with the following structure:
    */
   private async generateAnthropicSummary(
     conversationText: string,
-    groupName: string
+    groupName: string,
+    opts: { language: string; withAttribution: boolean; maxSpeakers: number }
   ): Promise<ContentSummary> {
-    const prompt = `Analyze this WhatsApp group conversation from "${groupName}" and provide a comprehensive summary.
+    const attributionClause = opts.withAttribution
+      ? `\n7. Provide speakerAttributions: a short bullet list per participant (up to ${opts.maxSpeakers}) as JSON` : '';
+
+    const languageClause = opts.language && opts.language !== 'auto'
+      ? `Write the output in ${opts.language === 'he' ? 'Hebrew' : opts.language}.`
+      : 'Write the output in the language that matches most messages.';
+
+    const prompt = `Analyze this WhatsApp group conversation from "${groupName}" and return a strict JSON summary. ${languageClause}
 
 Conversation:
 ${conversationText}
 
-Provide a JSON response with:
-- overallSummary: 2-3 paragraph summary of main discussion points
-- keyTopics: array of main topics discussed
-- sentiment: overall tone (positive/neutral/negative/mixed)
-- actionItems: array of tasks/actions mentioned
-- importantEvents: array of significant events/announcements
-- decisionsMade: array of decisions reached`;
+JSON fields:
+- overallSummary: 2-3 paragraph summary
+- keyTopics: string[]
+- sentiment: positive|neutral|negative|mixed
+- actionItems: string[]
+- importantEvents: string[]
+- decisionsMade: string[]${attributionClause}`;
+
+    const response = await axios.post(
+      'https://api.anthropic.com/v1/messages',
+      {
+        model: 'claude-3-haiku-20240307',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.2
+      },
+      {
+        headers: {
+          'x-api-key': ANTHROPIC_API_KEY!,
+          'anthropic-version': '2023-06-01',
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    const content = response.data?.content?.[0]?.text;
+    if (!content) throw new Error('No content in Anthropic response');
 
     try {
-      const response = await axios.post(
-        'https://api.anthropic.com/v1/messages',
-        {
-          model: 'claude-3-haiku-20240307',
-          max_tokens: 1500,
-          messages: [
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: 0.3
-        },
-        {
-          headers: {
-            'x-api-key': ANTHROPIC_API_KEY!,
-            'anthropic-version': '2023-06-01',
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      const content = response.data?.content?.[0]?.text;
-      if (!content) {
-        throw new Error('No content in Anthropic response');
-      }
-
-      try {
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          return this.validateContentSummary(parsed);
-        }
-      } catch (parseError) {
-        console.error('[WhatsApp AI Summary] Failed to parse Anthropic response:', parseError);
-      }
-
-      return this.getDefaultContentSummary();
-    } catch (error) {
-      console.error('[WhatsApp AI Summary] Anthropic API error:', error);
-      throw error;
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) return this.validateContentSummary(JSON.parse(jsonMatch[0]));
+    } catch (e) {
+      console.error('[WhatsApp AI Summary] Failed to parse Anthropic response:', e);
     }
+    return this.getDefaultContentSummary();
   }
 
   /**
@@ -285,76 +290,55 @@ Provide a JSON response with:
    */
   private async generateGeminiSummary(
     conversationText: string,
-    groupName: string
+    groupName: string,
+    opts: { language: string; withAttribution: boolean; maxSpeakers: number }
   ): Promise<ContentSummary> {
+    const attributionClause = opts.withAttribution
+      ? `\n7. Also include speakerAttributions: up to ${opts.maxSpeakers} participants with concise bullet points each.` : '';
+
+    const languageClause = opts.language && opts.language !== 'auto'
+      ? `Write the output in ${opts.language === 'he' ? 'Hebrew' : opts.language}.`
+      : 'Write the output in the dominant language of the messages.';
+
     const prompt = `Analyze this WhatsApp group conversation from "${groupName}" and provide a JSON summary with:
 - overallSummary: comprehensive 2-3 paragraph summary
 - keyTopics: main discussion topics
 - sentiment: overall tone
 - actionItems: tasks mentioned
 - importantEvents: significant announcements
-- decisionsMade: decisions reached
+- decisionsMade: decisions reached${attributionClause}
+${languageClause}
 
 Conversation:
 ${conversationText}`;
 
+    const response = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 1500 }
+      },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+
+    const content = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!content) throw new Error('No content in Gemini response');
+
     try {
-      const response = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 1500
-          }
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      const content = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!content) {
-        throw new Error('No content in Gemini response');
-      }
-
-      try {
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          return this.validateContentSummary(parsed);
-        }
-      } catch (parseError) {
-        console.error('[WhatsApp AI Summary] Failed to parse Gemini response:', parseError);
-      }
-
-      return this.getDefaultContentSummary();
-    } catch (error) {
-      console.error('[WhatsApp AI Summary] Gemini API error:', error);
-      throw error;
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) return this.validateContentSummary(JSON.parse(jsonMatch[0]));
+    } catch (e) {
+      console.error('[WhatsApp AI Summary] Failed to parse Gemini response:', e);
     }
+    return this.getDefaultContentSummary();
   }
 
-  /**
-   * Enhance sender insights with AI-generated summaries
-   */
   private async enhanceSenderInsights(
     senderInsights: SenderInsights[],
     messages: MessageData[]
   ): Promise<SenderInsights[]> {
     // For top 5 senders, generate personalized summaries
     const topSenders = senderInsights.slice(0, 5);
-    
     const enhancedInsights = await Promise.all(
       topSenders.map(async (sender) => {
         try {
@@ -363,25 +347,16 @@ ${conversationText}`;
             sender.senderName,
             senderMessages
           );
-          
-          return {
-            ...sender,
-            summary: senderSummary
-          };
+          return { ...sender, summary: senderSummary };
         } catch (error) {
           console.error(`[WhatsApp AI Summary] Error enhancing sender ${sender.senderName}:`, error);
           return sender; // Return original if enhancement fails
         }
       })
     );
-
-    // Combine enhanced top senders with rest of the senders
     return [...enhancedInsights, ...senderInsights.slice(5)];
   }
 
-  /**
-   * Generate AI-powered summary for individual sender
-   */
   private async generateAISenderSummary(
     senderName: string,
     messages: MessageData[]
@@ -392,7 +367,6 @@ ${conversationText}`;
     }
 
     const messageTexts = messages.slice(-20).map(m => m.message).join('. ');
-    
     const prompt = `Summarize what ${senderName} discussed in these messages in one concise sentence (max 100 characters): "${messageTexts}"`;
 
     try {
@@ -402,32 +376,22 @@ ${conversationText}`;
           {
             model: 'gpt-3.5-turbo',
             messages: [{ role: 'user', content: prompt }],
-            temperature: 0.3,
+            temperature: 0.2,
             max_tokens: 50
           },
-          {
-            headers: {
-              'Authorization': `Bearer ${OPENAI_API_KEY}`,
-              'Content-Type': 'application/json'
-            }
-          }
+          { headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' } }
         );
-
         const summary = response.data?.choices?.[0]?.message?.content;
         return summary ? summary.substring(0, 100) : `Sent ${messages.length} messages`;
       }
     } catch (error) {
       console.error('[WhatsApp AI Summary] Error generating sender summary:', error);
     }
-
     return `Sent ${messages.length} messages`;
   }
 
-  /**
-   * Validate and normalize content summary
-   */
   private validateContentSummary(data: any): ContentSummary {
-    return {
+    const result: ContentSummary = {
       overallSummary: data.overallSummary || 'Summary not available',
       keyTopics: Array.isArray(data.keyTopics) ? data.keyTopics : [],
       sentiment: this.validateSentiment(data.sentiment),
@@ -435,19 +399,19 @@ ${conversationText}`;
       importantEvents: Array.isArray(data.importantEvents) ? data.importantEvents : [],
       decisionsMade: Array.isArray(data.decisionsMade) ? data.decisionsMade : []
     };
+    if (Array.isArray(data.speakerAttributions)) {
+      result.speakerAttributions = data.speakerAttributions
+        .filter((x: any) => x && typeof x.speakerName === 'string' && Array.isArray(x.bullets))
+        .map((x: any) => ({ speakerName: String(x.speakerName), bullets: x.bullets.map((b: any) => String(b)) }));
+    }
+    return result;
   }
 
-  /**
-   * Validate sentiment value
-   */
   private validateSentiment(sentiment: any): 'positive' | 'neutral' | 'negative' | 'mixed' {
     const validSentiments = ['positive', 'neutral', 'negative', 'mixed'];
     return validSentiments.includes(sentiment) ? sentiment : 'neutral';
   }
 
-  /**
-   * Get default content summary when AI is not available
-   */
   private getDefaultContentSummary(): ContentSummary {
     return {
       overallSummary: 'AI summary generation failed. Please check your API configuration.',

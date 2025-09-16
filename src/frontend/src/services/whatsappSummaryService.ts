@@ -81,7 +81,11 @@ export class WhatsAppSummaryService {
           minMessageCount: 1,
           keywordMinCount: 2,
           emojiMinCount: 2,
-          excludeSystemMessages: true
+          excludeSystemMessages: true,
+          // Ask backend to auto-detect language and include per-speaker attributions
+          targetLanguage: 'auto',
+          speakerAttribution: true,
+          maxSpeakerAttributions: 5
         }
       };
 
