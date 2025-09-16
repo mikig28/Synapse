@@ -2058,7 +2058,8 @@ class WAHAService extends EventEmitter {
   /**
    * Webhook handler for WAHA events (following WAHA documentation event structure)
    */
-  async handleWebhook(payload: any): Promise<void> {
+  // Duplicate handleWebhook removed; use the primary handleWebhook(body) above
+  /* async handleWebhook(payload: any): Promise<void> {
     try {
       console.log('[WAHA Service] Webhook received:', payload);
       
@@ -2197,7 +2198,7 @@ class WAHAService extends EventEmitter {
     } catch (error) {
       console.error('[WAHA Service] ❌ Webhook handling error:', error);
     }
-  }
+  } */
 
   /**
    * Save message to WhatsApp messages database
