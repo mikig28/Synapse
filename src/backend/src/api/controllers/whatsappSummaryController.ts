@@ -363,6 +363,76 @@ export const generateDailySummary = async (req: Request, res: Response) => {
         new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms))
       ]) as T;
     };
+
+    const toMilliseconds = (value: number): number => (value > 1000000000000 ? value : value * 1000);
+
+    const normalizeTimestampToDate = (value: any): Date | null => {
+      if (!value) {
+        return null;
+      }
+
+      if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? null : value;
+      }
+
+      if (typeof value === 'number') {
+        if (!Number.isFinite(value)) {
+          return null;
+        }
+        return new Date(toMilliseconds(value));
+      }
+
+      if (typeof value === 'string') {
+        const numericValue = Number(value);
+        if (Number.isFinite(numericValue)) {
+          return new Date(toMilliseconds(numericValue));
+        }
+
+        const parsed = Date.parse(value);
+        return Number.isNaN(parsed) ? null : new Date(parsed);
+      }
+
+      if (typeof value === 'object') {
+        if (typeof value?.toDate === 'function') {
+          const converted = value.toDate();
+          return converted instanceof Date && !Number.isNaN(converted.getTime()) ? converted : null;
+        }
+
+        if (typeof (value as any)?.seconds === 'number') {
+          return new Date(toMilliseconds((value as any).seconds));
+        }
+
+        if (typeof (value as any)?._seconds === 'number') {
+          return new Date(toMilliseconds((value as any)._seconds));
+        }
+      }
+
+      return null;
+    };
+
+    const resolveMessageTimestamp = (message: any): Date | null => {
+      const candidates = [
+        message?.timestamp,
+        message?.timestampMs,
+        message?.messageTimestamp,
+        message?.messageTimestampMs,
+        message?.msgTimestamp,
+        message?.createdAt,
+        message?.chatTimestamp,
+        message?.sentAt,
+        message?.receiveTimestamp,
+        message?.serverTimestamp
+      ];
+
+      for (const candidate of candidates) {
+        const normalized = normalizeTimestampToDate(candidate);
+        if (normalized) {
+          return normalized;
+        }
+      }
+
+      return null;
+    };
     
 // Get group info from WAHA, then fallbacks to DB/name inference
     const wahaService = WAHAService.getInstance();
@@ -527,24 +597,41 @@ export const generateDailySummary = async (req: Request, res: Response) => {
         const raw = await withTimeout(wahaFetch, Math.min(20000, timeLeft()), 'WAHA messages fetch');
         const startMs = utcStart.getTime();
         const endMs = utcEnd.getTime();
-        const filtered = raw.filter((m: any) => {
-          const tsNum = Number(m?.timestamp);
-          if (!isFinite(tsNum)) return false;
-          // WAHA timestamps are seconds; convert to ms if needed
-          const tsMs = tsNum > 1000000000000 ? tsNum : tsNum * 1000;
+
+        const normalizedMessages = raw.map((m: any) => ({
+          original: m,
+          timestamp: resolveMessageTimestamp(m)
+        }));
+
+        const filtered = normalizedMessages.filter(({ timestamp }) => {
+          if (!timestamp) {
+            return false;
+          }
+
+          const tsMs = timestamp.getTime();
           return tsMs >= startMs && tsMs <= endMs;
         });
-        console.log(`[WhatsApp Summary] WAHA fallback found ${filtered.length} messages in time range`);
+
+        console.log(`[WhatsApp Summary] WAHA fallback found ${filtered.length} messages in time range (out of ${raw.length})`);
+        if (filtered.length === 0 && raw.length > 0) {
+          const missingTimestamps = normalizedMessages.filter(entry => !entry.timestamp).length;
+          if (missingTimestamps > 0) {
+            console.log(`[WhatsApp Summary] WAHA fallback skipped ${missingTimestamps} messages due to missing/invalid timestamps`);
+          }
+        }
+
         if (filtered.length > 0) {
           // Normalize to the minimal fields we use downstream
-          messages = filtered.map((m: any) => ({
-            messageId: m.id,
-            message: m.body || '',
-            // Store as Date for downstream sorting/mapping
-            timestamp: new Date((Number(m.timestamp) > 1000000000000 ? Number(m.timestamp) : Number(m.timestamp) * 1000) || Date.now()),
-            createdAt: new Date((Number(m.timestamp) > 1000000000000 ? Number(m.timestamp) : Number(m.timestamp) * 1000) || Date.now()),
-            type: m.type || 'text',
-            from: m.from
+          messages = filtered.map(({ original, timestamp }) => ({
+            messageId: original.id || original.key?.id || `${fetchChatId}-${timestamp.getTime()}`,
+            message: original.body || original.text || original.message || '',
+            timestamp,
+            createdAt: timestamp,
+            type: original.type || 'text',
+            from: original.from || original.author || original.sender || '',
+            contactId: {
+              name: original.contactName || original.pushName || original.senderName || original.from || 'Unknown'
+            }
           }));
           queryUsed = 'WAHA direct fetch';
         }
@@ -618,12 +705,17 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     
     // Transform to MessageData format
     const messageData: MessageData[] = messages.map((msg: any) => ({
-      id: msg.messageId || msg._id.toString(),
+      id: msg.messageId || msg._id?.toString?.() || `${groupId}-${((msg as any).timestamp as Date)?.getTime?.() || Date.now()}`,
       message: msg.message || '',
       timestamp: (msg as any).timestamp || (msg as any).createdAt,
       type: msg.type || 'text',
-      senderName: (msg.contactId as any)?.name || `Contact ${msg.from}`,
-      senderPhone: msg.from
+      senderName:
+        (msg.contactId as any)?.name ||
+        (msg as any).contactName ||
+        (msg as any).pushName ||
+        (msg as any).senderName ||
+        `Contact ${msg.from || (msg as any).author || 'unknown'}`,
+      senderPhone: msg.from || (msg as any).author || (msg as any).sender || ''
     }));
     
     // Generate summary
