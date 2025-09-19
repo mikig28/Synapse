@@ -164,7 +164,7 @@ const SummaryModal: React.FC<SummaryDisplayProps> = ({
           exit={{ scale: 0.95, opacity: 0 }}
           className="max-w-6xl w-full max-h-[90vh] overflow-hidden"
         >
-          <GlassCard className="flex flex-col h-full">
+          <GlassCard className="h-full" contentClassName="flex flex-col h-full min-h-0">
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-white/10">
               <div>
@@ -206,7 +206,7 @@ const SummaryModal: React.FC<SummaryDisplayProps> = ({
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-6 min-h-0">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column - Overview & Stats */}
                 <div className="lg:col-span-2 space-y-6">
