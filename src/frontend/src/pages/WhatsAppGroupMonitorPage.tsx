@@ -1645,7 +1645,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                 exit={{ scale: 0.95, opacity: 0 }}
                 className="max-w-4xl w-full max-h-[90vh] overflow-hidden"
               >
-                <GlassCard className="h-full flex flex-col">
+                <GlassCard className="h-full" contentClassName="flex flex-col h-full min-h-0">
                   {/* Header */}
                   <div className="flex items-center justify-between p-6 border-b border-white/10">
                     <div>
@@ -1676,7 +1676,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                   </div>
 
                   {/* Content */}
-                  <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                  <div className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0">
                     {/* Overview */}
                     <div>
                       <h4 className="text-lg font-semibold text-white mb-3">Overview</h4>

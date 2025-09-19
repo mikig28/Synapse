@@ -2,12 +2,13 @@ import React from 'react';
 import { motion, HTMLMotionProps } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
-interface GlassCardProps extends HTMLMotionProps<"div"> {
+interface GlassCardProps extends HTMLMotionProps<'div'> {
   children: React.ReactNode;
   className?: string;
   glowColor?: string;
   blur?: 'sm' | 'md' | 'lg' | 'xl';
   hover?: boolean;
+  contentClassName?: string;
 }
 
 export const GlassCard: React.FC<GlassCardProps> = ({
@@ -16,6 +17,7 @@ export const GlassCard: React.FC<GlassCardProps> = ({
   glowColor = 'rgba(99, 102, 241, 0.15)',
   blur = 'md',
   hover = true,
+  contentClassName,
   ...props
 }) => {
   const blurClasses = {
@@ -70,7 +72,7 @@ export const GlassCard: React.FC<GlassCardProps> = ({
       />
 
       {/* Content */}
-      <div className="relative z-10">
+      <div className={cn('relative z-10', contentClassName)}>
         {children}
       </div>
 
