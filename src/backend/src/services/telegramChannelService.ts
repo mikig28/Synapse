@@ -297,38 +297,35 @@ class TelegramChannelService {
    */
   private async getRecentChannelMessages(channelId: string, userId: string): Promise<ITelegramChannelMessage[]> {
     try {
+      const isPublicChannel = channelId.startsWith('@');
+
       // Get user's bot instance
       let bot = telegramBotManager.getBotForUser(userId);
-      
-      // If no bot found, try to initialize it
+
+      // If no bot found, try to initialize it from stored token
       if (!bot) {
         console.log(`[TelegramChannelService] No active bot found for user ${userId}, attempting to initialize...`);
-        
-        // Get user with bot token
+
         const user = await User.findById(userId).select('+telegramBotToken');
         if (user?.telegramBotToken && user.telegramBotActive) {
           console.log(`[TelegramChannelService] Found bot token for user ${userId}, initializing bot...`);
           const initResult = await telegramBotManager.setBotForUser(userId, user.telegramBotToken);
-          
+
           if (initResult.success) {
             bot = telegramBotManager.getBotForUser(userId);
             console.log(`[TelegramChannelService] ✅ Successfully initialized bot for user ${userId}`);
           } else {
             console.error(`[TelegramChannelService] Failed to initialize bot for user ${userId}:`, initResult.error);
-            // Mark channel as having bot issues
             await this.markChannelWithError(channelId, userId, `Bot initialization failed: ${initResult.error}`);
-            throw new Error(`Bot initialization failed: ${initResult.error}`);
+            return [];
           }
-        } else {
-          // Mark channel as having no active bot
-          await this.markChannelWithError(channelId, userId, 'No active bot found for user. Please configure your Telegram bot first.');
-          throw new Error('No active bot found for user. Please configure your Telegram bot first.');
         }
       }
-      
+
       if (!bot) {
-        await this.markChannelWithError(channelId, userId, 'No active bot found for user. Please configure your Telegram bot first.');
-        throw new Error('No active bot found for user. Please configure your Telegram bot first.');
+        // No active bot available – provide RSS fallback for public channels if possible
+        const fallbackMessages = await this.handleNoBotFallback(channelId, userId, isPublicChannel);
+        return fallbackMessages;
       }
 
       // For groups and channels, messages will be received via the main message handler
@@ -439,6 +436,54 @@ class TelegramChannelService {
       
     } catch (error) {
       console.error(`[TelegramChannelService] Error in getRecentChannelMessages:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Provide fallback when no bot is available (e.g., public channels without bot configured)
+   */
+  private async handleNoBotFallback(channelId: string, userId: string, isPublicChannel: boolean): Promise<ITelegramChannelMessage[]> {
+    try {
+      if (isPublicChannel) {
+        console.warn(`[TelegramChannelService] No bot configured for user ${userId}. Attempting RSS fallback for ${channelId}.`);
+        const rssMessages = await this.tryRSSFeedFromRSS(channelId);
+
+        if (rssMessages.length > 0) {
+          await TelegramChannel.findOneAndUpdate(
+            { channelId, userId: new mongoose.Types.ObjectId(userId) },
+            {
+              $set: {
+                lastError: 'Bot not configured. Using RSS fallback for public channel. Configure your bot to enable real-time updates.',
+                lastFetchedAt: new Date()
+              }
+            }
+          );
+          console.log(`[TelegramChannelService] RSS fallback succeeded for ${channelId} with ${rssMessages.length} messages.`);
+          return rssMessages;
+        }
+
+        await this.markChannelWithError(
+          channelId,
+          userId,
+          'Bot not configured. RSS fallback returned no messages. Add your bot for real-time monitoring.'
+        );
+        return [];
+      }
+
+      await this.markChannelWithError(
+        channelId,
+        userId,
+        'No active bot found for user. Please configure your Telegram bot first.'
+      );
+      return [];
+    } catch (error) {
+      console.error(`[TelegramChannelService] Error during no-bot fallback for ${channelId}:`, error);
+      await this.markChannelWithError(
+        channelId,
+        userId,
+        'Unable to fetch channel messages without bot access. Configure your bot to resume monitoring.'
+      );
       return [];
     }
   }

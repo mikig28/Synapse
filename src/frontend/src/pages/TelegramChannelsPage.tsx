@@ -619,7 +619,7 @@ const TelegramChannelsPage: React.FC = () => {
                         {channel.lastError && (
                           <div className="bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
                             <p className="text-xs text-orange-700 dark:text-orange-300 leading-tight">
-                              <strong>Setup needed:</strong> Bot requires permissions to read messages
+                              <strong>Attention:</strong> {channel.lastError}
                             </p>
                           </div>
                         )}
