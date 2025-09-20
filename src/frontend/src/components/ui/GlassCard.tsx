@@ -2,12 +2,13 @@ import React from 'react';
 import { motion, HTMLMotionProps } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
-interface GlassCardProps extends HTMLMotionProps<"div"> {
+interface GlassCardProps extends HTMLMotionProps<'div'> {
   children: React.ReactNode;
   className?: string;
   glowColor?: string;
   blur?: 'sm' | 'md' | 'lg' | 'xl';
   hover?: boolean;
+  contentClassName?: string;
 }
 
 export const GlassCard: React.FC<GlassCardProps> = ({
@@ -16,6 +17,7 @@ export const GlassCard: React.FC<GlassCardProps> = ({
   glowColor = 'rgba(99, 102, 241, 0.15)',
   blur = 'md',
   hover = true,
+  contentClassName,
   ...props
 }) => {
   const blurClasses = {
@@ -48,7 +50,7 @@ export const GlassCard: React.FC<GlassCardProps> = ({
   return (
     <motion.div
       className={cn(
-        "relative overflow-hidden rounded-2xl",
+        "group relative overflow-hidden rounded-2xl",
         "bg-white/20 dark:bg-white/10 sm:bg-white/10 sm:dark:bg-white/5",
         blurClasses[blur],
         "border border-white/20 dark:border-white/10",
@@ -63,14 +65,14 @@ export const GlassCard: React.FC<GlassCardProps> = ({
     >
       {/* Gradient glow effect */}
       <div
-        className="absolute inset-0 opacity-0 transition-opacity duration-300 hover:opacity-30 sm:hover:opacity-100"
+        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-30 sm:group-hover:opacity-100"
         style={{
           background: `radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 50%), ${glowColor}, transparent 60%)`,
         }}
       />
 
       {/* Content */}
-      <div className="relative z-10">
+      <div className={cn('relative z-10', contentClassName)}>
         {children}
       </div>
 
