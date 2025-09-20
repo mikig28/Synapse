@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/GlassCard';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -1676,7 +1677,8 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                   </div>
 
                   {/* Content */}
-                  <div className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0">
+                  <ScrollArea type="always" className="flex-1 min-h-0">
+                    <div className="p-6 space-y-6">
                     {/* Overview */}
                     <div>
                       <h4 className="text-lg font-semibold text-white mb-3">Overview</h4>
@@ -1889,6 +1891,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                       </div>
                     )}
                   </div>
+                  </ScrollArea>
                 </GlassCard>
               </motion.div>
             </motion.div>
