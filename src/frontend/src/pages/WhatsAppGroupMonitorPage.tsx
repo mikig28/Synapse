@@ -1644,7 +1644,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="w-full max-w-4xl overflow-hidden h-[calc(100vh-2rem)] supports-[height:100dvh]:h-[calc(100dvh-2rem)] sm:h-auto sm:max-h-[90vh]"
+                className="w-full max-w-4xl h-[calc(100vh-2rem)] supports-[height:100dvh]:h-[calc(100dvh-2rem)] sm:h-[90vh] sm:max-h-[90vh]"
               >
                 <GlassCard className="h-full" contentClassName="flex flex-col h-full min-h-0">
                   {/* Header */}
