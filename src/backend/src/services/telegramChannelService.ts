@@ -6,6 +6,7 @@ import { io } from '../server';
 import cron from 'node-cron';
 import Parser from 'rss-parser';
 import { telegramBotManager } from './telegramBotManager'; // Import bot manager
+import telegramMtprotoService from './telegramMtprotoService';
 
 class TelegramChannelService {
   private cronJobs: Map<string, cron.ScheduledTask> = new Map();
@@ -173,7 +174,7 @@ class TelegramChannelService {
    */
   async fetchChannelMessages(channelDbId: string): Promise<void> {
     let channel: ITelegramChannel | null = null;
-    
+
     try {
       channel = await TelegramChannel.findById(channelDbId);
       if (!channel || !channel.isActive) {
@@ -182,67 +183,62 @@ class TelegramChannelService {
 
       console.log(`[TelegramChannelService] Fetching messages for: ${channel.channelTitle}`);
 
-      // Check if channel has recent errors and should be skipped temporarily
       if (channel.lastError && channel.lastFetchedAt) {
         const timeSinceLastError = Date.now() - channel.lastFetchedAt.getTime();
-        const errorCooldown = 30 * 60 * 1000; // 30 minutes cooldown
-        
+        const errorCooldown = 30 * 60 * 1000;
+
         if (timeSinceLastError < errorCooldown) {
           console.log(`[TelegramChannelService] Skipping ${channel.channelTitle} - in error cooldown (${Math.round(timeSinceLastError / 1000 / 60)} min ago)`);
           return;
         }
       }
 
-      // Get messages using the user's bot instance
-      const messages = await this.getRecentChannelMessages(channel.channelId, channel.userId.toString());
+      let botMessages: ITelegramChannelMessage[] = [];
+      try {
+        botMessages = await this.getRecentChannelMessages(channel.channelId, channel.userId.toString());
+      } catch (botFetchError) {
+        console.error(`[TelegramChannelService] Error fetching messages via bot for ${channel.channelTitle}:`, (botFetchError as Error).message);
+      }
+
+      const mtprotoMessages = await this.fetchMessagesViaMtproto(channel);
+      const messages = this.mergeMessageLists(mtprotoMessages, botMessages);
 
       if (messages.length > 0) {
-        // Filter by keywords if specified
+        const highestMessageId = messages.reduce((acc, message) => Math.max(acc, message.messageId), channel.lastFetchedMessageId || 0);
+        channel.lastFetchedMessageId = highestMessageId;
+
         const filteredMessages = this.filterMessagesByKeywords(messages, channel.keywords);
-        
-        // Add new messages to the channel
-        const newMessages = filteredMessages.filter(msg => 
-          !channel.messages.find(existing => existing.messageId === msg.messageId)
-        );
+        const newMessages = filteredMessages.filter(msg => !channel.messages.find(existing => existing.messageId === msg.messageId));
 
         if (newMessages.length > 0) {
           channel.messages.push(...newMessages);
           channel.totalMessages += newMessages.length;
-          channel.lastFetchedAt = new Date();
-          
-          if (newMessages.length > 0) {
-            channel.lastFetchedMessageId = Math.max(...newMessages.map(m => m.messageId));
-          }
 
-          await channel.save();
-
-          console.log(`[TelegramChannelService] ✅ Added ${newMessages.length} new messages for ${channel.channelTitle}`);
-
-          // Emit real-time updates for new messages
-          if (io && newMessages.length > 0) {
+          if (io) {
             io.emit('new_telegram_channel_messages', {
               userId: channel.userId.toString(),
               channelId: channel._id.toString(),
               messages: newMessages
             });
           }
-        } else {
-          // Update last fetched time even if no new messages
-          channel.lastFetchedAt = new Date();
-          await channel.save();
+        }
+
+        channel.lastFetchedAt = new Date();
+        await channel.save();
+
+        if (newMessages.length > 0) {
+          console.log(`[TelegramChannelService] ✅ Added ${newMessages.length} new messages for ${channel.channelTitle}`);
         }
       } else {
-        // Update last fetched time even if no messages returned
         channel.lastFetchedAt = new Date();
         await channel.save();
       }
     } catch (error) {
       const errorMessage = (error as Error).message;
       console.error(`[TelegramChannelService] Error fetching channel messages for ${channel?.channelTitle || 'unknown'}:`, errorMessage);
-      
-      // Don't log the full stack trace for known permission errors
-      if (!errorMessage.includes('Channel/group not found') && 
-          !errorMessage.includes('Bot needs to be added') && 
+
+      if (!errorMessage.includes('Channel/group not found') &&
+          !errorMessage.includes('Bot needs to be added') &&
           !errorMessage.includes('No active bot found')) {
         console.error('Full error details:', error);
       }
@@ -252,45 +248,76 @@ class TelegramChannelService {
   /**
    * Get channel information using user's bot
    */
-  private async getChannelInfo(channelIdentifier: string, userId: string): Promise<any> {
+  private async getChannelInfo(channelIdentifier: string, userId: string): Promise<{
+    id: string | number;
+    title: string;
+    username?: string;
+    description?: string;
+    type?: string;
+  } | null> {
+    let botError: Error | null = null;
+    let bot: TelegramBot | null = telegramBotManager.getBotForUser(userId);
+
     try {
-      // Get the user's bot instance
-      let bot = telegramBotManager.getBotForUser(userId);
-      
-      // If no bot found, try to initialize it
       if (!bot) {
         console.log(`[TelegramChannelService] No active bot found for user ${userId}, attempting to initialize...`);
-        
-        // Get user with bot token
+
         const user = await User.findById(userId).select('+telegramBotToken');
         if (user?.telegramBotToken && user.telegramBotActive) {
           console.log(`[TelegramChannelService] Found bot token for user ${userId}, initializing bot...`);
           const initResult = await telegramBotManager.setBotForUser(userId, user.telegramBotToken);
-          
+
           if (initResult.success) {
             bot = telegramBotManager.getBotForUser(userId);
             console.log(`[TelegramChannelService] ✅ Successfully initialized bot for user ${userId}`);
-          } else {
-            console.error(`[TelegramChannelService] Failed to initialize bot for user ${userId}:`, initResult.error);
+          } else if (initResult.error) {
+            botError = new Error(initResult.error);
           }
+        } else {
+          botError = new Error('No active bot found for user.');
         }
       }
-      
-      if (!bot) {
-        throw new Error('No active bot found for user. Please configure your Telegram bot first.');
-      }
 
-      // Try to get chat info - works for public channels/groups
-      const chat = await bot.getChat(channelIdentifier);
-      return chat;
-    } catch (error) {
-      console.error(`[TelegramChannelService] Error getting channel info for ${channelIdentifier}:`, error);
-      if ((error as Error).message.includes('chat not found')) {
-        throw new Error(`Channel ${channelIdentifier} not found. Make sure it exists and is public.`);
+      if (bot) {
+        const chat = await bot.getChat(channelIdentifier);
+        return {
+          id: typeof chat.id === 'number' ? chat.id.toString() : chat.id,
+          title: chat.title || channelIdentifier,
+          username: (chat as any).username,
+          description: (chat as any).description || (chat as any).bio,
+          type: (chat as any).type
+        };
       }
-      throw new Error(`Cannot access channel ${channelIdentifier}. Make sure the bot is added to the group/channel with proper permissions.`);
+    } catch (error) {
+      botError = error as Error;
+      console.warn(`[TelegramChannelService] Bot channel lookup failed for ${channelIdentifier}:`, botError.message);
     }
+
+    if (telegramMtprotoService.isConfigured()) {
+      try {
+        const mtprotoInfo = await telegramMtprotoService.getChannelInfo(channelIdentifier);
+        if (mtprotoInfo) {
+          return mtprotoInfo;
+        }
+      } catch (mtprotoError) {
+        console.error(`[TelegramChannelService] MTProto channel lookup failed for ${channelIdentifier}:`, mtprotoError);
+      }
+    }
+
+    if (botError) {
+      if (botError.message.includes('chat not found')) {
+        throw new Error(`Channel ${channelIdentifier} not found. Make sure it exists, is public, or that the MTProto service account has joined it.`);
+      }
+      throw new Error(`Cannot access channel ${channelIdentifier}. ${botError.message}`);
+    }
+
+    if (!channelIdentifier.startsWith('@')) {
+      throw new Error(`Cannot access channel ${channelIdentifier}. Invite the monitoring service account or configure a bot.`);
+    }
+
+    return null;
   }
+
 
   /**
    * Get recent messages from channel using proper bot instance
@@ -443,50 +470,138 @@ class TelegramChannelService {
   /**
    * Provide fallback when no bot is available (e.g., public channels without bot configured)
    */
+  private async fetchMessagesViaMtproto(channel: ITelegramChannel): Promise<ITelegramChannelMessage[]> {
+    if (!telegramMtprotoService.isConfigured()) {
+      return [];
+    }
+
+    const identifier = this.resolveMtprotoIdentifier(channel);
+    if (!identifier) {
+      return [];
+    }
+
+    try {
+      const minId = channel.lastFetchedMessageId ?? 0;
+      return await telegramMtprotoService.fetchRecentMessages(identifier, {
+        minId,
+        limit: 200
+      });
+    } catch (error) {
+      console.error(`[TelegramChannelService] MTProto fetch failed for ${channel.channelTitle}:`, (error as Error).message);
+      return [];
+    }
+  }
+
+  private resolveMtprotoIdentifier(channel: ITelegramChannel): string | null {
+    if (channel.channelId.startsWith('@')) {
+      return channel.channelId;
+    }
+
+    if (/^-?\d+$/.test(channel.channelId)) {
+      return channel.channelId;
+    }
+
+    if (channel.channelUsername) {
+      return channel.channelUsername.startsWith('@') ? channel.channelUsername : `@${channel.channelUsername}`;
+    }
+
+    return null;
+  }
+
+  private mergeMessageLists(primary: ITelegramChannelMessage[], secondary: ITelegramChannelMessage[]): ITelegramChannelMessage[] {
+    if (!primary.length && !secondary.length) {
+      return [];
+    }
+
+    const merged: ITelegramChannelMessage[] = [];
+    const seen = new Set<number>();
+
+    for (const message of [...primary, ...secondary]) {
+      if (!seen.has(message.messageId)) {
+        seen.add(message.messageId);
+        merged.push(message);
+      }
+    }
+
+    return merged.sort((a, b) => a.messageId - b.messageId);
+  }
+
+
   private async handleNoBotFallback(channelId: string, userId: string, isPublicChannel: boolean): Promise<ITelegramChannelMessage[]> {
     try {
+      const channelDoc = await TelegramChannel.findOne({
+        channelId,
+        userId: new mongoose.Types.ObjectId(userId)
+      });
+
+      if (channelDoc && telegramMtprotoService.isConfigured()) {
+        const mtprotoMessages = await this.fetchMessagesViaMtproto(channelDoc);
+
+        if (mtprotoMessages.length > 0) {
+          const filteredMessages = this.filterMessagesByKeywords(mtprotoMessages, channelDoc.keywords);
+          const newMessages = filteredMessages.filter(msg => !channelDoc.messages.find(existing => existing.messageId === msg.messageId));
+
+          if (newMessages.length > 0) {
+            channelDoc.messages.push(...newMessages);
+            channelDoc.totalMessages += newMessages.length;
+            channelDoc.lastFetchedMessageId = Math.max(channelDoc.lastFetchedMessageId || 0, ...newMessages.map(m => m.messageId));
+
+            if (io) {
+              io.emit('new_telegram_channel_messages', {
+                userId,
+                channelId: channelDoc._id.toString(),
+                messages: newMessages
+              });
+            }
+          } else if (filteredMessages.length > 0) {
+            channelDoc.lastFetchedMessageId = Math.max(channelDoc.lastFetchedMessageId || 0, ...filteredMessages.map(m => m.messageId));
+          }
+
+          channelDoc.lastFetchedAt = new Date();
+          channelDoc.lastError = 'Monitoring via MTProto service account. Bot not configured.';
+          await channelDoc.save();
+
+          console.log(`[TelegramChannelService] MTProto fallback succeeded for ${channelId} with ${filteredMessages.length} messages.`);
+          return filteredMessages;
+        }
+      }
+
       if (isPublicChannel) {
         console.warn(`[TelegramChannelService] No bot configured for user ${userId}. Attempting RSS fallback for ${channelId}.`);
         const rssMessages = await this.tryRSSFeedFromRSS(channelId);
 
         if (rssMessages.length > 0) {
-          await TelegramChannel.findOneAndUpdate(
-            { channelId, userId: new mongoose.Types.ObjectId(userId) },
-            {
-              $set: {
-                lastError: 'Bot not configured. Using RSS fallback for public channel. Configure your bot to enable real-time updates.',
-                lastFetchedAt: new Date()
-              }
+          await TelegramChannel.findOneAndUpdate({
+            channelId,
+            userId: new mongoose.Types.ObjectId(userId)
+          }, {
+            $set: {
+              lastError: 'Bot not configured. Using RSS fallback for public channel.',
+              lastFetchedAt: new Date()
             }
-          );
+          });
           console.log(`[TelegramChannelService] RSS fallback succeeded for ${channelId} with ${rssMessages.length} messages.`);
           return rssMessages;
         }
 
-        await this.markChannelWithError(
-          channelId,
-          userId,
-          'Bot not configured. RSS fallback returned no messages. Add your bot for real-time monitoring.'
-        );
+        const noDataMessage = telegramMtprotoService.isConfigured()
+          ? 'Bot not configured. MTProto/RSS fallbacks returned no messages yet.'
+          : 'Bot not configured. RSS fallback returned no messages. Add your bot for real-time monitoring.';
+        await this.markChannelWithError(channelId, userId, noDataMessage);
         return [];
       }
 
-      await this.markChannelWithError(
-        channelId,
-        userId,
-        'No active bot found for user. Please configure your Telegram bot first.'
-      );
+      const errorMessage = telegramMtprotoService.isConfigured()
+        ? 'Bot not configured. Monitoring requires inviting the service account or configuring MTProto access.'
+        : 'No active bot found for user. Please configure your Telegram bot first.';
+      await this.markChannelWithError(channelId, userId, errorMessage);
       return [];
     } catch (error) {
       console.error(`[TelegramChannelService] Error during no-bot fallback for ${channelId}:`, error);
-      await this.markChannelWithError(
-        channelId,
-        userId,
-        'Unable to fetch channel messages without bot access. Configure your bot to resume monitoring.'
-      );
       return [];
     }
   }
+
 
   /**
    * Mark channel with error and update database
@@ -1035,3 +1150,14 @@ class TelegramChannelService {
 // Create singleton instance
 export const telegramChannelService = new TelegramChannelService();
 export default telegramChannelService;
+
+
+
+
+
+
+
+
+
+
+

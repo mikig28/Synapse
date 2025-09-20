@@ -76,6 +76,7 @@
     "rss-parser": "^3.13.0",
     "sharp": "^0.32.6",
     "socket.io": "^4.8.1",
+    "telegram": "^2.26.22",
     "tesseract.js": "^5.1.1",
     "tiktoken": "^1.0.17",
     "turndown": "^7.2.0",

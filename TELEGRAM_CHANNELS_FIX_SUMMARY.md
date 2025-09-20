@@ -122,4 +122,7 @@ The Telegram channels feature was not broken - it was missing a critical onboard
 3. **Immediate validation** and feedback
 4. **Working channel monitoring** once configured
 
-**The issue is now resolved and users can successfully monitor their Telegram channels! 🚀**
+**The issue is now resolved and users can successfully monitor their Telegram channels! 🚀**### 5. MTProto Monitoring Fallback
+- Added optional MTProto-based worker that uses TELEGRAM_API_ID, TELEGRAM_API_HASH, and TELEGRAM_USER_SESSION to authenticate a service account
+- When configured, the backend can fetch messages from channels and groups that do not allow bots, while keeping bot-based real-time updates for permitted chats
+- Fallback automatically records messages via the existing enrichment pipeline so /telegram-channels stays in sync
