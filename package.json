@@ -39,7 +39,8 @@
     "node-cron": "^4.2.1",
     "node-fetch": "^3.3.2",
     "openai": "^4.100.0",
-    "ora": "^8.2.0"
+    "ora": "^8.2.0",
+    "telegram": "^2.26.22"
   },
   "devDependencies": {
     "@stagewise/toolbar": "^0.2.1",

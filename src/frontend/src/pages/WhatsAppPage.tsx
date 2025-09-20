@@ -130,6 +130,15 @@ const WhatsAppPage: React.FC = () => {
   const [contactsMap, setContactsMap] = useState<Record<string, string>>({});
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
+  const handleChatScroll = () => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 4;
+    setIsAtBottom(atBottom);
+  };
   
   const { isAuthenticated, token } = useAuthStore();
 
@@ -718,7 +727,10 @@ const WhatsAppPage: React.FC = () => {
 
   // Define scrollToBottom function early
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Only autoscroll if user is near the bottom to preserve manual scroll-up
+    if (isAtBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   // Load messages for selected chat if we don't have any yet
@@ -3080,12 +3092,16 @@ const WhatsAppPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto my-4 space-y-3 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full min-h-0"
-                       style={{
-                         scrollbarWidth: 'auto',
-                         scrollbarColor: '#8b5cf6 rgba(255,255,255,0.2)',
-                         maxHeight: 'calc(100% - 120px)' // Ensure buttons stay visible
-                       }}>
+                  <div
+                    ref={chatContainerRef}
+                    onScroll={handleChatScroll}
+                    className="flex-1 overflow-y-auto my-4 space-y-3 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full min-h-0"
+                    style={{
+                      scrollbarWidth: 'auto',
+                      scrollbarColor: '#8b5cf6 rgba(255,255,255,0.2)',
+                      maxHeight: 'calc(100% - 120px)'
+                    }}
+                  >
                     {displayedMessages.length === 0 ? (
                       <div className="flex items-center justify-center h-full">
                         <div className="text-center">
