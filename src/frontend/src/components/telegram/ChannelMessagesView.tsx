@@ -191,7 +191,7 @@ const ChannelMessagesView: React.FC<ChannelMessagesViewProps> = ({ channel, onCl
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-6 py-4">
+        <ScrollArea className="px-6 py-4 h-[70vh]">
           {loading && messages.length === 0 ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
