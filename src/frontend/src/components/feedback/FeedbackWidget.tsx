@@ -38,6 +38,13 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
     'top-left': 'top-6 left-6'
   };
 
+  const closeButtonPositionClasses = {
+    'bottom-right': '-top-2 -right-2',
+    'bottom-left': '-top-2 -left-2',
+    'top-right': '-bottom-2 -right-2',
+    'top-left': '-bottom-2 -left-2'
+  };
+
   const quickActions = [
     {
       type: 'bug' as const,
@@ -74,6 +81,19 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
     setIsOpen(false);
   };
 
+  const clearPressTimer = () => {
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      setPressTimer(null);
+    }
+  };
+
+  const handleDismiss = () => {
+    clearPressTimer();
+    setShowDismissHint(false);
+    setIsVisible(false);
+  };
+
   const handleMouseDown = () => {
     const timer = setTimeout(() => {
       setShowDismissHint(true);
@@ -82,13 +102,9 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
   };
 
   const handleMouseUp = () => {
-    if (pressTimer) {
-      clearTimeout(pressTimer);
-      setPressTimer(null);
-    }
+    clearPressTimer();
     if (showDismissHint) {
-      setIsVisible(false);
-      setShowDismissHint(false);
+      handleDismiss();
     }
   };
 
@@ -107,7 +123,7 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
 
   const handleRightClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    setIsVisible(false);
+    handleDismiss();
   };
 
   if (!isVisible) return null;
@@ -126,6 +142,20 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
         }}
         className={`fixed z-40 ${positionClasses[position]} ${className} relative group`}
       >
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={handleDismiss}
+          onPointerDownCapture={(event) => event.stopPropagation()}
+          onPointerUpCapture={(event) => event.stopPropagation()}
+          className={`absolute ${closeButtonPositionClasses[position]} w-8 h-8 rounded-full bg-background/90 text-muted-foreground border border-border shadow-md hover:text-foreground hover:bg-muted transition-colors`}
+          aria-label="Dismiss feedback widget"
+          title="Dismiss feedback widget"
+        >
+          <X className="w-4 h-4" />
+        </Button>
+
         <AnimatePresence>
           {isOpen && showQuickActions && (
             <motion.div
