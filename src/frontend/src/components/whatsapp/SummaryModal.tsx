@@ -338,8 +338,9 @@ const SummaryModal: React.FC<SummaryDisplayProps> = ({
                     )}
                   </div>
                 </div>
+              </div>
 
-                {/* Participant Insights */}
+              {/* Participant Insights */}
                 {summary.senderInsights.length > 0 && (
                   <div>
                     <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
