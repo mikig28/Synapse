@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/GlassCard';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { 
   X, 
@@ -156,13 +157,13 @@ const SummaryModal: React.FC<SummaryDisplayProps> = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex justify-center items-stretch sm:items-center p-4"
       >
         <motion.div
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
-          className="max-w-6xl w-full max-h-[90vh] overflow-hidden"
+          className="w-full max-w-6xl overflow-hidden h-[calc(100vh-2rem)] supports-[height:100dvh]:h-[calc(100dvh-2rem)] sm:h-auto sm:max-h-[90vh]"
         >
           <GlassCard className="h-full" contentClassName="flex flex-col h-full min-h-0">
             {/* Header */}
@@ -206,8 +207,9 @@ const SummaryModal: React.FC<SummaryDisplayProps> = ({
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6 min-h-0">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <ScrollArea type="always" className="flex-1 min-h-0">
+              <div className="p-6 space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column - Overview & Stats */}
                 <div className="lg:col-span-2 space-y-6">
                   {/* Overview */}
@@ -335,61 +337,61 @@ const SummaryModal: React.FC<SummaryDisplayProps> = ({
                     </GlassCard>
                   )}
                 </div>
-              </div>
 
-              {/* Participant Insights */}
-              {summary.senderInsights.length > 0 && (
-                <div className="mt-6">
-                  <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-                    <User className="w-5 h-5 text-blue-400" />
-                    Participant Insights
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {summary.senderInsights.map((sender) => (
-                      <GlassCard key={sender.senderPhone} className="p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-semibold text-white truncate">{sender.senderName}</h4>
-                          <div className="text-right">
-                            <div className="text-sm font-medium text-violet-300">{sender.messageCount} msgs</div>
-                            <div className="text-xs text-blue-300/70">
-                              Peak: {formatHour(sender.activityPattern.peakHour)}
+                {/* Participant Insights */}
+                {summary.senderInsights.length > 0 && (
+                  <div>
+                    <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+                      <User className="w-5 h-5 text-blue-400" />
+                      Participant Insights
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {summary.senderInsights.map((sender) => (
+                        <GlassCard key={sender.senderPhone} className="p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-semibold text-white truncate">{sender.senderName}</h4>
+                            <div className="text-right">
+                              <div className="text-sm font-medium text-violet-300">{sender.messageCount} msgs</div>
+                              <div className="text-xs text-blue-300/70">
+                                Peak: {formatHour(sender.activityPattern.peakHour)}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        
-                        <p className="text-sm text-white/90 mb-3 leading-relaxed">
-                          {sender.summary}
-                        </p>
-                        
-                        <div className="flex items-center justify-between text-xs text-blue-300/70">
-                          <span>Avg: {sender.engagement.averageMessageLength} chars</span>
-                          {sender.engagement.mediaCount > 0 && (
-                            <span>{sender.engagement.mediaCount} media</span>
-                          )}
-                          {sender.engagement.questionCount > 0 && (
-                            <span>{sender.engagement.questionCount} questions</span>
-                          )}
-                        </div>
-                        
-                        {/* Quick insights */}
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {sender.topKeywords.slice(0, 3).map((keyword) => (
-                            <span key={keyword.keyword} className="px-2 py-1 bg-violet-500/20 text-violet-200 text-xs rounded-full">
-                              {keyword.keyword}
-                            </span>
-                          ))}
-                          {sender.topEmojis.slice(0, 3).map((emoji) => (
-                            <span key={emoji.emoji} className="text-sm">
-                              {emoji.emoji}
-                            </span>
-                          ))}
-                        </div>
-                      </GlassCard>
-                    ))}
+
+                          <p className="text-sm text-white/90 mb-3 leading-relaxed">
+                            {sender.summary}
+                          </p>
+
+                          <div className="flex items-center justify-between text-xs text-blue-300/70">
+                            <span>Avg: {sender.engagement.averageMessageLength} chars</span>
+                            {sender.engagement.mediaCount > 0 && (
+                              <span>{sender.engagement.mediaCount} media</span>
+                            )}
+                            {sender.engagement.questionCount > 0 && (
+                              <span>{sender.engagement.questionCount} questions</span>
+                            )}
+                          </div>
+
+                          {/* Quick insights */}
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {sender.topKeywords.slice(0, 3).map((keyword) => (
+                              <span key={keyword.keyword} className="px-2 py-1 bg-violet-500/20 text-violet-200 text-xs rounded-full">
+                                {keyword.keyword}
+                              </span>
+                            ))}
+                            {sender.topEmojis.slice(0, 3).map((emoji) => (
+                              <span key={emoji.emoji} className="text-sm">
+                                {emoji.emoji}
+                              </span>
+                            ))}
+                          </div>
+                        </GlassCard>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            </ScrollArea>
           </GlassCard>
         </motion.div>
       </motion.div>

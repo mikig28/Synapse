@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/GlassCard';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -1637,13 +1638,13 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex justify-center items-stretch sm:items-center p-4"
             >
               <motion.div
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="max-w-4xl w-full max-h-[90vh] overflow-hidden"
+                className="w-full max-w-4xl overflow-hidden h-[calc(100vh-2rem)] supports-[height:100dvh]:h-[calc(100dvh-2rem)] sm:h-auto sm:max-h-[90vh]"
               >
                 <GlassCard className="h-full" contentClassName="flex flex-col h-full min-h-0">
                   {/* Header */}
@@ -1676,7 +1677,8 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                   </div>
 
                   {/* Content */}
-                  <div className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0">
+                  <ScrollArea type="always" className="flex-1 min-h-0">
+                    <div className="p-6 space-y-6">
                     {/* Overview */}
                     <div>
                       <h4 className="text-lg font-semibold text-white mb-3">Overview</h4>
@@ -1716,12 +1718,17 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                         <div className="bg-white/5 rounded-lg p-4">
                           <h5 className="text-sm font-semibold text-blue-200 mb-2">Overall Sentiment</h5>
                           <div className="flex items-center gap-2">
-                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                              selectedSummary.aiInsights.sentiment === 'positive' ? 'bg-green-500/20 text-green-300' :
-                              selectedSummary.aiInsights.sentiment === 'negative' ? 'bg-red-500/20 text-red-300' :
-                              selectedSummary.aiInsights.sentiment === 'mixed' ? 'bg-yellow-500/20 text-yellow-300' :
-                              'bg-gray-500/20 text-gray-300'
-                            }`}>
+                            <span
+                              className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                selectedSummary.aiInsights.sentiment === 'positive'
+                                  ? 'bg-green-500/20 text-green-300'
+                                  : selectedSummary.aiInsights.sentiment === 'negative'
+                                  ? 'bg-red-500/20 text-red-300'
+                                  : selectedSummary.aiInsights.sentiment === 'mixed'
+                                  ? 'bg-yellow-500/20 text-yellow-300'
+                                  : 'bg-gray-500/20 text-gray-300'
+                              }`}
+                            >
                               {selectedSummary.aiInsights.sentiment.charAt(0).toUpperCase() + selectedSummary.aiInsights.sentiment.slice(1)}
                             </span>
                           </div>
@@ -1889,6 +1896,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                       </div>
                     )}
                   </div>
+                  </ScrollArea>
                 </GlassCard>
               </motion.div>
             </motion.div>
