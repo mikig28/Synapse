@@ -28,6 +28,8 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
   const [showModal, setShowModal] = useState(false);
   const [quickType, setQuickType] = useState<'bug' | 'feature' | 'rating' | null>(null);
   const [isVisible, setIsVisible] = useState(true);
+  const [pressTimer, setPressTimer] = useState<NodeJS.Timeout | null>(null);
+  const [showDismissHint, setShowDismissHint] = useState(false);
 
   const positionClasses = {
     'bottom-right': 'bottom-6 right-6',
@@ -72,6 +74,42 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
     setIsOpen(false);
   };
 
+  const handleMouseDown = () => {
+    const timer = setTimeout(() => {
+      setShowDismissHint(true);
+    }, 800); // Show hint after 800ms
+    setPressTimer(timer);
+  };
+
+  const handleMouseUp = () => {
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      setPressTimer(null);
+    }
+    if (showDismissHint) {
+      setIsVisible(false);
+      setShowDismissHint(false);
+    }
+  };
+
+  const handleClick = () => {
+    if (showDismissHint) {
+      setShowDismissHint(false);
+      return;
+    }
+
+    if (showQuickActions) {
+      setIsOpen(!isOpen);
+    } else {
+      setShowModal(true);
+    }
+  };
+
+  const handleRightClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsVisible(false);
+  };
+
   if (!isVisible) return null;
 
   return (
@@ -88,14 +126,6 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
         }}
         className={`fixed z-40 ${positionClasses[position]} ${className} relative group`}
       >
-        <button
-          onClick={() => setIsVisible(false)}
-          className="absolute top-0 right-0 bg-background dark:bg-foreground text-foreground dark:text-background hover:bg-background/80 dark:hover:bg-foreground/80 rounded-full p-1 shadow-md border border-border dark:border-background/20 z-10 translate-x-1 -translate-y-1"
-          aria-label="Dismiss feedback widget"
-          title="Hide"
-        >
-          <X className="w-3 h-3" />
-        </button>
         <AnimatePresence>
           {isOpen && showQuickActions && (
             <motion.div
@@ -163,22 +193,32 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
           whileTap={{ scale: 0.95 }}
         >
           <Button
-            onClick={() => {
-              if (showQuickActions) {
-                setIsOpen(!isOpen);
-              } else {
-                setShowModal(true);
-              }
-            }}
+            onClick={handleClick}
+            onMouseDown={handleMouseDown}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onContextMenu={handleRightClick}
             className={`
               relative w-14 h-14 rounded-full
               bg-primary hover:bg-primary/90 text-primary-foreground
               shadow-lg hover:shadow-xl transition-all duration-300
               ${isOpen ? 'rotate-45' : ''}
+              ${showDismissHint ? 'bg-red-500 hover:bg-red-600' : ''}
             `}
+            title={showDismissHint ? 'Release to dismiss' : 'Click to expand • Right-click or long press to dismiss'}
           >
             <AnimatePresence mode="wait">
-              {isOpen ? (
+              {showDismissHint ? (
+                <motion.div
+                  key="dismiss"
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.5 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <X className="w-6 h-6" />
+                </motion.div>
+              ) : isOpen ? (
                 <motion.div
                   key="close"
                   initial={{ opacity: 0, rotate: -90 }}
