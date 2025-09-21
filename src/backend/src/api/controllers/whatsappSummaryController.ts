@@ -142,11 +142,6 @@ export const getAvailableGroups = async (req: Request, res: Response) => {
         }
       },
       {
-        $match: {
-          messageCount: { $gt: 0 }
-        }
-      },
-      {
         $sort: { messageCount: -1 }
       }
     ]);
@@ -192,7 +187,9 @@ export const getAvailableGroups = async (req: Request, res: Response) => {
       return id;
     };
 
-    const enhancedGroups: GroupInfo[] = dbChats.map(chat => {
+    const conversationMap = new Map<string, GroupInfo>();
+
+    const enhancedFromDb: GroupInfo[] = dbChats.map(chat => {
       const normalizedId = normalizeId(chat.id);
       const bareId = typeof normalizedId === 'string' && normalizedId.includes('@')
         ? normalizedId.split('@')[0]
@@ -238,11 +235,11 @@ export const getAvailableGroups = async (req: Request, res: Response) => {
         : contactCandidate?.avatar;
 
       return {
-        id: serviceChat?.id || normalizedId,
+        id: normalizedId,
         name: displayName,
         participantCount,
-        messageCount: chat.messageCount,
-        totalMessages: chat.totalMessages,
+        messageCount: chat.messageCount ?? 0,
+        totalMessages: chat.totalMessages ?? chat.messageCount ?? 0,
         lastActivity: chat.lastActivity,
         isGroup,
         chatType: isGroup ? 'group' : 'private',
@@ -251,7 +248,78 @@ export const getAvailableGroups = async (req: Request, res: Response) => {
       } as GroupInfo;
     });
 
-    const sortedGroups = enhancedGroups.sort((a, b) => (b.messageCount || 0) - (a.messageCount || 0));
+    enhancedFromDb.forEach(convo => {
+      const normalizedId = normalizeId(convo.id);
+      const normalizedConvo: GroupInfo = {
+        ...convo,
+        id: normalizedId
+      };
+      if (!conversationMap.has(normalizedId)) {
+        conversationMap.set(normalizedId, normalizedConvo);
+      } else {
+        addOrMergeConversation(normalizedId, normalizedConvo);
+      }
+    });
+
+    function addOrMergeConversation(id: string, data: GroupInfo) {
+      const existing = conversationMap.get(id);
+      if (!existing) {
+        conversationMap.set(id, data);
+        return;
+      }
+
+      conversationMap.set(id, {
+        ...existing,
+        ...data,
+        messageCount: data.messageCount ?? existing.messageCount,
+        totalMessages: data.totalMessages ?? existing.totalMessages,
+        lastActivity: data.lastActivity ?? existing.lastActivity,
+        participantCount: data.participantCount ?? existing.participantCount,
+        avatarUrl: data.avatarUrl ?? existing.avatarUrl
+      });
+    }
+
+    chats.forEach(chat => {
+      if (!chat || !chat.id) return;
+      const normalizedId = normalizeId(String(chat.id));
+      const bareId = normalizedId.includes('@') ? normalizedId.split('@')[0] : normalizedId;
+      const isGroup = chat.isGroup || normalizedId.includes('@g.us');
+
+      const contactCandidate = !isGroup ? contactsByPhone.get(bareId) : undefined;
+      const participantCount = isGroup
+        ? chat.participantCount || conversationMap.get(normalizedId)?.participantCount || 0
+        : Math.max(2, contactCandidate ? 2 : 0);
+
+      const lastActivity = chat.timestamp
+        ? new Date(typeof chat.timestamp === 'number' ? chat.timestamp * 1000 : chat.timestamp)
+        : conversationMap.get(normalizedId)?.lastActivity;
+
+      const info: GroupInfo = {
+        id: normalizedId,
+        name: chat.name || contactCandidate?.name || bareId || normalizedId,
+        participantCount,
+        messageCount: conversationMap.get(normalizedId)?.messageCount || 0,
+        totalMessages: conversationMap.get(normalizedId)?.totalMessages,
+        lastActivity,
+        isGroup,
+        chatType: isGroup ? 'group' : 'private',
+        phoneNumber: !isGroup ? (contactCandidate?.phoneNumber || bareId) : undefined,
+        avatarUrl: isGroup ? chat.picture : contactCandidate?.avatar
+      };
+
+      addOrMergeConversation(normalizedId, info);
+    });
+
+    const enhancedGroups = Array.from(conversationMap.values());
+
+    const sortedGroups = enhancedGroups
+      .sort((a, b) => {
+        const countDiff = (b.messageCount || 0) - (a.messageCount || 0);
+        if (countDiff !== 0) return countDiff;
+        const timeA = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
+        const timeB = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
+        return timeB - timeA;
+      });
 
     console.log(`[WhatsApp Summary] Returning ${sortedGroups.length} conversations with recent activity`);
 
