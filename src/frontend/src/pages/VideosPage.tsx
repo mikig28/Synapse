@@ -12,6 +12,7 @@ import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Input } from '@/components/ui/input';
+import YouTubeRecommendations from '@/components/videos/YouTubeRecommendations';
 
 
 const VideosPage: React.FC = () => {
@@ -367,6 +368,11 @@ const VideosPage: React.FC = () => {
         >
           <Film className="inline-block h-10 w-10 mr-3 mb-1" /> My Video Library
         </motion.h1>
+
+        {/* YouTube Recommendations section */}
+        <motion.div variants={itemVariants} className="mb-12">
+          <YouTubeRecommendations />
+        </motion.div>
         
         {/* YouTube Player Section */}
         {playingVideoId && (

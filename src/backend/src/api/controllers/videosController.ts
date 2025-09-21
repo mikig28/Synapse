@@ -1,5 +1,8 @@
 import { Request, Response } from 'express';
 import VideoItem, { IVideoItem } from '../../models/VideoItem';
+import KeywordSubscription from '../../models/KeywordSubscription';
+import Video from '../../models/Video';
+import { fetchForUser } from '../../services/fetchVideos';
 import mongoose from 'mongoose';
 import axios from 'axios'; // For oEmbed
 import { summarizeYouTubeVideo } from '../../services/videoSummarizationService';
@@ -159,8 +162,37 @@ export const getVideos = async (req: AuthenticatedRequest, res: Response) => {
     if (!userId) {
       return res.status(401).json({ message: 'User not authenticated' });
     }
-    const videos = await VideoItem.find({ userId }).sort({ createdAt: -1 });
-    res.status(200).json(videos);
+    const { source, status, subscriptionId, q, page = '1', pageSize = '20', from, to } = req.query as Record<string, string>;
+
+    // Maintain backwards compatibility: if no source param, return legacy VideoItem list
+    if (!source) {
+      const legacyVideos = await VideoItem.find({ userId }).sort({ createdAt: -1 });
+      return res.status(200).json(legacyVideos);
+    }
+
+    // New YouTube recommendations listing
+    const filter: any = { userId: new mongoose.Types.ObjectId(userId) };
+    if (source) filter.source = source;
+    if (status) filter.status = status;
+    if (subscriptionId && mongoose.Types.ObjectId.isValid(subscriptionId)) filter.subscriptionId = new mongoose.Types.ObjectId(subscriptionId);
+    if (from || to) {
+      filter.publishedAt = {};
+      if (from) filter.publishedAt.$gte = new Date(from);
+      if (to) filter.publishedAt.$lte = new Date(to);
+    }
+
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const sizeNum = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
+
+    const mongoQuery = Video.find(filter).sort({ publishedAt: -1, relevance: -1, createdAt: -1 });
+    if (q) {
+      // Use text search if index exists; fallback to regex
+      mongoQuery.find({ $text: { $search: q } });
+    }
+
+    const total = await Video.countDocuments(mongoQuery.getFilter());
+    const items = await mongoQuery.skip((pageNum - 1) * sizeNum).limit(sizeNum).lean();
+    return res.status(200).json({ items, total, page: pageNum, pageSize: sizeNum });
   } catch (error) {
     console.error('[VideoController] Error fetching videos:', error);
     const message = error instanceof Error ? error.message : 'Unknown error fetching videos';
@@ -371,3 +403,68 @@ export const searchVideoMoments = async (req: AuthenticatedRequest, res: Respons
     return res.status(500).json({ message: 'Failed to search video moments' });
   }
 }; 
+
+// Subscriptions: GET list, POST create
+export const listSubscriptions = async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ message: 'User not authenticated' });
+  const subs = await KeywordSubscription.find({ userId: new mongoose.Types.ObjectId(userId) }).sort({ createdAt: -1 });
+  return res.status(200).json(subs);
+};
+
+export const createSubscription = async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ message: 'User not authenticated' });
+  const { keywords, includeShorts = true, freshnessDays = 14, maxPerFetch = 20, isActive = true } = req.body || {};
+
+  if (!Array.isArray(keywords) || keywords.length === 0) {
+    return res.status(400).json({ message: 'keywords[] is required' });
+  }
+
+  const doc = await KeywordSubscription.create({
+    userId: new mongoose.Types.ObjectId(userId),
+    keywords,
+    includeShorts: !!includeShorts,
+    freshnessDays,
+    maxPerFetch,
+    isActive: !!isActive,
+  });
+  return res.status(201).json(doc);
+};
+
+// Trigger: POST /fetch to run fetchForUser across active subscriptions
+export const triggerFetch = async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ message: 'User not authenticated' });
+
+  const apiKey = process.env.YOUTUBE_API_KEY;
+  if (!apiKey) return res.status(500).json({ message: 'YouTube API key not configured' });
+
+  const { subscriptionId } = req.body || {};
+  try {
+    const result = await fetchForUser({ userId, apiKey, subscriptionId });
+    return res.status(200).json({ success: true, ...result });
+  } catch (error: any) {
+    const msg = error?.response?.data || error?.message || 'Fetch failed';
+    return res.status(500).json({ success: false, error: msg });
+  }
+};
+
+// Moderation: PATCH /videos/:id -> { status }
+export const updateModerationStatus = async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ message: 'User not authenticated' });
+  const id = req.params.id;
+  const { status } = req.body as { status?: 'pending' | 'approved' | 'hidden' };
+  if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ message: 'Invalid id' });
+  if (!status || !['pending', 'approved', 'hidden'].includes(status)) {
+    return res.status(400).json({ message: 'Invalid status' });
+  }
+  const doc = await Video.findOneAndUpdate(
+    { _id: new mongoose.Types.ObjectId(id), userId: new mongoose.Types.ObjectId(userId) },
+    { status },
+    { new: true }
+  );
+  if (!doc) return res.status(404).json({ message: 'Not found' });
+  return res.status(200).json(doc);
+};
