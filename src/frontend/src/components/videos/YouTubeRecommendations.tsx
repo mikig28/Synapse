@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { useToast } from '@/hooks/use-toast';
 import { createSubscription, listRecommendations, listSubscriptions, triggerFetchNow, updateModeration } from '@/services/videoRecommendationsService';
 import { KeywordSubscription, RecommendationVideo, VideoModerationStatus } from '@/types/youtube';
-import { Check, EyeOff, Filter, Plus, RefreshCw, Youtube } from 'lucide-react';
+import { Check, EyeOff, Filter, Plus, RefreshCw, Youtube, X } from 'lucide-react';
 
 type StatusTab = 'all' | 'pending' | 'approved' | 'hidden';
 
@@ -261,6 +261,14 @@ export const YouTubeRecommendations: React.FC = () => {
                 ) : (
                   <div className="w-full h-full bg-slate-800" />
                 )}
+                {/* Dismiss (X) icon */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); onHide(v._id); }}
+                  title="Dismiss"
+                  className="absolute top-2 right-2 z-10 h-8 w-8 rounded-full bg-black/50 hover:bg-black/70 border border-white/20 flex items-center justify-center text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
               <CardHeader className="p-3">
                 <CardTitle className="text-sm line-clamp-2">{v.title}</CardTitle>
