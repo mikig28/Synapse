@@ -50,7 +50,7 @@ export const GlassCard: React.FC<GlassCardProps> = ({
   return (
     <motion.div
       className={cn(
-        "relative overflow-hidden rounded-2xl",
+        "relative overflow-hidden rounded-2xl group",
         "bg-white/20 dark:bg-white/10 sm:bg-white/10 sm:dark:bg-white/5",
         blurClasses[blur],
         "border border-white/20 dark:border-white/10",
@@ -65,7 +65,7 @@ export const GlassCard: React.FC<GlassCardProps> = ({
     >
       {/* Gradient glow effect */}
       <div
-        className="absolute inset-0 opacity-0 transition-opacity duration-300 hover:opacity-30 sm:hover:opacity-100"
+        className="absolute inset-0 pointer-events-none opacity-0 transition-opacity duration-300 group-hover:opacity-30 sm:group-hover:opacity-100"
         style={{
           background: `radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 50%), ${glowColor}, transparent 60%)`,
         }}
