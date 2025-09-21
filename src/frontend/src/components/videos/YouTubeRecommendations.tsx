@@ -16,7 +16,7 @@ type StatusTab = 'all' | 'pending' | 'approved' | 'hidden';
 export const YouTubeRecommendations: React.FC = () => {
   const { toast } = useToast();
   const [subscriptions, setSubscriptions] = useState<KeywordSubscription[]>([]);
-  const [selectedSubId, setSelectedSubId] = useState<string>('');
+  const [selectedSubId, setSelectedSubId] = useState<string>('all');
   const [status, setStatus] = useState<StatusTab>('pending');
   const [q, setQ] = useState<string>('');
   const [from, setFrom] = useState<string>('');
@@ -55,7 +55,7 @@ export const YouTubeRecommendations: React.FC = () => {
     try {
       setLoading(true);
       const res = await listRecommendations({
-        subscriptionId: selectedSubId || undefined,
+        subscriptionId: selectedSubId === 'all' ? undefined : selectedSubId,
         status: statusParam,
         q: q || undefined,
         from: from || undefined,
@@ -107,7 +107,7 @@ export const YouTubeRecommendations: React.FC = () => {
   const onFetchNow = async () => {
     try {
       setFetching(true);
-      const res = await triggerFetchNow(selectedSubId || undefined);
+      const res = await triggerFetchNow(selectedSubId === 'all' ? undefined : selectedSubId);
       toast({ title: 'Fetch complete', description: `Upserted ${res.fetched} videos` });
       await loadVideos();
     } catch {
@@ -206,7 +206,7 @@ export const YouTubeRecommendations: React.FC = () => {
                 <SelectValue placeholder="All subscriptions" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All subscriptions</SelectItem>
+                <SelectItem value="all">All subscriptions</SelectItem>
                 {subscriptions.map((s) => (
                   <SelectItem key={s._id} value={s._id}>{s.keywords.join(', ')}</SelectItem>
                 ))}
