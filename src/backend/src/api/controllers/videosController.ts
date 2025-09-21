@@ -505,3 +505,15 @@ export const updateModerationStatus = async (req: AuthenticatedRequest, res: Res
   if (!doc) return res.status(404).json({ message: 'Not found' });
   return res.status(200).json(doc);
 };
+
+// Delete a recommendation (Video model)
+export const deleteRecommendationVideo = async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ message: 'User not authenticated' });
+  const id = req.params.id;
+  if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ message: 'Invalid id' });
+
+  const result = await Video.deleteOne({ _id: new mongoose.Types.ObjectId(id), userId: new mongoose.Types.ObjectId(userId) });
+  if (result.deletedCount === 0) return res.status(404).json({ message: 'Not found' });
+  return res.status(200).json({ success: true });
+};

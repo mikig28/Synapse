@@ -65,4 +65,9 @@ export async function updateModeration(videoId: string, status: VideoModerationS
   return res.data;
 }
 
+export async function deleteRecommendationVideoApi(videoId: string): Promise<{ success: boolean }>{
+  const res = await axiosInstance.delete<{ success: boolean }>(`/videos/${videoId}/recommendation`);
+  return res.data;
+}
+
 

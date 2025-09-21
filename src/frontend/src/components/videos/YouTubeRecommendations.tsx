@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { createSubscription, listRecommendations, listSubscriptions, triggerFetchNow, updateModeration, updateSubscriptionApi, deleteSubscriptionApi } from '@/services/videoRecommendationsService';
+import { createSubscription, listRecommendations, listSubscriptions, triggerFetchNow, updateModeration, updateSubscriptionApi, deleteSubscriptionApi, deleteRecommendationVideoApi } from '@/services/videoRecommendationsService';
 import { KeywordSubscription, RecommendationVideo, VideoModerationStatus } from '@/types/youtube';
 import { Check, EyeOff, Filter, Plus, RefreshCw, Youtube, X } from 'lucide-react';
 
@@ -110,6 +110,16 @@ export const YouTubeRecommendations: React.FC = () => {
       setVideos((prev) => prev.map((v) => (v._id === id ? { ...v, status: 'hidden' } : v)));
     } catch {
       toast({ title: 'Failed to hide', variant: 'destructive' });
+    }
+  };
+
+  const onDeleteRecommendation = async (id: string) => {
+    try {
+      await deleteRecommendationVideoApi(id);
+      setVideos((prev) => prev.filter((v) => v._id !== id));
+      toast({ title: 'Removed from hidden' });
+    } catch {
+      toast({ title: 'Failed to remove', variant: 'destructive' });
     }
   };
 
@@ -389,6 +399,11 @@ export const YouTubeRecommendations: React.FC = () => {
                   {v.status !== 'hidden' && (
                     <AnimatedButton size="sm" variant="outline" onClick={() => onHide(v._id)} className="text-xs flex items-center">
                       <EyeOff className="h-3 w-3 mr-1" /> Hide
+                    </AnimatedButton>
+                  )}
+                  {v.status === 'hidden' && (
+                    <AnimatedButton size="sm" variant="ghost" onClick={() => onDeleteRecommendation(v._id)} className="text-xs text-red-400">
+                      Delete
                     </AnimatedButton>
                   )}
                 </div>
