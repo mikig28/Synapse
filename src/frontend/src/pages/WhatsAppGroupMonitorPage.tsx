@@ -555,7 +555,8 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
       const summary = await whatsappService.generateDailySummary({
         groupId: group.id,
         date: dateToUse.toISOString().split('T')[0], // YYYY-MM-DD format
-        timezone: whatsappService.getUserTimezone()
+        timezone: whatsappService.getUserTimezone(),
+        chatType: group.chatType || (group.isGroup ? 'group' : 'private')
       });
 
       setGroupSummaries(prev => new Map(prev.set(groupId, summary)));
@@ -591,7 +592,8 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
     try {
       const summary = await whatsappService.generateTodaySummary({
         groupId: group.id,
-        timezone: whatsappService.getUserTimezone()
+        timezone: whatsappService.getUserTimezone(),
+        chatType: group.chatType || (group.isGroup ? 'group' : 'private')
       });
 
       setGroupSummaries(prev => new Map(prev.set(groupId, summary)));

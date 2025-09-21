@@ -463,7 +463,7 @@ class WhatsAppService {
         if (err?.response?.status === 404) {
           console.warn('[WhatsAppService] /generate-today not found on backend, falling back to /generate with today date');
           const today = new Date().toISOString().split('T')[0];
-          const fallbackPayload: any = { groupId: (request as any).groupId, date: today, timezone: (request as any).timezone };
+          const fallbackPayload: any = { groupId: request.groupId, date: today, timezone: request.timezone, chatType: request.chatType };
           console.log('[WhatsAppService] Fallback payload:', fallbackPayload);
           response = await api.post(`${this.summaryUrl}/generate`, fallbackPayload);
         } else {

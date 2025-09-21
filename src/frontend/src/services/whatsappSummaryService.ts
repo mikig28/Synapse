@@ -19,7 +19,10 @@ export class WhatsAppSummaryService {
       const response = await api.get<ApiResponse<GroupInfo[]>>('/whatsapp-summary/groups');
       
       if (response.data.success && response.data.data) {
-        return response.data.data;
+        return response.data.data.map(group => ({
+          ...group,
+          lastActivity: group.lastActivity ? new Date(group.lastActivity) : undefined
+        }));
       }
       
       throw new Error(response.data.error || 'Failed to fetch groups');
@@ -66,13 +69,15 @@ export class WhatsAppSummaryService {
   public static async generateDailySummary(
     groupId: string,
     date: string,
-    timezone: string = Intl.DateTimeFormat().resolvedOptions().timeZone
+    timezone: string = Intl.DateTimeFormat().resolvedOptions().timeZone,
+    chatType?: 'group' | 'private'
   ): Promise<GroupSummaryData> {
     try {
       const request: SummaryRequest = {
         groupId,
         date,
         timezone,
+        chatType,
         options: {
           maxSummaryLength: 500,
           maxSenderSummaryLength: 60,
@@ -112,19 +117,21 @@ export class WhatsAppSummaryService {
    */
   public static async generateTodaySummary(
     groupId: string,
-    timezone: string = Intl.DateTimeFormat().resolvedOptions().timeZone
+    timezone: string = Intl.DateTimeFormat().resolvedOptions().timeZone,
+    chatType?: 'group' | 'private'
   ): Promise<GroupSummaryData> {
     try {
       const request: TodaySummaryRequest = {
         groupId,
-        timezone
+        timezone,
+        chatType
       };
 
       // Use authenticated route in production, with fallback to /generate
       let response = await api.post<ApiResponse<GroupSummaryData>>('/whatsapp-summary/generate-today', request);
       if (!response.data?.success || !response.data?.data) {
         const today = new Date().toISOString().split('T')[0];
-        response = await api.post<ApiResponse<GroupSummaryData>>('/whatsapp-summary/generate', { groupId, date: today, timezone });
+        response = await api.post<ApiResponse<GroupSummaryData>>('/whatsapp-summary/generate', { groupId, date: today, timezone, chatType });
       }
       
       if (response.data.success && response.data.data) {

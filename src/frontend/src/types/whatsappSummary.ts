@@ -6,6 +6,11 @@ export interface GroupInfo {
   participantCount?: number;
   lastActivity?: Date;
   messageCount?: number;
+  totalMessages?: number;
+  isGroup?: boolean;
+  chatType?: 'group' | 'private';
+  phoneNumber?: string;
+  avatarUrl?: string;
 }
 
 export interface GroupSelection extends GroupInfo {
@@ -137,12 +142,14 @@ export interface SummaryRequest {
   date: string; // ISO date string (YYYY-MM-DD)
   timezone?: string;
   options?: Partial<SummaryGenerationOptions>;
+  chatType?: 'group' | 'private';
 }
 
 export interface TodaySummaryRequest {
   groupId: string;
   timezone?: string;
   options?: Partial<SummaryGenerationOptions>;
+  chatType?: 'group' | 'private';
 }
 
 export interface SummaryGenerationOptions {

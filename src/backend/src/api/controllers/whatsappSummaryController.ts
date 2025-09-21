@@ -442,12 +442,14 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       groupId,
       date,
       timezone = 'Asia/Jerusalem',
-      options = {}
+      options = {},
+      chatType
     }: {
       groupId: string;
       date: string;
       timezone?: string;
       options?: Partial<SummaryGenerationOptions>;
+      chatType?: 'group' | 'private';
     } = req.body;
     
     if (!groupId || !date) {
@@ -488,7 +490,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       ]) as T;
     };
 
-    const requestedChatType = req.body?.chatType as 'group' | 'private' | undefined;
+    const requestedChatType = chatType as 'group' | 'private' | undefined;
 
     const wahaService = WAHAService.getInstance();
     let serviceChats: any[] = [];
@@ -819,108 +821,176 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       console.log(`[WhatsApp Summary] Filtered messages to ${messages.length} items matching private chat identifiers`);
     }
     
-    // If DB has no messages for this period, fall back to pulling directly from WAHA for this group
+    // If DB has no messages for this period, fall back to pulling directly from WAHA for this chat
     if (messages.length === 0) {
       try {
         console.log('[WhatsApp Summary] No DB messages found, trying WAHA direct fetch fallback');
-        const wahaService = WAHAService.getInstance();
-        // Resolve the best WAHA chat id to use
-        let fetchChatId: string = groupId;
-        try {
-          // Try WAHA groups first
-          const wahaGroups = await withTimeout(wahaService.getGroups('default', { limit: 200 }), Math.min(8000, timeLeft()), 'WAHA groups');
-          const byId = wahaGroups.find((g: any) => String(g.id) === String(groupId));
-          const byName = !byId && groupInfo?.name ? wahaGroups.find((g: any) => String(g.name) === String(groupInfo.name)) : null;
-          if (byId?.id) fetchChatId = byId.id;
-          else if (byName?.id) fetchChatId = byName.id;
-          else {
-            // Fallback to chats list
-            const chats = await withTimeout(wahaService.getChats('default'), Math.min(8000, timeLeft()), 'WAHA chats');
-            const chatById = chats.find((c: any) => String(c.id) === String(groupId));
-            const chatByName = !chatById && groupInfo?.name ? chats.find((c: any) => String(c.name) === String(groupInfo.name)) : null;
-            if (chatById?.id) fetchChatId = chatById.id;
-            else if (chatByName?.id) fetchChatId = chatByName.id;
-          }
-        } catch (resolveErr) {
-          console.warn('[WhatsApp Summary] WAHA chat id resolution failed, using provided groupId', (resolveErr as Error).message);
+
+        let fetchChatId = normalizeChatId(String(groupInfo.id || groupId));
+        const serviceMatch = serviceChat
+          || serviceChats.find((c: any) => String(c.id) === String(groupInfo.id))
+          || serviceChats.find((c: any) => String(c.name) === String(groupInfo.name));
+
+        if (serviceMatch?.id) {
+          fetchChatId = normalizeChatId(String(serviceMatch.id));
         }
 
-        // Pull a smaller batch and filter client-side by our UTC window; cap by remaining budget
-        const limit = 150; // smaller for faster response
-        const wahaFetch = wahaService.getMessages(fetchChatId, limit, 'default');
-        const raw = await withTimeout(wahaFetch, Math.min(20000, timeLeft()), 'WAHA messages fetch');
-        const startMs = utcStart.getTime();
-        const endMs = utcEnd.getTime();
-        const filtered = raw.filter((m: any) => {
-          const tsNum = Number(m?.timestamp);
-          if (!isFinite(tsNum)) return false;
-          // WAHA timestamps are seconds; convert to ms if needed
-          const tsMs = tsNum > 1000000000000 ? tsNum : tsNum * 1000;
-          return tsMs >= startMs && tsMs <= endMs;
-        });
-        console.log(`[WhatsApp Summary] WAHA fallback found ${filtered.length} messages in time range`);
-        if (filtered.length > 0) {
-          // Normalize to the minimal fields we use downstream
-          messages = filtered.map((m: any) => ({
-            messageId: m.id,
-            message: m.body || '',
-            // Store as Date for downstream sorting/mapping
-            timestamp: new Date((Number(m.timestamp) > 1000000000000 ? Number(m.timestamp) : Number(m.timestamp) * 1000) || Date.now()),
-            createdAt: new Date((Number(m.timestamp) > 1000000000000 ? Number(m.timestamp) : Number(m.timestamp) * 1000) || Date.now()),
+        const limit = 150;
+        const wahaFetched = await withTimeout(
+          wahaService.getMessages(fetchChatId, limit),
+          Math.min(12000, timeLeft()),
+          'WAHA messages fetch'
+        );
+
+        const normalized = (wahaFetched as any[])
+          .filter((m: any) => m)
+          .map((m: any) => {
+            const rawTs = Number(m.timestamp);
+            const tsMs = rawTs > 1000000000000 ? rawTs : rawTs * 1000;
+            const tsDate = new Date(tsMs);
+            return { ...m, _computedTimestamp: tsDate };
+          })
+          .filter((m: any) => m._computedTimestamp >= utcStart && m._computedTimestamp <= utcEnd)
+          .sort((a: any, b: any) => a._computedTimestamp.getTime() - b._computedTimestamp.getTime());
+
+        if (normalized.length > 0) {
+          messages = normalized.map((m: any) => ({
+            messageId: m.id || `${fetchChatId}-${m.timestamp}`,
+            message: m.body || m.text || '',
+            timestamp: m._computedTimestamp,
+            createdAt: m._computedTimestamp,
             type: m.type || 'text',
-            from: m.from
+            from: m.from,
+            to: m.chatId || fetchChatId
           }));
           queryUsed = 'WAHA direct fetch';
+          console.log(`[WhatsApp Summary] WAHA fallback produced ${messages.length} messages`);
         }
       } catch (wahaFallbackError: any) {
         console.warn('[WhatsApp Summary] WAHA fallback failed:', wahaFallbackError?.message || wahaFallbackError);
       }
     }
-    
-    // Fallback: if no messages found for the calendar day, use last 24 hours
+
+    // Fallback: if no messages found for the calendar day, try last 24h window
     if (messages.length === 0) {
       console.log('[WhatsApp Summary] No messages found for calendar day, trying 24h fallback');
       const fallbackWindow = getLast24HoursWindow(validTimezone);
       const { start: fallbackStart, end: fallbackEnd } = getQueryBounds(fallbackWindow);
-      
-      logTimeWindow(fallbackWindow, 'Fallback 24h');
-      
-      const fallbackQuery = {
-        'metadata.isGroup': true,
-        $and: [
-          {
-            $or: [
-              { 'metadata.groupId': groupId },
-              ...(groupInfo ? [{ 'metadata.groupName': groupInfo.name }] : []),
-              { 'metadata.groupName': groupId },
-              { to: groupId }
-            ]
-          },
-          {
-            $or: [
-              { timestamp: { $gte: fallbackStart, $lte: fallbackEnd } },
-              { createdAt: { $gte: fallbackStart, $lte: fallbackEnd } }
-            ]
-          }
-        ]
-      };
-      
-      console.log('[WhatsApp Summary] Fallback query:', JSON.stringify(fallbackQuery, null, 2));
-      
-      messages = await WhatsAppMessage.find(fallbackQuery)
-        .populate('contactId')
-        .sort({ createdAt: 1, timestamp: 1 })
-        .lean();
-        
-      console.log(`[WhatsApp Summary] Fallback query returned ${messages.length} messages`);
 
-      // If still no messages, return an empty summary
+      logTimeWindow(fallbackWindow, 'Fallback 24h');
+
+      const fallbackDateOr = [
+        { createdAt: { $gte: fallbackStart, $lte: fallbackEnd } },
+        { timestamp: { $gte: fallbackStart, $lte: fallbackEnd } }
+      ];
+
+      const fallbackCandidates: QueryCandidate[] = [];
+
+      if (isGroup) {
+        if (candidateIdArray.length > 0) {
+          fallbackCandidates.push({
+            label: 'Fallback group id/to',
+            query: {
+              ...baseQuery,
+              $and: [
+                { $or: fallbackDateOr },
+                {
+                  $or: [
+                    { 'metadata.groupId': { $in: candidateIdArray } },
+                    { to: { $in: candidateIdArray } }
+                  ]
+                }
+              ]
+            }
+          });
+        }
+
+        if (candidateNameArray.length > 0) {
+          fallbackCandidates.push({
+            label: 'Fallback group name',
+            query: {
+              ...baseQuery,
+              $and: [
+                { $or: fallbackDateOr },
+                { 'metadata.groupName': { $in: candidateNameArray } }
+              ]
+            }
+          });
+        }
+      } else {
+        const fallbackOr: any[] = [];
+        if (candidateIdArray.length > 0) {
+          fallbackOr.push({ to: { $in: candidateIdArray } });
+          fallbackOr.push({ from: { $in: candidateIdArray } });
+        }
+        if (candidateContactArray.length > 0) {
+          fallbackOr.push({ contactId: { $in: candidateContactArray } });
+        }
+        if (candidateNameArray.length > 0) {
+          fallbackOr.push({ 'metadata.groupName': { $in: candidateNameArray } });
+        }
+
+        if (fallbackOr.length > 0) {
+          fallbackCandidates.push({
+            label: 'Fallback private identifiers',
+            query: {
+              ...baseQuery,
+              $and: [
+                { $or: fallbackDateOr },
+                { $or: fallbackOr }
+              ]
+            }
+          });
+        }
+      }
+
+      fallbackCandidates.push({
+        label: 'Fallback legacy direct match',
+        query: {
+          ...baseQuery,
+          $and: [
+            { $or: fallbackDateOr },
+            {
+              $or: [
+                { to: groupInfo.id },
+                { from: groupInfo.id },
+                { 'metadata.groupName': groupInfo.name },
+                { 'metadata.groupId': groupInfo.id }
+              ]
+            }
+          ]
+        }
+      });
+
+      for (const candidate of fallbackCandidates) {
+        if (messages.length > 0) break;
+        console.log(`[WhatsApp Summary] ${candidate.label}:`, JSON.stringify(candidate.query, null, 2));
+        messages = await WhatsAppMessage.find(candidate.query)
+          .populate('contactId')
+          .sort({ createdAt: 1, timestamp: 1 })
+          .lean();
+        console.log(`[WhatsApp Summary] ${candidate.label} returned ${messages.length} messages`);
+      }
+
+      if (!isGroup && messages.length > 0 && candidateIdArray.length > 0) {
+        const validIds = new Set(candidateIdArray.map(normalizeChatId));
+        messages = messages.filter(msg => {
+          const fromId = normalizeChatId(String((msg as any).from || ''));
+          const toId = normalizeChatId(String((msg as any).to || ''));
+          const contactRef = (msg as any).contactId;
+          const contactMatch = contactRef
+            ? candidateContactArray.includes(String((contactRef as any)?._id ?? contactRef))
+            : false;
+          return validIds.has(fromId) || validIds.has(toId) || contactMatch;
+        });
+      }
+
       if (messages.length === 0) {
         console.log('[WhatsApp Summary] No messages found even with fallback, returning empty summary');
         return res.json({
           success: true,
           data: {
-            groupId,
+            groupId: groupInfo.id,
             groupName: groupInfo.name,
             timeRange: { start: timeWindow.localStart, end: timeWindow.localEnd },
             totalMessages: 0,
@@ -936,7 +1006,6 @@ export const generateDailySummary = async (req: Request, res: Response) => {
         } as ApiResponse<GroupSummaryData>);
       }
 
-      // Use fallback time range
       timeWindow = fallbackWindow;
     }
     
@@ -957,7 +1026,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     try {
       summary = await withTimeout(
         summarizationService.generateGroupSummary(
-      groupId,
+      groupInfo.id,
       groupInfo.name,
       messageData,
       {
@@ -982,7 +1051,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       console.warn('[WhatsApp Summary] AI summarization timed out, falling back to basic summary:', (summTimeoutErr as Error).message);
       const basicService = new WhatsAppSummarizationService();
       summary = await basicService.generateGroupSummary(
-        groupId,
+        groupInfo.id,
         groupInfo.name,
         messageData,
         {
@@ -1017,7 +1086,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
 export const generateTodaySummary = async (req: Request, res: Response) => {
   try {
     console.log('[WhatsApp Summary] generateTodaySummary called with body:', req.body);
-    const { groupId, timezone = 'Asia/Jerusalem' } = req.body;
+    const { groupId, timezone = 'Asia/Jerusalem', chatType } = req.body;
     
     if (!groupId) {
       console.log('[WhatsApp Summary] generateTodaySummary error: No groupId provided');
@@ -1037,7 +1106,7 @@ export const generateTodaySummary = async (req: Request, res: Response) => {
     console.log(`[WhatsApp Summary] generateTodaySummary using date: ${todayDateString} in timezone: ${validTimezone}`);
     
     // Forward to generateDailySummary with today's date
-    req.body = { groupId, date: todayDateString, timezone: validTimezone };
+    req.body = { groupId, date: todayDateString, timezone: validTimezone, chatType };
     await generateDailySummary(req, res);
     
   } catch (error) {

@@ -4,6 +4,7 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { Button } from '@/components/ui/button';
 import { 
   Users, 
+  User,
   MessageSquare, 
   Clock, 
   TrendingUp,
@@ -23,6 +24,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
   loading = false
 }) => {
   const [showStats, setShowStats] = useState(false);
+  const isPrivate = group.chatType === 'private' || group.isGroup === false;
 
   const formatLastActivity = (date?: Date) => {
     if (!date) return 'No recent activity';
@@ -81,6 +83,11 @@ const GroupCard: React.FC<GroupCardProps> = ({
               <h3 className="text-lg font-semibold text-white truncate">
                 {group.name}
               </h3>
+              {isPrivate && (
+                <span className="px-2 py-0.5 text-xs text-blue-200 bg-blue-500/10 border border-blue-400/30 rounded-full">
+                  Private Chat
+                </span>
+              )}
               {summary && (
                 <div className="flex items-center gap-1 px-2 py-1 bg-green-500/20 rounded-full">
                   <Sparkles className="w-3 h-3 text-green-400" />
@@ -92,8 +99,8 @@ const GroupCard: React.FC<GroupCardProps> = ({
             {/* Quick Stats */}
             <div className="flex items-center gap-4 text-sm text-blue-200/70">
               <div className="flex items-center gap-1">
-                <Users className="w-4 h-4" />
-                <span>{group.participantCount || 0} members</span>
+                {isPrivate ? <User className="w-4 h-4" /> : <Users className="w-4 h-4" />}
+                <span>{group.participantCount || (isPrivate ? 2 : 0)} {isPrivate ? 'contacts' : 'members'}</span>
               </div>
               <div className="flex items-center gap-1">
                 <MessageSquare className={`w-4 h-4 ${getActivityColor(group.messageCount)}`} />
@@ -219,7 +226,7 @@ const GroupCard: React.FC<GroupCardProps> = ({
                     <div className="text-white font-semibold">
                       {group.participantCount || 0}
                     </div>
-                    <div className="text-blue-300/70">Members</div>
+                    <div className="text-blue-300/70">{isPrivate ? 'Contacts' : 'Members'}</div>
                   </div>
                 </div>
               </motion.div>
