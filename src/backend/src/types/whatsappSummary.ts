@@ -1,10 +1,11 @@
 export interface SummaryRequest {
   groupId: string;
-  groupName: string;
+  groupName?: string;
   date?: string; // ISO date string for specific date
   startTime?: string; // ISO datetime string
   endTime?: string; // ISO datetime string
   timezone?: string; // User's timezone
+  chatType?: 'group' | 'private';
 }
 
 export interface MessageGroup {
@@ -139,6 +140,11 @@ export interface GroupInfo {
   participantCount?: number;
   lastActivity?: Date;
   messageCount?: number;
+  totalMessages?: number;
+  isGroup?: boolean;
+  chatType?: 'group' | 'private';
+  phoneNumber?: string;
+  avatarUrl?: string;
 }
 
 // API Response types

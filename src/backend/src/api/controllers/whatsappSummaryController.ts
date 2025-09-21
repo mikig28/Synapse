@@ -35,105 +35,229 @@ console.log('[WhatsApp Summary] Using', summarizationService.constructor.name);
  */
 export const getAvailableGroups = async (req: Request, res: Response) => {
   try {
-    console.log('[WhatsApp Summary] Fetching available groups...');
-    
-    // First try to get groups from WAHA service (modern, more reliable)
-    let serviceGroups: any[] = [];
+    console.log('[WhatsApp Summary] Fetching available conversations...');
+
+    const wahaService = WAHAService.getInstance();
+
+    let chats: any[] = [];
     try {
-      const wahaService = WAHAService.getInstance();
-      serviceGroups = await wahaService.getGroups('default'); // Use default session
-      console.log(`[WhatsApp Summary] Got ${serviceGroups.length} groups from WAHA service`);
+      chats = await wahaService.getChats('default');
+      console.log(`[WhatsApp Summary] Got ${chats.length} chats from WAHA service`);
     } catch (wahaError) {
-      console.warn('[WhatsApp Summary] WAHA service failed:', wahaError);
+      console.warn('[WhatsApp Summary] WAHA chats service failed:', wahaError);
     }
-    
-    // Get groups from database (fallback and enhancement)
-    const dbGroups = await WhatsAppMessage.aggregate([
+
+    const chatById = new Map<string, any>();
+    const chatAlternates = new Map<string, any>();
+
+    const registerAlternate = (key: string, value: any) => {
+      if (!key) return;
+      const lower = key.toLowerCase();
+      if (!chatAlternates.has(lower)) {
+        chatAlternates.set(lower, value);
+      }
+    };
+
+    chats.forEach(chat => {
+      if (!chat || !chat.id) return;
+      chatById.set(chat.id, chat);
+
+      if (typeof chat.id === 'string' && chat.id.includes('@')) {
+        const bare = chat.id.split('@')[0];
+        registerAlternate(`${bare}@s.whatsapp.net`, chat);
+        registerAlternate(`${bare}@c.us`, chat);
+        registerAlternate(`${bare}@g.us`, chat);
+        registerAlternate(bare, chat);
+      }
+
+      if (chat.name && typeof chat.name === 'string') {
+        registerAlternate(chat.name, chat);
+      }
+    });
+
+    const recentThreshold = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const dbChats: Array<{
+      id: string;
+      isGroup: boolean;
+      groupName?: string;
+      lastActivity?: Date;
+      totalMessages: number;
+      messageCount: number;
+      participantPhones?: string[];
+      contactIds?: string[];
+      firstContactId?: string;
+    }> = await WhatsAppMessage.aggregate([
+      {
+        $addFields: {
+          chatId: {
+            $cond: [
+              { $eq: ['$metadata.isGroup', true] },
+              { $ifNull: ['$metadata.groupId', '$to'] },
+              { $ifNull: ['$to', '$from'] }
+            ]
+          },
+          activityTimestamp: { $ifNull: ['$timestamp', '$createdAt'] },
+          isGroup: { $eq: ['$metadata.isGroup', true] }
+        }
+      },
       {
         $match: {
-          'metadata.isGroup': true,
-          'metadata.groupName': { $exists: true, $nin: [null, ''] }
+          chatId: { $exists: true, $nin: [null, ''] }
         }
       },
       {
         $group: {
-          _id: '$metadata.groupName',
-          groupId: { $first: '$metadata.groupId' },
-          lastActivity: { $max: { $ifNull: ['$timestamp', '$createdAt'] } },
+          _id: '$chatId',
+          isGroup: { $first: '$isGroup' },
+          groupName: { $first: '$metadata.groupName' },
+          lastActivity: { $max: '$activityTimestamp' },
           totalMessages: { $sum: 1 },
           recentMessages: {
             $sum: {
-              $cond: {
-                if: { 
-                  $gte: [
-                    { $ifNull: ['$timestamp', '$createdAt'] },
-                    new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-                  ]
-                },
-                then: 1,
-                else: 0
-              }
+              $cond: [
+                { $gte: ['$activityTimestamp', recentThreshold] },
+                1,
+                0
+              ]
             }
           },
-          participantCount: { $addToSet: '$from' }
+          participantPhones: { $addToSet: '$from' },
+          contactIds: { $addToSet: '$contactId' },
+          firstContactId: { $first: '$contactId' }
         }
       },
       {
         $project: {
           _id: 0,
-          id: { $ifNull: ['$groupId', { $toString: '$_id' }] },
-          name: '$_id',
-          lastActivity: '$lastActivity',
+          id: '$_id',
+          isGroup: 1,
+          groupName: 1,
+          lastActivity: 1,
+          totalMessages: 1,
           messageCount: '$recentMessages',
-          totalMessages: '$totalMessages',
-          participantCount: { $size: '$participantCount' }
+          participantPhones: 1,
+          contactIds: 1,
+          firstContactId: 1
         }
       },
       {
         $match: {
-          messageCount: { $gt: 0 } // Only include groups with recent activity
+          messageCount: { $gt: 0 }
         }
       },
       {
-        $sort: { messageCount: -1 } // Sort by most active groups first
+        $sort: { messageCount: -1 }
       }
     ]);
-    
-    console.log(`[WhatsApp Summary] Got ${dbGroups.length} groups from database`);
-    
-    // Merge service groups with database groups (prioritize service data)
-    const groupsMap = new Map<string, GroupInfo>();
-    
-    // Add database groups first
-    dbGroups.forEach((group) => {
-      groupsMap.set(group.name, {
-        id: group.id,
-        name: group.name,
-        participantCount: group.participantCount,
-        messageCount: group.messageCount,
-        lastActivity: group.lastActivity
-      });
+
+    console.log(`[WhatsApp Summary] Got ${dbChats.length} active conversations from database`);
+
+    const uniqueContactIds = new Set<string>();
+    dbChats.forEach(chat => {
+      if (!chat.isGroup && Array.isArray(chat.contactIds)) {
+        chat.contactIds.forEach(id => {
+          if (id) uniqueContactIds.add(String(id));
+        });
+      }
     });
-    
-    // Override with service groups if available (they have more accurate real-time data)
-    serviceGroups.forEach((group) => {
-      const dbGroup = groupsMap.get(group.name);
-      groupsMap.set(group.name, {
-        id: group.id,
-        name: group.name,
-        participantCount: group.participantCount || dbGroup?.participantCount || 0,
-        messageCount: dbGroup?.messageCount || 0,
-        lastActivity: dbGroup?.lastActivity
-      });
+
+    const contacts = uniqueContactIds.size > 0
+      ? await WhatsAppContact.find({ _id: { $in: Array.from(uniqueContactIds) } })
+          .select('name phoneNumber avatar totalMessages lastMessage lastMessageTimestamp')
+          .lean()
+      : [];
+
+    const contactsById = new Map<string, any>();
+    const contactsByPhone = new Map<string, any>();
+    contacts.forEach(contact => {
+      if (!contact) return;
+      contactsById.set(String(contact._id), contact);
+      if (contact.phoneNumber) {
+        contactsByPhone.set(String(contact.phoneNumber), contact);
+      }
     });
-    
-    const enhancedGroups = Array.from(groupsMap.values());
-    
-    console.log(`[WhatsApp Summary] Returning ${enhancedGroups.length} enhanced groups`);
-    
+
+    const normalizeId = (id: string): string => {
+      if (!id) return id;
+      if (!id.includes('@')) return id;
+      const [bare, domain] = id.split('@');
+      if (!domain) return id;
+      if (domain.startsWith('g.')) {
+        return `${bare}@g.us`;
+      }
+      if (domain.startsWith('s.') || domain.startsWith('c.')) {
+        return `${bare}@s.whatsapp.net`;
+      }
+      return id;
+    };
+
+    const enhancedGroups: GroupInfo[] = dbChats.map(chat => {
+      const normalizedId = normalizeId(chat.id);
+      const bareId = typeof normalizedId === 'string' && normalizedId.includes('@')
+        ? normalizedId.split('@')[0]
+        : normalizedId;
+
+      const serviceChat = chatById.get(chat.id)
+        || chatById.get(normalizedId)
+        || chatAlternates.get((chat.id || '').toLowerCase())
+        || chatAlternates.get((normalizedId || '').toLowerCase())
+        || (chat.groupName ? chatAlternates.get(String(chat.groupName).toLowerCase()) : undefined);
+
+      const isGroup = chat.isGroup === true
+        || serviceChat?.isGroup === true
+        || (typeof normalizedId === 'string' && normalizedId.includes('@g.us'));
+
+      const contactCandidate = !isGroup
+        ? (() => {
+            const byId = chat.firstContactId ? contactsById.get(String(chat.firstContactId)) : undefined;
+            if (byId) return byId;
+            if (bareId && contactsByPhone.has(bareId)) return contactsByPhone.get(bareId);
+            return undefined;
+          })()
+        : undefined;
+
+      const participantBase = Array.isArray(chat.participantPhones)
+        ? chat.participantPhones.filter(Boolean).length
+        : 0;
+
+      const participantCount = isGroup
+        ? serviceChat?.participantCount || participantBase || 0
+        : Math.max(2, participantBase || (contactCandidate ? 2 : 1));
+
+      const phoneNumber = !isGroup
+        ? contactCandidate?.phoneNumber || bareId || undefined
+        : undefined;
+
+      const displayName = isGroup
+        ? serviceChat?.name || chat.groupName || normalizedId
+        : contactCandidate?.name || serviceChat?.name || bareId || normalizedId;
+
+      const avatarUrl = isGroup
+        ? serviceChat?.picture
+        : contactCandidate?.avatar;
+
+      return {
+        id: serviceChat?.id || normalizedId,
+        name: displayName,
+        participantCount,
+        messageCount: chat.messageCount,
+        totalMessages: chat.totalMessages,
+        lastActivity: chat.lastActivity,
+        isGroup,
+        chatType: isGroup ? 'group' : 'private',
+        phoneNumber,
+        avatarUrl
+      } as GroupInfo;
+    });
+
+    const sortedGroups = enhancedGroups.sort((a, b) => (b.messageCount || 0) - (a.messageCount || 0));
+
+    console.log(`[WhatsApp Summary] Returning ${sortedGroups.length} conversations with recent activity`);
+
     res.json({
       success: true,
-      data: enhancedGroups.sort((a, b) => (b.messageCount || 0) - (a.messageCount || 0))
+      data: sortedGroups
     } as ApiResponse<GroupInfo[]>);
   } catch (error) {
     console.error('[WhatsApp Summary] Error fetching groups:', error);
@@ -363,59 +487,180 @@ export const generateDailySummary = async (req: Request, res: Response) => {
         new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms))
       ]) as T;
     };
-    
-// Get group info from WAHA, then fallbacks to DB/name inference
+
+    const requestedChatType = req.body?.chatType as 'group' | 'private' | undefined;
+
     const wahaService = WAHAService.getInstance();
-    const wahaGroups = await wahaService.getGroups('default');
-    let groupInfo: any = wahaGroups.find((g: any) => g.id === groupId);
+    let serviceChats: any[] = [];
+    try {
+      serviceChats = await wahaService.getChats('default');
+      console.log(`[WhatsApp Summary] Loaded ${serviceChats.length} chats from WAHA service for context resolution`);
+    } catch (chatErr) {
+      console.warn('[WhatsApp Summary] Failed to load chats from WAHA service:', chatErr);
+    }
 
-    // Additional fallbacks when the frontend provided a group name instead of an ID
+    const serviceChatIndex = new Map<string, any>();
+    const registerChatKey = (key: string | undefined | null, chat: any) => {
+      if (!key) return;
+      const normalized = String(key).trim();
+      if (!normalized) return;
+      serviceChatIndex.set(normalized, chat);
+      serviceChatIndex.set(normalized.toLowerCase(), chat);
+    };
+
+    serviceChats.forEach(chat => {
+      if (!chat || !chat.id) return;
+      registerChatKey(chat.id, chat);
+      if (typeof chat.id === 'string' && chat.id.includes('@')) {
+        const bare = chat.id.split('@')[0];
+        registerChatKey(bare, chat);
+        registerChatKey(`${bare}@s.whatsapp.net`, chat);
+        registerChatKey(`${bare}@c.us`, chat);
+        registerChatKey(`${bare}@g.us`, chat);
+      }
+      if (chat.name) {
+        registerChatKey(chat.name, chat);
+      }
+    });
+
+    const normalizeChatId = (value: string): string => {
+      if (!value) return value;
+      const trimmed = value.trim();
+      if (!trimmed.includes('@')) return trimmed;
+      const [bare, domain] = trimmed.split('@');
+      if (!domain) return trimmed;
+      if (domain.startsWith('g.')) return `${bare}@g.us`;
+      if (domain.startsWith('s.') || domain.startsWith('c.')) return `${bare}@s.whatsapp.net`;
+      return trimmed;
+    };
+
+    const candidateIds = new Set<string>();
+    const candidateNames = new Set<string>();
+    const candidateContactIds = new Set<string>();
+
+    const addCandidateId = (value?: string | null) => {
+      if (!value) return;
+      const normalized = normalizeChatId(String(value));
+      candidateIds.add(normalized);
+      if (normalized.includes('@')) {
+        const bare = normalized.split('@')[0];
+        candidateIds.add(bare);
+      }
+    };
+
+    const addCandidateName = (value?: string | null) => {
+      if (!value) return;
+      const trimmed = String(value).trim();
+      if (!trimmed) return;
+      candidateNames.add(trimmed);
+      candidateNames.add(trimmed.toLowerCase());
+    };
+
+    addCandidateId(groupId);
+    addCandidateName(req.body?.groupName);
+
+    if (groupId && typeof groupId === 'string' && !groupId.includes('@')) {
+      addCandidateId(`${groupId}@g.us`);
+      addCandidateId(`${groupId}@s.whatsapp.net`);
+      addCandidateId(`${groupId}@c.us`);
+    }
+
+    const serviceChat = serviceChatIndex.get(String(groupId))
+      || serviceChatIndex.get(String(groupId).toLowerCase())
+      || serviceChatIndex.get(normalizeChatId(String(groupId)))
+      || serviceChatIndex.get(normalizeChatId(String(groupId)).toLowerCase())
+      || (req.body?.groupName ? serviceChatIndex.get(String(req.body.groupName)) || serviceChatIndex.get(String(req.body.groupName).toLowerCase()) : undefined);
+
+    if (serviceChat) {
+      addCandidateId(serviceChat.id);
+      addCandidateName(serviceChat.name);
+    }
+
     const looksLikeGroupName = !String(groupId).includes('@') && /[^\d]/.test(String(groupId));
-
-    if (!groupInfo && looksLikeGroupName) {
-      // Treat the provided groupId as a group name directly
-      groupInfo = { id: String(groupId), name: String(groupId), participantCount: 0 };
+    if (looksLikeGroupName) {
+      addCandidateName(String(groupId));
     }
 
-    if (!groupInfo) {
-      // Fallback to database for last known group name by groupId
-      const lastMsg = await WhatsAppMessage.findOne({
-        'metadata.isGroup': true,
-        'metadata.groupId': groupId,
-        'metadata.groupName': { $exists: true, $nin: [null, ''] }
-      })
-        .sort({ timestamp: -1 })
-        .lean();
+    const dbFallback = await WhatsAppMessage.findOne({
+      $or: [
+        { 'metadata.groupId': { $in: Array.from(candidateIds) } },
+        { 'metadata.groupName': { $in: Array.from(candidateNames) } },
+        { to: { $in: Array.from(candidateIds) } },
+        { from: { $in: Array.from(candidateIds) } }
+      ]
+    })
+      .populate('contactId', 'name phoneNumber avatar')
+      .sort({ timestamp: -1 })
+      .lean();
 
-      const dbGroupName = (lastMsg as any)?.metadata?.groupName as string | undefined;
-      if (typeof dbGroupName === 'string' && dbGroupName.length > 0) {
-        groupInfo = { id: groupId, name: dbGroupName, participantCount: 0 };
+    if (dbFallback) {
+      addCandidateId((dbFallback as any)?.metadata?.groupId);
+      addCandidateName((dbFallback as any)?.metadata?.groupName);
+      addCandidateId((dbFallback as any)?.to);
+      addCandidateId((dbFallback as any)?.from);
+      const populatedContact = dbFallback.contactId as any;
+      if (populatedContact?._id) {
+        candidateContactIds.add(String(populatedContact._id));
+      }
+      if (populatedContact?.phoneNumber) {
+        addCandidateId(populatedContact.phoneNumber);
       }
     }
 
-    if (!groupInfo) {
-      // Final DB fallback: try by group name equal to provided id
-      const lastByName = await WhatsAppMessage.findOne({
-        'metadata.isGroup': true,
-        'metadata.groupName': groupId
-      })
-        .sort({ timestamp: -1 })
-        .lean();
-      if (lastByName) {
-        groupInfo = { id: lastByName.metadata?.groupId || String(groupId), name: lastByName.metadata?.groupName || String(groupId), participantCount: 0 };
-      }
+    let isGroup = requestedChatType === 'group'
+      ? true
+      : requestedChatType === 'private'
+        ? false
+        : (serviceChat?.isGroup ?? ((dbFallback as any)?.metadata?.isGroup ?? (typeof groupId === 'string' && (groupId.includes('@g.us') || groupId.includes('-')))));
+
+    const contactDoc = dbFallback && typeof dbFallback.contactId === 'object'
+      ? (dbFallback.contactId as any)
+      : undefined;
+
+    let groupInfo: any = {
+      id: serviceChat?.id || (dbFallback as any)?.metadata?.groupId || normalizeChatId(String(groupId)),
+      name: serviceChat?.name || (dbFallback as any)?.metadata?.groupName || contactDoc?.name || String(groupId),
+      participantCount: serviceChat?.participantCount || undefined,
+      isGroup,
+      phoneNumber: !isGroup ? (contactDoc?.phoneNumber || (typeof groupId === 'string' && groupId.includes('@') ? groupId.split('@')[0] : undefined)) : undefined
+    };
+
+    if (!groupInfo.name || !String(groupInfo.name).trim()) {
+      groupInfo.name = isGroup ? (serviceChat?.name || String(groupId)) : (contactDoc?.phoneNumber || String(groupId));
     }
 
-    if (!groupInfo) {
+    if (!groupInfo.id) {
+      groupInfo.id = normalizeChatId(String(groupId));
+    }
+
+    if (!groupInfo.participantCount) {
+      groupInfo.participantCount = isGroup
+        ? serviceChat?.participantCount || 0
+        : 2;
+    }
+
+    addCandidateId(groupInfo.id);
+    addCandidateName(groupInfo.name);
+    if (!isGroup && groupInfo.phoneNumber) {
+      addCandidateId(groupInfo.phoneNumber);
+      addCandidateId(`${groupInfo.phoneNumber}@s.whatsapp.net`);
+      addCandidateId(`${groupInfo.phoneNumber}@c.us`);
+    }
+
+    if (!groupInfo || !groupInfo.id) {
       return res.status(404).json({
         success: false,
-        error: 'Group not found'
+        error: 'Chat not found'
       } as ApiResponse);
     }
     
 
     // Diagnostic: Check what fields exist in the database
-    const diagnosticSample = await WhatsAppMessage.findOne({ 'metadata.isGroup': true }).lean();
+    const diagnosticSample = await WhatsAppMessage.findOne(
+      isGroup
+        ? { 'metadata.isGroup': true }
+        : { $or: [{ 'metadata.isGroup': { $exists: false } }, { 'metadata.isGroup': false }] }
+    ).lean();
     if (diagnosticSample) {
       console.log('[WhatsApp Summary] Sample message structure:', {
         hasTimestamp: !!diagnosticSample.timestamp,
@@ -426,64 +671,129 @@ export const generateDailySummary = async (req: Request, res: Response) => {
         createdAtValue: diagnosticSample.createdAt
       });
     } else {
-      console.log('[WhatsApp Summary] WARNING: No group messages found in database!');
+      console.log('[WhatsApp Summary] WARNING: No messages found in database for this chat type!');
     }
 
-    // Build comprehensive query for group messages
-    // Try both createdAt and timestamp to be robust across historical data variants
-    const baseQuery: any = {
-      'metadata.isGroup': true
-    };
+    const candidateIdArray = Array.from(candidateIds).filter(Boolean);
+    const candidateNameArray = Array.from(candidateNames).filter(Boolean);
+    const candidateContactArray = Array.from(candidateContactIds).filter(Boolean);
+
+    const baseQuery: any = isGroup
+      ? { 'metadata.isGroup': true }
+      : { $or: [{ 'metadata.isGroup': { $exists: false } }, { 'metadata.isGroup': false }] };
 
     const dateRangeOr = [
       { createdAt: { $gte: utcStart, $lte: utcEnd } },
       { timestamp: { $gte: utcStart, $lte: utcEnd } }
     ];
-    // Try multiple approaches to find group messages
-    const queries = [
-      // Primary: Direct group ID match
-      { 
-        ...baseQuery, 
-        'metadata.groupId': groupId,
-        $or: dateRangeOr
-      },
-      // Secondary: Group name match (if we have groupInfo)
-      ...(groupInfo ? [{ 
-        ...baseQuery, 
-        'metadata.groupName': groupInfo.name,
-        $or: dateRangeOr
-      }] : []),
-      // Also try when the provided identifier is actually a group name
-      { 
-        ...baseQuery,
-        'metadata.groupName': groupId,
-        $or: dateRangeOr
-      },
-      // Tertiary: Legacy approach for backwards compatibility
-      { 
-        ...baseQuery,
-        to: groupId,
-        $or: dateRangeOr
+
+    type QueryCandidate = { label: string; query: any };
+    const queryCandidates: QueryCandidate[] = [];
+
+    if (isGroup) {
+      if (candidateIdArray.length > 0) {
+        queryCandidates.push({
+          label: 'Group metadata by id/to',
+          query: {
+            ...baseQuery,
+            $and: [
+              { $or: dateRangeOr },
+              {
+                $or: [
+                  { 'metadata.groupId': { $in: candidateIdArray } },
+                  { to: { $in: candidateIdArray } }
+                ]
+              }
+            ]
+          }
+        });
       }
-    ];
+
+      if (candidateNameArray.length > 0) {
+        queryCandidates.push({
+          label: 'Group metadata by name',
+          query: {
+            ...baseQuery,
+            $and: [
+              { $or: dateRangeOr },
+              { 'metadata.groupName': { $in: candidateNameArray } }
+            ]
+          }
+        });
+      }
+
+      if (looksLikeGroupName) {
+        queryCandidates.push({
+          label: 'Provided groupId treated as name',
+          query: {
+            ...baseQuery,
+            'metadata.groupName': groupId,
+            $or: dateRangeOr
+          }
+        });
+      }
+    } else {
+      const orClauses: any[] = [];
+      if (candidateIdArray.length > 0) {
+        orClauses.push({ to: { $in: candidateIdArray } });
+        orClauses.push({ from: { $in: candidateIdArray } });
+      }
+      if (candidateContactArray.length > 0) {
+        orClauses.push({ contactId: { $in: candidateContactArray } });
+      }
+      if (candidateNameArray.length > 0) {
+        orClauses.push({ 'metadata.groupName': { $in: candidateNameArray } });
+      }
+
+      if (orClauses.length > 0) {
+        queryCandidates.push({
+          label: 'Private chat composite identifiers',
+          query: {
+            ...baseQuery,
+            $and: [
+              { $or: dateRangeOr },
+              { $or: orClauses }
+            ]
+          }
+        });
+      }
+    }
+
+    queryCandidates.push({
+      label: 'Legacy direct match',
+      query: {
+        ...baseQuery,
+        $and: [
+          { $or: dateRangeOr },
+          {
+            $or: [
+              { to: groupId },
+              { from: groupId },
+              { 'metadata.groupName': groupId },
+              { 'metadata.groupId': groupId }
+            ]
+          }
+        ]
+      }
+    });
 
     let messages: any[] = [];
     let queryUsed = '';
 
-    // Try each query until we find messages
-    for (let i = 0; i < queries.length && messages.length === 0; i++) {
-      const query = queries[i];
-      queryUsed = `Query ${i + 1}`;
-      
-      console.log(`[WhatsApp Summary] ${queryUsed} for groupId ${groupId}:`, JSON.stringify(query, null, 2));
-      
+    for (const candidate of queryCandidates) {
+      if (messages.length > 0) break;
+      const { label, query } = candidate;
+      queryUsed = label;
+
+      console.log(`[WhatsApp Summary] ${label} for chatId ${groupInfo.id}:`, JSON.stringify(query, null, 2));
+
       messages = await WhatsAppMessage.find(query)
         .populate('contactId')
         .sort({ createdAt: 1, timestamp: 1 })
         .lean();
-        
-      console.log(`[WhatsApp Summary] ${queryUsed} returned ${messages.length} messages`);
-      
+
+      console.log(`[WhatsApp Summary] ${label} returned ${messages.length} messages`);
+
       if (messages.length > 0) {
         const firstMsg = messages[0];
         const lastMsg = messages[messages.length - 1];
@@ -493,6 +803,20 @@ export const generateDailySummary = async (req: Request, res: Response) => {
           console.log(`[WhatsApp Summary] Messages time range: ${new Date(firstTs).toISOString()} to ${new Date(lastTs).toISOString()}`);
         }
       }
+    }
+
+    if (!isGroup && messages.length > 0 && candidateIdArray.length > 0) {
+      const validIds = new Set(candidateIdArray.map(normalizeChatId));
+      messages = messages.filter(msg => {
+        const fromId = normalizeChatId(String((msg as any).from || ''));
+        const toId = normalizeChatId(String((msg as any).to || ''));
+        const contactRef = (msg as any).contactId;
+        const contactMatch = contactRef
+          ? candidateContactArray.includes(String((contactRef as any)?._id ?? contactRef))
+          : false;
+        return validIds.has(fromId) || validIds.has(toId) || contactMatch;
+      });
+      console.log(`[WhatsApp Summary] Filtered messages to ${messages.length} items matching private chat identifiers`);
     }
     
     // If DB has no messages for this period, fall back to pulling directly from WAHA for this group

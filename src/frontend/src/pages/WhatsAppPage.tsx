@@ -857,7 +857,7 @@ const WhatsAppPage: React.FC = () => {
 
   const fetchContacts = async () => {
     try {
-      // Try modern WAHA endpoint first
+      // Try modern WAHA endpoint first; tolerate 404 by falling back silently
       try {
         const wahaRes = await api.get('/waha/contacts');
         if (wahaRes.data.success) {
@@ -871,8 +871,10 @@ const WhatsAppPage: React.FC = () => {
           setContactsMap(map);
           return;
         }
-      } catch (wahaError) {
-        console.error('[WhatsApp Frontend] WAHA contacts endpoint failed:', wahaError);
+      } catch (wahaError: any) {
+        if (wahaError?.response?.status !== 404) {
+          console.error('[WhatsApp Frontend] WAHA contacts endpoint failed:', wahaError);
+        }
       }
 
       // Fallback to legacy endpoint
@@ -3095,11 +3097,13 @@ const WhatsAppPage: React.FC = () => {
                   <div
                     ref={chatContainerRef}
                     onScroll={handleChatScroll}
-                    className="flex-1 overflow-y-auto my-4 space-y-3 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full min-h-0"
+                    className="flex-1 overflow-y-auto md:overflow-y-scroll my-4 space-y-3 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full min-h-0 pointer-events-auto pr-1"
                     style={{
                       scrollbarWidth: 'auto',
                       scrollbarColor: '#8b5cf6 rgba(255,255,255,0.2)',
-                      maxHeight: 'calc(100% - 120px)'
+                      maxHeight: 'calc(100% - 120px)',
+                      scrollbarGutter: 'stable',
+                      overscrollBehaviorY: 'contain'
                     }}
                   >
                     {displayedMessages.length === 0 ? (
