@@ -62,7 +62,6 @@ export async function fetchForUser({ userId, apiKey, subscriptionId }: FetchForU
           description,
           thumbnails: item.snippet?.thumbnails as any,
           publishedAt: item.snippet?.publishedAt ? new Date(item.snippet.publishedAt) : undefined,
-          relevance,
           status: 'pending',
         };
 
