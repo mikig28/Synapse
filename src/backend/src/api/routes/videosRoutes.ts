@@ -9,7 +9,7 @@ import {
   indexVideo,
   searchVideoMoments
 } from '../controllers/videosController';
-import { listSubscriptions, createSubscription, triggerFetch, updateModerationStatus } from '../controllers/videosController';
+import { listSubscriptions, createSubscription, triggerFetch, updateModerationStatus, updateSubscription, deleteSubscription } from '../controllers/videosController';
 import { protect } from '../middleware/authMiddleware'; // Assuming you have this
 
 const router = express.Router();
@@ -41,6 +41,8 @@ router.delete('/:id', protect, deleteVideo);
 // New YouTube Recommendations APIs (MongoDB edition)
 router.get('/subscriptions', protect, listSubscriptions);
 router.post('/subscriptions', protect, createSubscription);
+router.patch('/subscriptions/:id', protect, updateSubscription);
+router.delete('/subscriptions/:id', protect, deleteSubscription);
 router.post('/fetch', protect, triggerFetch);
 router.patch('/:id', protect, updateModerationStatus);
 

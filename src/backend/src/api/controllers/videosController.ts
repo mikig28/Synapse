@@ -450,6 +450,43 @@ export const triggerFetch = async (req: AuthenticatedRequest, res: Response) => 
   }
 };
 
+// Update an existing subscription
+export const updateSubscription = async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ message: 'User not authenticated' });
+  const id = req.params.id;
+  if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ message: 'Invalid id' });
+
+  const { keywords, includeShorts, freshnessDays, maxPerFetch, isActive } = req.body || {};
+
+  const update: any = {};
+  if (Array.isArray(keywords)) update.keywords = keywords;
+  if (typeof includeShorts === 'boolean') update.includeShorts = includeShorts;
+  if (typeof freshnessDays === 'number') update.freshnessDays = freshnessDays;
+  if (typeof maxPerFetch === 'number') update.maxPerFetch = maxPerFetch;
+  if (typeof isActive === 'boolean') update.isActive = isActive;
+
+  const doc = await KeywordSubscription.findOneAndUpdate(
+    { _id: new mongoose.Types.ObjectId(id), userId: new mongoose.Types.ObjectId(userId) },
+    update,
+    { new: true }
+  );
+  if (!doc) return res.status(404).json({ message: 'Not found' });
+  return res.status(200).json(doc);
+};
+
+// Delete a subscription
+export const deleteSubscription = async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ message: 'User not authenticated' });
+  const id = req.params.id;
+  if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ message: 'Invalid id' });
+
+  const result = await KeywordSubscription.deleteOne({ _id: new mongoose.Types.ObjectId(id), userId: new mongoose.Types.ObjectId(userId) });
+  if (result.deletedCount === 0) return res.status(404).json({ message: 'Not found' });
+  return res.status(200).json({ success: true });
+};
+
 // Moderation: PATCH /videos/:id -> { status }
 export const updateModerationStatus = async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id;

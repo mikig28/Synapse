@@ -17,6 +17,22 @@ export async function createSubscription(payload: {
   return res.data;
 }
 
+export async function updateSubscriptionApi(id: string, payload: Partial<{
+  keywords: string[];
+  includeShorts: boolean;
+  freshnessDays: number;
+  maxPerFetch: number;
+  isActive: boolean;
+}>): Promise<KeywordSubscription> {
+  const res = await axiosInstance.patch<KeywordSubscription>(`/videos/subscriptions/${id}`, payload);
+  return res.data;
+}
+
+export async function deleteSubscriptionApi(id: string): Promise<{ success: boolean }>{
+  const res = await axiosInstance.delete<{ success: boolean }>(`/videos/subscriptions/${id}`);
+  return res.data;
+}
+
 export async function triggerFetchNow(subscriptionId?: string): Promise<{ success: boolean; fetched: number }>{
   const res = await axiosInstance.post<{ success: boolean; fetched: number }>(`/videos/fetch`, { subscriptionId });
   return res.data;

@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { createSubscription, listRecommendations, listSubscriptions, triggerFetchNow, updateModeration } from '@/services/videoRecommendationsService';
+import { createSubscription, listRecommendations, listSubscriptions, triggerFetchNow, updateModeration, updateSubscriptionApi, deleteSubscriptionApi } from '@/services/videoRecommendationsService';
 import { KeywordSubscription, RecommendationVideo, VideoModerationStatus } from '@/types/youtube';
 import { Check, EyeOff, Filter, Plus, RefreshCw, Youtube, X } from 'lucide-react';
 
@@ -36,6 +36,15 @@ export const YouTubeRecommendations: React.FC = () => {
   const [newFreshness, setNewFreshness] = useState<number>(14);
   const [newMaxFetch, setNewMaxFetch] = useState<number>(20);
   const [creating, setCreating] = useState<boolean>(false);
+  // Manage/edit subscription dialog
+  const [manageOpen, setManageOpen] = useState<boolean>(false);
+  const [editing, setEditing] = useState<boolean>(false);
+  const [editId, setEditId] = useState<string>('');
+  const [editKeywords, setEditKeywords] = useState<string>('');
+  const [editFreshness, setEditFreshness] = useState<number>(14);
+  const [editMaxFetch, setEditMaxFetch] = useState<number>(20);
+  const [editIncludeShorts, setEditIncludeShorts] = useState<boolean>(true);
+  const [editIsActive, setEditIsActive] = useState<boolean>(true);
 
   const statusParam = useMemo<VideoModerationStatus | undefined>(() => {
     if (status === 'all') return undefined;
@@ -188,6 +197,97 @@ export const YouTubeRecommendations: React.FC = () => {
                   {creating ? 'Creating...' : 'Create'}
                 </AnimatedButton>
               </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={manageOpen} onOpenChange={setManageOpen}>
+            <DialogTrigger asChild>
+              <AnimatedButton variant="outline" size="sm">Manage Subscriptions</AnimatedButton>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Manage Subscriptions</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3 max-h-[60vh] overflow-auto pr-2">
+                {subscriptions.length === 0 ? (
+                  <div className="text-sm text-purple-300/80">No subscriptions yet.</div>
+                ) : (
+                  subscriptions.map((s) => (
+                    <div key={s._id} className="p-3 border border-purple-800/40 rounded-md bg-slate-900/40">
+                      <div className="text-sm font-medium text-purple-200 line-clamp-2">{s.keywords.join(', ')}</div>
+                      <div className="text-[11px] text-purple-400/70 mt-1">freshness {s.freshnessDays}d • max {s.maxPerFetch} • {s.includeShorts ? 'shorts:on' : 'shorts:off'} • {s.isActive ? 'active' : 'inactive'}</div>
+                      <div className="mt-2 flex items-center gap-2">
+                        <AnimatedButton
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEditId(s._id);
+                            setEditKeywords(s.keywords.join(', '));
+                            setEditFreshness(s.freshnessDays);
+                            setEditMaxFetch(s.maxPerFetch);
+                            setEditIncludeShorts(s.includeShorts);
+                            setEditIsActive(s.isActive);
+                          }}
+                        >Edit</AnimatedButton>
+                        <AnimatedButton
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-400"
+                          onClick={async () => {
+                            try {
+                              await deleteSubscriptionApi(s._id);
+                              setSubscriptions((prev) => prev.filter((x) => x._id !== s._id));
+                              if (selectedSubId === s._id) setSelectedSubId('all');
+                              toast({ title: 'Subscription deleted' });
+                            } catch {
+                              toast({ title: 'Failed to delete', variant: 'destructive' });
+                            }
+                          }}
+                        >Delete</AnimatedButton>
+                      </div>
+                      {editId === s._id && (
+                        <div className="mt-3 space-y-2">
+                          <Input value={editKeywords} onChange={(e) => setEditKeywords(e.target.value)} />
+                          <div className="flex gap-2">
+                            <Input type="number" min={1} max={90} value={editFreshness} onChange={(e) => setEditFreshness(parseInt(e.target.value || '14', 10))} />
+                            <Input type="number" min={1} max={50} value={editMaxFetch} onChange={(e) => setEditMaxFetch(parseInt(e.target.value || '20', 10))} />
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <label className="text-xs flex items-center gap-1"><input type="checkbox" checked={editIncludeShorts} onChange={(e) => setEditIncludeShorts(e.target.checked)} />Include Shorts</label>
+                            <label className="text-xs flex items-center gap-1"><input type="checkbox" checked={editIsActive} onChange={(e) => setEditIsActive(e.target.checked)} />Active</label>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <AnimatedButton
+                              size="sm"
+                              onClick={async () => {
+                                try {
+                                  setEditing(true);
+                                  const payload = {
+                                    keywords: editKeywords.split(',').map((x) => x.trim()).filter(Boolean),
+                                    freshnessDays: editFreshness,
+                                    maxPerFetch: editMaxFetch,
+                                    includeShorts: editIncludeShorts,
+                                    isActive: editIsActive,
+                                  };
+                                  const updated = await updateSubscriptionApi(s._id, payload);
+                                  setSubscriptions((prev) => prev.map((x) => (x._id === s._id ? updated : x)));
+                                  setEditId('');
+                                  toast({ title: 'Subscription updated' });
+                                } catch {
+                                  toast({ title: 'Failed to update', variant: 'destructive' });
+                                } finally {
+                                  setEditing(false);
+                                }
+                              }}
+                              disabled={editing}
+                            >{editing ? 'Saving...' : 'Save'}</AnimatedButton>
+                            <AnimatedButton size="sm" variant="ghost" onClick={() => setEditId('')}>Cancel</AnimatedButton>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
             </DialogContent>
           </Dialog>
           <AnimatedButton onClick={onFetchNow} disabled={fetching} className="flex items-center">
