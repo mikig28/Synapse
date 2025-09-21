@@ -56,7 +56,7 @@ export async function fetchForUser({ userId, apiKey, subscriptionId }: FetchForU
           userId: userObjectId,
           source: 'youtube',
           videoId: vid,
-          subscriptionId: sub._id,
+          subscriptionId: new mongoose.Types.ObjectId(sub._id as any),
           title,
           channelTitle: item.snippet?.channelTitle,
           description,
