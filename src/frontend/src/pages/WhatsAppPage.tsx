@@ -132,12 +132,34 @@ const WhatsAppPage: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const touchStartYRef = useRef<number | null>(null);
 
   const handleChatScroll = () => {
     const el = chatContainerRef.current;
     if (!el) return;
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 4;
     setIsAtBottom(atBottom);
+  };
+
+  const handleChatWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    el.scrollTop += e.deltaY;
+  };
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    touchStartYRef.current = e.touches[0]?.clientY ?? null;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    const el = chatContainerRef.current;
+    if (!el) return;
+    const prevY = touchStartYRef.current;
+    const y = e.touches[0]?.clientY ?? prevY;
+    if (prevY != null && y != null) {
+      el.scrollTop += prevY - y;
+    }
+    touchStartYRef.current = y ?? null;
   };
   
   const { isAuthenticated, token } = useAuthStore();
@@ -1791,6 +1813,8 @@ const WhatsAppPage: React.FC = () => {
       // Show loading state
       setRefreshingMessages(true);
 
+      const chatType: 'group' | 'private' = (selectedChat as any)?.isGroup || chatId.includes('@g.us') || chatId.includes('-') ? 'group' : 'private';
+
       toast({
         title: "Generating Summary",
         description: `Creating daily summary for ${selectedChat.name}...`,
@@ -1802,7 +1826,8 @@ const WhatsAppPage: React.FC = () => {
       try {
         const summary = await whatsappService.generateTodaySummary({
           groupId: chatId,
-          timezone: whatsappService.getUserTimezone()
+          timezone: whatsappService.getUserTimezone(),
+          chatType
         });
 
         console.log('[WhatsApp Frontend] ✅ Daily summary generated:', summary);
@@ -2667,7 +2692,7 @@ const WhatsAppPage: React.FC = () => {
               setShowChatList(false);
             }
           }}>
-            <GlassCard className={`${isMobile ? 'h-full mt-16' : 'h-[600px]'} p-4 sm:p-6 flex flex-col`}>
+            <GlassCard className={`${isMobile ? 'h-full mt-16' : 'h-[600px]'} p-4 sm:p-6 flex flex-col min-h-0`}>
               <div className="mb-4">
                 {isMobile && (
                   <div className="flex items-center justify-between mb-4">
@@ -2978,7 +3003,7 @@ const WhatsAppPage: React.FC = () => {
               : 'lg:col-span-2'
             }
           `}>
-            <GlassCard className={`${isMobile ? 'h-full' : 'h-[600px]'} p-4 sm:p-6 flex flex-col`}>
+            <GlassCard className={`${isMobile ? 'h-full' : 'h-[600px]'} p-4 sm:p-6 flex flex-col min-h-0`}>
               {selectedChat ? (
                 <>
                   <div className="flex items-center justify-between pb-4 border-b border-white/20 flex-shrink-0">
@@ -3097,13 +3122,17 @@ const WhatsAppPage: React.FC = () => {
                   <div
                     ref={chatContainerRef}
                     onScroll={handleChatScroll}
-                    className="flex-1 overflow-y-auto md:overflow-y-scroll my-4 space-y-3 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full min-h-0 pointer-events-auto pr-1"
+                    onWheel={handleChatWheel}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    className="flex-1 min-h-0 overflow-y-auto md:overflow-y-scroll my-4 space-y-3 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full pointer-events-auto pr-1"
                     style={{
                       scrollbarWidth: 'auto',
                       scrollbarColor: '#8b5cf6 rgba(255,255,255,0.2)',
                       maxHeight: 'calc(100% - 120px)',
                       scrollbarGutter: 'stable',
-                      overscrollBehaviorY: 'contain'
+                      overscrollBehaviorY: 'contain',
+                      touchAction: 'pan-y'
                     }}
                   >
                     {displayedMessages.length === 0 ? (
