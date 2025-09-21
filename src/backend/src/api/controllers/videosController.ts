@@ -517,3 +517,22 @@ export const deleteRecommendationVideo = async (req: AuthenticatedRequest, res: 
   if (result.deletedCount === 0) return res.status(404).json({ message: 'Not found' });
   return res.status(200).json({ success: true });
 };
+
+// Bulk delete recommendations by status (default 'hidden'), optional subscriptionId
+export const bulkDeleteRecommendations = async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ message: 'User not authenticated' });
+
+  const { status = 'hidden', subscriptionId } = req.query as Record<string, string>;
+  const filter: any = {
+    userId: new mongoose.Types.ObjectId(userId),
+    source: 'youtube',
+  };
+  if (status) filter.status = status;
+  if (subscriptionId && mongoose.Types.ObjectId.isValid(subscriptionId)) {
+    filter.subscriptionId = new mongoose.Types.ObjectId(subscriptionId);
+  }
+
+  const result = await Video.deleteMany(filter);
+  return res.status(200).json({ success: true, deletedCount: result.deletedCount || 0 });
+};

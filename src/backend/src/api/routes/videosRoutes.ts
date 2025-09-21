@@ -9,7 +9,7 @@ import {
   indexVideo,
   searchVideoMoments
 } from '../controllers/videosController';
-import { listSubscriptions, createSubscription, triggerFetch, updateModerationStatus, updateSubscription, deleteSubscription, deleteRecommendationVideo } from '../controllers/videosController';
+import { listSubscriptions, createSubscription, triggerFetch, updateModerationStatus, updateSubscription, deleteSubscription, deleteRecommendationVideo, bulkDeleteRecommendations } from '../controllers/videosController';
 import { protect } from '../middleware/authMiddleware'; // Assuming you have this
 
 const router = express.Router();
@@ -46,5 +46,6 @@ router.delete('/subscriptions/:id', protect, deleteSubscription);
 router.post('/fetch', protect, triggerFetch);
 router.patch('/:id', protect, updateModerationStatus);
 router.delete('/:id/recommendation', protect, deleteRecommendationVideo);
+router.delete('/recommendations', protect, bulkDeleteRecommendations);
 
 export default router; 

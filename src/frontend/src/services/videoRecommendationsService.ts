@@ -70,4 +70,12 @@ export async function deleteRecommendationVideoApi(videoId: string): Promise<{ s
   return res.data;
 }
 
+export async function bulkDeleteRecommendationsApi(params: { status?: 'hidden'|'pending'|'approved'; subscriptionId?: string }) {
+  const sp = new URLSearchParams();
+  if (params.status) sp.set('status', params.status);
+  if (params.subscriptionId) sp.set('subscriptionId', params.subscriptionId);
+  const res = await axiosInstance.delete<{ success: boolean; deletedCount: number }>(`/videos/recommendations?${sp.toString()}`);
+  return res.data;
+}
+
 

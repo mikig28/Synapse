@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { createSubscription, listRecommendations, listSubscriptions, triggerFetchNow, updateModeration, updateSubscriptionApi, deleteSubscriptionApi, deleteRecommendationVideoApi } from '@/services/videoRecommendationsService';
+import { createSubscription, listRecommendations, listSubscriptions, triggerFetchNow, updateModeration, updateSubscriptionApi, deleteSubscriptionApi, deleteRecommendationVideoApi, bulkDeleteRecommendationsApi } from '@/services/videoRecommendationsService';
 import { KeywordSubscription, RecommendationVideo, VideoModerationStatus } from '@/types/youtube';
 import { Check, EyeOff, Filter, Plus, RefreshCw, Youtube, X } from 'lucide-react';
 
@@ -303,6 +303,20 @@ export const YouTubeRecommendations: React.FC = () => {
           <AnimatedButton onClick={onFetchNow} disabled={fetching} className="flex items-center">
             <RefreshCw className="h-4 w-4 mr-1" /> {fetching ? 'Fetching...' : 'Fetch now'}
           </AnimatedButton>
+          {status === 'hidden' && (
+            <AnimatedButton
+              variant="outline"
+              onClick={async () => {
+                try {
+                  const res = await bulkDeleteRecommendationsApi({ status: 'hidden', subscriptionId: selectedSubId === 'all' ? undefined : selectedSubId });
+                  setVideos((prev) => prev.filter((v) => v.status !== 'hidden' || (selectedSubId !== 'all' && v.subscriptionId !== selectedSubId)));
+                  toast({ title: 'Cleared hidden', description: `${res.deletedCount} removed` });
+                } catch {
+                  toast({ title: 'Failed to clear hidden', variant: 'destructive' });
+                }
+              }}
+            >Clear Hidden</AnimatedButton>
+          )}
         </div>
       </div>
 
