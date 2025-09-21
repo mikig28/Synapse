@@ -246,11 +246,44 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
       const response = await api.get('/group-monitor/monitors');
       if (response.data.success) {
         setGroupMonitors(response.data.data);
+        // Prime statistics with fresh values per monitor
+        await refreshAllMonitorStatistics(response.data.data as GroupMonitor[]);
       }
     } catch (error) {
       console.error('Error fetching group monitors:', error);
     }
   };
+
+  const fetchMonitorStatistics = async (monitorId: string) => {
+    try {
+      const res = await api.get(`/group-monitor/monitors/${monitorId}/statistics`);
+      if (res.data?.success && res.data?.data) {
+        const stats = res.data.data as GroupMonitor['statistics'];
+        setGroupMonitors(prev => prev.map(m => m._id === monitorId ? { ...m, statistics: {
+          totalMessages: stats.totalMessages ?? m.statistics.totalMessages,
+          imagesProcessed: stats.imagesProcessed ?? m.statistics.imagesProcessed,
+          personsDetected: stats.personsDetected ?? m.statistics.personsDetected,
+          lastActivity: stats.lastActivity ?? m.statistics.lastActivity,
+        }} : m));
+      }
+    } catch (err) {
+      // Silent fail to avoid UI noise
+    }
+  };
+
+  const refreshAllMonitorStatistics = async (monitors: GroupMonitor[] = groupMonitors) => {
+    if (!monitors || monitors.length === 0) return;
+    await Promise.all(monitors.map(m => fetchMonitorStatistics(m._id)));
+  };
+
+  // Periodically refresh monitor statistics when viewing monitors
+  useEffect(() => {
+    if (selectedView !== 'monitors' || groupMonitors.length === 0) return;
+    const interval = setInterval(() => {
+      refreshAllMonitorStatistics();
+    }, 15000); // 15s refresh
+    return () => clearInterval(interval);
+  }, [selectedView, groupMonitors.length]);
 
   const fetchFilteredImages = async () => {
     try {

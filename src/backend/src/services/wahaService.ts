@@ -199,9 +199,14 @@ class WAHAService extends EventEmitter {
           if (Array.isArray(payload)) {
             for (const item of payload) {
               await this.persistWAHAMessage(item);
+              // Forward to group monitor & update stats for each message
+              try { await this.processMessageForGroupMonitoring(item); } catch {}
+              try { this.updateMonitoringStats(item); } catch {}
             }
           } else {
             await this.persistWAHAMessage(payload);
+            try { await this.processMessageForGroupMonitoring(payload); } catch {}
+            try { this.updateMonitoringStats(payload); } catch {}
           }
           return;
         }
@@ -209,9 +214,13 @@ class WAHAService extends EventEmitter {
           if (Array.isArray(payload)) {
             for (const item of payload) {
               await this.persistWAHAMessage(item);
+              try { await this.processMessageForGroupMonitoring(item); } catch {}
+              try { this.updateMonitoringStats(item); } catch {}
             }
           } else {
             await this.persistWAHAMessage(payload);
+            try { await this.processMessageForGroupMonitoring(payload); } catch {}
+            try { this.updateMonitoringStats(payload); } catch {}
           }
           return;
         }
@@ -2308,8 +2317,11 @@ class WAHAService extends EventEmitter {
         caption: messageData.body
       };
 
-      if (messageData.isMedia && messageData.type === 'image' && messageData.mediaUrl) {
-        payload.imageUrl = messageData.mediaUrl;
+      // Robustly derive imageUrl from multiple possible fields
+      const mediaUrl = messageData.mediaUrl || messageData.media?.url || null;
+      const isImage = (messageData.isMedia || messageData.hasMedia) && (messageData.type === 'image' || (messageData.mimeType?.startsWith?.('image/')));
+      if (isImage && mediaUrl) {
+        payload.imageUrl = mediaUrl;
       }
 
       console.log('[WAHA Service] Forwarding message for group monitoring:', payload);
@@ -3155,7 +3167,7 @@ class WAHAService extends EventEmitter {
             const messageTimestamp = message.timestamp || 0;
             if (messageTimestamp > this.lastPolledTimestamp) {
               // Prepare message data for processing
-              const messageData = {
+            const messageData = {
                 id: message.id,
                 chatId: chat.id,
                 from: message.from,
@@ -3163,7 +3175,8 @@ class WAHAService extends EventEmitter {
                 timestamp: messageTimestamp,
                 isGroup: true,
                 isMedia: message.isMedia || false,
-                mediaUrl: message.isMedia ? message.body : undefined,
+              // Prefer structured media.url if present; fallback to legacy fields
+              mediaUrl: (message.media && (message.media as any).url) || (message.isMedia ? message.body : undefined),
                 type: message.type,
                 mimeType: message.mimeType,
                 hasMedia: message.hasMedia,
