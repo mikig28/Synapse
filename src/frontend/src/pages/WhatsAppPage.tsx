@@ -91,6 +91,8 @@ const WhatsAppPage: React.FC = () => {
   const [privateChats, setPrivateChats] = useState<WhatsAppChat[]>([]);
   const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
   const [selectedChat, setSelectedChat] = useState<WhatsAppChat | null>(null);
+  const selectedChatType: 'group' | 'private' = selectedChat?.isGroup ? 'group' : 'private';
+  const summaryButtonLabel = selectedChatType === 'group' ? 'Daily Summary' : 'Chat Summary';
   const [messagesCache, setMessagesCache] = useState<Record<string, WhatsAppMessage[]>>({});
   const [newMessage, setNewMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -2546,7 +2548,7 @@ const WhatsAppPage: React.FC = () => {
                     Refresh Chats
                   </AnimatedButton>
 
-                  {selectedChat && selectedChat.isGroup && (
+                  {selectedChat && (
                     <AnimatedButton
                       onClick={generateDailySummary}
                       variant="outline"
@@ -2559,7 +2561,7 @@ const WhatsAppPage: React.FC = () => {
                       ) : (
                         <Calendar className="w-4 h-4 mr-2" />
                       )}
-                      Daily Summary
+                      {summaryButtonLabel}
                     </AnimatedButton>
                   )}
 
