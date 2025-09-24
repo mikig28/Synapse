@@ -1,8 +1,6 @@
 import GroupMonitor, { IGroupMonitor } from '../models/GroupMonitor';
 import FilteredImage, { IFilteredImage } from '../models/FilteredImage';
 import PersonProfile from '../models/PersonProfile';
-import WAHAService from './wahaService';
-import WhatsAppBaileysService from './whatsappBaileysService';
 import axios from 'axios';
 import mongoose, { Types } from 'mongoose';
 
@@ -56,12 +54,10 @@ export interface ImageProcessingResult {
 }
 
 class GroupMonitorService {
-  private wahaService: WAHAService;
   private faceRecognitionUrl: string;
 
-  constructor() {
-    this.wahaService = WAHAService.getInstance();
-    this.faceRecognitionUrl = process.env.FACE_RECOGNITION_SERVICE_URL || 'http://localhost:5001';
+  constructor(faceRecognitionUrl?: string) {
+    this.faceRecognitionUrl = faceRecognitionUrl || process.env.FACE_RECOGNITION_SERVICE_URL || 'http://localhost:5001';
   }
 
   private normalizeGroupId(groupId: any): string {
