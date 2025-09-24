@@ -200,13 +200,29 @@ class WAHAService extends EventEmitter {
             for (const item of payload) {
               await this.persistWAHAMessage(item);
               // Forward to group monitor & update stats for each message
-              try { await this.processMessageForGroupMonitoring(item); } catch {}
-              try { this.updateMonitoringStats(item); } catch {}
+              try {
+                await this.processMessageForGroupMonitoring(item);
+              } catch (error) {
+                console.error('[WAHA Service] ❌ Error processing message for group monitoring:', error);
+              }
+              try {
+                this.updateMonitoringStats(item);
+              } catch (error) {
+                console.error('[WAHA Service] ❌ Error updating monitoring stats:', error);
+              }
             }
           } else {
             await this.persistWAHAMessage(payload);
-            try { await this.processMessageForGroupMonitoring(payload); } catch {}
-            try { this.updateMonitoringStats(payload); } catch {}
+            try {
+              await this.processMessageForGroupMonitoring(payload);
+            } catch (error) {
+              console.error('[WAHA Service] ❌ Error processing message for group monitoring:', error);
+            }
+            try {
+              this.updateMonitoringStats(payload);
+            } catch (error) {
+              console.error('[WAHA Service] ❌ Error updating monitoring stats:', error);
+            }
           }
           return;
         }
@@ -214,13 +230,29 @@ class WAHAService extends EventEmitter {
           if (Array.isArray(payload)) {
             for (const item of payload) {
               await this.persistWAHAMessage(item);
-              try { await this.processMessageForGroupMonitoring(item); } catch {}
-              try { this.updateMonitoringStats(item); } catch {}
+              try {
+                await this.processMessageForGroupMonitoring(item);
+              } catch (error) {
+                console.error('[WAHA Service] ❌ Error processing message for group monitoring:', error);
+              }
+              try {
+                this.updateMonitoringStats(item);
+              } catch (error) {
+                console.error('[WAHA Service] ❌ Error updating monitoring stats:', error);
+              }
             }
           } else {
             await this.persistWAHAMessage(payload);
-            try { await this.processMessageForGroupMonitoring(payload); } catch {}
-            try { this.updateMonitoringStats(payload); } catch {}
+            try {
+              await this.processMessageForGroupMonitoring(payload);
+            } catch (error) {
+              console.error('[WAHA Service] ❌ Error processing message for group monitoring:', error);
+            }
+            try {
+              this.updateMonitoringStats(payload);
+            } catch (error) {
+              console.error('[WAHA Service] ❌ Error updating monitoring stats:', error);
+            }
           }
           return;
         }
@@ -2303,9 +2335,19 @@ class WAHAService extends EventEmitter {
    * Forward messages to group monitor service
    */
   private async processMessageForGroupMonitoring(messageData: any): Promise<void> {
+    console.log('[WAHA Service] 🔄 Processing message for group monitoring:', {
+      id: messageData.id,
+      chatId: messageData.chatId,
+      isGroup: messageData.isGroup,
+      from: messageData.from,
+      hasMedia: messageData.hasMedia || messageData.isMedia,
+      type: messageData.type
+    });
+
     try {
       // Only process group messages
       if (!messageData.isGroup) {
+        console.log('[WAHA Service] ⚠️ Skipping non-group message:', messageData.id);
         return;
       }
 
@@ -2322,22 +2364,40 @@ class WAHAService extends EventEmitter {
       const isImage = (messageData.isMedia || messageData.hasMedia) && (messageData.type === 'image' || (messageData.mimeType?.startsWith?.('image/')));
       if (isImage && mediaUrl) {
         payload.imageUrl = mediaUrl;
+        console.log('[WAHA Service] 📸 Adding image URL to payload:', mediaUrl);
       }
 
-      console.log('[WAHA Service] Forwarding message for group monitoring:', payload);
+      console.log('[WAHA Service] 📤 Forwarding message for group monitoring:', payload);
 
       // Send to group monitor webhook (fire and forget)
       const axios = require('axios');
       const baseUrl = process.env.BACKEND_URL || 'https://synapse-backend-7lq6.onrender.com';
+      const webhookUrl = `${baseUrl}/api/v1/group-monitor/webhook/whatsapp-message`;
 
-      axios.post(`${baseUrl}/api/v1/group-monitor/webhook/whatsapp-message`, payload, {
-        timeout: 5000
-      }).catch((error: any) => {
-        console.error('[WAHA Service] ❌ Failed to send message to group monitor:', error.message);
+      console.log('[WAHA Service] 🌐 Sending webhook to:', webhookUrl);
+
+      const response = await axios.post(webhookUrl, payload, {
+        timeout: 5000,
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
 
-    } catch (error) {
-      console.error('[WAHA Service] ❌ Error processing message for group monitoring:', error);
+      console.log('[WAHA Service] ✅ Successfully sent message to group monitor:', {
+        status: response.status,
+        messageId: messageData.id,
+        groupId: messageData.chatId
+      });
+
+    } catch (error: any) {
+      console.error('[WAHA Service] ❌ Error processing message for group monitoring:', {
+        messageId: messageData.id,
+        groupId: messageData.chatId,
+        error: error.message,
+        status: error.response?.status,
+        response: error.response?.data
+      });
+      throw error; // Re-throw to be caught by the calling code
     }
   }
 
