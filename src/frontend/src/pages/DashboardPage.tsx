@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useDigest } from '../context/DigestContext';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { SkeletonText } from '@/components/ui/Skeleton';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
-import { Zap, AlertCircle, FileText, ExternalLink as LinkIcon, TrendingUp, Users, Calendar, BarChart3, Volume2, XCircle, HardDrive } from 'lucide-react';
+import { Zap, AlertCircle, FileText, ExternalLink as LinkIcon, TrendingUp, Users, Calendar, BarChart3, Volume2, XCircle, HardDrive, ChevronDown, Bookmark, Play } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
 import AddNoteModal from '@/components/notes/AddNoteModal';
@@ -22,12 +22,14 @@ import { MetricsDashboard } from '@/components/metrics/MetricsDashboard';
 import { UsageDashboard } from '@/components/usage/UsageDashboard';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { Agent, AgentRun } from '@/types/agent';
+import type { BookmarkItemType } from '@/types/bookmark';
 import documentService from '@/services/documentService';
 import meetingService from '@/services/meetingService';
 import notesService, { NoteItem } from '@/services/notesService';
 import ideasService, { IdeaItem } from '@/services/ideasService';
 import tasksListService, { TaskItem } from '@/services/tasksListService';
 import { getBookmarks, PaginatedBookmarksResponse } from '@/services/bookmarkService';
+import { useNavigate } from 'react-router-dom';
 
 const API_BASE_URL = `${BACKEND_ROOT_URL}/api/v1`;
 
@@ -59,9 +61,15 @@ const DashboardPage: React.FC = () => {
   const [recentIdeas, setRecentIdeas] = useState<IdeaItem[]>([]);
   const [recentTasks, setRecentTasks] = useState<TaskItem[]>([]);
   const [recentBookmarksCount, setRecentBookmarksCount] = useState<number | undefined>(undefined);
+  const [recentBookmarks, setRecentBookmarks] = useState<BookmarkItemType[]>([]);
   const [whatsStatus, setWhatsStatus] = useState<WhatsAppConnectionStatus | null>(null);
 
   const token = useAuthStore((state) => state.token);
+  const navigate = useNavigate();
+
+  const handleNavigate = useCallback((path: string) => {
+    navigate(path);
+  }, [navigate]);
 
   console.log('[DashboardPage] Consuming from context - latestDigest:', latestDigest, 'isBatchSummarizing:', isBatchSummarizing, 'sources:', latestDigestSources);
 
@@ -188,7 +196,11 @@ const DashboardPage: React.FC = () => {
         setRecentNotes(notes || []);
         setRecentIdeas(ideas || []);
         setRecentTasks(tasks || []);
-        if (bookmarks) setRecentBookmarksCount((bookmarks as PaginatedBookmarksResponse).totalBookmarks);
+        if (bookmarks) {
+          const bookmarkData = (bookmarks as PaginatedBookmarksResponse);
+          setRecentBookmarksCount(bookmarkData.totalBookmarks);
+          setRecentBookmarks(bookmarkData.data.slice(0, 5));
+        }
         setWhatsStatus(waStatus || null);
       } catch (err) {
         console.error('[DashboardPage] Failed to load base data:', err);
@@ -249,6 +261,17 @@ const DashboardPage: React.FC = () => {
       (f.advanced?.aiSummariesGenerated || 0);
     return total;
   };
+
+  const bookmarkStatusCounts = useMemo(() => {
+    return recentBookmarks.reduce(
+      (acc, bookmark) => {
+        const status = bookmark.status ?? 'pending';
+        acc[status] = (acc[status] ?? 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
+  }, [recentBookmarks]);
 
   const stats = [
     { title: `Total Usage (${selectedPeriod.charAt(0).toUpperCase() + selectedPeriod.slice(1)})`, value: computeTotalUsage(usage), trend: usageTrendPct, icon: BarChart3 },
@@ -361,13 +384,191 @@ const DashboardPage: React.FC = () => {
             />
           ))}
         </DashboardGrid>
-        
-        {/* Digest Section */}
+
+        <div className="mt-8 grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-6">
+          <GlassCard className="h-full">
+            <div className="p-6 h-full flex flex-col">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-semibold">Today’s Focus</h3>
+                <span className="text-xs text-muted-foreground">Curated for you</span>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1">
+                <div className="rounded-xl border border-border/40 bg-background/60 p-4 backdrop-blur">
+                  <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                    Highlighted Video
+                  </h4>
+                  <RecentVideo />
+                </div>
+                <div className="rounded-xl border border-border/30 bg-background/60 p-4 backdrop-blur flex flex-col">
+                  <h4 className="text-sm font-semibold mb-2">Active Bookmarks</h4>
+                  <div className="flex items-center justify-between text-xs mb-3 text-muted-foreground">
+                    <span>Saved • last 24h</span>
+                    <span>{recentBookmarksCount ?? '—'} total</span>
+                  </div>
+                  <div className="space-y-3 flex-1 overflow-hidden">
+                    <div className="grid grid-cols-3 gap-2 text-[11px] text-muted-foreground">
+                      <div>
+                        <p className="font-semibold text-foreground text-sm">
+                          {bookmarkStatusCounts.pending ?? 0}
+                        </p>
+                        <p>Pending</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-foreground text-sm">
+                          {bookmarkStatusCounts.summarized ?? 0}
+                        </p>
+                        <p>Summarized</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-foreground text-sm">
+                          {bookmarkStatusCounts.error ?? 0}
+                        </p>
+                        <p>Need attention</p>
+                      </div>
+                    </div>
+                    <ul className="space-y-2 overflow-y-auto pr-1 min-h-[120px]">
+                      {recentBookmarks.map((bookmark) => (
+                        <li key={bookmark._id}>
+                          <a
+                            href={bookmark.originalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-primary hover:underline line-clamp-2"
+                          >
+                            {bookmark.title || bookmark.originalUrl}
+                          </a>
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            {new Date(bookmark.createdAt).toLocaleDateString()}
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-[10px] uppercase tracking-wide">
+                              {bookmark.status || 'pending'}
+                            </span>
+                          </span>
+                        </li>
+                      ))}
+                      {recentBookmarks.length === 0 && (
+                        <li className="text-sm text-muted-foreground">Capture articles or links to see them here.</li>
+                      )}
+                    </ul>
+                    <AnimatedButton
+                      variant="outline"
+                      size="sm"
+                      className="self-start"
+                      onClick={handleSummarizeLatestClick}
+                      disabled={isBatchSummarizing}
+                    >
+                      Summarize latest bookmarks
+                    </AnimatedButton>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </GlassCard>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <AnimatedButton
+              variant="outline"
+              className="justify-between"
+              onClick={() => handleNavigate('/agents')}
+            >
+              <span>Manage agents</span>
+              <Users className="w-4 h-4" />
+            </AnimatedButton>
+            <AnimatedButton
+              variant="outline"
+              className="justify-between"
+              onClick={() => handleNavigate('/videos')}
+            >
+              <span>Explore videos</span>
+              <Play className="w-4 h-4" />
+            </AnimatedButton>
+            <AnimatedButton
+              variant="outline"
+              className="justify-between"
+              onClick={() => handleNavigate('/tasks')}
+            >
+              <span>Plan tasks</span>
+              <Calendar className="w-4 h-4" />
+            </AnimatedButton>
+          </div>
+
+          <GlassCard className="h-full">
+            <div className="p-6 h-full flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Today’s Shortcuts</h3>
+                <span className="text-xs text-muted-foreground">Jump right in</span>
+              </div>
+              <div className="space-y-3">
+                <AnimatedButton variant="secondary" className="w-full justify-between" onClick={handleAddNoteClick}>
+                  <span>Capture a new note</span>
+                  <FileText className="w-4 h-4" />
+                </AnimatedButton>
+                <AnimatedButton
+                  variant="outline"
+                  className="w-full justify-between"
+                  onClick={() => handleNavigate('/bookmarks')}
+                >
+                  <span>Review saved bookmarks</span>
+                  <Bookmark className="w-4 h-4" />
+                </AnimatedButton>
+                <AnimatedButton variant="ghost" className="w-full justify-between" onClick={handleSummarizeLatestClick}>
+                  <span>Generate digest</span>
+                  <Zap className="w-4 h-4" />
+                </AnimatedButton>
+              </div>
+            </div>
+          </GlassCard>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+          className="mt-8"
+        >
+          <GlassCard className="overflow-hidden border border-border/40">
+            <div className="p-6">
+              <details className="group" open>
+                <summary className="cursor-pointer list-none">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="w-5 h-5 text-primary" />
+                      <h3 className="text-lg font-semibold">Intelligence Hub</h3>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="hidden sm:inline">Monitor usage • Track agent performance</span>
+                      <ChevronDown className="w-4 h-4 transition-transform duration-300 group-open:rotate-180" />
+                    </div>
+                  </div>
+                </summary>
+
+                <div className="mt-5 grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  <div className="rounded-xl border border-border/30 bg-background/60 p-5 backdrop-blur">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-base font-semibold">Agent Analytics</h4>
+                      <span className="text-xs text-muted-foreground">Live insights</span>
+                    </div>
+                    <MetricsDashboard agents={agents} recentRuns={recentRuns} />
+                  </div>
+                  <div className="rounded-xl border border-border/30 bg-background/60 p-5 backdrop-blur">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-base font-semibold">Usage Trends</h4>
+                      <span className="text-xs text-muted-foreground">Billing & limits</span>
+                    </div>
+                    <UsageDashboard />
+                  </div>
+                </div>
+              </details>
+            </div>
+          </GlassCard>
+        </motion.div>
+
         <motion.div
           ref={digestRef}
           initial={{ opacity: 0, y: 30 }}
           animate={digestInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
           transition={{ duration: 0.6, delay: 0.4 }}
+          className="mt-8"
         >
           {isBatchSummarizing ? (
             <GlassCard className="mb-6">
@@ -424,69 +625,25 @@ const DashboardPage: React.FC = () => {
                       <AlertDescription>{latestDigest}</AlertDescription>
                     </Alert>
                   ) : (
-                    <p className="text-foreground/90 whitespace-pre-wrap leading-relaxed">
-                      {latestDigest}
-                    </p>
-                  )}
-
-                  {latestDigestSources && latestDigestSources.length > 0 &&
-                   !latestDigest.startsWith("Could not generate a digest") && 
-                   !latestDigest.startsWith("No valid content") &&
-                   !latestDigest.startsWith("No new bookmarks") &&
-                   !latestDigest.startsWith("No eligible bookmarks") &&
-                   !latestDigest.startsWith("Failed to generate digest") &&
-                  (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, delay: 0.4 }}
-                      className="mt-6 pt-4 border-t border-border/50"
-                    >
-                      <h5 className="text-sm font-semibold mb-3 text-muted-foreground">
-                        Sources:
-                      </h5>
-                      <div className="grid gap-2">
-                        {latestDigestSources.map((source, index) => (
-                          <motion.a
-                            key={source._id}
-                            href={source.originalUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="group flex items-center p-3 rounded-lg bg-muted/20 hover:bg-muted/40 transition-all duration-200 border border-border/20"
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ duration: 0.3, delay: index * 0.05 + 0.5 }}
-                            whileHover={{ scale: 1.02 }}
-                          >
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate">
-                                {source.title || source.originalUrl.substring(0, 50) + '...'}
-                              </p>
-                            </div>
-                            <LinkIcon className="w-4 h-4 ml-2 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
-                          </motion.a>
-                        ))}
-                      </div>
-                    </motion.div>
+                    <div className="prose dark:prose-invert">
+                      <p>{latestDigest}</p>
+                    </div>
                   )}
                 </motion.div>
               </div>
             </GlassCard>
-          ) : null}
+          ) : (
+            <GlassCard className="mb-6">
+              <div className="p-6 text-center">
+                <p className="text-muted-foreground">No recent digest available.</p>
+                <AnimatedButton variant="primary" onClick={handleSummarizeLatestClick} className="mt-4">
+                  Generate Latest Digest
+                </AnimatedButton>
+              </div>
+            </GlassCard>
+          )}
         </motion.div>
 
-        {/* Agent analytics + usage */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.45 }}
-          className="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6"
-        >
-          <MetricsDashboard agents={agents} recentRuns={recentRuns} />
-          <UsageDashboard />
-        </motion.div>
-
-        {/* Recent content & upcoming */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -594,6 +751,28 @@ const DashboardPage: React.FC = () => {
         >
           <UpcomingEvents />
         </motion.div>
+
+        <GlassCard className="mt-8 border-dashed border-accent/40 bg-accent/5">
+          <div className="p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h4 className="text-base font-semibold">Nothing scheduled?</h4>
+              <p className="text-sm text-muted-foreground">
+                Kickstart your day by saving a bookmark, logging a task, or capturing an idea.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <AnimatedButton variant="outline" size="sm" onClick={handleAddNoteClick}>
+                Add note
+              </AnimatedButton>
+              <AnimatedButton variant="outline" size="sm" onClick={() => handleNavigate('/tasks')}>
+                View tasks
+              </AnimatedButton>
+              <AnimatedButton variant="outline" size="sm" onClick={() => handleNavigate('/bookmarks')}>
+                Manage bookmarks
+              </AnimatedButton>
+            </div>
+          </div>
+        </GlassCard>
 
         {/* Welcome Section */}
         <motion.div
