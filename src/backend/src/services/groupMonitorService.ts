@@ -392,7 +392,7 @@ class GroupMonitorService {
 
         // Send auto-reply if enabled
         if (monitor.settings.autoReply && monitor.settings.replyMessage) {
-          this.sendAutoReply(monitor.groupId, monitor.settings.replyMessage);
+          await this.sendAutoReply(monitor.groupId, monitor.settings.replyMessage);
         }
       } else if (monitor.settings.saveAllImages) {
         // Save image even without matches if saveAllImages is enabled
@@ -542,7 +542,9 @@ class GroupMonitorService {
    */
   private async sendAutoReply(groupId: string, replyMessage: string): Promise<void> {
     try {
-      await this.wahaService.sendMessage(groupId, replyMessage);
+      const { default: WAHAService } = await import('./wahaService');
+      const wahaService = WAHAService.getInstance();
+      await wahaService.sendMessage(groupId, replyMessage);
       console.log(`📱 Auto-reply sent to group ${groupId}: ${replyMessage}`);
     } catch (error) {
       console.error('Error sending auto-reply:', error);
