@@ -52,6 +52,16 @@ export const AnimatedDashboardCard: React.FC<AnimatedDashboardCardProps> = ({
           onClick && "cursor-pointer"
         )}
         onClick={onClick}
+        role="button"
+        tabIndex={0}
+        aria-label={`${title}: ${typeof value === 'number' ? value : value.toString()}`}
+        onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
+          if (!onClick) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClick();
+          }
+        }}
       >
         {/* Background gradient animation */}
         <motion.div

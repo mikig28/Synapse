@@ -21,6 +21,8 @@ import { agentService } from '@/services/agentService';
 import { MetricsDashboard } from '@/components/metrics/MetricsDashboard';
 import { UsageDashboard } from '@/components/usage/UsageDashboard';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MobileMetricsDashboard } from '@/components/mobile';
+import { useDeviceDetection } from '@/hooks/useMobileFeatures';
 import type { Agent, AgentRun } from '@/types/agent';
 import type { BookmarkItemType } from '@/types/bookmark';
 import documentService from '@/services/documentService';
@@ -66,6 +68,7 @@ const DashboardPage: React.FC = () => {
 
   const token = useAuthStore((state) => state.token);
   const navigate = useNavigate();
+  const { isMobile } = useDeviceDetection();
 
   const handleNavigate = useCallback((path: string) => {
     navigate(path);
@@ -282,8 +285,11 @@ const DashboardPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      <a href="#dashboard-main" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:bg-background focus:text-foreground focus:p-2 focus:rounded focus:z-50">
+        Skip to main content
+      </a>
       {/* Animated Background Elements */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+      <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
         <motion.div
           className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full blur-3xl"
           animate={{
@@ -310,7 +316,7 @@ const DashboardPage: React.FC = () => {
         />
       </div>
 
-      <div className="relative z-10 container mx-auto p-4 md:p-8">
+      <div id="dashboard-main" className="relative z-10 container mx-auto p-4 md:p-8">
         {/* Header Section */}
         <motion.div
           ref={headerRef}
@@ -335,6 +341,7 @@ const DashboardPage: React.FC = () => {
             size="lg"
             loading={isBatchSummarizing}
             className="hover-glow"
+            aria-label="Create latest digest"
           >
             {isBatchSummarizing ? (
               <>Generating Digest...</>
@@ -361,13 +368,15 @@ const DashboardPage: React.FC = () => {
               )}
             </div>
           </div>
-          <Tabs value={selectedPeriod} onValueChange={(v) => setSelectedPeriod(v as any)}>
-            <TabsList>
-              <TabsTrigger value="daily">Daily</TabsTrigger>
-              <TabsTrigger value="weekly">Weekly</TabsTrigger>
-              <TabsTrigger value="monthly">Monthly</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <nav aria-label="Usage timeframe">
+            <Tabs value={selectedPeriod} onValueChange={(v) => setSelectedPeriod(v as any)}>
+              <TabsList>
+                <TabsTrigger value="daily">Daily</TabsTrigger>
+                <TabsTrigger value="weekly">Weekly</TabsTrigger>
+                <TabsTrigger value="monthly">Monthly</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </nav>
         </div>
 
         <DashboardGrid columns={4}>
@@ -548,7 +557,11 @@ const DashboardPage: React.FC = () => {
                       <h4 className="text-base font-semibold">Agent Analytics</h4>
                       <span className="text-xs text-muted-foreground">Live insights</span>
                     </div>
-                    <MetricsDashboard agents={agents} recentRuns={recentRuns} />
+                    {isMobile ? (
+                      <MobileMetricsDashboard agents={agents} recentRuns={recentRuns} />
+                    ) : (
+                      <MetricsDashboard agents={agents} recentRuns={recentRuns} />
+                    )}
                   </div>
                   <div className="rounded-xl border border-border/30 bg-background/60 p-5 backdrop-blur">
                     <div className="flex items-center justify-between mb-3">
@@ -572,7 +585,7 @@ const DashboardPage: React.FC = () => {
         >
           {isBatchSummarizing ? (
             <GlassCard className="mb-6">
-              <div className="p-6">
+              <div className="p-6" role="status" aria-live="polite">
                 <div className="flex items-center mb-4">
                   <Zap className="w-5 h-5 mr-2 text-primary animate-pulse" />
                   <h3 className="text-xl font-semibold">Generating Your Digest...</h3>
