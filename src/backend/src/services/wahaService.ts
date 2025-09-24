@@ -2350,7 +2350,6 @@ class WAHAService extends EventEmitter {
     });
 
     try {
-      // Only process group messages
       if (!messageData.isGroup) {
         console.log('[WAHA Service] ⚠️ Skipping non-group message:', messageData.id);
         return;
@@ -2371,9 +2370,48 @@ class WAHAService extends EventEmitter {
         console.log('[WAHA Service] 📸 Adding image URL to payload:', mediaUrl);
       }
 
-      const axios = require('axios');
-      const baseUrl = process.env.BACKEND_URL || 'https://synapse-backend-7lq6.onrender.com';
-      const webhookUrl = `${baseUrl}/api/v1/group-monitor/webhook/whatsapp-message`;
+      const webhookOnly = String(process.env.GROUP_MONITOR_WEBHOOK_ONLY || '').toLowerCase() === 'true';
+      const forwardWebhook = String(process.env.GROUP_MONITOR_FORWARD_WEBHOOK || '').toLowerCase() === 'true';
+      let processedDirectly = false;
+      let directProcessingError: unknown = null;
+
+      if (!webhookOnly) {
+        try {
+          await this.groupMonitorService.processGroupMessage(
+            payload.messageId,
+            payload.groupId,
+            payload.senderId,
+            payload.senderName,
+            payload.imageUrl,
+            payload.caption
+          );
+          processedDirectly = true;
+          console.log('[WAHA Service] ✅ Message processed via internal group monitor service:', {
+            messageId: payload.messageId,
+            groupId: payload.groupId
+          });
+        } catch (serviceError) {
+          directProcessingError = serviceError;
+          console.error('[WAHA Service] ❌ Internal group monitor processing failed, will fall back to webhook:', serviceError);
+        }
+      }
+
+      if (processedDirectly && !forwardWebhook) {
+        return;
+      }
+
+      const webhookUrl = this.getGroupMonitorWebhookUrl();
+      if (!webhookUrl) {
+        if (processedDirectly) {
+          return;
+        }
+
+        console.warn('[WAHA Service] ⚠️ No webhook URL configured for group monitor forwarding');
+        if (directProcessingError) {
+          throw directProcessingError;
+        }
+        return;
+      }
 
       const response = await axios.post(webhookUrl, payload, {
         timeout: 5000,
@@ -2382,20 +2420,21 @@ class WAHAService extends EventEmitter {
         }
       });
 
-      console.log('[WAHA Service] ✅ Successfully sent message to group monitor:', {
+      console.log('[WAHA Service] ✅ Successfully sent message to group monitor webhook:', {
         status: response.status,
         messageId: messageData.id,
-        groupId: messageData.chatId
+        groupId: messageData.chatId,
+        webhookUrl
       });
     } catch (error: any) {
       console.error('[WAHA Service] ❌ Error processing message for group monitoring:', {
         messageId: messageData.id,
         groupId: messageData.chatId,
-        error: error.message,
-        status: error.response?.status,
-        response: error.response?.data
+        error: error?.message || error,
+        status: error?.response?.status,
+        response: error?.response?.data
       });
-      throw error; // Re-throw to be caught by the calling code
+      throw error;
     }
   }
 
@@ -2525,6 +2564,50 @@ class WAHAService extends EventEmitter {
     } catch (error) {
       console.error('[WAHA Service] ❌ Error processing media message:', error);
     }
+  }
+
+  private getGroupMonitorWebhookUrl(): string | null {
+    const normalize = (url: string) => url.replace(/\/+$/, '');
+    const ensurePath = (base: string) => {
+      const normalized = normalize(base);
+
+      if (/\/group-monitor\/webhook\/whatsapp-message$/i.test(normalized)) {
+        return normalized;
+      }
+
+      if (/\/api\/v1$/i.test(normalized)) {
+        return `${normalized}/group-monitor/webhook/whatsapp-message`;
+      }
+
+      if (/\/api$/i.test(normalized)) {
+        return `${normalized}/v1/group-monitor/webhook/whatsapp-message`;
+      }
+
+      return `${normalized}/api/v1/group-monitor/webhook/whatsapp-message`;
+    };
+
+    const explicit = process.env.GROUP_MONITOR_WEBHOOK_URL?.trim();
+    if (explicit && /^https?:\/\//i.test(explicit)) {
+      return ensurePath(explicit);
+    }
+
+    const candidates = [
+      process.env.INTERNAL_API_BASE_URL,
+      process.env.BACKEND_URL,
+      process.env.RENDER_EXTERNAL_URL,
+      process.env.PUBLIC_BACKEND_URL,
+      process.env.API_BASE_URL
+    ];
+
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      const trimmed = candidate.trim();
+      if (!/^https?:\/\//i.test(trimmed)) continue;
+      return ensurePath(trimmed);
+    }
+
+    const port = process.env.PORT || '3001';
+    return ensurePath(`http://127.0.0.1:${port}`);
   }
 
   /**
