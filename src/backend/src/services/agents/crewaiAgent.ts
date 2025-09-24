@@ -692,6 +692,8 @@ Using fallback test crew to demonstrate dashboard functionality.`);
       }
     }
 
+    // No domain-specific hardcoding: rely on user-provided topics or generic extraction only
+
     // Finance patterns
     else if (
       fullText.includes('financ') ||
@@ -908,16 +910,26 @@ Using fallback test crew to demonstrate dashboard functionality.`);
       run.itemsAdded = addedCount;
       await run.addLog('info', `Successfully stored ${addedCount} items from CrewAI agents`);
       
-      const summary = (data.executive_summary || ['CrewAI analysis complete.']).join('\\n');
+      // Build a concise news digest with citations from real items (urls required)
+      const { lines: digestLines, citations } = this.buildNewsDigest(data.organized_content || {}, 12);
+      const digestSummary = digestLines.length > 0
+        ? digestLines.slice(0, 5).join('\n')
+        : (data.executive_summary || ['News gathering completed.']).join('\n');
+
       const details = {
         trending_topics: data.trending_topics,
         ai_insights: data.ai_insights,
         recommendations: data.recommendations,
         sources_used: response.sources_used,
+        news_digest: digestLines,
+        citations
       };
 
-      await run.complete(summary, details);
-      await run.addLog('info', 'Stored AI analysis report in agent run results.');
+      await run.complete(digestSummary, details);
+      await run.addLog('info', 'Stored news digest in agent run results.', {
+        digestCount: digestLines.length,
+        citationCount: citations.length
+      });
 
       // Also create a summary NewsItem to act as a container for the run in the UI
       if (data.ai_insights || data.executive_summary) {
@@ -1036,75 +1048,51 @@ Using fallback test crew to demonstrate dashboard functionality.`);
                       (data.organized_content?.linkedin_posts?.length || 0) +
                       (data.organized_content?.telegram_messages?.length || 0);
     
-    const analysisContent = [
-      '# CrewAI Multi-Agent News Analysis Report',
+    // Build a digest-first report with citations
+    const digest = this.buildNewsDigest(data.organized_content || {}, 20);
+    const digestHeader = '# News Digest';
+    const digestSection = digest.lines.length > 0
+      ? [digestHeader, '', ...digest.lines].join('\n')
+      : [digestHeader, '', '_No verifiable items with URLs were found in this run._'].join('\n');
+
+    const sourcesSection = [
       '',
-      dataTypeInfo.hasSimulated ? '⚠️ **DATA NOTICE**: Some content is simulated due to missing API credentials.' : '✅ **DATA STATUS**: All content is from real sources.',
+      '---',
+      '## Sources',
+      ...(digest.citations.slice(0, 25).map(u => `- ${u}`)),
+    ].join('\n');
+
+    const metricsSection = [
       '',
-      '## Executive Summary',
-      ...(data.executive_summary || []).map(item => `- ${item}`),
-      '',
-      '## Performance Metrics',
+      '---',
+      '## Metrics',
       `- **Total Items Processed**: ${totalItems}`,
       `- **Execution Time**: ${Math.round(executionTime / 1000)}s`,
-      `- **Sources Analyzed**: ${Object.keys(data.organized_content || {}).length}`,
-      `- **Content Quality**: ${dataTypeInfo.hasSimulated ? 'Mixed (Real + Simulated)' : 'All Real Content'}`,
-      `- **Report Generated**: ${new Date().toLocaleString()}`,
-      '',
-      '## Data Sources Status',
-      ...dataTypeInfo.statusLines,
-      '',
-      '## Trending Topics',
-      ...(data.trending_topics || []).slice(0, 10).map(t => 
-        `- **${t.topic}** (${t.mentions} mentions, score: ${t.trending_score})`
-      ),
-      '',
-      '---',
-      '## News Articles 📰',
-      ...this.buildEnhancedSourceSection('News Articles', data.organized_content?.news_articles),
-      '',
-      '## Reddit Posts 🔴',
-      ...this.buildEnhancedSourceSection('Reddit Posts', data.organized_content?.reddit_posts),
-      '',
-      '## LinkedIn Posts 💼',
-      ...this.buildEnhancedSourceSection('LinkedIn Posts', data.organized_content?.linkedin_posts),
-      '',
-      '## Telegram Messages 📱',
-      ...this.buildEnhancedSourceSection('Telegram Messages', data.organized_content?.telegram_messages),
-      '',
-      '---',
-      '## AI Insights',
-      this.formatAIInsights(data.ai_insights),
-      '',
-      '## Recommendations',
-      ...(data.recommendations || []).map(rec => `- ${rec}`),
-      '',
-      '---',
-      '## Report Metadata',
-      `- **Framework**: CrewAI 2025 Compliant`,
-      `- **Agent Type**: Multi-Agent Coordination`,
-      `- **Topic Filtering**: ${dataTypeInfo.hasSimulated ? 'Limited (API Issues)' : 'Strict Quality Filtering'}`,
-      `- **Source Attribution**: Validated`,
-      `- **Run ID**: ${run._id}`,
-      `- **Agent ID**: ${run.agentId}`
+      `- **Report Generated**: ${new Date().toLocaleString()}`
+    ].join('\n');
+
+    const analysisContent = [
+      digestSection,
+      sourcesSection,
+      metricsSection
     ].join('\n');
 
     const analysisItem = new NewsItem({
       userId,
       agentId: run.agentId,
       runId: run._id,
-      title: `CrewAI Analysis Report - ${new Date().toLocaleDateString()}`,
-      description: 'Comprehensive analysis from CrewAI multi-agent system. Click to see details and related items.',
+      title: `News Digest - ${new Date().toLocaleDateString()}`,
+      description: 'Concise digest of verified items with source links.',
       content: analysisContent,
       url: `#analysis-${run._id}`, // Use run ID for a stable URL
       source: {
-        name: 'CrewAI Analysis',
+        name: 'CrewAI News Digest',
         id: 'crewai_analysis'
       },
       author: 'CrewAI Multi-Agent System',
       publishedAt: new Date(),
-      tags: ['analysis', 'crewai', 'multi-agent', 'trends'],
-      category: 'analysis',
+      tags: ['digest', 'crewai', 'news'],
+      category: 'digest',
       status: 'summarized'
     });
 
@@ -1279,6 +1267,37 @@ Using fallback test crew to demonstrate dashboard functionality.`);
     }
 
     return { hasSimulated, statusLines };
+  }
+
+  // Build concise digest lines and unique citation URLs from organized content
+  private buildNewsDigest(organizedContent: any, maxItems: number = 12): { lines: string[]; citations: string[] } {
+    const lines: string[] = [];
+    const citationSet = new Set<string>();
+
+    const pushItem = (item: any) => {
+      const url = this.getValidUrl(item, item.platform || item.source_type || 'news_website');
+      if (!url || !this.isValidUrl(url) || this.isFakeUrl(url)) return;
+
+      const title = (item.title || item.text || '').toString().trim();
+      if (!title) return;
+
+      const source = (item.source?.name || item.source || item.platform || '').toString();
+      const sourceTag = source ? ` [${source}]` : '';
+      lines.push(`- ${title}${sourceTag} — ${url}`);
+      citationSet.add(url);
+    };
+
+    const buckets = ['news_articles', 'reddit_posts', 'linkedin_posts', 'telegram_messages'];
+    for (const bucket of buckets) {
+      const items = organizedContent?.[bucket] || [];
+      for (const item of items) {
+        if (lines.length >= maxItems) break;
+        pushItem(item);
+      }
+      if (lines.length >= maxItems) break;
+    }
+
+    return { lines, citations: Array.from(citationSet) };
   }
 
   private checkForSimulatedData(data: any): boolean {
