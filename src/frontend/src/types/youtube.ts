@@ -27,6 +27,14 @@ export interface KeywordSubscription {
   isActive: boolean;
   lastFetchedAt?: string;
   nextPageToken?: string;
+  autoFetchEnabled: boolean;
+  autoFetchIntervalMinutes?: number;
+  autoFetchNextRunAt?: string;
+  autoFetchLastRunAt?: string;
+  autoFetchStatus?: 'idle' | 'running' | 'success' | 'error';
+  autoFetchLastError?: string;
+  autoFetchLastFetchedCount?: number;
+  autoFetchTimezone?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -9,6 +9,14 @@ export interface IKeywordSubscription extends Document {
   isActive: boolean;
   lastFetchedAt?: Date;
   nextPageToken?: string; // optional nice-to-have
+  autoFetchEnabled: boolean;
+  autoFetchIntervalMinutes?: number;
+  autoFetchNextRunAt?: Date;
+  autoFetchLastRunAt?: Date;
+  autoFetchStatus: 'idle' | 'running' | 'success' | 'error';
+  autoFetchLastError?: string;
+  autoFetchLastFetchedCount?: number;
+  autoFetchTimezone?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -23,6 +31,19 @@ const KeywordSubscriptionSchema = new Schema<IKeywordSubscription>(
     isActive: { type: Boolean, required: true, default: true },
     lastFetchedAt: { type: Date },
     nextPageToken: { type: String },
+    autoFetchEnabled: { type: Boolean, required: true, default: false, index: true },
+    autoFetchIntervalMinutes: { type: Number, min: 15, max: 10080, default: 1440 },
+    autoFetchNextRunAt: { type: Date, index: true },
+    autoFetchLastRunAt: { type: Date },
+    autoFetchStatus: {
+      type: String,
+      enum: ['idle', 'running', 'success', 'error'],
+      default: 'idle',
+      index: true,
+    },
+    autoFetchLastError: { type: String },
+    autoFetchLastFetchedCount: { type: Number, min: 0 },
+    autoFetchTimezone: { type: String, default: 'UTC' },
   },
   { timestamps: true }
 );
@@ -32,6 +53,8 @@ KeywordSubscriptionSchema.index(
   { userId: 1, keywords: 1 },
   { unique: false }
 );
+
+KeywordSubscriptionSchema.index({ autoFetchEnabled: 1, autoFetchNextRunAt: 1 });
 
 const KeywordSubscription = mongoose.model<IKeywordSubscription>('KeywordSubscription', KeywordSubscriptionSchema);
 export default KeywordSubscription;

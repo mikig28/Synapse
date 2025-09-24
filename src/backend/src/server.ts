@@ -54,6 +54,7 @@ import { createAgentCommandEvent } from './services/aguiMapper'; // Import AG-UI
 import { initializeSearchIndexes } from './config/searchIndexes'; // Import search indexes initializer
 import { trackApiUsage } from './middleware/usageTracking'; // Import usage tracking middleware
 import './services/searchIndexingService'; // Import to initialize search indexing hooks
+import { videoRecommendationScheduler } from './services/videoRecommendationScheduler';
 
 dotenv.config();
 
@@ -848,6 +849,10 @@ const initializeServicesInBackground = async () => {
     // Initialize task reminder scheduler
     initializeTaskReminderScheduler();
     console.log('[Server] Task reminder scheduler initialized');
+
+    // Start video recommendation scheduler
+    videoRecommendationScheduler.start();
+    console.log('[Server] Video recommendation scheduler started');
 
     // Make agent service available globally for AG-UI commands
     (global as any).agentService = agentService;

@@ -12,6 +12,9 @@ export async function createSubscription(payload: {
   freshnessDays?: number;
   maxPerFetch?: number;
   isActive?: boolean;
+  autoFetchEnabled?: boolean;
+  autoFetchIntervalMinutes?: number;
+  autoFetchTimezone?: string;
 }): Promise<KeywordSubscription> {
   const res = await axiosInstance.post<KeywordSubscription>(`/videos/subscriptions`, payload);
   return res.data;
@@ -23,6 +26,10 @@ export async function updateSubscriptionApi(id: string, payload: Partial<{
   freshnessDays: number;
   maxPerFetch: number;
   isActive: boolean;
+  autoFetchEnabled: boolean;
+  autoFetchIntervalMinutes: number;
+  resetAutoFetch: boolean;
+  autoFetchTimezone: string;
 }>): Promise<KeywordSubscription> {
   const res = await axiosInstance.patch<KeywordSubscription>(`/videos/subscriptions/${id}`, payload);
   return res.data;

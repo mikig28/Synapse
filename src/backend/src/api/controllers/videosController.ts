@@ -1,6 +1,11 @@
 import { Request, Response } from 'express';
 import VideoItem, { IVideoItem } from '../../models/VideoItem';
 import KeywordSubscription from '../../models/KeywordSubscription';
+import {
+  AUTO_FETCH_DEFAULT_INTERVAL_MINUTES,
+  clampAutoFetchInterval,
+  computeNextAutoFetchRun,
+} from '../../utils/videoAutoFetch';
 import Video from '../../models/Video';
 import { fetchForUser } from '../../services/fetchVideos';
 import mongoose from 'mongoose';
@@ -51,6 +56,7 @@ const extractYouTubeVideoId = (url: string): string | null => {
   }
   return null;
 };
+
 
 export const processAndCreateVideoItem = async (
   userIdString: string,
@@ -415,11 +421,24 @@ export const listSubscriptions = async (req: AuthenticatedRequest, res: Response
 export const createSubscription = async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ message: 'User not authenticated' });
-  const { keywords, includeShorts = true, freshnessDays = 14, maxPerFetch = 20, isActive = true } = req.body || {};
+  const {
+    keywords,
+    includeShorts = true,
+    freshnessDays = 14,
+    maxPerFetch = 20,
+    isActive = true,
+    autoFetchEnabled = false,
+    autoFetchIntervalMinutes,
+    autoFetchTimezone,
+  } = req.body || {};
 
   if (!Array.isArray(keywords) || keywords.length === 0) {
     return res.status(400).json({ message: 'keywords[] is required' });
   }
+
+  const normalizedInterval = clampAutoFetchInterval(autoFetchIntervalMinutes);
+  const timezone = typeof autoFetchTimezone === 'string' ? autoFetchTimezone : 'UTC';
+  const autoFetchNextRunAt = autoFetchEnabled ? computeNextAutoFetchRun(normalizedInterval, undefined, timezone) : undefined;
 
   const doc = await KeywordSubscription.create({
     userId: new mongoose.Types.ObjectId(userId),
@@ -428,6 +447,11 @@ export const createSubscription = async (req: AuthenticatedRequest, res: Respons
     freshnessDays,
     maxPerFetch,
     isActive: !!isActive,
+    autoFetchEnabled: !!autoFetchEnabled,
+    autoFetchIntervalMinutes: normalizedInterval,
+    autoFetchNextRunAt,
+    autoFetchStatus: 'idle',
+    autoFetchTimezone: timezone,
   });
   return res.status(201).json(doc);
 };
@@ -457,22 +481,67 @@ export const updateSubscription = async (req: AuthenticatedRequest, res: Respons
   const id = req.params.id;
   if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ message: 'Invalid id' });
 
-  const { keywords, includeShorts, freshnessDays, maxPerFetch, isActive } = req.body || {};
+  const {
+    keywords,
+    includeShorts,
+    freshnessDays,
+    maxPerFetch,
+    isActive,
+    autoFetchEnabled,
+    autoFetchIntervalMinutes,
+    resetAutoFetch,
+    autoFetchTimezone,
+  } = req.body || {};
 
-  const update: any = {};
-  if (Array.isArray(keywords)) update.keywords = keywords;
-  if (typeof includeShorts === 'boolean') update.includeShorts = includeShorts;
-  if (typeof freshnessDays === 'number') update.freshnessDays = freshnessDays;
-  if (typeof maxPerFetch === 'number') update.maxPerFetch = maxPerFetch;
-  if (typeof isActive === 'boolean') update.isActive = isActive;
+  const subscription = await KeywordSubscription.findOne({
+    _id: new mongoose.Types.ObjectId(id),
+    userId: new mongoose.Types.ObjectId(userId),
+  });
+  if (!subscription) {
+    return res.status(404).json({ message: 'Not found' });
+  }
 
-  const doc = await KeywordSubscription.findOneAndUpdate(
-    { _id: new mongoose.Types.ObjectId(id), userId: new mongoose.Types.ObjectId(userId) },
-    update,
-    { new: true }
-  );
-  if (!doc) return res.status(404).json({ message: 'Not found' });
-  return res.status(200).json(doc);
+  if (Array.isArray(keywords)) subscription.keywords = keywords;
+  if (typeof includeShorts === 'boolean') subscription.includeShorts = includeShorts;
+  if (typeof freshnessDays === 'number') subscription.freshnessDays = freshnessDays;
+  if (typeof maxPerFetch === 'number') subscription.maxPerFetch = maxPerFetch;
+  if (typeof isActive === 'boolean') subscription.isActive = isActive;
+
+  let normalizedInterval: number | undefined;
+  if (typeof autoFetchIntervalMinutes === 'number') {
+    normalizedInterval = clampAutoFetchInterval(autoFetchIntervalMinutes);
+    subscription.autoFetchIntervalMinutes = normalizedInterval;
+  }
+
+  if (typeof autoFetchEnabled === 'boolean') {
+    subscription.autoFetchEnabled = autoFetchEnabled;
+    if (!autoFetchEnabled) {
+      subscription.autoFetchNextRunAt = undefined;
+      subscription.autoFetchStatus = 'idle';
+      subscription.autoFetchLastError = undefined;
+    }
+  }
+
+  if (typeof autoFetchTimezone === 'string') {
+    subscription.autoFetchTimezone = autoFetchTimezone;
+  }
+
+  const shouldSchedule = subscription.autoFetchEnabled && (normalizedInterval || resetAutoFetch || typeof autoFetchEnabled === 'boolean');
+  if (shouldSchedule) {
+    const intervalForNextRun = normalizedInterval || subscription.autoFetchIntervalMinutes || AUTO_FETCH_DEFAULT_INTERVAL_MINUTES;
+    subscription.autoFetchNextRunAt = computeNextAutoFetchRun(intervalForNextRun, undefined, subscription.autoFetchTimezone);
+    subscription.autoFetchStatus = 'idle';
+    subscription.autoFetchLastError = undefined;
+  }
+
+  if (resetAutoFetch && !subscription.autoFetchEnabled) {
+    subscription.autoFetchNextRunAt = undefined;
+    subscription.autoFetchStatus = 'idle';
+    subscription.autoFetchLastError = undefined;
+  }
+
+  await subscription.save();
+  return res.status(200).json(subscription);
 };
 
 // Delete a subscription

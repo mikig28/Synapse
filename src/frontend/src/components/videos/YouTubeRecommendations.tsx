@@ -9,7 +9,9 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { useToast } from '@/hooks/use-toast';
 import { createSubscription, listRecommendations, listSubscriptions, triggerFetchNow, updateModeration, updateSubscriptionApi, deleteSubscriptionApi, deleteRecommendationVideoApi, bulkDeleteRecommendationsApi } from '@/services/videoRecommendationsService';
 import { KeywordSubscription, RecommendationVideo, VideoModerationStatus } from '@/types/youtube';
-import { Check, EyeOff, Filter, Plus, RefreshCw, Youtube, X } from 'lucide-react';
+import { Check, EyeOff, Filter, Globe2, Plus, RefreshCw, Youtube, X } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 type StatusTab = 'all' | 'pending' | 'approved' | 'hidden';
 
@@ -31,10 +33,14 @@ export const YouTubeRecommendations: React.FC = () => {
 
   // New subscription dialog state
   const [openDialog, setOpenDialog] = useState<boolean>(false);
+  const DEFAULT_AUTO_FETCH_INTERVAL = 1440;
   const [newKeywords, setNewKeywords] = useState<string>('');
   const [newIncludeShorts, setNewIncludeShorts] = useState<boolean>(true);
   const [newFreshness, setNewFreshness] = useState<number>(14);
   const [newMaxFetch, setNewMaxFetch] = useState<number>(20);
+  const [newAutoFetchEnabled, setNewAutoFetchEnabled] = useState<boolean>(false);
+  const [newAutoFetchInterval, setNewAutoFetchInterval] = useState<number>(DEFAULT_AUTO_FETCH_INTERVAL);
+  const [newAutoFetchTimezone, setNewAutoFetchTimezone] = useState<string>('UTC');
   const [creating, setCreating] = useState<boolean>(false);
   // Manage/edit subscription dialog
   const [manageOpen, setManageOpen] = useState<boolean>(false);
@@ -44,6 +50,9 @@ export const YouTubeRecommendations: React.FC = () => {
   const [editFreshness, setEditFreshness] = useState<number>(14);
   const [editMaxFetch, setEditMaxFetch] = useState<number>(20);
   const [editIncludeShorts, setEditIncludeShorts] = useState<boolean>(true);
+  const [editAutoFetchEnabled, setEditAutoFetchEnabled] = useState<boolean>(false);
+  const [editAutoFetchInterval, setEditAutoFetchInterval] = useState<number>(DEFAULT_AUTO_FETCH_INTERVAL);
+  const [editAutoFetchTimezone, setEditAutoFetchTimezone] = useState<string>('UTC');
   const [editIsActive, setEditIsActive] = useState<boolean>(true);
 
   const statusParam = useMemo<VideoModerationStatus | undefined>(() => {
@@ -136,6 +145,53 @@ export const YouTubeRecommendations: React.FC = () => {
     }
   };
 
+  const resetCreateDialogState = () => {
+    setNewKeywords('');
+    setNewIncludeShorts(true);
+    setNewFreshness(14);
+    setNewMaxFetch(20);
+    setNewAutoFetchEnabled(false);
+    setNewAutoFetchInterval(DEFAULT_AUTO_FETCH_INTERVAL);
+    setNewAutoFetchTimezone('UTC');
+  };
+
+  const resetEditState = () => {
+    setEditId('');
+    setEditKeywords('');
+    setEditFreshness(14);
+    setEditMaxFetch(20);
+    setEditIncludeShorts(true);
+    setEditIsActive(true);
+    setEditAutoFetchEnabled(false);
+    setEditAutoFetchInterval(DEFAULT_AUTO_FETCH_INTERVAL);
+    setEditAutoFetchTimezone('UTC');
+  };
+
+  const formatDateTime = (iso?: string) => {
+    if (!iso) return '—';
+    try {
+      return new Date(iso).toLocaleString();
+    } catch {
+      return '—';
+    }
+  };
+
+  const getAutoFetchSummary = (sub: KeywordSubscription) => {
+    if (!sub.autoFetchEnabled) return 'Manual fetch only';
+    const interval = sub.autoFetchIntervalMinutes ?? DEFAULT_AUTO_FETCH_INTERVAL;
+    const nextRun = sub.autoFetchNextRunAt ? new Date(sub.autoFetchNextRunAt) : undefined;
+    const intervalHours = (interval / 60).toFixed(interval % 60 === 0 ? 0 : 1);
+    const intervalLabel = interval >= 1440
+      ? `${(interval / 1440).toFixed(interval % 1440 === 0 ? 0 : 1)}d`
+      : interval >= 60
+        ? `${intervalHours}h`
+        : `${interval}m`;
+    const status = sub.autoFetchStatus ? sub.autoFetchStatus : 'idle';
+    const nextLabel = nextRun ? `next ${nextRun.toLocaleString()}` : 'next n/a';
+    const tz = sub.autoFetchTimezone || 'UTC';
+    return `${intervalLabel} • ${status}${status === 'error' && sub.autoFetchLastError ? ` (${sub.autoFetchLastError})` : ''} • ${nextLabel} • ${tz}`;
+  };
+
   const onCreateSub = async () => {
     if (!newKeywords.trim()) {
       toast({ title: 'Keywords required', variant: 'destructive' });
@@ -149,14 +205,17 @@ export const YouTubeRecommendations: React.FC = () => {
         freshnessDays: newFreshness,
         maxPerFetch: newMaxFetch,
         isActive: true,
+        autoFetchEnabled: newAutoFetchEnabled,
+        autoFetchIntervalMinutes: newAutoFetchInterval,
+        autoFetchTimezone: newAutoFetchTimezone,
       };
       const created = await createSubscription(payload);
       setSubscriptions((prev) => [created, ...prev]);
       setOpenDialog(false);
-      setNewKeywords('');
+      resetCreateDialogState();
       setSelectedSubId(created._id);
       toast({ title: 'Subscription created' });
-    } catch (e: any) {
+    } catch {
       toast({ title: 'Failed to create subscription', variant: 'destructive' });
     } finally {
       setCreating(false);
@@ -172,7 +231,13 @@ export const YouTubeRecommendations: React.FC = () => {
           <Youtube className="h-6 w-6 text-red-500 mr-2" /> YouTube Recommendations
         </h2>
         <div className="flex items-center gap-2">
-          <Dialog open={openDialog} onOpenChange={setOpenDialog}>
+          <Dialog
+            open={openDialog}
+            onOpenChange={(val) => {
+              setOpenDialog(val);
+              if (!val) resetCreateDialogState();
+            }}
+          >
             <DialogTrigger asChild>
               <AnimatedButton variant="outline" size="sm" className="flex items-center">
                 <Plus className="h-4 w-4 mr-1" /> New Subscription
@@ -201,6 +266,40 @@ export const YouTubeRecommendations: React.FC = () => {
                   <input id="includeShorts" type="checkbox" checked={newIncludeShorts} onChange={(e) => setNewIncludeShorts(e.target.checked)} />
                   <label htmlFor="includeShorts" className="text-sm">Include Shorts</label>
                 </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="new-auto-fetch" className="text-sm">Auto-fetch recommendations</Label>
+                  <Switch id="new-auto-fetch" checked={newAutoFetchEnabled} onCheckedChange={setNewAutoFetchEnabled} />
+                </div>
+                {newAutoFetchEnabled && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="new-auto-fetch-interval" className="text-sm">Interval (minutes)</Label>
+                      <Input
+                        id="new-auto-fetch-interval"
+                        type="number"
+                        min={15}
+                        max={10080}
+                        value={newAutoFetchInterval}
+                        onChange={(e) => setNewAutoFetchInterval(parseInt(e.target.value || '1440', 10))}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2 text-xs">
+                      <AnimatedButton variant="outline" size="sm" onClick={() => setNewAutoFetchInterval(1440)}>Daily</AnimatedButton>
+                      <AnimatedButton variant="outline" size="sm" onClick={() => setNewAutoFetchInterval(720)}>Every 12h</AnimatedButton>
+                      <AnimatedButton variant="outline" size="sm" onClick={() => setNewAutoFetchInterval(180)}>Every 3h</AnimatedButton>
+                    </div>
+                    <div className="col-span-2 flex items-center gap-2 text-xs">
+                      <Globe2 className="w-3 h-3" />
+                      <Label htmlFor="new-auto-fetch-timezone" className="text-sm">Timezone</Label>
+                      <Input
+                        id="new-auto-fetch-timezone"
+                        value={newAutoFetchTimezone}
+                        onChange={(e) => setNewAutoFetchTimezone(e.target.value || 'UTC')}
+                        placeholder="e.g. America/New_York"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <AnimatedButton onClick={onCreateSub} disabled={creating}>
@@ -209,7 +308,13 @@ export const YouTubeRecommendations: React.FC = () => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          <Dialog open={manageOpen} onOpenChange={setManageOpen}>
+          <Dialog
+            open={manageOpen}
+            onOpenChange={(val) => {
+              setManageOpen(val);
+              if (!val) resetEditState();
+            }}
+          >
             <DialogTrigger asChild>
               <AnimatedButton variant="outline" size="sm">Manage Subscriptions</AnimatedButton>
             </DialogTrigger>
@@ -225,6 +330,8 @@ export const YouTubeRecommendations: React.FC = () => {
                     <div key={s._id} className="p-3 border border-purple-800/40 rounded-md bg-slate-900/40">
                       <div className="text-sm font-medium text-purple-200 line-clamp-2">{s.keywords.join(', ')}</div>
                       <div className="text-[11px] text-purple-400/70 mt-1">freshness {s.freshnessDays}d • max {s.maxPerFetch} • {s.includeShorts ? 'shorts:on' : 'shorts:off'} • {s.isActive ? 'active' : 'inactive'}</div>
+                      <div className="text-[11px] text-purple-300/60 mt-1">{getAutoFetchSummary(s)}</div>
+                      <div className="text-[11px] text-purple-400/60 mt-1">last run: {formatDateTime(s.autoFetchLastRunAt)} • last fetched: {s.autoFetchLastFetchedCount ?? 0}</div>
                       <div className="mt-2 flex items-center gap-2">
                         <AnimatedButton
                           variant="outline"
@@ -235,6 +342,9 @@ export const YouTubeRecommendations: React.FC = () => {
                             setEditFreshness(s.freshnessDays);
                             setEditMaxFetch(s.maxPerFetch);
                             setEditIncludeShorts(s.includeShorts);
+                            setEditAutoFetchEnabled(s.autoFetchEnabled);
+                            setEditAutoFetchInterval(s.autoFetchIntervalMinutes ?? DEFAULT_AUTO_FETCH_INTERVAL);
+                            setEditAutoFetchTimezone(s.autoFetchTimezone || 'UTC');
                             setEditIsActive(s.isActive);
                           }}
                         >Edit</AnimatedButton>
@@ -265,33 +375,102 @@ export const YouTubeRecommendations: React.FC = () => {
                             <label className="text-xs flex items-center gap-1"><input type="checkbox" checked={editIncludeShorts} onChange={(e) => setEditIncludeShorts(e.target.checked)} />Include Shorts</label>
                             <label className="text-xs flex items-center gap-1"><input type="checkbox" checked={editIsActive} onChange={(e) => setEditIsActive(e.target.checked)} />Active</label>
                           </div>
-                          <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor={`autoFetch-${s._id}`} className="text-xs">Auto-Fetch</Label>
+                          <Switch id={`autoFetch-${s._id}`} checked={editAutoFetchEnabled} onCheckedChange={setEditAutoFetchEnabled} />
+                        </div>
+                        {editAutoFetchEnabled && (
+                          <div className="flex items-center gap-2 text-xs">
+                            <Label htmlFor={`autoFetchInterval-${s._id}`}>Interval (minutes)</Label>
+                            <Input
+                              id={`autoFetchInterval-${s._id}`}
+                              type="number"
+                              min={15}
+                              max={10080}
+                              value={editAutoFetchInterval}
+                              onChange={(e) => setEditAutoFetchInterval(parseInt(e.target.value || String(DEFAULT_AUTO_FETCH_INTERVAL), 10))}
+                            />
                             <AnimatedButton
                               size="sm"
+                              variant="outline"
+                              onClick={() => setEditAutoFetchInterval(DEFAULT_AUTO_FETCH_INTERVAL)}
+                            >Daily</AnimatedButton>
+                            <AnimatedButton
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setEditAutoFetchInterval(720)}
+                            >12h</AnimatedButton>
+                            <AnimatedButton
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setEditAutoFetchInterval(180)}
+                            >3h</AnimatedButton>
+                          </div>
+                        )}
+                        {editAutoFetchEnabled && (
+                          <div className="flex items-center gap-2 text-xs">
+                            <Globe2 className="w-3 h-3" />
+                            <Label htmlFor={`autoFetchTimezone-${s._id}`}>Timezone</Label>
+                            <Input
+                              id={`autoFetchTimezone-${s._id}`}
+                              value={editAutoFetchTimezone}
+                              onChange={(e) => setEditAutoFetchTimezone(e.target.value || 'UTC')}
+                              placeholder="e.g. America/New_York"
+                            />
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <AnimatedButton
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                setEditing(true);
+                                const payload = {
+                                  keywords: editKeywords.split(',').map((x) => x.trim()).filter(Boolean),
+                                  freshnessDays: editFreshness,
+                                  maxPerFetch: editMaxFetch,
+                                  includeShorts: editIncludeShorts,
+                                  isActive: editIsActive,
+                                  autoFetchEnabled: editAutoFetchEnabled,
+                                  autoFetchIntervalMinutes: editAutoFetchInterval,
+                                  autoFetchTimezone: editAutoFetchTimezone,
+                                };
+                                const updated = await updateSubscriptionApi(s._id, payload);
+                                setSubscriptions((prev) => prev.map((x) => (x._id === s._id ? updated : x)));
+                                resetEditState();
+                                toast({ title: 'Subscription updated' });
+                              } catch {
+                                toast({ title: 'Failed to update', variant: 'destructive' });
+                              } finally {
+                                setEditing(false);
+                              }
+                            }}
+                            disabled={editing}
+                          >{editing ? 'Saving...' : 'Save'}</AnimatedButton>
+                          <AnimatedButton size="sm" variant="ghost" onClick={resetEditState}>Cancel</AnimatedButton>
+                          {editAutoFetchEnabled && (
+                            <AnimatedButton
+                              size="sm"
+                              variant="outline"
+                              disabled={editing}
                               onClick={async () => {
                                 try {
                                   setEditing(true);
-                                  const payload = {
-                                    keywords: editKeywords.split(',').map((x) => x.trim()).filter(Boolean),
-                                    freshnessDays: editFreshness,
-                                    maxPerFetch: editMaxFetch,
-                                    includeShorts: editIncludeShorts,
-                                    isActive: editIsActive,
-                                  };
-                                  const updated = await updateSubscriptionApi(s._id, payload);
+                                  const updated = await updateSubscriptionApi(s._id, {
+                                    resetAutoFetch: true,
+                                  });
                                   setSubscriptions((prev) => prev.map((x) => (x._id === s._id ? updated : x)));
-                                  setEditId('');
-                                  toast({ title: 'Subscription updated' });
+                                  setEditAutoFetchInterval(updated.autoFetchIntervalMinutes ?? DEFAULT_AUTO_FETCH_INTERVAL);
+                                  toast({ title: 'Next run reset' });
                                 } catch {
-                                  toast({ title: 'Failed to update', variant: 'destructive' });
+                                  toast({ title: 'Failed to reset schedule', variant: 'destructive' });
                                 } finally {
                                   setEditing(false);
                                 }
                               }}
-                              disabled={editing}
-                            >{editing ? 'Saving...' : 'Save'}</AnimatedButton>
-                            <AnimatedButton size="sm" variant="ghost" onClick={() => setEditId('')}>Cancel</AnimatedButton>
-                          </div>
+                            >Reset Next Run</AnimatedButton>
+                          )}
+                        </div>
                         </div>
                       )}
                     </div>
