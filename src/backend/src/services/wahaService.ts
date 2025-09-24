@@ -8,6 +8,7 @@ import { EventEmitter } from 'events';
 import { WhatsAppMediaService, whatsappMediaService, MediaFileInfo } from './whatsappMediaService';
 import WhatsAppMessage from '../models/WhatsAppMessage';
 import WhatsAppContact from '../models/WhatsAppContact';
+import GroupMonitorService from './groupMonitorService';
 
 export interface WAHAMessage {
   id: string;
@@ -97,6 +98,8 @@ class WAHAService extends EventEmitter {
   private groupsEndpointLastFailure = 0;
   private readonly GROUPS_CIRCUIT_BREAKER_THRESHOLD = 3;
   private readonly GROUPS_CIRCUIT_BREAKER_RESET_TIME = 300000; // 5 minutes
+
+  private groupMonitorService: GroupMonitorService;
 
   /**
    * Persist a WAHA message item to MongoDB with summary metadata
@@ -349,6 +352,8 @@ class WAHAService extends EventEmitter {
 
     // Set up event listeners for authentication
     this.on('authenticated', this.handleAuthentication.bind(this));
+
+    this.groupMonitorService = new GroupMonitorService();
   }
 
   /**
@@ -2359,7 +2364,6 @@ class WAHAService extends EventEmitter {
         caption: messageData.body
       };
 
-      // Robustly derive imageUrl from multiple possible fields
       const mediaUrl = messageData.mediaUrl || messageData.media?.url || null;
       const isImage = (messageData.isMedia || messageData.hasMedia) && (messageData.type === 'image' || (messageData.mimeType?.startsWith?.('image/')));
       if (isImage && mediaUrl) {
@@ -2367,14 +2371,9 @@ class WAHAService extends EventEmitter {
         console.log('[WAHA Service] 📸 Adding image URL to payload:', mediaUrl);
       }
 
-      console.log('[WAHA Service] 📤 Forwarding message for group monitoring:', payload);
-
-      // Send to group monitor webhook (fire and forget)
       const axios = require('axios');
       const baseUrl = process.env.BACKEND_URL || 'https://synapse-backend-7lq6.onrender.com';
       const webhookUrl = `${baseUrl}/api/v1/group-monitor/webhook/whatsapp-message`;
-
-      console.log('[WAHA Service] 🌐 Sending webhook to:', webhookUrl);
 
       const response = await axios.post(webhookUrl, payload, {
         timeout: 5000,
@@ -2388,7 +2387,6 @@ class WAHAService extends EventEmitter {
         messageId: messageData.id,
         groupId: messageData.chatId
       });
-
     } catch (error: any) {
       console.error('[WAHA Service] ❌ Error processing message for group monitoring:', {
         messageId: messageData.id,

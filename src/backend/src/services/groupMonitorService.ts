@@ -64,6 +64,35 @@ class GroupMonitorService {
     this.faceRecognitionUrl = process.env.FACE_RECOGNITION_SERVICE_URL || 'http://localhost:5001';
   }
 
+  private normalizeGroupId(groupId: any): string {
+    if (groupId == null) {
+      return '';
+    }
+
+    let candidate = groupId;
+
+    if (typeof candidate === 'object') {
+      candidate = candidate._serialized
+        || candidate.id
+        || (candidate.user && candidate.server ? `${candidate.user}@${candidate.server}` : '');
+    }
+
+    candidate = String(candidate).trim();
+    if (!candidate) {
+      return '';
+    }
+
+    candidate = candidate.replace(/\u0000/g, '');
+
+    if (!candidate.includes('@')) {
+      candidate = candidate.includes('-')
+        ? `${candidate}@g.us`
+        : `${candidate}@s.whatsapp.net`;
+    }
+
+    return candidate.toLowerCase();
+  }
+
   /**
    * Create a new group monitor
    */
@@ -84,9 +113,11 @@ class GroupMonitorService {
       }
 
       // Check if monitor already exists for this group and user
+      const normalizedGroupId = this.normalizeGroupId(monitorData.groupId);
+
       const existingMonitor = await GroupMonitor.findOne({
-        groupId: monitorData.groupId,
-        userId: new Types.ObjectId(userId)
+        userId: new Types.ObjectId(userId),
+        groupId: normalizedGroupId
       });
 
       if (existingMonitor) {
@@ -102,7 +133,7 @@ class GroupMonitorService {
       };
 
       const groupMonitor = new GroupMonitor({
-        groupId: monitorData.groupId,
+        groupId: normalizedGroupId,
         groupName: monitorData.groupName,
         userId: new Types.ObjectId(userId),
         targetPersons: targetPersons.map(p => p._id as mongoose.Types.ObjectId),
@@ -142,61 +173,15 @@ class GroupMonitorService {
    * Get active group monitors for a specific group
    */
   async getActiveMonitorsForGroup(groupId: string): Promise<IGroupMonitor[]> {
-    console.log(`[GroupMonitorService] 🔍 Searching for active monitors with groupId: "${groupId}"`);
+    const normalizedGroupId = this.normalizeGroupId(groupId);
 
     try {
-      // First, let's see what group IDs exist in the database for debugging
-      const allGroups = await GroupMonitor.find({ isActive: true }).select('groupId groupName _id').limit(10);
-      console.log(`[GroupMonitorService] 📋 Sample of existing active monitors in database:`,
-        allGroups.map(m => ({
-          id: m._id.toString(),
-          groupId: m.groupId,
-          groupName: m.groupName,
-          exactMatch: m.groupId === groupId
-        }))
-      );
-
-      // Try exact match first
-      let monitors = await GroupMonitor.find({
-        groupId: groupId,
+      return await GroupMonitor.find({
+        groupId: normalizedGroupId,
         isActive: true
       }).populate('targetPersons', 'name faceEmbeddings');
-
-      console.log(`[GroupMonitorService] 🎯 Exact match found ${monitors.length} monitors for groupId: "${groupId}"`);
-
-      // If no exact matches, try alternative matching patterns for WhatsApp group IDs
-      if (monitors.length === 0) {
-        console.log(`[GroupMonitorService] 🔍 No exact matches, trying alternative group ID formats...`);
-
-        // WhatsApp group IDs can have different formats, try some variations
-        const alternativeQueries = [
-          { groupId: groupId.replace('@g.us', '') }, // Remove @g.us suffix
-          { groupId: groupId + '@g.us' }, // Add @g.us suffix
-          { groupId: { $regex: new RegExp(groupId.replace(/[-\[\]{}()*+?.,\\\^$|#\s]/g, '\\$&'), 'i') } } // Case-insensitive partial match
-        ];
-
-        for (const query of alternativeQueries) {
-          console.log(`[GroupMonitorService] 🔍 Trying query:`, query);
-          const alternativeMonitors = await GroupMonitor.find({
-            ...query,
-            isActive: true
-          }).populate('targetPersons', 'name faceEmbeddings').limit(5);
-
-          if (alternativeMonitors.length > 0) {
-            console.log(`[GroupMonitorService] ✅ Found ${alternativeMonitors.length} monitors with alternative query:`,
-              alternativeMonitors.map(m => ({ id: m._id.toString(), groupId: m.groupId, groupName: m.groupName }))
-            );
-            monitors = alternativeMonitors;
-            break;
-          }
-        }
-      }
-
-      console.log(`[GroupMonitorService] 📊 Final result: ${monitors.length} active monitors found for group "${groupId}"`);
-
-      return monitors;
     } catch (error) {
-      console.error(`[GroupMonitorService] ❌ Error fetching active monitors for group "${groupId}":`, error);
+      console.error(`[GroupMonitorService] ❌ Error fetching active monitors for group "${normalizedGroupId}":`, error);
       throw new Error('Failed to fetch active monitors');
     }
   }
@@ -293,14 +278,16 @@ class GroupMonitorService {
     try {
       // Get active monitors for this group
       console.log(`[GroupMonitorService] 📊 Looking up active monitors for group: ${groupId}`);
-      const monitors = await this.getActiveMonitorsForGroup(groupId);
+      const normalizedGroupId = this.normalizeGroupId(groupId);
+
+      const monitors = await this.getActiveMonitorsForGroup(normalizedGroupId);
 
       console.log(`[GroupMonitorService] 📊 Found ${monitors.length} active monitors for group ${groupId}:`,
         monitors.map(m => ({ id: m._id.toString(), groupName: m.groupName, userId: m.userId.toString() }))
       );
 
       if (monitors.length === 0) {
-        console.log(`[GroupMonitorService] ⚠️ No active monitors found for group ${groupId} - skipping processing`);
+        console.log(`[GroupMonitorService] ⚠️ No active monitors found for group ${normalizedGroupId} (original ${groupId}) - skipping processing`);
         return; // No active monitors for this group
       }
 
@@ -580,7 +567,14 @@ class GroupMonitorService {
     } = {}
   ): Promise<IFilteredImage[]> {
     try {
-      return await (FilteredImage as any).getImagesForUser(userId, options);
+      const normalizedGroupId = options.groupId ? this.normalizeGroupId(options.groupId) : undefined;
+
+      const queryOptions = {
+        ...options,
+        groupId: normalizedGroupId ?? options.groupId
+      };
+
+      return await (FilteredImage as any).getImagesForUser(userId, queryOptions);
     } catch (error) {
       console.error('Error fetching filtered images:', error);
       throw new Error('Failed to fetch filtered images');

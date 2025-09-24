@@ -108,6 +108,7 @@ const GroupMonitorSchema: Schema<IGroupMonitor> = new Schema(
 
 // Ensure unique monitoring per group per user
 GroupMonitorSchema.index({ groupId: 1, userId: 1 }, { unique: true });
+GroupMonitorSchema.index({ groupId: 1, isActive: 1 });
 
 // Static method to get active monitors for user
 GroupMonitorSchema.statics.getActiveMonitors = function(userId: string) {
