@@ -272,6 +272,36 @@ export class CrewAIAgentExecutor implements AgentExecutor {
       }
     }
     
+    // Israeli sports focus
+    if (
+      fullText.includes('israel') ||
+      fullText.includes('israeli') ||
+      fullText.includes('hebrew') ||
+      fullText.includes('ligat') ||
+      fullText.includes("ha'al") ||
+      fullText.includes('liga') ||
+      fullText.includes('maccabi') ||
+      fullText.includes('hapoel') ||
+      fullText.includes('beitar') ||
+      fullText.includes('tel aviv') ||
+      fullText.includes('haifa') ||
+      fullText.includes('jerusalem')
+    ) {
+      topics.push(
+        'Israeli sports',
+        "Ligat Ha'Al",
+        'Israeli Premier League',
+        'Maccabi Tel Aviv',
+        'Hapoel Tel Aviv',
+        'Maccabi Haifa',
+        'Beitar Jerusalem',
+        'Israeli national team',
+        'Israeli Basketball Super League',
+        'EuroLeague Maccabi Tel Aviv'
+      );
+      console.log('[CrewAIExecutor] Detected Israeli sports focus');
+    }
+    
     // Financial patterns
     else if (fullText.includes('financ') || fullText.includes('stock') || fullText.includes('crypto') || 
              fullText.includes('market') || fullText.includes('trading')) {

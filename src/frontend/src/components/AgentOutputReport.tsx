@@ -34,6 +34,7 @@ interface AgentRun {
   results: {
     summary?: string;
     data?: any;
+    details?: any;
     executive_summary?: string[];
     organized_content?: Record<string, any[]>;
     metrics?: {
@@ -145,7 +146,7 @@ const AgentOutputReport: React.FC<AgentOutputReportProps> = ({
   };
 
   const agentName = typeof run.agentId === 'object' ? run.agentId.name : 'Unknown Agent';
-  const executiveSummary = run.results.executive_summary || [];
+  const executiveSummary = (run.results.executive_summary || run.results.details?.news_digest || []) as string[];
   const organizedContent = run.results.organized_content || {};
   const metrics = run.results.metrics || {};
 
