@@ -692,34 +692,7 @@ Using fallback test crew to demonstrate dashboard functionality.`);
       }
     }
 
-    // Israeli sports focus (English/Hebrew transliterations and club names)
-    if (
-      fullText.includes('israel') ||
-      fullText.includes('israeli') ||
-      fullText.includes('hebrew') ||
-      fullText.includes('ligat') ||
-      fullText.includes("ha'al") ||
-      fullText.includes("ha’al") ||
-      fullText.includes('maccabi') ||
-      fullText.includes('hapoel') ||
-      fullText.includes('beitar') ||
-      fullText.includes('tel aviv') ||
-      fullText.includes('haifa') ||
-      fullText.includes('jerusalem')
-    ) {
-      topics.push(
-        'Israeli sports',
-        "Ligat Ha'Al",
-        'Israeli Premier League',
-        'Maccabi Tel Aviv',
-        'Hapoel Tel Aviv',
-        'Maccabi Haifa',
-        'Beitar Jerusalem',
-        'Israeli national team',
-        'Israeli Basketball Super League',
-        'EuroLeague Maccabi Tel Aviv'
-      );
-    }
+    // No domain-specific hardcoding: rely on user-provided topics or generic extraction only
 
     // Finance patterns
     else if (

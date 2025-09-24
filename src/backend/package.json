@@ -4,7 +4,7 @@
   "private": true,
   "main": "dist/server.js",
   "scripts": {
-    "build": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc",
+    "build": "tsc",
     "prebuild": "node -e \"const fs = require('fs'); if (fs.existsSync('./dist')) { fs.rmSync('./dist', { recursive: true, force: true }); }\"",
     "start": "node dist/server.js",
     "dev": "nodemon src/server.ts",
