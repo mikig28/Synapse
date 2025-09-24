@@ -12,6 +12,9 @@ router.get('/status', (req, res) => groupMonitorController.getServiceStatus(req,
 // Webhook for processing WhatsApp messages (no auth required - called by WhatsApp service)
 router.post('/webhook/whatsapp-message', (req, res) => groupMonitorController.processWhatsAppMessage(req, res));
 
+// Test endpoint to simulate WhatsApp message (no auth required - for debugging)
+router.post('/test/webhook-message', (req, res) => groupMonitorController.testWebhookMessage(req, res));
+
 // Apply authentication middleware to protected routes
 router.use(authMiddleware);
 

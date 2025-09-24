@@ -142,13 +142,61 @@ class GroupMonitorService {
    * Get active group monitors for a specific group
    */
   async getActiveMonitorsForGroup(groupId: string): Promise<IGroupMonitor[]> {
+    console.log(`[GroupMonitorService] 🔍 Searching for active monitors with groupId: "${groupId}"`);
+
     try {
-      return await GroupMonitor.find({
+      // First, let's see what group IDs exist in the database for debugging
+      const allGroups = await GroupMonitor.find({ isActive: true }).select('groupId groupName _id').limit(10);
+      console.log(`[GroupMonitorService] 📋 Sample of existing active monitors in database:`,
+        allGroups.map(m => ({
+          id: m._id.toString(),
+          groupId: m.groupId,
+          groupName: m.groupName,
+          exactMatch: m.groupId === groupId
+        }))
+      );
+
+      // Try exact match first
+      let monitors = await GroupMonitor.find({
         groupId: groupId,
         isActive: true
       }).populate('targetPersons', 'name faceEmbeddings');
+
+      console.log(`[GroupMonitorService] 🎯 Exact match found ${monitors.length} monitors for groupId: "${groupId}"`);
+
+      // If no exact matches, try alternative matching patterns for WhatsApp group IDs
+      if (monitors.length === 0) {
+        console.log(`[GroupMonitorService] 🔍 No exact matches, trying alternative group ID formats...`);
+
+        // WhatsApp group IDs can have different formats, try some variations
+        const alternativeQueries = [
+          { groupId: groupId.replace('@g.us', '') }, // Remove @g.us suffix
+          { groupId: groupId + '@g.us' }, // Add @g.us suffix
+          { groupId: { $regex: new RegExp(groupId.replace(/[-\[\]{}()*+?.,\\\^$|#\s]/g, '\\$&'), 'i') } } // Case-insensitive partial match
+        ];
+
+        for (const query of alternativeQueries) {
+          console.log(`[GroupMonitorService] 🔍 Trying query:`, query);
+          const alternativeMonitors = await GroupMonitor.find({
+            ...query,
+            isActive: true
+          }).populate('targetPersons', 'name faceEmbeddings').limit(5);
+
+          if (alternativeMonitors.length > 0) {
+            console.log(`[GroupMonitorService] ✅ Found ${alternativeMonitors.length} monitors with alternative query:`,
+              alternativeMonitors.map(m => ({ id: m._id.toString(), groupId: m.groupId, groupName: m.groupName }))
+            );
+            monitors = alternativeMonitors;
+            break;
+          }
+        }
+      }
+
+      console.log(`[GroupMonitorService] 📊 Final result: ${monitors.length} active monitors found for group "${groupId}"`);
+
+      return monitors;
     } catch (error) {
-      console.error('Error fetching active monitors for group:', error);
+      console.error(`[GroupMonitorService] ❌ Error fetching active monitors for group "${groupId}":`, error);
       throw new Error('Failed to fetch active monitors');
     }
   }
@@ -235,23 +283,59 @@ class GroupMonitorService {
     imageUrl?: string,
     caption?: string
   ): Promise<void> {
+    console.log(`[GroupMonitorService] 🔄 Processing message ${messageId} for group ${groupId}`, {
+      senderId,
+      senderName,
+      hasImage: !!imageUrl,
+      caption: caption?.substring(0, 100)
+    });
+
     try {
       // Get active monitors for this group
+      console.log(`[GroupMonitorService] 📊 Looking up active monitors for group: ${groupId}`);
       const monitors = await this.getActiveMonitorsForGroup(groupId);
 
+      console.log(`[GroupMonitorService] 📊 Found ${monitors.length} active monitors for group ${groupId}:`,
+        monitors.map(m => ({ id: m._id.toString(), groupName: m.groupName, userId: m.userId.toString() }))
+      );
+
       if (monitors.length === 0) {
+        console.log(`[GroupMonitorService] ⚠️ No active monitors found for group ${groupId} - skipping processing`);
         return; // No active monitors for this group
       }
 
       // Process message for each monitor
       for (const monitor of monitors) {
+        console.log(`[GroupMonitorService] 🔧 Processing message for monitor ${monitor._id} (user: ${monitor.userId})`);
+
         try {
           // Always increment message count
+          console.log(`[GroupMonitorService] 📈 Incrementing message count for monitor ${monitor._id}`);
+          const beforeStats = { ...monitor.statistics };
           await (monitor as any).incrementStats('messages');
 
+          // Reload monitor to see updated stats
+          const updatedMonitor = await GroupMonitor.findById(monitor._id);
+          console.log(`[GroupMonitorService] ✅ Message count updated for monitor ${monitor._id}:`, {
+            before: beforeStats.totalMessages,
+            after: updatedMonitor?.statistics.totalMessages,
+            success: (updatedMonitor?.statistics.totalMessages || 0) > beforeStats.totalMessages
+          });
+
           if (imageUrl) {
+            console.log(`[GroupMonitorService] 📸 Processing image for monitor ${monitor._id}: ${imageUrl}`);
+
             // Increment image count and process for matches
             await (monitor as any).incrementStats('images');
+
+            // Reload to check image stats update
+            const updatedMonitorAfterImage = await GroupMonitor.findById(monitor._id);
+            console.log(`[GroupMonitorService] ✅ Image count updated for monitor ${monitor._id}:`, {
+              before: beforeStats.imagesProcessed,
+              after: updatedMonitorAfterImage?.statistics.imagesProcessed,
+              success: (updatedMonitorAfterImage?.statistics.imagesProcessed || 0) > beforeStats.imagesProcessed
+            });
+
             await this.processImageForMonitor(
               monitor,
               messageId,
@@ -262,12 +346,14 @@ class GroupMonitorService {
             );
           }
         } catch (error) {
-          console.error(`Error processing message for monitor ${monitor._id}:`, error);
+          console.error(`[GroupMonitorService] ❌ Error processing message for monitor ${monitor._id}:`, error);
           // Continue with other monitors
         }
       }
+
+      console.log(`[GroupMonitorService] ✅ Completed processing message ${messageId} for ${monitors.length} monitors`);
     } catch (error) {
-      console.error('Error processing group message:', error);
+      console.error(`[GroupMonitorService] ❌ Error processing group message ${messageId}:`, error);
     }
   }
 
@@ -505,6 +591,8 @@ class GroupMonitorService {
    * Get monitor statistics
    */
   async getMonitorStatistics(monitorId: string, userId: string): Promise<any> {
+    console.log(`[GroupMonitorService] 📊 Fetching statistics for monitor ${monitorId} (user: ${userId})`);
+
     try {
       const monitor = await GroupMonitor.findOne({
         _id: new Types.ObjectId(monitorId),
@@ -512,23 +600,39 @@ class GroupMonitorService {
       });
 
       if (!monitor) {
+        console.error(`[GroupMonitorService] ❌ Monitor not found: ${monitorId} for user ${userId}`);
         throw new Error('Monitor not found');
       }
+
+      console.log(`[GroupMonitorService] 📊 Found monitor ${monitorId}:`, {
+        groupId: monitor.groupId,
+        groupName: monitor.groupName,
+        isActive: monitor.isActive,
+        statistics: monitor.statistics
+      });
 
       const filteredImageCount = await FilteredImage.countDocuments({
         groupId: monitor.groupId,
         userId: new Types.ObjectId(userId)
       });
 
-      return {
+      console.log(`[GroupMonitorService] 📊 Filtered images count for group ${monitor.groupId}: ${filteredImageCount}`);
+
+      const result = {
         ...monitor.statistics,
         filteredImages: filteredImageCount,
         monitorId: monitor._id,
         groupName: monitor.groupName,
-        isActive: monitor.isActive
+        groupId: monitor.groupId,
+        isActive: monitor.isActive,
+        lastUpdated: new Date().toISOString()
       };
+
+      console.log(`[GroupMonitorService] ✅ Returning statistics for monitor ${monitorId}:`, result);
+
+      return result;
     } catch (error) {
-      console.error('Error fetching monitor statistics:', error);
+      console.error(`[GroupMonitorService] ❌ Error fetching monitor statistics for ${monitorId}:`, error);
       throw new Error('Failed to fetch monitor statistics');
     }
   }

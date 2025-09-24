@@ -255,34 +255,87 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   };
 
   const fetchMonitorStatistics = async (monitorId: string) => {
+    console.log(`[WhatsApp Monitor Frontend] 📊 Fetching statistics for monitor: ${monitorId}`);
+
     try {
       const res = await api.get(`/group-monitor/monitors/${monitorId}/statistics`);
+      console.log(`[WhatsApp Monitor Frontend] 📊 Statistics response for ${monitorId}:`, res.data);
+
       if (res.data?.success && res.data?.data) {
         const stats = res.data.data as GroupMonitor['statistics'];
-        setGroupMonitors(prev => prev.map(m => m._id === monitorId ? { ...m, statistics: {
-          totalMessages: stats.totalMessages ?? m.statistics.totalMessages,
-          imagesProcessed: stats.imagesProcessed ?? m.statistics.imagesProcessed,
-          personsDetected: stats.personsDetected ?? m.statistics.personsDetected,
-          lastActivity: stats.lastActivity ?? m.statistics.lastActivity,
-        }} : m));
+        console.log(`[WhatsApp Monitor Frontend] ✅ Updating statistics for monitor ${monitorId}:`, stats);
+
+        setGroupMonitors(prev => {
+          const updated = prev.map(m => {
+            if (m._id === monitorId) {
+              const oldStats = { ...m.statistics };
+              const newStats = {
+                totalMessages: stats.totalMessages ?? m.statistics.totalMessages,
+                imagesProcessed: stats.imagesProcessed ?? m.statistics.imagesProcessed,
+                personsDetected: stats.personsDetected ?? m.statistics.personsDetected,
+                lastActivity: stats.lastActivity ?? m.statistics.lastActivity,
+              };
+
+              console.log(`[WhatsApp Monitor Frontend] 📊 Stats update for ${monitorId}:`, {
+                before: oldStats,
+                after: newStats,
+                changed: JSON.stringify(oldStats) !== JSON.stringify(newStats)
+              });
+
+              return { ...m, statistics: newStats };
+            }
+            return m;
+          });
+
+          console.log(`[WhatsApp Monitor Frontend] 📊 Updated monitors count: ${updated.length}`);
+          return updated;
+        });
+      } else {
+        console.warn(`[WhatsApp Monitor Frontend] ⚠️ Invalid statistics response for ${monitorId}:`, res.data);
       }
     } catch (err) {
-      // Silent fail to avoid UI noise
+      console.error(`[WhatsApp Monitor Frontend] ❌ Failed to fetch statistics for ${monitorId}:`, err);
     }
   };
 
   const refreshAllMonitorStatistics = async (monitors: GroupMonitor[] = groupMonitors) => {
-    if (!monitors || monitors.length === 0) return;
-    await Promise.all(monitors.map(m => fetchMonitorStatistics(m._id)));
+    console.log(`[WhatsApp Monitor Frontend] 🔄 Refreshing statistics for ${monitors.length} monitors`);
+    if (!monitors || monitors.length === 0) {
+      console.log(`[WhatsApp Monitor Frontend] ⚠️ No monitors to refresh`);
+      return;
+    }
+
+    try {
+      console.log(`[WhatsApp Monitor Frontend] 🔄 Starting parallel statistics fetch for monitors:`,
+        monitors.map(m => ({ id: m._id, groupName: m.groupName }))
+      );
+
+      await Promise.all(monitors.map(m => fetchMonitorStatistics(m._id)));
+
+      console.log(`[WhatsApp Monitor Frontend] ✅ Completed statistics refresh for all ${monitors.length} monitors`);
+    } catch (error) {
+      console.error(`[WhatsApp Monitor Frontend] ❌ Error refreshing monitor statistics:`, error);
+    }
   };
 
   // Periodically refresh monitor statistics when viewing monitors
   useEffect(() => {
-    if (selectedView !== 'monitors' || groupMonitors.length === 0) return;
+    if (selectedView !== 'monitors' || groupMonitors.length === 0) {
+      console.log(`[WhatsApp Monitor Frontend] 🔄 Skipping periodic refresh - view: ${selectedView}, monitors: ${groupMonitors.length}`);
+      return;
+    }
+
+    console.log(`[WhatsApp Monitor Frontend] ⏰ Starting periodic statistics refresh (every 15s) for ${groupMonitors.length} monitors`);
+
     const interval = setInterval(() => {
+      console.log(`[WhatsApp Monitor Frontend] ⏰ Periodic refresh triggered`);
       refreshAllMonitorStatistics();
     }, 15000); // 15s refresh
-    return () => clearInterval(interval);
+
+    return () => {
+      console.log(`[WhatsApp Monitor Frontend] ⏰ Clearing periodic refresh interval`);
+      clearInterval(interval);
+    };
   }, [selectedView, groupMonitors.length]);
 
   const fetchFilteredImages = async () => {

@@ -575,7 +575,22 @@ class GroupMonitorController {
     try {
       const { messageId, groupId, senderId, senderName, imageUrl, caption } = req.body;
 
+      console.log(`[GroupMonitor Webhook] 📥 Received message:`, {
+        messageId,
+        groupId,
+        senderId,
+        senderName,
+        hasImage: !!imageUrl,
+        caption: caption?.substring(0, 50) + (caption?.length > 50 ? '...' : ''),
+        fullPayload: JSON.stringify(req.body)
+      });
+
       if (!messageId || !groupId || !senderId) {
+        console.error(`[GroupMonitor Webhook] ❌ Missing required fields:`, {
+          messageId: !!messageId,
+          groupId: !!groupId,
+          senderId: !!senderId
+        });
         res.status(400).json({
           success: false,
           error: 'Missing required message data'
@@ -584,6 +599,7 @@ class GroupMonitorController {
       }
 
       // Process the message in the background
+      console.log(`[GroupMonitor Webhook] 🔄 Starting background processing for groupId: ${groupId}`);
       this.groupMonitorService.processGroupMessage(
         messageId,
         groupId,
@@ -591,8 +607,10 @@ class GroupMonitorController {
         senderName || 'Unknown',
         imageUrl,
         caption
-      ).catch(error => {
-        console.error('Background message processing failed:', error);
+      ).then(() => {
+        console.log(`[GroupMonitor Webhook] ✅ Successfully processed message ${messageId} for group ${groupId}`);
+      }).catch(error => {
+        console.error(`[GroupMonitor Webhook] ❌ Background processing failed for message ${messageId}:`, error);
       });
 
       res.json({
@@ -600,10 +618,52 @@ class GroupMonitorController {
         message: 'Message processing initiated'
       });
     } catch (error) {
-      console.error('Error processing WhatsApp message:', error);
+      console.error('[GroupMonitor Webhook] ❌ Error processing WhatsApp message:', error);
       res.status(500).json({
         success: false,
         error: 'Failed to process message'
+      });
+    }
+  }
+
+  // Test endpoint to simulate WhatsApp message (for debugging)
+  async testWebhookMessage(req: Request, res: Response): Promise<void> {
+    try {
+      const testMessage = {
+        messageId: `test_${Date.now()}`,
+        groupId: req.body.groupId || 'test-group@g.us',
+        senderId: req.body.senderId || 'test-sender@s.whatsapp.net',
+        senderName: req.body.senderName || 'Test Sender',
+        imageUrl: req.body.imageUrl,
+        caption: req.body.caption || 'Test message for group monitoring'
+      };
+
+      console.log(`[GroupMonitor Test] 🧪 Simulating webhook message:`, testMessage);
+
+      // Process like a real webhook would
+      this.groupMonitorService.processGroupMessage(
+        testMessage.messageId,
+        testMessage.groupId,
+        testMessage.senderId,
+        testMessage.senderName,
+        testMessage.imageUrl,
+        testMessage.caption
+      ).then(() => {
+        console.log(`[GroupMonitor Test] ✅ Test message processed successfully`);
+      }).catch(error => {
+        console.error(`[GroupMonitor Test] ❌ Test message processing failed:`, error);
+      });
+
+      res.json({
+        success: true,
+        message: 'Test message processing initiated',
+        testMessage
+      });
+    } catch (error) {
+      console.error('[GroupMonitor Test] ❌ Error processing test message:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to process test message'
       });
     }
   }

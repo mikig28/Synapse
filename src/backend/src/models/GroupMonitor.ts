@@ -128,7 +128,17 @@ GroupMonitorSchema.statics.findByGroup = function(groupId: string) {
 };
 
 // Method to increment statistics
-GroupMonitorSchema.methods.incrementStats = function(this: IGroupMonitor, type: 'messages' | 'images' | 'persons') {
+GroupMonitorSchema.methods.incrementStats = async function(this: IGroupMonitor, type: 'messages' | 'images' | 'persons') {
+  console.log(`[GroupMonitor Model] 📈 Incrementing ${type} stats for monitor ${this._id}`, {
+    before: {
+      messages: this.statistics.totalMessages,
+      images: this.statistics.imagesProcessed,
+      persons: this.statistics.personsDetected
+    }
+  });
+
+  const oldValue = this.statistics[type === 'messages' ? 'totalMessages' : type === 'images' ? 'imagesProcessed' : 'personsDetected'];
+
   switch (type) {
     case 'messages':
       this.statistics.totalMessages += 1;
@@ -141,7 +151,29 @@ GroupMonitorSchema.methods.incrementStats = function(this: IGroupMonitor, type: 
       break;
   }
   this.statistics.lastActivity = new Date();
-  return this.save();
+
+  try {
+    const saved = await this.save();
+    const newValue = saved.statistics[type === 'messages' ? 'totalMessages' : type === 'images' ? 'imagesProcessed' : 'personsDetected'];
+
+    console.log(`[GroupMonitor Model] ✅ Stats incremented successfully for monitor ${this._id}`, {
+      type,
+      oldValue,
+      newValue,
+      success: newValue > oldValue,
+      after: {
+        messages: saved.statistics.totalMessages,
+        images: saved.statistics.imagesProcessed,
+        persons: saved.statistics.personsDetected,
+        lastActivity: saved.statistics.lastActivity
+      }
+    });
+
+    return saved;
+  } catch (error) {
+    console.error(`[GroupMonitor Model] ❌ Failed to save stats increment for monitor ${this._id}:`, error);
+    throw error;
+  }
 };
 
 // Method to toggle monitoring
