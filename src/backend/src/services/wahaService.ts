@@ -484,9 +484,9 @@ class WAHAService extends EventEmitter {
       
       this.emit('ready');
       
-      // Initialize polling timestamp to capture last 24 hours of messages
-      this.lastPolledTimestamp = Date.now() - (24 * 60 * 60 * 1000); // 24 hours ago
-      console.log(`[WAHA Service] 📅 Set polling timestamp to capture last 24 hours: ${new Date(this.lastPolledTimestamp)}`);
+      // Initialize polling timestamp to capture recent messages (last 1 hour for better debugging)
+      this.lastPolledTimestamp = Date.now() - (1 * 60 * 60 * 1000); // 1 hour ago
+      console.log(`[WAHA Service] 📅 Set polling timestamp to capture last 1 hour: ${new Date(this.lastPolledTimestamp)}`);
       
       // Start automatic message polling as fallback for webhooks
       this.startMessagePolling(30000); // Poll every 30 seconds
@@ -3211,21 +3211,36 @@ class WAHAService extends EventEmitter {
   private async pollForNewMessages(): Promise<void> {
     try {
       const sessionName = this.defaultSession;
-      
+
       // Get all chats to check for new messages
       const chats = await this.getChats(sessionName, { limit: 50 });
-      
+
       for (const chat of chats) {
         if (!chat.isGroup) continue; // Only check group chats for monitoring
-        
+
+        console.log(`[WAHA Service] 🔍 Polling chat:`, {
+          chatId: chat.id,
+          chatName: chat.name,
+          isGroup: chat.isGroup,
+          hasChatId: !!chat.id
+        });
+
         try {
           // Get recent messages from this group
           const messages = await this.getMessages(chat.id, 10, sessionName);
-          
+
           for (const message of messages) {
             // Only process messages newer than our last poll
             const messageTimestamp = message.timestamp || 0;
             if (messageTimestamp > this.lastPolledTimestamp) {
+              console.log(`[WAHA Service] 📩 Processing new message:`, {
+                messageId: message.id,
+                chatId: chat.id,
+                messageTimestamp,
+                lastPolledTimestamp: this.lastPolledTimestamp,
+                isNewer: messageTimestamp > this.lastPolledTimestamp
+              });
+
               // Prepare message data for processing
             const messageData = {
                 id: message.id,
