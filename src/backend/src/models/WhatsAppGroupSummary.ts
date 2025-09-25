@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+﻿import mongoose, { Schema, Document } from 'mongoose';
 
 export interface ISenderSummary {
   senderName: string;
@@ -35,6 +35,7 @@ export interface IWhatsAppGroupSummary extends Document {
   groupId: string;
   groupName: string;
   userId: mongoose.Types.ObjectId;
+  scheduleId?: mongoose.Types.ObjectId;
   summaryDate: Date;
   timeRange: {
     start: Date;
@@ -102,6 +103,11 @@ const WhatsAppGroupSummarySchema: Schema<IWhatsAppGroupSummary> = new Schema(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
+      index: true
+    },
+    scheduleId: {
+      type: Schema.Types.ObjectId,
+      ref: 'WhatsAppSummarySchedule',
       index: true
     },
     summaryDate: {

@@ -1,4 +1,4 @@
-import { startOfDay, endOfDay, parseISO, isValid } from 'date-fns';
+﻿import { startOfDay, endOfDay, parseISO, isValid } from 'date-fns';
 import WhatsAppMessage from '../models/WhatsAppMessage';
 import WhatsAppContact from '../models/WhatsAppContact';
 import WhatsAppGroupSummary, { IWhatsAppGroupSummary } from '../models/WhatsAppGroupSummary';
@@ -195,16 +195,26 @@ export class MessageSummarizationService {
    * Creates a new summary record in the database
    */
   public async createSummaryRecord(
+
     groupId: string,
+
     groupName: string,
+
     userId: string,
+
     summaryDate: Date,
-    timeRange: DateRange
+
+    timeRange: DateRange,
+
+    scheduleId?: string
+
   ): Promise<IWhatsAppGroupSummary> {
+
     const summaryRecord = new WhatsAppGroupSummary({
       groupId,
       groupName,
       userId,
+      scheduleId,
       summaryDate,
       timeRange: {
         start: timeRange.start,
@@ -395,6 +405,10 @@ export class MessageSummarizationService {
           }
         };
 
+        if (scheduleId && !existingSummary.scheduleId) {
+          await WhatsAppGroupSummary.findByIdAndUpdate(existingSummary._id, { scheduleId });
+        }
+
         return {
           summary: summaryData,
           cached: true,
@@ -563,3 +577,9 @@ export class MessageSummarizationService {
     }
   }
 }
+
+
+
+
+
+

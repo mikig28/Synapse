@@ -1,3 +1,15 @@
+﻿// Define SummaryGenerationOptions locally to avoid rootDir issues
+export interface SummaryGenerationOptions {
+  maxSummaryLength?: number;
+  maxSenderSummaryLength?: number;
+  includeEmojis?: boolean;
+  includeKeywords?: boolean;
+  minMessageCount?: number;
+  keywordMinCount?: number;
+  emojiMinCount?: number;
+  excludeSystemMessages?: boolean;
+}
+
 export interface SummaryRequest {
   groupId: string;
   groupName?: string;
@@ -59,6 +71,7 @@ export interface SenderInsights {
 export interface GroupSummaryData {
   groupId: string;
   groupName: string;
+  scheduleId?: string;
   timeRange: {
     start: Date;
     end: Date;
@@ -109,22 +122,6 @@ export interface SummaryResponse {
   error?: string;
   cached?: boolean;
   cacheTimestamp?: string;
-}
-
-export interface SummaryGenerationOptions {
-  maxSummaryLength?: number; // Default 500 words
-  maxSenderSummaryLength?: number; // Default 60 words
-  includeEmojis?: boolean; // Default true
-  includeKeywords?: boolean; // Default true  
-  minMessageCount?: number; // Minimum messages to include sender (default 1)
-  keywordMinCount?: number; // Minimum count for keyword inclusion (default 2)
-  emojiMinCount?: number; // Minimum count for emoji inclusion (default 2)
-  excludeSystemMessages?: boolean; // Default true
-  timezone?: string; // User's timezone for date boundaries
-  // New options for language and attribution control
-  targetLanguage?: 'auto' | 'en' | 'he' | string; // Preferred output language
-  speakerAttribution?: boolean; // Include per-speaker attributions in AI insights
-  maxSpeakerAttributions?: number; // Max speakers to attribute (default 5)
 }
 
 export interface DateRange {
@@ -208,3 +205,4 @@ export interface BulkSummaryResponse extends ApiResponse {
     };
   };
 }
+

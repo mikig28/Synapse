@@ -1724,12 +1724,12 @@ class WAHAService extends EventEmitter {
    */
   async getMessage(messageId: string, downloadMedia: boolean = false, sessionName: string = this.defaultSession): Promise<any | null> {
     try {
-      const response = await axios.get(`${this.baseURL}/api/messages/${messageId}`, {
+      const response = await axios.get(`${this.wahaBaseUrl}/api/messages/${messageId}`, {
         params: {
           session: sessionName,
           downloadMedia: downloadMedia ? 'true' : 'false'
         },
-        timeout: this.requestTimeout
+        timeout: 30000
       });
 
       console.log(`[WAHA Service] ✅ Retrieved message ${messageId} (downloadMedia: ${downloadMedia})`);
