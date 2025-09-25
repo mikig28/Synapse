@@ -2340,34 +2340,106 @@ class WAHAService extends EventEmitter {
    * Forward messages to group monitor service
    */
   private async processMessageForGroupMonitoring(messageData: any): Promise<void> {
-    console.log('[WAHA Service] 🔄 Processing message for group monitoring:', {
+    const rawChatCandidates = [
+      messageData.chatId,
+      messageData.chat?.id,
+      messageData.chat?.chatId,
+      messageData.groupId,
+      messageData.remoteJid,
+      messageData.to,
+      typeof messageData.id === 'string' && messageData.id.includes('@') ? messageData.id.split('_')[1] : undefined
+    ];
+
+    const chatId = rawChatCandidates
+      .map(candidate => this.extractJidFromAny(candidate))
+      .find((candidate): candidate is string => Boolean(candidate));
+
+    const fromJid = this.extractJidFromAny(messageData.from);
+    const authorJid = this.extractJidFromAny(
+      messageData.author ||
+      messageData.participant ||
+      messageData.sender?.id ||
+      messageData.senderId
+    );
+    let groupId = this.extractJidFromAny(messageData.groupId || messageData.group?.id);
+
+    if (!groupId) {
+      if (chatId && chatId.endsWith('@g.us')) {
+        groupId = chatId;
+      } else if (fromJid && fromJid.endsWith('@g.us')) {
+        groupId = fromJid;
+      }
+    }
+
+    const derivedChatId = chatId || groupId || fromJid || messageData.chatId;
+    let isGroupMessage = typeof messageData.isGroup === 'boolean' ? messageData.isGroup : false;
+
+    if (!isGroupMessage) {
+      if (groupId && groupId.endsWith('@g.us')) {
+        isGroupMessage = true;
+      } else if (fromJid && fromJid.endsWith('@g.us')) {
+        isGroupMessage = true;
+      } else if (typeof messageData.id === 'string' && messageData.id.includes('@g.us')) {
+        isGroupMessage = true;
+      }
+    }
+
+    console.log('[WAHA Service] ?? Processing message for group monitoring:', {
       id: messageData.id,
-      chatId: messageData.chatId,
-      isGroup: messageData.isGroup,
+      chatId: derivedChatId,
+      originalChatId: messageData.chatId,
       from: messageData.from,
-      hasMedia: messageData.hasMedia || messageData.isMedia,
-      type: messageData.type
+      author: messageData.author,
+      resolvedGroupId: groupId,
+      resolvedSenderId: authorJid || fromJid,
+      hasMedia: Boolean(messageData.hasMedia || messageData.isMedia || messageData.mediaUrl || messageData.media),
+      type: messageData.type,
+      isGroupOriginal: messageData.isGroup,
+      isGroupDerived: isGroupMessage
     });
 
     try {
-      if (!messageData.isGroup) {
-        console.log('[WAHA Service] ⚠️ Skipping non-group message:', messageData.id);
+      if (!groupId || !isGroupMessage) {
+        console.log('[WAHA Service] ?? Skipping message - unable to confirm group context', {
+          messageId: messageData.id,
+          derivedChatId,
+          groupId,
+          isGroupMessage
+        });
         return;
       }
 
+      const senderId = authorJid || fromJid || groupId;
+      const senderName =
+        messageData.pushName ||
+        messageData.senderName ||
+        messageData.contactName ||
+        messageData.notifyName ||
+        senderId;
+
+      const caption = messageData.caption ?? messageData.body ?? messageData.text ?? '';
+
       const payload: any = {
         messageId: messageData.id,
-        groupId: messageData.chatId,
-        senderId: messageData.from,
-        senderName: messageData.contactName || messageData.from,
-        caption: messageData.body
+        groupId,
+        chatId: derivedChatId,
+        senderId,
+        senderName,
+        caption
       };
 
       const mediaUrl = messageData.mediaUrl || messageData.media?.url || null;
-      const isImage = (messageData.isMedia || messageData.hasMedia) && (messageData.type === 'image' || (messageData.mimeType?.startsWith?.('image/')));
+      const isImage = Boolean(
+        (messageData.isMedia || messageData.hasMedia || mediaUrl) &&
+        (
+          messageData.type === 'image' ||
+          (typeof messageData.mimeType === 'string' && messageData.mimeType.startsWith('image/')) ||
+          (typeof messageData.media?.mimetype === 'string' && messageData.media.mimetype.startsWith('image/'))
+        )
+      );
       if (isImage && mediaUrl) {
         payload.imageUrl = mediaUrl;
-        console.log('[WAHA Service] 📸 Adding image URL to payload:', mediaUrl);
+        console.log('[WAHA Service] ?? Adding image URL to payload:', mediaUrl);
       }
 
       const webhookOnly = String(process.env.GROUP_MONITOR_WEBHOOK_ONLY || '').toLowerCase() === 'true';
@@ -2386,13 +2458,13 @@ class WAHAService extends EventEmitter {
             payload.caption
           );
           processedDirectly = true;
-          console.log('[WAHA Service] ✅ Message processed via internal group monitor service:', {
+          console.log('[WAHA Service] ? Message processed via internal group monitor service:', {
             messageId: payload.messageId,
             groupId: payload.groupId
           });
         } catch (serviceError) {
           directProcessingError = serviceError;
-          console.error('[WAHA Service] ❌ Internal group monitor processing failed, will fall back to webhook:', serviceError);
+          console.error('[WAHA Service] ? Internal group monitor processing failed, will fall back to webhook:', serviceError);
         }
       }
 
@@ -2406,7 +2478,7 @@ class WAHAService extends EventEmitter {
           return;
         }
 
-        console.warn('[WAHA Service] ⚠️ No webhook URL configured for group monitor forwarding');
+        console.warn('[WAHA Service] ?? No webhook URL configured for group monitor forwarding');
         if (directProcessingError) {
           throw directProcessingError;
         }
@@ -2420,16 +2492,16 @@ class WAHAService extends EventEmitter {
         }
       });
 
-      console.log('[WAHA Service] ✅ Successfully sent message to group monitor webhook:', {
+      console.log('[WAHA Service] ? Successfully sent message to group monitor webhook:', {
         status: response.status,
         messageId: messageData.id,
-        groupId: messageData.chatId,
+        groupId: payload.groupId,
         webhookUrl
       });
     } catch (error: any) {
-      console.error('[WAHA Service] ❌ Error processing message for group monitoring:', {
+      console.error('[WAHA Service] ? Error processing message for group monitoring:', {
         messageId: messageData.id,
-        groupId: messageData.chatId,
+        groupId,
         error: error?.message || error,
         status: error?.response?.status,
         response: error?.response?.data
