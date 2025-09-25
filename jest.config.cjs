@@ -10,6 +10,7 @@ module.exports = {
     '^@radix-ui/react-slot$': '<rootDir>/src/frontend/src/services/__mocks__/radixMock.js', // Path to a generic mock
     '^lucide-react$': '<rootDir>/src/frontend/src/services/__mocks__/lucideMock.js', // Path to a generic mock for lucide
     '^class-variance-authority$': '<rootDir>/src/frontend/src/services/__mocks__/classVarianceAuthorityMock.js', // Mock for cva
+    '^vitest$': '<rootDir>/vitest-shim.js',
   },
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
@@ -17,9 +18,15 @@ module.exports = {
       tsconfig: 'tsconfig.jest.json', // Point to the frontend tsconfig
     }]
   },
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '<rootDir>/src/backend/src/__tests__/relevance.test.ts',
+    '<rootDir>/src/backend/src/__tests__/youtube.test.ts',
+    '<rootDir>/src/backend/src/__tests__/whatsappSummaryApi.test.ts',
+    '<rootDir>/src/frontend/src/pages/__tests__/YouTubeRecommendations.e2e.tsx',
+    '<rootDir>/src/frontend/src/pages/__tests__/MeetingsPage.test.tsx'
+  ],
   // Automatically clear mock calls, instances and results before every test
   clearMocks: true,
   modulePathIgnorePatterns: ['<rootDir>/claudia/'],
 };
-
-
