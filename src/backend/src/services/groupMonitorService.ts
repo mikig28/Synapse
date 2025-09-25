@@ -183,6 +183,31 @@ class GroupMonitorService {
   }
 
   /**
+   * Get a list of normalized group IDs that currently have active monitors.
+   */
+  async getActiveMonitorGroupIds(): Promise<string[]> {
+    try {
+      const monitors = await GroupMonitor.find({
+        isActive: true
+      }).select('groupId');
+
+      const groupIds = monitors
+        .map(monitor => this.normalizeGroupId(monitor.groupId))
+        .filter((groupId): groupId is string => Boolean(groupId))
+        .map(groupId => groupId.toLowerCase());
+
+      const uniqueGroupIds = Array.from(new Set(groupIds));
+
+      console.log('[GroupMonitorService] Active monitored group IDs:', uniqueGroupIds);
+
+      return uniqueGroupIds;
+    } catch (error) {
+      console.error('[GroupMonitorService] Error fetching active monitor group IDs:', error);
+      return [];
+    }
+  }
+
+  /**
    * Update group monitor settings
    */
   async updateGroupMonitor(

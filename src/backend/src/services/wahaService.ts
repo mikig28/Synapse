@@ -3365,28 +3365,49 @@ class WAHAService extends EventEmitter {
     try {
       const sessionName = this.defaultSession;
 
-      // Get all chats to check for new messages
+      const activeGroupIds = await this.groupMonitorService.getActiveMonitorGroupIds();
+      const activeGroupIdSet = new Set(activeGroupIds.map(id => id.toLowerCase()));
+
+      if (activeGroupIdSet.size === 0) {
+        console.log('[WAHA Service] Skipping message polling because no group monitors are active.');
+        return;
+      }
+
+      console.log('[WAHA Service] Polling active group monitors:', Array.from(activeGroupIdSet));
+
       const chats = await this.getChats(sessionName, { limit: 50 });
 
-      for (const chat of chats) {
-        if (!chat.isGroup) continue; // Only check group chats for monitoring
+      const monitoredChats = chats.filter(chat => {
+        if (!chat.isGroup) {
+          return false;
+        }
 
-        console.log(`[WAHA Service] 🔍 Polling chat:`, {
+        const normalizedChatId = this.extractJidFromAny(chat.id)?.toLowerCase();
+        return Boolean(normalizedChatId && activeGroupIdSet.has(normalizedChatId));
+      });
+
+      if (monitoredChats.length === 0) {
+        console.log('[WAHA Service] No monitored WhatsApp chats found in the WAHA chat list.');
+        return;
+      }
+
+      for (const chat of monitoredChats) {
+        const normalizedChatId = this.extractJidFromAny(chat.id)?.toLowerCase() || chat.id;
+
+        console.log('[WAHA Service] Polling monitored chat:', {
           chatId: chat.id,
+          normalizedChatId,
           chatName: chat.name,
-          isGroup: chat.isGroup,
-          hasChatId: !!chat.id
+          isGroup: chat.isGroup
         });
 
         try {
-          // Get recent messages from this group
           const messages = await this.getMessages(chat.id, 10, sessionName);
 
           for (const message of messages) {
-            // Only process messages newer than our last poll
             const messageTimestamp = message.timestamp || 0;
             if (messageTimestamp > this.lastPolledTimestamp) {
-              console.log(`[WAHA Service] 📩 Processing new message:`, {
+              console.log('[WAHA Service] Processing new monitored message:', {
                 messageId: message.id,
                 chatId: chat.id,
                 messageTimestamp,
@@ -3394,8 +3415,7 @@ class WAHAService extends EventEmitter {
                 isNewer: messageTimestamp > this.lastPolledTimestamp
               });
 
-              // Prepare message data for processing
-            const messageData = {
+              const messageData = {
                 id: message.id,
                 chatId: chat.id,
                 from: message.from,
@@ -3403,8 +3423,7 @@ class WAHAService extends EventEmitter {
                 timestamp: messageTimestamp,
                 isGroup: true,
                 isMedia: message.isMedia || false,
-              // Prefer structured media.url if present; fallback to legacy fields
-              mediaUrl: (message.media && (message.media as any).url) || (message.isMedia ? message.body : undefined),
+                mediaUrl: (message.media && (message.media as any).url) || (message.isMedia ? message.body : undefined),
                 type: message.type,
                 mimeType: message.mimeType,
                 hasMedia: message.hasMedia,
@@ -3413,25 +3432,22 @@ class WAHAService extends EventEmitter {
                 groupName: chat.name
               };
 
-              // Save message to database first
               await this.saveMessageToDatabase(messageData);
-              
-              // Forward to group monitoring webhook
               await this.processMessageForGroupMonitoring(messageData);
-
-              // Process media messages and download files
               await this.processMediaMessage(messageData);
             }
           }
-        } catch (messageError) {
-          // Don't log errors for individual chats to avoid spam
-          // console.error(`[WAHA Service] Error polling messages from ${chat.id}:`, messageError);
+        } catch (messageError: unknown) {
+          console.error('[WAHA Service] Error while polling monitored chat:', {
+            chatId: chat.id,
+            error: messageError instanceof Error ? messageError.message : messageError
+          });
         }
       }
-      
+
       this.lastPolledTimestamp = Date.now();
-    } catch (error) {
-      console.error('[WAHA Service] ❌ Error polling for new messages:', error);
+    } catch (error: unknown) {
+      console.error('[WAHA Service] Error polling for new messages:', error);
     }
   }
 }
