@@ -109,6 +109,15 @@ export class WhatsAppMediaService extends EventEmitter {
       const filename = this.generateFilename(mediaInfo, messageId, chatId);
       const localPath = path.join(storageDir, filename);
 
+      // Validate URL before attempting download
+      if (!mediaInfo.url || typeof mediaInfo.url !== 'string' || (!mediaInfo.url.startsWith('http://') && !mediaInfo.url.startsWith('https://'))) {
+        console.error(`[WhatsAppMediaService] Invalid media URL: "${mediaInfo.url}"`);
+        return {
+          success: false,
+          error: `Invalid media URL: "${mediaInfo.url}". WAHA NOWEB engine may have URL generation issues.`
+        };
+      }
+
       // Download the file
       const response = await axios.get(mediaInfo.url, {
         responseType: 'stream',

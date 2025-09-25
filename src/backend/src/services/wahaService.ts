@@ -1720,6 +1720,31 @@ class WAHAService extends EventEmitter {
   }
 
   /**
+   * Get a specific message by ID with optional media download
+   */
+  async getMessage(messageId: string, downloadMedia: boolean = false, sessionName: string = this.defaultSession): Promise<any | null> {
+    try {
+      const response = await axios.get(`${this.baseURL}/api/messages/${messageId}`, {
+        params: {
+          session: sessionName,
+          downloadMedia: downloadMedia ? 'true' : 'false'
+        },
+        timeout: this.requestTimeout
+      });
+
+      console.log(`[WAHA Service] ✅ Retrieved message ${messageId} (downloadMedia: ${downloadMedia})`);
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        console.warn(`[WAHA Service] Message ${messageId} not found`);
+        return null;
+      }
+      console.error('[WAHA Service] ❌ Error getting message:', error?.message || error);
+      throw error;
+    }
+  }
+
+  /**
    * Get messages from chat
    */
   async getMessages(chatId: string, limit: number = 50, sessionName: string = this.defaultSession): Promise<WAHAMessage[]> {
@@ -2428,9 +2453,26 @@ class WAHAService extends EventEmitter {
         caption
       };
 
-      const mediaUrl = messageData.mediaUrl || messageData.media?.url || null;
+      let mediaUrl = messageData.mediaUrl || messageData.media?.url || null;
+      let hasMedia = Boolean(messageData.hasMedia || messageData.isMedia || mediaUrl);
+
+      // NOWEB engine workaround: if message claims hasMedia but no URL, try to get message with downloadMedia=true
+      if ((messageData.hasMedia === true || messageData.isMedia === true) && !mediaUrl) {
+        console.log('[WAHA Service] 🔄 NOWEB workaround: Re-fetching message with downloadMedia=true for:', messageData.id);
+        try {
+          const refetchedMessage = await this.getMessage(messageData.id, true); // downloadMedia=true
+          if (refetchedMessage?.media?.url) {
+            mediaUrl = refetchedMessage.media.url;
+            hasMedia = true;
+            console.log('[WAHA Service] ✅ Media URL recovered via re-fetch:', mediaUrl);
+          }
+        } catch (refetchError) {
+          console.warn('[WAHA Service] ⚠️ Failed to re-fetch message for media:', refetchError);
+        }
+      }
+
       const isImage = Boolean(
-        (messageData.isMedia || messageData.hasMedia || mediaUrl) &&
+        hasMedia &&
         (
           messageData.type === 'image' ||
           (typeof messageData.mimeType === 'string' && messageData.mimeType.startsWith('image/')) ||
@@ -2535,19 +2577,67 @@ class WAHAService extends EventEmitter {
 
       if (messageData.media && messageData.media.url) {
         // New WAHA format with media object
-        mediaInfo = {
-          url: messageData.media.url,
-          mimetype: messageData.media.mimetype || messageData.mimeType || 'application/octet-stream',
-          filename: messageData.media.filename || null,
-          error: messageData.media.error || null
-        };
+        // Validate URL format - NOWEB sometimes provides invalid URLs like "Hahs"
+        const isValidUrl = messageData.media.url.startsWith('http://') || messageData.media.url.startsWith('https://');
+
+        if (!isValidUrl) {
+          console.log(`[WAHA Service] 🔄 Invalid media URL "${messageData.media.url}" - attempting re-fetch for message:`, messageData.id);
+          try {
+            const refetchedMessage = await this.getMessage(messageData.id, true);
+            if (refetchedMessage?.media?.url && (refetchedMessage.media.url.startsWith('http://') || refetchedMessage.media.url.startsWith('https://'))) {
+              console.log(`[WAHA Service] ✅ Valid URL recovered via re-fetch:`, refetchedMessage.media.url);
+              mediaInfo = {
+                url: refetchedMessage.media.url,
+                mimetype: refetchedMessage.media.mimetype || messageData.mimeType || 'application/octet-stream',
+                filename: refetchedMessage.media.filename || null,
+                error: refetchedMessage.media.error || null
+              };
+            } else {
+              console.warn(`[WAHA Service] ⚠️ Re-fetch did not provide valid URL, skipping media download`);
+              return;
+            }
+          } catch (refetchError) {
+            console.error(`[WAHA Service] ❌ Failed to re-fetch message for valid URL:`, refetchError);
+            return;
+          }
+        } else {
+          mediaInfo = {
+            url: messageData.media.url,
+            mimetype: messageData.media.mimetype || messageData.mimeType || 'application/octet-stream',
+            filename: messageData.media.filename || null,
+            error: messageData.media.error || null
+          };
+        }
       } else if (messageData.mediaUrl) {
         // Legacy format or polling format
-        mediaInfo = {
-          url: messageData.mediaUrl,
-          mimetype: messageData.mimeType || 'application/octet-stream',
-          filename: null
-        };
+        const isValidUrl = messageData.mediaUrl.startsWith('http://') || messageData.mediaUrl.startsWith('https://');
+
+        if (!isValidUrl) {
+          console.log(`[WAHA Service] 🔄 Invalid mediaUrl "${messageData.mediaUrl}" - attempting re-fetch for message:`, messageData.id);
+          try {
+            const refetchedMessage = await this.getMessage(messageData.id, true);
+            if (refetchedMessage?.media?.url && (refetchedMessage.media.url.startsWith('http://') || refetchedMessage.media.url.startsWith('https://'))) {
+              console.log(`[WAHA Service] ✅ Valid URL recovered via re-fetch:`, refetchedMessage.media.url);
+              mediaInfo = {
+                url: refetchedMessage.media.url,
+                mimetype: refetchedMessage.media.mimetype || messageData.mimeType || 'application/octet-stream',
+                filename: refetchedMessage.media.filename || null
+              };
+            } else {
+              console.warn(`[WAHA Service] ⚠️ Re-fetch did not provide valid URL, skipping media download`);
+              return;
+            }
+          } catch (refetchError) {
+            console.error(`[WAHA Service] ❌ Failed to re-fetch message for valid URL:`, refetchError);
+            return;
+          }
+        } else {
+          mediaInfo = {
+            url: messageData.mediaUrl,
+            mimetype: messageData.mimeType || 'application/octet-stream',
+            filename: null
+          };
+        }
       }
 
       // Prepare base message data for frontend

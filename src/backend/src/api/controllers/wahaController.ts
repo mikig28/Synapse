@@ -620,6 +620,9 @@ export const webhook = async (req: Request, res: Response) => {
         to: payload.payload?.to,
         body: payload.payload?.body?.substring(0, 100),
         hasMedia: payload.payload?.hasMedia,
+        type: payload.payload?.type,
+        mimeType: payload.payload?.mimeType,
+        media: payload.payload?.media ? 'present' : 'absent',
         isGroup: payload.payload?.isGroup,
         timestamp: payload.payload?.timestamp
       });
