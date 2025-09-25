@@ -3405,7 +3405,9 @@ class WAHAService extends EventEmitter {
           const messages = await this.getMessages(chat.id, 10, sessionName);
 
           for (const message of messages) {
-            const messageTimestamp = message.timestamp || 0;
+            const rawTimestamp = message.timestamp || 0;
+            const messageTimestamp = rawTimestamp > 1e12 ? rawTimestamp : rawTimestamp * 1000;
+
             if (messageTimestamp > this.lastPolledTimestamp) {
               console.log('[WAHA Service] Processing new monitored message:', {
                 messageId: message.id,
