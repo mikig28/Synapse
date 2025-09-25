@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import VideoItem, { IVideoItem } from '../../models/VideoItem';
 import KeywordSubscription from '../../models/KeywordSubscription';
 import {

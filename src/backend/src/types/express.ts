@@ -1,11 +1,11 @@
-﻿import { Request as ExpressRequest, Response, NextFunction } from 'express';
+import { Request as ExpressRequest, Response, NextFunction } from 'express';
 import { ParamsDictionary } from 'express-serve-static-core';
 import { ParsedQs } from 'qs';
 
 export interface AuthenticatedRequest<
   P = ParamsDictionary,
-  ResBody = unknown,
-  ReqBody = unknown,
+  ResBody = any,
+  ReqBody = any,
   ReqQuery = ParsedQs,
 > extends ExpressRequest<P, ResBody, ReqBody, ReqQuery> {
   user: {
