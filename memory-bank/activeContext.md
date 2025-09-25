@@ -88,6 +88,10 @@ WhatsApp Page Mobile UI/UX Improvements
   - Implemented accordion component following shadcn/ui patterns with proper TypeScript types
   - Added accordion animations to Tailwind config (accordion-up, accordion-down)
   - **Build Successfully Completed**: Frontend now builds without errors in 19.60s
+ - **Frontend Build Failure (2025-09-25)**: Fixed incorrect export/lazy import for `MobileMetricsDashboard` causing Vite/Rollup error
+   - Updated `src/frontend/src/components/mobile/index.ts` to re-export default components as named exports
+   - Corrected lazy imports in `src/frontend/src/components/LazyComponents.tsx` to reference `module.default`
+   - Verified `npm run build` succeeds locally; only chunk size warnings remain
 - **Previous Backend Fixes**: TypeScript compilation errors resolved
   - Fixed axios import issue in `locationExtractionService.ts` (changed from `import * as axios` to `import axios`)
   - Fixed undefined `now` variable in `wahaService.ts` (changed to `Date.now()`)

@@ -36,15 +36,15 @@ export const LazyDebugPanel = lazy(() =>
 
 // Mobile Components
 export const LazyMobileAgentDetails = lazy(() => 
-  import('./mobile/MobileAgentDetails').then(module => ({ default: module.MobileAgentDetails }))
+  import('./mobile/MobileAgentDetails').then(module => ({ default: module.default }))
 );
 
 export const LazyMobileMetricsDashboard = lazy(() => 
-  import('./mobile/MobileMetricsDashboard').then(module => ({ default: module.MobileMetricsDashboard }))
+  import('./mobile/MobileMetricsDashboard').then(module => ({ default: module.default }))
 );
 
 export const LazyMobileWizard = lazy(() => 
-  import('./mobile/MobileWizard').then(module => ({ default: module.MobileWizard }))
+  import('./mobile/MobileWizard').then(module => ({ default: module.default }))
 );
 
 // Accessibility Components

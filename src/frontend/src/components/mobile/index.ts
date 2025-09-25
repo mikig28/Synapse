@@ -7,23 +7,23 @@
 // Centralized exports for all mobile-optimized components
 
 // Navigation Components
-export { MobileNavigation } from './MobileNavigation';
+export { default as MobileNavigation } from './MobileNavigation';
 
 // Touch-Optimized Components  
-export { BottomSheet } from './BottomSheet';
+export { default as BottomSheet } from './BottomSheet';
 
 // Accessibility Components
-export { MobileAccessibility } from './MobileAccessibility';
+export { default as MobileAccessibility } from './MobileAccessibility';
 
 // Agent Components
 export { MobileAgentCard } from '../MobileAgentCard';
 
 // Dashboard Components
-export { MobileMetricsDashboard } from './MobileMetricsDashboard';
-export { MobileAgentDetails } from './MobileAgentDetails';
+export { default as MobileMetricsDashboard } from './MobileMetricsDashboard';
+export { default as MobileAgentDetails } from './MobileAgentDetails';
 
 // Wizard Components
-export { MobileWizard } from './MobileWizard';
+export { default as MobileWizard } from './MobileWizard';
 
 // Mobile hooks and utilities
 export * from '../../hooks/useTouchGestures';
