@@ -1,0 +1,21 @@
+﻿{
+  "extends": "./src/frontend/tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "types": ["node", "jest"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/frontend/src/*"],
+      "@backend/*": ["src/backend/src/*"]
+    }
+  },
+  "include": [
+    "src/frontend/src/**/*.ts",
+    "src/frontend/src/**/*.tsx",
+    "src/backend/src/**/*.ts",
+    "src/backend/src/**/*.tsx"
+  ]
+}

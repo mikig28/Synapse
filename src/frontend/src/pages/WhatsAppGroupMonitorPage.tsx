@@ -171,6 +171,7 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isAuthenticated } = useAuthStore();
+  const hasLoadedSchedulesRef = useRef(false);
 
   // Helper function to convert relative URLs to absolute URLs
   const getAbsoluteImageUrl = (url: string): string => {
@@ -185,20 +186,6 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
       fetchAllData();
     }
   }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (selectedView !== 'summaries') {
-      return;
-    }
-
-    if (availableGroups.length === 0) {
-      fetchAvailableGroups();
-    }
-
-    if (!hasLoadedSchedulesRef.current) {
-      fetchSchedules();
-    }
-  }, [selectedView, availableGroups.length, fetchAvailableGroups, fetchSchedules]);
 
   const fetchAllData = async () => {
     setLoading(true);
@@ -221,12 +208,10 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
     }
   };
 
-  const fetchAvailableGroups = async () => {
+  const fetchAvailableGroups = useCallback(async () => {
     try {
       const groups = await whatsappService.getAvailableGroups();
       setAvailableGroups(groups);
-      
-      // Initialize selected groups state
       const groupSelections: GroupSelection[] = groups.map(group => ({
         ...group,
         isSelected: false
@@ -235,12 +220,12 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
     } catch (error) {
       console.error('Error fetching available groups:', error);
       toast({
-        title: "Error",
-        description: "Failed to load WhatsApp groups for summaries",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to load WhatsApp groups for summaries',
+        variant: 'destructive',
       });
     }
-  };
+  }, [toast]);
 
   const fetchPersonProfiles = async () => {
     try {
@@ -636,7 +621,7 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
     } finally {
       setSchedulesLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   const openCreateScheduleModal = () => {
     setEditingSchedule(null);
@@ -988,6 +973,20 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
       </div>
     );
   }
+
+  useEffect(() => {
+    if (selectedView !== 'summaries') {
+      return;
+    }
+
+    if (availableGroups.length === 0) {
+      fetchAvailableGroups();
+    }
+
+    if (!hasLoadedSchedulesRef.current) {
+      fetchSchedules();
+    }
+  }, [selectedView, availableGroups.length, fetchAvailableGroups, fetchSchedules]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 p-6">
@@ -2411,6 +2410,10 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
 };
 
 export default WhatsAppGroupMonitorPage;
+
+
+
+
 
 
 

@@ -1,4 +1,4 @@
-/** @type {import('ts-jest').JestConfigWithTsJest} */
+﻿/** @type {import('ts-jest').JestConfigWithTsJest} */
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'jsdom', // Use jsdom for browser-like environment, which includes File API
@@ -14,9 +14,12 @@ module.exports = {
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       // ts-jest configuration options
-      tsconfig: 'src/frontend/tsconfig.json', // Point to the frontend tsconfig
+      tsconfig: 'tsconfig.jest.json', // Point to the frontend tsconfig
     }]
   },
   // Automatically clear mock calls, instances and results before every test
   clearMocks: true,
+  modulePathIgnorePatterns: ['<rootDir>/claudia/'],
 };
+
+

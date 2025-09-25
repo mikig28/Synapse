@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+﻿import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IWhatsAppMessage extends Document {
   messageId: string;
@@ -170,8 +170,6 @@ WhatsAppMessageSchema.index({ contactId: 1, timestamp: -1 });
 WhatsAppMessageSchema.index({ from: 1, to: 1, timestamp: -1 });
 WhatsAppMessageSchema.index({ isIncoming: 1, timestamp: -1 });
 // Summary query indexes
-WhatsAppMessageSchema.index({ 'metadata.isGroup': 1, 'metadata.groupId': 1, timestamp: -1 });
-WhatsAppMessageSchema.index({ 'metadata.groupName': 1, timestamp: -1 });
 
 // Group message indexes for efficient summary queries
 WhatsAppMessageSchema.index({ 'metadata.isGroup': 1, 'metadata.groupId': 1, timestamp: -1 });
