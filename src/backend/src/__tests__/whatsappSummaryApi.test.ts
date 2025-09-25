@@ -1,4 +1,4 @@
-import request from 'supertest';
+﻿import request from 'supertest';
 import express from 'express';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
@@ -62,7 +62,7 @@ jest.mock('../services/whatsappSummarizationService', () => ({
           messageCount: 15,
           summary: 'Sent 15 messages discussing project updates and shared several documents.',
           topKeywords: [{ keyword: 'project', count: 5, percentage: 33 }],
-          topEmojis: [{ emoji: '👍', count: 3, percentage: 20 }],
+          topEmojis: [{ emoji: 'ðŸ‘', count: 3, percentage: 20 }],
           activityPattern: {
             peakHour: 14,
             messageDistribution: new Array(24).fill(0)
@@ -80,8 +80,8 @@ jest.mock('../services/whatsappSummarizationService', () => ({
         { keyword: 'update', count: 5, percentage: 20 }
       ],
       topEmojis: [
-        { emoji: '👍', count: 5, percentage: 20 },
-        { emoji: '📋', count: 3, percentage: 12 }
+        { emoji: 'ðŸ‘', count: 5, percentage: 20 },
+        { emoji: 'ðŸ“‹', count: 3, percentage: 12 }
       ],
       activityPeaks: [
         { hour: 14, count: 10 },
@@ -171,7 +171,7 @@ describe('WhatsApp Summary API Integration Tests', () => {
           messageId: 'msg-2',
           from: '+1234567890',
           to: 'test-group-1',
-          message: 'I have some updates to share 📋',
+          message: 'I have some updates to share ðŸ“‹',
           timestamp: new Date('2024-01-01T14:30:00Z'),
           type: 'text',
           isIncoming: true,

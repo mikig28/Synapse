@@ -8,6 +8,10 @@ export interface SummaryGenerationOptions {
   keywordMinCount?: number;
   emojiMinCount?: number;
   excludeSystemMessages?: boolean;
+  timezone?: string;
+  targetLanguage?: string;
+  speakerAttribution?: boolean;
+  maxSpeakerAttributions?: number;
 }
 
 export interface SummaryRequest {

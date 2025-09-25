@@ -16,6 +16,10 @@
                 "DEFAULT_SUBTASKS": 5,
                 "DEFAULT_PRIORITY": "medium"
             }
+        },
+        "chrome-devtools": {
+            "command": "npx",
+            "args": ["chrome-devtools-mcp@latest"]
         }
     }
 }

@@ -1,4 +1,4 @@
-import express, { Express, Request, Response, NextFunction } from 'express';
+﻿import express, { Express, Request, Response, NextFunction } from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import mongoose from 'mongoose'; // Import mongoose to check connection state
@@ -49,6 +49,7 @@ import { generateTodaySummary } from './api/controllers/whatsappSummaryControlle
 import { authMiddleware } from './api/middleware/authMiddleware'; // Import auth middleware
 import { initializeTaskReminderScheduler } from './services/taskReminderService'; // Import task reminder service
 import { schedulerService } from './services/schedulerService'; // Import scheduler service
+import { whatsappSummaryScheduleService } from './services/whatsappSummaryScheduleService';
 import { agui } from './services/aguiEmitter'; // Import AG-UI emitter
 import { createAgentCommandEvent } from './services/aguiMapper'; // Import AG-UI mapper
 import { initializeSearchIndexes } from './config/searchIndexes'; // Import search indexes initializer
@@ -646,7 +647,7 @@ process.on('uncaughtException', (error) => {
     error.message.includes('Connection Closed') ||
     error.message.includes('Stream Errored')
   )) {
-    console.log('📱 WhatsApp-related error caught, continuing server operation...');
+    console.log('ðŸ“± WhatsApp-related error caught, continuing server operation...');
     return;
   }
   // For other critical errors, exit gracefully
@@ -705,12 +706,12 @@ const startServer = async () => {
 
     // Start HTTP server immediately for Render port detection
     httpServer.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Server is running on port ${PORT}`);
-      console.log(`🌐 Server is binding to 0.0.0.0:${PORT}`);
-      console.log(`📦 Environment PORT: ${process.env.PORT || 'not set'}`);
-      console.log(`🔧 NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
-      console.log(`✅ Health check available at: http://0.0.0.0:${PORT}/health`);
-      console.log(`🎯 RENDER DEPLOYMENT READY - Service is accessible!`);
+      console.log(`ðŸš€ Server is running on port ${PORT}`);
+      console.log(`ðŸŒ Server is binding to 0.0.0.0:${PORT}`);
+      console.log(`ðŸ“¦ Environment PORT: ${process.env.PORT || 'not set'}`);
+      console.log(`ðŸ”§ NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+      console.log(`âœ… Health check available at: http://0.0.0.0:${PORT}/health`);
+      console.log(`ðŸŽ¯ RENDER DEPLOYMENT READY - Service is accessible!`);
       
       // Initialize other services asynchronously in background to prevent deployment timeout
       initializeServicesInBackground();
@@ -723,15 +724,15 @@ const startServer = async () => {
 
 // Initialize all other services asynchronously after server is running
 const initializeServicesInBackground = async () => {
-  console.log('[Server] 🔄 Starting background service initialization...');
+  console.log('[Server] ðŸ”„ Starting background service initialization...');
   
   try {
     // Initialize search indexes for optimal search performance
     try {
       await initializeSearchIndexes();
-      console.log('[Server] ✅ Search indexes initialized successfully');
+      console.log('[Server] âœ… Search indexes initialized successfully');
     } catch (error) {
-      console.error('[Server] ❌ Failed to initialize search indexes:', error);
+      console.error('[Server] âŒ Failed to initialize search indexes:', error);
       // Don't exit - search will still work without optimal indexes
     }
 
@@ -739,16 +740,16 @@ const initializeServicesInBackground = async () => {
     
     // Initialize existing bot configurations for users
     try {
-      console.log('[Server] 🤖 Initializing existing Telegram bots...');
+      console.log('[Server] ðŸ¤– Initializing existing Telegram bots...');
       await telegramBotManager.initializeExistingBots();
-      console.log('[Server] ✅ Existing Telegram bots initialized successfully');
+      console.log('[Server] âœ… Existing Telegram bots initialized successfully');
     } catch (error) {
-      console.error('[Server] ❌ Failed to initialize existing Telegram bots:', error);
+      console.error('[Server] âŒ Failed to initialize existing Telegram bots:', error);
       // Don't exit - bots can be configured individually later
     }
 
     // Initialize WAHA service (modern WhatsApp implementation) with retry logic
-    console.log('[Server] 🔄 Initializing WAHA service with network retry...');
+    console.log('[Server] ðŸ”„ Initializing WAHA service with network retry...');
     let wahaInitialized = false;
 
     // Try WAHA initialization with retries (network issues on Render.com)
@@ -757,28 +758,28 @@ const initializeServicesInBackground = async () => {
         console.log(`[Server] WAHA initialization attempt ${attempt}/3...`);
         const wahaService = WAHAService.getInstance();
         await wahaService.initialize();
-        console.log('[Server] ✅ WAHA service initialized successfully');
+        console.log('[Server] âœ… WAHA service initialized successfully');
         
         // Initialize WhatsApp Unified Service after WAHA is ready
         try {
-          console.log('[Server] 🚀 Initializing WhatsApp Unified service...');
+          console.log('[Server] ðŸš€ Initializing WhatsApp Unified service...');
           const unifiedService = WhatsAppUnifiedService.getInstance();
           await unifiedService.initialize();
-          console.log('[Server] ✅ WhatsApp Unified service initialized successfully (full WhatsApp Web functionality available)');
+          console.log('[Server] âœ… WhatsApp Unified service initialized successfully (full WhatsApp Web functionality available)');
         } catch (unifiedError) {
-          console.warn('[Server] ⚠️ WhatsApp Unified service failed to initialize:', unifiedError);
+          console.warn('[Server] âš ï¸ WhatsApp Unified service failed to initialize:', unifiedError);
           console.log('[Server] Continuing with WAHA-only functionality...');
         }
         
         wahaInitialized = true;
         break;
       } catch (wahaError) {
-        console.error(`[Server] ❌ WAHA attempt ${attempt} failed:`, wahaError);
+        console.error(`[Server] âŒ WAHA attempt ${attempt} failed:`, wahaError);
         if (attempt < 3) {
           console.log(`[Server] Retrying WAHA in ${attempt * 5} seconds...`);
           await new Promise(resolve => setTimeout(resolve, attempt * 5000)); // 5s, 10s delays
         } else {
-          console.log('[Server] ⚠️ WAHA initialization failed after 3 attempts');
+          console.log('[Server] âš ï¸ WAHA initialization failed after 3 attempts');
           console.log('[Server] Using Baileys fallback (WAHA will retry in background)');
         }
       }
@@ -786,21 +787,21 @@ const initializeServicesInBackground = async () => {
 
     // If WAHA failed, set up background retry
     if (!wahaInitialized) {
-      console.log('[Server] 🔄 Setting up WAHA background retry (every 30 seconds)...');
+      console.log('[Server] ðŸ”„ Setting up WAHA background retry (every 30 seconds)...');
       const backgroundRetry = setInterval(async () => {
         try {
-          console.log('[Server] 🔄 Background WAHA retry...');
+          console.log('[Server] ðŸ”„ Background WAHA retry...');
           const wahaService = WAHAService.getInstance();
           await wahaService.initialize();
-          console.log('[Server] ✅ WAHA service connected via background retry!');
+          console.log('[Server] âœ… WAHA service connected via background retry!');
           
           // Initialize unified service after background WAHA success
           try {
             const unifiedService = WhatsAppUnifiedService.getInstance();
             await unifiedService.initialize();
-            console.log('[Server] ✅ WhatsApp Unified service initialized via background retry!');
+            console.log('[Server] âœ… WhatsApp Unified service initialized via background retry!');
           } catch (unifiedError) {
-            console.warn('[Server] ⚠️ WhatsApp Unified service failed in background retry:', unifiedError);
+            console.warn('[Server] âš ï¸ WhatsApp Unified service failed in background retry:', unifiedError);
           }
           
           clearInterval(backgroundRetry);
@@ -854,12 +855,19 @@ const initializeServicesInBackground = async () => {
     videoRecommendationScheduler.start();
     console.log('[Server] Video recommendation scheduler started');
 
+    if (process.env.WHATSAPP_SUMMARY_SCHEDULER_ENABLED !== 'false') {
+      whatsappSummaryScheduleService.start();
+      console.log('[Server] WhatsApp summary scheduler started');
+    } else {
+      console.log('[Server] WhatsApp summary scheduler disabled via env');
+    }
+
     // Make agent service available globally for AG-UI commands
     (global as any).agentService = agentService;
 
-    console.log('[Server] ✅ All background services initialized successfully');
+    console.log('[Server] âœ… All background services initialized successfully');
   } catch (error) {
-    console.error('[Server] ❌ Background service initialization failed:', error);
+    console.error('[Server] âŒ Background service initialization failed:', error);
     // Don't crash the server - let it continue with basic functionality
   }
 };
@@ -870,3 +878,6 @@ startServer();
 export { io };
 
 export default app; // Optional: export app for testing purposes
+
+
+

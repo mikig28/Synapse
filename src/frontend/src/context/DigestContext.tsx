@@ -17,7 +17,7 @@ interface DigestContextType {
   setLatestDigestSources: (sources: DigestSourceInfo[] | null) => void;
   isBatchSummarizing: boolean;
   summarizeLatestBookmarks: (
-    currentBookmarks: BookmarkItemType[], 
+    currentBookmarks: BookmarkItemType[],
     setCurrentBookmarks: React.Dispatch<React.SetStateAction<BookmarkItemType[] | null>>
   ) => Promise<void>;
 }

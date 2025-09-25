@@ -1,6 +1,6 @@
 ﻿import mongoose from 'mongoose';
 import { addDays, isAfter, set } from 'date-fns';
-import { formatInTimeZone, utcToZonedTime, zonedTimeToUtc } from 'date-fns-tz';
+import { formatInTimeZone, toZonedTime, fromZonedTime } from 'date-fns-tz';
 import WhatsAppSummarySchedule, {
   IWhatsAppSummarySchedule,
   IWhatsAppSummaryScheduleExecution,
@@ -24,6 +24,8 @@ export class WhatsAppSummaryScheduleService {
     this.timer = setInterval(() => {
       void this.processDueSchedules();
     }, this.pollIntervalMs);
+
+    void this.processDueSchedules();
   }
 
   stop(): void {
@@ -69,14 +71,14 @@ export class WhatsAppSummaryScheduleService {
     const hours = Number.parseInt(hourStr, 10);
     const minutes = Number.parseInt(minuteStr, 10);
 
-    const zonedNow = utcToZonedTime(fromDate, timezone);
+    const zonedNow = toZonedTime(fromDate, timezone);
     let nextZoned = set(zonedNow, { hours, minutes, seconds: 0, milliseconds: 0 });
 
     if (!isAfter(nextZoned, zonedNow)) {
       nextZoned = addDays(nextZoned, 1);
     }
 
-    return zonedTimeToUtc(nextZoned, timezone);
+    return fromZonedTime(nextZoned, timezone);
   }
 
   async executeScheduleById(scheduleId: string): Promise<IWhatsAppSummaryScheduleExecution | null> {
@@ -92,7 +94,7 @@ export class WhatsAppSummaryScheduleService {
     const timezone = schedule.timezone || 'UTC';
     const executionWindow = this.resolveExecutionWindow(executionStartedAt, timezone);
 
-    const summaryOptions = (schedule.summaryOptions || {}) as SummaryGenerationOptions;
+    const summaryOptions = { ...(schedule.summaryOptions || {}), timezone } as SummaryGenerationOptions;
     const summaryIds: mongoose.Types.ObjectId[] = [];
     const groupResults: IWhatsAppSummaryScheduleExecutionGroupResult[] = [];
 
@@ -207,15 +209,17 @@ export class WhatsAppSummaryScheduleService {
   }
 
   private resolveExecutionWindow(executionInstant: Date, timezone: string): { startUtc: string; endUtc: string } {
-    const zonedExecution = utcToZonedTime(executionInstant, timezone);
+    const zonedExecution = toZonedTime(executionInstant, timezone);
     const targetDay = addDays(zonedExecution, -1);
     const targetDateStr = formatInTimeZone(targetDay, timezone, 'yyyy-MM-dd');
 
-    const startUtc = zonedTimeToUtc(`${targetDateStr}T00:00:00`, timezone).toISOString();
-    const endUtc = zonedTimeToUtc(`${targetDateStr}T23:59:59.999`, timezone).toISOString();
+    const startUtc = fromZonedTime(`${targetDateStr}T00:00:00`, timezone).toISOString();
+    const endUtc = fromZonedTime(`${targetDateStr}T23:59:59.999`, timezone).toISOString();
 
     return { startUtc, endUtc };
   }
 }
 
 export const whatsappSummaryScheduleService = new WhatsAppSummaryScheduleService();
+
+

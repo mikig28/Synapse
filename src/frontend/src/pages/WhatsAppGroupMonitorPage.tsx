@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -35,10 +35,10 @@ import {
   Download,
   Sparkles
 } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { toast } from '@/hooks/use-toast';\r\nimport { whatsappSummaryScheduleService } from '@/services/whatsappSummaryScheduleService';\r\nimport { WhatsAppSummaryScheduleModal, SummaryScheduleFormValues } from '@/components/whatsapp/WhatsAppSummaryScheduleModal';
 import useAuthStore from '@/store/authStore';
 import api from '@/services/axiosConfig';
-import whatsappService from '@/services/whatsappService';
+import whatsappService from '@/services/whatsappService';\r\nimport { format, formatDistanceToNow } from 'date-fns';\r\nimport { formatInTimeZone } from 'date-fns-tz';
 import {
   GroupInfo,
   GroupSelection,
@@ -183,10 +183,18 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (selectedView === 'summaries' && availableGroups.length === 0) {
+    if (selectedView !== 'summaries') {
+      return;
+    }
+
+    if (availableGroups.length === 0) {
       fetchAvailableGroups();
     }
-  }, [selectedView]);
+
+    if (!hasLoadedSchedulesRef.current) {
+      fetchSchedules();
+    }
+  }, [selectedView, availableGroups.length, fetchAvailableGroups, fetchSchedules]);
 
   const fetchAllData = async () => {
     setLoading(true);
@@ -255,15 +263,15 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   };
 
   const fetchMonitorStatistics = async (monitorId: string) => {
-    console.log(`[WhatsApp Monitor Frontend] 📊 Fetching statistics for monitor: ${monitorId}`);
+    console.log(`[WhatsApp Monitor Frontend] ðŸ“Š Fetching statistics for monitor: ${monitorId}`);
 
     try {
       const res = await api.get(`/group-monitor/monitors/${monitorId}/statistics`);
-      console.log(`[WhatsApp Monitor Frontend] 📊 Statistics response for ${monitorId}:`, res.data);
+      console.log(`[WhatsApp Monitor Frontend] ðŸ“Š Statistics response for ${monitorId}:`, res.data);
 
       if (res.data?.success && res.data?.data) {
         const stats = res.data.data as GroupMonitor['statistics'];
-        console.log(`[WhatsApp Monitor Frontend] ✅ Updating statistics for monitor ${monitorId}:`, stats);
+        console.log(`[WhatsApp Monitor Frontend] âœ… Updating statistics for monitor ${monitorId}:`, stats);
 
         setGroupMonitors(prev => {
           const updated = prev.map(m => {
@@ -276,7 +284,7 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
                 lastActivity: stats.lastActivity ?? m.statistics.lastActivity,
               };
 
-              console.log(`[WhatsApp Monitor Frontend] 📊 Stats update for ${monitorId}:`, {
+              console.log(`[WhatsApp Monitor Frontend] ðŸ“Š Stats update for ${monitorId}:`, {
                 before: oldStats,
                 after: newStats,
                 changed: JSON.stringify(oldStats) !== JSON.stringify(newStats)
@@ -287,53 +295,53 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
             return m;
           });
 
-          console.log(`[WhatsApp Monitor Frontend] 📊 Updated monitors count: ${updated.length}`);
+          console.log(`[WhatsApp Monitor Frontend] ðŸ“Š Updated monitors count: ${updated.length}`);
           return updated;
         });
       } else {
-        console.warn(`[WhatsApp Monitor Frontend] ⚠️ Invalid statistics response for ${monitorId}:`, res.data);
+        console.warn(`[WhatsApp Monitor Frontend] âš ï¸ Invalid statistics response for ${monitorId}:`, res.data);
       }
     } catch (err) {
-      console.error(`[WhatsApp Monitor Frontend] ❌ Failed to fetch statistics for ${monitorId}:`, err);
+      console.error(`[WhatsApp Monitor Frontend] âŒ Failed to fetch statistics for ${monitorId}:`, err);
     }
   };
 
   const refreshAllMonitorStatistics = async (monitors: GroupMonitor[] = groupMonitors) => {
-    console.log(`[WhatsApp Monitor Frontend] 🔄 Refreshing statistics for ${monitors.length} monitors`);
+    console.log(`[WhatsApp Monitor Frontend] ðŸ”„ Refreshing statistics for ${monitors.length} monitors`);
     if (!monitors || monitors.length === 0) {
-      console.log(`[WhatsApp Monitor Frontend] ⚠️ No monitors to refresh`);
+      console.log(`[WhatsApp Monitor Frontend] âš ï¸ No monitors to refresh`);
       return;
     }
 
     try {
-      console.log(`[WhatsApp Monitor Frontend] 🔄 Starting parallel statistics fetch for monitors:`,
+      console.log(`[WhatsApp Monitor Frontend] ðŸ”„ Starting parallel statistics fetch for monitors:`,
         monitors.map(m => ({ id: m._id, groupName: m.groupName }))
       );
 
       await Promise.all(monitors.map(m => fetchMonitorStatistics(m._id)));
 
-      console.log(`[WhatsApp Monitor Frontend] ✅ Completed statistics refresh for all ${monitors.length} monitors`);
+      console.log(`[WhatsApp Monitor Frontend] âœ… Completed statistics refresh for all ${monitors.length} monitors`);
     } catch (error) {
-      console.error(`[WhatsApp Monitor Frontend] ❌ Error refreshing monitor statistics:`, error);
+      console.error(`[WhatsApp Monitor Frontend] âŒ Error refreshing monitor statistics:`, error);
     }
   };
 
   // Periodically refresh monitor statistics when viewing monitors
   useEffect(() => {
     if (selectedView !== 'monitors' || groupMonitors.length === 0) {
-      console.log(`[WhatsApp Monitor Frontend] 🔄 Skipping periodic refresh - view: ${selectedView}, monitors: ${groupMonitors.length}`);
+      console.log(`[WhatsApp Monitor Frontend] ðŸ”„ Skipping periodic refresh - view: ${selectedView}, monitors: ${groupMonitors.length}`);
       return;
     }
 
-    console.log(`[WhatsApp Monitor Frontend] ⏰ Starting periodic statistics refresh (every 15s) for ${groupMonitors.length} monitors`);
+    console.log(`[WhatsApp Monitor Frontend] â° Starting periodic statistics refresh (every 15s) for ${groupMonitors.length} monitors`);
 
     const interval = setInterval(() => {
-      console.log(`[WhatsApp Monitor Frontend] ⏰ Periodic refresh triggered`);
+      console.log(`[WhatsApp Monitor Frontend] â° Periodic refresh triggered`);
       refreshAllMonitorStatistics();
     }, 15000); // 15s refresh
 
     return () => {
-      console.log(`[WhatsApp Monitor Frontend] ⏰ Clearing periodic refresh interval`);
+      console.log(`[WhatsApp Monitor Frontend] â° Clearing periodic refresh interval`);
       clearInterval(interval);
     };
   }, [selectedView, groupMonitors.length]);
@@ -605,7 +613,189 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
     }
   };
 
-  // Summary-related methods
+  const fetchSchedules = useCallback(async () => {
+    try {
+      setSchedulesLoading(true);
+      setScheduleError(null);
+      const data = await whatsappSummaryScheduleService.getSchedules();
+      setSchedules(data);
+      hasLoadedSchedulesRef.current = true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load schedules';
+      console.error('[WhatsApp Summary] Failed to load schedules', error);
+      setScheduleError(message);
+      toast({
+        title: 'Failed to load schedules',
+        description: message,
+        variant: 'destructive'
+      });
+    } finally {
+      setSchedulesLoading(false);
+    }
+  }, []);
+
+  const openCreateScheduleModal = () => {
+    setEditingSchedule(null);
+    setScheduleModalOpen(true);
+  };
+
+  const handleScheduleSubmit = async (values: SummaryScheduleFormValues) => {
+    const targetGroups = availableGroups
+      .filter(group => values.targetGroupIds.includes(group.id))
+      .map(group => ({ groupId: group.id, groupName: group.name }));
+
+    if (targetGroups.length === 0) {
+      toast({
+        title: 'Select at least one group',
+        description: 'Choose the WhatsApp groups you want summarized automatically.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setScheduleSubmitting(true);
+    try {
+      const payload = {
+        name: values.name.trim(),
+        description: values.description?.trim() || undefined,
+        runAt: values.runAt,
+        timezone: values.timezone,
+        targetGroups,
+        includeAIInsights: values.includeAIInsights,
+        summaryOptions: {
+          includeEmojis: values.includeEmojis,
+          includeKeywords: values.includeKeywords
+        }
+      };
+
+      if (values.id) {
+        await whatsappSummaryScheduleService.updateSchedule(values.id, payload);
+        toast({
+          title: 'Schedule updated',
+          description: 'Daily summary schedule updated successfully.'
+        });
+      } else {
+        await whatsappSummaryScheduleService.createSchedule(payload);
+        toast({
+          title: 'Schedule created',
+          description: 'Daily summary schedule created successfully.'
+        });
+      }
+
+      setScheduleModalOpen(false);
+      await fetchSchedules();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save schedule';
+      console.error('[WhatsApp Summary] Failed to save schedule', error);
+      toast({
+        title: 'Failed to save schedule',
+        description: message,
+        variant: 'destructive'
+      });
+    } finally {
+      setScheduleSubmitting(false);
+    }
+  };
+
+  const handleToggleSchedule = async (schedule: WhatsAppSummarySchedule) => {
+    setScheduleActionId(schedule._id);
+    try {
+      await whatsappSummaryScheduleService.toggleSchedule(schedule._id);
+      toast({
+        title: schedule.status === 'active' ? 'Schedule paused' : 'Schedule activated',
+        description: ${schedule.name} is now .
+      });
+      await fetchSchedules();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update schedule';
+      console.error('[WhatsApp Summary] Failed to toggle schedule', error);
+      toast({
+        title: 'Failed to update schedule',
+        description: message,
+        variant: 'destructive'
+      });
+    } finally {
+      setScheduleActionId(null);
+    }
+  };
+
+  const handleRunSchedule = async (schedule: WhatsAppSummarySchedule) => {
+    setScheduleActionId(schedule._id);
+    try {
+      await whatsappSummaryScheduleService.runNow(schedule._id);
+      toast({
+        title: 'Summary queued',
+        description: 'Schedule run requested successfully.'
+      });
+      await fetchSchedules();
+      await loadScheduleHistory(schedule._id, true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to run schedule';
+      console.error('[WhatsApp Summary] Failed to run schedule', error);
+      toast({
+        title: 'Failed to run schedule',
+        description: message,
+        variant: 'destructive'
+      });
+    } finally {
+      setScheduleActionId(null);
+    }
+  };
+
+  const handleDeleteSchedule = async (schedule: WhatsAppSummarySchedule) => {
+    if (!window.confirm(`Delete schedule "${schedule.name}"?`)) {
+      return;
+    }
+
+    setScheduleActionId(schedule._id);
+    try {
+      await whatsappSummaryScheduleService.deleteSchedule(schedule._id);
+      toast({
+        title: 'Schedule deleted',
+        description: ${schedule.name} has been removed.
+      });
+      await fetchSchedules();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete schedule';
+      console.error('[WhatsApp Summary] Failed to delete schedule', error);
+      toast({
+        title: 'Failed to delete schedule',
+        description: message,
+        variant: 'destructive'
+      });
+    } finally {
+      setScheduleActionId(null);
+    }
+  };
+
+  const handleEditSchedule = (schedule: WhatsAppSummarySchedule) => {
+    setEditingSchedule(schedule);
+    setScheduleModalOpen(true);
+  };
+
+  const loadScheduleHistory = async (scheduleId: string, force = false) => {
+    if (!force && (historyLoadingId === scheduleId || scheduleHistory[scheduleId])) {
+      return;
+    }
+
+    setHistoryLoadingId(scheduleId);
+    try {
+      const history = await whatsappSummaryScheduleService.getHistory(scheduleId, 10);
+      setScheduleHistory(prev => ({ ...prev, [scheduleId]: history }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load history';
+      console.error('[WhatsApp Summary] Failed to load schedule history', error);
+      toast({
+        title: 'Failed to load history',
+        description: message,
+        variant: 'destructive'
+      });
+    } finally {
+      setHistoryLoadingId(null);
+    }
+  };
+
+  const getScheduleHistory = (scheduleId: string) => scheduleHistory[scheduleId] || [];\n  // Summary-related methods
   const handleGroupSelection = (groupId: string) => {
     setSelectedGroups(groups =>
       groups.map(group =>
@@ -718,16 +908,16 @@ AI INSIGHTS
 Sentiment: ${summary.aiInsights.sentiment}
 
 Key Topics:
-${summary.aiInsights.keyTopics.map(topic => `• ${topic}`).join('\n')}
+${summary.aiInsights.keyTopics.map(topic => `â€¢ ${topic}`).join('\n')}
 
 Action Items:
-${summary.aiInsights.actionItems.length > 0 ? summary.aiInsights.actionItems.map(item => `☐ ${item}`).join('\n') : 'None identified'}
+${summary.aiInsights.actionItems.length > 0 ? summary.aiInsights.actionItems.map(item => `â˜ ${item}`).join('\n') : 'None identified'}
 
 Important Events:
-${summary.aiInsights.importantEvents.length > 0 ? summary.aiInsights.importantEvents.map(event => `• ${event}`).join('\n') : 'None identified'}
+${summary.aiInsights.importantEvents.length > 0 ? summary.aiInsights.importantEvents.map(event => `â€¢ ${event}`).join('\n') : 'None identified'}
 
 Decisions Made:
-${summary.aiInsights.decisionsMade.length > 0 ? summary.aiInsights.decisionsMade.map(decision => `✓ ${decision}`).join('\n') : 'None identified'}`;
+${summary.aiInsights.decisionsMade.length > 0 ? summary.aiInsights.decisionsMade.map(decision => `âœ“ ${decision}`).join('\n') : 'None identified'}`;
 }
 
     const content = `${formatted.title}
@@ -740,7 +930,7 @@ STATISTICS
 ${formatted.stats.map(stat => `${stat.label}: ${stat.value}`).join('\n')}
 
 TOP PARTICIPANTS
-${formatted.topSenders.map(sender => `• ${sender.name} (${sender.count} messages): ${sender.summary}`).join('\n')}
+${formatted.topSenders.map(sender => `â€¢ ${sender.name} (${sender.count} messages): ${sender.summary}`).join('\n')}
 
 TOP KEYWORDS
 ${formatted.keywords.join(', ')}
@@ -1156,6 +1346,225 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
 
           {selectedView === 'summaries' && (
             <div className="space-y-6">
+              <GlassCard className="p-6 space-y-6">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Automated Daily Summaries</h3>
+                    <p className="text-sm text-blue-200/70">
+                      Automate recurring WhatsApp digests with scheduled AI summaries.
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
+                    <Badge variant="outline" className="border-blue-400/40 text-blue-200 bg-blue-500/10">
+                      {`${schedules.filter(schedule => schedule.status === 'active').length} active`}
+                    </Badge>
+                    <Button onClick={openCreateScheduleModal} size="sm">
+                      <Plus className="w-4 h-4 mr-2" />
+                      New schedule
+                    </Button>
+                  </div>
+                </div>
+
+                {scheduleError && (
+                  <div className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                    {scheduleError}
+                  </div>
+                )}
+
+                <div>
+                  {schedulesLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-blue-200/70">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading schedules...
+                    </div>
+                  ) : schedules.length === 0 ? (
+                    <div className="rounded-md border border-dashed border-white/10 bg-white/5 p-6 text-sm text-blue-200/70 text-center">
+                      No schedules yet. Create a schedule to receive automatic summaries.
+                    </div>
+                  ) : (
+                    <Accordion
+                      type="single"
+                      collapsible
+                      value={expandedScheduleId ?? undefined}
+                      onValueChange={(value) => {
+                        const nextValue = value || null;
+                        setExpandedScheduleId(nextValue);
+                        if (nextValue) {
+                          void loadScheduleHistory(nextValue);
+                        }
+                      }}
+                      className="space-y-2">
+                      {schedules.map((schedule) => {
+                        const activeGroups = schedule.targetGroups.length;
+                        const nextExecutionLabel = schedule.nextExecutionAt
+                          ? formatInTimeZone(new Date(schedule.nextExecutionAt), schedule.timezone, 'MMM d, yyyy HH:mm')
+                          : 'Not scheduled';
+                        const lastExecutionLabel = schedule.lastExecutionAt
+                          ? formatDistanceToNow(new Date(schedule.lastExecutionAt), { addSuffix: true })
+                          : 'Not run yet';
+                        const history = getScheduleHistory(schedule._id);
+                        const isActionLoading = scheduleActionId === schedule._id;
+
+                        return (
+                          <AccordionItem
+                            key={schedule._id}
+                            value={schedule._id}
+                            className="rounded-lg border border-white/10 bg-black/20 backdrop-blur-sm">
+                            <AccordionTrigger className="px-4 py-3 text-left hover:no-underline">
+                              <div className="flex w-full flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                <div className="flex items-center gap-3">
+                                  <Badge
+                                    variant={schedule.status === 'active' ? 'default' : 'outline'}
+                                    className={schedule.status === 'active'
+                                      ? 'bg-green-500/20 text-green-200 border-green-500/40'
+                                      : 'bg-yellow-500/10 text-yellow-200 border-yellow-500/30'}>
+                                    {schedule.status === 'active' ? 'Active' : 'Paused'}
+                                  </Badge>
+                                  <span className="text-white font-semibold">{schedule.name}</span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3 text-xs text-blue-200/70">
+                                  <span>Runs at {schedule.runAt} ({schedule.timezone})</span>
+                                  <span>Next run: {nextExecutionLabel}</span>
+                                  <span>{activeGroups} group{activeGroups === 1 ? '' : 's'}</span>
+                                </div>
+                              </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="px-4 pb-4">
+                              <div className="space-y-4">
+                                <div className="flex flex-wrap gap-2">
+                                  {schedule.targetGroups.map((group) => (
+                                    <Badge
+                                      key={group.groupId}
+                                      variant="outline"
+                                      className="border-blue-400/30 bg-blue-500/10 text-blue-100">
+                                      {group.groupName}
+                                    </Badge>
+                                  ))}
+                                </div>
+
+                                <div className="grid gap-3 md:grid-cols-3">
+                                  <div className="rounded-md border border-white/10 bg-white/5 p-3 text-sm text-blue-200/70">
+                                    <div className="text-xs uppercase tracking-wide text-blue-200/50">Next run</div>
+                                    <div className="text-white font-medium">{nextExecutionLabel}</div>
+                                  </div>
+                                  <div className="rounded-md border border-white/10 bg-white/5 p-3 text-sm text-blue-200/70">
+                                    <div className="text-xs uppercase tracking-wide text-blue-200/50">Last run</div>
+                                    <div className="text-white font-medium">{lastExecutionLabel}</div>
+                                  </div>
+                                  <div className="rounded-md border border-white/10 bg-white/5 p-3 text-sm text-blue-200/70">
+                                    <div className="text-xs uppercase tracking-wide text-blue-200/50">Last status</div>
+                                    <div className="text-white font-medium">
+                                      {schedule.lastExecutionStatus ? schedule.lastExecutionStatus.toUpperCase() : 'N/A'}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => handleRunSchedule(schedule)}
+                                    disabled={isActionLoading}>
+                                    {isActionLoading ? (
+                                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : (
+                                      <PlayCircle className="w-4 h-4 mr-2" />
+                                    )}
+                                    Run now
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleToggleSchedule(schedule)}
+                                    disabled={isActionLoading}>
+                                    {isActionLoading ? (
+                                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : schedule.status === 'active' ? (
+                                      <PauseCircle className="w-4 h-4 mr-2" />
+                                    ) : (
+                                      <PlayCircle className="w-4 h-4 mr-2" />
+                                    )}
+                                    {schedule.status === 'active' ? 'Pause' : 'Activate'}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleEditSchedule(schedule)}
+                                    disabled={isActionLoading}>
+                                    <Settings className="w-4 h-4 mr-2" />
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => handleDeleteSchedule(schedule)}
+                                    disabled={isActionLoading}>
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Delete
+                                  </Button>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 text-sm text-white">
+                                      <History className="w-4 h-4" />
+                                      <span>Recent runs</span>
+                                    </div>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => loadScheduleHistory(schedule._id, true)}
+                                      disabled={historyLoadingId === schedule._id}>
+                                      {historyLoadingId === schedule._id ? (
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                      ) : (
+                                        <RefreshCw className="w-4 h-4 mr-2" />
+                                      )}
+                                      Refresh
+                                    </Button>
+                                  </div>
+
+                                  {historyLoadingId === schedule._id && history.length === 0 ? (
+                                    <div className="text-xs text-blue-200/70">Loading history...</div>
+                                  ) : history.length === 0 ? (
+                                    <div className="text-xs text-blue-200/70">No recent executions.</div>
+                                  ) : (
+                                    <div className="space-y-2 text-xs text-blue-200/70">
+                                      {history.slice(0, 5).map((entry, index) => (
+                                        <div
+                                          key={`${schedule._id}-history-${index}`}
+                                          className="flex items-center justify-between rounded-md border border-white/10 bg-white/5 p-2">
+                                          <div>
+                                            <div className="text-white">
+                                              {format(new Date(entry.executedAt), 'MMM d, yyyy HH:mm')}
+                                            </div>
+                                            <div>
+                                              {entry.status.toUpperCase()} - {entry.groupResults.filter(result => result.status === 'success').length} success / {entry.groupResults.length}
+                                            </div>
+                                          </div>
+                                          <Badge
+                                            variant="outline"
+                                            className={entry.status === 'success'
+                                              ? 'border-green-500/40 bg-green-500/10 text-green-200'
+                                              : entry.status === 'partial'
+                                                ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200'
+                                                : 'border-red-500/40 bg-red-500/10 text-red-200'}>
+                                            {entry.status}
+                                          </Badge>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        );
+                      })}
+                    </Accordion>
+                  )}
+                </div>
+              </GlassCard>
               {/* Date Range Selector */}
               <GlassCard className="p-6">
                 <h3 className="text-lg font-semibold text-white mb-4">Select Time Range</h3>
@@ -1396,7 +1805,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                       <div className="flex items-center gap-2 text-xs text-blue-200/50">
                         <Clock className="w-3 h-3" />
                         <span>{image.processingDetails.processingTime.toFixed(0)}ms</span>
-                        <span>•</span>
+                        <span>â€¢</span>
                         <span>{image.processingDetails.facesDetected} faces</span>
                       </div>
                     </div>
@@ -1829,7 +2238,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                             <div className="space-y-2">
                               {selectedSummary.aiInsights.keyTopics.map((topic, index) => (
                                 <div key={index} className="flex items-start gap-2">
-                                  <span className="text-blue-400 mt-1">•</span>
+                                  <span className="text-blue-400 mt-1">â€¢</span>
                                   <span className="text-white text-sm">{topic}</span>
                                 </div>
                               ))}
@@ -1996,3 +2405,19 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
 };
 
 export default WhatsAppGroupMonitorPage;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,3 +1,7 @@
+﻿import type { SummaryGenerationOptions } from '../../../shared/types/whatsappSummaryOptions';
+
+export type { SummaryGenerationOptions } from '../../../shared/types/whatsappSummaryOptions';
+
 // WhatsApp Summary Types for Frontend
 
 export interface GroupInfo {
@@ -65,10 +69,7 @@ export interface AIInsights {
   speakerAttributions?: { speakerName: string; bullets: string[] }[];
 }
 
-export interface GroupSummaryData {
-  groupId: string;
-  groupName: string;
-  timeRange: {
+export interface GroupSummaryData {\r\n  groupId: string;\r\n  groupName: string;\r\n  scheduleId?: string;\r\n  timeRange: {
     start: Date;
     end: Date;
   };
@@ -152,19 +153,6 @@ export interface TodaySummaryRequest {
   chatType?: 'group' | 'private';
 }
 
-export interface SummaryGenerationOptions {
-  maxSummaryLength?: number; // Default 500 words
-  maxSenderSummaryLength?: number; // Default 60 words
-  includeEmojis?: boolean; // Default true
-  includeKeywords?: boolean; // Default true
-  minMessageCount?: number; // Minimum messages to include sender (default 1)
-  keywordMinCount?: number; // Minimum count for keyword inclusion (default 2)
-  emojiMinCount?: number; // Minimum count for emoji inclusion (default 2)
-  excludeSystemMessages?: boolean; // Default true
-  timezone?: string; // User's timezone for date boundaries
-  targetLanguage?: 'auto' | 'en' | 'he' | string;
-  speakerAttribution?: boolean;
-  maxSpeakerAttributions?: number;
 }
 
 // Date range preset types
@@ -237,3 +225,4 @@ export interface SummaryDisplayData {
     decisions: string[];
   };
 }
+

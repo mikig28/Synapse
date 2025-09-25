@@ -214,7 +214,7 @@ export class MessageSummarizationService {
       groupId,
       groupName,
       userId,
-      scheduleId,
+      ...(scheduleId && { scheduleId }),
       summaryDate,
       timeRange: {
         start: timeRange.start,
@@ -324,7 +324,8 @@ export class MessageSummarizationService {
   public async generateGroupSummary(
     request: SummaryRequest,
     userId: string,
-    options: SummaryGenerationOptions = {}
+    options: SummaryGenerationOptions = {},
+    scheduleId?: string
   ): Promise<{
     summary: GroupSummaryData;
     cached: boolean;
