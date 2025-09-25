@@ -35,10 +35,14 @@ import {
   Download,
   Sparkles
 } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';\r\nimport { whatsappSummaryScheduleService } from '@/services/whatsappSummaryScheduleService';\r\nimport { WhatsAppSummaryScheduleModal, SummaryScheduleFormValues } from '@/components/whatsapp/WhatsAppSummaryScheduleModal';
+import { toast } from '@/hooks/use-toast';
+import { whatsappSummaryScheduleService } from '@/services/whatsappSummaryScheduleService';
+import { WhatsAppSummaryScheduleModal, SummaryScheduleFormValues } from '@/components/whatsapp/WhatsAppSummaryScheduleModal';
 import useAuthStore from '@/store/authStore';
 import api from '@/services/axiosConfig';
-import whatsappService from '@/services/whatsappService';\r\nimport { format, formatDistanceToNow } from 'date-fns';\r\nimport { formatInTimeZone } from 'date-fns-tz';
+import whatsappService from '@/services/whatsappService';
+import { format, formatDistanceToNow } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 import {
   GroupInfo,
   GroupSelection,
@@ -703,7 +707,7 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
       await whatsappSummaryScheduleService.toggleSchedule(schedule._id);
       toast({
         title: schedule.status === 'active' ? 'Schedule paused' : 'Schedule activated',
-        description: ${schedule.name} is now .
+        description: `${schedule.name} is now ${schedule.status === 'active' ? 'paused' : 'active'}.`
       });
       await fetchSchedules();
     } catch (error) {
@@ -752,7 +756,7 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
       await whatsappSummaryScheduleService.deleteSchedule(schedule._id);
       toast({
         title: 'Schedule deleted',
-        description: ${schedule.name} has been removed.
+        description: `${schedule.name} has been removed.`
       });
       await fetchSchedules();
     } catch (error) {
@@ -795,7 +799,9 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
     }
   };
 
-  const getScheduleHistory = (scheduleId: string) => scheduleHistory[scheduleId] || [];\n  // Summary-related methods
+  const getScheduleHistory = (scheduleId: string) => scheduleHistory[scheduleId] || [];
+
+  // Summary-related methods
   const handleGroupSelection = (groupId: string) => {
     setSelectedGroups(groups =>
       groups.map(group =>
