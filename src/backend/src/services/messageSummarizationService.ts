@@ -244,7 +244,7 @@ export class MessageSummarizationService {
         messageTypes: { text: 0, media: 0, other: 0 },
         activityPeaks: []
       },
-      summary: '',
+      summary: 'Summary is being generated...',
       processingTimeMs: 0,
       status: 'generating'
     });

@@ -214,6 +214,10 @@ WhatsAppGroupSummarySchema.methods.markFailed = function(
   this.status = 'failed';
   this.errorMessage = errorMessage;
   this.processingTimeMs = Date.now() - this.createdAt.getTime();
+  // Ensure summary field is populated even when failed
+  if (!this.summary || this.summary.trim() === '' || this.summary === 'Summary is being generated...') {
+    this.summary = `Summary generation failed: ${errorMessage}`;
+  }
   return this.save();
 };
 
