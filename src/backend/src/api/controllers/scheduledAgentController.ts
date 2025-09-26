@@ -214,7 +214,7 @@ export const updateScheduledAgent = async (req: AuthenticatedRequest, res: Respo
   try {
     const { id } = req.params;
     const userId = req.user?.id;
-    const updates = req.body;
+    const updates: Record<string, any> = req.body || {};
 
     console.log(`[ScheduledAgent] UPDATE request for agent ID: ${id}, User ID: ${userId}`);
 
@@ -238,11 +238,11 @@ export const updateScheduledAgent = async (req: AuthenticatedRequest, res: Respo
     }
 
     // Remove sensitive fields that shouldn't be updated directly
-    delete updates.userId;
-    delete updates.executionCount;
-    delete updates.successCount;
-    delete updates.failureCount;
-    delete updates.lastResult;
+    delete (updates as any).userId;
+    delete (updates as any).executionCount;
+    delete (updates as any).successCount;
+    delete (updates as any).failureCount;
+    delete (updates as any).lastResult;
 
     console.log(`[ScheduledAgent] Attempting to update agent with ID: ${id} and userId: ${userId}`);
 

@@ -198,13 +198,13 @@ export const updateAgent = async (req: AuthenticatedRequest, res: Response): Pro
       return;
     }
     
-    const updates = req.body;
+    const updates: Record<string, any> = req.body || {};
     
     // Don't allow updating certain fields
-    delete updates._id;
-    delete updates.userId;
-    delete updates.createdAt;
-    delete updates.updatedAt;
+    delete (updates as any)._id;
+    delete (updates as any).userId;
+    delete (updates as any).createdAt;
+    delete (updates as any).updatedAt;
     
     const updatedAgent = await agentService.updateAgent(agentId, updates);
     

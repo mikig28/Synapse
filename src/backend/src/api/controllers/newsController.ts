@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../../types/express';
 import NewsItem, { INewsItem } from '../../models/NewsItem';

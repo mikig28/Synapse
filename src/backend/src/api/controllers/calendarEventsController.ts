@@ -1,10 +1,11 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
+import { AuthenticatedRequest } from '../../types/express';
 import CalendarEvent, { ICalendarEvent } from '../../models/CalendarEvent';
 import GoogleCalendarService from '../../services/googleCalendarService';
 import mongoose from 'mongoose';
 
 // Get all calendar events for the authenticated user
-export const getAllCalendarEvents = async (req: Request, res: Response) => {
+export const getAllCalendarEvents = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id; // Assuming req.user is populated by auth middleware
     if (!userId) {
@@ -23,7 +24,7 @@ export const getAllCalendarEvents = async (req: Request, res: Response) => {
 };
 
 // Create a new calendar event
-export const createCalendarEvent = async (req: Request, res: Response) => {
+export const createCalendarEvent = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -70,7 +71,7 @@ export const createCalendarEvent = async (req: Request, res: Response) => {
 };
 
 // Update an existing calendar event
-export const updateCalendarEvent = async (req: Request, res: Response) => {
+export const updateCalendarEvent = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const eventId = req.params.id;
@@ -179,7 +180,7 @@ export const updateCalendarEvent = async (req: Request, res: Response) => {
 };
 
 // Delete a calendar event
-export const deleteCalendarEvent = async (req: Request, res: Response) => {
+export const deleteCalendarEvent = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const eventId = req.params.id;
@@ -287,7 +288,7 @@ const initializeGoogleCalendarService = () => {
 };
 
 // Sync calendar with Google Calendar
-export const syncWithGoogleCalendar = async (req: Request, res: Response) => {
+export const syncWithGoogleCalendar = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const { accessToken, timeRange } = req.body;
@@ -383,7 +384,7 @@ export const syncWithGoogleCalendar = async (req: Request, res: Response) => {
 };
 
 // Get sync status
-export const getSyncStatus = async (req: Request, res: Response) => {
+export const getSyncStatus = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
 
@@ -407,7 +408,7 @@ export const getSyncStatus = async (req: Request, res: Response) => {
 };
 
 // Import events from Google Calendar
-export const importFromGoogleCalendar = async (req: Request, res: Response) => {
+export const importFromGoogleCalendar = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const { accessToken, timeMin, timeMax } = req.body;
@@ -444,7 +445,7 @@ export const importFromGoogleCalendar = async (req: Request, res: Response) => {
 };
 
 // Export events to Google Calendar
-export const exportToGoogleCalendar = async (req: Request, res: Response) => {
+export const exportToGoogleCalendar = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     const { accessToken } = req.body;
@@ -479,7 +480,7 @@ export const exportToGoogleCalendar = async (req: Request, res: Response) => {
 };
 
 // Debug endpoint to check database state
-export const debugCalendarEvents = async (req: Request, res: Response) => {
+export const debugCalendarEvents = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {

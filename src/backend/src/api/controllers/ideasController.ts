@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import Idea, { IIdea } from '../../models/Idea';
 import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../../types/express';
