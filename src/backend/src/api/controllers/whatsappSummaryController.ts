@@ -1590,6 +1590,13 @@ export const getRecentSummaries = async (req: AuthenticatedRequest, res: Respons
     .limit(parseInt(limit as string))
     .lean();
 
+    if (summaries.length === 0) {
+      return res.json({
+        success: true,
+        data: []
+      } as ApiResponse<GroupSummaryData[]>);
+    }
+
     console.log(`[WhatsApp Summary] Found ${summaries.length} recent summaries for user ${userId}`);
 
     res.json({
