@@ -97,7 +97,18 @@ export class MessageSummarizationService {
         limit
       });
 
-      // First get total count
+      // First check if messages exist for this group at all
+      const totalGroupMessages = await WhatsAppMessage.countDocuments({
+        $or: [
+          { 'metadata.groupName': { $exists: true, $ne: null } },
+          { to: groupId },
+          { from: groupId }
+        ]
+      });
+
+      console.log(`[MessageSummarization] Total messages for group ${groupId}: ${totalGroupMessages}`);
+
+      // First get total count for time range
       const totalCount = await WhatsAppMessage.countDocuments({
         timestamp: {
           $gte: timeRange.start,
@@ -427,12 +438,31 @@ export class MessageSummarizationService {
       );
 
       try {
+        console.log('[MessageSummarization] Fetching messages for group', {
+          groupId: request.groupId,
+          groupName: request.groupName,
+          timeRange: {
+            start: timeRange.start.toISOString(),
+            end: timeRange.end.toISOString()
+          }
+        });
+
         // Fetch all messages for the time range
         const messages = await this.fetchAllGroupMessages(request.groupId, timeRange);
 
+        console.log('[MessageSummarization] Message fetch result', {
+          groupId: request.groupId,
+          groupName: request.groupName,
+          messageCount: messages.length,
+          timeRange: {
+            start: timeRange.start.toISOString(),
+            end: timeRange.end.toISOString()
+          }
+        });
+
         if (messages.length === 0) {
           console.log('[MessageSummarization] No messages found for the specified time range');
-          
+
           // Create empty summary
           const emptySummary: GroupSummaryData = {
             groupId: request.groupId,
@@ -441,7 +471,7 @@ export class MessageSummarizationService {
             totalMessages: 0,
             activeParticipants: 0,
             senderInsights: [],
-            overallSummary: `No messages found for ${request.groupName} during the specified time period.`,
+            overallSummary: `No messages found for ${request.groupName} during the specified time period (${timeRange.start.toISOString()} to ${timeRange.end.toISOString()}).`,
             topKeywords: [],
             topEmojis: [],
             activityPeaks: [],

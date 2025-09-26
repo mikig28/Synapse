@@ -1,11 +1,8 @@
-// Minimal smoke test placeholder (Playwright would live outside vite unit tests)
-// This ensures the component mounts without runtime errors.
-import { describe, it } from 'vitest';
 
-describe('YouTubeRecommendations smoke', () => {
-  it('mounts page without crashing (placeholder)', async () => {
-    // E2E covered by Playwright externally; placeholder to keep structure.
+import { describe, it } from '@jest/globals';
+
+describe.skip('YouTubeRecommendations page (e2e placeholder)', () => {
+  it('is skipped until Playwright coverage is added', () => {
+    // This test is intentionally skipped to avoid running Playwright in Jest
   });
 });
-
-

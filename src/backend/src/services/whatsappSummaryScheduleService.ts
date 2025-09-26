@@ -109,12 +109,29 @@ export class WhatsAppSummaryScheduleService {
       };
 
       try {
+        console.log('[WhatsApp Summary Schedule] Starting summary for group', {
+          scheduleId: schedule._id,
+          groupId: target.groupId,
+          groupName: target.groupName,
+          executionWindow
+        });
+
         const result = await this.messageService.generateGroupSummary(
           request,
           schedule.userId.toString(),
           summaryOptions,
           schedule._id.toString()
         );
+
+        console.log('[WhatsApp Summary Schedule] Summary generation result', {
+          scheduleId: schedule._id,
+          groupId: target.groupId,
+          result: {
+            hasSummaryId: !!result.summaryId,
+            summaryId: result.summaryId,
+            cached: result.cached
+          }
+        });
 
         if (result.summaryId && mongoose.isValidObjectId(result.summaryId)) {
           const summaryObjectId = new mongoose.Types.ObjectId(result.summaryId);
@@ -130,7 +147,19 @@ export class WhatsAppSummaryScheduleService {
             summaryId: summaryObjectId,
             status: 'success'
           });
+
+          console.log('[WhatsApp Summary Schedule] Group summary succeeded', {
+            scheduleId: schedule._id,
+            groupId: target.groupId,
+            summaryId: result.summaryId
+          });
         } else {
+          console.warn('[WhatsApp Summary Schedule] No valid summary ID returned', {
+            scheduleId: schedule._id,
+            groupId: target.groupId,
+            result
+          });
+
           groupResults.push({
             groupId: target.groupId,
             groupName: target.groupName,
@@ -140,16 +169,23 @@ export class WhatsAppSummaryScheduleService {
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
+        const stack = error instanceof Error ? error.stack : undefined;
+
+        console.error('[WhatsApp Summary Schedule] Group summary failed', {
+          scheduleId: schedule._id,
+          groupId: target.groupId,
+          groupName: target.groupName,
+          error: message,
+          stack,
+          request,
+          summaryOptions
+        });
+
         groupResults.push({
           groupId: target.groupId,
           groupName: target.groupName,
           status: 'failed',
           error: message
-        });
-        console.error('[WhatsApp Summary Schedule] Group summary failed', {
-          scheduleId: schedule._id,
-          groupId: target.groupId,
-          error
         });
       }
     }
