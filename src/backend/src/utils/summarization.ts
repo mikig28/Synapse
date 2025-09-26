@@ -487,11 +487,18 @@ export async function generateCompleteGroupSummary(
   options: SummaryGenerationOptions = {}
 ): Promise<GroupSummaryData> {
   const startTime = Date.now();
-  
+
+  console.log(`[generateCompleteGroupSummary] Starting summary for group: ${groupName}`);
+  console.log(`[generateCompleteGroupSummary] Input messages count: ${messages.length}`);
+  console.log(`[generateCompleteGroupSummary] Time range: ${timeRange.start.toISOString()} to ${timeRange.end.toISOString()}`);
+  console.log(`[generateCompleteGroupSummary] Options:`, options);
+
   // Filter messages by minimum count if specified
-  const filteredMessages = messages.filter(m => 
+  const filteredMessages = messages.filter(m =>
     !options.excludeSystemMessages || (m.type !== 'system' && m.type !== 'protocol')
   );
+
+  console.log(`[generateCompleteGroupSummary] Filtered messages count: ${filteredMessages.length}`);
   
   // Group messages by sender
   const senderGroups = groupMessagesBySender(filteredMessages);
@@ -537,8 +544,15 @@ export async function generateCompleteGroupSummary(
   );
   
   const processingTimeMs = Date.now() - startTime;
-  
-  return {
+
+  console.log(`[generateCompleteGroupSummary] Summary generated:`);
+  console.log(`[generateCompleteGroupSummary] - Total messages: ${totalMessages}`);
+  console.log(`[generateCompleteGroupSummary] - Active participants: ${activeParticipants}`);
+  console.log(`[generateCompleteGroupSummary] - Overall summary length: ${overallSummary.length}`);
+  console.log(`[generateCompleteGroupSummary] - Processing time: ${processingTimeMs}ms`);
+  console.log(`[generateCompleteGroupSummary] - Overall summary preview: ${overallSummary.substring(0, 100)}...`);
+
+  const result = {
     groupId,
     groupName,
     timeRange,
@@ -556,4 +570,6 @@ export async function generateCompleteGroupSummary(
       participantsFound: senderGroups.size
     }
   };
+
+  return result;
 }

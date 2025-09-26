@@ -314,27 +314,167 @@ export class WhatsAppSummaryService {
       });
 
       if (response.data.success && response.data.data) {
-        return response.data.data.map(summary => ({
-          ...summary,
-          summaryDate: new Date(summary.summaryDate),
-          timeRange: {
-            start: new Date(summary.timeRange.start),
-            end: new Date(summary.timeRange.end)
-          },
-          generatedAt: new Date(summary.generatedAt),
-          senderSummaries: summary.senderSummaries?.map((sender: any) => ({
-            ...sender,
-            firstMessageTime: new Date(sender.firstMessageTime),
-            lastMessageTime: new Date(sender.lastMessageTime)
-          })) || [],
-          groupAnalytics: summary.groupAnalytics ? {
-            ...summary.groupAnalytics,
-            timeRange: {
-              start: new Date(summary.groupAnalytics.timeRange.start),
-              end: new Date(summary.groupAnalytics.timeRange.end)
+        return response.data.data.map(summary => {
+          const normalizeKeyword = (keywordEntry: any) => {
+            if (!keywordEntry) return null;
+            if (typeof keywordEntry === 'string') {
+              return { keyword: keywordEntry, count: 0, percentage: 0 };
             }
-          } : undefined
-        }));
+            return {
+              keyword: keywordEntry.keyword ?? keywordEntry.word ?? '',
+              count: keywordEntry.count ?? keywordEntry.frequency ?? 0,
+              percentage: keywordEntry.percentage ?? keywordEntry.percent ?? 0
+            };
+          };
+
+          const normalizeEmoji = (emojiEntry: any) => {
+            if (!emojiEntry) return null;
+            if (typeof emojiEntry === 'string') {
+              return { emoji: emojiEntry, count: 0, percentage: 0 };
+            }
+            return {
+              emoji: emojiEntry.emoji ?? emojiEntry.value ?? '',
+              count: emojiEntry.count ?? emojiEntry.frequency ?? 0,
+              percentage: emojiEntry.percentage ?? emojiEntry.percent ?? 0
+            };
+          };
+
+          const normalizeInsights = (insights: any[] | undefined, legacy?: boolean) => {
+            if (!insights) return [];
+            return insights
+              .map(entry => {
+                if (!entry) return null;
+                const baseKeywords = legacy ? entry.topKeywords : entry.topKeywords ?? entry.keywords;
+                const baseEmojis = legacy ? entry.topEmojis : entry.topEmojis ?? entry.emojis;
+
+                return {
+                  senderName: entry.senderName ?? entry.name ?? 'Unknown',
+                  senderPhone: entry.senderPhone ?? entry.phone ?? '',
+                  messageCount: entry.messageCount ?? entry.messages ?? 0,
+                  summary: entry.summary ?? entry.insight ?? '',
+                  topKeywords: (baseKeywords ?? [])
+                    .map(normalizeKeyword)
+                    .filter((k): k is { keyword: string; count: number; percentage: number } => Boolean(k)),
+                  topEmojis: (baseEmojis ?? [])
+                    .map(normalizeEmoji)
+                    .filter((e): e is { emoji: string; count: number; percentage: number } => Boolean(e)),
+                  activityPattern: {
+                    peakHour: entry.activityPattern?.peakHour
+                      ?? entry.peakHour
+                      ?? 12,
+                    messageDistribution: entry.activityPattern?.messageDistribution
+                      ?? entry.messageDistribution
+                      ?? []
+                  },
+                  engagement: {
+                    averageMessageLength: entry.engagement?.averageMessageLength
+                      ?? entry.averageMessageLength
+                      ?? 0,
+                    mediaCount: entry.engagement?.mediaCount
+                      ?? entry.mediaCount
+                      ?? 0,
+                    questionCount: entry.engagement?.questionCount
+                      ?? entry.questionCount
+                      ?? 0
+                  }
+                };
+              })
+              .filter(Boolean) as GroupSummaryData['senderInsights'];
+          };
+
+          const summaryDate = summary.summaryDate ? new Date(summary.summaryDate) : new Date();
+          const timeRange = {
+            start: summary.timeRange?.start ? new Date(summary.timeRange.start) : summaryDate,
+            end: summary.timeRange?.end ? new Date(summary.timeRange.end) : summaryDate
+          };
+
+          const groupAnalytics = summary.groupAnalytics
+            ? {
+                ...summary.groupAnalytics,
+                timeRange: {
+                  start: summary.groupAnalytics.timeRange?.start
+                    ? new Date(summary.groupAnalytics.timeRange.start)
+                    : timeRange.start,
+                  end: summary.groupAnalytics.timeRange?.end
+                    ? new Date(summary.groupAnalytics.timeRange.end)
+                    : timeRange.end
+                }
+              }
+            : undefined;
+
+          const totalMessages = summary.totalMessages
+            ?? summary.groupAnalytics?.totalMessages
+            ?? groupAnalytics?.totalMessages
+            ?? 0;
+
+          const activeParticipants = summary.activeParticipants
+            ?? summary.groupAnalytics?.activeParticipants
+            ?? groupAnalytics?.activeParticipants
+            ?? 0;
+
+          const keywordsSource = summary.topKeywords
+            ?? summary.groupAnalytics?.topKeywords
+            ?? groupAnalytics?.topKeywords
+            ?? [];
+
+          const emojisSource = summary.topEmojis
+            ?? summary.groupAnalytics?.topEmojis
+            ?? groupAnalytics?.topEmojis
+            ?? [];
+
+          const messageTypes = summary.messageTypes
+            ?? (summary.groupAnalytics?.messageTypes
+              ? {
+                  text: summary.groupAnalytics.messageTypes.text ?? 0,
+                  image: summary.groupAnalytics.messageTypes.image ?? 0,
+                  video: summary.groupAnalytics.messageTypes.video ?? 0,
+                  audio: summary.groupAnalytics.messageTypes.audio ?? 0,
+                  document: summary.groupAnalytics.messageTypes.document ?? 0,
+                  other: summary.groupAnalytics.messageTypes.other ?? 0
+                }
+              : {
+                  text: totalMessages,
+                  image: 0,
+                  video: 0,
+                  audio: 0,
+                  document: 0,
+                  other: 0
+                });
+
+          const processingStats = summary.processingStats ?? {
+            processingTimeMs: summary.processingTimeMs ?? 0,
+            messagesAnalyzed: summary.processingStats?.messagesAnalyzed
+              ?? totalMessages,
+            participantsFound: summary.processingStats?.participantsFound
+              ?? activeParticipants
+          };
+
+          const senderInsights = summary.senderInsights && summary.senderInsights.length > 0
+            ? normalizeInsights(summary.senderInsights)
+            : normalizeInsights(summary.senderSummaries, true);
+
+          return {
+            ...summary,
+            scheduleId: summary.scheduleId,
+            summaryDate,
+            timeRange,
+            generatedAt: summary.generatedAt ? new Date(summary.generatedAt) : new Date(),
+            overallSummary: summary.overallSummary ?? summary.summary ?? '',
+            totalMessages,
+            activeParticipants,
+            senderInsights,
+            topKeywords: keywordsSource
+              .map(normalizeKeyword)
+              .filter((k): k is { keyword: string; count: number; percentage: number } => Boolean(k)),
+            topEmojis: emojisSource
+              .map(normalizeEmoji)
+              .filter((e): e is { emoji: string; count: number; percentage: number } => Boolean(e)),
+            activityPeaks: summary.activityPeaks ?? summary.groupAnalytics?.activityPeaks ?? [],
+            messageTypes,
+            processingStats,
+            aiInsights: summary.aiInsights ?? undefined
+          } as GroupSummaryData;
+        });
       }
 
       throw new Error(response.data.error || 'Failed to fetch recent summaries');

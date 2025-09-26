@@ -151,7 +151,25 @@ const RecentSummariesSection: React.FC = () => {
   }, []);
 
   const downloadSummary = (summary: GroupSummaryData) => {
-    const content = `# ${summary.groupName} - Summary\n\n**Date:** ${summary.summaryDate.toLocaleDateString()}\n**Time Range:** ${summary.timeRange.start.toLocaleString()} - ${summary.timeRange.end.toLocaleString()}\n**Messages:** ${summary.totalMessages}\n**Participants:** ${summary.activeParticipants}\n\n## Summary\n${summary.summary}\n\n## Top Keywords\n${summary.topKeywords?.map(k => `- ${k.word} (${k.count})`).join('\n') || 'None'}\n\n## Top Emojis\n${summary.topEmojis?.map(e => `- ${e.emoji} (${e.count})`).join('\n') || 'None'}\n\n## Participant Insights\n${summary.senderSummaries?.map(s => `### ${s.senderName}\n- Messages: ${s.messageCount}\n- Summary: ${s.summary}\n- Keywords: ${s.topKeywords.join(', ')}\n`).join('\n') || 'None'}`;
+    const keywordsText = summary.topKeywords && summary.topKeywords.length > 0
+      ? summary.topKeywords.map(k => `- ${k.keyword} (${k.count})`).join('\n')
+      : 'None';
+
+    const emojisText = summary.topEmojis && summary.topEmojis.length > 0
+      ? summary.topEmojis.map(e => `- ${e.emoji} (${e.count})`).join('\n')
+      : 'None';
+
+    const senderInsights = summary.senderInsights?.length
+      ? summary.senderInsights
+      : [];
+
+    const insightsText = senderInsights.length > 0
+      ? senderInsights
+          .map(sender => `### ${sender.senderName}\n- Messages: ${sender.messageCount}\n- Summary: ${sender.summary}\n- Keywords: ${sender.topKeywords.map(k => k.keyword).join(', ') || 'None'}`)
+          .join('\n')
+      : 'None';
+
+    const content = `# ${summary.groupName} - Summary\n\n**Date:** ${summary.summaryDate.toLocaleDateString()}\n**Time Range:** ${summary.timeRange.start.toLocaleString()} - ${summary.timeRange.end.toLocaleString()}\n**Messages:** ${summary.totalMessages}\n**Participants:** ${summary.activeParticipants}\n\n## Summary\n${summary.overallSummary || summary.summary || ''}\n\n## Top Keywords\n${keywordsText}\n\n## Top Emojis\n${emojisText}\n\n## Participant Insights\n${insightsText}`;
 
     const blob = new Blob([content], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
@@ -232,7 +250,7 @@ const RecentSummariesSection: React.FC = () => {
                   </div>
                   <div className="mt-2">
                     <p className="text-sm text-white line-clamp-2">
-                      {summary.summary}
+                      {summary.overallSummary || summary.summary || ''}
                     </p>
                   </div>
                 </div>

@@ -1600,6 +1600,67 @@ export const getRecentSummaries = async (req: AuthenticatedRequest, res: Respons
         groupName: summary.groupName,
         summaryDate: summary.summaryDate,
         timeRange: summary.timeRange,
+
+        // Transform to new format for frontend
+          overallSummary: summary.summary,
+          totalMessages: summary.groupAnalytics?.totalMessages || summary.totalMessages || 0,
+          activeParticipants: summary.groupAnalytics?.activeParticipants || summary.activeParticipants || 0,
+          senderInsights: summary.senderSummaries?.map(sender => ({
+          senderName: sender.senderName,
+          senderPhone: sender.senderPhone,
+          messageCount: sender.messageCount,
+          summary: sender.summary,
+            topKeywords: sender.topKeywords?.map(keyword => ({
+              keyword,
+              count: 1,
+              percentage: 0
+            })) || [],
+          topEmojis: sender.topEmojis?.map(emoji => ({
+            emoji,
+            count: 1,
+            percentage: 0
+          })) || [],
+          activityPattern: {
+            peakHour: 12,
+            messageDistribution: []
+          },
+          engagement: {
+            averageMessageLength: 0,
+            mediaCount: 0,
+            questionCount: 0
+          }
+        })) || [],
+          topKeywords: (summary.groupAnalytics?.topKeywords || summary.topKeywords || []).map(keyword => ({
+            keyword,
+            count: 1,
+            percentage: 0
+          })),
+          topEmojis: (summary.groupAnalytics?.topEmojis || summary.topEmojis || []).map(emoji => ({
+            emoji,
+            count: 1,
+            percentage: 0
+          })),
+        activityPeaks: summary.groupAnalytics?.activityPeaks || [],
+        messageTypes: {
+          text: summary.groupAnalytics?.messageTypes?.text || 0,
+          image: Math.floor((summary.groupAnalytics?.messageTypes?.media || 0) * 0.6),
+          video: Math.floor((summary.groupAnalytics?.messageTypes?.media || 0) * 0.3),
+          audio: Math.floor((summary.groupAnalytics?.messageTypes?.media || 0) * 0.1),
+          document: 0,
+          other: summary.groupAnalytics?.messageTypes?.other || 0
+        },
+        processingStats: {
+          processingTimeMs: summary.processingTimeMs
+        },
+        aiInsights: {
+          keyTopics: [],
+          sentiment: 'neutral' as const,
+          actionItems: [],
+          importantEvents: [],
+          decisionsMade: []
+        },
+
+        // Keep old format for compatibility
         summary: summary.summary,
         senderSummaries: summary.senderSummaries,
         groupAnalytics: summary.groupAnalytics,

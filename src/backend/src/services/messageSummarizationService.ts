@@ -265,6 +265,12 @@ export class MessageSummarizationService {
     }
 
     // Transform sender insights to sender summaries
+    const toDate = (value: Date | string | number | undefined): Date | undefined => {
+      if (!value) return undefined;
+      const date = value instanceof Date ? value : new Date(value);
+      return isNaN(date.getTime()) ? undefined : date;
+    };
+
     summaryRecord.senderSummaries = summaryData.senderInsights.map(insight => ({
       senderName: insight.senderName,
       senderPhone: insight.senderPhone,
@@ -272,8 +278,8 @@ export class MessageSummarizationService {
       summary: insight.summary,
       topKeywords: insight.topKeywords.map(k => k.keyword),
       topEmojis: insight.topEmojis.map(e => e.emoji),
-      firstMessageTime: new Date(), // This should be calculated properly
-      lastMessageTime: new Date()   // This should be calculated properly
+      firstMessageTime: toDate((insight as any).firstMessageTime) || summaryRecord.timeRange.start,
+      lastMessageTime: toDate((insight as any).lastMessageTime) || summaryRecord.timeRange.end
     }));
 
     // Update group analytics
@@ -292,7 +298,7 @@ export class MessageSummarizationService {
       activityPeaks: summaryData.activityPeaks
     };
 
-    summaryRecord.summary = summaryData.overallSummary;
+    summaryRecord.summary = summaryData.overallSummary || summaryRecord.summary || 'Summary not available';
     summaryRecord.processingTimeMs = summaryData.processingStats.processingTimeMs;
     summaryRecord.status = 'completed';
     summaryRecord.generatedAt = new Date();

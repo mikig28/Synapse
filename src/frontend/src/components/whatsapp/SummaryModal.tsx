@@ -95,10 +95,10 @@ const SummaryModal: React.FC<SummaryDisplayProps> = ({
         content += `  Messages: ${sender.messageCount}\n`;
         content += `  Summary: ${sender.summary}\n`;
         if (sender.topKeywords.length > 0) {
-          content += `  Top Keywords: ${sender.topKeywords.map(k => k.keyword).join(', ')}\n`;
+          content += `  Top Keywords: ${sender.topKeywords.map(k => k.keyword || String(k)).join(', ')}\n`;
         }
         if (sender.topEmojis.length > 0) {
-          content += `  Top Emojis: ${sender.topEmojis.map(e => e.emoji).join(' ')}\n`;
+          content += `  Top Emojis: ${sender.topEmojis.map(e => e.emoji || String(e)).join(' ')}\n`;
         }
         content += `  Peak Hour: ${formatHour(sender.activityPattern.peakHour)}\n`;
         content += `  Avg Message Length: ${sender.engagement.averageMessageLength} chars\n\n`;
@@ -219,7 +219,7 @@ const SummaryModal: React.FC<SummaryDisplayProps> = ({
                         Summary Overview
                       </h3>
                       <p className="text-white/90 leading-relaxed">
-                        {summary.overallSummary}
+                        {summary.overallSummary || summary.summary || 'No summary available.'}
                       </p>
                     </GlassCard>
 
