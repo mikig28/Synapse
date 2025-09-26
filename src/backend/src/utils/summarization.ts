@@ -1,4 +1,5 @@
 import { MessageData, MessageGroup, KeywordAnalysis, EmojiAnalysis, SenderInsights, GroupSummaryData, SummaryGenerationOptions } from '../types/whatsappSummary';
+import axios from 'axios';
 
 /**
  * Groups messages by sender phone number and name
@@ -229,9 +230,11 @@ export function generateSenderSummary(
 }
 
 /**
- * Generates overall group summary
+ * Generates AI-powered content summary using OpenAI
  */
-export function generateGroupSummary(
+async function generateAIGroupSummary(
+  messages: MessageData[],
+  groupName: string,
   groupData: {
     totalMessages: number;
     activeParticipants: number;
@@ -239,17 +242,90 @@ export function generateGroupSummary(
     topEmojis: EmojiAnalysis[];
     messageTypes: any;
     timeRange: { start: Date; end: Date };
-  },
-  options: SummaryGenerationOptions = {}
+  }
+): Promise<string> {
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  if (!OPENAI_API_KEY) {
+    return generateBasicGroupSummary(groupData);
+  }
+
+  try {
+    // Format recent messages for AI analysis (limit to manage token usage)
+    const recentMessages = messages.slice(-100);
+    const conversationText = recentMessages
+      .map(msg => {
+        const time = msg.timestamp.toISOString().substring(11, 16);
+        return `[${time}] ${msg.senderName}: ${msg.message}`;
+      })
+      .join('\n');
+
+    const prompt = `Analyze this WhatsApp group conversation from "${groupName}" and provide a concise, informative summary focusing on the main discussion topics, key decisions, important events, and overall group activity.
+
+Conversation:
+${conversationText}
+
+Statistical context:
+- ${groupData.totalMessages} total messages from ${groupData.activeParticipants} participants
+- Time period: ${groupData.timeRange.start.toLocaleDateString()} to ${groupData.timeRange.end.toLocaleDateString()}
+- Main topics: ${groupData.topKeywords.slice(0, 5).map(k => k.keyword).join(', ')}
+
+Please provide a 2-3 paragraph summary that captures the essence of the conversation, major themes discussed, and any significant events or decisions. Write in the same language as the majority of the messages.`;
+
+    const response = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert at analyzing group conversations and creating concise, informative summaries that capture the key points and context.'
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 400
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000 // 10 second timeout
+      }
+    );
+
+    const aiSummary = response.data?.choices?.[0]?.message?.content;
+    if (aiSummary && aiSummary.trim().length > 50) {
+      return aiSummary.trim();
+    }
+  } catch (error) {
+    console.error('[Summarization] AI summary generation failed:', error);
+  }
+
+  // Fallback to basic summary if AI fails
+  return generateBasicGroupSummary(groupData);
+}
+
+/**
+ * Generates basic statistical group summary (fallback)
+ */
+function generateBasicGroupSummary(
+  groupData: {
+    totalMessages: number;
+    activeParticipants: number;
+    topKeywords: KeywordAnalysis[];
+    topEmojis: EmojiAnalysis[];
+    messageTypes: any;
+    timeRange: { start: Date; end: Date };
+  }
 ): string {
-  const { maxSummaryLength = 500 } = options;
   const { totalMessages, activeParticipants, topKeywords, topEmojis, messageTypes, timeRange } = groupData;
-  
+
   let summary = '';
-  
+
   // Basic stats
   summary += `Group activity summary: ${totalMessages} messages from ${activeParticipants} participants. `;
-  
+
   // Message composition
   if (messageTypes.text > 0 || messageTypes.media > 0) {
     summary += `Message breakdown: ${messageTypes.text} text messages`;
@@ -261,36 +337,59 @@ export function generateGroupSummary(
     }
     summary += '. ';
   }
-  
+
   // Top discussion topics
   if (topKeywords.length > 0) {
     const topTopics = topKeywords.slice(0, 5).map(k => k.keyword).join(', ');
     summary += `Main topics discussed: ${topTopics}. `;
   }
-  
+
   // Emoji usage
   if (topEmojis.length > 0) {
     const topEmojisStr = topEmojis.slice(0, 3).map(e => `${e.emoji} (${e.count})`).join(', ');
     summary += `Most used emojis: ${topEmojisStr}. `;
   }
-  
+
   // Time period
   const startTime = timeRange.start.toLocaleDateString();
   const endTime = timeRange.end.toLocaleDateString();
-  
+
   if (startTime === endTime) {
     summary += `Activity occurred on ${startTime}.`;
   } else {
     summary += `Activity period: ${startTime} to ${endTime}.`;
   }
-  
-  // Ensure summary doesn't exceed word limit
-  const words = summary.split(' ');
-  if (words.length > maxSummaryLength) {
-    summary = words.slice(0, maxSummaryLength).join(' ') + '...';
-  }
-  
+
   return summary;
+}
+
+/**
+ * Generates overall group summary (with AI when available)
+ */
+export async function generateGroupSummary(
+  messages: MessageData[],
+  groupName: string,
+  groupData: {
+    totalMessages: number;
+    activeParticipants: number;
+    topKeywords: KeywordAnalysis[];
+    topEmojis: EmojiAnalysis[];
+    messageTypes: any;
+    timeRange: { start: Date; end: Date };
+  },
+  options: SummaryGenerationOptions = {}
+): Promise<string> {
+  // Try AI-powered summary first if we have enough messages
+  if (messages.length >= 5) {
+    try {
+      return await generateAIGroupSummary(messages, groupName, groupData);
+    } catch (error) {
+      console.error('[Summarization] AI summary failed, falling back to basic summary:', error);
+    }
+  }
+
+  // Fallback to basic summary
+  return generateBasicGroupSummary(groupData);
 }
 
 /**
@@ -380,13 +479,13 @@ export function calculateMessageTypeDistribution(messages: MessageData[]): {
 /**
  * Generates complete group summary data
  */
-export function generateCompleteGroupSummary(
+export async function generateCompleteGroupSummary(
   messages: MessageData[],
   groupId: string,
   groupName: string,
   timeRange: { start: Date; end: Date },
   options: SummaryGenerationOptions = {}
-): GroupSummaryData {
+): Promise<GroupSummaryData> {
   const startTime = Date.now();
   
   // Filter messages by minimum count if specified
@@ -423,14 +522,19 @@ export function generateCompleteGroupSummary(
     .slice(0, 5);
   
   // Generate overall summary
-  const overallSummary = generateGroupSummary({
-    totalMessages,
-    activeParticipants,
-    topKeywords,
-    topEmojis,
-    messageTypes,
-    timeRange
-  }, options);
+  const overallSummary = await generateGroupSummary(
+    filteredMessages,
+    groupName,
+    {
+      totalMessages,
+      activeParticipants,
+      topKeywords,
+      topEmojis,
+      messageTypes,
+      timeRange
+    },
+    options
+  );
   
   const processingTimeMs = Date.now() - startTime;
   

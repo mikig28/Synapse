@@ -494,7 +494,7 @@ export class MessageSummarizationService {
 
         // Generate comprehensive summary
         console.log(`[MessageSummarization] Generating summary for ${messages.length} messages`);
-        const summaryData = generateCompleteGroupSummary(
+        const summaryData = await generateCompleteGroupSummary(
           messages,
           request.groupId,
           request.groupName,
