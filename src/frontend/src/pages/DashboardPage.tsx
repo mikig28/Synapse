@@ -5,7 +5,7 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { SkeletonText } from '@/components/ui/Skeleton';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
-import { Zap, AlertCircle, FileText, ExternalLink as LinkIcon, TrendingUp, Users, Calendar, BarChart3, Volume2, XCircle, HardDrive, ChevronDown, Bookmark, Play, MessageSquare, Download, Loader2, RefreshCw } from 'lucide-react';
+import { Zap, AlertCircle, FileText, ExternalLink as LinkIcon, TrendingUp, Users, Calendar, BarChart3, Volume2, XCircle, HardDrive, Bookmark, Play, MessageSquare, Download, Loader2, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
 import AddNoteModal from '@/components/notes/AddNoteModal';
@@ -21,6 +21,7 @@ import { agentService } from '@/services/agentService';
 import { MetricsDashboard } from '@/components/metrics/MetricsDashboard';
 import { UsageDashboard } from '@/components/usage/UsageDashboard';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { MobileMetricsDashboard } from '@/components/mobile';
 import { useDeviceDetection } from '@/hooks/useMobileFeatures';
 import type { Agent, AgentRun } from '@/types/agent';
@@ -587,43 +588,41 @@ const DashboardPage: React.FC = () => {
           className="mt-8"
         >
           <GlassCard className="overflow-hidden border border-border/40">
-            <div className="p-6">
-              <details className="group" open>
-                <summary className="cursor-pointer list-none">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
+            <Accordion type="single" collapsible defaultValue="intelligence-hub">
+              <AccordionItem value="intelligence-hub" className="border-none">
+                <AccordionTrigger className="px-6">
+                  <div className="flex w-full items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-left">
                       <BarChart3 className="w-5 h-5 text-primary" />
                       <h3 className="text-lg font-semibold">Intelligence Hub</h3>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span className="hidden sm:inline">Monitor usage • Track agent performance</span>
-                      <ChevronDown className="w-4 h-4 transition-transform duration-300 group-open:rotate-180" />
+                    <span className="hidden text-xs text-muted-foreground sm:inline">Monitor usage • Track agent performance</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-6">
+                  <div className="mt-5 grid grid-cols-1 gap-6 xl:grid-cols-2">
+                    <div className="rounded-xl border border-border/30 bg-background/60 p-5 backdrop-blur">
+                      <div className="mb-3 flex items-center justify-between">
+                        <h4 className="text-base font-semibold">Agent Analytics</h4>
+                        <span className="text-xs text-muted-foreground">Live insights</span>
+                      </div>
+                      {isMobile ? (
+                        <MobileMetricsDashboard agents={agents} recentRuns={recentRuns} />
+                      ) : (
+                        <MetricsDashboard agents={agents} recentRuns={recentRuns} />
+                      )}
+                    </div>
+                    <div className="rounded-xl border border-border/30 bg-background/60 p-5 backdrop-blur">
+                      <div className="mb-3 flex items-center justify-between">
+                        <h4 className="text-base font-semibold">Usage Trends</h4>
+                        <span className="text-xs text-muted-foreground">Billing & limits</span>
+                      </div>
+                      <UsageDashboard />
                     </div>
                   </div>
-                </summary>
-
-                <div className="mt-5 grid grid-cols-1 xl:grid-cols-2 gap-6">
-                  <div className="rounded-xl border border-border/30 bg-background/60 p-5 backdrop-blur">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-base font-semibold">Agent Analytics</h4>
-                      <span className="text-xs text-muted-foreground">Live insights</span>
-                    </div>
-                    {isMobile ? (
-                      <MobileMetricsDashboard agents={agents} recentRuns={recentRuns} />
-                    ) : (
-                      <MetricsDashboard agents={agents} recentRuns={recentRuns} />
-                    )}
-                  </div>
-                  <div className="rounded-xl border border-border/30 bg-background/60 p-5 backdrop-blur">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-base font-semibold">Usage Trends</h4>
-                      <span className="text-xs text-muted-foreground">Billing & limits</span>
-                    </div>
-                    <UsageDashboard />
-                  </div>
-                </div>
-              </details>
-            </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </GlassCard>
         </motion.div>
 

@@ -127,7 +127,11 @@ interface WhatsAppChat {
 }
 
 // Recent Summaries Component
-const RecentSummariesSection: React.FC = () => {
+interface RecentSummariesSectionProps {
+  refreshSignal: number;
+}
+
+const RecentSummariesSection: React.FC<RecentSummariesSectionProps> = ({ refreshSignal }) => {
   const [recentSummaries, setRecentSummaries] = useState<GroupSummaryData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -147,8 +151,8 @@ const RecentSummariesSection: React.FC = () => {
   };
 
   useEffect(() => {
-    loadRecentSummaries();
-  }, []);
+    void loadRecentSummaries();
+  }, [refreshSignal]);
 
   const downloadSummary = (summary: GroupSummaryData) => {
     const keywordsText = summary.topKeywords && summary.topKeywords.length > 0
@@ -274,6 +278,7 @@ const RecentSummariesSection: React.FC = () => {
 };
 
 const WhatsAppGroupMonitorPage: React.FC = () => {
+  const [recentSummariesRefreshToken, setRecentSummariesRefreshToken] = useState(0);
   const [personProfiles, setPersonProfiles] = useState<PersonProfile[]>([]);
   const [groupMonitors, setGroupMonitors] = useState<GroupMonitor[]>([]);
   const [filteredImages, setFilteredImages] = useState<FilteredImage[]>([]);
@@ -918,6 +923,7 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
       });
       await fetchSchedules();
       await loadScheduleHistory(schedule._id, true);
+      setRecentSummariesRefreshToken((prev) => prev + 1);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to run schedule';
       console.error('[WhatsApp Summary] Failed to run schedule', error);
@@ -1932,7 +1938,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
               )}
 
               {/* Recent Summaries Section */}
-              <RecentSummariesSection />
+            <RecentSummariesSection refreshSignal={recentSummariesRefreshToken} />
             </div>
           )}
 
