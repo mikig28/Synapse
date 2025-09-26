@@ -623,6 +623,20 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
     }
   }, [toast]);
 
+  useEffect(() => {
+    if (selectedView !== 'summaries') {
+      return;
+    }
+
+    if (availableGroups.length === 0) {
+      fetchAvailableGroups();
+    }
+
+    if (!hasLoadedSchedulesRef.current) {
+      fetchSchedules();
+    }
+  }, [selectedView, availableGroups.length, fetchAvailableGroups, fetchSchedules]);
+
   const openCreateScheduleModal = () => {
     setEditingSchedule(null);
     setScheduleModalOpen(true);
@@ -973,20 +987,6 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
       </div>
     );
   }
-
-  useEffect(() => {
-    if (selectedView !== 'summaries') {
-      return;
-    }
-
-    if (availableGroups.length === 0) {
-      fetchAvailableGroups();
-    }
-
-    if (!hasLoadedSchedulesRef.current) {
-      fetchSchedules();
-    }
-  }, [selectedView, availableGroups.length, fetchAvailableGroups, fetchSchedules]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 p-6">
