@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -264,7 +264,8 @@ export const WhatsAppSummaryScheduleModal: React.FC<WhatsAppSummaryScheduleModal
               </div>
             </div>
 
-            <ScrollArea className="max-h-48 rounded-lg border border-white/10 bg-white/5 p-3">
+            {/* Make group selection scrollable, especially on mobile */}
+            <ScrollArea className="h-[50vh] md:h-64 rounded-lg border border-white/10 bg-white/5 p-3">
               <div className="space-y-2">
                 {availableGroups.map((group) => {
                   const checked = formValues.targetGroupIds.includes(group.id);
