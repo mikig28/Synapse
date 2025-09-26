@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import {
   Eye,
   EyeOff,
@@ -33,7 +35,11 @@ import {
   Calendar,
   BarChart3,
   Download,
-  Sparkles
+  History,
+  Loader2,
+  PauseCircle,
+  PlayCircle,
+  Sparkles,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { whatsappSummaryScheduleService } from '@/services/whatsappSummaryScheduleService';
