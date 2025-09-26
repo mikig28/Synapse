@@ -57,6 +57,8 @@ import {
   DATE_RANGE_PRESETS
 } from '@/types/whatsappSummary';
 
+import type { WhatsAppSummarySchedule, WhatsAppSummaryScheduleExecution } from '../../../shared/types/whatsappSummarySchedule';
+
 interface PersonProfile {
   _id: string;
   name: string;
@@ -145,6 +147,17 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   const [loadingSummaries, setLoadingSummaries] = useState<Set<string>>(new Set());
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [selectedSummary, setSelectedSummary] = useState<GroupSummaryData | null>(null);
+  const [schedules, setSchedules] = useState<WhatsAppSummarySchedule[]>([]);
+  const [schedulesLoading, setSchedulesLoading] = useState(false);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
+  const [scheduleActionId, setScheduleActionId] = useState<string | null>(null);
+  const [editingSchedule, setEditingSchedule] = useState<WhatsAppSummarySchedule | null>(null);
+  const [scheduleHistory, setScheduleHistory] = useState<Record<string, WhatsAppSummaryScheduleExecution[]>>({});
+  const [historyLoadingId, setHistoryLoadingId] = useState<string | null>(null);
+  const [expandedScheduleId, setExpandedScheduleId] = useState<string | null>(null);
+
   
   // Person Profile Form
   const [showPersonForm, setShowPersonForm] = useState(false);
@@ -178,6 +191,24 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isAuthenticated } = useAuthStore();
   const hasLoadedSchedulesRef = useRef(false);
+
+  const scheduleModalInitialValues = useMemo<SummaryScheduleFormValues | undefined>(() => {
+    if (!editingSchedule) {
+      return undefined;
+    }
+
+    return {
+      id: editingSchedule._id,
+      name: editingSchedule.name,
+      description: editingSchedule.description ?? '',
+      runAt: editingSchedule.runAt,
+      timezone: editingSchedule.timezone,
+      includeAIInsights: editingSchedule.includeAIInsights ?? true,
+      includeEmojis: editingSchedule.summaryOptions?.includeEmojis ?? true,
+      includeKeywords: editingSchedule.summaryOptions?.includeKeywords ?? true,
+      targetGroupIds: editingSchedule.targetGroups.map((group) => group.groupId)
+    };
+  }, [editingSchedule]);
 
   // Helper function to convert relative URLs to absolute URLs
   const getAbsoluteImageUrl = (url: string): string => {
@@ -692,6 +723,7 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
       }
 
       setScheduleModalOpen(false);
+      setEditingSchedule(null);
       await fetchSchedules();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save schedule';
@@ -1367,7 +1399,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                   </div>
                   <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
                     <Badge variant="outline" className="border-blue-400/40 text-blue-200 bg-blue-500/10">
-                      {`${schedules.filter(schedule => schedule.status === 'active').length} active`}
+                      {`${schedules?.filter(schedule => schedule.status === 'active').length || 0} active`}
                     </Badge>
                     <Button onClick={openCreateScheduleModal} size="sm">
                       <Plus className="w-4 h-4 mr-2" />
@@ -1388,7 +1420,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Loading schedules...
                     </div>
-                  ) : schedules.length === 0 ? (
+                  ) : (schedules?.length ?? 0) === 0 ? (
                     <div className="rounded-md border border-dashed border-white/10 bg-white/5 p-6 text-sm text-blue-200/70 text-center">
                       No schedules yet. Create a schedule to receive automatic summaries.
                     </div>
@@ -1405,7 +1437,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                         }
                       }}
                       className="space-y-2">
-                      {schedules.map((schedule) => {
+                      {(schedules || []).map((schedule) => {
                         const activeGroups = schedule.targetGroups.length;
                         const nextExecutionLabel = schedule.nextExecutionAt
                           ? formatInTimeZone(new Date(schedule.nextExecutionAt), schedule.timezone, 'MMM d, yyyy HH:mm')
@@ -1953,6 +1985,20 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
               </motion.div>
             </motion.div>
           )}
+        <WhatsAppSummaryScheduleModal
+          open={scheduleModalOpen}
+          onOpenChange={(open) => {
+            setScheduleModalOpen(open);
+            if (!open) {
+              setEditingSchedule(null);
+            }
+          }}
+          availableGroups={availableGroups}
+          initialValues={scheduleModalInitialValues}
+          submitting={scheduleSubmitting}
+          onSubmit={handleScheduleSubmit}
+        />
+
         </AnimatePresence>
 
         {/* Group Monitor Form Modal */}
