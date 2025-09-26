@@ -126,6 +126,8 @@ interface WhatsAppChat {
   participantCount?: number;
 }
 
+const RECENT_SUMMARIES_EVENT = 'whatsappSummariesUpdated';
+
 // Recent Summaries Component
 interface RecentSummariesSectionProps {
   refreshSignal: number;
@@ -136,7 +138,7 @@ const RecentSummariesSection: React.FC<RecentSummariesSectionProps> = ({ refresh
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadRecentSummaries = async () => {
+  const loadRecentSummaries = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -148,11 +150,35 @@ const RecentSummariesSection: React.FC<RecentSummariesSectionProps> = ({ refresh
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadRecentSummaries();
-  }, [refreshSignal]);
+  }, [loadRecentSummaries, refreshSignal]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const handleRefresh = () => {
+      void loadRecentSummaries();
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'whatsappSummariesUpdatedAt') {
+        void loadRecentSummaries();
+      }
+    };
+
+    window.addEventListener(RECENT_SUMMARIES_EVENT, handleRefresh);
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener(RECENT_SUMMARIES_EVENT, handleRefresh);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [loadRecentSummaries]);
 
   const downloadSummary = (summary: GroupSummaryData) => {
     const keywordsText = summary.topKeywords && summary.topKeywords.length > 0
@@ -196,7 +222,7 @@ const RecentSummariesSection: React.FC<RecentSummariesSectionProps> = ({ refresh
           </p>
         </div>
         <Button
-          onClick={loadRecentSummaries}
+          onClick={() => void loadRecentSummaries()}
           disabled={isLoading}
           size="sm"
           variant="outline"
@@ -924,6 +950,14 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
       await fetchSchedules();
       await loadScheduleHistory(schedule._id, true);
       setRecentSummariesRefreshToken((prev) => prev + 1);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event(RECENT_SUMMARIES_EVENT));
+        try {
+          localStorage.setItem('whatsappSummariesUpdatedAt', Date.now().toString());
+        } catch (storageError) {
+          console.warn('Failed to update localStorage for summaries refresh', storageError);
+        }
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to run schedule';
       console.error('[WhatsApp Summary] Failed to run schedule', error);

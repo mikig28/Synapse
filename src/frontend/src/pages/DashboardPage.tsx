@@ -39,6 +39,8 @@ import { GroupSummaryData } from '@/types/whatsappSummary';
 
 const API_BASE_URL = `${BACKEND_ROOT_URL}/api/v1`;
 
+const RECENT_SUMMARIES_EVENT = 'whatsappSummariesUpdated';
+
 const DashboardPage: React.FC = () => {
   const { 
     latestDigest, 
@@ -316,7 +318,7 @@ const DashboardPage: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  const loadRecentSummaries = async () => {
+  const loadRecentSummaries = useCallback(async () => {
     try {
       setSummariesLoading(true);
       const summaries = await WhatsAppSummaryService.getRecentSummaries(3, 7);
@@ -326,7 +328,31 @@ const DashboardPage: React.FC = () => {
     } finally {
       setSummariesLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const handleRefresh = () => {
+      void loadRecentSummaries();
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'whatsappSummariesUpdatedAt') {
+        void loadRecentSummaries();
+      }
+    };
+
+    window.addEventListener(RECENT_SUMMARIES_EVENT, handleRefresh);
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener(RECENT_SUMMARIES_EVENT, handleRefresh);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [loadRecentSummaries]);
 
   const stats = [
     { title: `Total Usage (${selectedPeriod.charAt(0).toUpperCase() + selectedPeriod.slice(1)})`, value: computeTotalUsage(usage), trend: usageTrendPct, icon: BarChart3 },
