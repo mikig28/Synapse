@@ -2407,6 +2407,34 @@ class WAHAService extends EventEmitter {
       } else if (typeof messageData.id === 'string' && messageData.id.includes('@g.us')) {
         isGroupMessage = true;
       }
+
+      // Enhanced group detection for WAHA messages
+      // Check if message has group indicators even with @c.us format
+      if (!isGroupMessage && messageData.id) {
+        // Look for group patterns in message ID (format: false_sender@c.us_id)
+        const idParts = messageData.id.split('_');
+        if (idParts.length >= 3) {
+          // Try to extract potential group ID from message context
+          const potentialGroupId = idParts[1];
+          if (potentialGroupId && potentialGroupId.includes('-') && potentialGroupId.includes('@')) {
+            // This might be a group message with individual sender format
+            isGroupMessage = true;
+            // Try to construct the group ID
+            if (!groupId) {
+              const groupBase = potentialGroupId.replace('@c.us', '');
+              if (groupBase.includes('-')) {
+                groupId = groupBase + '@g.us';
+              }
+            }
+          }
+        }
+      }
+
+      // Additional check: if we have multiple participants or specific message patterns
+      if (!isGroupMessage && (messageData.author || messageData.participant)) {
+        // Message has author/participant data, likely from a group
+        isGroupMessage = true;
+      }
     }
 
     console.log('[WAHA Service] ?? Processing message for group monitoring:', {
@@ -2415,12 +2443,20 @@ class WAHAService extends EventEmitter {
       originalChatId: messageData.chatId,
       from: messageData.from,
       author: messageData.author,
+      participant: messageData.participant,
       resolvedGroupId: groupId,
       resolvedSenderId: authorJid || fromJid,
       hasMedia: Boolean(messageData.hasMedia || messageData.isMedia || messageData.mediaUrl || messageData.media),
       type: messageData.type,
       isGroupOriginal: messageData.isGroup,
-      isGroupDerived: isGroupMessage
+      isGroupDerived: isGroupMessage,
+      // Additional debug fields
+      rawMessageFields: {
+        groupId: messageData.groupId,
+        group: messageData.group,
+        remoteJid: messageData.remoteJid,
+        to: messageData.to
+      }
     });
 
     try {
