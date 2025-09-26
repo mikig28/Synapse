@@ -5,7 +5,7 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { SkeletonText } from '@/components/ui/Skeleton';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
-import { Zap, AlertCircle, FileText, ExternalLink as LinkIcon, TrendingUp, Users, Calendar, BarChart3, Volume2, XCircle, HardDrive, ChevronDown, Bookmark, Play } from 'lucide-react';
+import { Zap, AlertCircle, FileText, ExternalLink as LinkIcon, TrendingUp, Users, Calendar, BarChart3, Volume2, XCircle, HardDrive, ChevronDown, Bookmark, Play, MessageSquare, Download, Loader2, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from '@/components/ui/button';
 import AddNoteModal from '@/components/notes/AddNoteModal';
@@ -32,6 +32,9 @@ import ideasService, { IdeaItem } from '@/services/ideasService';
 import tasksListService, { TaskItem } from '@/services/tasksListService';
 import { getBookmarks, PaginatedBookmarksResponse } from '@/services/bookmarkService';
 import { useNavigate } from 'react-router-dom';
+import { formatDistanceToNow } from 'date-fns';
+import { WhatsAppSummaryService } from '@/services/whatsappSummaryService';
+import { GroupSummaryData } from '@/types/whatsappSummary';
 
 const API_BASE_URL = `${BACKEND_ROOT_URL}/api/v1`;
 
@@ -65,6 +68,8 @@ const DashboardPage: React.FC = () => {
   const [recentBookmarksCount, setRecentBookmarksCount] = useState<number | undefined>(undefined);
   const [recentBookmarks, setRecentBookmarks] = useState<BookmarkItemType[]>([]);
   const [whatsStatus, setWhatsStatus] = useState<WhatsAppConnectionStatus | null>(null);
+  const [recentSummaries, setRecentSummaries] = useState<GroupSummaryData[]>([]);
+  const [summariesLoading, setSummariesLoading] = useState(false);
 
   const token = useAuthStore((state) => state.token);
   const navigate = useNavigate();
@@ -177,7 +182,7 @@ const DashboardPage: React.FC = () => {
     let mounted = true;
     const load = async () => {
       try {
-        const [agentsRes, runsRes, docsStats, mtgStats, notes, ideas, tasks, bookmarks, waStatus] = await Promise.all([
+        const [agentsRes, runsRes, docsStats, mtgStats, notes, ideas, tasks, bookmarks, waStatus, summaries] = await Promise.all([
           agentService.getAgents(),
           agentService.getUserAgentRuns(50),
           documentService.getDocumentStats().catch(() => null),
@@ -187,6 +192,7 @@ const DashboardPage: React.FC = () => {
           tasksListService.getTasks(5).catch(() => []),
           getBookmarks(1, 5).catch(() => null),
           whatsappService.getConnectionStatus().catch(() => null),
+          WhatsAppSummaryService.getRecentSummaries(3, 7).catch(() => []),
         ]);
 
         if (!mounted) return;
@@ -205,6 +211,7 @@ const DashboardPage: React.FC = () => {
           setRecentBookmarks(bookmarkData.data.slice(0, 5));
         }
         setWhatsStatus(waStatus || null);
+        setRecentSummaries(summaries || []);
       } catch (err) {
         console.error('[DashboardPage] Failed to load base data:', err);
       }
@@ -275,6 +282,32 @@ const DashboardPage: React.FC = () => {
       {} as Record<string, number>
     );
   }, [recentBookmarks]);
+
+  const downloadSummary = (summary: GroupSummaryData) => {
+    const content = `# ${summary.groupName} - Summary\n\n**Date:** ${summary.summaryDate.toLocaleDateString()}\n**Time Range:** ${summary.timeRange.start.toLocaleString()} - ${summary.timeRange.end.toLocaleString()}\n**Messages:** ${summary.totalMessages}\n**Participants:** ${summary.activeParticipants}\n\n## Summary\n${summary.summary}\n\n## Top Keywords\n${summary.topKeywords?.map(k => `- ${k.word} (${k.count})`).join('\n') || 'None'}\n\n## Top Emojis\n${summary.topEmojis?.map(e => `- ${e.emoji} (${e.count})`).join('\n') || 'None'}\n\n## Participant Insights\n${summary.senderSummaries?.map(s => `### ${s.senderName}\n- Messages: ${s.messageCount}\n- Summary: ${s.summary}\n- Keywords: ${s.topKeywords.join(', ')}\n`).join('\n') || 'None'}`;
+
+    const blob = new Blob([content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${summary.groupName}_summary_${summary.summaryDate.toISOString().split('T')[0]}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const loadRecentSummaries = async () => {
+    try {
+      setSummariesLoading(true);
+      const summaries = await WhatsAppSummaryService.getRecentSummaries(3, 7);
+      setRecentSummaries(summaries);
+    } catch (error) {
+      console.error('Error loading recent summaries:', error);
+    } finally {
+      setSummariesLoading(false);
+    }
+  };
 
   const stats = [
     { title: `Total Usage (${selectedPeriod.charAt(0).toUpperCase() + selectedPeriod.slice(1)})`, value: computeTotalUsage(usage), trend: usageTrendPct, icon: BarChart3 },
@@ -755,6 +788,106 @@ const DashboardPage: React.FC = () => {
             </div>
           </GlassCard>
         </motion.div>
+
+        {/* WhatsApp Summaries */}
+        {recentSummaries.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.58 }}
+            className="mt-8"
+          >
+            <GlassCard>
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-primary" />
+                    <h3 className="text-lg font-semibold">Recent WhatsApp Summaries</h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Last 7 days</span>
+                    <AnimatedButton
+                      variant="ghost"
+                      size="sm"
+                      onClick={loadRecentSummaries}
+                      disabled={summariesLoading}
+                    >
+                      {summariesLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4" />
+                      )}
+                    </AnimatedButton>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {recentSummaries.map((summary, index) => (
+                    <motion.div
+                      key={summary.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.3, delay: index * 0.1 }}
+                      className="flex items-start justify-between p-3 rounded-lg border border-border/40 bg-background/60 backdrop-blur hover:bg-background/80 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="text-sm font-medium text-foreground truncate">
+                            {summary.groupName}
+                          </h4>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                            {summary.totalMessages} messages
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground space-y-0.5">
+                          <div className="flex items-center gap-3">
+                            <span>📅 {summary.summaryDate.toLocaleDateString()}</span>
+                            <span>👥 {summary.activeParticipants} participants</span>
+                          </div>
+                          <div>
+                            ⏱️ Generated {formatDistanceToNow(summary.generatedAt || new Date(), { addSuffix: true })}
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                          {summary.summary}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 ml-3">
+                        <AnimatedButton
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => downloadSummary(summary)}
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <Download className="w-4 h-4" />
+                        </AnimatedButton>
+                        <AnimatedButton
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleNavigate('/whatsapp-monitor')}
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </AnimatedButton>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-border/40">
+                  <AnimatedButton
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleNavigate('/whatsapp-monitor')}
+                    className="w-full"
+                  >
+                    View all summaries
+                  </AnimatedButton>
+                </div>
+              </div>
+            </GlassCard>
+          </motion.div>
+        )}
 
         {/* Upcoming Tasks */}
         <motion.div

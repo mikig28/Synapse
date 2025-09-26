@@ -69,7 +69,12 @@ export interface AIInsights {
   speakerAttributions?: { speakerName: string; bullets: string[] }[];
 }
 
-export interface GroupSummaryData {\r\n  groupId: string;\r\n  groupName: string;\r\n  scheduleId?: string;\r\n  timeRange: {
+export interface GroupSummaryData {
+  groupId: string;
+  groupName: string;
+  scheduleId?: string;
+  summaryDate: Date;
+  timeRange: {
     start: Date;
     end: Date;
   };
@@ -97,6 +102,7 @@ export interface GroupSummaryData {\r\n  groupId: string;\r\n  groupName: string
     participantsFound: number;
   };
   aiInsights?: AIInsights; // Optional AI-generated insights
+  generatedAt: Date;
 }
 
 export interface DateRange {
@@ -151,8 +157,6 @@ export interface TodaySummaryRequest {
   timezone?: string;
   options?: Partial<SummaryGenerationOptions>;
   chatType?: 'group' | 'private';
-}
-
 }
 
 // Date range preset types
