@@ -300,6 +300,49 @@ export class WhatsAppSummaryService {
       this.getLast24HoursRange()
     ];
   }
+
+  /**
+   * Get recent summaries for the authenticated user
+   */
+  public static async getRecentSummaries(
+    limit: number = 10,
+    days: number = 7
+  ): Promise<GroupSummaryData[]> {
+    try {
+      const response = await api.get<ApiResponse<any[]>>('/whatsapp-summary/summaries/recent', {
+        params: { limit, days }
+      });
+
+      if (response.data.success && response.data.data) {
+        return response.data.data.map(summary => ({
+          ...summary,
+          summaryDate: new Date(summary.summaryDate),
+          timeRange: {
+            start: new Date(summary.timeRange.start),
+            end: new Date(summary.timeRange.end)
+          },
+          generatedAt: new Date(summary.generatedAt),
+          senderSummaries: summary.senderSummaries?.map((sender: any) => ({
+            ...sender,
+            firstMessageTime: new Date(sender.firstMessageTime),
+            lastMessageTime: new Date(sender.lastMessageTime)
+          })) || [],
+          groupAnalytics: summary.groupAnalytics ? {
+            ...summary.groupAnalytics,
+            timeRange: {
+              start: new Date(summary.groupAnalytics.timeRange.start),
+              end: new Date(summary.groupAnalytics.timeRange.end)
+            }
+          } : undefined
+        }));
+      }
+
+      throw new Error(response.data.error || 'Failed to fetch recent summaries');
+    } catch (error: any) {
+      console.error('[WhatsApp Summary Service] Error fetching recent summaries:', error);
+      throw new Error(error.response?.data?.error || error.message || 'Failed to fetch recent summaries');
+    }
+  }
 }
 
 export default WhatsAppSummaryService;

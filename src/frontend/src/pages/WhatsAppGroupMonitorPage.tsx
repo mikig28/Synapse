@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { whatsappSummaryScheduleService } from '@/services/whatsappSummaryScheduleService';
+import { WhatsAppSummaryService } from '@/services/whatsappSummaryService';
 import { WhatsAppSummaryScheduleModal, SummaryScheduleFormValues } from '@/components/whatsapp/WhatsAppSummaryScheduleModal';
 import useAuthStore from '@/store/authStore';
 import api from '@/services/axiosConfig';
@@ -124,6 +125,135 @@ interface WhatsAppChat {
   isGroup: boolean;
   participantCount?: number;
 }
+
+// Recent Summaries Component
+const RecentSummariesSection: React.FC = () => {
+  const [recentSummaries, setRecentSummaries] = useState<GroupSummaryData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadRecentSummaries = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const summaries = await WhatsAppSummaryService.getRecentSummaries(10, 7);
+      setRecentSummaries(summaries);
+    } catch (err: any) {
+      console.error('Error loading recent summaries:', err);
+      setError(err.message || 'Failed to load recent summaries');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRecentSummaries();
+  }, []);
+
+  const downloadSummary = (summary: GroupSummaryData) => {
+    const content = `# ${summary.groupName} - Summary\n\n**Date:** ${summary.summaryDate.toLocaleDateString()}\n**Time Range:** ${summary.timeRange.start.toLocaleString()} - ${summary.timeRange.end.toLocaleString()}\n**Messages:** ${summary.totalMessages}\n**Participants:** ${summary.activeParticipants}\n\n## Summary\n${summary.summary}\n\n## Top Keywords\n${summary.topKeywords?.map(k => `- ${k.word} (${k.count})`).join('\n') || 'None'}\n\n## Top Emojis\n${summary.topEmojis?.map(e => `- ${e.emoji} (${e.count})`).join('\n') || 'None'}\n\n## Participant Insights\n${summary.senderSummaries?.map(s => `### ${s.senderName}\n- Messages: ${s.messageCount}\n- Summary: ${s.summary}\n- Keywords: ${s.topKeywords.join(', ')}\n`).join('\n') || 'None'}`;
+
+    const blob = new Blob([content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${summary.groupName}_summary_${summary.summaryDate.toISOString().split('T')[0]}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <GlassCard className="p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-white">Recent Summaries</h3>
+          <p className="text-sm text-blue-200/70">
+            View and download your generated WhatsApp summaries
+          </p>
+        </div>
+        <Button
+          onClick={loadRecentSummaries}
+          disabled={isLoading}
+          size="sm"
+          variant="outline"
+          className="border-white/30 text-white hover:bg-white/10"
+        >
+          {isLoading ? (
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <RefreshCw className="w-4 h-4 mr-2" />
+          )}
+          Refresh
+        </Button>
+      </div>
+
+      {error && (
+        <div className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+          {error}
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin text-blue-300" />
+          <span className="ml-2 text-blue-200/70">Loading summaries...</span>
+        </div>
+      ) : recentSummaries.length === 0 ? (
+        <div className="text-center py-8">
+          <FileText className="w-12 h-12 text-blue-300 mx-auto mb-4" />
+          <h4 className="text-lg font-semibold text-white mb-2">No Summaries Yet</h4>
+          <p className="text-blue-200/70">
+            Generate your first summary using the groups above or create a schedule for automatic summaries.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {recentSummaries.map((summary) => (
+            <motion.div
+              key={summary.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="border border-white/10 bg-black/20 backdrop-blur-sm rounded-lg p-4"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h4 className="text-white font-medium">{summary.groupName}</h4>
+                    <Badge variant="outline" className="border-green-500/40 text-green-200 bg-green-500/10">
+                      {summary.totalMessages} messages
+                    </Badge>
+                  </div>
+                  <div className="text-sm text-blue-200/70 space-y-1">
+                    <div>📅 {summary.summaryDate.toLocaleDateString()}</div>
+                    <div>👥 {summary.activeParticipants} participants</div>
+                    <div>⏱️ Generated {formatDistanceToNow(summary.generatedAt || new Date(), { addSuffix: true })}</div>
+                  </div>
+                  <div className="mt-2">
+                    <p className="text-sm text-white line-clamp-2">
+                      {summary.summary}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2 ml-4">
+                  <Button
+                    onClick={() => downloadSummary(summary)}
+                    size="sm"
+                    variant="ghost"
+                    className="text-blue-300 hover:text-blue-200"
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+    </GlassCard>
+  );
+};
 
 const WhatsAppGroupMonitorPage: React.FC = () => {
   const [personProfiles, setPersonProfiles] = useState<PersonProfile[]>([]);
@@ -1782,6 +1912,9 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                   </Button>
                 </GlassCard>
               )}
+
+              {/* Recent Summaries Section */}
+              <RecentSummariesSection />
             </div>
           )}
 

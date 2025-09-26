@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
+import { AuthenticatedRequest } from '../../types/express';
 import WhatsAppMessage from '../../models/WhatsAppMessage';
 import WhatsAppContact from '../../models/WhatsAppContact';
+import WhatsAppGroupSummary from '../../models/WhatsAppGroupSummary';
 import WAHAService from '../../services/wahaService';
 import WhatsAppSummarizationService from '../../services/whatsappSummarizationService';
 import WhatsAppAISummarizationService from '../../services/whatsappAISummarizationService';
@@ -1555,6 +1557,63 @@ export const getGroupSummaryStats = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch group statistics'
+    } as ApiResponse);
+  }
+};
+
+/**
+ * Get recent summaries for the authenticated user
+ */
+export const getRecentSummaries = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required'
+      } as ApiResponse);
+    }
+
+    const { limit = 10, days = 7 } = req.query;
+
+    // Calculate cutoff date
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - parseInt(days as string));
+
+    // Fetch recent summaries for the user
+    const summaries = await WhatsAppGroupSummary.find({
+      userId: userId,
+      summaryDate: { $gte: cutoffDate },
+      status: 'completed'
+    })
+    .sort({ summaryDate: -1, createdAt: -1 })
+    .limit(parseInt(limit as string))
+    .lean();
+
+    console.log(`[WhatsApp Summary] Found ${summaries.length} recent summaries for user ${userId}`);
+
+    res.json({
+      success: true,
+      data: summaries.map(summary => ({
+        id: summary._id,
+        groupId: summary.groupId,
+        groupName: summary.groupName,
+        summaryDate: summary.summaryDate,
+        timeRange: summary.timeRange,
+        summary: summary.summary,
+        senderSummaries: summary.senderSummaries,
+        groupAnalytics: summary.groupAnalytics,
+        generatedAt: summary.generatedAt,
+        processingTimeMs: summary.processingTimeMs,
+        status: summary.status
+      }))
+    } as ApiResponse);
+
+  } catch (error) {
+    console.error('[WhatsApp Summary] Error fetching recent summaries:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch recent summaries'
     } as ApiResponse);
   }
 };
