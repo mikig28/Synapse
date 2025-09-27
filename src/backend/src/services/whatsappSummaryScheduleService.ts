@@ -165,6 +165,7 @@ export class WhatsAppSummaryScheduleService {
           id: (msg as any)._id.toString(),
           message: (msg as any).body || '',
           timestamp: new Date((msg as any).timestamp),
+          type: 'text', // Default to text type for schedule summaries
           senderName: ((msg as any).contactId as any)?.name || (msg as any).from || 'Unknown',
           senderPhone: (msg as any).from
         }));
@@ -178,7 +179,7 @@ export class WhatsAppSummaryScheduleService {
             start: new Date(executionWindow.startUtc),
             end: new Date(executionWindow.endUtc),
             label: `Automated ${executionStartedAt.toDateString()}`,
-            type: 'daily'
+            type: 'custom'
           },
           {
             ...summaryOptions,
@@ -201,7 +202,7 @@ export class WhatsAppSummaryScheduleService {
         });
 
         const savedSummary = await summaryDoc.save();
-        const summaryObjectId = new mongoose.Types.ObjectId(savedSummary._id);
+        const summaryObjectId = savedSummary._id as mongoose.Types.ObjectId;
         summaryIds.push(summaryObjectId);
 
         groupResults.push({
