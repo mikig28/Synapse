@@ -7,7 +7,8 @@ import {
   getAvailableDateRanges,
   getGroupSummaryStats,
   debugMessages,
-  getRecentSummaries
+  getRecentSummaries,
+  getSummaryById
 } from '../controllers/whatsappSummaryController';
 import {
   getSchedules as getSummarySchedules,
@@ -34,6 +35,7 @@ router.get('/groups/:groupId/date-ranges', getAvailableDateRanges);
 
 // Summary retrieval routes
 router.get('/summaries/recent', getRecentSummaries);
+router.get('/summaries/:id', getSummaryById);
 
 // Message retrieval routes
 router.get('/groups/:groupId/messages', getGroupMessages);

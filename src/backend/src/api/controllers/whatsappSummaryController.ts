@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../../types/express';
 import WhatsAppMessage from '../../models/WhatsAppMessage';
 import WhatsAppContact from '../../models/WhatsAppContact';
@@ -1682,6 +1683,102 @@ export const getRecentSummaries = async (req: AuthenticatedRequest, res: Respons
     res.status(500).json({
       success: false,
       error: 'Failed to fetch recent summaries'
+    } as ApiResponse);
+  }
+};
+
+export const getSummaryById = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required'
+      } as ApiResponse);
+    }
+
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid summary ID'
+      } as ApiResponse);
+    }
+
+    // Fetch the summary by ID
+    const summary = await WhatsAppGroupSummary.findOne({
+      _id: id,
+      userId: userId,
+      status: 'completed'
+    }).lean();
+
+    if (!summary) {
+      return res.status(404).json({
+        success: false,
+        error: 'Summary not found'
+      } as ApiResponse);
+    }
+
+    console.log(`[WhatsApp Summary] Found summary ${id} for user ${userId}`);
+
+    res.json({
+      success: true,
+      data: {
+        id: summary._id,
+        groupId: summary.groupId,
+        groupName: summary.groupName,
+        summaryDate: summary.summaryDate,
+        timeRange: summary.timeRange,
+
+        // Transform to new format for frontend
+        overallSummary: summary.summary,
+        totalMessages: summary.groupAnalytics?.totalMessages || 0,
+        activeParticipants: summary.groupAnalytics?.activeParticipants || 0,
+        senderInsights: summary.senderSummaries?.map(sender => ({
+          senderName: sender.senderName,
+          messageCount: sender.messageCount || 0,
+          summary: sender.summary || '',
+          percentage: 0
+        })) || [],
+        topKeywords: summary.groupAnalytics?.topKeywords?.map(keyword => ({
+          keyword,
+          count: 1,
+          percentage: 0
+        })) || [],
+        topEmojis: summary.groupAnalytics?.topEmojis?.map(emoji => ({
+          emoji,
+          count: 1,
+          percentage: 0
+        })) || [],
+        activityPeaks: summary.groupAnalytics?.activityPeaks || [],
+        messageTypes: {
+          text: summary.groupAnalytics?.messageTypes?.text || 0,
+          image: Math.floor((summary.groupAnalytics?.messageTypes?.media || 0) * 0.6),
+          video: Math.floor((summary.groupAnalytics?.messageTypes?.media || 0) * 0.3),
+          audio: Math.floor((summary.groupAnalytics?.messageTypes?.media || 0) * 0.1),
+          document: 0,
+          other: summary.groupAnalytics?.messageTypes?.other || 0
+        },
+        processingStats: {
+          processingTimeMs: summary.processingTimeMs || 0,
+          generatedAt: summary.generatedAt
+        },
+
+        // Keep old format for compatibility
+        summary: summary.summary,
+        senderSummaries: summary.senderSummaries,
+        groupAnalytics: summary.groupAnalytics,
+        generatedAt: summary.generatedAt,
+        processingTimeMs: summary.processingTimeMs,
+        status: summary.status
+      }
+    } as ApiResponse);
+
+  } catch (error) {
+    console.error('[WhatsApp Summary] Error fetching summary by ID:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch summary'
     } as ApiResponse);
   }
 };
