@@ -2493,16 +2493,16 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                           <div className="text-sm text-blue-200/70">Participants</div>
                         </div>
                         <div className="bg-white/5 rounded-lg p-3">
-                          <div className="text-2xl font-bold text-purple-400">{selectedSummary.topKeywords.length}</div>
+                          <div className="text-2xl font-bold text-purple-400">{selectedSummary.topKeywords?.length || 0}</div>
                           <div className="text-sm text-blue-200/70">Topics</div>
                         </div>
                         <div className="bg-white/5 rounded-lg p-3">
-                          <div className="text-2xl font-bold text-yellow-400">{selectedSummary.processingStats.processingTimeMs}ms</div>
+                          <div className="text-2xl font-bold text-yellow-400">{selectedSummary.processingStats?.processingTimeMs || 0}ms</div>
                           <div className="text-sm text-blue-200/70">Processing</div>
                         </div>
                       </div>
                       <div className="bg-white/5 rounded-lg p-4">
-                        <p className="text-white">{selectedSummary.overallSummary}</p>
+                        <p className="text-white">{selectedSummary.overallSummary || 'No summary available'}</p>
                       </div>
                     </div>
 
@@ -2536,11 +2536,11 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                         </div>
 
                         {/* Key Topics */}
-                        {selectedSummary.aiInsights.keyTopics.length > 0 && (
+                        {selectedSummary.aiInsights.keyTopics?.length > 0 && (
                           <div className="bg-white/5 rounded-lg p-4">
                             <h5 className="text-sm font-semibold text-blue-200 mb-2">Key Discussion Topics</h5>
                             <div className="space-y-2">
-                              {selectedSummary.aiInsights.keyTopics.map((topic, index) => (
+                              {selectedSummary.aiInsights.keyTopics?.map((topic, index) => (
                                 <div key={index} className="flex items-start gap-2">
                                   <span className="text-blue-400 mt-1">â€¢</span>
                                   <span className="text-white text-sm">{topic}</span>
@@ -2551,11 +2551,11 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                         )}
 
                         {/* Action Items */}
-                        {selectedSummary.aiInsights.actionItems.length > 0 && (
+                        {selectedSummary.aiInsights.actionItems?.length > 0 && (
                           <div className="bg-white/5 rounded-lg p-4 border-l-4 border-green-400">
                             <h5 className="text-sm font-semibold text-green-300 mb-2">Action Items</h5>
                             <div className="space-y-2">
-                              {selectedSummary.aiInsights.actionItems.map((item, index) => (
+                              {selectedSummary.aiInsights.actionItems?.map((item, index) => (
                                 <div key={index} className="flex items-start gap-2">
                                   <CheckCircle className="w-4 h-4 text-green-400 mt-0.5" />
                                   <span className="text-white text-sm">{item}</span>
@@ -2566,11 +2566,11 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                         )}
 
                         {/* Important Events */}
-                        {selectedSummary.aiInsights.importantEvents.length > 0 && (
+                        {selectedSummary.aiInsights.importantEvents?.length > 0 && (
                           <div className="bg-white/5 rounded-lg p-4 border-l-4 border-purple-400">
                             <h5 className="text-sm font-semibold text-purple-300 mb-2">Important Events</h5>
                             <div className="space-y-2">
-                              {selectedSummary.aiInsights.importantEvents.map((event, index) => (
+                              {selectedSummary.aiInsights.importantEvents?.map((event, index) => (
                                 <div key={index} className="flex items-start gap-2">
                                   <AlertTriangle className="w-4 h-4 text-purple-400 mt-0.5" />
                                   <span className="text-white text-sm">{event}</span>
@@ -2581,11 +2581,11 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                         )}
 
                         {/* Decisions Made */}
-                        {selectedSummary.aiInsights.decisionsMade.length > 0 && (
+                        {selectedSummary.aiInsights.decisionsMade?.length > 0 && (
                           <div className="bg-white/5 rounded-lg p-4 border-l-4 border-blue-400">
                             <h5 className="text-sm font-semibold text-blue-300 mb-2">Decisions Made</h5>
                             <div className="space-y-2">
-                              {selectedSummary.aiInsights.decisionsMade.map((decision, index) => (
+                              {selectedSummary.aiInsights.decisionsMade?.map((decision, index) => (
                                 <div key={index} className="flex items-start gap-2">
                                   <CheckCircle className="w-4 h-4 text-blue-400 mt-0.5" />
                                   <span className="text-white text-sm">{decision}</span>
@@ -2600,7 +2600,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                     <div>
                       <h4 className="text-lg font-semibold text-white mb-3">Top Participants</h4>
                       <div className="space-y-3">
-                        {selectedSummary.senderInsights.slice(0, 5).map((sender) => (
+                        {selectedSummary.senderInsights?.slice(0, 5).map((sender) => (
                           <div key={sender.senderPhone} className="bg-white/5 rounded-lg p-4">
                             <div className="flex items-center justify-between mb-2">
                               <span className="font-medium text-white">{sender.senderName}</span>
@@ -2609,9 +2609,9 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                               </span>
                             </div>
                             <p className="text-sm text-blue-200/70 mb-2">{sender.summary}</p>
-                            {sender.topKeywords.length > 0 && (
+                            {sender.topKeywords?.length > 0 && (
                               <div className="flex flex-wrap gap-1">
-                                {sender.topKeywords.slice(0, 3).map((keyword) => (
+                                {sender.topKeywords?.slice(0, 3).map((keyword) => (
                                   <span
                                     key={keyword.keyword}
                                     className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded"
@@ -2633,7 +2633,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                         <h4 className="text-lg font-semibold text-white mb-3">Top Keywords</h4>
                         <div className="bg-white/5 rounded-lg p-4">
                           <div className="flex flex-wrap gap-2">
-                            {selectedSummary.topKeywords.slice(0, 10).map((keyword) => (
+                            {selectedSummary.topKeywords?.slice(0, 10).map((keyword) => (
                               <span
                                 key={keyword.keyword}
                                 className="bg-blue-500/20 text-blue-300 px-3 py-1 rounded-full text-sm"
@@ -2650,7 +2650,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                         <h4 className="text-lg font-semibold text-white mb-3">Top Emojis</h4>
                         <div className="bg-white/5 rounded-lg p-4">
                           <div className="flex flex-wrap gap-2">
-                            {selectedSummary.topEmojis.slice(0, 10).map((emoji) => (
+                            {selectedSummary.topEmojis?.slice(0, 10).map((emoji) => (
                               <span
                                 key={emoji.emoji}
                                 className="bg-yellow-500/20 text-yellow-300 px-3 py-1 rounded-full text-sm"
@@ -2668,7 +2668,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                       <h4 className="text-lg font-semibold text-white mb-3">Message Breakdown</h4>
                       <div className="bg-white/5 rounded-lg p-4">
                         <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
-                          {Object.entries(selectedSummary.messageTypes).map(([type, count]) => (
+                          {Object.entries(selectedSummary.messageTypes || {}).map(([type, count]) => (
                             <div key={type} className="text-center">
                               <div className="text-lg font-semibold text-white">{count}</div>
                               <div className="text-sm text-blue-200/70 capitalize">{type}</div>
@@ -2679,12 +2679,12 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                     </div>
 
                     {/* Activity Peaks */}
-                    {selectedSummary.activityPeaks.length > 0 && (
+                    {selectedSummary.activityPeaks?.length > 0 && (
                       <div>
                         <h4 className="text-lg font-semibold text-white mb-3">Peak Activity Hours</h4>
                         <div className="bg-white/5 rounded-lg p-4">
                           <div className="flex flex-wrap gap-2">
-                            {selectedSummary.activityPeaks.slice(0, 6).map((peak) => (
+                            {selectedSummary.activityPeaks?.slice(0, 6).map((peak) => (
                               <span
                                 key={peak.hour}
                                 className="bg-green-500/20 text-green-300 px-3 py-1 rounded-full text-sm"
