@@ -348,7 +348,8 @@ export class WhatsAppSummaryScheduleService {
 
   private resolveExecutionWindow(executionInstant: Date, timezone: string): { startUtc: string; endUtc: string } {
     const zonedExecution = toZonedTime(executionInstant, timezone);
-    const targetDay = addDays(zonedExecution, -1);
+    // For "Run now" button, use today's date instead of yesterday
+    const targetDay = zonedExecution; // Remove the -1 day offset
     const targetDateStr = formatInTimeZone(targetDay, timezone, 'yyyy-MM-dd');
 
     const startUtc = fromZonedTime(`${targetDateStr}T00:00:00`, timezone).toISOString();
