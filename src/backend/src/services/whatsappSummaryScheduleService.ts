@@ -6,11 +6,11 @@ import WhatsAppSummarySchedule, {
   IWhatsAppSummaryScheduleExecution,
   IWhatsAppSummaryScheduleExecutionGroupResult
 } from '../models/WhatsAppSummarySchedule';
+import WhatsAppGroupSummary from '../models/WhatsAppGroupSummary';
 import WhatsAppMessage from '../models/WhatsAppMessage';
 import WhatsAppSummarizationService from './whatsappSummarizationService';
 import WhatsAppAISummarizationService from './whatsappAISummarizationService';
 import { SummaryGenerationOptions, MessageData, DateRange } from '../types/whatsappSummary';
-import { MessageSummarizationService } from './messageSummarizationService';
 
 export class WhatsAppSummaryScheduleService {
   private readonly pollIntervalMs = 60_000;
@@ -178,17 +178,6 @@ export class WhatsAppSummaryScheduleService {
           type: 'custom'
         };
 
-        // Create a placeholder summary record (status: generating)
-        const summarization = MessageSummarizationService.getInstance();
-        const summaryRecord = await summarization.createSummaryRecord(
-          target.groupId,
-          target.groupName,
-          String(schedule.userId),
-          startOfDay(timeRange.start),
-          timeRange,
-          String(schedule._id)
-        );
-
         // Generate summary using the same service as the controller
         const summaryData = await this.summarizationService.generateGroupSummary(
           target.groupId,
@@ -204,13 +193,59 @@ export class WhatsAppSummaryScheduleService {
           }
         );
 
-        // Update the record with generated data (marks as completed)
-        const savedSummary = await summarization.updateSummaryRecord(
-          String(summaryRecord._id),
-          summaryData
+        // Use upsert to avoid duplicate key errors
+        const savedSummary = await WhatsAppGroupSummary.findOneAndUpdate(
+          {
+            groupId: target.groupId,
+            userId: schedule.userId,
+            summaryDate: startOfDay(timeRange.start)
+          },
+          {
+            groupName: target.groupName,
+            timeRange: {
+              start: timeRange.start,
+              end: timeRange.end
+            },
+            senderSummaries: summaryData.senderInsights.map(insight => ({
+              senderName: insight.senderName,
+              senderPhone: insight.senderPhone,
+              messageCount: insight.messageCount,
+              summary: insight.summary,
+              topKeywords: insight.topKeywords.map(k => k.keyword),
+              topEmojis: insight.topEmojis.map(e => e.emoji),
+              firstMessageTime: timeRange.start,
+              lastMessageTime: timeRange.end
+            })),
+            groupAnalytics: {
+              totalMessages: summaryData.totalMessages,
+              activeParticipants: summaryData.activeParticipants,
+              timeRange: {
+                start: timeRange.start,
+                end: timeRange.end
+              },
+              topKeywords: summaryData.topKeywords.map(k => k.keyword),
+              topEmojis: summaryData.topEmojis.map(e => e.emoji),
+              messageTypes: {
+                text: summaryData.messageTypes?.text || 0,
+                media: (summaryData.messageTypes?.image || 0) + (summaryData.messageTypes?.video || 0) + (summaryData.messageTypes?.audio || 0),
+                other: (summaryData.messageTypes?.document || 0) + (summaryData.messageTypes?.other || 0)
+              },
+              activityPeaks: summaryData.activityPeaks || []
+            },
+            summary: summaryData.overallSummary,
+            scheduleId: schedule._id,
+            generatedAt: executionStartedAt,
+            processingTimeMs: summaryData.processingStats?.processingTimeMs || Date.now() - executionStartedAt.getTime(),
+            status: 'completed'
+          },
+          {
+            upsert: true,
+            new: true,
+            setDefaultsOnInsert: true
+          }
         );
 
-        const summaryObjectId = new mongoose.Types.ObjectId(String((savedSummary as any)._id));
+        const summaryObjectId = savedSummary._id as mongoose.Types.ObjectId;
         summaryIds.push(summaryObjectId);
 
         groupResults.push({
