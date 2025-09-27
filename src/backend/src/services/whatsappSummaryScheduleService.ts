@@ -1,16 +1,16 @@
-﻿import mongoose from 'mongoose';
-import { addDays, isAfter, set } from 'date-fns';
+import mongoose from 'mongoose';
+import { addDays, isAfter, set, startOfDay } from 'date-fns';
 import { formatInTimeZone, toZonedTime, fromZonedTime } from 'date-fns-tz';
 import WhatsAppSummarySchedule, {
   IWhatsAppSummarySchedule,
   IWhatsAppSummaryScheduleExecution,
   IWhatsAppSummaryScheduleExecutionGroupResult
 } from '../models/WhatsAppSummarySchedule';
-import WhatsAppGroupSummary from '../models/WhatsAppGroupSummary';
 import WhatsAppMessage from '../models/WhatsAppMessage';
 import WhatsAppSummarizationService from './whatsappSummarizationService';
 import WhatsAppAISummarizationService from './whatsappAISummarizationService';
-import { SummaryGenerationOptions, SummaryRequest, MessageData } from '../types/whatsappSummary';
+import { SummaryGenerationOptions, MessageData, DateRange } from '../types/whatsappSummary';
+import { MessageSummarizationService } from './messageSummarizationService';
 
 export class WhatsAppSummaryScheduleService {
   private readonly pollIntervalMs = 60_000;
@@ -123,7 +123,7 @@ export class WhatsAppSummaryScheduleService {
     for (const target of schedule.targetGroups) {
       try {
         console.log('[WhatsApp Summary Schedule] Starting summary for group', {
-          scheduleId: schedule._id,
+          scheduleId: String((schedule as any)._id),
           groupId: target.groupId,
           groupName: target.groupName,
           executionWindow
@@ -170,17 +170,31 @@ export class WhatsAppSummaryScheduleService {
           senderPhone: (msg as any).from
         }));
 
+        // Prepare time range
+        const timeRange: DateRange = {
+          start: new Date(executionWindow.startUtc),
+          end: new Date(executionWindow.endUtc),
+          label: `Automated ${executionStartedAt.toDateString()}`,
+          type: 'custom'
+        };
+
+        // Create a placeholder summary record (status: generating)
+        const summarization = MessageSummarizationService.getInstance();
+        const summaryRecord = await summarization.createSummaryRecord(
+          target.groupId,
+          target.groupName,
+          String(schedule.userId),
+          startOfDay(timeRange.start),
+          timeRange,
+          String(schedule._id)
+        );
+
         // Generate summary using the same service as the controller
         const summaryData = await this.summarizationService.generateGroupSummary(
           target.groupId,
           target.groupName,
           messageData,
-          {
-            start: new Date(executionWindow.startUtc),
-            end: new Date(executionWindow.endUtc),
-            label: `Automated ${executionStartedAt.toDateString()}`,
-            type: 'custom'
-          },
+          timeRange,
           {
             ...summaryOptions,
             timezone,
@@ -190,19 +204,13 @@ export class WhatsAppSummaryScheduleService {
           }
         );
 
-        // Save summary to database
-        const summaryDoc = new WhatsAppGroupSummary({
-          userId: schedule.userId,
-          groupId: target.groupId,
-          groupName: target.groupName,
-          date: executionWindow.startUtc.split('T')[0],
-          summaryData,
-          scheduleId: schedule._id,
-          generatedAt: executionStartedAt
-        });
+        // Update the record with generated data (marks as completed)
+        const savedSummary = await summarization.updateSummaryRecord(
+          String(summaryRecord._id),
+          summaryData
+        );
 
-        const savedSummary = await summaryDoc.save();
-        const summaryObjectId = savedSummary._id as mongoose.Types.ObjectId;
+        const summaryObjectId = new mongoose.Types.ObjectId(String((savedSummary as any)._id));
         summaryIds.push(summaryObjectId);
 
         groupResults.push({
@@ -213,9 +221,9 @@ export class WhatsAppSummaryScheduleService {
         });
 
         console.log('[WhatsApp Summary Schedule] Group summary succeeded', {
-          scheduleId: schedule._id,
+          scheduleId: String((schedule as any)._id),
           groupId: target.groupId,
-          summaryId: savedSummary._id,
+          summaryId: String((savedSummary as any)._id),
           messageCount: messageData.length
         });
 
@@ -224,7 +232,7 @@ export class WhatsAppSummaryScheduleService {
         const stack = error instanceof Error ? error.stack : undefined;
 
         console.error('[WhatsApp Summary Schedule] Group summary failed', {
-          scheduleId: schedule._id,
+          scheduleId: String((schedule as any)._id),
           groupId: target.groupId,
           groupName: target.groupName,
           error: message,
