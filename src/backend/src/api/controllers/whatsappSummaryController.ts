@@ -27,11 +27,21 @@ import {
 } from '../../utils/timeWindow';
 
 // Use AI-enhanced summarization service if available, otherwise fall back to basic
-const summarizationService = process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY
+const hasOpenAI = !!process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_api_key_here';
+const hasAnthropic = !!process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== 'your_anthropic_api_key_here';
+const hasGemini = !!process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here';
+
+console.log('[WhatsApp Summary] AI API Keys Status:', {
+  openai: hasOpenAI ? 'Available' : 'Not configured',
+  anthropic: hasAnthropic ? 'Available' : 'Not configured',
+  gemini: hasGemini ? 'Available' : 'Not configured'
+});
+
+const summarizationService = hasOpenAI || hasAnthropic || hasGemini
   ? new WhatsAppAISummarizationService()
   : new WhatsAppSummarizationService();
 
-console.log('[WhatsApp Summary] Using', summarizationService.constructor.name);
+console.log('[WhatsApp Summary] Using service:', summarizationService.constructor.name);
 
 /**
  * Get available WhatsApp groups for summary generation

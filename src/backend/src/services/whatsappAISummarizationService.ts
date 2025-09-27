@@ -36,16 +36,26 @@ export class WhatsAppAISummarizationService extends WhatsAppSummarizationService
 
   constructor() {
     super();
+
+    console.log('[WhatsApp AI Summary] Initializing with API keys:', {
+      openai: OPENAI_API_KEY ? (OPENAI_API_KEY.startsWith('sk-') ? 'Valid key format' : 'Invalid format') : 'Not set',
+      anthropic: ANTHROPIC_API_KEY ? (ANTHROPIC_API_KEY.startsWith('sk-ant-') ? 'Valid key format' : 'Invalid format') : 'Not set',
+      gemini: GEMINI_API_KEY ? 'Set' : 'Not set'
+    });
+
     // Determine which AI provider to use based on available API keys
-    if (OPENAI_API_KEY) {
+    if (OPENAI_API_KEY && OPENAI_API_KEY !== 'your_openai_api_key_here') {
       this.aiProvider = { name: 'openai', available: true };
-    } else if (ANTHROPIC_API_KEY) {
+      console.log('[WhatsApp AI Summary] Using OpenAI provider');
+    } else if (ANTHROPIC_API_KEY && ANTHROPIC_API_KEY !== 'your_anthropic_api_key_here') {
       this.aiProvider = { name: 'anthropic', available: true };
-    } else if (GEMINI_API_KEY) {
+      console.log('[WhatsApp AI Summary] Using Anthropic provider');
+    } else if (GEMINI_API_KEY && GEMINI_API_KEY !== 'your_gemini_api_key_here') {
       this.aiProvider = { name: 'gemini', available: true };
+      console.log('[WhatsApp AI Summary] Using Gemini provider');
     } else {
       this.aiProvider = { name: 'openai', available: false };
-      console.warn('[WhatsApp AI Summary] No AI API key configured, will use basic summarization');
+      console.warn('[WhatsApp AI Summary] No valid AI API key configured, will use basic summarization');
     }
   }
 
