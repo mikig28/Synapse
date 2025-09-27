@@ -1776,27 +1776,27 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                                     <div className="text-xs text-blue-200/70">No recent executions.</div>
                                   ) : (
                                     <div className="space-y-2 text-xs text-blue-200/70">
-                                      {history.slice(0, 5).map((entry, index) => (
+                                      {history.slice(0, 5).map((entry, index) => entry ? (
                                         <div
                                           key={`${schedule._id}-history-${index}`}
                                           className="rounded-md border border-white/10 bg-white/5 p-3">
                                           <div className="flex items-center justify-between mb-2">
                                             <div>
                                               <div className="text-white">
-                                                {format(new Date(entry.executedAt), 'MMM d, yyyy HH:mm')}
+                                                {entry.executedAt ? format(new Date(entry.executedAt), 'MMM d, yyyy HH:mm') : 'Unknown time'}
                                               </div>
                                               <div>
-                                                {entry.status.toUpperCase()} - {entry.groupResults?.filter(result => result && result.status === 'success').length || 0} success / {entry.groupResults?.length || 0}
+                                                {(entry.status || 'unknown').toUpperCase()} - {entry.groupResults?.filter(result => result && result.status === 'success').length || 0} success / {entry.groupResults?.length || 0}
                                               </div>
                                             </div>
                                             <Badge
                                               variant="outline"
-                                              className={entry.status === 'success'
+                                              className={(entry.status || '') === 'success'
                                                 ? 'border-green-500/40 bg-green-500/10 text-green-200'
-                                                : entry.status === 'partial'
+                                                : (entry.status || '') === 'partial'
                                                   ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200'
                                                   : 'border-red-500/40 bg-red-500/10 text-red-200'}>
-                                              {entry.status}
+                                              {entry.status || 'unknown'}
                                             </Badge>
                                           </div>
 
@@ -1839,7 +1839,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                                             </div>
                                           )}
                                         </div>
-                                      ))}
+                                      ) : null)}
                                     </div>
                                   )}
                                 </div>
