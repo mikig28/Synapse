@@ -60,6 +60,20 @@ export const whatsappSummaryScheduleService = {
     return response.data.data ?? null;
   },
 
+  async runNowWithTimeRange(
+    id: string,
+    timeRange: { startTime: string; endTime: string }
+  ): Promise<WhatsAppSummaryScheduleExecution | null> {
+    const response = await api.post<ApiResponse<WhatsAppSummaryScheduleExecution>>(
+      `/whatsapp-summary/schedules/${id}/run`,
+      timeRange
+    );
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to execute schedule with time range');
+    }
+    return response.data.data ?? null;
+  },
+
   async getHistory(id: string, limit = 10): Promise<WhatsAppSummaryScheduleExecution[]> {
     const response = await api.get<ApiResponse<WhatsAppSummaryScheduleExecution[]>>(
       `/whatsapp-summary/schedules/${id}/history`,

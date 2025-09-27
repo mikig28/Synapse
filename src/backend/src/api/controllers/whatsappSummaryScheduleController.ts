@@ -330,12 +330,25 @@ export const runScheduleNow = async (req: AuthenticatedRequest, res: Response) =
       return;
     }
 
-    const execution = await whatsappSummaryScheduleService.executeScheduleById(id);
+    // Check if custom time range is provided
+    const { startTime, endTime } = req.body || {};
+    let execution;
+
+    if (startTime && endTime) {
+      console.log(`[WhatsApp Summary Schedule] Running with custom time range: ${startTime} to ${endTime}`);
+      execution = await whatsappSummaryScheduleService.executeScheduleByIdWithTimeRange(id, {
+        startTime,
+        endTime
+      });
+    } else {
+      console.log(`[WhatsApp Summary Schedule] Running with default time range`);
+      execution = await whatsappSummaryScheduleService.executeScheduleById(id);
+    }
 
     res.json({
       success: true,
       data: execution,
-      message: 'Schedule executed'
+      message: startTime && endTime ? 'Schedule executed with custom time range' : 'Schedule executed'
     } as ApiResponse);
   } catch (error) {
     console.error('[WhatsApp Summary Schedule] Failed to execute schedule:', error);

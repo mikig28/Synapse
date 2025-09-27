@@ -112,11 +112,46 @@ export class WhatsAppSummaryScheduleService {
     return await this.executeSchedule(schedule);
   }
 
+  async executeScheduleByIdWithTimeRange(
+    scheduleId: string,
+    timeRange: { startTime: string; endTime: string }
+  ): Promise<IWhatsAppSummaryScheduleExecution | null> {
+    const schedule = await WhatsAppSummarySchedule.findById(scheduleId);
+    if (!schedule) {
+      return null;
+    }
+    return await this.executeScheduleWithTimeRange(schedule, timeRange);
+  }
+
   private async executeSchedule(schedule: IWhatsAppSummarySchedule): Promise<IWhatsAppSummaryScheduleExecution> {
     const executionStartedAt = new Date();
     const timezone = schedule.timezone || 'UTC';
     const executionWindow = this.resolveExecutionWindow(executionStartedAt, timezone);
 
+    return await this.executeScheduleCore(schedule, executionStartedAt, executionWindow);
+  }
+
+  private async executeScheduleWithTimeRange(
+    schedule: IWhatsAppSummarySchedule,
+    timeRange: { startTime: string; endTime: string }
+  ): Promise<IWhatsAppSummaryScheduleExecution> {
+    const executionStartedAt = new Date();
+    const customExecutionWindow = {
+      startUtc: timeRange.startTime,
+      endUtc: timeRange.endTime
+    };
+
+    console.log(`[WhatsApp Summary Schedule] Using custom time range: ${timeRange.startTime} to ${timeRange.endTime}`);
+
+    return await this.executeScheduleCore(schedule, executionStartedAt, customExecutionWindow);
+  }
+
+  private async executeScheduleCore(
+    schedule: IWhatsAppSummarySchedule,
+    executionStartedAt: Date,
+    executionWindow: { startUtc: string; endUtc: string }
+  ): Promise<IWhatsAppSummaryScheduleExecution> {
+    const timezone = schedule.timezone || 'UTC';
     const summaryOptions = { ...(schedule.summaryOptions || {}), timezone } as SummaryGenerationOptions;
     const summaryIds: mongoose.Types.ObjectId[] = [];
     const groupResults: IWhatsAppSummaryScheduleExecutionGroupResult[] = [];

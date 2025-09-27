@@ -45,6 +45,7 @@ import { toast } from '@/hooks/use-toast';
 import { whatsappSummaryScheduleService } from '@/services/whatsappSummaryScheduleService';
 import { WhatsAppSummaryService } from '@/services/whatsappSummaryService';
 import { WhatsAppSummaryScheduleModal, SummaryScheduleFormValues } from '@/components/whatsapp/WhatsAppSummaryScheduleModal';
+import { TimeRangeSelector } from '@/components/whatsapp/TimeRangeSelector';
 import useAuthStore from '@/store/authStore';
 import api from '@/services/axiosConfig';
 import whatsappService from '@/services/whatsappService';
@@ -333,6 +334,8 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
   const [scheduleActionId, setScheduleActionId] = useState<string | null>(null);
   const [editingSchedule, setEditingSchedule] = useState<WhatsAppSummarySchedule | null>(null);
+  const [timeRangeSelectorOpen, setTimeRangeSelectorOpen] = useState(false);
+  const [selectedScheduleForTimeRange, setSelectedScheduleForTimeRange] = useState<WhatsAppSummarySchedule | null>(null);
   const [scheduleHistory, setScheduleHistory] = useState<Record<string, WhatsAppSummaryScheduleExecution[]>>({});
   const [historyLoadingId, setHistoryLoadingId] = useState<string | null>(null);
   const [expandedScheduleId, setExpandedScheduleId] = useState<string | null>(null);
@@ -940,15 +943,28 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   };
 
   const handleRunSchedule = async (schedule: WhatsAppSummarySchedule) => {
-    setScheduleActionId(schedule._id);
+    // Open time range selector instead of running directly
+    setSelectedScheduleForTimeRange(schedule);
+    setTimeRangeSelectorOpen(true);
+  };
+
+  const handleRunScheduleWithTimeRange = async (timeRange: { startTime: string; endTime: string; preset?: string }) => {
+    if (!selectedScheduleForTimeRange) return;
+
+    setScheduleActionId(selectedScheduleForTimeRange._id);
     try {
-      await whatsappSummaryScheduleService.runNow(schedule._id);
+      // Call the backend with custom time range
+      await whatsappSummaryScheduleService.runNowWithTimeRange(selectedScheduleForTimeRange._id, {
+        startTime: timeRange.startTime,
+        endTime: timeRange.endTime
+      });
+
       toast({
         title: 'Summary queued',
-        description: 'Schedule run requested successfully.'
+        description: `Schedule run requested for ${timeRange.preset || 'custom time range'}.`
       });
       await fetchSchedules();
-      await loadScheduleHistory(schedule._id, true);
+      await loadScheduleHistory(selectedScheduleForTimeRange._id, true);
       setRecentSummariesRefreshToken((prev) => prev + 1);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event(RECENT_SUMMARIES_EVENT));
@@ -2244,6 +2260,16 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
           initialValues={scheduleModalInitialValues}
           submitting={scheduleSubmitting}
           onSubmit={handleScheduleSubmit}
+        />
+
+        <TimeRangeSelector
+          isOpen={timeRangeSelectorOpen}
+          onClose={() => {
+            setTimeRangeSelectorOpen(false);
+            setSelectedScheduleForTimeRange(null);
+          }}
+          onConfirm={handleRunScheduleWithTimeRange}
+          title={`Select Time Range for ${selectedScheduleForTimeRange?.name || 'Schedule'}`}
         />
 
         </AnimatePresence>
