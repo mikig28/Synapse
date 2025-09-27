@@ -7,14 +7,36 @@ import WhatsAppSummarySchedule, {
   IWhatsAppSummaryScheduleExecutionGroupResult
 } from '../models/WhatsAppSummarySchedule';
 import WhatsAppGroupSummary from '../models/WhatsAppGroupSummary';
-import { MessageSummarizationService } from './messageSummarizationService';
-import { SummaryGenerationOptions, SummaryRequest } from '../types/whatsappSummary';
+import WhatsAppMessage from '../models/WhatsAppMessage';
+import WhatsAppSummarizationService from './whatsappSummarizationService';
+import WhatsAppAISummarizationService from './whatsappAISummarizationService';
+import { SummaryGenerationOptions, SummaryRequest, MessageData } from '../types/whatsappSummary';
 
 export class WhatsAppSummaryScheduleService {
   private readonly pollIntervalMs = 60_000;
   private timer?: NodeJS.Timeout;
   private isProcessing = false;
-  private readonly messageService = MessageSummarizationService.getInstance();
+
+  // Use the same AI service selection logic as the controller
+  private readonly summarizationService = (() => {
+    const hasOpenAI = !!process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_api_key_here';
+    const hasAnthropic = !!process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== 'your_anthropic_api_key_here';
+    const hasGemini = !!process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here';
+
+    console.log('[WhatsApp Summary Schedule] AI API Keys Status:', {
+      openai: hasOpenAI ? 'Available' : 'Not configured',
+      anthropic: hasAnthropic ? 'Available' : 'Not configured',
+      gemini: hasGemini ? 'Available' : 'Not configured'
+    });
+
+    if (hasOpenAI || hasAnthropic || hasGemini) {
+      console.log('[WhatsApp Summary Schedule] Using WhatsAppAISummarizationService');
+      return new WhatsAppAISummarizationService();
+    } else {
+      console.log('[WhatsApp Summary Schedule] Using WhatsAppSummarizationService (fallback)');
+      return new WhatsAppSummarizationService();
+    }
+  })();
 
   start(): void {
     if (this.timer) {
@@ -99,15 +121,6 @@ export class WhatsAppSummaryScheduleService {
     const groupResults: IWhatsAppSummaryScheduleExecutionGroupResult[] = [];
 
     for (const target of schedule.targetGroups) {
-      const request: SummaryRequest = {
-        groupId: target.groupId,
-        groupName: target.groupName,
-        startTime: executionWindow.startUtc,
-        endTime: executionWindow.endUtc,
-        timezone,
-        chatType: 'group'
-      };
-
       try {
         console.log('[WhatsApp Summary Schedule] Starting summary for group', {
           scheduleId: schedule._id,
@@ -116,57 +129,95 @@ export class WhatsAppSummaryScheduleService {
           executionWindow
         });
 
-        const result = await this.messageService.generateGroupSummary(
-          request,
-          schedule.userId.toString(),
-          summaryOptions,
-          schedule._id.toString()
-        );
+        // Fetch messages from database (same approach as controller)
+        const messages = await WhatsAppMessage.find({
+          $and: [
+            { timestamp: { $gte: new Date(executionWindow.startUtc) } },
+            { timestamp: { $lte: new Date(executionWindow.endUtc) } },
+            {
+              $or: [
+                { 'metadata.groupId': target.groupId },
+                { 'metadata.groupName': target.groupName },
+                { to: target.groupId },
+                { from: target.groupId }
+              ]
+            }
+          ]
+        })
+          .populate('contactId', 'name phoneNumber avatar')
+          .sort({ timestamp: 1 })
+          .lean();
 
-        console.log('[WhatsApp Summary Schedule] Summary generation result', {
-          scheduleId: schedule._id,
-          groupId: target.groupId,
-          result: {
-            hasSummaryId: !!result.summaryId,
-            summaryId: result.summaryId,
-            cached: result.cached
-          }
-        });
+        console.log(`[WhatsApp Summary Schedule] Found ${messages.length} messages for group ${target.groupName}`);
 
-        if (result.summaryId && mongoose.isValidObjectId(result.summaryId)) {
-          const summaryObjectId = new mongoose.Types.ObjectId(result.summaryId);
-          summaryIds.push(summaryObjectId);
-
-          await WhatsAppGroupSummary.findByIdAndUpdate(result.summaryId, {
-            scheduleId: schedule._id
-          });
-
-          groupResults.push({
-            groupId: target.groupId,
-            groupName: target.groupName,
-            summaryId: summaryObjectId,
-            status: 'success'
-          });
-
-          console.log('[WhatsApp Summary Schedule] Group summary succeeded', {
-            scheduleId: schedule._id,
-            groupId: target.groupId,
-            summaryId: result.summaryId
-          });
-        } else {
-          console.warn('[WhatsApp Summary Schedule] No valid summary ID returned', {
-            scheduleId: schedule._id,
-            groupId: target.groupId,
-            result
-          });
-
+        if (messages.length === 0) {
           groupResults.push({
             groupId: target.groupId,
             groupName: target.groupName,
             status: 'skipped',
-            error: 'Summary ID was not returned by generator'
+            error: 'No messages found for the time period'
           });
+          continue;
         }
+
+        // Convert to MessageData format
+        const messageData: MessageData[] = messages.map(msg => ({
+          id: (msg as any)._id.toString(),
+          message: (msg as any).body || '',
+          timestamp: new Date((msg as any).timestamp),
+          senderName: ((msg as any).contactId as any)?.name || (msg as any).from || 'Unknown',
+          senderPhone: (msg as any).from
+        }));
+
+        // Generate summary using the same service as the controller
+        const summaryData = await this.summarizationService.generateGroupSummary(
+          target.groupId,
+          target.groupName,
+          messageData,
+          {
+            start: new Date(executionWindow.startUtc),
+            end: new Date(executionWindow.endUtc),
+            label: `Automated ${executionStartedAt.toDateString()}`,
+            type: 'daily'
+          },
+          {
+            ...summaryOptions,
+            timezone,
+            targetLanguage: 'auto',
+            speakerAttribution: true,
+            maxSpeakerAttributions: 5
+          }
+        );
+
+        // Save summary to database
+        const summaryDoc = new WhatsAppGroupSummary({
+          userId: schedule.userId,
+          groupId: target.groupId,
+          groupName: target.groupName,
+          date: executionWindow.startUtc.split('T')[0],
+          summaryData,
+          scheduleId: schedule._id,
+          generatedAt: executionStartedAt
+        });
+
+        const savedSummary = await summaryDoc.save();
+        const summaryObjectId = new mongoose.Types.ObjectId(savedSummary._id);
+        summaryIds.push(summaryObjectId);
+
+        groupResults.push({
+          groupId: target.groupId,
+          groupName: target.groupName,
+          summaryId: summaryObjectId,
+          status: 'success'
+        });
+
+        console.log('[WhatsApp Summary Schedule] Group summary succeeded', {
+          scheduleId: schedule._id,
+          groupId: target.groupId,
+          summaryId: savedSummary._id,
+          messageCount: messageData.length
+        });
+
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         const stack = error instanceof Error ? error.stack : undefined;
@@ -176,9 +227,7 @@ export class WhatsAppSummaryScheduleService {
           groupId: target.groupId,
           groupName: target.groupName,
           error: message,
-          stack,
-          request,
-          summaryOptions
+          stack
         });
 
         groupResults.push({
