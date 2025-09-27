@@ -129,11 +129,20 @@ export class WhatsAppSummaryScheduleService {
           executionWindow
         });
 
-        // Fetch messages from database (same approach as controller)
+        // Fetch messages from database (using same logic as controller)
+        const utcStart = new Date(executionWindow.startUtc);
+        const utcEnd = new Date(executionWindow.endUtc);
+
+        // Use same date range logic as controller - check both createdAt and timestamp
+        const dateRangeOr = [
+          { createdAt: { $gte: utcStart, $lte: utcEnd } },
+          { timestamp: { $gte: utcStart, $lte: utcEnd } }
+        ];
+
         const messages = await WhatsAppMessage.find({
           $and: [
-            { timestamp: { $gte: new Date(executionWindow.startUtc) } },
-            { timestamp: { $lte: new Date(executionWindow.endUtc) } },
+            { 'metadata.isGroup': true },
+            { $or: dateRangeOr },
             {
               $or: [
                 { 'metadata.groupId': target.groupId },
@@ -145,7 +154,7 @@ export class WhatsAppSummaryScheduleService {
           ]
         })
           .populate('contactId', 'name phoneNumber avatar')
-          .sort({ timestamp: 1 })
+          .sort({ createdAt: 1, timestamp: 1 })
           .lean();
 
         console.log(`[WhatsApp Summary Schedule] Found ${messages.length} messages for group ${target.groupName}`);
