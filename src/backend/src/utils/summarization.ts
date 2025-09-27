@@ -245,7 +245,15 @@ async function generateAIGroupSummary(
   }
 ): Promise<string> {
   const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-  if (!OPENAI_API_KEY) {
+
+  console.log('[generateAIGroupSummary] Checking AI availability:', {
+    hasOpenAI: !!OPENAI_API_KEY && OPENAI_API_KEY !== 'your_openai_api_key_here',
+    messageCount: messages.length,
+    groupName
+  });
+
+  if (!OPENAI_API_KEY || OPENAI_API_KEY === 'your_openai_api_key_here') {
+    console.log('[generateAIGroupSummary] No valid OpenAI key, falling back to basic summary');
     return generateBasicGroupSummary(groupData);
   }
 
@@ -295,11 +303,26 @@ Please provide a 2-3 paragraph summary that captures the essence of the conversa
     );
 
     const aiSummary = response.data?.choices?.[0]?.message?.content;
+
+    console.log('[generateAIGroupSummary] OpenAI response received:', {
+      status: response.status,
+      hasContent: !!aiSummary,
+      contentLength: aiSummary?.length || 0,
+      contentPreview: aiSummary?.substring(0, 100)
+    });
+
     if (aiSummary && aiSummary.trim().length > 50) {
+      console.log('[generateAIGroupSummary] Using AI-generated summary');
       return aiSummary.trim();
+    } else {
+      console.log('[generateAIGroupSummary] AI response too short, using basic summary');
     }
-  } catch (error) {
-    console.error('[Summarization] AI summary generation failed:', error);
+  } catch (error: any) {
+    console.error('[generateAIGroupSummary] AI summary generation failed:', {
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data
+    });
   }
 
   // Fallback to basic summary if AI fails
