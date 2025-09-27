@@ -10,6 +10,7 @@ import WhatsAppGroupSummary from '../models/WhatsAppGroupSummary';
 import WhatsAppMessage from '../models/WhatsAppMessage';
 import WhatsAppSummarizationService from './whatsappSummarizationService';
 import WhatsAppAISummarizationService from './whatsappAISummarizationService';
+import WAHAService from './wahaService';
 import { SummaryGenerationOptions, MessageData, DateRange } from '../types/whatsappSummary';
 
 export class WhatsAppSummaryScheduleService {
@@ -129,35 +130,54 @@ export class WhatsAppSummaryScheduleService {
           executionWindow
         });
 
-        // Fetch messages from database (using same logic as controller)
+        // Fetch messages directly from WAHA service (same approach as controller)
         const utcStart = new Date(executionWindow.startUtc);
         const utcEnd = new Date(executionWindow.endUtc);
 
-        // Use same date range logic as controller - check both createdAt and timestamp
-        const dateRangeOr = [
-          { createdAt: { $gte: utcStart, $lte: utcEnd } },
-          { timestamp: { $gte: utcStart, $lte: utcEnd } }
-        ];
+        console.log(`[WhatsApp Summary Schedule] Fetching messages for group ${target.groupName} (${target.groupId})`);
+        console.log(`[WhatsApp Summary Schedule] Date range: ${utcStart.toISOString()} to ${utcEnd.toISOString()}`);
 
-        const messages = await WhatsAppMessage.find({
-          $and: [
-            { 'metadata.isGroup': true },
-            { $or: dateRangeOr },
-            {
-              $or: [
-                { 'metadata.groupId': target.groupId },
-                { 'metadata.groupName': target.groupName },
-                { to: target.groupId },
-                { from: target.groupId }
-              ]
-            }
-          ]
-        })
-          .populate('contactId', 'name phoneNumber avatar')
-          .sort({ createdAt: 1, timestamp: 1 })
-          .lean();
+        const wahaService = WAHAService.getInstance();
+        let wahaMessages: any[] = [];
 
-        console.log(`[WhatsApp Summary Schedule] Found ${messages.length} messages for group ${target.groupName}`);
+        try {
+          // Fetch messages directly from WAHA service (same as controller)
+          console.log(`[WhatsApp Summary Schedule] Fetching from WAHA service with groupId: ${target.groupId}`);
+          wahaMessages = await wahaService.getMessages(target.groupId, 1000);
+          console.log(`[WhatsApp Summary Schedule] WAHA returned ${wahaMessages.length} raw messages`);
+        } catch (wahaError) {
+          console.error(`[WhatsApp Summary Schedule] WAHA fetch failed for group ${target.groupId}:`, wahaError);
+          wahaMessages = [];
+        }
+
+        // Filter and normalize messages (same logic as controller)
+        const messages = wahaMessages
+          .filter((m: any) => m && m.timestamp)
+          .map((m: any) => {
+            // Handle timestamp conversion (same as controller)
+            const rawTs = Number(m.timestamp);
+            const tsMs = rawTs > 1000000000000 ? rawTs : rawTs * 1000;
+            const tsDate = new Date(tsMs);
+
+            return {
+              timestamp: tsDate,
+              id: m.id || String(Math.random()),
+              message: m.body || m.text || '',
+              senderName: m.from || 'Unknown',
+              senderPhone: m.from || '',
+              type: 'text' as const,
+              fromMe: m.fromMe || false
+            };
+          })
+          .filter((m: any) => {
+            // Filter by date range and exclude own messages
+            const inRange = m.timestamp >= utcStart && m.timestamp <= utcEnd;
+            const notFromMe = !m.fromMe;
+            return inRange && notFromMe;
+          })
+          .sort((a: any, b: any) => a.timestamp.getTime() - b.timestamp.getTime());
+
+        console.log(`[WhatsApp Summary Schedule] After filtering: ${messages.length} messages for group ${target.groupName}`);
 
         if (messages.length === 0) {
           groupResults.push({
@@ -169,14 +189,14 @@ export class WhatsAppSummaryScheduleService {
           continue;
         }
 
-        // Convert to MessageData format
+        // Convert to MessageData format (messages are already normalized)
         const messageData: MessageData[] = messages.map(msg => ({
-          id: (msg as any)._id.toString(),
-          message: (msg as any).body || '',
-          timestamp: new Date((msg as any).timestamp),
-          type: 'text', // Default to text type for schedule summaries
-          senderName: ((msg as any).contactId as any)?.name || (msg as any).from || 'Unknown',
-          senderPhone: (msg as any).from
+          id: msg.id,
+          message: msg.message,
+          timestamp: msg.timestamp,
+          type: msg.type,
+          senderName: msg.senderName,
+          senderPhone: msg.senderPhone
         }));
 
         // Prepare time range

@@ -8,7 +8,8 @@ import {
   getGroupSummaryStats,
   debugMessages,
   getRecentSummaries,
-  getSummaryById
+  getSummaryById,
+  debugDatabaseContent
 } from '../controllers/whatsappSummaryController';
 import {
   getSchedules as getSummarySchedules,
@@ -56,6 +57,7 @@ router.post('/generate-today', generateTodaySummary);
 // Debug routes (only in non-production environments)
 if (process.env.NODE_ENV !== 'production') {
   router.get('/debug/messages', debugMessages);
+  router.get('/debug/database', debugDatabaseContent);
 }
 
 export default router;

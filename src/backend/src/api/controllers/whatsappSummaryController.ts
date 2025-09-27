@@ -1792,3 +1792,60 @@ export const getSummaryById = async (req: AuthenticatedRequest, res: Response) =
     } as ApiResponse);
   }
 };
+
+export const debugDatabaseContent = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    // Check total messages
+    const totalMessages = await WhatsAppMessage.countDocuments({});
+    console.log('[WhatsApp Debug] Total messages in database:', totalMessages);
+
+    // Check group messages
+    const groupMessages = await WhatsAppMessage.countDocuments({ 'metadata.isGroup': true });
+    console.log('[WhatsApp Debug] Group messages in database:', groupMessages);
+
+    // Get sample messages
+    const sampleMessages = await WhatsAppMessage.find({}).limit(5).lean();
+    console.log('[WhatsApp Debug] Sample messages:', sampleMessages.map(m => ({
+      id: m._id,
+      from: m.from,
+      to: m.to,
+      timestamp: m.timestamp,
+      createdAt: m.createdAt,
+      isGroup: m.metadata?.isGroup,
+      groupId: m.metadata?.groupId,
+      groupName: m.metadata?.groupName,
+      message: m.message?.substring(0, 50)
+    })));
+
+    // Get groups from messages
+    const distinctGroups = await WhatsAppMessage.distinct('metadata.groupName', { 'metadata.isGroup': true });
+    console.log('[WhatsApp Debug] Distinct group names:', distinctGroups);
+
+    res.json({
+      success: true,
+      data: {
+        totalMessages,
+        groupMessages,
+        sampleMessages: sampleMessages.map(m => ({
+          id: m._id,
+          from: m.from,
+          to: m.to,
+          timestamp: m.timestamp,
+          createdAt: m.createdAt,
+          isGroup: m.metadata?.isGroup,
+          groupId: m.metadata?.groupId,
+          groupName: m.metadata?.groupName,
+          message: m.message?.substring(0, 50)
+        })),
+        distinctGroups
+      }
+    } as ApiResponse);
+
+  } catch (error: any) {
+    console.error('[WhatsApp Debug] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to debug database'
+    } as ApiResponse);
+  }
+};
