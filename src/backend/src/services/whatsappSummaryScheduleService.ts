@@ -136,6 +136,8 @@ export class WhatsAppSummaryScheduleService {
 
         console.log(`[WhatsApp Summary Schedule] Fetching messages for group ${target.groupName} (${target.groupId})`);
         console.log(`[WhatsApp Summary Schedule] Date range: ${utcStart.toISOString()} to ${utcEnd.toISOString()}`);
+        console.log(`[WhatsApp Summary Schedule] Current time: ${new Date().toISOString()}`);
+        console.log(`[WhatsApp Summary Schedule] Execution window:`, executionWindow);
 
         const wahaService = WAHAService.getInstance();
         let wahaMessages: any[] = [];
@@ -151,7 +153,7 @@ export class WhatsAppSummaryScheduleService {
         }
 
         // Filter and normalize messages (same logic as controller)
-        const messages = wahaMessages
+        const normalizedMessages = wahaMessages
           .filter((m: any) => m && m.timestamp)
           .map((m: any) => {
             // Handle timestamp conversion (same as controller)
@@ -166,13 +168,31 @@ export class WhatsAppSummaryScheduleService {
               senderName: m.from || 'Unknown',
               senderPhone: m.from || '',
               type: 'text' as const,
-              fromMe: m.fromMe || false
+              fromMe: m.fromMe || false,
+              rawTimestamp: m.timestamp
             };
-          })
+          });
+
+        console.log(`[WhatsApp Summary Schedule] Sample message timestamps:`,
+          normalizedMessages.slice(0, 5).map(m => ({
+            rawTs: m.rawTimestamp,
+            convertedTs: m.timestamp.toISOString(),
+            fromMe: m.fromMe,
+            message: m.message.substring(0, 50)
+          }))
+        );
+
+        const messages = normalizedMessages
           .filter((m: any) => {
             // Filter by date range and exclude own messages
             const inRange = m.timestamp >= utcStart && m.timestamp <= utcEnd;
             const notFromMe = !m.fromMe;
+
+            // Only log first few messages to avoid spam
+            if (normalizedMessages.indexOf(m) < 3) {
+              console.log(`[WhatsApp Summary Schedule] Message filter: ts=${m.timestamp.toISOString()}, inRange=${inRange}, notFromMe=${notFromMe}, fromMe=${m.fromMe}`);
+            }
+
             return inRange && notFromMe;
           })
           .sort((a: any, b: any) => a.timestamp.getTime() - b.timestamp.getTime());
