@@ -1786,7 +1786,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                                                 {format(new Date(entry.executedAt), 'MMM d, yyyy HH:mm')}
                                               </div>
                                               <div>
-                                                {entry.status.toUpperCase()} - {entry.groupResults?.filter(result => result.status === 'success').length || 0} success / {entry.groupResults?.length || 0}
+                                                {entry.status.toUpperCase()} - {entry.groupResults?.filter(result => result && result.status === 'success').length || 0} success / {entry.groupResults?.length || 0}
                                               </div>
                                             </div>
                                             <Badge
@@ -1801,14 +1801,14 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                                           </div>
 
                                           {/* Group Results */}
-                                          {entry.groupResults && entry.groupResults.length > 0 && (
+                                          {entry.groupResults && Array.isArray(entry.groupResults) && entry.groupResults.length > 0 && (
                                             <div className="space-y-1 mt-2">
-                                              {entry.groupResults.map((result, resultIndex) => (
+                                              {entry.groupResults.map((result, resultIndex) => result ? (
                                                 <div
                                                   key={`${schedule._id}-${index}-result-${resultIndex}`}
                                                   className="flex items-center justify-between text-xs bg-white/5 rounded p-2">
                                                   <div className="flex items-center gap-2">
-                                                    <span className="text-white">{result.groupName}</span>
+                                                    <span className="text-white">{result.groupName || 'Unknown Group'}</span>
                                                     <Badge
                                                       variant="outline"
                                                       className={
@@ -1818,7 +1818,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                                                             ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200'
                                                             : 'border-red-500/40 bg-red-500/10 text-red-200'
                                                       }>
-                                                      {result.status}
+                                                      {result.status || 'unknown'}
                                                     </Badge>
                                                     {result.error && (
                                                       <span className="text-red-300 text-xs">{result.error}</span>
@@ -1835,7 +1835,7 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                                                     </Button>
                                                   )}
                                                 </div>
-                                              ))}
+                                              ) : null)}
                                             </div>
                                           )}
                                         </div>
