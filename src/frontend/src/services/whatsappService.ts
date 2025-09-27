@@ -906,6 +906,28 @@ class WhatsAppService {
     
     return { type: 'initials', value: initials };
   }
+
+  /**
+   * Get a summary by ID
+   */
+  async getSummaryById(summaryId: string): Promise<GroupSummaryData> {
+    const response = await api.get(`${this.summaryUrl}/summaries/${summaryId}`);
+    const summary = response.data.data;
+
+    // Parse dates in the response
+    return {
+      ...summary,
+      summaryDate: new Date(summary.summaryDate),
+      timeRange: {
+        start: new Date(summary.timeRange.start),
+        end: new Date(summary.timeRange.end)
+      },
+      processingStats: {
+        ...summary.processingStats,
+        generatedAt: new Date(summary.processingStats.generatedAt)
+      }
+    };
+  }
 }
 
 export const whatsappService = new WhatsAppService();

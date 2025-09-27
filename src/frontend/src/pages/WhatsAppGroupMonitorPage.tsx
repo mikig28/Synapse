@@ -1127,6 +1127,21 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
     }
   };
 
+  const viewSummaryById = async (summaryId: string) => {
+    try {
+      const summary = await whatsappService.getSummaryById(summaryId);
+      setSelectedSummary(summary);
+      setShowSummaryModal(true);
+    } catch (error: any) {
+      console.error('Error fetching summary:', error);
+      toast({
+        title: "Error",
+        description: error.message || 'Failed to load summary',
+        variant: "destructive",
+      });
+    }
+  };
+
   const downloadSummary = (summary: GroupSummaryData) => {
     const formatted = whatsappService.formatSummaryForDisplay(summary);
 // Add AI insights to downloaded summary
@@ -1764,24 +1779,65 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                                       {history.slice(0, 5).map((entry, index) => (
                                         <div
                                           key={`${schedule._id}-history-${index}`}
-                                          className="flex items-center justify-between rounded-md border border-white/10 bg-white/5 p-2">
-                                          <div>
-                                            <div className="text-white">
-                                              {format(new Date(entry.executedAt), 'MMM d, yyyy HH:mm')}
-                                            </div>
+                                          className="rounded-md border border-white/10 bg-white/5 p-3">
+                                          <div className="flex items-center justify-between mb-2">
                                             <div>
-                                              {entry.status.toUpperCase()} - {entry.groupResults.filter(result => result.status === 'success').length} success / {entry.groupResults.length}
+                                              <div className="text-white">
+                                                {format(new Date(entry.executedAt), 'MMM d, yyyy HH:mm')}
+                                              </div>
+                                              <div>
+                                                {entry.status.toUpperCase()} - {entry.groupResults?.filter(result => result.status === 'success').length || 0} success / {entry.groupResults?.length || 0}
+                                              </div>
                                             </div>
+                                            <Badge
+                                              variant="outline"
+                                              className={entry.status === 'success'
+                                                ? 'border-green-500/40 bg-green-500/10 text-green-200'
+                                                : entry.status === 'partial'
+                                                  ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200'
+                                                  : 'border-red-500/40 bg-red-500/10 text-red-200'}>
+                                              {entry.status}
+                                            </Badge>
                                           </div>
-                                          <Badge
-                                            variant="outline"
-                                            className={entry.status === 'success'
-                                              ? 'border-green-500/40 bg-green-500/10 text-green-200'
-                                              : entry.status === 'partial'
-                                                ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200'
-                                                : 'border-red-500/40 bg-red-500/10 text-red-200'}>
-                                            {entry.status}
-                                          </Badge>
+
+                                          {/* Group Results */}
+                                          {entry.groupResults && entry.groupResults.length > 0 && (
+                                            <div className="space-y-1 mt-2">
+                                              {entry.groupResults.map((result, resultIndex) => (
+                                                <div
+                                                  key={`${schedule._id}-${index}-result-${resultIndex}`}
+                                                  className="flex items-center justify-between text-xs bg-white/5 rounded p-2">
+                                                  <div className="flex items-center gap-2">
+                                                    <span className="text-white">{result.groupName}</span>
+                                                    <Badge
+                                                      variant="outline"
+                                                      className={
+                                                        result.status === 'success'
+                                                          ? 'border-green-500/40 bg-green-500/10 text-green-200'
+                                                          : result.status === 'skipped'
+                                                            ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-200'
+                                                            : 'border-red-500/40 bg-red-500/10 text-red-200'
+                                                      }>
+                                                      {result.status}
+                                                    </Badge>
+                                                    {result.error && (
+                                                      <span className="text-red-300 text-xs">{result.error}</span>
+                                                    )}
+                                                  </div>
+                                                  {result.summaryId && result.status === 'success' && (
+                                                    <Button
+                                                      size="sm"
+                                                      variant="ghost"
+                                                      onClick={() => viewSummaryById(result.summaryId!)}
+                                                      className="h-6 px-2 text-xs text-blue-200 hover:text-blue-100 hover:bg-blue-500/20">
+                                                      <Eye className="w-3 h-3 mr-1" />
+                                                      View Summary
+                                                    </Button>
+                                                  )}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
                                         </div>
                                       ))}
                                     </div>
