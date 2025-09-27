@@ -387,13 +387,17 @@ export class WhatsAppSummaryScheduleService {
   }
 
   private resolveExecutionWindow(executionInstant: Date, timezone: string): { startUtc: string; endUtc: string } {
-    const zonedExecution = toZonedTime(executionInstant, timezone);
-    // For "Run now" button, use today's date instead of yesterday
-    const targetDay = zonedExecution; // Remove the -1 day offset
-    const targetDateStr = formatInTimeZone(targetDay, timezone, 'yyyy-MM-dd');
+    // SIMPLE FIX: Use last 24 hours instead of complex timezone logic
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-    const startUtc = fromZonedTime(`${targetDateStr}T00:00:00`, timezone).toISOString();
-    const endUtc = fromZonedTime(`${targetDateStr}T23:59:59.999`, timezone).toISOString();
+    const startUtc = twentyFourHoursAgo.toISOString();
+    const endUtc = now.toISOString();
+
+    console.log(`[WhatsApp Summary Schedule] FIXED - Using last 24 hours:`);
+    console.log(`[WhatsApp Summary Schedule] - From: ${startUtc}`);
+    console.log(`[WhatsApp Summary Schedule] - To: ${endUtc}`);
+    console.log(`[WhatsApp Summary Schedule] - Timezone: ${timezone} (ignored for now)`);
 
     return { startUtc, endUtc };
   }
