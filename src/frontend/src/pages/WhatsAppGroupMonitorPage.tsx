@@ -41,6 +41,7 @@ import {
   PlayCircle,
   Sparkles,
   Bookmark,
+  Mic,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { whatsappSummaryScheduleService } from '@/services/whatsappSummaryScheduleService';
@@ -78,6 +79,7 @@ interface GroupMonitorSettings {
   autoReply: boolean;
   replyMessage?: string;
   captureSocialLinks: boolean;
+  processVoiceNotes: boolean;
 }
 
 interface GroupMonitor {
@@ -100,6 +102,7 @@ interface GroupMonitor {
 type ApiGroupMonitor = Omit<GroupMonitor, 'settings'> & {
   settings: Omit<GroupMonitorSettings, 'captureSocialLinks'> & {
     captureSocialLinks?: boolean;
+    processVoiceNotes?: boolean;
   };
 };
 
@@ -108,6 +111,7 @@ const normalizeMonitor = (monitor: ApiGroupMonitor): GroupMonitor => ({
   settings: {
     ...monitor.settings,
     captureSocialLinks: monitor.settings.captureSocialLinks ?? false,
+    processVoiceNotes: monitor.settings.processVoiceNotes ?? true,
   },
 });
 
@@ -391,6 +395,7 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
       autoReply: false,
       replyMessage: '',
       captureSocialLinks: false,
+      processVoiceNotes: true,
     }
   });
   
@@ -1649,6 +1654,12 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                               <span>Auto bookmarks</span>
                             </div>
                           )}
+                          {monitor.settings.processVoiceNotes && (
+                            <div className="flex items-center gap-1">
+                              <Mic className="w-3 h-3" />
+                              <span>Voice notes</span>
+                            </div>
+                          )}
                         </div>
 
                         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -1664,6 +1675,23 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                           <Switch
                             checked={Boolean(monitor.settings.captureSocialLinks)}
                             onCheckedChange={(checked) => updateMonitorSettings(monitor._id, { captureSocialLinks: checked })}
+                            disabled={settingsUpdateTarget === monitor._id}
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex items-start gap-2 text-sm text-blue-200/80">
+                            <Mic className="w-4 h-4 mt-0.5" />
+                            <div>
+                              <span className="block">Process voice notes</span>
+                              <span className="text-xs text-blue-200/60">
+                                Transcribe group voice memos into tasks, notes, and ideas automatically.
+                              </span>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={Boolean(monitor.settings.processVoiceNotes)}
+                            onCheckedChange={(checked) => updateMonitorSettings(monitor._id, { processVoiceNotes: checked })}
                             disabled={settingsUpdateTarget === monitor._id}
                           />
                         </div>
@@ -2484,6 +2512,22 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                         />
                       </div>
 
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <span className="text-sm text-white">Process voice notes</span>
+                          <p className="text-xs text-blue-200/70 mt-1">
+                            Transcribe WhatsApp voice memos and add tasks, notes, or ideas automatically.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={Boolean(monitorForm.settings.processVoiceNotes)}
+                          onCheckedChange={(checked) => setMonitorForm(prev => ({
+                            ...prev,
+                            settings: { ...prev.settings, processVoiceNotes: checked }
+                          }))}
+                        />
+                      </div>
+
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-white">Auto-reply</span>
                         <Switch
@@ -2829,9 +2873,6 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
 };
 
 export default WhatsAppGroupMonitorPage;
-
-
-
 
 
 

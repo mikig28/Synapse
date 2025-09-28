@@ -12,6 +12,7 @@ export interface GroupMonitorSettings {
   autoReply: boolean;
   replyMessage?: string;
   captureSocialLinks: boolean;
+  processVoiceNotes: boolean;
 }
 
 export interface CreateGroupMonitorData {
@@ -123,13 +124,14 @@ class GroupMonitorService {
       }
 
       const defaultSettings: GroupMonitorSettings = {
-        notifyOnMatch: true,
-        saveAllImages: false,
-        confidenceThreshold: 0.7,
-        autoReply: false,
-        captureSocialLinks: false,
-        ...monitorData.settings
-      };
+      notifyOnMatch: true,
+      saveAllImages: false,
+      confidenceThreshold: 0.7,
+      autoReply: false,
+      captureSocialLinks: false,
+      processVoiceNotes: true,
+      ...monitorData.settings
+    };
 
       const groupMonitor = new GroupMonitor({
         groupId: normalizedGroupId,
