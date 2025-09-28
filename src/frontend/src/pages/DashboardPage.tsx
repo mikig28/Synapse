@@ -472,6 +472,106 @@ const DashboardPage: React.FC = () => {
           ))}
         </DashboardGrid>
 
+    {/* WhatsApp Summaries */}
+    {recentSummaries.length > 0 && (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.6, delay: 0.2 }}
+        className="mt-8"
+      >
+        <GlassCard>
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-primary" />
+                <h3 className="text-lg font-semibold">Recent WhatsApp Summaries</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Last 7 days</span>
+                <AnimatedButton
+                  variant="ghost"
+                  size="sm"
+                  onClick={loadRecentSummaries}
+                  disabled={summariesLoading}
+                >
+                  {summariesLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                </AnimatedButton>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {recentSummaries.map((summary, index) => (
+                <motion.div
+                  key={summary.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3, delay: index * 0.1 }}
+                  className="flex items-start justify-between p-3 rounded-lg border border-border/40 bg-background/60 backdrop-blur hover:bg-background/80 transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="text-sm font-medium text-foreground truncate">
+                        {summary.groupName}
+                      </h4>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                        {summary.totalMessages} messages
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground space-y-0.5">
+                      <div className="flex items-center gap-3">
+                        <span>📅 {summary.summaryDate.toLocaleDateString()}</span>
+                        <span>👥 {summary.activeParticipants} participants</span>
+                      </div>
+                      <div>
+                        ⏱️ Generated {formatDistanceToNow(summary.generatedAt || new Date(), { addSuffix: true })}
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                      {summary.overallSummary || summary.summary || ''}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 ml-3">
+                    <AnimatedButton
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => downloadSummary(summary)}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <Download className="w-4 h-4" />
+                    </AnimatedButton>
+                    <AnimatedButton
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleNavigate('/whatsapp-monitor')}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                    </AnimatedButton>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-border/40">
+              <AnimatedButton
+                variant="outline"
+                size="sm"
+                onClick={() => handleNavigate('/whatsapp-monitor')}
+                className="w-full"
+              >
+                View all summaries
+              </AnimatedButton>
+            </div>
+          </div>
+        </GlassCard>
+      </motion.div>
+    )}
+
         <div className="mt-8 grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-6">
           <GlassCard className="h-full">
             <div className="p-6 h-full flex flex-col">
@@ -831,106 +931,6 @@ const DashboardPage: React.FC = () => {
             </div>
           </GlassCard>
         </motion.div>
-
-        {/* WhatsApp Summaries */}
-        {recentSummaries.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.58 }}
-            className="mt-8"
-          >
-            <GlassCard>
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="w-5 h-5 text-primary" />
-                    <h3 className="text-lg font-semibold">Recent WhatsApp Summaries</h3>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Last 7 days</span>
-                    <AnimatedButton
-                      variant="ghost"
-                      size="sm"
-                      onClick={loadRecentSummaries}
-                      disabled={summariesLoading}
-                    >
-                      {summariesLoading ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="w-4 h-4" />
-                      )}
-                    </AnimatedButton>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {recentSummaries.map((summary, index) => (
-                    <motion.div
-                      key={summary.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.3, delay: index * 0.1 }}
-                      className="flex items-start justify-between p-3 rounded-lg border border-border/40 bg-background/60 backdrop-blur hover:bg-background/80 transition-colors"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="text-sm font-medium text-foreground truncate">
-                            {summary.groupName}
-                          </h4>
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                            {summary.totalMessages} messages
-                          </span>
-                        </div>
-                        <div className="text-xs text-muted-foreground space-y-0.5">
-                          <div className="flex items-center gap-3">
-                            <span>📅 {summary.summaryDate.toLocaleDateString()}</span>
-                            <span>👥 {summary.activeParticipants} participants</span>
-                          </div>
-                          <div>
-                            ⏱️ Generated {formatDistanceToNow(summary.generatedAt || new Date(), { addSuffix: true })}
-                          </div>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                          {summary.overallSummary || summary.summary || ''}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 ml-3">
-                        <AnimatedButton
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => downloadSummary(summary)}
-                          className="text-muted-foreground hover:text-foreground"
-                        >
-                          <Download className="w-4 h-4" />
-                        </AnimatedButton>
-                        <AnimatedButton
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleNavigate('/whatsapp-monitor')}
-                          className="text-muted-foreground hover:text-foreground"
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                        </AnimatedButton>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-
-                <div className="mt-4 pt-3 border-t border-border/40">
-                  <AnimatedButton
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleNavigate('/whatsapp-monitor')}
-                    className="w-full"
-                  >
-                    View all summaries
-                  </AnimatedButton>
-                </div>
-              </div>
-            </GlassCard>
-          </motion.div>
-        )}
 
         {/* Upcoming Tasks */}
         <motion.div
