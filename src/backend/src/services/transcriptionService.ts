@@ -1,8 +1,9 @@
 import fs from 'fs';
 import dotenv from 'dotenv';
+import path from 'path';
 import axios from 'axios';
 import FormData from 'form-data';
-import path from 'path';
+import OpenAI from 'openai';
 
 dotenv.config();
 
@@ -32,11 +33,27 @@ interface OpenAITranscriptionResponse {
 const TRANSCRIPTION_SERVICE_URL = process.env.TRANSCRIPTION_SERVICE_URL || 'http://localhost:8000';
 const TRANSCRIPTION_API_KEY = process.env.TRANSCRIPTION_API_KEY || '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const OPENAI_TRANSCRIPTION_MODELS = (process.env.OPENAI_TRANSCRIPTION_MODELS || 'gpt-4o-mini-transcribe,whisper-1')
+  .split(',')
+  .map(model => model.trim())
+  .filter(Boolean);
 
 // Fallback to local Python script if service URL is not configured
 const USE_LOCAL_PYTHON = !process.env.TRANSCRIPTION_SERVICE_URL;
 const PYTHON_EXECUTABLE = process.env.PYTHON_EXECUTABLE || 'python';
 const TRANSCRIPTION_SCRIPT_PATH = path.join(__dirname, '..', '..', 'python_scripts', 'transcribe_audio.py');
+
+let openAIClient: OpenAI | null = null;
+
+const getOpenAIClient = () => {
+  if (!openAIClient) {
+    if (!OPENAI_API_KEY) {
+      throw new Error('OpenAI API key not configured');
+    }
+    openAIClient = new OpenAI({ apiKey: OPENAI_API_KEY });
+  }
+  return openAIClient;
+};
 
 export const transcribeAudio = async (filePath: string): Promise<string> => {
   const absoluteFilePath = path.resolve(filePath);
@@ -111,39 +128,39 @@ const transcribeWithDedicatedService = async (filePath: string): Promise<string>
 
 // OpenAI Whisper API transcription
 const transcribeWithOpenAI = async (filePath: string): Promise<string> => {
-  if (!OPENAI_API_KEY) {
-    throw new Error('OpenAI API key not configured');
-  }
-
-  // Check if file exists
   if (!fs.existsSync(filePath)) {
     throw new Error(`Audio file not found: ${filePath}`);
   }
 
-  // Create form data for OpenAI API
-  const formData = new FormData();
-  formData.append('file', fs.createReadStream(filePath));
-  formData.append('model', 'whisper-1');
-  formData.append('language', 'he'); // Hebrew language hint
+  const client = getOpenAIClient();
+  let lastError: unknown = null;
 
-  // Make request to OpenAI API
-  const response = await axios.post<OpenAITranscriptionResponse>(
-    'https://api.openai.com/v1/audio/transcriptions',
-    formData,
-    {
-      headers: {
-        ...formData.getHeaders(),
-        'Authorization': `Bearer ${OPENAI_API_KEY}`
-      },
-      timeout: 120000 // 2 minutes timeout
+  for (const model of OPENAI_TRANSCRIPTION_MODELS) {
+    try {
+      console.log(`[TranscriptionService] Attempting OpenAI transcription with model: ${model}`);
+      const response = await client.audio.transcriptions.create({
+        file: fs.createReadStream(filePath),
+        model,
+        language: 'he',
+        response_format: 'text',
+      });
+
+      const text = typeof response === 'string' ? response : (response as OpenAITranscriptionResponse).text;
+      if (text && text.trim()) {
+        console.log(`[TranscriptionService] OpenAI transcription succeeded with model: ${model}`);
+        return text.trim();
+      }
+
+      console.warn(`[TranscriptionService] OpenAI model ${model} returned empty transcription`);
+    } catch (error: any) {
+      lastError = error;
+      const message = error?.response?.data?.error?.message || error.message || String(error);
+      console.error(`[TranscriptionService] OpenAI model ${model} failed: ${message}`);
+      // Try next model in the list
     }
-  );
-
-  if (response.data && response.data.text) {
-    return response.data.text;
-  } else {
-    throw new Error('No transcription text received from OpenAI API');
   }
+
+  throw (lastError instanceof Error ? lastError : new Error('OpenAI transcription failed for all configured models'));
 };
 
 // Local Python transcription with improved error handling and JSON support
