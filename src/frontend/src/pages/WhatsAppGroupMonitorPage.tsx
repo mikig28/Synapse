@@ -40,6 +40,7 @@ import {
   PauseCircle,
   PlayCircle,
   Sparkles,
+  Bookmark,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { whatsappSummaryScheduleService } from '@/services/whatsappSummaryScheduleService';
@@ -70,19 +71,22 @@ interface PersonProfile {
   createdAt: string;
 }
 
+interface GroupMonitorSettings {
+  notifyOnMatch: boolean;
+  saveAllImages: boolean;
+  confidenceThreshold: number;
+  autoReply: boolean;
+  replyMessage?: string;
+  captureSocialLinks: boolean;
+}
+
 interface GroupMonitor {
   _id: string;
   groupId: string;
   groupName: string;
   targetPersons: PersonProfile[];
   isActive: boolean;
-  settings: {
-    notifyOnMatch: boolean;
-    saveAllImages: boolean;
-    confidenceThreshold: number;
-    autoReply: boolean;
-    replyMessage?: string;
-  };
+  settings: GroupMonitorSettings;
   statistics: {
     totalMessages: number;
     imagesProcessed: number;
@@ -92,6 +96,20 @@ interface GroupMonitor {
   createdAt: string;
   updatedAt: string;
 }
+
+type ApiGroupMonitor = Omit<GroupMonitor, 'settings'> & {
+  settings: Omit<GroupMonitorSettings, 'captureSocialLinks'> & {
+    captureSocialLinks?: boolean;
+  };
+};
+
+const normalizeMonitor = (monitor: ApiGroupMonitor): GroupMonitor => ({
+  ...monitor,
+  settings: {
+    ...monitor.settings,
+    captureSocialLinks: monitor.settings.captureSocialLinks ?? false,
+  },
+});
 
 interface FilteredImage {
   _id: string;
@@ -339,6 +357,11 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   const [scheduleHistory, setScheduleHistory] = useState<Record<string, WhatsAppSummaryScheduleExecution[]>>({});
   const [historyLoadingId, setHistoryLoadingId] = useState<string | null>(null);
   const [expandedScheduleId, setExpandedScheduleId] = useState<string | null>(null);
+  const [settingsUpdateTarget, setSettingsUpdateTarget] = useState<string | null>(null);
+
+  const tabButtonBaseClass = 'w-full sm:w-auto transition-colors duration-200 rounded-lg font-semibold shadow-sm';
+  const tabButtonActiveClass = 'bg-gradient-to-r from-violet-500 to-blue-600 text-white hover:from-violet-600 hover:to-blue-700 border-transparent';
+  const tabButtonInactiveClass = 'border border-white/40 bg-white/80 text-slate-800 hover:bg-white dark:border-white/30 dark:bg-white/10 dark:text-white dark:hover:bg-white/20 backdrop-blur-sm';
 
   
   // Person Profile Form
@@ -352,7 +375,12 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   
   // Group Monitor Form
   const [showMonitorForm, setShowMonitorForm] = useState(false);
-  const [monitorForm, setMonitorForm] = useState({
+  const [monitorForm, setMonitorForm] = useState<{
+    groupId: string;
+    groupName: string;
+    targetPersons: string[];
+    settings: GroupMonitorSettings;
+  }>({
     groupId: '',
     groupName: '',
     targetPersons: [] as string[],
@@ -361,7 +389,8 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
       saveAllImages: false,
       confidenceThreshold: 0.7,
       autoReply: false,
-      replyMessage: ''
+      replyMessage: '',
+      captureSocialLinks: false,
     }
   });
   
@@ -461,9 +490,10 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
     try {
       const response = await api.get('/group-monitor/monitors');
       if (response.data.success) {
-        setGroupMonitors(response.data.data);
+        const monitors = (response.data.data as ApiGroupMonitor[]).map(normalizeMonitor);
+        setGroupMonitors(monitors);
         // Prime statistics with fresh values per monitor
-        await refreshAllMonitorStatistics(response.data.data as GroupMonitor[]);
+        await refreshAllMonitorStatistics(monitors);
       }
     } catch (error) {
       console.error('Error fetching group monitors:', error);
@@ -692,7 +722,8 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
       console.log('Creating group monitor with data:', payload);
       const response = await api.post('/group-monitor/monitors', payload);
       if (response.data.success) {
-        setGroupMonitors(prev => [...prev, response.data.data]);
+        const newMonitor = normalizeMonitor(response.data.data as ApiGroupMonitor);
+        setGroupMonitors(prev => [...prev, newMonitor]);
         setMonitorForm({
           groupId: '',
           groupName: '',
@@ -702,7 +733,8 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
             saveAllImages: false,
             confidenceThreshold: 0.7,
             autoReply: false,
-            replyMessage: ''
+            replyMessage: '',
+            captureSocialLinks: false,
           }
         });
         setShowMonitorForm(false);
@@ -750,6 +782,41 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
         description: "Failed to update monitor",
         variant: "destructive",
       });
+    }
+  };
+
+  const updateMonitorSettings = async (
+    monitorId: string,
+    updatedSettings: Partial<GroupMonitor['settings']>
+  ) => {
+    try {
+      setSettingsUpdateTarget(monitorId);
+      const response = await api.put(`/group-monitor/monitors/${monitorId}`, {
+        settings: updatedSettings,
+      });
+
+      if (response.data.success) {
+        const updatedMonitor = normalizeMonitor(response.data.data as ApiGroupMonitor);
+        setGroupMonitors(monitors =>
+          monitors.map(monitor =>
+            monitor._id === monitorId ? updatedMonitor : monitor
+          )
+        );
+        toast({
+          title: "Settings updated",
+          description: "Monitor preferences saved",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error updating monitor settings:', error);
+      const message = error.response?.data?.error || 'Failed to update monitor settings';
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setSettingsUpdateTarget(null);
     }
   };
 
@@ -1330,11 +1397,8 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
         <div className="grid grid-cols-2 gap-4 mb-6 w-full sm:flex sm:flex-wrap sm:overflow-x-auto">
           <Button
             onClick={() => setSelectedView('persons')}
-            variant={selectedView === 'persons' ? 'default' : 'outline'}
-            className={selectedView === 'persons'
-              ? 'w-full sm:w-auto bg-violet-500 hover:bg-violet-600'
-              : 'w-full sm:w-auto border-white/30 text-white hover:bg-white/10'
-            }
+            variant="ghost"
+            className={`${tabButtonBaseClass} ${selectedView === 'persons' ? tabButtonActiveClass : tabButtonInactiveClass}`}
           >
             <UserPlus className="w-4 h-4 mr-2" />
             Person Profiles
@@ -1342,11 +1406,8 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
 
           <Button
             onClick={() => setSelectedView('monitors')}
-            variant={selectedView === 'monitors' ? 'default' : 'outline'}
-            className={selectedView === 'monitors'
-              ? 'w-full sm:w-auto bg-violet-500 hover:bg-violet-600'
-              : 'w-full sm:w-auto border-white/30 text-white hover:bg-white/10'
-            }
+            variant="ghost"
+            className={`${tabButtonBaseClass} ${selectedView === 'monitors' ? tabButtonActiveClass : tabButtonInactiveClass}`}
           >
             <Eye className="w-4 h-4 mr-2" />
             Group Monitors
@@ -1354,11 +1415,8 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
 
           <Button
             onClick={() => setSelectedView('summaries')}
-            variant={selectedView === 'summaries' ? 'default' : 'outline'}
-            className={selectedView === 'summaries'
-              ? 'w-full sm:w-auto bg-violet-500 hover:bg-violet-600'
-              : 'w-full sm:w-auto border-white/30 text-white hover:bg-white/10'
-            }
+            variant="ghost"
+            className={`${tabButtonBaseClass} ${selectedView === 'summaries' ? tabButtonActiveClass : tabButtonInactiveClass}`}
           >
             <FileText className="w-4 h-4 mr-2" />
             Daily Summaries
@@ -1366,11 +1424,8 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
 
           <Button
             onClick={() => setSelectedView('images')}
-            variant={selectedView === 'images' ? 'default' : 'outline'}
-            className={selectedView === 'images'
-              ? 'w-full sm:w-auto bg-violet-500 hover:bg-violet-600'
-              : 'w-full sm:w-auto border-white/30 text-white hover:bg-white/10'
-            }
+            variant="ghost"
+            className={`${tabButtonBaseClass} ${selectedView === 'images' ? tabButtonActiveClass : tabButtonInactiveClass}`}
           >
             <ImageIcon className="w-4 h-4 mr-2" />
             Filtered Images
@@ -1588,6 +1643,29 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                               <span>Save all images</span>
                             </div>
                           )}
+                          {monitor.settings.captureSocialLinks && (
+                            <div className="flex items-center gap-1">
+                              <Bookmark className="w-3 h-3" />
+                              <span>Auto bookmarks</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex items-start gap-2 text-sm text-blue-200/80">
+                            <Bookmark className="w-4 h-4 mt-0.5" />
+                            <div>
+                              <span className="block">Auto-bookmark shared links</span>
+                              <span className="text-xs text-blue-200/60">
+                                Save supported social links from this chat straight to your bookmarks.
+                              </span>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={Boolean(monitor.settings.captureSocialLinks)}
+                            onCheckedChange={(checked) => updateMonitorSettings(monitor._id, { captureSocialLinks: checked })}
+                            disabled={settingsUpdateTarget === monitor._id}
+                          />
                         </div>
                       </div>
                       
@@ -2389,7 +2467,23 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                           }))}
                         />
                       </div>
-                      
+
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <span className="text-sm text-white">Auto-bookmark shared links</span>
+                          <p className="text-xs text-blue-200/70 mt-1">
+                            Capture LinkedIn, X, or Reddit links shared in this group directly to your bookmarks.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={Boolean(monitorForm.settings.captureSocialLinks)}
+                          onCheckedChange={(checked) => setMonitorForm(prev => ({
+                            ...prev,
+                            settings: { ...prev.settings, captureSocialLinks: checked }
+                          }))}
+                        />
+                      </div>
+
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-white">Auto-reply</span>
                         <Switch
@@ -2735,10 +2829,6 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
 };
 
 export default WhatsAppGroupMonitorPage;
-
-
-
-
 
 
 

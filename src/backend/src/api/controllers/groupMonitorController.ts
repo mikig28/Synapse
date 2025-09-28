@@ -573,7 +573,16 @@ class GroupMonitorController {
   // Webhook for processing WhatsApp messages
   async processWhatsAppMessage(req: Request, res: Response): Promise<void> {
     try {
-      const { messageId, groupId, senderId, senderName, imageUrl, caption } = req.body;
+      const { messageId, groupId, senderId, senderName, imageUrl, caption, text, urls } = req.body;
+
+      const messageText = text || req.body?.message || caption;
+      const normalizedUrls = Array.isArray(urls)
+        ? urls
+        : typeof urls === 'string'
+          ? [urls]
+          : Array.isArray(req.body?.links)
+            ? req.body.links
+            : undefined;
 
       console.log(`[GroupMonitor Webhook] 📥 Received message:`, {
         messageId,
@@ -582,6 +591,8 @@ class GroupMonitorController {
         senderName,
         hasImage: !!imageUrl,
         caption: caption?.substring(0, 50) + (caption?.length > 50 ? '...' : ''),
+        text: messageText?.substring(0, 50) + (messageText && messageText.length > 50 ? '...' : ''),
+        urlCount: normalizedUrls?.length || 0,
         fullPayload: JSON.stringify(req.body)
       });
 
@@ -605,8 +616,12 @@ class GroupMonitorController {
         groupId,
         senderId,
         senderName || 'Unknown',
-        imageUrl,
-        caption
+        {
+          imageUrl,
+          caption,
+          text: messageText,
+          urls: normalizedUrls,
+        }
       ).then(() => {
         console.log(`[GroupMonitor Webhook] ✅ Successfully processed message ${messageId} for group ${groupId}`);
       }).catch(error => {
@@ -635,7 +650,9 @@ class GroupMonitorController {
         senderId: req.body.senderId || 'test-sender@s.whatsapp.net',
         senderName: req.body.senderName || 'Test Sender',
         imageUrl: req.body.imageUrl,
-        caption: req.body.caption || 'Test message for group monitoring'
+        caption: req.body.caption || 'Test message for group monitoring',
+        text: req.body.text,
+        urls: Array.isArray(req.body.urls) ? req.body.urls : undefined,
       };
 
       console.log(`[GroupMonitor Test] 🧪 Simulating webhook message:`, testMessage);
@@ -646,8 +663,12 @@ class GroupMonitorController {
         testMessage.groupId,
         testMessage.senderId,
         testMessage.senderName,
-        testMessage.imageUrl,
-        testMessage.caption
+        {
+          imageUrl: testMessage.imageUrl,
+          caption: testMessage.caption,
+          text: testMessage.text,
+          urls: testMessage.urls,
+        }
       ).then(() => {
         console.log(`[GroupMonitor Test] ✅ Test message processed successfully`);
       }).catch(error => {

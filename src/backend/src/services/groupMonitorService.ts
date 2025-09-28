@@ -3,6 +3,7 @@ import FilteredImage, { IFilteredImage } from '../models/FilteredImage';
 import PersonProfile from '../models/PersonProfile';
 import axios from 'axios';
 import mongoose, { Types } from 'mongoose';
+import { extractUrlsFromText, processUrlsForBookmarks } from '../utils/bookmarkUtils';
 
 export interface GroupMonitorSettings {
   notifyOnMatch: boolean;
@@ -10,6 +11,7 @@ export interface GroupMonitorSettings {
   confidenceThreshold: number;
   autoReply: boolean;
   replyMessage?: string;
+  captureSocialLinks: boolean;
 }
 
 export interface CreateGroupMonitorData {
@@ -125,6 +127,7 @@ class GroupMonitorService {
         saveAllImages: false,
         confidenceThreshold: 0.7,
         autoReply: false,
+        captureSocialLinks: false,
         ...monitorData.settings
       };
 
@@ -286,14 +289,21 @@ class GroupMonitorService {
     groupId: string,
     senderId: string,
     senderName: string,
-    imageUrl?: string,
-    caption?: string
+    payload: {
+      imageUrl?: string;
+      caption?: string;
+      text?: string;
+      urls?: string[];
+    } = {}
   ): Promise<void> {
+    const { imageUrl, caption, text, urls: providedUrls } = payload;
+
     console.log(`[GroupMonitorService] 🔄 Processing message ${messageId} for group ${groupId}`, {
       senderId,
       senderName,
       hasImage: !!imageUrl,
-      caption: caption?.substring(0, 100)
+      captionPreview: (caption || text)?.substring(0, 100),
+      providedUrlCount: providedUrls?.length || 0,
     });
 
     try {
@@ -329,6 +339,47 @@ class GroupMonitorService {
             after: updatedMonitor?.statistics.totalMessages,
             success: (updatedMonitor?.statistics.totalMessages || 0) > beforeStats.totalMessages
           });
+
+          const shouldCaptureBookmarks = Boolean(monitor.settings?.captureSocialLinks);
+          if (shouldCaptureBookmarks) {
+            const collectedUrls = new Set<string>();
+
+            if (Array.isArray(providedUrls)) {
+              for (const url of providedUrls) {
+                if (url) {
+                  collectedUrls.add(url);
+                }
+              }
+            }
+
+            for (const snippet of [text, caption]) {
+              if (!snippet) continue;
+              const extracted = extractUrlsFromText(snippet);
+              for (const url of extracted) {
+                collectedUrls.add(url);
+              }
+            }
+
+            const urlsToProcess = Array.from(collectedUrls);
+            if (urlsToProcess.length > 0) {
+              try {
+                await processUrlsForBookmarks({
+                  userId: monitor.userId.toString(),
+                  urls: urlsToProcess,
+                  source: 'whatsapp',
+                  logContext: {
+                    messageId,
+                    groupId: normalizedGroupId,
+                    monitorId: monitor._id.toString(),
+                  },
+                });
+              } catch (bookmarkError) {
+                console.error(`[GroupMonitorService] ❌ Bookmark processing failed for monitor ${monitor._id}:`, bookmarkError);
+              }
+            } else {
+              console.log(`[GroupMonitorService] ℹ️ No bookmarkable URLs detected for monitor ${monitor._id}`);
+            }
+          }
 
           if (imageUrl) {
             console.log(`[GroupMonitorService] 📸 Processing image for monitor ${monitor._id}: ${imageUrl}`);

@@ -2,10 +2,10 @@ import { Request, Response } from 'express';
 import TelegramItem, { ITelegramItem } from '../../models/TelegramItem'; // Ensure TelegramItemDocument is not imported here
 import fs from 'fs'; // <-- Import fs for file deletion
 import path from 'path'; // <-- Import path for constructing file paths
-import { processAndCreateBookmark } from './bookmarksController'; // Import the new function
 import { ObjectId } from 'mongodb';
 import { AuthenticatedRequest } from '../../types/express';
 import { getBucket } from '../../config/gridfs';
+import { processUrlsForBookmarks } from '../../utils/bookmarkUtils';
 // Assuming you have a way to get authenticated user ID from request, e.g., from a JWT middleware
 // For now, we'll assume req.user.id exists after authentication middleware.
 
@@ -20,49 +20,18 @@ export const processTelegramItemForBookmarks = async (telegramItem: ITelegramIte
     return; // No URLs to process
   }
 
-  const socialMediaPatterns = {
-    X: /https?:\/\/(twitter\.com|x\.com)\/.+\/status\/\d+/i,
-    LinkedIn: /https?:\/\/(?:www\.)?linkedin\.com\/(posts|feed\/update|pulse)\//i,
-    Reddit: /https?:\/\/(?:www\.)?reddit\.com\/r\//i,
-  };
-
   console.log('[processTelegramItemForBookmarks] Starting URL processing for TelegramItem ID:', telegramItem._id);
 
-  for (const url of telegramItem.urls) {
-    let platform: 'X' | 'LinkedIn' | 'Reddit' | 'Other' | null = null;
-    console.log(`[processTelegramItemForBookmarks] Evaluating URL: ${url}`);
-
-    if (socialMediaPatterns.X.test(url)) {
-      platform = 'X';
-    } else if (socialMediaPatterns.LinkedIn.test(url)) {
-      platform = 'LinkedIn';
-    } else if (socialMediaPatterns.Reddit.test(url)) {
-      platform = 'Reddit';
-    } else {
-      // It's a URL, but doesn't match a specific social media pattern
-      platform = 'Other';
-    }
-
-    console.log(`[processTelegramItemForBookmarks] Assigned Platform: ${platform} for URL: ${url}`);
-
-    if (platform) {
-      try {
-        console.log(`Found ${platform} link: ${url}. Creating bookmark...`);
-        // Ensure _id is treated as ObjectId before converting to string
-        const telegramMessageIdString = (telegramItem._id as ObjectId).toString();
-        
-        await processAndCreateBookmark(
-          telegramItem.synapseUserId.toString(), // Now checked for existence
-          url,
-          platform,
-          telegramMessageIdString
-        );
-      } catch (error) {
-        console.error(`Failed to create bookmark for ${url}:`, error);
-        // Decide on error handling: maybe log and continue, or mark item for retry
-      }
-    }
-  }
+  await processUrlsForBookmarks({
+    userId: telegramItem.synapseUserId.toString(),
+    urls: telegramItem.urls,
+    source: 'telegram',
+    sourceMessageId: (telegramItem._id as ObjectId).toString(),
+    logContext: {
+      telegramMessageId: telegramItem.telegramMessageId,
+      chatId: telegramItem.chatId,
+    },
+  });
 };
 
 export const getTelegramItems = async (req: AuthenticatedRequest, res: Response) => {

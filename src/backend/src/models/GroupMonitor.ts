@@ -12,6 +12,7 @@ export interface IGroupMonitor extends Document {
     confidenceThreshold: number;
     autoReply: boolean;
     replyMessage?: string;
+    captureSocialLinks?: boolean;
   };
   statistics: {
     totalMessages: number;
@@ -71,6 +72,10 @@ const GroupMonitorSchema: Schema<IGroupMonitor> = new Schema(
         max: 1.0
       },
       autoReply: {
+        type: Boolean,
+        default: false
+      },
+      captureSocialLinks: {
         type: Boolean,
         default: false
       },
