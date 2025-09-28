@@ -148,7 +148,11 @@ class TelegramBotManager extends EventEmitter {
         console.log(`[TelegramBotManager] Stopping bot for user: ${userId}`);
         
         // Stop polling
-        botInstance.bot.stopPolling();
+        try {
+          await botInstance.bot.stopPolling({ cancel: true });
+        } catch (stopError) {
+          console.warn(`[TelegramBotManager] Warning stopping polling for user ${userId}:`, (stopError as Error).message);
+        }
         botInstance.isActive = false;
         
         // Remove from maps
