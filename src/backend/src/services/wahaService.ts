@@ -2532,8 +2532,11 @@ class WAHAService extends EventEmitter {
             payload.groupId,
             payload.senderId,
             payload.senderName,
-            payload.imageUrl,
-            payload.caption
+            {
+              imageUrl: payload.imageUrl,
+              caption: payload.caption,
+              text: payload.caption,
+            }
           );
           processedDirectly = true;
           console.log('[WAHA Service] ? Message processed via internal group monitor service:', {
