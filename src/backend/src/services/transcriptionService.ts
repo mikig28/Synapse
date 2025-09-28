@@ -61,7 +61,8 @@ export const transcribeAudio = async (filePath: string): Promise<string> => {
       console.log(`[TranscriptionService]: Transcription successful with ${name}`);
       return result;
     } catch (error: any) {
-      console.error(`[TranscriptionService]: ${name} failed:`, error.message);
+      const detailedMessage = error?.response?.data || error?.message || error;
+      console.error(`[TranscriptionService]: ${name} failed:`, detailedMessage);
       lastError = error;
       
       // If this is a critical method (like OpenAI API) and it failed due to configuration,
@@ -102,7 +103,9 @@ const transcribeWithDedicatedService = async (filePath: string): Promise<string>
         ...formData.getHeaders(),
         ...(TRANSCRIPTION_API_KEY && { 'Authorization': `Bearer ${TRANSCRIPTION_API_KEY}` })
       },
-      timeout: 120000 // 2 minutes timeout
+      timeout: 120000, // 2 minutes timeout
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
     }
   );
   
@@ -147,6 +150,8 @@ const transcribeWithOpenAI = async (filePath: string): Promise<string> => {
             Authorization: `Bearer ${OPENAI_API_KEY}`,
           },
           timeout: 120000,
+          maxBodyLength: Infinity,
+          maxContentLength: Infinity,
         }
       );
 
