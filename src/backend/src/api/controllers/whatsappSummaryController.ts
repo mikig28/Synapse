@@ -1116,13 +1116,15 @@ export const generateDailySummary = async (req: Request, res: Response) => {
         label: timeWindow.label || `${date}`,
         type: 'custom'
       },
-      { 
-        ...options, 
+      {
+        ...options,
         timezone: validTimezone,
         // Auto-language selection with per-speaker attribution enabled by default
         targetLanguage: (options as any)?.targetLanguage || 'auto',
         speakerAttribution: (options as any)?.speakerAttribution ?? true,
-        maxSpeakerAttributions: (options as any)?.maxSpeakerAttributions ?? 5
+        maxSpeakerAttributions: (options as any)?.maxSpeakerAttributions ?? 5,
+        // Include raw messages by default for frontend transparency
+        includeRawMessages: (options as any)?.includeRawMessages ?? true
       }
         ),
         Math.min(30000, timeLeft()),
@@ -1141,7 +1143,12 @@ export const generateDailySummary = async (req: Request, res: Response) => {
           label: timeWindow.label || `${date}`,
           type: 'custom'
         },
-        { ...options, timezone: validTimezone }
+        {
+          ...options,
+          timezone: validTimezone,
+          // Include raw messages for fallback service too
+          includeRawMessages: (options as any)?.includeRawMessages ?? true
+        }
       );
     }
     

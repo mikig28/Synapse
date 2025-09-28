@@ -23,7 +23,8 @@ export class WhatsAppSummarizationService {
     // Defaults for new fields
     targetLanguage: 'auto',
     speakerAttribution: false,
-    maxSpeakerAttributions: 5
+    maxSpeakerAttributions: 5,
+    includeRawMessages: false
   };
 
   /**
@@ -64,7 +65,7 @@ export class WhatsAppSummarizationService {
     
     const processingTimeMs = Date.now() - startTime;
 
-    return {
+    const summary: GroupSummaryData = {
       groupId,
       groupName,
       timeRange: {
@@ -85,6 +86,13 @@ export class WhatsAppSummarizationService {
         participantsFound: messageGroups.length
       }
     };
+
+    // Include raw messages if requested
+    if (opts.includeRawMessages) {
+      summary.rawMessages = cleanMessages;
+    }
+
+    return summary;
   }
 
   /**

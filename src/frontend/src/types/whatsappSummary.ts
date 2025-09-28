@@ -102,6 +102,7 @@ export interface GroupSummaryData {
     participantsFound: number;
   };
   aiInsights?: AIInsights; // Optional AI-generated insights
+  rawMessages?: MessageData[]; // Optional raw messages for transparency
   generatedAt: Date;
 }
 
@@ -228,5 +229,12 @@ export interface SummaryDisplayData {
     events: string[];
     decisions: string[];
   };
+}
+
+// Props for the SummaryModal component
+export interface SummaryDisplayProps {
+  summary: GroupSummaryData;
+  onClose: () => void;
+  loading?: boolean;
 }
 

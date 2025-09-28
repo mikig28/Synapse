@@ -12,6 +12,7 @@ export interface SummaryGenerationOptions {
   targetLanguage?: string;
   speakerAttribution?: boolean;
   maxSpeakerAttributions?: number;
+  includeRawMessages?: boolean; // Include raw messages in response for transparency
 }
 
 export interface SummaryRequest {
@@ -103,7 +104,8 @@ export interface GroupSummaryData {
     messagesAnalyzed: number;
     participantsFound: number;
     aiInsights?: AIInsights; // Optional AI-generated insights
-};
+  };
+  rawMessages?: MessageData[]; // Optional raw messages for transparency
 }
 
 

@@ -21,6 +21,7 @@ import {
   Timer
 } from 'lucide-react';
 import { SummaryDisplayProps } from '@/types/whatsappSummary';
+import MessagesAccordion from './MessagesAccordion';
 
 const SummaryModal: React.FC<SummaryDisplayProps> = ({
   summary,
@@ -119,8 +120,23 @@ const SummaryModal: React.FC<SummaryDisplayProps> = ({
     content += `Videos: ${summary.messageTypes.video}\n`;
     content += `Audio: ${summary.messageTypes.audio}\n`;
     content += `Documents: ${summary.messageTypes.document}\n`;
-    content += `Other: ${summary.messageTypes.other}\n`;
-    
+    content += `Other: ${summary.messageTypes.other}\n\n`;
+
+    // Add raw messages if available
+    if (summary.rawMessages && summary.rawMessages.length > 0) {
+      content += `=== ORIGINAL MESSAGES ===\n`;
+      const sortedMessages = [...summary.rawMessages].sort((a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+
+      sortedMessages.forEach((message, i) => {
+        const timestamp = new Date(message.timestamp).toLocaleString();
+        const messageType = message.type !== 'text' ? ` [${message.type.toUpperCase()}]` : '';
+        content += `${i + 1}. [${timestamp}] ${message.senderName}${messageType}: ${message.message || `<${message.type} message>`}\n`;
+      });
+      content += '\n';
+    }
+
     return content;
   };
 
@@ -389,6 +405,15 @@ const SummaryModal: React.FC<SummaryDisplayProps> = ({
                       ))}
                     </div>
                   </div>
+                )}
+
+                {/* Raw Messages Accordion */}
+                {summary.rawMessages && summary.rawMessages.length > 0 && (
+                  <MessagesAccordion
+                    messages={summary.rawMessages}
+                    groupName={summary.groupName}
+                    timeRange={summary.timeRange}
+                  />
                 )}
               </div>
             </ScrollArea>
