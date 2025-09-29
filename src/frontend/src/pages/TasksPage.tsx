@@ -65,6 +65,7 @@ const TasksPage: React.FC = () => {
   const [taskForCalendar, setTaskForCalendar] = useState<Task | null>(null);
   const [sendingReminder, setSendingReminder] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [confirmDeleteTask, setConfirmDeleteTask] = useState<{ id: string; title: string } | null>(null);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -573,35 +574,14 @@ const TasksPage: React.FC = () => {
                     >
                       <Edit size={14} className="mr-1" /> Edit
                     </AnimatedButton>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <AnimatedButton 
-                          size="sm" 
-                          variant="outline"
-                          className="border-red-500/50 text-red-300 hover:bg-red-500/20 hover:border-red-500 glow-red-sm"
-                        >
-                          <Trash2 size={14} className="mr-1"/> Delete
-                        </AnimatedButton>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent className="glass bg-background/80 border-border/30">
-                        <AlertDialogHeader>
-                          <AlertDialogTitle className="text-foreground">Are you absolutely sure?</AlertDialogTitle>
-                          <AlertDialogDescription className="text-muted-foreground">
-                            This action cannot be undone. This will permanently delete the task
-                            "<strong>{task.title}</strong>".
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel className="hover:bg-muted/20">Cancel</AlertDialogCancel>
-                          <AlertDialogAction 
-                            onClick={() => handleDelete(task._id)} 
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          >
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    <AnimatedButton 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => setConfirmDeleteTask({ id: task._id, title: task.title })}
+                      className="border-red-500/50 text-red-300 hover:bg-red-500/20 hover:border-red-500 glow-red-sm"
+                    >
+                      <Trash2 size={14} className="mr-1"/> Delete
+                    </AnimatedButton>
                   </div>
                 </GlassCard>
               </motion.div>
@@ -632,6 +612,27 @@ const TasksPage: React.FC = () => {
             onEventAdded={handleEventAddedToCalendar}
           />
         )}
+        {/* Centralized Delete Confirmation Dialog to avoid orphaned overlays on mobile */}
+        <AlertDialog open={!!confirmDeleteTask} onOpenChange={(open: boolean) => { if (!open) setConfirmDeleteTask(null); }}>
+          <AlertDialogContent className="glass bg-background/80 border-border/30">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-foreground">Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogDescription className="text-muted-foreground">
+                This action cannot be undone. This will permanently delete the task
+                {confirmDeleteTask ? ` "${confirmDeleteTask.title}".` : '.'}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="hover:bg-muted/20">Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={() => { if (confirmDeleteTask) { setConfirmDeleteTask(null); handleDelete(confirmDeleteTask.id); } }} 
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </motion.div>
     </div>
   );
