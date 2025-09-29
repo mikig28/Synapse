@@ -2816,7 +2816,17 @@ class WAHAService extends EventEmitter {
       } else if (mediaType === 'document') {
         this.emit('document-message', baseMessageData);
       } else if (mediaType === 'voice') {
-      this.emit('voice-message', baseMessageData);
+        console.log('[WAHA Service] 🎙️ ===== VOICE MESSAGE DETECTED =====');
+        console.log('[WAHA Service] 🎙️ Emitting voice-message event with data:', {
+          messageId: baseMessageData.messageId,
+          chatId: baseMessageData.chatId,
+          hasLocalPath: !!baseMessageData.localPath,
+          localPath: baseMessageData.localPath,
+          fileSize: baseMessageData.fileSize,
+          downloadStatus: mediaInfoForDB.downloadStatus
+        });
+        this.emit('voice-message', baseMessageData);
+        console.log('[WAHA Service] 🎙️ ===== VOICE MESSAGE EVENT EMITTED =====');
       } else if (mediaType === 'video') {
         this.emit('video-message', baseMessageData);
       }
@@ -2891,18 +2901,31 @@ class WAHAService extends EventEmitter {
     if (eligibleMonitors.length === 0) {
       console.log('[WAHA Service] 🎙️ No monitors enabled for voice processing in this group', {
         groupId: targetChatId,
-        monitors: monitors.length
+        totalMonitors: monitors.length,
+        eligibleMonitors: 0
       });
       return;
     }
 
+    console.log('[WAHA Service] 🎙️ ===== STARTING VOICE TRANSCRIPTION =====');
+    console.log('[WAHA Service] 🎙️ File details:', {
+      localPath,
+      fileExists: fs.existsSync(localPath),
+      fileSize: fs.existsSync(localPath) ? fs.statSync(localPath).size : 0,
+      eligibleMonitors: eligibleMonitors.length
+    });
+
     let transcription = '';
     try {
+      console.log('[WAHA Service] 🎙️ Calling transcribeAudio service...');
       transcription = await transcribeAudio(localPath);
-      console.log('[WAHA Service] 🎙️ Voice transcription successful', {
+      console.log('[WAHA Service] 🎙️ ===== TRANSCRIPTION SUCCESSFUL =====');
+      console.log('[WAHA Service] 🎙️ Transcription result:', {
         messageId: messageData.messageId,
         groupId: targetChatId,
-        transcriptionPreview: transcription.substring(0, 120)
+        transcriptionLength: transcription.length,
+        transcriptionPreview: transcription.substring(0, 120),
+        fullTranscription: transcription
       });
     } catch (error: any) {
       console.error('[WAHA Service] 🎙️ Voice transcription failed', {
@@ -2927,13 +2950,23 @@ class WAHAService extends EventEmitter {
     const senderName = messageData.senderName || 'Unknown';
 
     try {
+      console.log('[WAHA Service] 🎙️ ===== ANALYZING TRANSCRIPTION =====');
+      console.log('[WAHA Service] 🎙️ Checking for location extraction...');
       const locationExtraction = await locationExtractionService.extractLocationFromText(transcription);
+      console.log('[WAHA Service] 🎙️ Location extraction result:', {
+        success: locationExtraction.success,
+        hasLocation: !!locationExtraction.location,
+        confidence: locationExtraction.confidence,
+        extractedText: locationExtraction.extractedText
+      });
 
       if (locationExtraction.success && locationExtraction.location) {
+        console.log('[WAHA Service] 🎙️ ===== LOCATION DETECTED =====');
         const locationData = locationExtraction.location;
         const locationName = locationData.name || locationData.address || 'מיקום לא ידוע';
         const confidence = locationExtraction.confidence;
 
+        console.log('[WAHA Service] 🎙️ Creating location notes for monitors...');
         for (const monitor of eligibleMonitors) {
           try {
             const note = await Note.create({
@@ -2943,6 +2976,12 @@ class WAHAService extends EventEmitter {
               location: locationData,
               source: 'whatsapp_voice_location',
               rawTranscription: transcription,
+            });
+
+            console.log('[WAHA Service] 🎙️ ✅ Location note created:', {
+              noteId: note._id,
+              userId: monitor.userId.toString(),
+              locationName
             });
 
             if (io) {
@@ -2965,8 +3004,10 @@ class WAHAService extends EventEmitter {
           ? `📍 מיקום נוסף למפה!\n\n🏷️ שם: ${locationName}\n📍 כתובת: ${locationData.address || 'לא זמין'}\n🎤 הודעה: "${transcription}"\n🎯 דיוק: ${confidence}\n\n✅ המיקום נשמר בהצלחה ויופיע במפה שלך.`
           : `📍 Location added to the map!\n\n🏷️ Name: ${locationName}\n📍 Address: ${locationData.address || 'Not available'}\n🎤 Voice: "${transcription}"\n🎯 Confidence: ${confidence}\n\n✅ Location saved successfully and will appear on your map.`;
 
+        console.log('[WAHA Service] 🎙️ Sending location confirmation to WhatsApp group...');
         try {
           await this.sendMessage(targetChatId, locationMessage);
+          console.log('[WAHA Service] 🎙️ ✅ Location confirmation sent successfully');
         } catch (sendError) {
           console.error('[WAHA Service] 🎙️ Failed to send location confirmation to chat', {
             chatId: targetChatId,
@@ -2992,14 +3033,25 @@ class WAHAService extends EventEmitter {
         }
       }
 
+      console.log('[WAHA Service] 🎙️ Analyzing transcription for tasks/notes/ideas...');
       const { tasks = [], notes = [], ideas = [] } = await analyzeTranscription(transcription);
+      console.log('[WAHA Service] 🎙️ Analysis complete:', {
+        tasksFound: tasks.length,
+        notesFound: notes.length,
+        ideasFound: ideas.length,
+        tasks: tasks,
+        notes: notes,
+        ideas: ideas
+      });
 
       if (tasks.length === 0 && notes.length === 0 && ideas.length === 0) {
+        console.log('[WAHA Service] 🎙️ No tasks/notes/ideas detected, sending neutral message');
         const neutralMessage = isHebrew
           ? 'נותח תמלול אך לא זוהו משימות, הערות או רעיונות ספציפיים.'
           : 'Transcription analyzed but no specific tasks, notes, or ideas were identified.';
         try {
           await this.sendMessage(targetChatId, neutralMessage);
+          console.log('[WAHA Service] 🎙️ ✅ Neutral message sent');
         } catch (sendError) {
           console.warn('[WAHA Service] 🎙️ Failed to send neutral voice memo summary', {
             chatId: targetChatId,
@@ -3007,17 +3059,24 @@ class WAHAService extends EventEmitter {
           });
         }
       } else {
+        console.log('[WAHA Service] 🎙️ ===== CREATING ITEMS =====');
         for (const monitor of eligibleMonitors) {
           const userId = monitor.userId;
+          console.log('[WAHA Service] 🎙️ Processing items for user:', userId.toString());
 
           if (tasks.length > 0) {
+            console.log('[WAHA Service] 🎙️ Creating tasks...');
             for (const taskTitle of tasks) {
               try {
-                await Task.create({
+                const task = await Task.create({
                   userId,
                   title: taskTitle,
                   source: 'whatsapp_voice_memo',
                   rawTranscription: transcription,
+                });
+                console.log('[WAHA Service] 🎙️ ✅ Task created:', {
+                  taskId: task._id,
+                  title: taskTitle
                 });
               } catch (taskError) {
                 console.error('[WAHA Service] 🎙️ Failed to create task from voice memo', {
@@ -3032,13 +3091,18 @@ class WAHAService extends EventEmitter {
           }
 
           if (notes.length > 0) {
+            console.log('[WAHA Service] 🎙️ Creating notes...');
             for (const noteContent of notes) {
               try {
-                await Note.create({
+                const note = await Note.create({
                   userId,
                   content: noteContent,
                   source: 'whatsapp_voice_memo',
                   rawTranscription: transcription,
+                });
+                console.log('[WAHA Service] 🎙️ ✅ Note created:', {
+                  noteId: note._id,
+                  contentPreview: noteContent.substring(0, 50)
                 });
               } catch (noteError) {
                 console.error('[WAHA Service] 🎙️ Failed to create note from voice memo', {
@@ -3053,13 +3117,18 @@ class WAHAService extends EventEmitter {
           }
 
           if (ideas.length > 0) {
+            console.log('[WAHA Service] 🎙️ Creating ideas...');
             for (const ideaContent of ideas) {
               try {
-                await Idea.create({
+                const idea = await Idea.create({
                   userId,
                   content: ideaContent,
                   source: 'whatsapp_voice_memo',
                   rawTranscription: transcription,
+                });
+                console.log('[WAHA Service] 🎙️ ✅ Idea created:', {
+                  ideaId: idea._id,
+                  contentPreview: ideaContent.substring(0, 50)
                 });
               } catch (ideaError) {
                 console.error('[WAHA Service] 🎙️ Failed to create idea from voice memo', {
@@ -3074,6 +3143,13 @@ class WAHAService extends EventEmitter {
           }
         }
 
+        console.log('[WAHA Service] 🎙️ ===== ITEMS CREATION COMPLETE =====');
+        console.log('[WAHA Service] 🎙️ Summary: Created', {
+          tasks: tasks.length,
+          notes: notes.length,
+          ideas: ideas.length
+        });
+
         let summaryMessage = isHebrew ? 'ההודעה נותחה:' : 'Voice memo processed:';
         if (tasks.length > 0) {
           summaryMessage += isHebrew ? `\n- נוספו ${tasks.length} משימות.` : `\n- Added ${tasks.length} tasks.`;
@@ -3085,8 +3161,11 @@ class WAHAService extends EventEmitter {
           summaryMessage += isHebrew ? `\n- נוספו ${ideas.length} רעיונות.` : `\n- Added ${ideas.length} ideas.`;
         }
 
+        console.log('[WAHA Service] 🎙️ Sending summary to WhatsApp group:', summaryMessage);
         try {
           await this.sendMessage(targetChatId, summaryMessage);
+          console.log('[WAHA Service] 🎙️ ✅ Summary message sent successfully');
+          console.log('[WAHA Service] 🎙️ ===== VOICE MEMO PROCESSING COMPLETE =====');
         } catch (sendError) {
           console.warn('[WAHA Service] 🎙️ Failed to send voice memo summary', {
             chatId: targetChatId,
