@@ -1789,11 +1789,13 @@ class WAHAService extends EventEmitter {
       }
       
       // WAHA 2025.9.1 API endpoint structure: /api/messages?session={session}&chatId={chatId}
+      // Request downloadMedia=true to get full message details including type and MIME
       let response = await this.httpClient.get('/api/messages', {
-        params: { 
+        params: {
           session: sessionName,
           chatId: chatId,
-          limit 
+          limit,
+          downloadMedia: 'false' // We'll download media separately for efficiency
         },
         timeout: 180000 // Increased to 3 minutes for Railway deployment
       });
@@ -3896,23 +3898,43 @@ class WAHAService extends EventEmitter {
                 isNewer: messageTimestamp > this.lastPolledTimestamp,
                 rawMessageType: message.type,
                 rawMimeType: message.mimeType,
+                rawIsMedia: message.isMedia,
                 rawMessageKeys: Object.keys(message)
               });
 
+              // If message has media but no type/mimeType, fetch full details
+              let fullMessage = message;
+              if ((message.isMedia || message.hasMedia) && (!message.type || !message.mimeType)) {
+                console.log('[WAHA Service] 🔍 Message has media but missing type/mimeType, fetching full details...');
+                try {
+                  const detailedMessage = await this.getMessage(message.id, true);
+                  if (detailedMessage) {
+                    fullMessage = { ...message, ...detailedMessage };
+                    console.log('[WAHA Service] ✅ Got full message details:', {
+                      type: fullMessage.type,
+                      mimeType: fullMessage.mimeType || (fullMessage.media && (fullMessage.media as any).mimetype),
+                      hasMedia: fullMessage.hasMedia
+                    });
+                  }
+                } catch (fetchError) {
+                  console.warn('[WAHA Service] ⚠️ Failed to fetch full message details:', (fetchError as Error).message);
+                }
+              }
+
               const messageData = {
-                id: message.id,
+                id: fullMessage.id,
                 chatId: chat.id,
-                from: message.from,
-                body: message.body,
+                from: fullMessage.from,
+                body: fullMessage.body,
                 timestamp: messageTimestamp,
                 isGroup: true,
-                isMedia: message.isMedia || false,
-                mediaUrl: (message.media && (message.media as any).url) || (message.isMedia ? message.body : undefined),
-                type: message.type,
-                mimeType: message.mimeType || (message.media && (message.media as any).mimetype),
-                hasMedia: message.hasMedia,
-                media: message.media,
-                contactName: message.contactName,
+                isMedia: fullMessage.isMedia || false,
+                mediaUrl: (fullMessage.media && (fullMessage.media as any).url) || (fullMessage.isMedia ? fullMessage.body : undefined),
+                type: fullMessage.type,
+                mimeType: fullMessage.mimeType || (fullMessage.media && (fullMessage.media as any).mimetype),
+                hasMedia: fullMessage.hasMedia,
+                media: fullMessage.media,
+                contactName: fullMessage.contactName,
                 groupName: chat.name
               };
 
