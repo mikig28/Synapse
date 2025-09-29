@@ -1,5 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import telegramBotService from '@/services/telegramBotService';
+import whatsappService from '@/services/whatsappService';
+import documentService from '@/services/documentService';
+import { agentService } from '@/services/agentService';
 
 export interface OnboardingStep {
   id: string;
@@ -54,24 +58,22 @@ export interface OnboardingProgress {
 export interface IntegrationStatus {
   whatsapp: {
     status: 'disconnected' | 'connecting' | 'connected' | 'error';
-    qrCode?: string;
-    error?: string;
-    messagesCount?: number;
+    lastSync?: string | null;
+    error?: string | null;
   };
   telegram: {
     status: 'disconnected' | 'connecting' | 'connected' | 'error';
-    chatId?: string;
-    error?: string;
-    messagesCount?: number;
+    botUsername?: string | null;
+    error?: string | null;
   };
   documents: {
     uploadedCount: number;
-    lastUpload?: Date;
+    lastUpload?: string | null;
   };
   agents: {
     createdCount: number;
     activeCount: number;
-    lastCreated?: Date;
+    lastCreated?: string | null;
   };
 }
 
@@ -80,32 +82,27 @@ export interface Achievement {
   title: string;
   description: string;
   icon: string;
-  unlockedAt?: Date;
+  unlockedAt?: string;
   category: 'integration' | 'content' | 'agent' | 'milestone';
 }
 
 interface OnboardingState {
-  // Core state
   isOnboarding: boolean;
+  isInitialized: boolean;
   currentStep: number;
   steps: OnboardingStep[];
   progress: OnboardingProgress;
-  
-  // User data
   userPreferences: UserPreferences;
   integrationStatus: IntegrationStatus;
   achievements: Achievement[];
-  
-  // UI state
   isLoading: boolean;
   error: string | null;
   showCelebration: boolean;
   celebrationMessage: string;
   showTips: boolean;
   currentTip?: string;
-  
-  // Actions
   startOnboarding: () => void;
+  initializeFromServer: () => Promise<void>;
   completeOnboarding: () => void;
   nextStep: () => void;
   prevStep: () => void;
@@ -113,433 +110,610 @@ interface OnboardingState {
   skipStep: () => void;
   completeStep: (stepId: string) => void;
   updateProgress: (progress: Partial<OnboardingProgress>) => void;
-  
-  // Preferences
   updateUserPreferences: (preferences: Partial<UserPreferences>) => void;
-  updateIntegrationStatus: (integration: keyof IntegrationStatus, status: any) => void;
-  
-  // Achievements
+  updateIntegrationStatus: (integration: keyof IntegrationStatus, status: Partial<IntegrationStatus[keyof IntegrationStatus]>) => void;
   unlockAchievement: (achievementId: string) => void;
   showAchievement: (message: string) => void;
   hideCelebration: () => void;
-  
-  // Tips
   showNextTip: () => void;
   hideTips: () => void;
-  
-  // Utility
   reset: () => void;
   setError: (error: string | null) => void;
   setLoading: (loading: boolean) => void;
 }
 
-const initialSteps: OnboardingStep[] = [
+const createDefaultSteps = (): OnboardingStep[] => ([
   {
     id: 'welcome',
     title: 'Welcome to Synapse',
-    description: 'Discover how Synapse transforms your knowledge management',
+    description: 'See how Synapse will organize your knowledge base in minutes.',
     completed: false,
     optional: true,
-    unlocked: true
+    unlocked: true,
   },
   {
     id: 'telegram-bot-setup',
     title: 'Set Up Telegram Bot',
-    description: 'Create your personal Telegram bot for notifications and interactions',
+    description: 'Connect your personal Telegram bot for updates and quick capture.',
     completed: false,
     optional: false,
-    unlocked: false
+    unlocked: false,
   },
   {
     id: 'connect-data',
     title: 'Connect Your First Data Source',
-    description: 'Link WhatsApp, Telegram, or upload documents to get started',
+    description: 'Bring in WhatsApp chats, Telegram channels, or documents.',
     completed: false,
     optional: false,
-    unlocked: false
+    unlocked: false,
   },
   {
     id: 'create-agent',
     title: 'Create Your AI Agent',
-    description: 'Set up your first AI agent to analyze and organize content',
+    description: 'Spin up your first automation to keep everything organized.',
     completed: false,
     optional: false,
-    unlocked: false
+    unlocked: false,
   },
   {
     id: 'explore-search',
     title: 'Discover Search',
-    description: 'Learn how to find information across all your content',
+    description: 'Learn how to query across all connected knowledge instantly.',
     completed: false,
     optional: false,
-    unlocked: false
+    unlocked: false,
   },
   {
     id: 'organize-content',
     title: 'Organize Your Knowledge',
-    description: 'Create notes, tasks, and organize your content',
+    description: 'Create notes, tasks, and spaces to keep work in context.',
     completed: false,
     optional: true,
-    unlocked: false
+    unlocked: false,
   },
   {
     id: 'customize-settings',
     title: 'Customize Your Experience',
-    description: 'Set up notifications and preferences',
+    description: 'Fine-tune notifications, summaries, and workspace preferences.',
     completed: false,
     optional: true,
-    unlocked: false
-  }
-];
+    unlocked: false,
+  },
+]);
 
-const initialPreferences: UserPreferences = {
+const createInitialPreferences = (): UserPreferences => ({
   notifications: {
     email: true,
     push: true,
     telegram: false,
-    whatsapp: false
+    whatsapp: false,
   },
   integrations: {
     whatsapp: {
       enabled: false,
       autoCapture: true,
-      keywords: ['פתק', 'note', 'important']
+      keywords: ['highlight', 'todo', 'important'],
     },
     telegram: {
       enabled: false,
-      chatLinked: false
+      chatLinked: false,
     },
     calendar: {
       enabled: false,
-      syncEnabled: false
-    }
+      syncEnabled: false,
+    },
   },
   aiAgents: {
     autoAnalysis: true,
-    scheduledReports: false
-  }
-};
+    scheduledReports: false,
+  },
+});
 
-const initialIntegrationStatus: IntegrationStatus = {
+const createInitialIntegrationStatus = (): IntegrationStatus => ({
   whatsapp: {
-    status: 'disconnected'
+    status: 'disconnected',
+    lastSync: null,
+    error: null,
   },
   telegram: {
-    status: 'disconnected'
+    status: 'disconnected',
+    botUsername: null,
+    error: null,
   },
   documents: {
-    uploadedCount: 0
+    uploadedCount: 0,
+    lastUpload: null,
   },
   agents: {
     createdCount: 0,
-    activeCount: 0
-  }
-};
+    activeCount: 0,
+    lastCreated: null,
+  },
+});
 
-const defaultAchievements: Achievement[] = [
+const createDefaultAchievements = (): Achievement[] => ([
   {
     id: 'first-connection',
     title: 'First Connection',
-    description: 'Connected your first data source',
-    icon: '🔗',
-    category: 'integration'
+    description: 'Connected your first data source.',
+    icon: 'spark',
+    category: 'integration',
   },
   {
     id: 'agent-creator',
     title: 'Agent Creator',
-    description: 'Created your first AI agent',
-    icon: '🤖',
-    category: 'agent'
+    description: 'Created your first AI automation.',
+    icon: 'robot',
+    category: 'agent',
   },
   {
     id: 'search-explorer',
     title: 'Search Explorer',
-    description: 'Performed your first search',
-    icon: '🔍',
-    category: 'milestone'
+    description: 'Ran your first intelligent search.',
+    icon: 'search',
+    category: 'milestone',
   },
   {
     id: 'content-organizer',
     title: 'Content Organizer',
-    description: 'Created your first note or task',
-    icon: '📝',
-    category: 'content'
+    description: 'Captured or organized knowledge inside Synapse.',
+    icon: 'notebook',
+    category: 'content',
   },
   {
     id: 'onboarding-complete',
     title: 'Onboarding Champion',
-    description: 'Completed the full onboarding journey',
-    icon: '🎉',
-    category: 'milestone'
+    description: 'Completed the onboarding journey.',
+    icon: 'trophy',
+    category: 'milestone',
+  },
+]);
+
+const createInitialProgress = (totalSteps: number): OnboardingProgress => ({
+  currentStep: 0,
+  totalSteps,
+  completedSteps: [],
+  skippedSteps: [],
+  timeSpent: 0,
+});
+
+const deriveCompletedSteps = (steps: OnboardingStep[]): string[] =>
+  steps.filter((step) => step.completed).map((step) => step.id);
+
+const normalizeStepUnlocks = (steps: OnboardingStep[]): OnboardingStep[] => {
+  let prerequisitesMet = true;
+
+  return steps.map((step, index) => {
+    const unlocked = index === 0 ? true : prerequisitesMet;
+
+    if (!step.optional && !step.completed) {
+      prerequisitesMet = false;
+    }
+
+    return {
+      ...step,
+      unlocked,
+    };
+  });
+};
+
+const findNextUnlockedIndex = (
+  steps: OnboardingStep[],
+  fromIndex: number,
+  direction: 1 | -1,
+): number => {
+  if (steps.length === 0) {
+    return 0;
   }
-];
+
+  let index = fromIndex;
+  while (true) {
+    index += direction;
+    if (index < 0 || index >= steps.length) {
+      return fromIndex;
+    }
+    if (steps[index].unlocked) {
+      return index;
+    }
+  }
+};
+
+const determineCurrentStep = (steps: OnboardingStep[], fallback = 0): number => {
+  const firstAvailable = steps.findIndex((step) => step.unlocked && !step.completed);
+  if (firstAvailable >= 0) {
+    return firstAvailable;
+  }
+  return steps.length > 0 ? steps.length - 1 : fallback;
+};
+
+const unique = (list: string[]): string[] => Array.from(new Set(list));
 
 export const useOnboardingStore = create<OnboardingState>()(
   persist(
     (set, get) => ({
-      // Initial state
       isOnboarding: false,
+      isInitialized: false,
       currentStep: 0,
-      steps: initialSteps,
-      progress: {
-        currentStep: 0,
-        totalSteps: initialSteps.length,
-        completedSteps: [],
-        skippedSteps: [],
-        timeSpent: 0
-      },
-      userPreferences: initialPreferences,
-      integrationStatus: initialIntegrationStatus,
-      achievements: defaultAchievements,
+      steps: createDefaultSteps(),
+      progress: createInitialProgress(createDefaultSteps().length),
+      userPreferences: createInitialPreferences(),
+      integrationStatus: createInitialIntegrationStatus(),
+      achievements: createDefaultAchievements(),
       isLoading: false,
       error: null,
       showCelebration: false,
       celebrationMessage: '',
       showTips: true,
-      
-      // Core actions
+      currentTip: undefined,
+
       startOnboarding: () => {
+        const steps = normalizeStepUnlocks(createDefaultSteps());
+        const progress = createInitialProgress(steps.length);
+
         set({
           isOnboarding: true,
-          currentStep: 0,
-          progress: {
-            ...get().progress,
-            startTime: new Date(),
-            currentStep: 0
-          }
+          isInitialized: false,
+          steps,
+          progress,
+          currentStep: determineCurrentStep(steps),
+          error: null,
         });
       },
-      
+
+      initializeFromServer: async () => {
+        const state = get();
+        if (state.isLoading) {
+          return;
+        }
+
+        set({ isLoading: true, error: null });
+
+        const [botStatusResult, whatsappStatusResult, documentsResult, agentsResult] = await Promise.allSettled([
+          telegramBotService.getBotStatus(),
+          whatsappService.getConnectionStatus(),
+          documentService.getDocuments({ page: 1, limit: 1 }),
+          agentService.getAgents(),
+        ]);
+
+        const nextIntegrationStatus = createInitialIntegrationStatus();
+        const updatedSteps = normalizeStepUnlocks([...get().steps]);
+        const errors: string[] = [];
+
+        // Telegram status
+        if (botStatusResult.status === 'fulfilled') {
+          const botStatus = botStatusResult.value;
+          if (botStatus) {
+            const isConnected = botStatus.hasBot && botStatus.isActive;
+            nextIntegrationStatus.telegram = {
+              status: isConnected ? 'connected' : botStatus.hasBot ? 'connecting' : 'disconnected',
+              botUsername: botStatus.botUsername || null,
+              error: null,
+            };
+
+            if (isConnected) {
+              const stepIndex = updatedSteps.findIndex((step) => step.id === 'telegram-bot-setup');
+              if (stepIndex >= 0) {
+                updatedSteps[stepIndex] = {
+                  ...updatedSteps[stepIndex],
+                  completed: true,
+                };
+              }
+            }
+          }
+        } else {
+          const statusCode = (botStatusResult.reason as any)?.response?.status;
+          if (statusCode && statusCode !== 404) {
+            errors.push('Unable to verify Telegram connection.');
+          }
+        }
+
+        // WhatsApp status
+        if (whatsappStatusResult.status === 'fulfilled') {
+          const waStatus = whatsappStatusResult.value;
+          if (waStatus) {
+            nextIntegrationStatus.whatsapp = {
+              status: waStatus.connected ? 'connected' : 'disconnected',
+              lastSync: waStatus.lastHeartbeat ? new Date(waStatus.lastHeartbeat).toISOString() : null,
+              error: null,
+            };
+          }
+        } else {
+          const statusCode = (whatsappStatusResult.reason as any)?.response?.status;
+          if (statusCode && statusCode !== 404) {
+            errors.push('Unable to load WhatsApp status.');
+          }
+        }
+
+        // Documents
+        if (documentsResult.status === 'fulfilled') {
+          const { documents, pagination } = documentsResult.value;
+          const totalDocuments = pagination?.total ?? documents?.length ?? 0;
+          nextIntegrationStatus.documents = {
+            uploadedCount: totalDocuments,
+            lastUpload: documents && documents.length > 0 ? documents[0].createdAt ?? null : null,
+          };
+
+          if (totalDocuments > 0) {
+            const stepIndex = updatedSteps.findIndex((step) => step.id === 'connect-data');
+            if (stepIndex >= 0) {
+              updatedSteps[stepIndex] = {
+                ...updatedSteps[stepIndex],
+                completed: true,
+              };
+            }
+          }
+        } else {
+          const statusCode = (documentsResult.reason as any)?.response?.status;
+          if (statusCode && statusCode !== 404) {
+            errors.push('Unable to retrieve documents.');
+          }
+        }
+
+        // Agents
+        if (agentsResult.status === 'fulfilled') {
+          const agents = agentsResult.value || [];
+          nextIntegrationStatus.agents = {
+            createdCount: agents.length,
+            activeCount: agents.filter((agent) => agent.isActive).length,
+            lastCreated: agents.length > 0 ? agents[0].createdAt : null,
+          };
+
+          if (agents.length > 0) {
+            const stepIndex = updatedSteps.findIndex((step) => step.id === 'create-agent');
+            if (stepIndex >= 0) {
+              updatedSteps[stepIndex] = {
+                ...updatedSteps[stepIndex],
+                completed: true,
+              };
+            }
+          }
+        } else {
+          const statusCode = (agentsResult.reason as any)?.response?.status;
+          if (statusCode && statusCode !== 404) {
+            errors.push('Unable to load agent information.');
+          }
+        }
+
+        const normalizedSteps = normalizeStepUnlocks(updatedSteps);
+        const completedSteps = deriveCompletedSteps(normalizedSteps);
+        const currentStep = determineCurrentStep(normalizedSteps, get().currentStep);
+
+        set({
+          integrationStatus: nextIntegrationStatus,
+          steps: normalizedSteps,
+          progress: {
+            ...get().progress,
+            totalSteps: normalizedSteps.length,
+            completedSteps,
+            currentStep,
+          },
+          currentStep,
+          isInitialized: true,
+          isLoading: false,
+          error: errors.length > 0 ? errors.join(' ') : null,
+        });
+      },
+
       completeOnboarding: () => {
         const state = get();
+        const completionTime = new Date();
+
         set({
           isOnboarding: false,
           progress: {
             ...state.progress,
-            completedTime: new Date()
+            completedTime: completionTime,
           },
           showCelebration: true,
-          celebrationMessage: '🎉 Welcome to Synapse! You\'re all set up and ready to explore.'
+          celebrationMessage: 'You are all set. Explore Synapse and start capturing knowledge.',
         });
-        
-        // Unlock achievement
+
         get().unlockAchievement('onboarding-complete');
       },
-      
+
       nextStep: () => {
         const state = get();
-        const nextStepIndex = Math.min(state.currentStep + 1, state.steps.length - 1);
-        
-        // Unlock next step
-        const updatedSteps = [...state.steps];
-        if (updatedSteps[nextStepIndex]) {
-          updatedSteps[nextStepIndex].unlocked = true;
+        const next = findNextUnlockedIndex(state.steps, state.currentStep, 1);
+        if (next !== state.currentStep) {
+          set({
+            currentStep: next,
+            progress: {
+              ...state.progress,
+              currentStep: next,
+            },
+          });
         }
-        
-        set({
-          currentStep: nextStepIndex,
-          steps: updatedSteps,
-          progress: {
-            ...state.progress,
-            currentStep: nextStepIndex
-          }
-        });
       },
-      
+
       prevStep: () => {
         const state = get();
-        const prevStepIndex = Math.max(state.currentStep - 1, 0);
-        set({
-          currentStep: prevStepIndex,
-          progress: {
-            ...state.progress,
-            currentStep: prevStepIndex
-          }
-        });
+        const previous = findNextUnlockedIndex(state.steps, state.currentStep, -1);
+        if (previous !== state.currentStep) {
+          set({
+            currentStep: previous,
+            progress: {
+              ...state.progress,
+              currentStep: previous,
+            },
+          });
+        }
       },
-      
+
       goToStep: (stepIndex: number) => {
         const state = get();
-        const validIndex = Math.max(0, Math.min(stepIndex, state.steps.length - 1));
+        const clampedIndex = Math.max(0, Math.min(stepIndex, state.steps.length - 1));
+        if (!state.steps[clampedIndex]?.unlocked) {
+          return;
+        }
         set({
-          currentStep: validIndex,
+          currentStep: clampedIndex,
           progress: {
             ...state.progress,
-            currentStep: validIndex
-          }
+            currentStep: clampedIndex,
+          },
         });
       },
-      
+
       skipStep: () => {
         const state = get();
         const currentStepId = state.steps[state.currentStep]?.id;
-        
-        if (currentStepId) {
-          set({
-            progress: {
-              ...state.progress,
-              skippedSteps: [...state.progress.skippedSteps, currentStepId]
-            }
-          });
+        if (!currentStepId) {
+          return;
         }
-        
+
+        set({
+          progress: {
+            ...state.progress,
+            skippedSteps: unique([...state.progress.skippedSteps, currentStepId]),
+          },
+        });
+
         get().nextStep();
       },
-      
+
       completeStep: (stepId: string) => {
         const state = get();
-        const stepIndex = state.steps.findIndex(step => step.id === stepId);
-        
-        if (stepIndex >= 0) {
-          const updatedSteps = [...state.steps];
-          updatedSteps[stepIndex].completed = true;
-          
-          set({
-            steps: updatedSteps,
-            progress: {
-              ...state.progress,
-              completedSteps: [...state.progress.completedSteps, stepId]
-            }
-          });
-          
-          // Note: Removed auto-advance behavior - users now manually control progression
-        }
+        const updatedSteps = state.steps.map((step) =>
+          step.id === stepId
+            ? {
+                ...step,
+                completed: true,
+              }
+            : step,
+        );
+
+        const normalizedSteps = normalizeStepUnlocks(updatedSteps);
+        const completedSteps = deriveCompletedSteps(normalizedSteps);
+
+        set({
+          steps: normalizedSteps,
+          progress: {
+            ...state.progress,
+            completedSteps: unique([...state.progress.completedSteps, ...completedSteps]),
+          },
+        });
       },
-      
-      updateProgress: (progress: Partial<OnboardingProgress>) => {
+
+      updateProgress: (progress) => {
         const state = get();
         set({
           progress: {
             ...state.progress,
-            ...progress
-          }
+            ...progress,
+          },
         });
       },
-      
-      // Preferences
-      updateUserPreferences: (preferences: Partial<UserPreferences>) => {
+
+      updateUserPreferences: (preferences) => {
         const state = get();
         set({
           userPreferences: {
             ...state.userPreferences,
-            ...preferences
-          }
+            ...preferences,
+          },
         });
       },
-      
-      updateIntegrationStatus: (integration: keyof IntegrationStatus, status: any) => {
+
+      updateIntegrationStatus: (integration, status) => {
         const state = get();
         set({
           integrationStatus: {
             ...state.integrationStatus,
             [integration]: {
               ...state.integrationStatus[integration],
-              ...status
-            }
-          }
+              ...status,
+            },
+          },
         });
-        
-        // Check for achievements
-        if (integration === 'whatsapp' && status.status === 'connected') {
-          get().unlockAchievement('first-connection');
-        }
-        if (integration === 'telegram' && status.status === 'connected') {
-          get().unlockAchievement('first-connection');
-        }
-        if (integration === 'agents' && status.createdCount > 0) {
-          get().unlockAchievement('agent-creator');
-        }
       },
-      
-      // Achievements
-      unlockAchievement: (achievementId: string) => {
+
+      unlockAchievement: (achievementId) => {
         const state = get();
-        const updatedAchievements = state.achievements.map(achievement =>
-          achievement.id === achievementId
-            ? { ...achievement, unlockedAt: new Date() }
-            : achievement
-        );
-        
-        const achievement = updatedAchievements.find(a => a.id === achievementId);
-        if (achievement && !achievement.unlockedAt) {
-          set({
-            achievements: updatedAchievements,
-            showCelebration: true,
-            celebrationMessage: `🏆 Achievement Unlocked: ${achievement.title}!`
-          });
+        const alreadyUnlocked = state.achievements.find((achievement) => achievement.id === achievementId)?.unlockedAt;
+        if (alreadyUnlocked) {
+          return;
         }
+
+        const updatedAchievements = state.achievements.map((achievement) =>
+          achievement.id === achievementId
+            ? {
+                ...achievement,
+                unlockedAt: new Date().toISOString(),
+              }
+            : achievement,
+        );
+
+        const unlocked = updatedAchievements.find((achievement) => achievement.id === achievementId);
+        set({
+          achievements: updatedAchievements,
+          showCelebration: true,
+          celebrationMessage: unlocked ? `${unlocked.title} unlocked. Nice work!` : 'Great progress!',
+        });
       },
-      
+
       showAchievement: (message: string) => {
         set({
           showCelebration: true,
-          celebrationMessage: message
+          celebrationMessage: message,
         });
       },
-      
+
       hideCelebration: () => {
         set({
           showCelebration: false,
-          celebrationMessage: ''
+          celebrationMessage: '',
         });
       },
-      
-      // Tips
+
       showNextTip: () => {
         const tips = [
-          "💡 Pro tip: Use the search to find content across all your connected sources",
-          "🤖 AI agents can automatically categorize and analyze your content",
-          "📝 Create notes to capture ideas and link them to relevant content",
-          "📅 Connect your calendar to get AI-powered meeting insights",
-          "⚡ Keyboard shortcuts: Ctrl+K to open search, Ctrl+N for new note"
+          'Press Ctrl+K to open global search from anywhere.',
+          'Invite Synapse to your workflows by forwarding important messages.',
+          'Create focused spaces to keep related documents, chats, and tasks together.',
+          'Automate weekly summaries with a dedicated agent.',
+          'Connect your calendar to capture meeting notes automatically.',
         ];
-        
         const randomTip = tips[Math.floor(Math.random() * tips.length)];
         set({
           currentTip: randomTip,
-          showTips: true
+          showTips: true,
         });
       },
-      
+
       hideTips: () => {
         set({
           showTips: false,
-          currentTip: undefined
+          currentTip: undefined,
         });
       },
-      
-      // Utility
+
       reset: () => {
+        const steps = normalizeStepUnlocks(createDefaultSteps());
         set({
           isOnboarding: false,
+          isInitialized: false,
           currentStep: 0,
-          steps: initialSteps,
-          progress: {
-            currentStep: 0,
-            totalSteps: initialSteps.length,
-            completedSteps: [],
-            skippedSteps: [],
-            timeSpent: 0
-          },
-          userPreferences: initialPreferences,
-          integrationStatus: initialIntegrationStatus,
-          achievements: defaultAchievements,
+          steps,
+          progress: createInitialProgress(steps.length),
+          userPreferences: createInitialPreferences(),
+          integrationStatus: createInitialIntegrationStatus(),
+          achievements: createDefaultAchievements(),
           isLoading: false,
           error: null,
           showCelebration: false,
           celebrationMessage: '',
           showTips: true,
-          currentTip: undefined
+          currentTip: undefined,
         });
       },
-      
-      setError: (error: string | null) => {
+
+      setError: (error) => {
         set({ error, isLoading: false });
       },
-      
-      setLoading: (loading: boolean) => {
+
+      setLoading: (loading) => {
         set({ isLoading: loading });
-      }
+      },
     }),
     {
       name: 'synapse-onboarding',
@@ -550,8 +724,10 @@ export const useOnboardingStore = create<OnboardingState>()(
         achievements: state.achievements,
         isOnboarding: state.isOnboarding,
         currentStep: state.currentStep,
-        steps: state.steps
-      })
-    }
-  )
+        steps: state.steps,
+      }),
+    },
+  ),
 );
+
+

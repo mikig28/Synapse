@@ -1,4 +1,4 @@
-import { Response } from 'express';
+﻿import { Response } from 'express';
 import User, { IUser } from '../../models/User';
 import { AuthenticatedRequest } from '../../types/express';
 import { telegramBotManager } from '../../services/telegramBotManager';
@@ -87,9 +87,30 @@ export const updateTelegramReportSettings = async (req: AuthenticatedRequest, re
   }
 };
 
-// You can add other user-specific controller functions here later
-// e.g., getMe, updateProfile, removeMonitoredTelegramChat, etc. 
+// You can add other user-specific controller functions here later\n// e.g., getMe, updateProfile, removeMonitoredTelegramChat, etc.\n\n// @desc    Get user's Telegram report settings
+// @route   GET /api/v1/users/me/telegram-report-settings
+// @access  Private
+export const getTelegramReportSettings = async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user?.id;
 
+  if (!userId) {
+    return res.status(401).json({ message: 'Not authorized, user ID not found' });
+  }
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(200).json({
+      sendAgentReportsToTelegram: !!user.sendAgentReportsToTelegram,
+    });
+  } catch (error: any) {
+    console.error('[GET_TELEGRAM_REPORT_SETTINGS_ERROR]', error);
+    res.status(500).json({ message: 'Server error while retrieving settings' });
+  }
+};
 // @desc    Set user's Telegram bot token
 // @route   POST /api/v1/users/me/telegram-bot
 // @access  Private
@@ -380,3 +401,5 @@ export const testTelegramBotConnectivity = async (req: AuthenticatedRequest, res
     });
   }
 };
+
+

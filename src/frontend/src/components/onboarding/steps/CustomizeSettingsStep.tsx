@@ -1,250 +1,163 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useState } from 'react';
+import { Loader2, Settings2, CheckCircle2, ArrowRight } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import { useOnboardingStore } from '@/store/onboardingStore';
+import telegramBotService from '@/services/telegramBotService';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Settings, 
-  Bell, 
-  Mail, 
-  Smartphone, 
-  Bot,
-  CheckCircle,
-  Sparkles
-} from 'lucide-react';
 
 export const CustomizeSettingsStep: React.FC = () => {
-  const { 
-    userPreferences, 
-    updateUserPreferences, 
-    completeStep, 
-    showAchievement 
+  const { toast } = useToast();
+  const {
+    userPreferences,
+    updateUserPreferences,
+    completeStep,
+    showAchievement,
+    skipStep,
   } = useOnboardingStore();
 
-  const [hasCustomized, setHasCustomized] = useState(false);
+  const [reportEnabled, setReportEnabled] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasConfigured, setHasConfigured] = useState(false);
 
-  const handlePreferenceChange = (category: string, key: string, value: any) => {
-    const updatedPreferences = {
-      ...userPreferences,
-      [category]: {
-        ...userPreferences[category as keyof typeof userPreferences],
-        [key]: value
+  useEffect(() => {
+    const loadReportSettings = async () => {
+      try {
+        const response = await telegramBotService.getReportSettings();
+        setReportEnabled(response.sendAgentReportsToTelegram);
+      } catch (error) {
+        console.warn('Unable to load report settings', error);
+      } finally {
+        setIsLoading(false);
       }
     };
-    
-    updateUserPreferences(updatedPreferences);
-    
-    if (!hasCustomized) {
-      setHasCustomized(true);
-      showAchievement('⚙️ Settings customized!');
-      setTimeout(() => completeStep('customize-settings'), 1000);
+
+    loadReportSettings();
+  }, []);
+
+  const toggleNotification = (key: keyof typeof userPreferences.notifications) => (value: boolean) => {
+    updateUserPreferences({
+      notifications: {
+        ...userPreferences.notifications,
+        [key]: value,
+      },
+    });
+    setHasConfigured(true);
+  };
+
+  const handleReportToggle = async (value: boolean) => {
+    setIsSaving(true);
+    try {
+      await telegramBotService.updateReportSettings(value);
+      setReportEnabled(value);
+      toast({ title: 'Telegram reports updated', description: value ? 'We will send agent summaries to your bot.' : 'Telegram reports disabled.' });
+      setHasConfigured(true);
+    } catch (error: any) {
+      const message = error?.response?.data?.message || error?.message || 'Unable to update report settings.';
+      toast({ variant: 'destructive', title: 'Update failed', description: message });
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const notificationSettings = [
-    {
-      key: 'email',
-      label: 'Email Notifications',
-      description: 'Receive important updates via email',
-      icon: <Mail className="w-4 h-4" />,
-      value: userPreferences.notifications.email
-    },
-    {
-      key: 'push',
-      label: 'Push Notifications',
-      description: 'Get instant notifications in your browser',
-      icon: <Bell className="w-4 h-4" />,
-      value: userPreferences.notifications.push
-    },
-    {
-      key: 'telegram',
-      label: 'Telegram Alerts',
-      description: 'Receive alerts through Telegram bot',
-      icon: <Smartphone className="w-4 h-4" />,
-      value: userPreferences.notifications.telegram
+  useEffect(() => {
+    if (hasConfigured) {
+      completeStep('customize-settings');
+      showAchievement('Notifications configured. Synapse will reach you the way you prefer.');
     }
-  ];
-
-  const aiSettings = [
-    {
-      key: 'autoAnalysis',
-      label: 'Auto Analysis',
-      description: 'Automatically analyze new content',
-      icon: <Bot className="w-4 h-4" />,
-      value: userPreferences.aiAgents.autoAnalysis
-    },
-    {
-      key: 'scheduledReports',
-      label: 'Scheduled Reports',
-      description: 'Generate weekly insight reports',
-      icon: <Sparkles className="w-4 h-4" />,
-      value: userPreferences.aiAgents.scheduledReports
-    }
-  ];
+  }, [completeStep, hasConfigured, showAchievement]);
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <motion.div 
-        className="text-center space-y-4"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-      >
-        <div className="text-6xl mb-4">⚙️</div>
-        <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-          Customize Your Experience
-        </h1>
-        <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-          Adjust your preferences to make Synapse work exactly how you want it to.
-        </p>
-      </motion.div>
-
-      {/* Success Indicator */}
-      {hasCustomized && (
-        <motion.div
-          className="flex items-center justify-center"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-        >
-          <Badge className="bg-green-500/20 text-green-300 px-4 py-2">
-            <CheckCircle className="w-4 h-4 mr-2" />
-            Preferences saved!
-          </Badge>
-        </motion.div>
-      )}
-
-      <div className="grid lg:grid-cols-2 gap-8 max-w-4xl mx-auto">
-        {/* Notification Settings */}
-        <motion.div
-          initial={{ opacity: 0, x: -30 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-        >
-          <GlassCard className="p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-blue-500/20 rounded-lg">
-                <Bell className="w-5 h-5 text-blue-400" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground">Notifications</h3>
-                <p className="text-sm text-muted-foreground">
-                  Choose how you want to be notified
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              {notificationSettings.map((setting) => (
-                <div key={setting.key} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="text-muted-foreground">
-                      {setting.icon}
-                    </div>
-                    <div>
-                      <Label className="font-medium text-foreground">
-                        {setting.label}
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        {setting.description}
-                      </p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={setting.value}
-                    onCheckedChange={(checked) => 
-                      handlePreferenceChange('notifications', setting.key, checked)
-                    }
-                  />
-                </div>
-              ))}
-            </div>
-          </GlassCard>
-        </motion.div>
-
-        {/* AI Agent Settings */}
-        <motion.div
-          initial={{ opacity: 0, x: 30 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-        >
-          <GlassCard className="p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-purple-500/20 rounded-lg">
-                <Bot className="w-5 h-5 text-purple-400" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground">AI Behavior</h3>
-                <p className="text-sm text-muted-foreground">
-                  Configure how your AI agents work
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              {aiSettings.map((setting) => (
-                <div key={setting.key} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="text-muted-foreground">
-                      {setting.icon}
-                    </div>
-                    <div>
-                      <Label className="font-medium text-foreground">
-                        {setting.label}
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        {setting.description}
-                      </p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={setting.value}
-                    onCheckedChange={(checked) => 
-                      handlePreferenceChange('aiAgents', setting.key, checked)
-                    }
-                  />
-                </div>
-              ))}
-            </div>
-          </GlassCard>
-        </motion.div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold text-foreground">Tune how Synapse talks to you</h2>
+          <p className="text-sm text-muted-foreground">
+            Pick the channels you want for alerts and automate Telegram summaries for your agents.
+          </p>
+        </div>
+        <Button variant="ghost" onClick={skipStep} className="text-muted-foreground hover:text-foreground">
+          Skip for now
+          <ArrowRight className="ml-2 h-4 w-4" />
+        </Button>
       </div>
 
-      {/* Quick Setup Info */}
-      <motion.div
-        className="text-center max-w-2xl mx-auto"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6 }}
-      >
-        <GlassCard className="p-6 bg-muted/30">
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <Settings className="w-5 h-5 text-primary" />
-            <span className="font-medium text-foreground">Settings Tip</span>
+      <GlassCard className="p-6 space-y-6">
+        <div className="flex items-start gap-3">
+          <div className="rounded-full bg-primary/10 p-3 text-primary">
+            <Settings2 className="h-5 w-5" />
           </div>
-          <p className="text-sm text-muted-foreground mb-4">
-            Don't worry about getting everything perfect now. You can always 
-            change these settings later from your dashboard.
-          </p>
-          <div className="flex flex-wrap justify-center gap-4 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <CheckCircle className="w-3 h-3 text-green-400" />
-              Easy to modify
+          <div className="space-y-5 flex-1">
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold text-foreground">Notification channels</h3>
+              <p className="text-sm text-muted-foreground">
+                Toggle the channels you want Synapse to use. You can refine this further in Settings later.
+              </p>
             </div>
-            <div className="flex items-center gap-1">
-              <CheckCircle className="w-3 h-3 text-green-400" />
-              Saved automatically
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/30 p-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Email alerts</p>
+                  <p className="text-xs text-muted-foreground">Receive weekly digests and critical notifications.</p>
+                </div>
+                <Switch
+                  checked={userPreferences.notifications.email}
+                  onCheckedChange={toggleNotification('email')}
+                />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/30 p-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Push notifications</p>
+                  <p className="text-xs text-muted-foreground">Ideal when you keep Synapse open in your browser.</p>
+                </div>
+                <Switch
+                  checked={userPreferences.notifications.push}
+                  onCheckedChange={toggleNotification('push')}
+                />
+              </div>
             </div>
-            <div className="flex items-center gap-1">
-              <CheckCircle className="w-3 h-3 text-green-400" />
-              Smart defaults
+
+            <div className="rounded-lg border border-border/60 bg-muted/30 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Telegram agent summaries</p>
+                  <p className="text-xs text-muted-foreground">
+                    Send a digest of agent output directly to your Telegram bot after each run.
+                  </p>
+                </div>
+                <Switch
+                  checked={reportEnabled}
+                  onCheckedChange={handleReportToggle}
+                  disabled={isLoading || isSaving}
+                />
+              </div>
+              {(isLoading || isSaving) && (
+                <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  {isLoading ? 'Loading current setting…' : 'Updating preferences…'}
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => window.open('/settings', '_blank')}>
+                Open full settings
+              </Button>
+              {hasConfigured && (
+                <span className="inline-flex items-center gap-2 text-xs text-emerald-600">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Preferences saved
+                </span>
+              )}
             </div>
           </div>
-        </GlassCard>
-      </motion.div>
+        </div>
+      </GlassCard>
     </div>
   );
 };
+
+

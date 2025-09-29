@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
+import { PartyPopper, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface CelebrationModalProps {
@@ -16,171 +16,104 @@ export const CelebrationModal: React.FC<CelebrationModalProps> = ({
   onClose,
   message,
   autoClose = true,
-  autoCloseDelay = 3000
+  autoCloseDelay = 3000,
 }) => {
-  
   useEffect(() => {
     if (isOpen && autoClose) {
-      const timer = setTimeout(() => {
-        onClose();
-      }, autoCloseDelay);
-
+      const timer = setTimeout(onClose, autoCloseDelay);
       return () => clearTimeout(timer);
     }
   }, [isOpen, autoClose, autoCloseDelay, onClose]);
 
-  // Confetti animation
-  const confettiPieces = Array.from({ length: 50 }, (_, i) => ({
-    id: i,
-    color: ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6'][i % 5],
-    delay: Math.random() * 2,
-    duration: 3 + Math.random() * 2,
-    x: Math.random() * 100,
-    rotation: Math.random() * 360
+  const confettiPieces = Array.from({ length: 45 }, (_, index) => ({
+    id: index,
+    color: ['#6366F1', '#10B981', '#F59E0B', '#EC4899', '#0EA5E9'][index % 5],
+    delay: Math.random() * 1.8,
+    distance: 280 + Math.random() * 80,
   }));
 
   return (
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
           <motion.div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
           />
 
-          {/* Modal */}
           <motion.div
-            className="fixed inset-0 flex items-center justify-center z-50 p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
           >
             <motion.div
-              className="bg-card border border-border rounded-2xl p-8 max-w-md w-full relative overflow-hidden"
-              initial={{ scale: 0.8, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.8, y: 20 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="relative w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-8 shadow-2xl"
+              initial={{ y: 16, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -16, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 220, damping: 20 }}
             >
-              {/* Background Glow */}
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10 rounded-2xl" />
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10" />
 
-              {/* Confetti */}
-              <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl">
+              <div className="absolute inset-0 overflow-hidden">
                 {confettiPieces.map((piece) => (
-                  <motion.div
+                  <motion.span
                     key={piece.id}
-                    className="absolute w-2 h-2 rounded-full"
-                    style={{
-                      backgroundColor: piece.color,
-                      left: `${piece.x}%`,
-                      top: '-10%'
-                    }}
-                    initial={{ 
-                      y: -20, 
-                      rotation: 0,
-                      opacity: 0 
-                    }}
-                    animate={{ 
-                      y: 400, 
-                      rotation: piece.rotation,
-                      opacity: [0, 1, 1, 0] 
-                    }}
-                    transition={{
-                      duration: piece.duration,
-                      delay: piece.delay,
-                      ease: "easeOut"
-                    }}
+                    className="absolute h-2 w-2 rounded-sm"
+                    style={{ backgroundColor: piece.color, left: `${Math.random() * 100}%`, top: '-10%' }}
+                    initial={{ opacity: 0, y: -10, rotate: 0 }}
+                    animate={{ opacity: [0, 1, 1, 0], y: piece.distance, rotate: 360 }}
+                    transition={{ duration: 2.4, delay: piece.delay, ease: 'easeOut' }}
                   />
                 ))}
               </div>
 
-              {/* Close Button */}
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={onClose}
-                className="absolute top-4 right-4 text-muted-foreground hover:text-foreground z-10"
+                className="absolute right-4 top-4 z-20 text-muted-foreground hover:text-foreground"
               >
-                <X className="w-4 h-4" />
+                <X className="h-4 w-4" />
               </Button>
 
-              {/* Content */}
-              <div className="relative z-10 text-center">
-                {/* Animated Icon */}
+              <div className="relative z-10 text-center space-y-4">
                 <motion.div
-                  className="text-6xl mb-4"
-                  initial={{ scale: 0, rotate: -180 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ 
-                    delay: 0.2,
-                    type: "spring",
-                    damping: 15,
-                    stiffness: 200
-                  }}
+                  className="inline-flex items-center justify-center rounded-full bg-primary/10 p-4 text-primary"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 260, damping: 18 }}
                 >
-                  🎉
+                  <PartyPopper className="h-8 w-8" />
                 </motion.div>
 
-                {/* Message */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
+                <motion.h2
+                  className="text-2xl font-semibold text-foreground"
+                  initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
+                  transition={{ delay: 0.15 }}
                 >
-                  <h2 className="text-2xl font-bold text-foreground mb-2">
-                    Congratulations!
-                  </h2>
-                  <p className="text-muted-foreground mb-6 leading-relaxed">
-                    {message}
-                  </p>
-                </motion.div>
+                  Nicely done!
+                </motion.h2>
 
-                {/* Action Button */}
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.6 }}
+                <motion.p
+                  className="text-sm text-muted-foreground"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.25 }}
                 >
-                  <Button
-                    onClick={onClose}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                  >
+                  {message}
+                </motion.p>
+
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.35 }}>
+                  <Button onClick={onClose} className="bg-primary text-primary-foreground hover:bg-primary/90">
                     Continue
                   </Button>
                 </motion.div>
-              </div>
-
-              {/* Sparkle Effects */}
-              <div className="absolute inset-0 pointer-events-none">
-                {[...Array(8)].map((_, i) => (
-                  <motion.div
-                    key={`sparkle-${i}`}
-                    className="absolute text-yellow-400"
-                    style={{
-                      left: `${20 + (i * 10)}%`,
-                      top: `${30 + (i % 3) * 20}%`
-                    }}
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ 
-                      scale: [0, 1, 0], 
-                      opacity: [0, 1, 0],
-                      rotate: [0, 180, 360]
-                    }}
-                    transition={{
-                      duration: 2,
-                      delay: i * 0.2,
-                      repeat: Infinity,
-                      repeatDelay: 3
-                    }}
-                  >
-                    ✨
-                  </motion.div>
-                ))}
               </div>
             </motion.div>
           </motion.div>
@@ -189,3 +122,4 @@ export const CelebrationModal: React.FC<CelebrationModalProps> = ({
     </AnimatePresence>
   );
 };
+

@@ -49,6 +49,7 @@
     "@types/axios": "^0.9.36",
     "@types/cheerio": "^0.22.35",
     "@types/jest": "^29.5.14",
+    "chrome-devtools-mcp": "^0.5.1",
     "cross-env": "^7.0.3",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
