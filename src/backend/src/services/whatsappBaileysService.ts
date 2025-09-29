@@ -1,5 +1,5 @@
 
-import { makeWASocket, DisconnectReason, useMultiFileAuthState, WASocket, MessageUpsertType, BaileysEventMap, Browsers } from '@whiskeysockets/baileys';
+import { makeWASocket, DisconnectReason, useMultiFileAuthState, WASocket, MessageUpsertType, BaileysEventMap, Browsers, downloadMediaMessage } from '@whiskeysockets/baileys';
 
 import { Boom } from '@hapi/boom';
 import * as qrcode from 'qrcode';
@@ -8,6 +8,15 @@ import { EventEmitter } from 'events';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import pino from 'pino';
+import { WhatsAppMediaService } from './whatsappMediaService';
+import { transcribeAudio } from './transcriptionService';
+import { analyzeTranscription } from './analysisService';
+import { locationExtractionService } from './locationExtractionService';
+import User from '../models/User';
+import Task from '../models/Task';
+import Note from '../models/Note';
+import Idea from '../models/Idea';
+import { io } from '../server';
 
 export interface WhatsAppMessage {
   id: string;
@@ -81,13 +90,17 @@ class WhatsAppBaileysService extends EventEmitter {
   private pairingAuthPath: string = '';
   private AUTH_PATH: string = this.authDir; // Alias used by pairing code
   private logger = pino({ level: 'silent' });
+  private mediaService: WhatsAppMediaService;
 
   private constructor() {
     super();
     this.loadSession();
     // Ensure AUTH_PATH mirrors current authDir on construction
     this.AUTH_PATH = this.authDir;
-    
+
+    // Initialize media service
+    this.mediaService = new WhatsAppMediaService();
+
     // Cleanup timers on process exit
     process.on('SIGINT', this.cleanup.bind(this));
     process.on('SIGTERM', this.cleanup.bind(this));
@@ -769,7 +782,12 @@ class WhatsAppBaileysService extends EventEmitter {
         }
         
         console.log(`📨 New WhatsApp message from ${whatsappMessage.contactName}: ${messageText.substring(0, 100)}...`);
-        
+
+        // Process voice messages for transcription and analysis
+        if (message.message.audioMessage) {
+          await this.processVoiceMessage(message, whatsappMessage);
+        }
+
         // If this is a private chat, ensure we add it to our private chats list
         if (!isGroup && chatId) {
           await this.ensurePrivateChatExists(chatId, whatsappMessage.contactName, messageText, whatsappMessage.timestamp);
@@ -786,6 +804,226 @@ class WhatsAppBaileysService extends EventEmitter {
     } catch (error) {
       console.error('❌ Error in handleIncomingMessages batch:', (error as Error).message);
       console.error('❌ MessageUpdate data that caused error:', JSON.stringify(messageUpdate, null, 2));
+    }
+  }
+
+  /**
+   * Process voice messages for transcription and analysis
+   */
+  private async processVoiceMessage(baileyMessage: any, whatsappMessage: WhatsAppMessage): Promise<void> {
+    try {
+      console.log(`🎤 Processing voice message from ${whatsappMessage.contactName}`);
+
+      // For now, use the first user available for voice processing
+      // TODO: Implement proper WhatsApp chat monitoring in User model
+      const synapseUser = await User.findOne({});
+
+      if (!synapseUser) {
+        console.log(`[WhatsApp Voice]: No Synapse user found for voice processing`);
+        return;
+      }
+
+      // Get audio message details
+      const audioMessage = baileyMessage.message.audioMessage;
+      if (!audioMessage) {
+        console.log(`[WhatsApp Voice]: No audio message found`);
+        return;
+      }
+
+      console.log(`[WhatsApp Voice]: Processing voice for user ${synapseUser._id}`);
+
+      // Download audio using Baileys downloadMediaMessage
+      let downloadResult;
+      try {
+        console.log(`[WhatsApp Voice]: Downloading audio buffer from Baileys...`);
+        const buffer = await downloadMediaMessage(baileyMessage, 'buffer', {}, {
+          logger: this.logger,
+          reuploadRequest: this.socket!.updateMediaMessage
+        });
+
+        if (!buffer) {
+          console.error(`[WhatsApp Voice]: Failed to download audio buffer`);
+          await this.sendVoiceProcessingFeedback(whatsappMessage.chatId, 'error', 'Failed to download audio file');
+          return;
+        }
+
+        // Save buffer to temporary file
+        const tempDir = path.join(process.cwd(), 'storage', 'temp');
+        if (!fs.existsSync(tempDir)) {
+          fs.mkdirSync(tempDir, { recursive: true });
+        }
+
+        const filename = `voice_${whatsappMessage.id}_${Date.now()}.ogg`;
+        const tempFilePath = path.join(tempDir, filename);
+
+        fs.writeFileSync(tempFilePath, buffer);
+        console.log(`[WhatsApp Voice]: Audio saved to: ${tempFilePath}`);
+
+        downloadResult = {
+          success: true,
+          localPath: tempFilePath,
+          fileSize: buffer.length
+        };
+
+      } catch (downloadError: any) {
+        console.error(`[WhatsApp Voice]: Failed to download audio via Baileys:`, downloadError);
+        await this.sendVoiceProcessingFeedback(whatsappMessage.chatId, 'error', 'Failed to download audio file');
+        return;
+      }
+
+      if (!downloadResult.success || !downloadResult.localPath) {
+        console.error(`[WhatsApp Voice]: Failed to download audio: ${downloadResult.error}`);
+        await this.sendVoiceProcessingFeedback(whatsappMessage.chatId, 'error', 'Failed to download audio file');
+        return;
+      }
+
+      console.log(`[WhatsApp Voice]: Audio downloaded to: ${downloadResult.localPath}`);
+
+      // Send initial processing message
+      await this.sendVoiceProcessingFeedback(whatsappMessage.chatId, 'processing', '🎤 מעבד הודעה קולית...');
+
+      try {
+        // Transcribe the audio
+        const transcribedText = await transcribeAudio(downloadResult.localPath);
+        console.log(`[WhatsApp Voice]: Transcription result: ${transcribedText}`);
+
+        if (!transcribedText || transcribedText.trim().length === 0) {
+          await this.sendVoiceProcessingFeedback(whatsappMessage.chatId, 'error', 'לא הצלחתי לתמלל את ההודעה הקולית');
+          return;
+        }
+
+        // First try location extraction
+        console.log(`[WhatsApp Voice]: Analyzing for location information...`);
+        const locationExtraction = await locationExtractionService.extractLocationFromText(transcribedText);
+
+        if (locationExtraction.success && locationExtraction.location) {
+          // Handle voice message with location
+          console.log(`[WhatsApp Voice]: Location detected: ${locationExtraction.extractedText}`);
+
+          const locationData = locationExtraction.location;
+          const userId = synapseUser._id;
+          const source = 'whatsapp_voice_location';
+
+          // Create a note with the location
+          const locationNote = await Note.create({
+            userId,
+            title: `Location: ${locationData.name || locationData.address}`,
+            content: `Added via WhatsApp voice: "${transcribedText}"`,
+            location: locationData,
+            source,
+            rawTranscription: transcribedText,
+          });
+
+          // Send location confirmation message
+          const locationName = locationData.name || locationData.address || 'Unknown location';
+          const confidence = locationExtraction.confidence;
+
+          let replyMessage = '';
+          if (transcribedText.match(/[\u0590-\u05FF]/)) {
+            // Hebrew text detected
+            replyMessage = `📍 *מיקום נוסף למפה!*\n\n🏷️ שם: ${locationName}\n📍 כתובת: ${locationData.address || 'לא זמין'}\n🎤 הודעה: "${transcribedText}"\n🎯 דיוק: ${confidence}\n\n✅ המיקום נשמר בהצלחה ויופיע במפה שלך.`;
+          } else {
+            // English text
+            replyMessage = `📍 *Location Added to Map!*\n\n🏷️ Name: ${locationName}\n📍 Address: ${locationData.address || 'Not available'}\n🎤 Voice: "${transcribedText}"\n🎯 Confidence: ${confidence}\n\n✅ Location saved successfully and will appear on your map.`;
+          }
+
+          await this.sendVoiceProcessingFeedback(whatsappMessage.chatId, 'success', replyMessage);
+          console.log(`[WhatsApp Voice]: Location note created successfully with ID: ${locationNote._id}`);
+
+        } else {
+          // No location detected - process as regular voice message
+          console.log(`[WhatsApp Voice]: No location detected, processing as regular voice message`);
+
+          // Analyze transcription for tasks, notes, ideas
+          const { tasks, notes, ideas } = await analyzeTranscription(transcribedText);
+          const userId = synapseUser._id;
+          const source = 'whatsapp_voice_memo';
+
+          let replyMessage = 'ההודעה הקולית נותחה:';
+          let itemsCreated = false;
+
+          // Create tasks
+          if (tasks && tasks.length > 0) {
+            for (const taskTitle of tasks) {
+              await Task.create({
+                userId,
+                title: taskTitle,
+                source,
+                status: 'pending',
+                rawTranscription: transcribedText,
+              });
+            }
+            replyMessage += `\n✅ נוספו ${tasks.length} משימות`;
+            itemsCreated = true;
+            if (io) io.emit('new_task_item', { userId: userId.toString() });
+          }
+
+          // Create notes
+          if (notes && notes.length > 0) {
+            for (const noteContent of notes) {
+              await Note.create({
+                userId,
+                content: noteContent,
+                source,
+                rawTranscription: transcribedText,
+              });
+            }
+            replyMessage += `\n📝 נוספו ${notes.length} הערות`;
+            itemsCreated = true;
+            if (io) io.emit('new_note_item', { userId: userId.toString() });
+          }
+
+          // Create ideas
+          if (ideas && ideas.length > 0) {
+            for (const ideaContent of ideas) {
+              await Idea.create({
+                userId,
+                content: ideaContent,
+                source,
+                rawTranscription: transcribedText,
+              });
+            }
+            replyMessage += `\n💡 נוספו ${ideas.length} רעיונות`;
+            itemsCreated = true;
+            if (io) io.emit('new_idea_item', { userId: userId.toString() });
+          }
+
+          if (!itemsCreated) {
+            replyMessage = `🎤 תמלול: "${transcribedText}"\n\nנותח התמלול אך לא זוהו משימות, הערות או רעיונות ספציפיים.`;
+          }
+
+          await this.sendVoiceProcessingFeedback(whatsappMessage.chatId, 'success', replyMessage);
+        }
+
+      } catch (transcriptionError: any) {
+        console.error(`[WhatsApp Voice]: Transcription error:`, transcriptionError);
+        await this.sendVoiceProcessingFeedback(whatsappMessage.chatId, 'error', 'שגיאה בתמלול ההודעה הקולית');
+      } finally {
+        // Clean up downloaded file
+        if (downloadResult.localPath && fs.existsSync(downloadResult.localPath)) {
+          try {
+            fs.unlinkSync(downloadResult.localPath);
+            console.log(`[WhatsApp Voice]: Cleaned up temporary audio file: ${downloadResult.localPath}`);
+          } catch (cleanupError) {
+            console.error(`[WhatsApp Voice]: Error cleaning up audio file:`, cleanupError);
+          }
+        }
+      }
+
+    } catch (error: any) {
+      console.error(`[WhatsApp Voice]: Error processing voice message:`, error);
+      await this.sendVoiceProcessingFeedback(whatsappMessage.chatId, 'error', 'שגיאה בעיבוד ההודעה הקולית');
+    }
+  }
+
+  /**
+   * Send feedback message about voice processing status
+   */
+  private async sendVoiceProcessingFeedback(chatId: string, status: 'processing' | 'success' | 'error', message: string): Promise<void> {
+    try {
+      await this.sendMessage(chatId, message);
+    } catch (error: any) {
+      console.error(`[WhatsApp Voice]: Failed to send feedback message:`, error);
     }
   }
 
