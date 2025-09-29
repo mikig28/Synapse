@@ -95,13 +95,21 @@ export class WhatsAppSummaryService {
       };
 
       const response = await api.post<ApiResponse<GroupSummaryData>>('/whatsapp-summary/generate', request);
-      
+
       if (response.data.success && response.data.data) {
         // Convert date strings back to Date objects
         const summary = response.data.data;
         summary.timeRange.start = new Date(summary.timeRange.start);
         summary.timeRange.end = new Date(summary.timeRange.end);
-        
+
+        // Convert rawMessages timestamps if present
+        if (summary.rawMessages && Array.isArray(summary.rawMessages)) {
+          summary.rawMessages = summary.rawMessages.map(msg => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }));
+        }
+
         return summary;
       }
       
@@ -133,13 +141,21 @@ export class WhatsAppSummaryService {
         const today = new Date().toISOString().split('T')[0];
         response = await api.post<ApiResponse<GroupSummaryData>>('/whatsapp-summary/generate', { groupId, date: today, timezone, chatType });
       }
-      
+
       if (response.data.success && response.data.data) {
         // Convert date strings back to Date objects
         const summary = response.data.data;
         summary.timeRange.start = new Date(summary.timeRange.start);
         summary.timeRange.end = new Date(summary.timeRange.end);
-        
+
+        // Convert rawMessages timestamps if present
+        if (summary.rawMessages && Array.isArray(summary.rawMessages)) {
+          summary.rawMessages = summary.rawMessages.map(msg => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp)
+          }));
+        }
+
         return summary;
       }
       

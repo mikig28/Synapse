@@ -24,7 +24,7 @@ export class WhatsAppSummarizationService {
     targetLanguage: 'auto',
     speakerAttribution: false,
     maxSpeakerAttributions: 5,
-    includeRawMessages: false
+    includeRawMessages: true // Enable raw messages by default for transparency
   };
 
   /**
