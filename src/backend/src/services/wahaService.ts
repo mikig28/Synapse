@@ -2327,23 +2327,37 @@ class WAHAService extends EventEmitter {
       }
 
       // Prepare message data
+      // Determine media type for descriptive placeholder
+      const detectedMediaType = messageData.hasMedia || messageData.isMedia ?
+        this.getMediaType(messageData.media?.mimetype || messageData.mimeType, messageData.type) : undefined;
+
+      // For media messages without body text, use descriptive placeholder
+      let messageText = messageData.body || messageData.caption || '';
+      if (!messageText && (messageData.isMedia || messageData.hasMedia || detectedMediaType)) {
+        const mediaTypeLabel = detectedMediaType === 'voice' ? 'Voice Message' :
+                              detectedMediaType === 'image' ? 'Image' :
+                              detectedMediaType === 'video' ? 'Video' :
+                              detectedMediaType === 'document' ? 'Document' : 'Media';
+        messageText = `[${mediaTypeLabel}]`;
+      }
+
       const messageDoc = {
         messageId: messageData.id,
         from: messageData.from,
         to: messageData.chatId,
-        message: messageData.body || '',
+        message: messageText || '[Message]',
         timestamp: timestamp,
         type: this.mapMessageType(messageData.type),
         status: messageData.fromMe ? 'sent' : 'received',
         isIncoming: !messageData.fromMe,
         contactId: contact._id,
-        
+
         // Media information
         mediaId: messageData.media?.id,
         mediaUrl: messageData.media?.url || messageData.mediaUrl,
         mimeType: messageData.media?.mimetype || messageData.mimeType,
         caption: messageData.body,
-        mediaType: messageData.hasMedia || messageData.isMedia ? this.getMediaType(messageData.media?.mimetype || messageData.mimeType, messageData.type) : undefined,
+        mediaType: detectedMediaType,
         
         // Metadata
         metadata: {
@@ -3293,11 +3307,21 @@ class WAHAService extends EventEmitter {
       );
       
       // Create new message
+      // For media messages without body text, use descriptive placeholder
+      let messageText = messageData.body || messageData.caption || '';
+      if (!messageText && (messageData.isMedia || messageData.hasMedia || mediaInfo.mediaType !== 'unknown')) {
+        const mediaTypeLabel = mediaInfo.mediaType === 'voice' ? 'Voice Message' :
+                              mediaInfo.mediaType === 'image' ? 'Image' :
+                              mediaInfo.mediaType === 'video' ? 'Video' :
+                              mediaInfo.mediaType === 'document' ? 'Document' : 'Media';
+        messageText = `[${mediaTypeLabel}]`;
+      }
+
       const newMessage = new WhatsAppMessage({
         messageId: messageData.id,
         from: messageData.from,
         to: isGroup ? messageData.chatId : 'business', // For groups, use chatId; for DMs, use business
-        message: messageData.body || '',
+        message: messageText || '[Message]',
         timestamp: new Date(messageData.timestamp || Date.now()),
         type: messageData.type || 'text',
         status: 'received',
