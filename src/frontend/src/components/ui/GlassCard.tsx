@@ -50,7 +50,7 @@ export const GlassCard: React.FC<GlassCardProps> = ({
   return (
     <motion.div
       className={cn(
-        "relative overflow-hidden rounded-2xl group",
+        "relative w-full min-w-0 overflow-hidden rounded-2xl group",
         "bg-white/20 dark:bg-white/10 sm:bg-white/10 sm:dark:bg-white/5",
         blurClasses[blur],
         "border border-white/20 dark:border-white/10",
