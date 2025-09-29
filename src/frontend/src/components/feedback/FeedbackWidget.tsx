@@ -32,7 +32,7 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
   const [showDismissHint, setShowDismissHint] = useState(false);
 
   const positionClasses = {
-    'bottom-right': 'bottom-6 right-6',
+    'bottom-right': 'bottom-8 right-8 !important',
     'bottom-left': 'bottom-6 left-6',
     'top-right': 'top-6 right-6',
     'top-left': 'top-6 left-6'
@@ -84,6 +84,7 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
   const handleDismiss = () => {
     clearPressTimer();
     setShowDismissHint(false);
+    setIsOpen(false); // Add this line
     setIsVisible(false);
   };
 
@@ -133,8 +134,19 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
           paddingRight: 'env(safe-area-inset-right)',
           paddingBottom: 'env(safe-area-inset-bottom)'
         }}
-        className={`fixed z-40 ${positionClasses[position]} ${className} relative group`}
+        className={`fixed z-[9999] ${positionClasses[position]} ${!isVisible ? 'hidden' : ''} relative group ${className}`} // Ensure hidden when !isVisible
       >
+        {/* New dismiss button - add this inside the motion.div, before the main button content */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute -top-1 -right-1 w-6 h-6 hover:bg-destructive/10 rounded-full p-0 border"
+          onClick={handleDismiss}
+          title="Dismiss feedback widget"
+        >
+          <X className="w-3 h-3 text-muted-foreground hover:text-destructive" />
+        </Button>
+
         <AnimatePresence>
           {isOpen && showQuickActions && (
             <motion.div

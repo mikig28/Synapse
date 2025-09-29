@@ -394,7 +394,7 @@ const DashboardPage: React.FC = () => {
         />
       </div>
 
-      <div id="dashboard-main" className="relative z-10 container mx-auto p-4 md:p-8">
+      <div id="dashboard-main" className="relative z-10 container mx-auto p-2 sm:p-4 md:p-8">
         {/* Header Section */}
         <motion.div
           ref={headerRef}
@@ -404,7 +404,7 @@ const DashboardPage: React.FC = () => {
           className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4"
         >
           <div>
-            <h1 className="text-4xl md:text-5xl font-bold gradient-text mb-2">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl md:text-5xl font-bold gradient-text mb-2">
               Dashboard
             </h1>
             <p className="text-muted-foreground text-lg">
@@ -418,7 +418,7 @@ const DashboardPage: React.FC = () => {
             variant="gradient"
             size="lg"
             loading={isBatchSummarizing}
-            className="hover-glow"
+            className="min-h-12 hover-glow"
             aria-label="Create latest digest"
           >
             {isBatchSummarizing ? (
@@ -457,7 +457,7 @@ const DashboardPage: React.FC = () => {
           </nav>
         </div>
 
-        <DashboardGrid columns={4}>
+        <DashboardGrid columns={4} className="gap-3 sm:gap-4 lg:gap-6">
           {stats.map((stat, index) => (
             <AnimatedDashboardCard
               key={stat.title}
@@ -531,7 +531,7 @@ const DashboardPage: React.FC = () => {
                         ⏱️ Generated {formatDistanceToNow(summary.generatedAt || new Date(), { addSuffix: true })}
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-3">
                       {summary.overallSummary || summary.summary || ''}
                     </p>
                   </div>
@@ -725,8 +725,8 @@ const DashboardPage: React.FC = () => {
                     <span className="hidden text-xs text-muted-foreground sm:inline">Monitor usage • Track agent performance</span>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="px-6">
-                  <div className="mt-5 grid grid-cols-1 gap-6 xl:grid-cols-2">
+                <AccordionContent className="px-4 sm:px-6">
+                  <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 gap-4 sm:gap-6">
                     <div className="rounded-xl border border-border/30 bg-background/60 p-5 backdrop-blur">
                       <div className="mb-3 flex items-center justify-between">
                         <h4 className="text-base font-semibold">Agent Analytics</h4>
@@ -848,7 +848,7 @@ const DashboardPage: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">Notes</p>
-                  <ul className="space-y-2">
+                  <ul className="space-y-2 overflow-hidden max-h-32">
                     {recentNotes.map(n => (
                       <li key={n._id} className="text-sm truncate">
                         {n.title || n.content.slice(0, 60)}
@@ -861,7 +861,7 @@ const DashboardPage: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">Ideas</p>
-                  <ul className="space-y-2">
+                  <ul className="space-y-2 overflow-hidden max-h-32">
                     {recentIdeas.map(i => (
                       <li key={i._id} className="text-sm truncate">
                         {i.title}
@@ -885,7 +885,7 @@ const DashboardPage: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">Tasks</p>
-                  <ul className="space-y-2">
+                  <ul className="space-y-2 overflow-hidden max-h-32">
                     {recentTasks.map(t => (
                       <li key={t._id} className="text-sm truncate">
                         {t.title}
