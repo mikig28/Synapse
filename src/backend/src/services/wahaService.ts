@@ -1733,7 +1733,7 @@ class WAHAService extends EventEmitter {
    */
   async getMessage(messageId: string, downloadMedia: boolean = false, sessionName: string = this.defaultSession): Promise<any | null> {
     try {
-      const response = await axios.get(`${this.wahaBaseUrl}/api/messages/${messageId}`, {
+      const response = await this.httpClient.get(`/api/messages/${messageId}`, {
         params: {
           session: sessionName,
           downloadMedia: downloadMedia ? 'true' : 'false'
@@ -3893,7 +3893,10 @@ class WAHAService extends EventEmitter {
                 chatId: chat.id,
                 messageTimestamp,
                 lastPolledTimestamp: this.lastPolledTimestamp,
-                isNewer: messageTimestamp > this.lastPolledTimestamp
+                isNewer: messageTimestamp > this.lastPolledTimestamp,
+                rawMessageType: message.type,
+                rawMimeType: message.mimeType,
+                rawMessageKeys: Object.keys(message)
               });
 
               const messageData = {
@@ -3906,7 +3909,7 @@ class WAHAService extends EventEmitter {
                 isMedia: message.isMedia || false,
                 mediaUrl: (message.media && (message.media as any).url) || (message.isMedia ? message.body : undefined),
                 type: message.type,
-                mimeType: message.mimeType,
+                mimeType: message.mimeType || (message.media && (message.media as any).mimetype),
                 hasMedia: message.hasMedia,
                 media: message.media,
                 contactName: message.contactName,
