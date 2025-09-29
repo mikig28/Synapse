@@ -2341,7 +2341,7 @@ class WAHAService extends EventEmitter {
         mediaUrl: messageData.media?.url || messageData.mediaUrl,
         mimeType: messageData.media?.mimetype || messageData.mimeType,
         caption: messageData.body,
-        mediaType: messageData.hasMedia || messageData.isMedia ? this.getMediaType(messageData.media?.mimetype || messageData.mimeType) : undefined,
+        mediaType: messageData.hasMedia || messageData.isMedia ? this.getMediaType(messageData.media?.mimetype || messageData.mimeType, messageData.type) : undefined,
         
         // Metadata
         metadata: {
@@ -2605,9 +2605,21 @@ class WAHAService extends EventEmitter {
    */
   private async processMediaMessage(messageData: any): Promise<void> {
     try {
-      // Check if message contains media
-      if (!messageData.hasMedia && !messageData.isMedia && !messageData.media) {
+      // Check if message contains media OR is a PTT (push-to-talk) voice note
+      const isPTT = messageData.type === 'ptt' || (messageData.type && String(messageData.type).toLowerCase().includes('voice'));
+      if (!messageData.hasMedia && !messageData.isMedia && !messageData.media && !isPTT) {
         return;
+      }
+
+      // Enhanced logging for voice/PTT detection
+      if (isPTT) {
+        console.log('[WAHA Service] 🎙️ PTT/Voice message detected:', {
+          messageId: messageData.id,
+          type: messageData.type,
+          chatId: messageData.chatId,
+          mimeType: messageData.mimeType,
+          hasMedia: messageData.hasMedia
+        });
       }
 
       console.log('[WAHA Service] Processing media message:', {
@@ -2617,7 +2629,8 @@ class WAHAService extends EventEmitter {
         isMedia: messageData.isMedia,
         media: messageData.media,
         type: messageData.type,
-        mimeType: messageData.mimeType
+        mimeType: messageData.mimeType,
+        isPTT
       });
 
       // Check if we have media information from WAHA webhook
@@ -2700,7 +2713,7 @@ class WAHAService extends EventEmitter {
         timestamp: messageData.timestamp || Date.now(),
         mimeType: messageData.mimeType || messageData.media?.mimetype || 'application/octet-stream',
         hasMedia: true,
-        mediaType: this.getMediaType(messageData.mimeType || messageData.media?.mimetype),
+        mediaType: this.getMediaType(messageData.mimeType || messageData.media?.mimetype, messageData.type),
         mediaUrl: mediaInfo?.url || null,
         localPath: null as string | null,
         fileSize: null as number | null,
@@ -2709,27 +2722,48 @@ class WAHAService extends EventEmitter {
 
       let downloadResult = null;
 
-      // Attempt to download media if we have a URL
+      // Attempt to download media if we have a URL - with retry logic
       if (mediaInfo && mediaInfo.url && !mediaInfo.error) {
-        try {
-          console.log(`[WAHA Service] Downloading media file for message ${messageData.id}`);
-          downloadResult = await this.mediaService.downloadMedia(mediaInfo, messageData.id, messageData.chatId);
+        const maxRetries = 2;
+        let retryCount = 0;
+        let lastError: any = null;
 
-          if (downloadResult.success) {
-            baseMessageData.localPath = downloadResult.localPath!;
-            baseMessageData.fileSize = downloadResult.fileSize!;
+        while (retryCount <= maxRetries && !downloadResult?.success) {
+          try {
+            if (retryCount > 0) {
+              console.log(`[WAHA Service] 🔄 Retrying media download (attempt ${retryCount + 1}/${maxRetries + 1}) for message ${messageData.id}`);
+              await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
+            } else {
+              console.log(`[WAHA Service] Downloading media file for message ${messageData.id}`);
+            }
 
-            console.log(`[WAHA Service] ✅ Media downloaded successfully:`, {
-              messageId: messageData.id,
-              localPath: downloadResult.localPath,
-              fileSize: downloadResult.fileSize
-            });
-          } else {
-            console.warn(`[WAHA Service] ⚠️ Media download failed:`, downloadResult.error);
-            baseMessageData.localPath = null;
+            downloadResult = await this.mediaService.downloadMedia(mediaInfo, messageData.id, messageData.chatId);
+
+            if (downloadResult.success) {
+              baseMessageData.localPath = downloadResult.localPath!;
+              baseMessageData.fileSize = downloadResult.fileSize!;
+
+              console.log(`[WAHA Service] ✅ Media downloaded successfully${retryCount > 0 ? ` (after ${retryCount} retries)` : ''}:`, {
+                messageId: messageData.id,
+                localPath: downloadResult.localPath,
+                fileSize: downloadResult.fileSize,
+                mediaType: baseMessageData.mediaType
+              });
+              break; // Success, exit retry loop
+            } else {
+              lastError = downloadResult.error;
+              console.warn(`[WAHA Service] ⚠️ Media download failed (attempt ${retryCount + 1}):`, downloadResult.error);
+            }
+          } catch (downloadError: any) {
+            lastError = downloadError;
+            console.error(`[WAHA Service] ❌ Error downloading media (attempt ${retryCount + 1}):`, downloadError.message || downloadError);
           }
-        } catch (downloadError: any) {
-          console.error(`[WAHA Service] ❌ Error downloading media:`, downloadError);
+          retryCount++;
+        }
+
+        // Final check after all retries
+        if (!downloadResult?.success) {
+          console.error(`[WAHA Service] ❌ Media download failed after ${maxRetries + 1} attempts for message ${messageData.id}:`, lastError);
           baseMessageData.localPath = null;
         }
       } else if (mediaInfo?.error) {
@@ -2777,6 +2811,16 @@ class WAHAService extends EventEmitter {
   }
 
   private async handleVoiceMessage(messageData: any): Promise<void> {
+    console.log('[WAHA Service] 🎙️ handleVoiceMessage called with data:', {
+      messageId: messageData.messageId,
+      chatId: messageData.chatId,
+      groupId: messageData.groupId,
+      localPath: messageData.localPath,
+      mediaUrl: messageData.mediaUrl,
+      hasLocalPath: !!messageData.localPath,
+      localPathExists: messageData.localPath ? fs.existsSync(messageData.localPath) : false
+    });
+
     const chatId = this.extractJidFromAny(messageData.chatId || messageData.groupId);
     const groupId = this.extractJidFromAny(messageData.groupId || messageData.chatId);
     const targetChatId = chatId || groupId;
@@ -2785,7 +2829,9 @@ class WAHAService extends EventEmitter {
       console.log('[WAHA Service] 🎙️ Skipping voice message – not a group chat or chatId missing', {
         messageId: messageData.messageId,
         chatId: messageData.chatId,
-        groupId: messageData.groupId
+        groupId: messageData.groupId,
+        extractedChatId: chatId,
+        extractedGroupId: groupId
       });
       return;
     }
@@ -2794,12 +2840,23 @@ class WAHAService extends EventEmitter {
     const mediaUrl: string | null = messageData.mediaUrl || null;
 
     if (!localPath || !fs.existsSync(localPath)) {
-      console.warn('[WAHA Service] 🎙️ Voice message missing local file – cannot transcribe', {
+      console.error('[WAHA Service] 🎙️ ❌ Voice message missing local file – cannot transcribe', {
         messageId: messageData.messageId,
         chatId: targetChatId,
         localPath,
-        mediaUrl
+        localPathExists: localPath ? fs.existsSync(localPath) : false,
+        mediaUrl,
+        hasMediaUrl: !!mediaUrl,
+        messageDataKeys: Object.keys(messageData)
       });
+
+      // Attempt to send error notification to group
+      try {
+        const errorMsg = '❌ מצטער, לא הצלחתי לעבד את ההודעה הקולית. הקובץ לא הורד בהצלחה. / Sorry, I couldn\'t process the voice message. File download failed.';
+        await this.sendMessage(targetChatId, errorMsg);
+      } catch (sendError) {
+        console.error('[WAHA Service] 🎙️ Failed to send error notification:', (sendError as Error).message);
+      }
       return;
     }
 
@@ -3140,16 +3197,27 @@ class WAHAService extends EventEmitter {
   }
 
   /**
-   * Determine media type from MIME type
+   * Determine media type from MIME type and message type
+   * Enhanced to detect WhatsApp PTT (push-to-talk) voice messages
    */
-  private getMediaType(mimetype: string | undefined): string {
+  private getMediaType(mimetype: string | undefined, messageType?: string): string {
+    // Check message type first for WhatsApp PTT (push-to-talk) voice notes
+    if (messageType) {
+      const typeStr = String(messageType).toLowerCase();
+      if (typeStr === 'ptt' || typeStr === 'voice' || typeStr.includes('voice') || typeStr.includes('ptt')) {
+        console.log('[WAHA Service] 🎙️ Voice message detected via message type:', messageType);
+        return 'voice';
+      }
+    }
+
     if (!mimetype) return 'unknown';
 
     const type = mimetype.toLowerCase();
 
     if (type.startsWith('image/')) {
       return 'image';
-    } else if (type.startsWith('audio/') || type.includes('voice') || type.includes('ogg')) {
+    } else if (type.startsWith('audio/') || type.includes('voice') || type.includes('ogg') || type.includes('opus')) {
+      console.log('[WAHA Service] 🎙️ Voice message detected via MIME type:', mimetype);
       return 'voice';
     } else if (type.startsWith('video/')) {
       return 'video';
