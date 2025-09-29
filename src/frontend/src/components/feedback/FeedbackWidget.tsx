@@ -32,7 +32,7 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
   const [showDismissHint, setShowDismissHint] = useState(false);
 
   const positionClasses = {
-    'bottom-right': 'bottom-8 right-8 !important',
+    'bottom-right': 'bottom-8 right-2 md:right-8 !important',
     'bottom-left': 'bottom-6 left-6',
     'top-right': 'top-6 right-6',
     'top-left': 'top-6 left-6'

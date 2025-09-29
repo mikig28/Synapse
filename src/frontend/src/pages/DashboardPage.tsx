@@ -457,7 +457,7 @@ const DashboardPage: React.FC = () => {
           </nav>
         </div>
 
-        <DashboardGrid columns={4} className="gap-3 sm:gap-4 lg:gap-6">
+        <DashboardGrid columns={4} className="gap-3 sm:gap-4 lg:gap-6 overflow-hidden">
           {stats.map((stat, index) => (
             <AnimatedDashboardCard
               key={stat.title}
@@ -515,7 +515,7 @@ const DashboardPage: React.FC = () => {
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <h4 className="text-sm font-medium text-foreground truncate">
+                      <h4 className="text-sm font-medium text-foreground truncate line-clamp-1">
                         {summary.groupName}
                       </h4>
                       <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
@@ -531,7 +531,7 @@ const DashboardPage: React.FC = () => {
                         ⏱️ Generated {formatDistanceToNow(summary.generatedAt || new Date(), { addSuffix: true })}
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-3">
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                       {summary.overallSummary || summary.summary || ''}
                     </p>
                   </div>
@@ -726,7 +726,7 @@ const DashboardPage: React.FC = () => {
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-4 sm:px-6">
-                  <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 gap-4 sm:gap-6">
+                  <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 gap-4 sm:gap-6 overflow-hidden">
                     <div className="rounded-xl border border-border/30 bg-background/60 p-5 backdrop-blur">
                       <div className="mb-3 flex items-center justify-between">
                         <h4 className="text-base font-semibold">Agent Analytics</h4>
@@ -814,8 +814,8 @@ const DashboardPage: React.FC = () => {
                       <AlertDescription>{latestDigest}</AlertDescription>
                     </Alert>
                   ) : (
-                    <div className="prose dark:prose-invert">
-                      <p>{latestDigest}</p>
+                    <div className="prose dark:prose-invert max-w-none">
+                      <p className="line-clamp-4">{latestDigest}</p>
                     </div>
                   )}
                 </motion.div>
@@ -837,7 +837,7 @@ const DashboardPage: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.5 }}
-          className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6"
+          className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden"
         >
           <GlassCard>
             <div className="p-6">
@@ -845,12 +845,12 @@ const DashboardPage: React.FC = () => {
                 <h3 className="text-lg font-semibold">Recent Notes & Ideas</h3>
                 <span className="text-sm text-muted-foreground">Last 5</span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-hidden">
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">Notes</p>
                   <ul className="space-y-2 overflow-hidden max-h-32">
                     {recentNotes.map(n => (
-                      <li key={n._id} className="text-sm truncate">
+                      <li key={n._id} className="text-sm truncate line-clamp-1">
                         {n.title || n.content.slice(0, 60)}
                       </li>
                     ))}
@@ -863,7 +863,7 @@ const DashboardPage: React.FC = () => {
                   <p className="text-sm text-muted-foreground mb-2">Ideas</p>
                   <ul className="space-y-2 overflow-hidden max-h-32">
                     {recentIdeas.map(i => (
-                      <li key={i._id} className="text-sm truncate">
+                      <li key={i._id} className="text-sm truncate line-clamp-1">
                         {i.title}
                       </li>
                     ))}
@@ -887,7 +887,7 @@ const DashboardPage: React.FC = () => {
                   <p className="text-sm text-muted-foreground mb-2">Tasks</p>
                   <ul className="space-y-2 overflow-hidden max-h-32">
                     {recentTasks.map(t => (
-                      <li key={t._id} className="text-sm truncate">
+                      <li key={t._id} className="text-sm truncate line-clamp-1">
                         {t.title}
                       </li>
                     ))}
@@ -910,7 +910,7 @@ const DashboardPage: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.55 }}
-          className="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6"
+          className="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6 overflow-hidden"
         >
           <GlassCard>
             <div className="p-6">
