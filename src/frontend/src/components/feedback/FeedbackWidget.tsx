@@ -32,7 +32,7 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
   const [showDismissHint, setShowDismissHint] = useState(false);
 
   const positionClasses = {
-    'bottom-right': 'bottom-8 right-2 md:right-8 !important',
+    'bottom-right': 'bottom-8 right-6 md:right-8',
     'bottom-left': 'bottom-6 left-6',
     'top-right': 'top-6 right-6',
     'top-left': 'top-6 left-6'
@@ -134,100 +134,101 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
           paddingRight: 'env(safe-area-inset-right)',
           paddingBottom: 'env(safe-area-inset-bottom)'
         }}
-        className={`fixed z-[9999] ${positionClasses[position]} ${!isVisible ? 'hidden' : ''} relative group ${className}`} // Ensure hidden when !isVisible
+        className={`fixed z-[9999] ${positionClasses[position]} ${!isVisible ? 'hidden' : ''} group ${className}`} // Ensure hidden when !isVisible
       >
-        {/* New dismiss button - add this inside the motion.div, before the main button content */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute -top-1 -right-1 w-6 h-6 hover:bg-destructive/10 rounded-full p-0 border"
-          onClick={handleDismiss}
-          title="Dismiss feedback widget"
-        >
-          <X className="w-3 h-3 text-muted-foreground hover:text-destructive" />
-        </Button>
+        <div className="relative">
+          {/* Dismiss button - positioned closer to content */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute -top-2 -right-2 w-7 h-7 hover:bg-destructive/20 bg-background/80 backdrop-blur-sm rounded-full p-0 border border-border shadow-md z-10"
+            onClick={handleDismiss}
+            title="Dismiss feedback widget"
+          >
+            <X className="w-4 h-4 text-muted-foreground hover:text-destructive" />
+          </Button>
 
-        <AnimatePresence>
-          {isOpen && showQuickActions && (
-            <motion.div
-              className="mb-4 space-y-2"
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.95 }}
-              transition={{ duration: 0.2 }}
-            >
-              {quickActions.map((action, index) => (
+          <AnimatePresence>
+            {isOpen && showQuickActions && (
+              <motion.div
+                className="mb-4 space-y-2"
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+              >
+                {quickActions.map((action, index) => (
+                  <motion.div
+                    key={action.type}
+                    initial={{ opacity: 0, x: position.includes('right') ? 20 : -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <Button
+                      onClick={() => handleQuickAction(action.type)}
+                      className={`
+                        ${action.color} text-white 
+                        min-w-[160px] justify-start gap-3 
+                        shadow-lg hover:shadow-xl transition-all duration-200
+                        backdrop-blur-sm border border-white/20
+                      `}
+                    >
+                      {action.icon}
+                      <div className="text-left">
+                        <div className="font-medium text-sm">{action.label}</div>
+                        <div className="text-xs opacity-90">{action.description}</div>
+                      </div>
+                    </Button>
+                  </motion.div>
+                ))}
+                
+                {/* General Feedback Button */}
                 <motion.div
-                  key={action.type}
                   initial={{ opacity: 0, x: position.includes('right') ? 20 : -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
+                  transition={{ delay: quickActions.length * 0.05 }}
                 >
                   <Button
-                    onClick={() => handleQuickAction(action.type)}
-                    className={`
-                      ${action.color} text-white 
+                    onClick={handleOpenGeneral}
+                    variant="outline"
+                    className="
                       min-w-[160px] justify-start gap-3 
+                      bg-background/80 backdrop-blur-sm 
+                      border-border hover:bg-muted
                       shadow-lg hover:shadow-xl transition-all duration-200
-                      backdrop-blur-sm border border-white/20
-                    `}
+                    "
                   >
-                    {action.icon}
+                    <MessageCircle className="w-4 h-4" />
                     <div className="text-left">
-                      <div className="font-medium text-sm">{action.label}</div>
-                      <div className="text-xs opacity-90">{action.description}</div>
+                      <div className="font-medium text-sm">General Feedback</div>
+                      <div className="text-xs text-muted-foreground">Share your thoughts</div>
                     </div>
                   </Button>
                 </motion.div>
-              ))}
-              
-              {/* General Feedback Button */}
-              <motion.div
-                initial={{ opacity: 0, x: position.includes('right') ? 20 : -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: quickActions.length * 0.05 }}
-              >
-                <Button
-                  onClick={handleOpenGeneral}
-                  variant="outline"
-                  className="
-                    min-w-[160px] justify-start gap-3 
-                    bg-background/80 backdrop-blur-sm 
-                    border-border hover:bg-muted
-                    shadow-lg hover:shadow-xl transition-all duration-200
-                  "
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  <div className="text-left">
-                    <div className="font-medium text-sm">General Feedback</div>
-                    <div className="text-xs text-muted-foreground">Share your thoughts</div>
-                  </div>
-                </Button>
               </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            )}
+          </AnimatePresence>
 
-        {/* Main Toggle Button */}
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <Button
-            onClick={handleClick}
-            onMouseDown={handleMouseDown}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onContextMenu={handleRightClick}
-            className={`
-              relative w-14 h-14 rounded-full
-              bg-primary hover:bg-primary/90 text-primary-foreground
-              shadow-lg hover:shadow-xl transition-all duration-300
-              ${isOpen ? 'rotate-45' : ''}
-              ${showDismissHint ? 'bg-red-500 hover:bg-red-600' : ''}
-            `}
-            title={showDismissHint ? 'Release to dismiss' : 'Click to expand • Right-click or long press to dismiss'}
+          {/* Main Toggle Button */}
+          <motion.div
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
           >
+            <Button
+              onClick={handleClick}
+              onMouseDown={handleMouseDown}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onContextMenu={handleRightClick}
+              className={`
+                relative w-14 h-14 rounded-full
+                bg-primary hover:bg-primary/90 text-primary-foreground
+                shadow-lg hover:shadow-xl transition-all duration-300
+                ${isOpen ? 'rotate-45' : ''}
+                ${showDismissHint ? 'bg-red-500 hover:bg-red-600' : ''}
+              `}
+              title={showDismissHint ? 'Release to dismiss' : 'Click to expand • Right-click or long press to dismiss'}
+            >
             <AnimatePresence mode="wait">
               {showDismissHint ? (
                 <motion.div
@@ -278,29 +279,30 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
                 repeat: Infinity,
                 ease: "easeInOut"
               }}
-            />
-          </Button>
-        </motion.div>
-
-        {/* Tooltip */}
-        {!isOpen && (
-          <motion.div
-            className={`
-              absolute ${position.includes('right') ? 'right-16' : 'left-16'}
-              ${position.includes('bottom') ? 'bottom-2' : 'top-2'}
-              bg-card border border-border rounded-lg px-3 py-2
-              shadow-lg backdrop-blur-sm
-              pointer-events-none opacity-0 group-hover:opacity-100
-              transition-opacity duration-200
-            `}
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileHover={{ opacity: 1, scale: 1 }}
-          >
-            <span className="text-sm font-medium text-foreground">
-              Give Feedback
-            </span>
+              />
+            </Button>
           </motion.div>
-        )}
+
+          {/* Tooltip */}
+          {!isOpen && (
+            <motion.div
+              className={`
+                absolute ${position.includes('right') ? 'right-16' : 'left-16'}
+                ${position.includes('bottom') ? 'bottom-2' : 'top-2'}
+                bg-card border border-border rounded-lg px-3 py-2
+                shadow-lg backdrop-blur-sm
+                pointer-events-none opacity-0 group-hover:opacity-100
+                transition-opacity duration-200
+              `}
+              initial={{ opacity: 0, scale: 0.95 }}
+              whileHover={{ opacity: 1, scale: 1 }}
+            >
+              <span className="text-sm font-medium text-foreground">
+                Give Feedback
+              </span>
+            </motion.div>
+          )}
+        </div>
       </motion.div>
 
       {/* Feedback Modal */}
