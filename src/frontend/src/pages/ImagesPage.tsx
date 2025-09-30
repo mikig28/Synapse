@@ -14,7 +14,8 @@ import {
   MessageCircle,
   ExternalLink,
   Trash2,
-  Camera
+  Camera,
+  Download
 } from 'lucide-react';
 import { SecureImage } from '@/components/common/SecureImage';
 
@@ -53,6 +54,15 @@ const ImagesPage: React.FC = () => {
         alert(`Failed to delete image: ${(error as Error).message}`);
       }
     }
+  };
+
+  const downloadImage = (gridFsId: string) => {
+    const link = document.createElement('a');
+    link.href = `/media/${gridFsId}`;
+    link.download = `synapse_image_${gridFsId}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -176,6 +186,17 @@ const ImagesPage: React.FC = () => {
                     whileTap={{ scale: 0.9 }}
                   >
                     <Trash2 size={16} />
+                  </motion.button>
+
+                  {/* Download Button */}
+                  <motion.button
+                    onClick={() => downloadImage(item.mediaGridFsId)}
+                    className="absolute bottom-2 right-2 z-10 p-2 bg-blue-500/80 text-white rounded-full hover:bg-blue-600/90 opacity-0 group-hover:opacity-100 transition-all focus:opacity-100"
+                    title="Download image"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                  >
+                    <Download size={16} />
                   </motion.button>
 
                   {/* Source Badge */}
