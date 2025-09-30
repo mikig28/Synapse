@@ -41,13 +41,16 @@ export const getImageStats = async (req: AuthenticatedRequest, res: Response) =>
       mediaGridFsId: { $exists: true, $nin: [null, '', undefined] }
     });
 
+    console.log(`[ImageAnalysis] Stats query returned ${images.length} images for user ${userId}`);
+    console.log(`[ImageAnalysis] Sample GridFS IDs:`, images.slice(0, 3).map(i => i.mediaGridFsId));
+
     const stats = {
       total: images.length,
       analyzed: images.filter(img => img.aiAnalysis?.isAnalyzed).length,
       pending: images.filter(img => !img.aiAnalysis?.isAnalyzed).length,
       byCategory: {} as Record<string, number>,
       bySource: {
-        telegram: images.filter(img => img.source === 'telegram').length,
+        telegram: images.filter(img => img.source === 'telegram' || !img.source).length,
         whatsapp: images.filter(img => img.source === 'whatsapp').length
       }
     };
