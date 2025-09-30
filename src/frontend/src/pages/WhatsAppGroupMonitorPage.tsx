@@ -506,11 +506,11 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   };
 
   const fetchMonitorStatistics = async (monitorId: string) => {
-    console.log(`[WhatsApp Monitor Frontend] ðŸ“Š Fetching statistics for monitor: ${monitorId}`);
+    console.log(`[WhatsApp Monitor Frontend] ðŸ"Š Fetching statistics for monitor: ${monitorId}`);
 
     try {
       const res = await api.get(`/group-monitor/monitors/${monitorId}/statistics`);
-      console.log(`[WhatsApp Monitor Frontend] ðŸ“Š Statistics response for ${monitorId}:`, res.data);
+      console.log(`[WhatsApp Monitor Frontend] ðŸ"Š Statistics response for ${monitorId}:`, res.data);
 
       if (res.data?.success && res.data?.data) {
         const stats = res.data.data as GroupMonitor['statistics'];
@@ -527,7 +527,7 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
                 lastActivity: stats.lastActivity ?? m.statistics.lastActivity,
               };
 
-              console.log(`[WhatsApp Monitor Frontend] ðŸ“Š Stats update for ${monitorId}:`, {
+              console.log(`[WhatsApp Monitor Frontend] ðŸ"Š Stats update for ${monitorId}:`, {
                 before: oldStats,
                 after: newStats,
                 changed: JSON.stringify(oldStats) !== JSON.stringify(newStats)
@@ -538,11 +538,11 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
             return m;
           });
 
-          console.log(`[WhatsApp Monitor Frontend] ðŸ“Š Updated monitors count: ${updated.length}`);
+          console.log(`[WhatsApp Monitor Frontend] ðŸ"Š Updated monitors count: ${updated.length}`);
           return updated;
         });
       } else {
-        console.warn(`[WhatsApp Monitor Frontend] âš ï¸ Invalid statistics response for ${monitorId}:`, res.data);
+        console.warn(`[WhatsApp Monitor Frontend] âš ï¸ Invalid statistics response for ${monitorId}:`, res.data);
       }
     } catch (err) {
       console.error(`[WhatsApp Monitor Frontend] âŒ Failed to fetch statistics for ${monitorId}:`, err);
@@ -550,14 +550,14 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   };
 
   const refreshAllMonitorStatistics = async (monitors: GroupMonitor[] = groupMonitors) => {
-    console.log(`[WhatsApp Monitor Frontend] ðŸ”„ Refreshing statistics for ${monitors.length} monitors`);
+    console.log(`[WhatsApp Monitor Frontend] ðŸ"„ Refreshing statistics for ${monitors.length} monitors`);
     if (!monitors || monitors.length === 0) {
-      console.log(`[WhatsApp Monitor Frontend] âš ï¸ No monitors to refresh`);
+      console.log(`[WhatsApp Monitor Frontend] âš ï¸ No monitors to refresh`);
       return;
     }
 
     try {
-      console.log(`[WhatsApp Monitor Frontend] ðŸ”„ Starting parallel statistics fetch for monitors:`,
+      console.log(`[WhatsApp Monitor Frontend] ðŸ"„ Starting parallel statistics fetch for monitors:`,
         monitors.map(m => ({ id: m._id, groupName: m.groupName }))
       );
 
@@ -572,7 +572,7 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   // Periodically refresh monitor statistics when viewing monitors
   useEffect(() => {
     if (selectedView !== 'monitors' || groupMonitors.length === 0) {
-      console.log(`[WhatsApp Monitor Frontend] ðŸ”„ Skipping periodic refresh - view: ${selectedView}, monitors: ${groupMonitors.length}`);
+      console.log(`[WhatsApp Monitor Frontend] ðŸ"„ Skipping periodic refresh - view: ${selectedView}, monitors: ${groupMonitors.length}`);
       return;
     }
 
@@ -880,17 +880,27 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
         );
         toast({
           title: "Success",
-          description: "Image archived",
+          description: "Image archived successfully.",
         });
       }
-    } catch (error: any) {
-      console.error('Error archiving image:', error);
+    } catch (error) {
+      console.error('Failed to archive image:', error);
       toast({
         title: "Error",
-        description: "Failed to archive image",
+        description: "Failed to archive image.",
         variant: "destructive",
       });
     }
+  };
+
+  const downloadImage = (imageUrl: string, id: string) => {
+    const fullUrl = getAbsoluteImageUrl(imageUrl);
+    const link = document.createElement('a');
+    link.href = fullUrl;
+    link.download = `${id}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const fetchSchedules = useCallback(async () => {
@@ -1251,7 +1261,7 @@ Important Events:
 ${summary.aiInsights.importantEvents.length > 0 ? summary.aiInsights.importantEvents.map(event => `â€¢ ${event}`).join('\n') : 'None identified'}
 
 Decisions Made:
-${summary.aiInsights.decisionsMade.length > 0 ? summary.aiInsights.decisionsMade.map(decision => `âœ“ ${decision}`).join('\n') : 'None identified'}`;
+${summary.aiInsights.decisionsMade.length > 0 ? summary.aiInsights.decisionsMade.map(decision => `âœ" ${decision}`).join('\n') : 'None identified'}`;
 }
 
     const content = `${formatted.title}
@@ -2183,6 +2193,14 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                           <Archive className="w-4 h-4" />
                         </Button>
                       )}
+                      <Button
+                        onClick={() => downloadImage(image.imageUrl, image._id)}
+                        size="sm"
+                        variant="ghost"
+                        className="absolute bottom-2 right-2 bg-black/50 text-white hover:bg-black/70"
+                      >
+                        <Download className="w-4 h-4" />
+                      </Button>
                     </div>
                     
                     <div className="space-y-2">

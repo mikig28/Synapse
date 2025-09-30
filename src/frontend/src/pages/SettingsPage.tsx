@@ -1,7 +1,11 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { GlassCard } from '@/components/ui/GlassCard';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
+import { useOnboardingStore } from '@/store/onboardingStore';
 import LinkTelegramChatUpdated from '@/components/settings/LinkTelegramChatUpdated';
 import TelegramBotSettings from '@/components/settings/TelegramBotSettings';
 import DataExport from '@/components/settings/DataExport';
@@ -10,6 +14,25 @@ import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { Settings, Sparkles, User, Shield, Bell, Palette, Download, BarChart3, Bot } from 'lucide-react';
 
 const SettingsPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { startOnboarding, initializeFromServer } = useOnboardingStore((state) => ({
+    startOnboarding: state.startOnboarding,
+    initializeFromServer: state.initializeFromServer,
+  }));
+
+  const handleRestartOnboarding = () => {
+    startOnboarding();
+    toast({
+      title: 'Guided setup relaunched',
+      description: "We'll walk through connections, automations, and preferences step by step.",
+    });
+    navigate('/onboarding');
+    initializeFromServer().catch((error) => {
+      console.error('Failed to refresh onboarding data', error);
+    });
+  };
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -28,6 +51,22 @@ const SettingsPage: React.FC = () => {
   };
 
   const settingsSections = [
+    {
+      icon: <Sparkles className="w-6 h-6 text-primary" />,
+      iconBg: 'bg-primary/20',
+      title: 'Guided Setup',
+      description: 'Run the Synapse onboarding flow again whenever you need a refresher.',
+      content: (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground/80 sm:max-w-xl">
+            We'll guide you through reconnecting data sources, rebuilding agents, and revisiting notification preferences.
+          </p>
+          <Button onClick={handleRestartOnboarding} className="w-full sm:w-auto">
+            Launch onboarding
+          </Button>
+        </div>
+      ),
+    },
     {
       icon: <Bot className="w-6 h-6 text-blue-400" />,
       iconBg: "bg-blue-500/20",
