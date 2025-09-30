@@ -38,7 +38,8 @@ import {
   Sliders,
   Info,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  TrendingUp
 } from 'lucide-react';
 
 interface AgentConfigurationProps {
@@ -395,34 +396,181 @@ export const AgentConfiguration: React.FC<AgentConfigurationProps> = ({
                 </>
               )}
 
-              {/* Custom agent settings */}
+              {/* Custom agent settings with CrewAI Integration */}
               {data.type === 'custom' && (
                 <>
+                  {/* Goal Configuration */}
                   <div className="space-y-2">
-                    <Label style={typography.small}>Keywords (comma-separated)</Label>
-                    <Input
-                      value={data.configuration.keywords}
-                      onChange={(e) => updateConfiguration({ keywords: e.target.value })}
-                      placeholder="Enter keywords..."
+                    <Label htmlFor="goal" className="flex items-center gap-2">
+                      <Target className="w-4 h-4" />
+                      <span style={typography.small}>Agent Goal</span>
+                      <Badge variant="outline" className="text-xs">Important</Badge>
+                    </Label>
+                    <Textarea
+                      id="goal"
+                      value={data.configuration.goal || ''}
+                      onChange={(e) => updateConfiguration({ goal: e.target.value })}
+                      placeholder="e.g., Research latest AI developments and provide comprehensive insights"
+                      rows={3}
                     />
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Info className="w-3 h-3" />
+                      Define what you want this agent to accomplish
+                    </p>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label style={typography.small}>Categories (comma-separated)</Label>
-                    <Input
-                      value={data.configuration.categories}
-                      onChange={(e) => updateConfiguration({ categories: e.target.value })}
-                      placeholder="Enter categories..."
-                    />
-                  </div>
-
+                  {/* Topics */}
                   <div className="space-y-2">
                     <Label style={typography.small}>Topics (comma-separated)</Label>
                     <Input
                       value={data.configuration.topics}
                       onChange={(e) => updateConfiguration({ topics: e.target.value })}
-                      placeholder="Enter topics..."
+                      placeholder="AI, Machine Learning, GPT, etc."
                     />
+                  </div>
+
+                  {/* CrewAI Integration Toggle */}
+                  <div className="flex items-center justify-between p-4 rounded-lg bg-purple-50 border border-purple-200">
+                    <div className="space-y-1">
+                      <Label className="flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-purple-600" />
+                        <span className="font-medium">Enable CrewAI Multi-Agent</span>
+                        <Badge className="bg-purple-600 text-white">Recommended</Badge>
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Use advanced AI agents for research and analysis
+                      </p>
+                    </div>
+                    <Switch
+                      checked={data.configuration.useCrewAI !== false}
+                      onCheckedChange={(checked) => updateConfiguration({ useCrewAI: checked })}
+                    />
+                  </div>
+
+                  {/* Tools Configuration - only show if CrewAI enabled */}
+                  {data.configuration.useCrewAI !== false && (
+                    <div className="space-y-3">
+                      <Label className="flex items-center gap-2">
+                        <Sliders className="w-4 h-4" />
+                        <span style={typography.small}>Enabled Tools</span>
+                      </Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { key: 'web_search', label: 'Web Search', icon: Globe },
+                          { key: 'content_analysis', label: 'Content Analysis', icon: Filter },
+                          { key: 'sentiment_analysis', label: 'Sentiment', icon: Target },
+                          { key: 'trend_detection', label: 'Trends', icon: TrendingUp },
+                          { key: 'url_extraction', label: 'URL Extract', icon: Globe },
+                        ].map((tool) => (
+                          <div
+                            key={tool.key}
+                            className="flex items-center justify-between p-3 rounded-md border"
+                          >
+                            <div className="flex items-center gap-2">
+                              <tool.icon className="w-4 h-4" />
+                              <span className="text-sm">{tool.label}</span>
+                            </div>
+                            <Switch
+                              checked={data.configuration.tools?.[tool.key] !== false}
+                              onCheckedChange={(checked) =>
+                                updateConfiguration({
+                                  tools: {
+                                    ...data.configuration.tools,
+                                    [tool.key]: checked,
+                                  },
+                                })
+                              }
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sources Configuration - only show if CrewAI enabled */}
+                  {data.configuration.useCrewAI !== false && (
+                    <div className="space-y-3">
+                      <Label className="flex items-center gap-2">
+                        <Globe className="w-4 h-4" />
+                        <span style={typography.small}>Data Sources</span>
+                      </Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { key: 'reddit', label: 'Reddit', enabled: true },
+                          { key: 'news_websites', label: 'News Sites', enabled: true },
+                          { key: 'linkedin', label: 'LinkedIn', enabled: false },
+                          { key: 'telegram', label: 'Telegram', enabled: false },
+                        ].map((source) => (
+                          <div
+                            key={source.key}
+                            className="flex items-center justify-between p-3 rounded-md border"
+                          >
+                            <span className="text-sm">{source.label}</span>
+                            <Switch
+                              checked={data.configuration.sources?.[source.key] !== false}
+                              onCheckedChange={(checked) =>
+                                updateConfiguration({
+                                  sources: {
+                                    ...data.configuration.sources,
+                                    [source.key]: checked,
+                                  },
+                                })
+                              }
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Advanced Parameters */}
+                  <div className="space-y-3">
+                    <Label className="flex items-center gap-2">
+                      <Settings className="w-4 h-4" />
+                      <span style={typography.small}>Advanced Parameters</span>
+                    </Label>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-xs">Max Items Per Source</Label>
+                        <Input
+                          type="number"
+                          value={data.configuration.maxItemsPerSource || 10}
+                          onChange={(e) => updateConfiguration({ maxItemsPerSource: parseInt(e.target.value) })}
+                          min={1}
+                          max={50}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-xs">Time Range</Label>
+                        <Select
+                          value={data.configuration.timeRange || '24h'}
+                          onValueChange={(value) => updateConfiguration({ timeRange: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="6h">Last 6 hours</SelectItem>
+                            <SelectItem value="12h">Last 12 hours</SelectItem>
+                            <SelectItem value="24h">Last 24 hours</SelectItem>
+                            <SelectItem value="7d">Last 7 days</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-xs">Quality Threshold (1-10)</Label>
+                        <Input
+                          type="number"
+                          value={data.configuration.qualityThreshold || 5}
+                          onChange={(e) => updateConfiguration({ qualityThreshold: parseInt(e.target.value) })}
+                          min={1}
+                          max={10}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </>
               )}

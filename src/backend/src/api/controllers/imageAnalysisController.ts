@@ -34,11 +34,11 @@ export const getImageStats = async (req: AuthenticatedRequest, res: Response) =>
 
     const userId = req.user.id;
 
-    // Get counts by category
+    // Get counts by category - only photos with GridFS ID (displayable)
     const images = await TelegramItem.find({
       synapseUserId: userId,
       messageType: 'photo',
-      mediaGridFsId: { $exists: true }
+      mediaGridFsId: { $exists: true, $ne: null, $ne: '' }
     });
 
     const stats = {
@@ -91,7 +91,7 @@ export const reanalyzeImage = async (req: AuthenticatedRequest, res: Response) =
       _id: itemId,
       synapseUserId: userId,
       messageType: 'photo',
-      mediaGridFsId: { $exists: true }
+      mediaGridFsId: { $exists: true, $ne: null, $ne: '' }
     });
 
     if (!item) {
@@ -150,7 +150,7 @@ export const bulkAnalyzeImages = async (req: AuthenticatedRequest, res: Response
     const unanalyzedImages = await TelegramItem.find({
       synapseUserId: userId,
       messageType: 'photo',
-      mediaGridFsId: { $exists: true },
+      mediaGridFsId: { $exists: true, $ne: null, $ne: '' },
       $or: [
         { 'aiAnalysis.isAnalyzed': { $ne: true } },
         { aiAnalysis: { $exists: false } }
