@@ -326,38 +326,38 @@ const SearchPage: React.FC = () => {
         transition={{ delay: index * 0.1 }}
       >
         <GlassCard 
-          className="p-4 hover:border-violet-400/50 transition-all duration-300 cursor-pointer group"
+          className="p-3 sm:p-4 hover:border-violet-400/50 transition-all duration-300 cursor-pointer group min-w-0"
           onClick={() => handleResultClick(result)}
         >
-          <div className="flex items-start gap-3">
-            <div className={`flex-shrink-0 p-2 rounded-lg bg-gradient-to-br from-violet-500/20 to-purple-500/20 group-hover:from-violet-500/30 group-hover:to-purple-500/30 transition-colors duration-300`}>
-              <Icon className={`w-4 h-4 ${typeColor}`} />
+          <div className="flex items-start gap-2 sm:gap-3 min-w-0">
+            <div className={`flex-shrink-0 p-1.5 sm:p-2 rounded-lg bg-gradient-to-br from-violet-500/20 to-purple-500/20 group-hover:from-violet-500/30 group-hover:to-purple-500/30 transition-colors duration-300`}>
+              <Icon className={`w-3 h-3 sm:w-4 sm:h-4 ${typeColor}`} />
             </div>
             
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2">
-                <h3 className="font-semibold text-white truncate text-sm sm:text-base">{result.title}</h3>
-                <span className="px-2 py-1 text-xs rounded-full bg-violet-500/20 text-violet-300 capitalize">
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2 flex-wrap">
+                <h3 className="font-semibold text-white truncate text-xs sm:text-sm md:text-base flex-1 min-w-0">{result.title}</h3>
+                <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs rounded-full bg-violet-500/20 text-violet-300 capitalize whitespace-nowrap">
                   {result.type}
                 </span>
                 {result.score > 0.8 && (
-                  <Sparkles className="w-3 h-3 text-yellow-400" />
+                  <Sparkles className="w-3 h-3 text-yellow-400 flex-shrink-0" />
                 )}
               </div>
               
-              <p className="text-gray-300 text-sm mb-3 line-clamp-2">
+              <p className="text-gray-300 text-xs sm:text-sm mb-2 sm:mb-3 line-clamp-2 break-words">
                 {result.excerpt}
               </p>
               
-              <div className="flex items-center justify-between text-xs text-gray-400">
-                <div className="flex items-center gap-4">
-                  <span className="flex items-center gap-1">
+              <div className="flex items-center justify-between text-[10px] sm:text-xs text-gray-400 flex-wrap gap-2">
+                <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+                  <span className="flex items-center gap-1 whitespace-nowrap">
                     <Clock className="w-3 h-3" />
                     {new Date(result.createdAt).toLocaleDateString()}
                   </span>
-                  <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-1 whitespace-nowrap">
                     <TrendingUp className="w-3 h-3" />
-                    {Math.round(result.score * 100)}% match
+                    {Math.round(result.score * 100)}%
                   </span>
                 </div>
                 <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hidden sm:block" />
@@ -373,19 +373,19 @@ const SearchPage: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 relative overflow-hidden">
       <FloatingParticles />
       
-      <div className="relative z-10 container mx-auto px-3 sm:px-4 py-6 sm:py-8">
+      <div className="relative z-10 container mx-auto px-3 sm:px-4 py-4 sm:py-6 lg:py-8 min-w-0">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-6 sm:mb-8"
+          className="text-center mb-4 sm:mb-6 lg:mb-8"
         >
-          <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 flex items-center justify-center gap-3">
-            <Search className="w-8 h-8 text-violet-400" />
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2 flex items-center justify-center gap-2 sm:gap-3">
+            <Search className="w-6 h-6 sm:w-8 sm:h-8 text-violet-400" />
             Universal Search
           </h1>
-          <p className="text-gray-300">
-            Search across all your content in one place
+          <p className="text-sm sm:text-base text-gray-300">
+            Search across all your content
           </p>
         </motion.div>
 
@@ -393,17 +393,17 @@ const SearchPage: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-4xl mx-auto mb-6 sm:mb-8 relative"
+          className="max-w-4xl mx-auto mb-4 sm:mb-6 lg:mb-8 relative min-w-0"
         >
           <div className="relative">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
             <Input
               ref={searchInputRef}
               type="text"
-              placeholder="Search across documents, notes, bookmarks, tasks..."
+              placeholder="Search documents, notes, bookmarks..."
               value={query}
               onChange={handleQueryChange}
-              className="pl-12 pr-4 py-3 md:py-4 text-base md:text-lg bg-black/30 border-violet-500/30 focus:border-violet-400 text-white placeholder-gray-400"
+              className="pl-10 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 md:py-4 text-sm sm:text-base md:text-lg bg-black/30 border-violet-500/30 focus:border-violet-400 text-white placeholder-gray-400"
               onFocus={() => setShowSuggestions(suggestions.length > 0)}
             />
           </div>
@@ -413,13 +413,13 @@ const SearchPage: React.FC = () => {
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="absolute top-full left-0 right-0 z-50 mt-2"
+              className="absolute top-full left-0 right-0 z-50 mt-2 min-w-0"
             >
-              <GlassCard className="p-2">
+              <GlassCard className="p-2 min-w-0">
                 {suggestions.map((suggestion, index) => (
                   <div
                     key={index}
-                    className="px-3 py-2 hover:bg-violet-500/20 rounded cursor-pointer text-gray-300 hover:text-white transition-colors duration-200"
+                    className="px-2 sm:px-3 py-2 hover:bg-violet-500/20 rounded cursor-pointer text-gray-300 hover:text-white transition-colors duration-200 text-xs sm:text-sm truncate"
                     onClick={() => handleSuggestionClick(suggestion)}
                   >
                     {suggestion}
@@ -435,13 +435,13 @@ const SearchPage: React.FC = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="max-w-4xl mx-auto mb-6 sm:mb-8"
+          className="max-w-4xl mx-auto mb-4 sm:mb-6 lg:mb-8 min-w-0"
         >
-          <GlassCard className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-white font-semibold flex items-center gap-2">
-                <Filter className="w-4 h-4" />
-                Search Filters
+          <GlassCard className="p-3 sm:p-4 min-w-0">
+            <div className="flex items-center justify-between mb-3 sm:mb-4 gap-2">
+              <h3 className="text-sm sm:text-base text-white font-semibold flex items-center gap-2">
+                <Filter className="w-3 h-3 sm:w-4 sm:h-4" />
+                Filters
               </h3>
               <AnimatedButton
                 variant="ghost"
@@ -462,15 +462,15 @@ const SearchPage: React.FC = () => {
               >
                 {/* Search Strategy */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Search Strategy</label>
-                  <div className="flex flex-wrap gap-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Strategy</label>
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2">
                     {strategies.map(strategy => (
                       <AnimatedButton
                         key={strategy.key}
                         variant={selectedStrategy === strategy.key ? "primary" : "outline"}
                         size="sm"
                         onClick={() => setSelectedStrategy(strategy.key as any)}
-                        className="text-xs"
+                        className="text-[10px] sm:text-xs px-2 sm:px-3"
                       >
                         {strategy.label}
                       </AnimatedButton>
@@ -480,8 +480,8 @@ const SearchPage: React.FC = () => {
 
                 {/* Content Types */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Content Types</label>
-                  <div className="flex flex-wrap gap-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Content</label>
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2">
                     {contentTypes.map(type => {
                       const Icon = type.icon;
                       const isSelected = selectedTypes.includes(type.key);
@@ -492,10 +492,11 @@ const SearchPage: React.FC = () => {
                           variant={isSelected ? "primary" : "outline"}
                           size="sm"
                           onClick={() => handleTypeToggle(type.key)}
-                          className="text-xs"
+                          className="text-[10px] sm:text-xs px-2 sm:px-3"
                         >
                           <Icon className="w-3 h-3 mr-1" />
-                          {type.label}
+                          <span className="hidden sm:inline">{type.label}</span>
+                          <span className="sm:hidden">{type.label.slice(0, 4)}</span>
                         </AnimatedButton>
                       );
                     })}
@@ -512,25 +513,25 @@ const SearchPage: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="max-w-4xl mx-auto mb-6 sm:mb-8"
+            className="max-w-4xl mx-auto mb-4 sm:mb-6 lg:mb-8 min-w-0"
           >
-            <GlassCard className="p-4">
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
-                <div className="text-center">
-                  <div className="text-xl sm:text-2xl font-bold text-white">{stats.totalSearchableItems.toLocaleString()}</div>
-                  <div className="text-[10px] sm:text-xs text-gray-400">Total Items</div>
+            <GlassCard className="p-3 sm:p-4 min-w-0">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-3 lg:gap-4">
+                <div className="text-center min-w-0">
+                  <div className="text-lg sm:text-xl lg:text-2xl font-bold text-white truncate">{stats.totalSearchableItems.toLocaleString()}</div>
+                  <div className="text-[10px] sm:text-xs text-gray-400">Total</div>
                 </div>
                 {Object.entries(stats.byType).slice(0, 5).map(([type, count]) => {
                   const Icon = getTypeIcon(type);
                   const color = getTypeColor(type);
                   
                   return (
-                    <div key={type} className="text-center">
+                    <div key={type} className="text-center min-w-0">
                       <div className="flex items-center justify-center mb-1">
-                        <Icon className={`w-4 h-4 ${color}`} />
+                        <Icon className={`w-3 h-3 sm:w-4 sm:h-4 ${color}`} />
                       </div>
-                      <div className="text-base sm:text-lg font-semibold text-white">{count.toLocaleString()}</div>
-                      <div className="text-[10px] sm:text-xs text-gray-400 capitalize">{type}</div>
+                      <div className="text-sm sm:text-base lg:text-lg font-semibold text-white truncate">{count.toLocaleString()}</div>
+                      <div className="text-[10px] sm:text-xs text-gray-400 capitalize truncate">{type}</div>
                     </div>
                   );
                 })}
@@ -544,9 +545,9 @@ const SearchPage: React.FC = () => {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="max-w-4xl mx-auto"
+            className="max-w-4xl mx-auto min-w-0"
           >
-            <div className="grid gap-3 sm:gap-4">
+            <div className="grid gap-2 sm:gap-3 lg:gap-4">
               {[1, 2, 3, 4, 5].map(i => (
                 <SkeletonCard key={i} />
               ))}
@@ -559,15 +560,15 @@ const SearchPage: React.FC = () => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="max-w-4xl mx-auto"
+            className="max-w-4xl mx-auto min-w-0"
           >
-            <GlassCard className="p-6 border-red-500/50">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <h3 className="text-red-400 font-semibold mb-2">Search Service Unavailable</h3>
-                  <p className="text-red-300 mb-4">{error}</p>
-                  <div className="text-sm text-red-200 bg-red-900/20 p-3 rounded border border-red-500/30">
+            <GlassCard className="p-4 sm:p-6 border-red-500/50 min-w-0">
+              <div className="flex items-start gap-2 sm:gap-3">
+                <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm sm:text-base text-red-400 font-semibold mb-2">Search Unavailable</h3>
+                  <p className="text-xs sm:text-sm text-red-300 mb-3 sm:mb-4 break-words">{error}</p>
+                  <div className="text-xs sm:text-sm text-red-200 bg-red-900/20 p-2 sm:p-3 rounded border border-red-500/30">
                     <p className="font-medium mb-2">Troubleshooting steps:</p>
                     <ul className="list-disc list-inside space-y-1">
                       <li>Check if the backend server is running on port 3001</li>
@@ -588,21 +589,21 @@ const SearchPage: React.FC = () => {
             ref={contentRef}
             initial={{ opacity: 0 }}
             animate={controls}
-            className="max-w-4xl mx-auto"
+            className="max-w-4xl mx-auto min-w-0"
           >
             {/* Results Header */}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
-              <div className="text-white">
-                <h2 className="text-lg md:text-xl font-semibold">
-                  {dedupedResults.length.toLocaleString()} results found
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 mb-4 sm:mb-6 min-w-0">
+              <div className="text-white min-w-0">
+                <h2 className="text-base sm:text-lg md:text-xl font-semibold">
+                  {dedupedResults.length.toLocaleString()} results
                 </h2>
-                <p className="text-gray-400 text-xs md:text-sm">
-                  Search completed in {results.searchTime}ms using {results.strategy} strategy
+                <p className="text-gray-400 text-[10px] sm:text-xs md:text-sm truncate">
+                  {results.searchTime}ms • {results.strategy}
                 </p>
               </div>
 
               {/* Results by Type */}
-              <div className="flex items-center gap-2 text-xs md:text-sm flex-wrap">
+              <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs md:text-sm flex-wrap">
                 {Object.entries(resultsByTypeDeduped)
                   .filter(([_, count]) => count > 0)
                   .map(([type, count]) => {
@@ -610,8 +611,8 @@ const SearchPage: React.FC = () => {
                     const color = getTypeColor(type);
                     
                     return (
-                      <div key={type} className="flex items-center gap-1 px-2 py-1 rounded-full bg-black/30">
-                        <Icon className={`w-3 h-3 ${color}`} />
+                      <div key={type} className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full bg-black/30 whitespace-nowrap">
+                        <Icon className={`w-2.5 h-2.5 sm:w-3 sm:h-3 ${color}`} />
                         <span className="text-gray-300">{count}</span>
                       </div>
                     );
@@ -621,15 +622,15 @@ const SearchPage: React.FC = () => {
 
             {/* Results List */}
             {dedupedResults.length > 0 ? (
-              <div className="grid gap-3 sm:gap-4">
+              <div className="grid gap-2 sm:gap-3 lg:gap-4">
                 {dedupedResults.map((result, index) => renderSearchResult(result, index))}
               </div>
             ) : (
-              <GlassCard className="p-6 sm:p-8 text-center">
-                <Search className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg sm:text-xl font-semibold text-white mb-2">No results found</h3>
-                <p className="text-gray-400">
-                  Try adjusting your search query or filters
+              <GlassCard className="p-6 sm:p-8 text-center min-w-0">
+                <Search className="w-10 h-10 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-3 sm:mb-4" />
+                <h3 className="text-base sm:text-lg md:text-xl font-semibold text-white mb-2">No results found</h3>
+                <p className="text-sm sm:text-base text-gray-400">
+                  Try adjusting your search
                 </p>
               </GlassCard>
             )}
@@ -641,23 +642,23 @@ const SearchPage: React.FC = () => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="max-w-4xl mx-auto text-center"
+            className="max-w-4xl mx-auto text-center min-w-0"
           >
-            <GlassCard className="p-8 sm:p-12">
-              <Zap className="w-16 h-16 text-violet-400 mx-auto mb-6" />
-              <h2 className="text-xl sm:text-2xl font-semibold text-white mb-4">
-                Search Your Knowledge Universe
+            <GlassCard className="p-6 sm:p-8 lg:p-12 min-w-0">
+              <Zap className="w-12 h-12 sm:w-16 sm:h-16 text-violet-400 mx-auto mb-4 sm:mb-6" />
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-semibold text-white mb-3 sm:mb-4">
+                Search Your Knowledge
               </h2>
-              <p className="text-gray-300 mb-6 max-w-md mx-auto text-sm sm:text-base">
-                Find anything across your documents, notes, bookmarks, tasks, videos, messages, and more
+              <p className="text-gray-300 mb-4 sm:mb-6 max-w-md mx-auto text-xs sm:text-sm lg:text-base">
+                Find anything across documents, notes, bookmarks, and more
               </p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 max-w-2xl mx-auto">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 lg:gap-4 max-w-2xl mx-auto">
                 {contentTypes.slice(1, 5).map(type => {
                   const Icon = type.icon;
                   return (
-                    <div key={type.key} className="text-center p-3 rounded-lg bg-black/20">
-                      <Icon className={`w-6 h-6 ${type.color} mx-auto mb-2`} />
-                      <div className="text-sm text-gray-300">{type.label}</div>
+                    <div key={type.key} className="text-center p-2 sm:p-3 rounded-lg bg-black/20">
+                      <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${type.color} mx-auto mb-1.5 sm:mb-2`} />
+                      <div className="text-xs sm:text-sm text-gray-300">{type.label}</div>
                     </div>
                   );
                 })}
