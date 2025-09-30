@@ -58,7 +58,7 @@ const ImagesPage: React.FC = () => {
 
   const downloadImage = (gridFsId: string) => {
     const link = document.createElement('a');
-    link.href = `/media/${gridFsId}`;
+    link.href = `/api/v1/media/${gridFsId}`;
     link.download = `synapse_image_${gridFsId}.jpg`;
     document.body.appendChild(link);
     link.click();
@@ -216,7 +216,7 @@ const ImagesPage: React.FC = () => {
                   {/* Image */}
                   <div className="relative overflow-hidden">
                     <a 
-                      href={item.mediaGridFsId ? `/media/${item.mediaGridFsId}` : '#'}
+                      href={item.mediaGridFsId ? `/api/v1/media/${item.mediaGridFsId}` : '#'}
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="block relative group"
