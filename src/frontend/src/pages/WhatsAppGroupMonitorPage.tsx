@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -2876,6 +2876,58 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                             ))}
                           </div>
                         </div>
+                      </div>
+                    )}
+
+                    {/* Raw Messages Section */}
+                    {selectedSummary.rawMessages && selectedSummary.rawMessages.length > 0 && (
+                      <div>
+                        <Accordion type="single" collapsible className="w-full">
+                          <AccordionItem value="raw-messages" className="border-white/10">
+                            <AccordionTrigger className="text-lg font-semibold text-white hover:text-blue-300">
+                              <div className="flex items-center gap-2">
+                                <FileText className="w-5 h-5" />
+                                <span>Source Messages ({selectedSummary.rawMessages.length})</span>
+                              </div>
+                            </AccordionTrigger>
+                            <AccordionContent>
+                              <div className="bg-white/5 rounded-lg p-4 max-h-[500px] overflow-y-auto">
+                                <div className="space-y-3">
+                                  {selectedSummary.rawMessages.map((msg, index) => (
+                                    <div 
+                                      key={msg.id || index} 
+                                      className="bg-white/5 rounded-lg p-3 border-l-2 border-blue-500/30"
+                                    >
+                                      <div className="flex items-start justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-medium text-blue-300 text-sm">
+                                            {msg.senderName}
+                                          </span>
+                                          <span className="text-xs text-blue-200/50">
+                                            {msg.senderPhone}
+                                          </span>
+                                        </div>
+                                        <span className="text-xs text-blue-200/50">
+                                          {new Date(msg.timestamp).toLocaleString()}
+                                        </span>
+                                      </div>
+                                      <p className="text-white text-sm whitespace-pre-wrap break-words">
+                                        {msg.message}
+                                      </p>
+                                      {msg.type && msg.type !== 'text' && (
+                                        <div className="mt-2">
+                                          <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded">
+                                            {msg.type}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
                       </div>
                     )}
                   </div>
