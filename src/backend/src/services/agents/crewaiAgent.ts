@@ -97,6 +97,35 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
     }
   }
 
+  async checkServiceHealth(): Promise<{ isHealthy: boolean; status: string; error?: string }> {
+    try {
+      console.log(`[CrewAI Agent] Checking service health at: ${this.crewaiServiceUrl}/health`);
+      const response = await axios.get(`${this.crewaiServiceUrl}/health`, {
+        timeout: 15000, // 15 second timeout
+        validateStatus: () => true // Don't throw on any status
+      });
+
+      const isHealthy = response.status === 200 && response.data?.status === 'healthy';
+
+      return {
+        isHealthy,
+        status: isHealthy ? 'healthy' : `unhealthy (HTTP ${response.status})`,
+        error: isHealthy ? undefined : `Service returned status ${response.status}`
+      };
+    } catch (error: any) {
+      console.error(`[CrewAI Agent] Health check failed:`, error.message);
+      return {
+        isHealthy: false,
+        status: 'unreachable',
+        error: error.code === 'ECONNREFUSED'
+          ? 'Service is not running or unreachable'
+          : error.code === 'ETIMEDOUT'
+          ? 'Service health check timed out (may be sleeping on Render free tier)'
+          : error.message
+      };
+    }
+  }
+
   async execute(context: AgentExecutionContext): Promise<void> {
     const { agent, run, userId } = context;
 
@@ -106,15 +135,31 @@ export class CrewAINewsAgentExecutor implements AgentExecutor {
     });
 
     try {
-      // Check if CrewAI service is available
+      // Check if CrewAI service is available BEFORE attempting execution
       await run.addLog('info', 'Performing health check on CrewAI service...');
-      try {
-        await this.healthCheck();
-        await run.addLog('info', 'CrewAI service health check passed');
-      } catch (healthError: any) {
-        await run.addLog('warn', `Health check failed: ${healthError.message}`);
-        await run.addLog('info', 'Will attempt to use fallback crew if service is unavailable');
+      const healthCheck = await this.checkServiceHealth();
+
+      if (!healthCheck.isHealthy) {
+        const errorMsg = `CrewAI service is ${healthCheck.status}: ${healthCheck.error || 'Unknown error'}`;
+        await run.addLog('error', errorMsg);
+
+        const error: any = new Error(`Cannot execute CrewAI agent: ${errorMsg}`);
+        error.serviceHealthy = false;
+        error.serviceStatus = healthCheck.status;
+        error.serviceUrl = this.crewaiServiceUrl;
+        error.serviceError = healthCheck.error;
+
+        // Provide helpful suggestions based on error type
+        if (healthCheck.status === 'unreachable') {
+          error.suggestion = 'The CrewAI service may be sleeping (Render free tier). Please wait 30-60 seconds and try again, or check if the service is deployed.';
+        } else {
+          error.suggestion = 'Check the CREWAI_SERVICE_URL environment variable and ensure the service is running.';
+        }
+
+        throw error;
       }
+
+      await run.addLog('info', 'CrewAI service health check passed ✅')
 
       const config = agent.configuration;
       

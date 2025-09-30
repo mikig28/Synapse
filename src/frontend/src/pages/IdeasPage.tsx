@@ -4,13 +4,14 @@ import useAuthStore from '@/store/authStore';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Skeleton, SkeletonCard } from '@/components/ui/Skeleton';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
+import { useHighlightItem } from '@/hooks/useHighlightItem';
 import { BACKEND_ROOT_URL } from '@/services/axiosConfig';
 import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
-import { 
-  Lightbulb, 
-  Sparkles, 
-  Calendar, 
+import {
+  Lightbulb,
+  Sparkles,
+  Calendar,
   Tag,
   AlertCircle,
   Brain,
@@ -32,6 +33,9 @@ const IdeasPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const token = useAuthStore((state) => state.token);
+
+  // Use the highlight hook to handle search result navigation
+  const ideaRefs = useHighlightItem(ideas, isLoading);
 
   // Standard container and item variants for consistent page animations
   const containerVariants = {
@@ -239,8 +243,9 @@ const IdeasPage: React.FC = () => {
                 variants={itemVariants}
                 whileHover={{ y: -5, scale: 1.03 }}
                 transition={{ type: "spring", stiffness: 300, damping: 15}}
+                ref={(el) => (ideaRefs.current[idea._id] = el)}
               >
-                <GlassCard className="p-6 h-full flex flex-col hover:scale-105 transition-transform duration-300">
+                <GlassCard className="p-6 h-full flex flex-col hover:scale-105 transition-transform duration-300 rounded-lg">
                   <div className="flex-1">
                     <div className="flex items-start gap-3 mb-4">
                       <div className="p-2 bg-yellow-500/20 rounded-lg flex-shrink-0">

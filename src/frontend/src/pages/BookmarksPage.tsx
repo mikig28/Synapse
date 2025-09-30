@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { SkeletonList } from '@/components/ui/Skeleton';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { ExpandableContent } from '@/components/ui/ExpandableContent';
+import { useHighlightItem } from '@/hooks/useHighlightItem';
 
 const BookmarksPage: React.FC = () => {
   const [bookmarks, setBookmarks] = useState<BookmarkItemType[]>([]);
@@ -26,6 +27,9 @@ const BookmarksPage: React.FC = () => {
   const [filter, setFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [sortOrder, setSortOrder] = useState<string>('desc');
+
+  // Use the highlight hook to handle search result navigation
+  const bookmarkRefs = useHighlightItem(bookmarks, loading);
   
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
@@ -701,8 +705,9 @@ const BookmarksPage: React.FC = () => {
                   <div
                     key={bookmark._id}
                     className="group"
+                    ref={(el) => (bookmarkRefs.current[bookmark._id] = el)}
                   >
-                    <Card className="p-3 sm:p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10 mobile-card">
+                    <Card className="p-3 sm:p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10 mobile-card rounded-lg">
                       <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-4">
                         <div className="flex-grow min-w-0 w-full sm:w-auto">
                           {isValidOriginalUrl ? (

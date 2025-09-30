@@ -11,6 +11,7 @@ import { SkeletonText, Skeleton } from '@/components/ui/Skeleton';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
+import { useHighlightItem } from '@/hooks/useHighlightItem';
 import { Task } from '../../types/task'; // Using the centralized Task type
 import axiosInstance from '@/services/axiosConfig'; // Import axiosInstance
 import { sendManualTaskReminder } from '@/services/taskService'; // Import task service
@@ -56,6 +57,9 @@ const TasksPage: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const token = useAuthStore((state) => state.token);
   const { toast } = useToast(); // Initialize toast
+
+  // Use the highlight hook to handle search result navigation
+  const taskRefs = useHighlightItem(tasks, loading);
 
   // State for editing a task
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -515,9 +519,10 @@ const TasksPage: React.FC = () => {
                 key={task._id}
                 variants={itemVariants}
                 layout
+                ref={(el) => (taskRefs.current[task._id] = el)}
               >
-                <GlassCard 
-                  className={`p-4 md:p-5 flex flex-col h-full group transition-all duration-300 ease-in-out hover:shadow-pink-500/30 hover:border-pink-500/50 ${task.status === 'completed' ? 'opacity-70 hover:opacity-100' : ''}`}
+                <GlassCard
+                  className={`p-4 md:p-5 flex flex-col h-full group transition-all duration-300 ease-in-out hover:shadow-pink-500/30 hover:border-pink-500/50 rounded-lg ${task.status === 'completed' ? 'opacity-70 hover:opacity-100' : ''}`}
                 >
                   <div className="flex justify-between items-start mb-3">
                     <h3 className="text-lg font-semibold text-white group-hover:text-pink-300 transition-colors">

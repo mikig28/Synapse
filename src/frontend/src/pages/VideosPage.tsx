@@ -12,6 +12,7 @@ import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Input } from '@/components/ui/input';
+import { useHighlightItem } from '@/hooks/useHighlightItem';
 import YouTubeRecommendations from '@/components/videos/YouTubeRecommendations';
 
 
@@ -19,6 +20,9 @@ const VideosPage: React.FC = () => {
   const [videos, setVideos] = useState<VideoItemType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Use the highlight hook to handle search result navigation
+  const videoRefs = useHighlightItem(videos, loading);
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
   const [playingStartSeconds, setPlayingStartSeconds] = useState<number>(0);
   const [summarizingVideoId, setSummarizingVideoId] = useState<string | null>(null);
@@ -438,8 +442,14 @@ const VideosPage: React.FC = () => {
                   {groupedVideos[section.status]
                     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                     .map(video => (
-                    <motion.div variants={itemVariants} key={video._id} whileHover={{ y: -5, scale: 1.03 }} transition={{ type: 'spring', stiffness: 200, damping: 15 }}>
-                      <GlassCard className="flex flex-col overflow-hidden h-full hover:shadow-purple-500/40">
+                    <motion.div
+                      variants={itemVariants}
+                      key={video._id}
+                      whileHover={{ y: -5, scale: 1.03 }}
+                      transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+                      ref={(el) => (videoRefs.current[video._id] = el)}
+                    >
+                      <GlassCard className="flex flex-col overflow-hidden h-full hover:shadow-purple-500/40 rounded-lg">
                         <div onClick={() => setPlayingVideoId(video.videoId)} className="block cursor-pointer relative group aspect-[16/9]">
                           {video.thumbnailUrl ? (
                             <img 

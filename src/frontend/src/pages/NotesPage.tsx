@@ -9,15 +9,16 @@ import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { SkeletonCard, Skeleton } from '@/components/ui/Skeleton';
 import { Input } from '@/components/ui/input';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
+import { useHighlightItem } from '@/hooks/useHighlightItem';
 import { BACKEND_ROOT_URL } from "@/services/axiosConfig";
 import { FloatingParticles } from '@/components/common/FloatingParticles';
-import { 
-  StickyNote, 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Calendar, 
-  FileText, 
+import {
+  StickyNote,
+  Plus,
+  Edit,
+  Trash2,
+  Calendar,
+  FileText,
   Sparkles,
   AlertCircle,
   Search,
@@ -48,6 +49,9 @@ const NotesPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const token = useAuthStore((state) => state.token);
+
+  // Use the highlight hook to handle search result navigation
+  const noteRefs = useHighlightItem(notes, loading);
 
   const [showAddNoteModal, setShowAddNoteModal] = useState<boolean>(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
@@ -426,9 +430,10 @@ const NotesPage: React.FC = () => {
                 key={note._id}
                 variants={itemVariants}
                 layout
+                ref={(el) => (noteRefs.current[note._id] = el)}
               >
-                <GlassCard 
-                  className={`p-4 md:p-5 flex flex-col h-full group transition-all duration-300 ease-in-out hover:shadow-lime-500/30 hover:border-lime-500/50`}
+                <GlassCard
+                  className={`p-4 md:p-5 flex flex-col h-full group transition-all duration-300 ease-in-out hover:shadow-lime-500/30 hover:border-lime-500/50 rounded-lg`}
                   glowColor="rgba(163, 230, 53, 0.4)"
                 >
                   <div className="flex justify-between items-start mb-3">
