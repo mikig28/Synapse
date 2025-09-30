@@ -79,7 +79,7 @@ const PageLoader = () => (
 
 function AppContent() {
   const { isAuthenticated, hasHydrated } = useAuthStore();
-  const { isOnboarding, progress } = useOnboardingStore();
+  const { isOnboarding, onboardingDismissed, progress } = useOnboardingStore();
   const location = useLocation();
   const commandPalette = useCommandPalette();
 
@@ -89,7 +89,7 @@ function AppContent() {
   }
 
   // Check if user needs onboarding (first time users or incomplete onboarding)
-  const needsOnboarding = isAuthenticated && (
+  const needsOnboarding = isAuthenticated && !onboardingDismissed && (
     progress.completedSteps.length === 0 || 
     (isOnboarding && progress.completedSteps.length < progress.totalSteps)
   );

@@ -36,6 +36,8 @@ const stepComponents = [
 const OnboardingPage: React.FC = () => {
   const navigate = useNavigate();
   const {
+    isOnboarding,
+    onboardingDismissed,
     currentStep,
     steps,
     progress,
@@ -46,6 +48,7 @@ const OnboardingPage: React.FC = () => {
     nextStep,
     prevStep,
     skipStep,
+    startOnboarding,
     completeOnboarding,
     hideCelebration,
     hideTips,
@@ -54,6 +57,7 @@ const OnboardingPage: React.FC = () => {
     isLoading,
     error,
     setError,
+    dismissOnboarding,
   } = useOnboardingStore();
 
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -66,6 +70,12 @@ const OnboardingPage: React.FC = () => {
       });
     }
   }, [initializeFromServer, isInitialized, setError]);
+
+  useEffect(() => {
+    if (!isOnboarding && !onboardingDismissed) {
+      startOnboarding();
+    }
+  }, [isOnboarding, onboardingDismissed, startOnboarding]);
 
   const CurrentStepComponent = useMemo(() => stepComponents[currentStep] ?? null, [currentStep]);
   const currentStepData = steps[currentStep];
@@ -107,6 +117,7 @@ const OnboardingPage: React.FC = () => {
   };
 
   const handleExit = () => {
+    dismissOnboarding();
     navigate('/dashboard');
   };
 

@@ -89,6 +89,7 @@ export interface Achievement {
 interface OnboardingState {
   isOnboarding: boolean;
   isInitialized: boolean;
+  onboardingDismissed: boolean;
   currentStep: number;
   steps: OnboardingStep[];
   progress: OnboardingProgress;
@@ -333,6 +334,7 @@ export const useOnboardingStore = create<OnboardingState>()(
     (set, get) => ({
       isOnboarding: false,
       isInitialized: false,
+      onboardingDismissed: false,
       currentStep: 0,
       steps: createDefaultSteps(),
       progress: createInitialProgress(createDefaultSteps().length),
@@ -353,6 +355,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         set({
           isOnboarding: true,
           isInitialized: false,
+          onboardingDismissed: false,
           steps,
           progress,
           currentStep: determineCurrentStep(steps),
@@ -500,6 +503,7 @@ export const useOnboardingStore = create<OnboardingState>()(
 
         set({
           isOnboarding: false,
+          onboardingDismissed: true,
           progress: {
             ...state.progress,
             completedTime: completionTime,
@@ -687,6 +691,13 @@ export const useOnboardingStore = create<OnboardingState>()(
         });
       },
 
+      dismissOnboarding: () => {
+        set({
+          isOnboarding: false,
+          onboardingDismissed: true,
+        });
+      },
+
       reset: () => {
         const steps = normalizeStepUnlocks(createDefaultSteps());
         set({
@@ -696,6 +707,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           steps,
           progress: createInitialProgress(steps.length),
           userPreferences: createInitialPreferences(),
+          onboardingDismissed: false,
           integrationStatus: createInitialIntegrationStatus(),
           achievements: createDefaultAchievements(),
           isLoading: false,
@@ -725,6 +737,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         isOnboarding: state.isOnboarding,
         currentStep: state.currentStep,
         steps: state.steps,
+        onboardingDismissed: state.onboardingDismissed,
       }),
     },
   ),
