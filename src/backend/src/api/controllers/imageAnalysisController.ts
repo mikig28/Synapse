@@ -38,7 +38,7 @@ export const getImageStats = async (req: AuthenticatedRequest, res: Response) =>
     const images = await TelegramItem.find({
       synapseUserId: userId,
       messageType: 'photo',
-      mediaGridFsId: { $exists: true, $ne: null, $ne: '' }
+      mediaGridFsId: { $exists: true, $nin: [null, '', undefined] }
     });
 
     const stats = {
@@ -91,7 +91,7 @@ export const reanalyzeImage = async (req: AuthenticatedRequest, res: Response) =
       _id: itemId,
       synapseUserId: userId,
       messageType: 'photo',
-      mediaGridFsId: { $exists: true, $ne: null, $ne: '' }
+      mediaGridFsId: { $exists: true, $nin: [null, '', undefined] }
     });
 
     if (!item) {
@@ -150,7 +150,7 @@ export const bulkAnalyzeImages = async (req: AuthenticatedRequest, res: Response
     const unanalyzedImages = await TelegramItem.find({
       synapseUserId: userId,
       messageType: 'photo',
-      mediaGridFsId: { $exists: true, $ne: null, $ne: '' },
+      mediaGridFsId: { $exists: true, $nin: [null, '', undefined] },
       $or: [
         { 'aiAnalysis.isAnalyzed': { $ne: true } },
         { aiAnalysis: { $exists: false } }
