@@ -29,6 +29,7 @@ import ideasRoutes from './api/routes/ideasRoutes'; // Add this
 import meetingsRoutes from './api/routes/meetingsRoutes'; // Add meetings routes
 import userRoutes from './api/routes/userRoutes'; // <-- IMPORT USER ROUTES
 import mediaRoutes from './api/routes/media'; // Import media routes
+import imageAnalysisRoutes from './api/routes/imageAnalysisRoutes'; // Import image analysis routes
 import agentsRoutes from './api/routes/agentsRoutes'; // Import agents routes
 import newsRoutes from './api/routes/newsRoutes'; // Import news routes
 import ttsRoutes from './api/routes/ttsRoutes'; // Import text-to-speech routes
@@ -194,6 +195,7 @@ app.use('/api/v1/capture', captureRoutes); // Use capture routes
 app.use('/api/v1/bookmarks', bookmarkRoutes); // Use bookmark routes
 app.use('/api/v1/videos', videoRoutes); // Use video routes
 app.use('/api/v1/media', mediaRoutes); // Use media routes
+app.use('/api/v1/image-analysis', imageAnalysisRoutes); // Use image analysis routes
 app.use('/api/v1/tasks', tasksRoutes); // Add this
 app.use('/api/v1/notes', notesRoutes); // Add this
 app.use('/api/v1/ideas', ideasRoutes); // Add this

@@ -12,8 +12,21 @@ export interface ITelegramItem extends Document {
   messageType: string; // e.g., 'text', 'photo', 'document', 'voice'
   mediaFileId?: string; // Telegram file_id for media
   mediaGridFsId?: string; // GridFS file ID if we download and store media
+  source?: 'telegram' | 'whatsapp'; // Source of the message
   receivedAt: Date;
-  // Add other relevant fields as needed
+  
+  // AI Analysis fields for images
+  aiAnalysis?: {
+    isAnalyzed: boolean;
+    analyzedAt?: Date;
+    description?: string; // AI-generated description of what's in the image
+    mainCategory?: string; // Primary category (e.g., 'Food', 'People', 'Nature', 'Screenshot', 'Document')
+    categories?: string[]; // All detected categories
+    tags?: string[]; // Specific tags/objects detected
+    sentiment?: 'positive' | 'neutral' | 'negative'; // Overall sentiment
+    confidence?: number; // AI confidence score (0-1)
+    error?: string; // If analysis failed
+  };
 }
 
 const TelegramItemSchema: Schema<ITelegramItem> = new Schema(
@@ -29,7 +42,21 @@ const TelegramItemSchema: Schema<ITelegramItem> = new Schema(
     messageType: { type: String, required: true, default: 'text' },
     mediaFileId: { type: String }, // For later use if we download media
     mediaGridFsId: { type: String }, // For later use
+    source: { type: String, enum: ['telegram', 'whatsapp'], default: 'telegram' },
     receivedAt: { type: Date, default: Date.now },
+    
+    // AI Analysis schema
+    aiAnalysis: {
+      isAnalyzed: { type: Boolean, default: false },
+      analyzedAt: { type: Date },
+      description: { type: String },
+      mainCategory: { type: String },
+      categories: { type: [String], default: [] },
+      tags: { type: [String], default: [] },
+      sentiment: { type: String, enum: ['positive', 'neutral', 'negative'] },
+      confidence: { type: Number, min: 0, max: 1 },
+      error: { type: String }
+    }
   },
   { timestamps: true } // Adds createdAt and updatedAt for the DB record itself
 );
@@ -37,6 +64,8 @@ const TelegramItemSchema: Schema<ITelegramItem> = new Schema(
 // Index for efficient querying, e.g., by messageId and chatId to avoid duplicates if needed
 TelegramItemSchema.index({ telegramMessageId: 1, chatId: 1 }, { unique: false }); // unique: false, as edits create new messages
 TelegramItemSchema.index({ synapseUserId: 1, receivedAt: -1 });
+TelegramItemSchema.index({ 'aiAnalysis.mainCategory': 1 }); // For filtering by category
+TelegramItemSchema.index({ source: 1, messageType: 1 }); // For filtering by source and type
 
 const TelegramItem = mongoose.model<ITelegramItem>('TelegramItem', TelegramItemSchema);
 

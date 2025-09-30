@@ -23,6 +23,7 @@ import mongoose from 'mongoose';
 import { getBucket } from '../config/gridfs';
 import PDFParser from 'pdf-parse';
 import { telegramBotManager } from './telegramBotManager';
+import imageAnalysisService from './imageAnalysisService';
 import TelegramChannel, { ITelegramChannelMessage } from '../models/TelegramChannel';
 
 dotenv.config();
@@ -455,11 +456,32 @@ const handleTelegramMessage = async (userId: string, msg: TelegramBot.Message, b
       messageType,
       mediaFileId,
       mediaGridFsId,
+      source: 'telegram' as const,
       receivedAt,
     };
     
     const savedItem = await new TelegramItem(newItemData).save();
     console.log(`[TelegramService] Saved ${messageType} from chat ${chatId} to DB for user ${synapseUser.email}.`);
+    
+    // Analyze image if it's a photo and has GridFS ID
+    if (messageType === 'photo' && mediaGridFsId) {
+      console.log(`[TelegramService] 🔍 Starting AI analysis for photo ${mediaGridFsId}`);
+      // Run analysis asynchronously (don't wait)
+      imageAnalysisService.analyzeImageFromGridFS(mediaGridFsId)
+        .then(async (analysis) => {
+          try {
+            await TelegramItem.findByIdAndUpdate(savedItem._id, {
+              aiAnalysis: analysis
+            });
+            console.log(`[TelegramService] ✅ AI analysis complete for photo ${mediaGridFsId}: ${analysis.mainCategory}`);
+          } catch (error) {
+            console.error(`[TelegramService] ❌ Error saving AI analysis:`, error);
+          }
+        })
+        .catch((error) => {
+          console.error(`[TelegramService] ❌ AI analysis failed for photo ${mediaGridFsId}:`, error);
+        });
+    }
     
     let processedAsVideo = false;
     if (synapseUser?._id && savedItem.urls && savedItem.urls.length > 0 && savedItem._id) { 
