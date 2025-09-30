@@ -34,14 +34,21 @@ export const getImageStats = async (req: AuthenticatedRequest, res: Response) =>
 
     const userId = req.user.id;
 
-    // Get counts by category - only photos with GridFS ID (displayable)
-    const images = await TelegramItem.find({
+    // Get all photos first, then filter for valid GridFS IDs
+    const allPhotos = await TelegramItem.find({
       synapseUserId: userId,
-      messageType: 'photo',
-      mediaGridFsId: { $exists: true, $nin: [null, '', undefined] }
-    });
+      messageType: 'photo'
+    }).lean();
 
-    console.log(`[ImageAnalysis] Stats query returned ${images.length} images for user ${userId}`);
+    // Filter for displayable images (has valid GridFS ID)
+    const images = allPhotos.filter(img => 
+      img.mediaGridFsId && 
+      img.mediaGridFsId !== null && 
+      img.mediaGridFsId !== '' &&
+      img.mediaGridFsId.length > 0
+    );
+
+    console.log(`[ImageAnalysis] Found ${allPhotos.length} total photos, ${images.length} displayable for user ${userId}`);
     console.log(`[ImageAnalysis] Sample GridFS IDs:`, images.slice(0, 3).map(i => i.mediaGridFsId));
 
     const stats = {
@@ -93,21 +100,14 @@ export const reanalyzeImage = async (req: AuthenticatedRequest, res: Response) =
     const item = await TelegramItem.findOne({
       _id: itemId,
       synapseUserId: userId,
-      messageType: 'photo',
-      mediaGridFsId: { $exists: true, $nin: [null, '', undefined] }
+      messageType: 'photo'
     });
-
-    if (!item) {
+    
+    // Check if it has a valid GridFS ID
+    if (!item || !item.mediaGridFsId || item.mediaGridFsId === '' || item.mediaGridFsId.length === 0) {
       return res.status(404).json({
         success: false,
-        error: 'Image not found or not authorized'
-      });
-    }
-
-    if (!item.mediaGridFsId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Image has no GridFS ID'
+        error: 'Image not found or has no valid media file'
       });
     }
 
@@ -149,16 +149,20 @@ export const bulkAnalyzeImages = async (req: AuthenticatedRequest, res: Response
     const userId = req.user.id;
     const { limit = 10 } = req.query; // Limit to avoid timeout
 
-    // Find unanalyzed images
-    const unanalyzedImages = await TelegramItem.find({
+    // Find unanalyzed images - get all photos first
+    const allUnanalyzed = await TelegramItem.find({
       synapseUserId: userId,
       messageType: 'photo',
-      mediaGridFsId: { $exists: true, $nin: [null, '', undefined] },
       $or: [
         { 'aiAnalysis.isAnalyzed': { $ne: true } },
         { aiAnalysis: { $exists: false } }
       ]
-    }).limit(Number(limit));
+    }).limit(Number(limit) * 2); // Get more to ensure we have enough after filtering
+    
+    // Filter for valid GridFS IDs
+    const unanalyzedImages = allUnanalyzed
+      .filter(img => img.mediaGridFsId && img.mediaGridFsId !== '' && img.mediaGridFsId.length > 0)
+      .slice(0, Number(limit));
 
     console.log(`[ImageAnalysis] Bulk analyzing ${unanalyzedImages.length} images for user ${userId}`);
 
