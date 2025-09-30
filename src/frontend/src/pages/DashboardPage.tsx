@@ -457,7 +457,7 @@ const DashboardPage: React.FC = () => {
           </nav>
         </div>
 
-        <DashboardGrid columns={4} className="gap-3 sm:gap-4 lg:gap-6 overflow-hidden">
+        <DashboardGrid columns={4} className="gap-3 sm:gap-4 lg:gap-6 min-w-0">
           {stats.map((stat, index) => (
             <AnimatedDashboardCard
               key={stat.title}

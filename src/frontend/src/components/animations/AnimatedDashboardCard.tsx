@@ -43,11 +43,11 @@ export const AnimatedDashboardCard: React.FC<AnimatedDashboardCardProps> = ({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.5, ease: 'easeOut' }}
       whileHover={{ y: -4 }}
-      className="group"
+      className="group min-w-0"
     >
       <GlassCard 
         className={cn(
-          "relative overflow-hidden transition-all duration-300",
+          "relative w-full min-w-0 overflow-hidden transition-all duration-300",
           "hover:shadow-lg hover-glow cursor-pointer",
           onClick && "cursor-pointer"
         )}
@@ -71,10 +71,10 @@ export const AnimatedDashboardCard: React.FC<AnimatedDashboardCardProps> = ({
           }}
         />
 
-        <div className="relative p-6">
+        <div className="relative p-6 min-w-0">
           {/* Header */}
-          <div className="flex items-start justify-between mb-4">
-            <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
+          <div className="flex items-start justify-between mb-4 min-w-0">
+            <h3 className="text-sm font-medium text-muted-foreground truncate max-w-full">{title}</h3>
             {Icon && (
               <motion.div
                 whileHover={{ scale: 1.1, rotate: 5 }}
@@ -96,7 +96,7 @@ export const AnimatedDashboardCard: React.FC<AnimatedDashboardCardProps> = ({
               damping: 20
             }}
           >
-            <p className="text-3xl font-bold gradient-text">
+            <p className="text-3xl font-bold gradient-text break-words">
               {value}
             </p>
           </motion.div>
@@ -145,19 +145,22 @@ export const AnimatedDashboardCard: React.FC<AnimatedDashboardCardProps> = ({
 interface DashboardGridProps {
   children: React.ReactNode;
   columns?: number;
+  className?: string;
 }
 
 export const DashboardGrid: React.FC<DashboardGridProps> = ({ 
   children, 
-  columns = 4 
+  columns = 4,
+  className
 }) => {
   return (
     <motion.div
       className={cn(
-        "grid gap-6",
+        "grid w-full min-w-0",
         columns === 4 && "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4",
         columns === 3 && "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
-        columns === 2 && "grid-cols-1 md:grid-cols-2"
+        columns === 2 && "grid-cols-1 md:grid-cols-2",
+        className
       )}
       initial="hidden"
       animate="visible"
