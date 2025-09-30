@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTelegram } from '@/contexts/TelegramContext';
 import { TelegramItemType } from '@/types/telegram';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
-import { STATIC_ASSETS_BASE_URL } from '../services/axiosConfig';
+import { BACKEND_ROOT_URL } from '../services/axiosConfig';
 import { FloatingParticles } from '@/components/common/FloatingParticles';
+import axiosInstance from '../services/axiosConfig';
 import { 
   Image, 
   Sparkles, 
@@ -15,13 +16,15 @@ import {
   ExternalLink,
   Trash2,
   Camera,
-  Download
+  Download,
+  Loader2
 } from 'lucide-react';
 import { SecureImage } from '@/components/common/SecureImage';
 
 const ImagesPage: React.FC = () => {
   const { telegramItems, isConnected, deleteTelegramItem } = useTelegram();
   const { ref: headerRef, isInView: headerVisible } = useScrollAnimation();
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const imageItems = telegramItems.filter(
     (item) => item.messageType === 'photo' && item.mediaGridFsId
@@ -56,13 +59,54 @@ const ImagesPage: React.FC = () => {
     }
   };
 
-  const downloadImage = (gridFsId: string) => {
-    const link = document.createElement('a');
-    link.href = `/api/v1/media/${gridFsId}`;
-    link.download = `synapse_image_${gridFsId}.jpg`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const downloadImage = async (gridFsId: string) => {
+    try {
+      setDownloadingId(gridFsId);
+      
+      // Fetch the image as a blob with authentication
+      const response = await axiosInstance.get(`/media/${gridFsId}`, {
+        responseType: 'blob',
+      });
+      
+      // Create a blob URL and trigger download
+      const blob = new Blob([response.data], { type: response.headers['content-type'] || 'image/jpeg' });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `synapse_image_${gridFsId}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up the blob URL
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    } catch (error) {
+      console.error('Error downloading image:', error);
+      alert('Failed to download image. Please try again.');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const openImageInNewTab = async (gridFsId: string) => {
+    try {
+      // Fetch the image as a blob with authentication
+      const response = await axiosInstance.get(`/media/${gridFsId}`, {
+        responseType: 'blob',
+      });
+      
+      // Create a blob URL and open in new tab
+      const blob = new Blob([response.data], { type: response.headers['content-type'] || 'image/jpeg' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      
+      // Clean up after a delay
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      console.error('Error opening image:', error);
+      alert('Failed to open image. Please try again.');
+    }
   };
 
   return (
@@ -189,15 +233,22 @@ const ImagesPage: React.FC = () => {
                   </motion.button>
 
                   {/* Download Button */}
-                  <motion.button
-                    onClick={() => downloadImage(item.mediaGridFsId)}
-                    className="absolute bottom-2 right-2 z-10 p-2 bg-blue-500/80 text-white rounded-full hover:bg-blue-600/90 opacity-0 group-hover:opacity-100 transition-all focus:opacity-100"
-                    title="Download image"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                  >
-                    <Download size={16} />
-                  </motion.button>
+                  {item.mediaGridFsId && (
+                    <motion.button
+                      onClick={() => downloadImage(item.mediaGridFsId!)}
+                      disabled={downloadingId === item.mediaGridFsId}
+                      className="absolute bottom-2 right-2 z-10 p-2 bg-blue-500/80 text-white rounded-full hover:bg-blue-600/90 opacity-0 group-hover:opacity-100 transition-all focus:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Download image"
+                      whileHover={{ scale: downloadingId === item.mediaGridFsId ? 1 : 1.1 }}
+                      whileTap={{ scale: downloadingId === item.mediaGridFsId ? 1 : 0.9 }}
+                    >
+                      {downloadingId === item.mediaGridFsId ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Download size={16} />
+                      )}
+                    </motion.button>
+                  )}
 
                   {/* Source Badge */}
                   <div className="absolute top-2 left-2 z-10">
@@ -215,21 +266,22 @@ const ImagesPage: React.FC = () => {
 
                   {/* Image */}
                   <div className="relative overflow-hidden">
-                    <a 
-                      href={item.mediaGridFsId ? `/api/v1/media/${item.mediaGridFsId}` : '#'}
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="block relative group"
-                    >
-                      <SecureImage 
-                        imageId={item.mediaGridFsId}
-                        alt={`Telegram Photo from ${item.fromUsername || 'Unknown'} in ${item.chatTitle || 'DM'}`}
-                        className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-110"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 flex items-center justify-center">
-                        <ExternalLink className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      </div>
-                    </a>
+                    {item.mediaGridFsId && (
+                      <button 
+                        onClick={() => openImageInNewTab(item.mediaGridFsId!)}
+                        className="block relative group w-full cursor-pointer"
+                        type="button"
+                      >
+                        <SecureImage 
+                          imageId={item.mediaGridFsId}
+                          alt={`Telegram Photo from ${item.fromUsername || 'Unknown'} in ${item.chatTitle || 'DM'}`}
+                          className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-110"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 flex items-center justify-center">
+                          <ExternalLink className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        </div>
+                      </button>
+                    )}
                   </div>
 
                   {/* Image Info */}
