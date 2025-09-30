@@ -5,7 +5,7 @@ import {
   reanalyzeImage,
   bulkAnalyzeImages
 } from '../controllers/imageAnalysisController';
-import { authenticateToken } from '../middleware/authMiddleware';
+import { protect } from '../middleware/authMiddleware';
 
 const router = Router();
 
@@ -13,9 +13,10 @@ const router = Router();
 router.get('/categories', getImageCategories);
 
 // Protected routes - require authentication
-router.get('/stats', authenticateToken, getImageStats);
-router.post('/reanalyze/:itemId', authenticateToken, reanalyzeImage);
-router.post('/bulk-analyze', authenticateToken, bulkAnalyzeImages);
+router.get('/stats', protect, getImageStats);
+router.post('/reanalyze/:itemId', protect, reanalyzeImage);
+router.post('/bulk-analyze', protect, bulkAnalyzeImages);
 
 export default router;
+
 

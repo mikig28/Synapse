@@ -28,5 +28,18 @@ export interface TelegramItemType {
   priority?: 'low' | 'medium' | 'high';
 
   // If it's a Note or Idea, content might be in 'text' or a specific 'content' field
-  content?: string; 
+  content?: string;
+  
+  // AI Analysis fields for images
+  aiAnalysis?: {
+    isAnalyzed: boolean;
+    analyzedAt?: string;
+    description?: string;
+    mainCategory?: string;
+    categories?: string[];
+    tags?: string[];
+    sentiment?: 'positive' | 'neutral' | 'negative';
+    confidence?: number;
+    error?: string;
+  };
 } 
