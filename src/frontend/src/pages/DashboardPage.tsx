@@ -305,7 +305,7 @@ const DashboardPage: React.FC = () => {
           .join('\n')
       : 'None';
 
-    const content = `# ${summary.groupName} - Summary\n\n**Date:** ${summary.summaryDate.toLocaleDateString()}\n**Time Range:** ${summary.timeRange.start.toLocaleString()} - ${summary.timeRange.end.toLocaleString()}\n**Messages:** ${summary.totalMessages}\n**Participants:** ${summary.activeParticipants}\n\n## Summary\n${summary.overallSummary || summary.summary || ''}\n\n## Top Keywords\n${keywordsText}\n\n## Top Emojis\n${emojisText}\n\n## Participant Insights\n${insightsText}`;
+    const content = `# ${summary.groupName} - Summary\n\n**Date:** ${summary.summaryDate.toLocaleDateString()}\n**Time Range:** ${summary.timeRange.start.toLocaleString()} - ${summary.timeRange.end.toLocaleString()}\n**Messages:** ${summary.totalMessages}\n**Participants:** ${summary.activeParticipants}\n\n## Summary\n${summary.overallSummary || ''}\n\n## Top Keywords\n${keywordsText}\n\n## Top Emojis\n${emojisText}\n\n## Participant Insights\n${insightsText}`;
 
     const blob = new Blob([content], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
@@ -403,11 +403,11 @@ const DashboardPage: React.FC = () => {
           transition={{ duration: 0.6 }}
           className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4"
         >
-          <div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl md:text-5xl font-bold gradient-text mb-2">
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold gradient-text mb-2">
               Dashboard
             </h1>
-            <p className="text-muted-foreground text-lg">
+            <p className="text-muted-foreground text-sm sm:text-base lg:text-lg">
               Welcome back! Here's what's happening with your digital brain.
             </p>
           </div>
@@ -433,15 +433,15 @@ const DashboardPage: React.FC = () => {
         </motion.div>
 
         {/* Stats controls + grid */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-sm text-muted-foreground">
-            <div className="flex gap-4 items-center">
-              {docCount !== undefined && <span>Documents: {docCount}</span>}
-              {meetingsCount !== undefined && <span>Meetings: {meetingsCount}</span>}
-              {typeof recentBookmarksCount === 'number' && <span>Bookmarks: {recentBookmarksCount}</span>}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
+          <div className="text-xs sm:text-sm text-muted-foreground overflow-hidden">
+            <div className="flex gap-2 sm:gap-4 items-center flex-wrap">
+              {docCount !== undefined && <span className="whitespace-nowrap">Docs: {docCount}</span>}
+              {meetingsCount !== undefined && <span className="whitespace-nowrap">Meetings: {meetingsCount}</span>}
+              {typeof recentBookmarksCount === 'number' && <span className="whitespace-nowrap">Bookmarks: {recentBookmarksCount}</span>}
               {whatsStatus && (
-                <span>
-                  WhatsApp: {whatsStatus.connected ? 'Connected' : 'Disconnected'}
+                <span className="whitespace-nowrap">
+                  WA: {whatsStatus.connected ? '✓' : '✗'}
                 </span>
               )}
             </div>
@@ -507,50 +507,50 @@ const DashboardPage: React.FC = () => {
             <div className="space-y-3">
               {recentSummaries.map((summary, index) => (
                 <motion.div
-                  key={summary.id}
+                  key={summary.groupId}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.3, delay: index * 0.1 }}
-                  className="flex items-start justify-between p-3 rounded-lg border border-border/40 bg-background/60 backdrop-blur hover:bg-background/80 transition-colors"
+                  className="flex flex-col sm:flex-row items-start justify-between p-3 rounded-lg border border-border/40 bg-background/60 backdrop-blur hover:bg-background/80 transition-colors gap-3"
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="text-sm font-medium text-foreground truncate line-clamp-1">
+                  <div className="flex-1 min-w-0 w-full">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <h4 className="text-sm font-medium text-foreground truncate max-w-[200px] sm:max-w-none">
                         {summary.groupName}
                       </h4>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                        {summary.totalMessages} messages
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary whitespace-nowrap">
+                        {summary.totalMessages} msg
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground space-y-0.5">
-                      <div className="flex items-center gap-3">
-                        <span>📅 {summary.summaryDate.toLocaleDateString()}</span>
-                        <span>👥 {summary.activeParticipants} participants</span>
+                      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                        <span className="whitespace-nowrap">📅 {summary.summaryDate.toLocaleDateString()}</span>
+                        <span className="whitespace-nowrap">👥 {summary.activeParticipants}</span>
                       </div>
-                      <div>
-                        ⏱️ Generated {formatDistanceToNow(summary.generatedAt || new Date(), { addSuffix: true })}
+                      <div className="truncate">
+                        ⏱️ {formatDistanceToNow(summary.generatedAt || new Date(), { addSuffix: true })}
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                      {summary.overallSummary || summary.summary || ''}
+                      {summary.overallSummary || ''}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1 ml-3">
+                  <div className="flex items-center gap-1 sm:ml-3 flex-shrink-0">
                     <AnimatedButton
                       variant="ghost"
                       size="sm"
                       onClick={() => downloadSummary(summary)}
-                      className="text-muted-foreground hover:text-foreground"
+                      className="text-muted-foreground hover:text-foreground p-2"
                     >
-                      <Download className="w-4 h-4" />
+                      <Download className="w-3 h-3 sm:w-4 sm:h-4" />
                     </AnimatedButton>
                     <AnimatedButton
                       variant="ghost"
                       size="sm"
                       onClick={() => handleNavigate('/whatsapp-monitor')}
-                      className="text-muted-foreground hover:text-foreground"
+                      className="text-muted-foreground hover:text-foreground p-2"
                     >
-                      <MessageSquare className="w-4 h-4" />
+                      <MessageSquare className="w-3 h-3 sm:w-4 sm:h-4" />
                     </AnimatedButton>
                   </div>
                 </motion.div>
@@ -572,24 +572,24 @@ const DashboardPage: React.FC = () => {
       </motion.div>
     )}
 
-        <div className="mt-8 grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-6">
-          <GlassCard className="h-full">
-            <div className="p-6 h-full flex flex-col">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-lg font-semibold">Today’s Focus</h3>
-                <span className="text-xs text-muted-foreground">Curated for you</span>
+        <div className="mt-8 grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-4 sm:gap-6 min-w-0">
+          <GlassCard className="h-full min-w-0">
+            <div className="p-4 sm:p-6 h-full flex flex-col min-w-0">
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <h3 className="text-base sm:text-lg font-semibold">Today's Focus</h3>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Curated</span>
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1">
-                <div className="rounded-xl border border-border/40 bg-background/60 p-4 backdrop-blur">
-                  <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 flex-1 min-w-0">
+                <div className="rounded-xl border border-border/40 bg-background/60 p-3 sm:p-4 backdrop-blur min-w-0">
+                  <h4 className="text-xs sm:text-sm font-semibold mb-2 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                     Highlighted Video
                   </h4>
                   <RecentVideo />
                 </div>
-                <div className="rounded-xl border border-border/30 bg-background/60 p-4 backdrop-blur flex flex-col">
-                  <h4 className="text-sm font-semibold mb-2">Active Bookmarks</h4>
-                  <div className="flex items-center justify-between text-xs mb-3 text-muted-foreground">
+                <div className="rounded-xl border border-border/30 bg-background/60 p-3 sm:p-4 backdrop-blur flex flex-col min-w-0">
+                  <h4 className="text-xs sm:text-sm font-semibold mb-2">Active Bookmarks</h4>
+                  <div className="flex items-center justify-between text-[10px] sm:text-xs mb-3 text-muted-foreground flex-wrap gap-1">
                     <span>Saved • last 24h</span>
                     <span>{recentBookmarksCount ?? '—'} total</span>
                   </div>
@@ -652,55 +652,55 @@ const DashboardPage: React.FC = () => {
             </div>
           </GlassCard>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 min-w-0">
             <AnimatedButton
               variant="outline"
-              className="justify-between"
+              className="justify-between text-xs sm:text-sm"
               onClick={() => handleNavigate('/agents')}
             >
-              <span>Manage agents</span>
-              <Users className="w-4 h-4" />
+              <span>Agents</span>
+              <Users className="w-3 h-3 sm:w-4 sm:h-4" />
             </AnimatedButton>
             <AnimatedButton
               variant="outline"
-              className="justify-between"
+              className="justify-between text-xs sm:text-sm"
               onClick={() => handleNavigate('/videos')}
             >
-              <span>Explore videos</span>
-              <Play className="w-4 h-4" />
+              <span>Videos</span>
+              <Play className="w-3 h-3 sm:w-4 sm:h-4" />
             </AnimatedButton>
             <AnimatedButton
               variant="outline"
-              className="justify-between"
+              className="justify-between text-xs sm:text-sm"
               onClick={() => handleNavigate('/tasks')}
             >
-              <span>Plan tasks</span>
-              <Calendar className="w-4 h-4" />
+              <span>Tasks</span>
+              <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
             </AnimatedButton>
           </div>
 
-          <GlassCard className="h-full">
-            <div className="p-6 h-full flex flex-col">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Today’s Shortcuts</h3>
-                <span className="text-xs text-muted-foreground">Jump right in</span>
+          <GlassCard className="h-full min-w-0">
+            <div className="p-4 sm:p-6 h-full flex flex-col min-w-0">
+              <div className="flex items-center justify-between mb-3 sm:mb-4 gap-2">
+                <h3 className="text-base sm:text-lg font-semibold">Shortcuts</h3>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Quick</span>
               </div>
-              <div className="space-y-3">
-                <AnimatedButton variant="secondary" className="w-full justify-between" onClick={handleAddNoteClick}>
-                  <span>Capture a new note</span>
-                  <FileText className="w-4 h-4" />
+              <div className="space-y-2 sm:space-y-3">
+                <AnimatedButton variant="secondary" className="w-full justify-between text-xs sm:text-sm" onClick={handleAddNoteClick}>
+                  <span>New note</span>
+                  <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
                 </AnimatedButton>
                 <AnimatedButton
                   variant="outline"
-                  className="w-full justify-between"
+                  className="w-full justify-between text-xs sm:text-sm"
                   onClick={() => handleNavigate('/bookmarks')}
                 >
-                  <span>Review saved bookmarks</span>
-                  <Bookmark className="w-4 h-4" />
+                  <span>Bookmarks</span>
+                  <Bookmark className="w-3 h-3 sm:w-4 sm:h-4" />
                 </AnimatedButton>
-                <AnimatedButton variant="ghost" className="w-full justify-between" onClick={handleSummarizeLatestClick}>
-                  <span>Generate digest</span>
-                  <Zap className="w-4 h-4" />
+                <AnimatedButton variant="ghost" className="w-full justify-between text-xs sm:text-sm" onClick={handleSummarizeLatestClick}>
+                  <span>Digest</span>
+                  <Zap className="w-3 h-3 sm:w-4 sm:h-4" />
                 </AnimatedButton>
               </div>
             </div>
@@ -713,24 +713,24 @@ const DashboardPage: React.FC = () => {
           transition={{ duration: 0.6, delay: 0.3 }}
           className="mt-8"
         >
-          <GlassCard className="overflow-hidden border border-border/40">
+          <GlassCard className="overflow-hidden border border-border/40 min-w-0">
             <Accordion type="single" collapsible defaultValue="intelligence-hub">
               <AccordionItem value="intelligence-hub" className="border-none">
-                <AccordionTrigger className="px-6">
-                  <div className="flex w-full items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 text-left">
-                      <BarChart3 className="w-5 h-5 text-primary" />
-                      <h3 className="text-lg font-semibold">Intelligence Hub</h3>
+                <AccordionTrigger className="px-3 sm:px-6">
+                  <div className="flex w-full items-center justify-between gap-2 min-w-0">
+                    <div className="flex items-center gap-2 text-left min-w-0">
+                      <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+                      <h3 className="text-sm sm:text-base lg:text-lg font-semibold truncate">Intelligence Hub</h3>
                     </div>
-                    <span className="hidden text-xs text-muted-foreground sm:inline">Monitor usage • Track agent performance</span>
+                    <span className="hidden text-xs text-muted-foreground lg:inline whitespace-nowrap">Monitor • Track</span>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="px-4 sm:px-6">
-                  <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 gap-4 sm:gap-6 overflow-hidden">
-                    <div className="rounded-xl border border-border/30 bg-background/60 p-5 backdrop-blur">
-                      <div className="mb-3 flex items-center justify-between">
-                        <h4 className="text-base font-semibold">Agent Analytics</h4>
-                        <span className="text-xs text-muted-foreground">Live insights</span>
+                <AccordionContent className="px-3 sm:px-6">
+                  <div className="mt-3 sm:mt-5 grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-6 overflow-hidden min-w-0">
+                    <div className="rounded-xl border border-border/30 bg-background/60 p-3 sm:p-5 backdrop-blur min-w-0">
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <h4 className="text-sm sm:text-base font-semibold">Agent Analytics</h4>
+                        <span className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">Live</span>
                       </div>
                       {isMobile ? (
                         <MobileMetricsDashboard agents={agents} recentRuns={recentRuns} />
@@ -738,10 +738,10 @@ const DashboardPage: React.FC = () => {
                         <MetricsDashboard agents={agents} recentRuns={recentRuns} />
                       )}
                     </div>
-                    <div className="rounded-xl border border-border/30 bg-background/60 p-5 backdrop-blur">
-                      <div className="mb-3 flex items-center justify-between">
-                        <h4 className="text-base font-semibold">Usage Trends</h4>
-                        <span className="text-xs text-muted-foreground">Billing & limits</span>
+                    <div className="rounded-xl border border-border/30 bg-background/60 p-3 sm:p-5 backdrop-blur min-w-0">
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <h4 className="text-sm sm:text-base font-semibold">Usage Trends</h4>
+                        <span className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">Billing</span>
                       </div>
                       <UsageDashboard />
                     </div>
@@ -770,28 +770,28 @@ const DashboardPage: React.FC = () => {
               </div>
             </GlassCard>
           ) : latestDigest ? (
-            <GlassCard className="mb-6 animate-fade-in">
-              <div className="p-6">
+            <GlassCard className="mb-6 animate-fade-in min-w-0">
+              <div className="p-4 sm:p-6 min-w-0">
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.5 }}
-                  className="flex items-center justify-between mb-4"
+                  className="flex items-center justify-between mb-4 gap-2 min-w-0"
                 >
-                  <div className="flex items-center">
-                    <div className="p-2 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full mr-3">
-                      <Zap className="w-5 h-5 text-primary" />
+                  <div className="flex items-center min-w-0 flex-1">
+                    <div className="p-1.5 sm:p-2 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full mr-2 sm:mr-3 flex-shrink-0">
+                      <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                     </div>
-                    <h3 className="text-xl font-semibold gradient-text">
-                      Recent Bookmarks Digest
+                    <h3 className="text-base sm:text-lg lg:text-xl font-semibold gradient-text truncate">
+                      Bookmarks Digest
                     </h3>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" onClick={handleReadAloud} title={isSpeaking ? "Stop Reading" : "Read Aloud"}>
-                      <Volume2 className={`w-5 h-5 ${isSpeaking ? "text-destructive" : "text-primary"}`} />
+                  <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                    <Button variant="ghost" size="icon" onClick={handleReadAloud} title={isSpeaking ? "Stop Reading" : "Read Aloud"} className="h-8 w-8 sm:h-10 sm:w-10">
+                      <Volume2 className={`w-4 h-4 sm:w-5 sm:h-5 ${isSpeaking ? "text-destructive" : "text-primary"}`} />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={handleClearDigest} title="Clear Digest">
-                      <XCircle className="w-5 h-5 text-muted-foreground hover:text-destructive" />
+                    <Button variant="ghost" size="icon" onClick={handleClearDigest} title="Clear Digest" className="h-8 w-8 sm:h-10 sm:w-10">
+                      <XCircle className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground hover:text-destructive" />
                     </Button>
                   </div>
                 </motion.div>
@@ -815,18 +815,18 @@ const DashboardPage: React.FC = () => {
                     </Alert>
                   ) : (
                     <div className="prose dark:prose-invert max-w-none">
-                      <p className="line-clamp-4">{latestDigest}</p>
+                      <p className="text-xs sm:text-sm line-clamp-4 break-words">{latestDigest}</p>
                     </div>
                   )}
                 </motion.div>
               </div>
             </GlassCard>
           ) : (
-            <GlassCard className="mb-6">
-              <div className="p-6 text-center">
-                <p className="text-muted-foreground">No recent digest available.</p>
-                <AnimatedButton variant="primary" onClick={handleSummarizeLatestClick} className="mt-4">
-                  Generate Latest Digest
+            <GlassCard className="mb-6 min-w-0">
+              <div className="p-4 sm:p-6 text-center">
+                <p className="text-sm sm:text-base text-muted-foreground">No recent digest available.</p>
+                <AnimatedButton variant="primary" onClick={handleSummarizeLatestClick} className="mt-4 text-xs sm:text-sm">
+                  Generate Digest
                 </AnimatedButton>
               </div>
             </GlassCard>
@@ -837,20 +837,20 @@ const DashboardPage: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.5 }}
-          className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden"
+          className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 overflow-hidden min-w-0"
         >
-          <GlassCard>
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Recent Notes & Ideas</h3>
-                <span className="text-sm text-muted-foreground">Last 5</span>
+          <GlassCard className="min-w-0">
+            <div className="p-4 sm:p-6 min-w-0">
+              <div className="flex items-center justify-between mb-3 sm:mb-4 gap-2">
+                <h3 className="text-base sm:text-lg font-semibold">Notes & Ideas</h3>
+                <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">Last 5</span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-hidden">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-2">Notes</p>
-                  <ul className="space-y-2 overflow-hidden max-h-32">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 overflow-hidden min-w-0">
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-muted-foreground mb-2">Notes</p>
+                  <ul className="space-y-2 overflow-hidden max-h-32 min-w-0">
                     {recentNotes.map(n => (
-                      <li key={n._id} className="text-sm truncate line-clamp-1">
+                      <li key={n._id} className="text-xs sm:text-sm truncate">
                         {n.title || n.content.slice(0, 60)}
                       </li>
                     ))}
@@ -859,11 +859,11 @@ const DashboardPage: React.FC = () => {
                     )}
                   </ul>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground mb-2">Ideas</p>
-                  <ul className="space-y-2 overflow-hidden max-h-32">
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-muted-foreground mb-2">Ideas</p>
+                  <ul className="space-y-2 overflow-hidden max-h-32 min-w-0">
                     {recentIdeas.map(i => (
-                      <li key={i._id} className="text-sm truncate line-clamp-1">
+                      <li key={i._id} className="text-xs sm:text-sm truncate">
                         {i.title}
                       </li>
                     ))}
@@ -876,18 +876,18 @@ const DashboardPage: React.FC = () => {
             </div>
           </GlassCard>
 
-          <GlassCard>
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Tasks & Bookmarks</h3>
-                <span className="text-sm text-muted-foreground">Last 5</span>
+          <GlassCard className="min-w-0">
+            <div className="p-4 sm:p-6 min-w-0">
+              <div className="flex items-center justify-between mb-3 sm:mb-4 gap-2">
+                <h3 className="text-base sm:text-lg font-semibold">Tasks & Bookmarks</h3>
+                <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">Last 5</span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-2">Tasks</p>
-                  <ul className="space-y-2 overflow-hidden max-h-32">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 min-w-0">
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-muted-foreground mb-2">Tasks</p>
+                  <ul className="space-y-2 overflow-hidden max-h-32 min-w-0">
                     {recentTasks.map(t => (
-                      <li key={t._id} className="text-sm truncate line-clamp-1">
+                      <li key={t._id} className="text-xs sm:text-sm truncate">
                         {t.title}
                       </li>
                     ))}
@@ -896,9 +896,9 @@ const DashboardPage: React.FC = () => {
                     )}
                   </ul>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground mb-2">Bookmarks</p>
-                  <p className="text-sm">Total: {recentBookmarksCount ?? '—'}</p>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-muted-foreground mb-2">Bookmarks</p>
+                  <p className="text-xs sm:text-sm">Total: {recentBookmarksCount ?? '—'}</p>
                 </div>
               </div>
             </div>
@@ -910,22 +910,22 @@ const DashboardPage: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.55 }}
-          className="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6 overflow-hidden"
+          className="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 overflow-hidden min-w-0"
         >
-          <GlassCard>
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-lg font-semibold">Telegram Feed</h3>
-                <span className="text-xs text-muted-foreground">Live</span>
+          <GlassCard className="min-w-0">
+            <div className="p-4 sm:p-6 min-w-0">
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <h3 className="text-base sm:text-lg font-semibold">Telegram Feed</h3>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Live</span>
               </div>
               <TelegramFeed />
             </div>
           </GlassCard>
 
-          <GlassCard>
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-lg font-semibold">Latest Video</h3>
+          <GlassCard className="min-w-0">
+            <div className="p-4 sm:p-6 min-w-0">
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <h3 className="text-base sm:text-lg font-semibold">Latest Video</h3>
               </div>
               <RecentVideo />
             </div>
@@ -941,23 +941,23 @@ const DashboardPage: React.FC = () => {
           <UpcomingEvents />
         </motion.div>
 
-        <GlassCard className="mt-8 border-dashed border-accent/40 bg-accent/5">
-          <div className="p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h4 className="text-base font-semibold">Nothing scheduled?</h4>
-              <p className="text-sm text-muted-foreground">
-                Kickstart your day by saving a bookmark, logging a task, or capturing an idea.
+        <GlassCard className="mt-8 border-dashed border-accent/40 bg-accent/5 min-w-0">
+          <div className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 min-w-0">
+            <div className="min-w-0">
+              <h4 className="text-sm sm:text-base font-semibold">Nothing scheduled?</h4>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Kickstart your day by saving a bookmark or task.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <AnimatedButton variant="outline" size="sm" onClick={handleAddNoteClick}>
-                Add note
+            <div className="flex flex-wrap gap-2 flex-shrink-0">
+              <AnimatedButton variant="outline" size="sm" onClick={handleAddNoteClick} className="text-xs sm:text-sm">
+                Note
               </AnimatedButton>
-              <AnimatedButton variant="outline" size="sm" onClick={() => handleNavigate('/tasks')}>
-                View tasks
+              <AnimatedButton variant="outline" size="sm" onClick={() => handleNavigate('/tasks')} className="text-xs sm:text-sm">
+                Tasks
               </AnimatedButton>
-              <AnimatedButton variant="outline" size="sm" onClick={() => handleNavigate('/bookmarks')}>
-                Manage bookmarks
+              <AnimatedButton variant="outline" size="sm" onClick={() => handleNavigate('/bookmarks')} className="text-xs sm:text-sm">
+                Bookmarks
               </AnimatedButton>
             </div>
           </div>
@@ -969,30 +969,30 @@ const DashboardPage: React.FC = () => {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8, delay: 0.6 }}
         >
-          <GlassCard className="text-center">
-            <div className="p-8">
+          <GlassCard className="text-center min-w-0">
+            <div className="p-6 sm:p-8 min-w-0">
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ type: "spring", stiffness: 200, delay: 0.8 }}
-                className="w-16 h-16 bg-gradient-to-br from-primary to-accent rounded-full mx-auto mb-4 flex items-center justify-center"
+                className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-primary to-accent rounded-full mx-auto mb-3 sm:mb-4 flex items-center justify-center"
               >
-                <Zap className="w-8 h-8 text-white" />
+                <Zap className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
               </motion.div>
-              <h2 className="text-2xl font-bold gradient-text mb-2">
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold gradient-text mb-2">
                 Your Digital Brain is Ready
               </h2>
-              <p className="text-muted-foreground mb-6">
-                Start capturing ideas, organizing thoughts, and building your second brain.
+              <p className="text-xs sm:text-sm text-muted-foreground mb-4 sm:mb-6">
+                Start capturing ideas and building your second brain.
               </p>
-              <div className="flex flex-wrap justify-center gap-3">
-                <AnimatedButton variant="primary" onClick={handleAddNoteClick}>
-                  <FileText className="w-4 h-4 mr-2 pointer-events-none" />
+              <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
+                <AnimatedButton variant="primary" onClick={handleAddNoteClick} className="text-xs sm:text-sm">
+                  <FileText className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 pointer-events-none" />
                   Add Note
                 </AnimatedButton>
-                <AnimatedButton variant="secondary">
-                  <LinkIcon className="w-4 h-4 mr-2" />
-                  Save Bookmark
+                <AnimatedButton variant="secondary" className="text-xs sm:text-sm">
+                  <LinkIcon className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
+                  Bookmark
                 </AnimatedButton>
               </div>
             </div>

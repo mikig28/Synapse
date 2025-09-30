@@ -6,6 +6,7 @@ import { useOnboardingStore } from '@/store/onboardingStore';
 import { ThemeProvider } from "@/components/theme-provider";
 import { PageTransition } from '@/components/animations';
 import { CommandPalette, useCommandPalette } from '@/components/animations';
+import { NavigationProgress } from '@/components/animations/NavigationProgress';
 import { DigestProvider } from './context/DigestContext';
 import { TelegramProvider } from './contexts/TelegramContext';
 import { TelegramChannelsProvider } from './contexts/TelegramChannelsContext';
@@ -30,10 +31,19 @@ if (typeof window !== 'undefined') {
   preloadMobileResources();
 }
 
-// Lazy load all pages for better performance
+// Lazy load pages with preloading for critical routes
 const DashboardPage = React.lazy(() => import('@/pages/DashboardPage'));
 const InboxPage = React.lazy(() => import('@/pages/InboxPage'));
 const SettingsPage = React.lazy(() => import('@/pages/SettingsPage'));
+
+// Preload critical pages after initial render
+const preloadCriticalPages = () => {
+  // Preload dashboard and inbox for faster navigation
+  import('@/pages/DashboardPage');
+  import('@/pages/InboxPage');
+  import('@/pages/TasksPage');
+  import('@/pages/NotesPage');
+};
 const LoginPage = React.lazy(() => import('@/pages/LoginPage'));
 const RegisterPage = React.lazy(() => import('@/pages/RegisterPage'));
 const ImagesPage = React.lazy(() => import('@/pages/ImagesPage'));
@@ -61,18 +71,18 @@ const SearchPage = React.lazy(() => import('@/pages/SearchPage'));
 const TelegramChannelsPage = React.lazy(() => import('@/pages/TelegramChannelsPage'));
 const OnboardingPage = React.lazy(() => import('@/pages/OnboardingPage'));
 
-// Loading component with beautiful animation
+// Beautiful but performant loading component
 const PageLoader = () => (
-  <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex items-center justify-center">
-    <div className="text-center space-y-4">
-      <div className="relative">
-        <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto"></div>
-        <div className="absolute inset-0 w-16 h-16 border-4 border-transparent border-t-accent rounded-full animate-spin mx-auto" style={{ animationDelay: '0.3s', animationDuration: '1.2s' }}></div>
+  <div className="min-h-screen bg-gradient-to-br from-background via-background to-background/95 flex items-center justify-center">
+    <div className="text-center space-y-3">
+      <div className="relative w-12 h-12 mx-auto">
+        {/* Primary spinner */}
+        <div className="absolute inset-0 border-3 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+        {/* Secondary glow effect */}
+        <div className="absolute inset-0 border-3 border-transparent border-t-accent/40 rounded-full animate-spin blur-sm"
+             style={{ animationDuration: '1s', animationDirection: 'reverse' }}></div>
       </div>
-      <div className="space-y-2">
-        <h3 className="text-lg font-semibold gradient-text">Loading...</h3>
-        <p className="text-sm text-muted-foreground">Preparing your digital brain</p>
-      </div>
+      <p className="text-sm font-medium text-muted-foreground/80 animate-pulse">Loading...</p>
     </div>
   </div>
 );
@@ -82,6 +92,14 @@ function AppContent() {
   const { isOnboarding, onboardingDismissed, progress } = useOnboardingStore();
   const location = useLocation();
   const commandPalette = useCommandPalette();
+
+  // Preload critical pages after user is authenticated
+  React.useEffect(() => {
+    if (isAuthenticated && hasHydrated) {
+      // Use setTimeout to avoid blocking initial render
+      setTimeout(preloadCriticalPages, 100);
+    }
+  }, [isAuthenticated, hasHydrated]);
 
   // Wait for auth hydration before deciding routes to avoid flicker/redirects on mobile
   if (!hasHydrated) {
@@ -101,7 +119,10 @@ function AppContent() {
           <DigestProvider>
             <TelegramProvider>
               <TelegramChannelsProvider>
-              <PageTransition key={location.pathname}>
+              {/* Beautiful top progress bar during navigation */}
+              <NavigationProgress />
+
+              <PageTransition key={location.pathname} mode="fade">
                 <Suspense fallback={<PageLoader />}>
                   <Routes>
                     <Route path="/" element={isAuthenticated ? (needsOnboarding ? <Navigate to="/onboarding" /> : <Navigate to="/dashboard" />) : <HomePage />} />

@@ -71,10 +71,10 @@ export const AnimatedDashboardCard: React.FC<AnimatedDashboardCardProps> = ({
           }}
         />
 
-        <div className="relative p-6 min-w-0">
+        <div className="relative p-3 sm:p-6 min-w-0">
           {/* Header */}
-          <div className="flex items-start justify-between mb-4 min-w-0">
-            <h3 className="text-sm font-medium text-muted-foreground truncate max-w-full">{title}</h3>
+          <div className="flex items-start justify-between mb-2 sm:mb-4 gap-2 min-w-0">
+            <h3 className="text-xs sm:text-sm font-medium text-muted-foreground line-clamp-2 flex-1 min-w-0">{title}</h3>
             {Icon && (
               <motion.div
                 whileHover={{ scale: 1.1, rotate: 5 }}
@@ -96,7 +96,7 @@ export const AnimatedDashboardCard: React.FC<AnimatedDashboardCardProps> = ({
               damping: 20
             }}
           >
-            <p className="text-3xl font-bold gradient-text break-words">
+            <p className="text-xl sm:text-2xl lg:text-3xl font-bold gradient-text break-words">
               {value}
             </p>
           </motion.div>
@@ -107,13 +107,13 @@ export const AnimatedDashboardCard: React.FC<AnimatedDashboardCardProps> = ({
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: delay + 0.4, duration: 0.3 }}
-              className={cn("flex items-center mt-3 space-x-1", getTrendColor())}
+              className={cn("flex items-center mt-2 sm:mt-3 space-x-1 flex-wrap", getTrendColor())}
             >
               {getTrendIcon()}
-              <span className="text-sm font-medium">
+              <span className="text-xs sm:text-sm font-medium">
                 {Math.abs(change)}%
               </span>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-[10px] sm:text-xs text-muted-foreground">
                 from last period
               </span>
             </motion.div>

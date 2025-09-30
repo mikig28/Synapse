@@ -9,26 +9,26 @@ interface PageTransitionProps {
 
 const pageVariants = {
   slide: {
-    initial: { opacity: 0, x: -20 },
+    initial: { opacity: 0, x: -10 },
     in: { opacity: 1, x: 0 },
-    out: { opacity: 0, x: 20 }
+    out: { opacity: 0, x: 10 }
   },
   fade: {
-    initial: { opacity: 0 },
-    in: { opacity: 1 },
-    out: { opacity: 0 }
+    initial: { opacity: 0, y: 4 }, // Subtle vertical shift for polish
+    in: { opacity: 1, y: 0 },
+    out: { opacity: 0, y: -4 }
   },
   scale: {
-    initial: { opacity: 0, scale: 0.95 },
+    initial: { opacity: 0, scale: 0.98 },
     in: { opacity: 1, scale: 1 },
-    out: { opacity: 0, scale: 1.05 }
+    out: { opacity: 0, scale: 0.98 }
   }
 };
 
 const pageTransition = {
   type: 'tween',
-  ease: 'anticipate',
-  duration: 0.5
+  ease: [0.25, 0.1, 0.25, 1], // Custom cubic-bezier for smooth, professional feel
+  duration: 0.2 // Sweet spot: fast but still visible and smooth
 };
 
 export const PageTransition: React.FC<PageTransitionProps> = ({ 

@@ -308,9 +308,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const listRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // Generate static commands
-  const navigationCommands = useNavigationCommands(navigate, onClose);
-  const quickActionCommands = useQuickActionCommands(navigate, onClose);
+  // Only generate commands when palette is open - performance optimization
+  const navigationCommands = React.useMemo(() =>
+    isOpen ? useNavigationCommands(navigate, onClose) : [],
+    [isOpen, navigate, onClose]
+  );
+  const quickActionCommands = React.useMemo(() =>
+    isOpen ? useQuickActionCommands(navigate, onClose) : [],
+    [isOpen, navigate, onClose]
+  );
 
   // Helper to get icon for search result type
   const getResultIcon = (type: string) => {
@@ -420,8 +426,10 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     }
   }, [addRecentSearch]);
 
-  // Update filtered commands when query changes
+  // Update filtered commands when query changes - only when palette is open
   useEffect(() => {
+    if (!isOpen) return; // Skip processing if palette is closed
+
     const allCommands = commands || [...navigationCommands, ...quickActionCommands];
 
     if (!query.trim()) {
@@ -465,13 +473,14 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [query, commands, navigationCommands, quickActionCommands, fuzzySearch, performSearch, getRecentItems, navigate, onClose]);
+  }, [isOpen, query, commands, navigationCommands, quickActionCommands, fuzzySearch, performSearch, getRecentItems, navigate, onClose]);
 
   // Combine all available commands
   const allAvailableCommands = React.useMemo(() => {
+    if (!isOpen) return []; // Skip if not open
     const searchCommands = searchResultsToCommands(searchResults);
     return [...filteredCommands, ...searchCommands];
-  }, [filteredCommands, searchResults, searchResultsToCommands]);
+  }, [isOpen, filteredCommands, searchResults, searchResultsToCommands]);
 
   // Handle keyboard navigation
   useEffect(() => {
