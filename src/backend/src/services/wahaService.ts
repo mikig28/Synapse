@@ -34,6 +34,7 @@ export interface WAHAMessage {
   mimeType?: string;
   hasMedia?: boolean;
   mediaUrl?: string; // Added for compatibility
+  caption?: string; // Caption for media messages
   media?: {
     url?: string;
     mimetype?: string;
