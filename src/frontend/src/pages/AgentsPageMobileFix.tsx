@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef, memo } from 'react';
+import React, { useEffect, useState, useCallback, useRef, memo, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAgui } from '../contexts/AguiContext';
 import { useIsMobile } from '@/hooks/useMobileDetection';
 import MobileCrewAIViewer from '@/components/MobileCrewAIViewer';
+import { 
+  LazyAgentCreationWizard,
+  LoadingFallback,
+  LazyWrapper,
+} from '@/components/LazyComponents';
 import { 
   Bot,
   Plus,
@@ -297,6 +302,20 @@ const AgentsPageMobileFix: React.FC = memo(() => {
     return `${diffDays}d ago`;
   };
 
+  // Handle agent created
+  const handleAgentCreated = useCallback((createdAgent: Agent) => {
+    setShowCreateWizard(false);
+    toast({
+      title: 'Success',
+      description: 'Agent created successfully',
+    });
+    
+    // Refresh agents list
+    setTimeout(() => {
+      fetchAgents();
+    }, 1000);
+  }, [toast, fetchAgents]);
+
   // Simple loading state
   if (loading) {
     return (
@@ -347,11 +366,8 @@ const AgentsPageMobileFix: React.FC = memo(() => {
             </div>
             <Button
               onClick={() => {
-                // For now, just show a toast since wizard might have issues
-                toast({
-                  title: 'Coming soon',
-                  description: 'Agent creation will be available shortly',
-                });
+                console.log('Create Agent button clicked (mobile)');
+                setShowCreateWizard(true);
               }}
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -408,10 +424,8 @@ const AgentsPageMobileFix: React.FC = memo(() => {
               </p>
               <Button 
                 onClick={() => {
-                  toast({
-                    title: 'Coming soon',
-                    description: 'Agent creation will be available shortly',
-                  });
+                  console.log('Create Agent button clicked (mobile - empty state)');
+                  setShowCreateWizard(true);
                 }}
                 className="mx-auto"
               >
@@ -431,6 +445,21 @@ const AgentsPageMobileFix: React.FC = memo(() => {
           onClose={() => setMobileCrewViewer({ isVisible: false, agent: null })}
         />
       )}
+
+      {/* Agent Creation Wizard - Lazy Loaded */}
+      <LazyWrapper 
+        fallbackProps={{ 
+          type: 'skeleton', 
+          message: 'Loading creation wizard...',
+          height: 500 
+        }}
+      >
+        <LazyAgentCreationWizard 
+          open={showCreateWizard}
+          onOpenChange={setShowCreateWizard}
+          onSuccess={handleAgentCreated}
+        />
+      </LazyWrapper>
     </div>
   );
 });
