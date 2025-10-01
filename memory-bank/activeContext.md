@@ -3,9 +3,31 @@
 ## Current Work Focus
 
 ### Primary Objective
-Mobile Agent Creation Fix - Agents Page
+Agent Execution Error Debugging - Improved Error Handling
 
 ### Recently Completed
+- **Agent Execution Error Fix** (2025-10-01): Improved error handling for agent execution failures
+  - Problem: Users seeing generic "Request failed with status code 400" when executing agents
+  - Root Cause: Frontend showing axios error instead of backend's detailed error message
+  - Solution: Enhanced error logging and user-friendly error messages in AgentsPageMobileFix.tsx
+  - Changes Made:
+    - Added comprehensive error logging to console with full error object details
+    - Extract specific error type and message from backend response
+    - Map error types to user-friendly messages (inactive, already running, service down, etc.)
+    - Added status code and error type logging for debugging
+    - Created detailed debugging documentation (AGENT_EXECUTION_DEBUG.md)
+    - Created quick-fix guide (FIX_AGENT_EXECUTION_ERROR.md)
+    - Created comprehensive summary (AGENT_ERROR_FIX_SUMMARY.md)
+  - Error Types Handled:
+    - agent_inactive: "Please activate the agent before executing it."
+    - agent_already_running: "This agent is already running."
+    - executor_not_available: "The executor for this agent type is not available."
+    - service_unavailable: "The AI service is temporarily unavailable."
+    - Authentication errors: "Your session has expired."
+    - Permission errors: "You do not have permission to execute this agent."
+  - Next Steps: Deploy and test, or use Chrome DevTools to debug without deploying
+  - Most Likely Root Cause: Agent is inactive (needs to be toggled to "Active")
+
 - **Mobile Agent Creation Fix** (2025-10-01): Fixed "Coming soon" issue on mobile devices
   - Problem: Phone users clicking "Create Agent" button saw "Coming soon" toast instead of wizard
   - Root Cause: Mobile fallback version (`AgentsPageMobileFix.tsx`) had placeholder toast messages
