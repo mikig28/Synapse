@@ -3001,15 +3001,15 @@ const WhatsAppPage: React.FC = () => {
           {/* Chat Interface - Mobile: Full screen, Desktop: Main content */}
           <div className={`
             ${isMobile 
-              ? `${!showChatList ? 'flex' : 'hidden'} fixed inset-0 z-30 bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 flex-col p-3 pt-20`
+              ? `${!showChatList ? 'flex' : 'hidden'} fixed inset-0 z-30 bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 flex-col p-3 pt-20 pb-3`
               : 'lg:col-span-2'
             }
           `}>
-            <GlassCard className={`${isMobile ? 'h-full' : 'h-[600px]'} p-4 sm:p-6 flex flex-col min-h-0`}>
+            <GlassCard className={`${isMobile ? 'h-full max-h-full' : 'h-[600px]'} p-3 sm:p-6 flex flex-col min-h-0 ${isMobile ? 'overflow-visible' : ''}`}>
               {selectedChat ? (
                 <>
-                  <div className="flex items-center justify-between pb-4 border-b border-white/20 flex-shrink-0">
-                    <div className="flex items-center gap-3">
+                  <div className={`flex items-center justify-between ${isMobile ? 'pb-2' : 'pb-4'} border-b border-white/20 flex-shrink-0`}>
+                    <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
                       {isMobile && (
                         <Button
                           onClick={() => {
@@ -3018,20 +3018,20 @@ const WhatsAppPage: React.FC = () => {
                           }}
                           variant="ghost"
                           size="sm"
-                          className="p-1.5 hover:bg-white/10"
+                          className="p-1.5 hover:bg-white/10 flex-shrink-0"
                           aria-label="Back to chat list"
                         >
                           <ArrowLeft className="w-5 h-5 text-white" />
                         </Button>
                       )}
                       {selectedChat.isGroup ? (
-                        <Users className="w-6 h-6 text-green-400" />
+                        <Users className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-green-400 flex-shrink-0`} />
                       ) : (
-                        <Phone className="w-6 h-6 text-violet-400" />
+                        <Phone className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-violet-400 flex-shrink-0`} />
                       )}
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-semibold text-white truncate">{selectedChat.name}</h3>
-                        <p className="text-sm text-blue-200/70">
+                      <div className="min-w-0 flex-1 overflow-hidden">
+                        <h3 className={`${isMobile ? 'text-sm' : 'text-base'} font-semibold text-white truncate`}>{selectedChat.name}</h3>
+                        <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-blue-200/70 truncate`}>
                           {selectedChat.isGroup 
                             ? `${selectedChat.participantCount ?? 0} members`
                             : 'Private chat'
@@ -3040,7 +3040,7 @@ const WhatsAppPage: React.FC = () => {
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
                       <AnimatedButton
                         onClick={() => {
                           // Extract and validate chatId using helper function
@@ -3053,15 +3053,15 @@ const WhatsAppPage: React.FC = () => {
                           }
                         }}
                         variant="outline"
-                        size="sm"
+                        size={isMobile ? "icon" : "sm"}
                         disabled={refreshingMessages}
-                        className="border-blue-400/30 text-blue-200 hover:bg-blue-500/10 flex-shrink-0"
+                        className={`border-blue-400/30 text-blue-200 hover:bg-blue-500/10 flex-shrink-0 ${isMobile ? 'h-8 w-8 p-0' : ''}`}
                         title="Refresh messages from server"
                       >
                         {refreshingMessages ? (
-                          <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                          <RefreshCw className={`${isMobile ? 'w-4 h-4' : 'w-4 h-4 mr-1'} animate-spin`} />
                         ) : (
-                          <RefreshCw className="w-4 h-4 mr-1" />
+                          <RefreshCw className={`${isMobile ? 'w-4 h-4' : 'w-4 h-4 mr-1'}`} />
                         )}
                         {!isMobile && 'Refresh'}
                       </AnimatedButton>
@@ -3107,14 +3107,15 @@ const WhatsAppPage: React.FC = () => {
                           }
                         }}
                         variant="outline"
-                        size="sm"
+                        size={isMobile ? "icon" : "sm"}
                         disabled={fetchingHistory}
-                        className="border-orange-400/30 text-orange-200 hover:bg-orange-500/10 flex-shrink-0"
+                        className={`border-orange-400/30 text-orange-200 hover:bg-orange-500/10 flex-shrink-0 ${isMobile ? 'h-8 w-8 p-0' : ''}`}
+                        title="Load older messages"
                       >
                         {fetchingHistory ? (
-                          <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                          <RefreshCw className={`${isMobile ? 'w-4 h-4' : 'w-4 h-4 mr-1'} animate-spin`} />
                         ) : (
-                          <Download className="w-4 h-4 mr-1" />
+                          <Download className={`${isMobile ? 'w-4 h-4' : 'w-4 h-4 mr-1'}`} />
                         )}
                         {!isMobile && 'Load History'}
                       </AnimatedButton>
@@ -3127,11 +3128,10 @@ const WhatsAppPage: React.FC = () => {
                     onWheel={handleChatWheel}
                     onTouchStart={handleTouchStart}
                     onTouchMove={handleTouchMove}
-                    className="flex-1 min-h-0 overflow-y-auto md:overflow-y-scroll my-4 space-y-3 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full pointer-events-auto pr-1"
+                    className={`flex-1 min-h-0 overflow-y-auto ${isMobile ? 'my-2' : 'my-4'} space-y-2 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full pointer-events-auto ${isMobile ? 'pr-0.5' : 'pr-1'}`}
                     style={{
                       scrollbarWidth: 'auto',
                       scrollbarColor: '#8b5cf6 rgba(255,255,255,0.2)',
-                      maxHeight: 'calc(100% - 120px)',
                       scrollbarGutter: 'stable',
                       overscrollBehaviorY: 'contain',
                       touchAction: 'pan-y'
@@ -3153,37 +3153,37 @@ const WhatsAppPage: React.FC = () => {
                           key={message.id}
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className={`flex ${message.fromMe ? 'justify-end' : 'justify-start'}`}
+                          className={`flex ${message.fromMe ? 'justify-end' : 'justify-start'} w-full`}
                         >
                           <div
-                            className={`max-w-[85%] sm:max-w-xs lg:max-w-md px-3 sm:px-4 py-2 rounded-lg ${
+                            className={`${isMobile ? 'max-w-[80%]' : 'max-w-[85%] sm:max-w-xs lg:max-w-md'} ${isMobile ? 'px-2 py-1.5' : 'px-3 sm:px-4 py-2'} rounded-lg break-words ${
                               message.fromMe
                                 ? 'bg-violet-500/70 text-white'
                                 : 'bg-white/20 text-white'
                             }`}
                           >
                             {!message.fromMe && (
-                              <p className="text-xs text-blue-200 mb-1">{message.contactName || (!message.isGroup ? (selectedChat?.name) : undefined) || (message.from?.includes('@') ? message.from.split('@')[0] : message.from) || 'Unknown'}</p>
+                              <p className={`${isMobile ? 'text-[10px]' : 'text-xs'} text-blue-200 mb-0.5 truncate`}>{message.contactName || (!message.isGroup ? (selectedChat?.name) : undefined) || (message.from?.includes('@') ? message.from.split('@')[0] : message.from) || 'Unknown'}</p>
                             )}
 {message.isMedia && message.type === 'image' ? (
-                              <div className="flex items-center gap-2">
-                                <Camera className="w-4 h-4 text-blue-300" />
-                                <span className="text-sm">Image</span>
+                              <div className={`flex items-center gap-1.5 ${isMobile ? 'flex-wrap' : ''}`}>
+                                <Camera className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'} text-blue-300 flex-shrink-0`} />
+                                <span className={`${isMobile ? 'text-xs' : 'text-sm'}`}>Image</span>
                                 <button
                                   onClick={() => extractImageFromMessage(message.id)}
-                                  className="flex items-center gap-1 bg-white/20 hover:bg-white/30 px-2 py-1 rounded text-xs transition-colors"
+                                  className={`flex items-center gap-1 bg-white/20 hover:bg-white/30 ${isMobile ? 'px-1.5 py-0.5' : 'px-2 py-1'} rounded ${isMobile ? 'text-[10px]' : 'text-xs'} transition-colors flex-shrink-0`}
                                   title="Download image"
                                 >
-                                  <Download className="w-3 h-3" />
-                                  Download
+                                  <Download className={`${isMobile ? 'w-2.5 h-2.5' : 'w-3 h-3'}`} />
+                                  {!isMobile && 'Download'}
                                 </button>
                               </div>
                             ) : message.isMedia ? (
-                              <p className="text-sm break-words whitespace-pre-wrap text-blue-300">[{message.type || 'Media'}]</p>
+                              <p className={`${isMobile ? 'text-xs' : 'text-sm'} break-words whitespace-pre-wrap text-blue-300`}>[{message.type || 'Media'}]</p>
                             ) : (
-                              <p className="text-sm break-words whitespace-pre-wrap">{message.body || '[No content]'}</p>
+                              <p className={`${isMobile ? 'text-xs' : 'text-sm'} break-words whitespace-pre-wrap overflow-wrap-anywhere`}>{message.body || '[No content]'}</p>
                             )}
-                            <p className="text-xs opacity-70 mt-1">{message.time}</p>
+                            <p className={`${isMobile ? 'text-[10px]' : 'text-xs'} opacity-70 mt-0.5`}>{message.time}</p>
                           </div>
                         </motion.div>
                       ))
@@ -3191,25 +3191,25 @@ const WhatsAppPage: React.FC = () => {
                     <div ref={messagesEndRef} />
                   </div>
                   
-                  <div className="flex gap-2 sm:gap-3">
+                  <div className={`flex ${isMobile ? 'gap-1.5' : 'gap-2 sm:gap-3'} flex-shrink-0`}>
                     <Input
                       placeholder="Type a message..."
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-                      className="flex-1 bg-white/10 border-white/20 text-white placeholder:text-blue-300 text-base"
+                      className={`flex-1 bg-white/10 border-white/20 text-white placeholder:text-blue-300 ${isMobile ? 'text-sm h-9' : 'text-base'}`}
                       disabled={sendingMessage}
                     />
                     <Button
                       onClick={sendMessage}
                       disabled={!newMessage.trim() || sendingMessage}
-                      className="bg-green-500 hover:bg-green-600 p-3 sm:px-4"
-                      size={isMobile ? "sm" : "default"}
+                      className={`bg-green-500 hover:bg-green-600 ${isMobile ? 'p-2 h-9 w-9' : 'p-3 sm:px-4'} flex-shrink-0`}
+                      size={isMobile ? "icon" : "default"}
                     >
                       {sendingMessage ? (
-                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <RefreshCw className={`${isMobile ? 'w-4 h-4' : 'w-4 h-4'} animate-spin`} />
                       ) : (
-                        <Send className="w-4 h-4" />
+                        <Send className={`${isMobile ? 'w-4 h-4' : 'w-4 h-4'}`} />
                       )}
                     </Button>
                   </div>
