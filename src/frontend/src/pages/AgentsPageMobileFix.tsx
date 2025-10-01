@@ -217,9 +217,57 @@ const AgentsPageMobileFix: React.FC = memo(() => {
         fetchAgents();
       }, 2000);
     } catch (error: any) {
+      console.error('[AgentsPage] Agent execution error:', error);
+      console.error('[AgentsPage] Full error object:', {
+        message: error.message,
+        response: error.response,
+        responseData: error.response?.data,
+        responseStatus: error.response?.status,
+        responseHeaders: error.response?.headers,
+        request: error.request,
+        config: error.config
+      });
+      
+      // Extract detailed error message from response
+      let errorMessage = 'Failed to execute agent';
+      let errorType = 'unknown';
+      let errorDetails = '';
+      
+      if (error.response?.data) {
+        errorMessage = error.response.data.message || error.response.data.error || errorMessage;
+        errorType = error.response.data.errorType || 'unknown';
+        
+        if (error.response.data.details) {
+          errorDetails = JSON.stringify(error.response.data.details, null, 2);
+          console.error('[AgentsPage] Error details:', errorDetails);
+        }
+        
+        // Log helpful debugging info
+        console.error('[AgentsPage] Error type:', errorType);
+        console.error('[AgentsPage] Status code:', error.response.status);
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      // Show more helpful error message based on error type
+      let userFriendlyMessage = errorMessage;
+      if (errorType === 'agent_inactive') {
+        userFriendlyMessage = 'Please activate the agent before executing it.';
+      } else if (errorType === 'agent_already_running') {
+        userFriendlyMessage = 'This agent is already running. Please wait for it to finish.';
+      } else if (errorType === 'executor_not_available') {
+        userFriendlyMessage = 'The executor for this agent type is not available.';
+      } else if (errorType === 'crewai_service_unreachable' || errorType === 'service_unavailable') {
+        userFriendlyMessage = 'The AI service is temporarily unavailable. Please try again later.';
+      } else if (error.response?.status === 401) {
+        userFriendlyMessage = 'Your session has expired. Please log in again.';
+      } else if (error.response?.status === 403) {
+        userFriendlyMessage = 'You do not have permission to execute this agent.';
+      }
+      
       toast({
         title: 'Agent Execution Failed',
-        description: error.message || 'Failed to execute agent',
+        description: userFriendlyMessage,
         variant: 'destructive',
       });
     } finally {
