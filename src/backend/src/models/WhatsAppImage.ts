@@ -53,6 +53,10 @@ export interface IWhatsAppImage extends Document {
   isBookmarked: boolean;
   isArchived: boolean;
   
+  // Timestamps (auto-managed by Mongoose)
+  createdAt: Date;
+  updatedAt: Date;
+  
   // Methods
   bookmark(): Promise<IWhatsAppImage>;
   archive(): Promise<IWhatsAppImage>;
