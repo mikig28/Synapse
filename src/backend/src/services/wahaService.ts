@@ -349,7 +349,15 @@ class WAHAService extends EventEmitter {
         return response;
       },
       (error: any) => {
-        console.error(`[WAHA API] ❌ ${error.response?.status || 'NETWORK_ERROR'} ${error.config?.url}:`, error.message);
+        const status = error.response?.status;
+        const url = error.config?.url || '';
+
+        // Don't log 404 as error for known unsupported endpoints (expected behavior)
+        if (status === 404 && (url.includes('/groups') || url.includes('/groups/refresh'))) {
+          console.log(`[WAHA API] ℹ️  ${status} ${url}: Endpoint not available (expected for some WAHA engines)`);
+        } else {
+          console.error(`[WAHA API] ❌ ${status || 'NETWORK_ERROR'} ${url}:`, error.message);
+        }
         return Promise.reject(error);
       }
     );
