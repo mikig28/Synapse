@@ -1,3 +1,4 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import axios from 'axios';
 import { getBucket } from '../config/gridfs';
 import { ObjectId } from 'mongodb';
@@ -15,7 +16,7 @@ export interface ImageAnalysisResult {
 }
 
 export class ImageAnalysisService {
-  private apiKey: string;
+  private genAI: GoogleGenerativeAI;
   
   // Predefined categories for consistency
   private static readonly CATEGORIES = [
@@ -43,7 +44,7 @@ export class ImageAnalysisService {
       throw new Error('GEMINI_API_KEY environment variable is not set');
     }
     
-    this.apiKey = apiKey;
+    this.genAI = new GoogleGenerativeAI(apiKey);
   }
 
   /**
@@ -145,7 +146,7 @@ export class ImageAnalysisService {
   }
 
   /**
-   * Core analysis using Gemini Vision REST API (avoids SDK version issues)
+   * Core analysis using Gemini Vision SDK
    */
   private async analyzeWithGemini(base64Image: string, contentType: string): Promise<ImageAnalysisResult> {
     try {
@@ -170,34 +171,19 @@ Important guidelines:
 
 Respond ONLY with the JSON object, no additional text.`;
 
-      // Use REST API directly to avoid SDK version issues
-      const response = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`,
-        {
-          contents: [{
-            parts: [
-              { text: prompt },
-              {
-                inline_data: {
-                  mime_type: contentType,
-                  data: base64Image
-                }
-              }
-            ]
-          }]
+      // Use SDK with gemini-1.5-flash (same as videoSummarizationService which works)
+      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      
+      const imagePart = {
+        inlineData: {
+          data: base64Image,
+          mimeType: contentType,
         },
-        {
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 30000
-        }
-      );
+      };
 
-      if (!response.data?.candidates?.[0]?.content?.parts?.[0]?.text) {
-        console.error('[ImageAnalysisService] No valid response from Gemini:', response.data);
-        throw new Error('No text response from Gemini API');
-      }
-
-      const responseText = response.data.candidates[0].content.parts[0].text.trim();
+      const result = await model.generateContent([prompt, imagePart]);
+      const response = await result.response;
+      const responseText = response.text().trim();
       let analysisData;
       
       try {
