@@ -1,5 +1,5 @@
 import express from 'express';
-import { authMiddleware } from '../middleware/auth';
+import { authMiddleware } from '../middleware/authMiddleware';
 import * as newsHubController from '../controllers/newsHubController';
 
 const router = express.Router();

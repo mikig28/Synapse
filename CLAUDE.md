@@ -143,7 +143,6 @@ ANTHROPIC_API_KEY=your_key        # Required for Claude integration
 OPENAI_API_KEY=your_key           # Required for OpenAI features
 GEMINI_API_KEY=your_key           # Required for video summarization
 PERPLEXITY_API_KEY=your_key       # Optional: For research-backed task expansion
-NEWS_API_KEY=your_key             # For News Hub real news aggregation (get free key at newsapi.org)
 
 # Database
 MONGODB_URI=mongodb://localhost:27017/synapse

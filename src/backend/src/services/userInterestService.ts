@@ -1,6 +1,7 @@
 import UserInterest, { IUserInterest } from '../models/UserInterest';
 import RealNewsArticle from '../models/RealNewsArticle';
 import { logger } from '../utils/logger';
+import { FREE_NEWS_SOURCES, getAvailableCategories as getRSSCategories } from '../config/freeNewsSources';
 
 export class UserInterestService {
   /**
@@ -220,25 +221,14 @@ export class UserInterestService {
   }
 
   /**
-   * Get available news sources
+   * Get available news sources (FREE RSS sources!)
    */
   getAvailableSources(): Array<{ id: string; name: string; category: string }> {
-    return [
-      { id: 'techcrunch', name: 'TechCrunch', category: 'technology' },
-      { id: 'the-verge', name: 'The Verge', category: 'technology' },
-      { id: 'wired', name: 'Wired', category: 'technology' },
-      { id: 'ars-technica', name: 'Ars Technica', category: 'technology' },
-      { id: 'hacker-news', name: 'Hacker News', category: 'technology' },
-      { id: 'bbc-news', name: 'BBC News', category: 'general' },
-      { id: 'cnn', name: 'CNN', category: 'general' },
-      { id: 'the-wall-street-journal', name: 'The Wall Street Journal', category: 'business' },
-      { id: 'bloomberg', name: 'Bloomberg', category: 'business' },
-      { id: 'fortune', name: 'Fortune', category: 'business' },
-      { id: 'national-geographic', name: 'National Geographic', category: 'science' },
-      { id: 'new-scientist', name: 'New Scientist', category: 'science' },
-      { id: 'engadget', name: 'Engadget', category: 'technology' },
-      { id: 'techradar', name: 'TechRadar', category: 'technology' }
-    ];
+    return FREE_NEWS_SOURCES.map(source => ({
+      id: source.id,
+      name: source.name,
+      category: source.category
+    }));
   }
 
   /**

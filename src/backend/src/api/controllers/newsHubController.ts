@@ -1,6 +1,7 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
+import { AuthenticatedRequest } from '../middleware/authMiddleware';
 import RealNewsArticle from '../../models/RealNewsArticle';
-import { newsAggregationService } from '../../services/newsAggregationService';
+import { rssNewsAggregationService } from '../../services/rssNewsAggregationService';
 import { newsRankingService } from '../../services/newsRankingService';
 import { userInterestService } from '../../services/userInterestService';
 import { logger } from '../../utils/logger';
@@ -8,7 +9,7 @@ import { logger } from '../../utils/logger';
 /**
  * Get personalized news feed for user
  */
-export const getNewsFeed = async (req: Request, res: Response): Promise<void> => {
+export const getNewsFeed = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -67,7 +68,7 @@ export const getNewsFeed = async (req: Request, res: Response): Promise<void> =>
 /**
  * Manually refresh news for user
  */
-export const refreshNews = async (req: Request, res: Response): Promise<void> => {
+export const refreshNews = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -77,8 +78,8 @@ export const refreshNews = async (req: Request, res: Response): Promise<void> =>
 
     const { limit = 50 } = req.body;
 
-    // Fetch new articles
-    const articles = await newsAggregationService.fetchNewsForUser(userId, {
+    // Fetch new articles from RSS feeds (FREE!)
+    const articles = await rssNewsAggregationService.fetchNewsForUser(userId, {
       forceRefresh: true,
       limit: Number(limit)
     });
@@ -100,7 +101,7 @@ export const refreshNews = async (req: Request, res: Response): Promise<void> =>
 /**
  * Get user interests
  */
-export const getUserInterests = async (req: Request, res: Response): Promise<void> => {
+export const getUserInterests = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -125,7 +126,7 @@ export const getUserInterests = async (req: Request, res: Response): Promise<voi
 /**
  * Update user interests
  */
-export const updateUserInterests = async (req: Request, res: Response): Promise<void> => {
+export const updateUserInterests = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -150,7 +151,7 @@ export const updateUserInterests = async (req: Request, res: Response): Promise<
 /**
  * Get trending topics
  */
-export const getTrendingTopics = async (req: Request, res: Response): Promise<void> => {
+export const getTrendingTopics = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -197,7 +198,7 @@ export const getAvailableCategories = async (req: Request, res: Response): Promi
 /**
  * Mark article as read
  */
-export const markArticleAsRead = async (req: Request, res: Response): Promise<void> => {
+export const markArticleAsRead = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
@@ -230,7 +231,7 @@ export const markArticleAsRead = async (req: Request, res: Response): Promise<vo
 /**
  * Toggle article saved status
  */
-export const toggleArticleSaved = async (req: Request, res: Response): Promise<void> => {
+export const toggleArticleSaved = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
@@ -263,7 +264,7 @@ export const toggleArticleSaved = async (req: Request, res: Response): Promise<v
 /**
  * Toggle article favorite status
  */
-export const toggleArticleFavorite = async (req: Request, res: Response): Promise<void> => {
+export const toggleArticleFavorite = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
@@ -296,7 +297,7 @@ export const toggleArticleFavorite = async (req: Request, res: Response): Promis
 /**
  * Get suggested topics based on reading history
  */
-export const getSuggestedTopics = async (req: Request, res: Response): Promise<void> => {
+export const getSuggestedTopics = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -317,7 +318,7 @@ export const getSuggestedTopics = async (req: Request, res: Response): Promise<v
 /**
  * Get news hub statistics
  */
-export const getNewsHubStats = async (req: Request, res: Response): Promise<void> => {
+export const getNewsHubStats = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) {
