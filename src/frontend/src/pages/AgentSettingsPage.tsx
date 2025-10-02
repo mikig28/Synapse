@@ -1744,14 +1744,14 @@ const AgentSettingsPage: React.FC = () => {
 
             {/* All templates by category */}
             <Accordion type="single" collapsible className="space-y-2">
-              {Object.entries(MCP_CATEGORIES).map(([categoryKey, categoryName]) => {
+              {Object.entries(MCP_CATEGORIES).map(([categoryKey, categoryData]) => {
                 const categoryServers = SYNAPSE_MCP_SERVERS.filter(s => s.category === categoryKey);
                 if (categoryServers.length === 0) return null;
 
                 return (
                   <AccordionItem key={categoryKey} value={categoryKey}>
                     <AccordionTrigger className="text-sm font-medium">
-                      {categoryName} ({categoryServers.length})
+                      {categoryData.name} ({categoryServers.length})
                     </AccordionTrigger>
                     <AccordionContent>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
