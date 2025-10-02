@@ -195,18 +195,20 @@ const ImagesPage: React.FC = () => {
 
     try {
       setIsBulkAnalyzing(true);
-      const response = await axiosInstance.post('/image-analysis/bulk-analyze', {
-        limit: 20 // Analyze 20 at a time
-      });
+      const response = await axiosInstance.post('/image-analysis/bulk-analyze?limit=20');
 
       if (response.data.success) {
-        alert(`Successfully analyzed ${response.data.data.successful} images!`);
+        const { successful, failed, total } = response.data.data;
+        alert(`Analysis complete!\n✅ Success: ${successful}\n❌ Failed: ${failed}\n📊 Total: ${total}`);
         // Refresh the page to show updated analysis
         window.location.reload();
+      } else {
+        alert('Analysis failed: ' + (response.data.error || 'Unknown error'));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error bulk analyzing:', error);
-      alert('Failed to analyze images. Please try again.');
+      const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
+      alert(`Failed to analyze images: ${errorMsg}`);
     } finally {
       setIsBulkAnalyzing(false);
     }
