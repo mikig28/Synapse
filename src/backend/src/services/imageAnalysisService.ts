@@ -47,7 +47,7 @@ export class ImageAnalysisService {
     
     this.genAI = new GoogleGenerativeAI(apiKey);
     // Use Gemini 1.5 Flash - fastest and cheapest with vision capabilities
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
   }
 
   /**
