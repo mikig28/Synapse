@@ -3128,9 +3128,9 @@ const WhatsAppPage: React.FC = () => {
                     onWheel={handleChatWheel}
                     onTouchStart={handleTouchStart}
                     onTouchMove={handleTouchMove}
-                    className={`flex-1 min-h-0 max-h-full overflow-y-auto ${isMobile ? 'my-2' : 'my-4'} space-y-2 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full pointer-events-auto ${isMobile ? 'pr-0.5' : 'pr-1'}`}
+                    className={`flex-1 min-h-0 overflow-y-scroll ${isMobile ? 'my-2' : 'my-4'} space-y-2 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full pointer-events-auto ${isMobile ? 'pr-0.5' : 'pr-1'}`}
                     style={{
-                      scrollbarWidth: 'auto',
+                      scrollbarWidth: 'thin',
                       scrollbarColor: '#8b5cf6 rgba(255,255,255,0.2)',
                       scrollbarGutter: 'stable',
                       overscrollBehaviorY: 'contain',
