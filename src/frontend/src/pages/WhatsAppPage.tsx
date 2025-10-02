@@ -2694,7 +2694,7 @@ const WhatsAppPage: React.FC = () => {
               setShowChatList(false);
             }
           }}>
-            <GlassCard className={`${isMobile ? 'h-full mt-16' : 'h-[600px]'} p-4 sm:p-6 flex flex-col min-h-0 overflow-hidden`}>
+            <GlassCard className={`${isMobile ? 'h-full max-h-full mt-16' : 'h-[600px] max-h-[600px]'} p-4 sm:p-6 flex flex-col min-h-0 overflow-hidden`}>
               <div className="mb-4">
                 {isMobile && (
                   <div className="flex items-center justify-between mb-4">
@@ -3005,7 +3005,7 @@ const WhatsAppPage: React.FC = () => {
               : 'lg:col-span-2'
             }
           `}>
-            <GlassCard className={`${isMobile ? 'h-full max-h-full' : 'h-[600px]'} p-3 sm:p-6 flex flex-col min-h-0 overflow-hidden ${isMobile ? '' : ''}`}>
+            <GlassCard className={`${isMobile ? 'h-full max-h-full' : 'h-[600px] max-h-[600px]'} p-3 sm:p-6 flex flex-col min-h-0 overflow-hidden ${isMobile ? '' : ''}`}>
               {selectedChat ? (
                 <>
                   <div className={`flex items-center justify-between ${isMobile ? 'pb-2' : 'pb-4'} border-b border-white/20 flex-shrink-0`}>
@@ -3128,7 +3128,7 @@ const WhatsAppPage: React.FC = () => {
                     onWheel={handleChatWheel}
                     onTouchStart={handleTouchStart}
                     onTouchMove={handleTouchMove}
-                    className={`flex-1 min-h-0 overflow-y-auto ${isMobile ? 'my-2' : 'my-4'} space-y-2 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full pointer-events-auto ${isMobile ? 'pr-0.5' : 'pr-1'}`}
+                    className={`flex-1 min-h-0 max-h-full overflow-y-auto ${isMobile ? 'my-2' : 'my-4'} space-y-2 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full pointer-events-auto ${isMobile ? 'pr-0.5' : 'pr-1'}`}
                     style={{
                       scrollbarWidth: 'auto',
                       scrollbarColor: '#8b5cf6 rgba(255,255,255,0.2)',
@@ -3228,7 +3228,7 @@ const WhatsAppPage: React.FC = () => {
           {/* Monitoring Panel - Mobile: Modal, Desktop: Sidebar */}
           {!isMobile && (
             <div className="lg:col-span-1">
-              <GlassCard className="p-6 h-[600px] flex flex-col overflow-hidden">
+              <GlassCard className="p-6 h-[600px] max-h-[600px] flex flex-col overflow-hidden">
                 <h3 className="text-lg font-semibold text-white mb-4">Monitoring</h3>
                 
                 <div className="mb-4">
