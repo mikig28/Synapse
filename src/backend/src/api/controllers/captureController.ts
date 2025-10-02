@@ -42,7 +42,13 @@ export const getTelegramItems = async (req: AuthenticatedRequest, res: Response)
 
     const items = await TelegramItem.find({ synapseUserId: req.user.id })
       .sort({ receivedAt: -1 }) // Sort by most recent first
-      .limit(50); // Add pagination later
+      .limit(200); // Increased limit to show more items
+
+    const photoCount = items.filter(i => i.messageType === 'photo').length;
+    const withGridFsCount = items.filter(i => i.messageType === 'photo' && i.mediaGridFsId).length;
+    
+    console.log(`[GET_TELEGRAM_ITEMS] Returning ${items.length} items for user ${req.user.id}`);
+    console.log(`[GET_TELEGRAM_ITEMS] Photos: ${photoCount}, with GridFS: ${withGridFsCount}`);
 
     res.json(items);
   } catch (error: any) {
