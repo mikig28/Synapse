@@ -9,6 +9,7 @@ import Idea from '../../models/Idea';
 import VideoItem from '../../models/VideoItem';
 import NewsItem from '../../models/NewsItem';
 import WhatsAppMessage from '../../models/WhatsAppMessage';
+import WhatsAppImage from '../../models/WhatsAppImage';
 import TelegramItem from '../../models/TelegramItem';
 import Meeting from '../../models/Meeting';
 
@@ -212,16 +213,76 @@ async function keywordFallbackSearch({
           .lean()
       );
     }
+    if (includeAll || contentTypes.includes('image')) {
+      searches.push(
+        WhatsAppImage.find({
+          userId: userObjectId,
+          $or: [
+            { caption: regex },
+            { 'aiAnalysis.description': regex },
+            { 'aiAnalysis.mainCategory': regex },
+            { 'aiAnalysis.tags': regex },
+            { tags: regex }
+          ]
+        })
+          .limit(20)
+          .lean()
+      );
+      searches.push(
+        TelegramItem.find({
+          synapseUserId: userObjectId,
+          messageType: 'photo',
+          $or: [
+            { text: regex },
+            { 'aiAnalysis.description': regex },
+            { 'aiAnalysis.mainCategory': regex },
+            { 'aiAnalysis.tags': regex }
+          ]
+        })
+          .limit(20)
+          .lean()
+      );
+    }
 
     const results = (await Promise.all(searches)).flat();
 
     const mapped: VectorSearchResult[] = results.slice(0, limit).map((doc: any) => {
-      const type = doc.documentType || (doc.content && !doc.title ? 'idea' :
-                  doc.fetchedTitle || doc.summary ? 'bookmark' :
-                  doc.description !== undefined ? 'task' : 'document');
+      // Determine type
+      let type = doc.documentType;
+      if (!type) {
+        if (doc.messageId || doc.caption || doc.aiAnalysis?.description) {
+          type = 'image';
+        } else if (doc.content && !doc.title) {
+          type = 'idea';
+        } else if (doc.fetchedTitle || doc.summary) {
+          type = 'bookmark';
+        } else if (doc.description !== undefined) {
+          type = 'task';
+        } else {
+          type = 'document';
+        }
+      }
 
-      const title = doc.title || doc.fetchedTitle || (doc.content ? (doc.content as string).slice(0, 60) : 'Untitled');
-      const content = doc.content || doc.summary || doc.fetchedDescription || '';
+      // Get title based on content type
+      let title: string;
+      if (type === 'image') {
+        title = doc.caption || doc.aiAnalysis?.description || doc.text || 'Image';
+      } else {
+        title = doc.title || doc.fetchedTitle || (doc.content ? (doc.content as string).slice(0, 60) : 'Untitled');
+      }
+
+      // Get content based on content type
+      let content: string;
+      if (type === 'image') {
+        const parts: string[] = [];
+        if (doc.caption) parts.push(doc.caption);
+        if (doc.aiAnalysis?.description) parts.push(doc.aiAnalysis.description);
+        if (doc.aiAnalysis?.mainCategory) parts.push(doc.aiAnalysis.mainCategory);
+        if (doc.text) parts.push(doc.text);
+        content = parts.join(' ');
+      } else {
+        content = doc.content || doc.summary || doc.fetchedDescription || '';
+      }
 
       const lowerQ = query.toLowerCase();
       const inTitle = title.toLowerCase().includes(lowerQ);
@@ -237,7 +298,8 @@ async function keywordFallbackSearch({
         metadata: {
           documentType: type,
           title,
-          createdAt: doc.createdAt || new Date(),
+          createdAt: doc.createdAt || doc.receivedAt || new Date(),
+          url: doc.publicUrl || undefined,
         },
       } as VectorSearchResult;
     });
@@ -320,6 +382,8 @@ export const getSearchStats = async (req: AuthenticatedRequest, res: Response) =
       ideaCount,
       videoCount,
       newsCount,
+      whatsappImageCount,
+      telegramImageCount,
       telegramCount,
       meetingCount
     ] = await Promise.all([
@@ -330,15 +394,20 @@ export const getSearchStats = async (req: AuthenticatedRequest, res: Response) =
       Idea.countDocuments({ userId: userObjectId }),
       VideoItem.countDocuments({ userId: userObjectId }),
       NewsItem.countDocuments({ userId: userObjectId }),
-      TelegramItem.countDocuments({ userId: userObjectId }),
+      WhatsAppImage.countDocuments({ userId: userObjectId }),
+      TelegramItem.countDocuments({ synapseUserId: userObjectId, messageType: 'photo' }),
+      TelegramItem.countDocuments({ synapseUserId: userObjectId }),
       Meeting.countDocuments({ userId: userObjectId })
     ]);
 
     // WhatsApp messages don't have userId, so count differently
     const whatsappCount = await WhatsAppMessage.countDocuments({});
+    
+    // Total images from both sources
+    const imageCount = whatsappImageCount + telegramImageCount;
 
     const stats = {
-      totalSearchableItems: documentCount + noteCount + bookmarkCount + taskCount + ideaCount + videoCount + newsCount + telegramCount + meetingCount + whatsappCount,
+      totalSearchableItems: documentCount + noteCount + bookmarkCount + taskCount + ideaCount + videoCount + newsCount + telegramCount + meetingCount + whatsappCount + imageCount,
       byType: {
         documents: documentCount,
         notes: noteCount,
@@ -347,6 +416,7 @@ export const getSearchStats = async (req: AuthenticatedRequest, res: Response) =
         ideas: ideaCount,
         videos: videoCount,
         news: newsCount,
+        images: imageCount,
         telegram: telegramCount,
         meetings: meetingCount,
         whatsapp: whatsappCount

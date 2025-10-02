@@ -7,6 +7,7 @@ import Idea from '../models/Idea';
 import VideoItem from '../models/VideoItem';
 import NewsItem from '../models/NewsItem';
 import WhatsAppMessage from '../models/WhatsAppMessage';
+import WhatsAppImage from '../models/WhatsAppImage';
 import TelegramItem from '../models/TelegramItem';
 import Meeting from '../models/Meeting';
 
@@ -226,19 +227,57 @@ export async function initializeSearchIndexes(): Promise<void> {
     await WhatsAppMessage.collection.createIndex({ contactName: 1 });
     await WhatsAppMessage.collection.createIndex({ groupName: 1 });
 
+    // WhatsAppImages - Text search indexes
+    await WhatsAppImage.collection.createIndex(
+      { 
+        caption: 'text',
+        tags: 'text',
+        senderName: 'text',
+        chatName: 'text',
+        'aiAnalysis.description': 'text',
+        'aiAnalysis.mainCategory': 'text',
+        'aiAnalysis.tags': 'text'
+      },
+      { 
+        name: 'whatsappimage_text_search',
+        weights: {
+          'aiAnalysis.description': 10,
+          caption: 10,
+          'aiAnalysis.tags': 8,
+          tags: 8,
+          'aiAnalysis.mainCategory': 7,
+          senderName: 5,
+          chatName: 5
+        }
+      }
+    );
+
+    // WhatsAppImages - User and organization indexes
+    await WhatsAppImage.collection.createIndex({ userId: 1, caption: 1 });
+    await WhatsAppImage.collection.createIndex({ userId: 1, status: 1 });
+    await WhatsAppImage.collection.createIndex({ userId: 1, isArchived: 1, createdAt: -1 });
+    await WhatsAppImage.collection.createIndex({ userId: 1, isBookmarked: 1, createdAt: -1 });
+    await WhatsAppImage.collection.createIndex({ userId: 1, 'aiAnalysis.isAnalyzed': 1 });
+
     // TelegramItems - Text search indexes
     await TelegramItem.collection.createIndex(
       { 
         text: 'text',
         caption: 'text',
-        tags: 'text'
+        tags: 'text',
+        'aiAnalysis.description': 'text',
+        'aiAnalysis.mainCategory': 'text',
+        'aiAnalysis.tags': 'text'
       },
       { 
         name: 'telegram_text_search',
         weights: {
           text: 10,
+          'aiAnalysis.description': 10,
           caption: 8,
-          tags: 7
+          'aiAnalysis.tags': 8,
+          tags: 7,
+          'aiAnalysis.mainCategory': 6
         }
       }
     );
@@ -248,6 +287,7 @@ export async function initializeSearchIndexes(): Promise<void> {
     await TelegramItem.collection.createIndex({ userId: 1, messageType: 1 });
     await TelegramItem.collection.createIndex({ userId: 1, messageDate: -1 });
     await TelegramItem.collection.createIndex({ userId: 1, fromUser: 1 });
+    await TelegramItem.collection.createIndex({ userId: 1, 'aiAnalysis.isAnalyzed': 1 });
 
     // Meetings - Text search indexes
     await Meeting.collection.createIndex(
@@ -297,6 +337,7 @@ export async function dropSearchIndexes(): Promise<void> {
       VideoItem.collection,
       NewsItem.collection,
       WhatsAppMessage.collection,
+      WhatsAppImage.collection,
       TelegramItem.collection,
       Meeting.collection
     ];
@@ -345,6 +386,7 @@ export async function getIndexInfo(): Promise<Record<string, any[]>> {
       { name: 'videos', collection: VideoItem.collection },
       { name: 'news', collection: NewsItem.collection },
       { name: 'whatsapp', collection: WhatsAppMessage.collection },
+      { name: 'whatsappimages', collection: WhatsAppImage.collection },
       { name: 'telegram', collection: TelegramItem.collection },
       { name: 'meetings', collection: Meeting.collection }
     ];

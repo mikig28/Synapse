@@ -29,7 +29,8 @@ import {
   Globe,
   ChevronDown,
   ChevronUp,
-  ExternalLink
+  ExternalLink,
+  Image as ImageIcon
 } from 'lucide-react';
 
 const SearchPage: React.FC = () => {
@@ -62,6 +63,7 @@ const SearchPage: React.FC = () => {
     { key: 'task', label: 'Tasks', icon: CheckSquare, color: 'text-orange-400' },
     { key: 'idea', label: 'Ideas', icon: Lightbulb, color: 'text-pink-400' },
     { key: 'video', label: 'Videos', icon: Video, color: 'text-red-400' },
+    { key: 'image', label: 'Images', icon: ImageIcon, color: 'text-fuchsia-400' },
     { key: 'news', label: 'News', icon: Newspaper, color: 'text-cyan-400' },
     { key: 'whatsapp', label: 'WhatsApp', icon: MessageSquare, color: 'text-emerald-400' },
     { key: 'telegram', label: 'Telegram', icon: MessageSquare, color: 'text-blue-500' },
@@ -295,6 +297,10 @@ const SearchPage: React.FC = () => {
           return `/ideas${result.id ? `?highlight=${result.id}` : ''}`;
         case 'video':
           return `/videos${result.id ? `?highlight=${result.id}` : ''}`;
+        case 'image':
+          // Images can be from WhatsApp or Telegram, try to determine which
+          // For now, route to agents page - we can enhance this later
+          return `/agents?type=images${result.id ? `&highlight=${result.id}` : ''}`;
         case 'news':
           return `/news${result.id ? `?highlight=${result.id}` : ''}`;
         case 'meeting':

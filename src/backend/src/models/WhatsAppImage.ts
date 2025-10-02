@@ -35,6 +35,19 @@ export interface IWhatsAppImage extends Document {
   status: 'extracted' | 'processing' | 'failed';
   error?: string;
   
+  // AI Analysis fields (similar to TelegramItem)
+  aiAnalysis?: {
+    isAnalyzed: boolean;
+    analyzedAt?: Date;
+    description?: string; // AI-generated description of what's in the image
+    mainCategory?: string; // Primary category (e.g., 'Food', 'People', 'Nature', 'Screenshot', 'Document')
+    categories?: string[]; // All detected categories
+    tags?: string[]; // Specific tags/objects detected
+    sentiment?: 'positive' | 'neutral' | 'negative'; // Overall sentiment
+    confidence?: number; // AI confidence score (0-1)
+    error?: string; // If analysis failed
+  };
+  
   // Organization
   tags: string[];
   isBookmarked: boolean;
@@ -144,6 +157,19 @@ const WhatsAppImageSchema: Schema<IWhatsAppImage> = new Schema(
       type: String
     },
     
+    // AI Analysis fields
+    aiAnalysis: {
+      isAnalyzed: { type: Boolean, default: false },
+      analyzedAt: { type: Date },
+      description: { type: String },
+      mainCategory: { type: String },
+      categories: [{ type: String }],
+      tags: [{ type: String }],
+      sentiment: { type: String, enum: ['positive', 'neutral', 'negative'] },
+      confidence: { type: Number, min: 0, max: 1 },
+      error: { type: String }
+    },
+    
     // Organization
     tags: [{
       type: String,
@@ -173,12 +199,15 @@ const WhatsAppImageSchema: Schema<IWhatsAppImage> = new Schema(
   }
 );
 
-// Text search index for captions, tags, sender names, and chat names
+// Text search index for captions, tags, sender names, chat names, and AI analysis
 WhatsAppImageSchema.index({ 
   caption: 'text', 
   tags: 'text',
   senderName: 'text',
-  chatName: 'text'
+  chatName: 'text',
+  'aiAnalysis.description': 'text',
+  'aiAnalysis.mainCategory': 'text',
+  'aiAnalysis.tags': 'text'
 });
 
 // Static method to get images for user with filters
