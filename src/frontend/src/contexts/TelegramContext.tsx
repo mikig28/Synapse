@@ -32,6 +32,10 @@ export const TelegramProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
     try {
       const initialItems = await getCapturedTelegramItems();
+      console.log(`[TelegramContext] Fetched ${initialItems.length} total items from API`);
+      const photoItems = initialItems.filter(i => i.messageType === 'photo');
+      const photosWithGridFs = photoItems.filter(i => i.mediaGridFsId);
+      console.log(`[TelegramContext] Photos: ${photoItems.length}, with GridFS: ${photosWithGridFs.length}`);
       setTelegramItems(initialItems.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()));
     } catch (error) {
       console.error('[TelegramContext] Error fetching initial Telegram items:', error);
