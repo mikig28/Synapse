@@ -42,8 +42,8 @@ npm run preview          # Preview production build
 
 ### AI Integration
 - **Anthropic Claude SDK** for main AI processing
-- **OpenAI SDK** for additional AI capabilities  
-- **Google Gemini** for video summarization and embeddings
+- **OpenAI SDK** for additional AI capabilities
+- **Google Gemini** for video summarization and embeddings (gemini-embedding-001)
 - **Voyage AI** for cost-efficient embeddings
 - **Cohere AI** and **Replicate** for additional AI services
 - **Python transcription service** (separate Docker service)

@@ -279,20 +279,36 @@ def create_task_from_config(task_name: str, agent: Agent, context_vars: dict = N
         agent=agent
     )
 
-def create_research_task(topic: str, date_context: dict, social_context: str = "") -> Task:
+def create_research_task(topic: str, date_context: dict, social_context: str = "", custom_goal: str = None) -> Task:
     """Creates a research task using both YAML configuration and traditional approach"""
     # Clean topic formatting
     if isinstance(topic, str):
         topics_list = [t.strip() for t in topic.split(',') if t.strip()]
     else:
         topics_list = [str(topic)]
-    
+
     clean_topics = ', '.join(topics_list)
     time_range_hours = date_context.get('time_range', '24h').replace('h','')
-    
-    # Use traditional task creation for better reliability
-    return Task(
-        description=(
+
+    # Use custom goal if provided, otherwise use default research task
+    if custom_goal:
+        description = (
+            f"CUSTOM AGENT GOAL: {custom_goal}\n\n"
+            f"Research Topics: {clean_topics}\n"
+            f"Time Range: Last {time_range_hours} hours (relative to {date_context.get('current_date', 'N/A')})\n\n"
+            "Use your search tools to find relevant information based on the custom goal above. "
+            "IMPORTANT: Include full clickable URLs from your search results. "
+            f"{social_context}"
+            "Provide a detailed report that addresses the custom goal with complete source URLs."
+        )
+        expected_output = (
+            f"A detailed report that accomplishes the following goal: '{custom_goal}'. "
+            "Include key findings, insights, and a 'Sources' section with complete URLs to all sources used. "
+            "Format: **Sources:**\n- https://example.com/article1\n- https://example.com/article2"
+        )
+    else:
+        # Default comprehensive research task
+        description = (
             f"Conduct a comprehensive search for the topic: '{clean_topics}'. "
             "Use your search tool to find multiple high-quality articles, posts, and discussions. "
             f"Focus on information published within the last {time_range_hours} hours, "
@@ -302,12 +318,16 @@ def create_research_task(topic: str, date_context: dict, social_context: str = "
             "Format URLs clearly in your report so they can be easily identified and clicked. "
             f"{social_context}"
             "Your final output must be a detailed report with key points and include the complete URLs of all sources used."
-        ),
-        expected_output=(
+        )
+        expected_output = (
             "A detailed report on the topic, including an introduction, key findings with bullet points, "
             "a conclusion, and a 'Sources' section with at least 5 complete URLs to the articles found. "
             "Format: **Sources:**\n- https://example.com/article1\n- https://example.com/article2\n(etc.)"
-        ),
+        )
+
+    return Task(
+        description=description,
+        expected_output=expected_output,
         agent=researcher_agent,
     )
 
@@ -359,23 +379,24 @@ def create_social_monitoring_task(topics: str) -> Task:
 # --- CrewAI 2025 Compatible Crew Implementation ---
 class SynapseNewsCrew:
     """CrewAI 2025 compatible crew implementation using standard Crew class"""
-    
-    def __init__(self, topic: str, date_context: dict, social_context: str = ""):
+
+    def __init__(self, topic: str, date_context: dict, social_context: str = "", custom_goal: str = None):
         self.topic = topic
         self.date_context = date_context
         self.social_context = social_context
-        
+        self.custom_goal = custom_goal
+
     def get_agents(self) -> list:
         """Define crew agents"""
         # Simplify to core agents for better reliability
         return [researcher_agent, analyst_agent]
-    
+
     def get_tasks(self) -> list:
         """Define crew tasks with dependencies"""
         # Simplify to core research and analysis tasks for better reliability
-        research_task = create_research_task(self.topic, self.date_context, self.social_context)
+        research_task = create_research_task(self.topic, self.date_context, self.social_context, self.custom_goal)
         analysis_task = create_analysis_task(self.topic)
-        
+
         # Return core tasks only
         return [research_task, analysis_task]
     
@@ -390,7 +411,7 @@ class SynapseNewsCrew:
         )
 
 # --- CREW EXECUTION ---
-def run_crew(agent_id: str, topic: str, date_context: dict) -> Dict[str, Any]:
+def run_crew(agent_id: str, topic: str, date_context: dict, custom_goal: str = None) -> Dict[str, Any]:
     """Runs the research and analysis crew with social media scraping."""
     session_id = f"{agent_id}-{int(datetime.now().timestamp())}"
     progress_store.set(session_id, {'status': 'starting', 'message': 'Crew execution started.', 'progress': 0})
@@ -451,8 +472,8 @@ def run_crew(agent_id: str, topic: str, date_context: dict) -> Dict[str, Any]:
                 for msg in telegram_messages[:2]:
                     social_context += f"- {msg['title']}\n"
         
-        # Create and execute 2025 compatible crew
-        synapse_crew = SynapseNewsCrew(topic, date_context, social_context)
+        # Create and execute 2025 compatible crew with custom goal
+        synapse_crew = SynapseNewsCrew(topic, date_context, social_context, custom_goal)
         news_crew = synapse_crew.create_crew()
 
         progress_store.set(session_id, {'status': 'running', 'message': 'Crew is researching and analyzing.', 'progress': 50})
@@ -615,16 +636,17 @@ def gather_news_endpoint():
     # Handle both singular and plural forms
     topic = data.get('topic') or data.get('topics')
     agent_id = data.get('agent_id', 'unknown-agent')
+    custom_goal = data.get('custom_goal')  # Custom agent goal
     date_context = {
         'current_date': data.get('current_date', datetime.now().strftime('%Y-%m-%d')),
         'time_range': data.get('time_range', '24h')
     }
-    
+
     # In a production system, a task queue like Celery or RQ would be better.
     # For this implementation, we run it in a separate thread to avoid blocking the request.
     # Note: This is a simplified approach. A real task queue would provide better management.
-    result = run_crew(agent_id, topic, date_context)
-    
+    result = run_crew(agent_id, topic, date_context, custom_goal=custom_goal)
+
     return jsonify(result)
 
 @app.route('/progress', methods=['GET'])

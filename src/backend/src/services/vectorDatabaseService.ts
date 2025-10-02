@@ -3,7 +3,7 @@
  * 
  * Supports the following embedding providers (in order of cost-effectiveness):
  * 1. Voyage AI - $0.02/1M tokens (voyage-3-lite, 512-dim) - Best cost/performance ratio
- * 2. Gemini - $0.15/1M tokens (text-embedding-004) - Good performance
+ * 2. Gemini - $0.15/1M tokens (gemini-embedding-001, 768-dim) - Stable GA model
  * 3. OpenAI - $0.02/1M tokens (text-embedding-3-small) - Fallback option
  * 
  * Required Environment Variables:
@@ -390,7 +390,7 @@ export class VectorDatabaseService {
   }
 
   /**
-   * Google Gemini embedding generation
+   * Google Gemini embedding generation (using stable GA model gemini-embedding-001)
    */
   private async generateGeminiEmbedding(text: string): Promise<number[]> {
     if (!this.config.geminiApiKey) {
@@ -398,7 +398,7 @@ export class VectorDatabaseService {
     }
 
     const response = await axios.post<GeminiEmbeddingResponse>(
-      `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${this.config.geminiApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${this.config.geminiApiKey}`,
       {
         content: {
           parts: [{ text: text }]
