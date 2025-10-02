@@ -1,4 +1,3 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import axios from 'axios';
 import { getBucket } from '../config/gridfs';
 import { ObjectId } from 'mongodb';
@@ -16,7 +15,7 @@ export interface ImageAnalysisResult {
 }
 
 export class ImageAnalysisService {
-  private genAI: GoogleGenerativeAI;
+  private openaiApiKey: string;
   
   // Predefined categories for consistency
   private static readonly CATEGORIES = [
@@ -39,12 +38,12 @@ export class ImageAnalysisService {
   ];
 
   constructor() {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      throw new Error('GEMINI_API_KEY environment variable is not set');
+      throw new Error('OPENAI_API_KEY environment variable is not set');
     }
     
-    this.genAI = new GoogleGenerativeAI(apiKey);
+    this.openaiApiKey = apiKey;
   }
 
   /**
@@ -80,10 +79,10 @@ export class ImageAnalysisService {
       const imageBuffer = Buffer.concat(chunks);
       const base64Image = imageBuffer.toString('base64');
       
-      console.log(`[ImageAnalysisService] Downloaded image (${imageBuffer.length} bytes), sending to Gemini...`);
+      console.log(`[ImageAnalysisService] Downloaded image (${imageBuffer.length} bytes), sending to OpenAI GPT-4o-mini...`);
       
-      // Analyze with Gemini Vision
-      const result = await this.analyzeWithGemini(base64Image, contentType);
+      // Analyze with OpenAI Vision
+      const result = await this.analyzeWithOpenAI(base64Image, contentType);
       
       console.log(`[ImageAnalysisService] ✅ Analysis complete for ${gridFsId}`);
       return result;
@@ -121,10 +120,10 @@ export class ImageAnalysisService {
       const base64Image = imageBuffer.toString('base64');
       const contentType = response.headers['content-type'] || 'image/jpeg';
       
-      console.log(`[ImageAnalysisService] Downloaded image (${imageBuffer.length} bytes), sending to Gemini...`);
+      console.log(`[ImageAnalysisService] Downloaded image (${imageBuffer.length} bytes), sending to OpenAI GPT-4o-mini...`);
       
-      // Analyze with Gemini Vision
-      const result = await this.analyzeWithGemini(base64Image, contentType);
+      // Analyze with OpenAI Vision
+      const result = await this.analyzeWithOpenAI(base64Image, contentType);
       
       console.log(`[ImageAnalysisService] ✅ Analysis complete`);
       return result;
@@ -146,9 +145,9 @@ export class ImageAnalysisService {
   }
 
   /**
-   * Core analysis using Gemini Vision SDK
+   * Core analysis using OpenAI GPT-4o-mini Vision API
    */
-  private async analyzeWithGemini(base64Image: string, contentType: string): Promise<ImageAnalysisResult> {
+  private async analyzeWithOpenAI(base64Image: string, contentType: string): Promise<ImageAnalysisResult> {
     try {
       const prompt = `Analyze this image and provide a detailed JSON response with the following structure:
 {
@@ -171,19 +170,37 @@ Important guidelines:
 
 Respond ONLY with the JSON object, no additional text.`;
 
-      // Use gemini-1.5-flash-latest for vision analysis (stable endpoint)
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
-      
-      const imagePart = {
-        inlineData: {
-          data: base64Image,
-          mimeType: contentType,
+      // Use OpenAI GPT-4o-mini with vision ($0.15/$0.60 per million tokens)
+      const response = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: prompt },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: `data:${contentType};base64,${base64Image}`
+                  }
+                }
+              ]
+            }
+          ],
+          max_tokens: 600
         },
-      };
+        {
+          headers: {
+            'Authorization': `Bearer ${this.openaiApiKey}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 30000
+        }
+      );
 
-      const result = await model.generateContent([prompt, imagePart]);
-      const response = await result.response;
-      const responseText = response.text().trim();
+      const responseText = response.data?.choices?.[0]?.message?.content?.trim();
       let analysisData;
       
       try {
@@ -193,8 +210,8 @@ Respond ONLY with the JSON object, no additional text.`;
                           [null, responseText];
         analysisData = JSON.parse(jsonMatch[1] || responseText);
       } catch (parseError) {
-        console.error('[ImageAnalysisService] Failed to parse Gemini response:', responseText);
-        throw new Error('Invalid JSON response from Gemini');
+        console.error('[ImageAnalysisService] Failed to parse OpenAI response:', responseText);
+        throw new Error('Invalid JSON response from OpenAI');
       }
 
       // Validate and return result
@@ -216,7 +233,7 @@ Respond ONLY with the JSON object, no additional text.`;
       };
 
     } catch (error: any) {
-      console.error('[ImageAnalysisService] Gemini API error:', error);
+      console.error('[ImageAnalysisService] OpenAI API error:', error);
       throw error;
     }
   }
