@@ -329,6 +329,71 @@ PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome  # Container Chrome path
 3. **No Automatic Downloads**: Only extracts images user specifically wants
 4. **Cost Effective**: Avoids WAHA Plus subscription while maintaining functionality
 
+## WhatsApp Voice Memo Processing
+
+This project includes intelligent voice memo processing for WhatsApp monitored groups, similar to the Telegram bot functionality.
+
+### Feature Overview
+- **Voice Message Detection**: Automatically detects PTT (push-to-talk) voice messages in monitored WhatsApp groups
+- **Transcription**: Uses multi-provider transcription service (OpenAI Whisper, dedicated service, local Python)
+- **AI Analysis**: Extracts tasks, notes, ideas, and locations from voice transcriptions
+- **Group Monitoring**: Only processes voice messages in groups that have active monitors with voice processing enabled
+- **Bilingual Support**: Supports both Hebrew and English with automatic language detection
+
+### How It Works
+
+1. **Voice Message Detection**: When a voice message is sent to a monitored WhatsApp group:
+   - WAHA service detects PTT/voice message type
+   - Automatically fetches media URL using `getMessage(messageId, downloadMedia=true)`
+   - Downloads voice file to local storage via WhatsAppMediaService
+
+2. **Transcription**: Voice file is transcribed using the transcription service:
+   - Primary: OpenAI Whisper API with Hebrew language hint
+   - Fallback: Dedicated transcription service
+   - Last resort: Local Python script with Whisper
+
+3. **Content Analysis**:
+   - **Location Extraction**: Detects location mentions and creates location notes
+   - **Task Extraction**: Identifies action items and creates tasks
+   - **Note Extraction**: Captures important information as notes
+   - **Idea Extraction**: Recognizes creative ideas and stores them
+
+4. **User Notification**: Sends confirmation message to WhatsApp group:
+   - Hebrew or English based on transcription language
+   - Summary of items created (tasks, notes, ideas)
+   - Location details with confidence score if applicable
+
+### Configuration
+
+Voice processing is enabled by default for all group monitors. To disable for a specific group:
+
+```typescript
+// In group monitor settings
+{
+  processVoiceNotes: false  // Disable voice processing
+}
+```
+
+### Error Handling
+
+The service provides detailed error messages when voice processing fails:
+
+- **No Media URL**: WAHA NOWEB engine doesn't support media downloads - suggests using WEBJS engine
+- **Download Failed**: Network or WAHA configuration issue
+- **Transcription Failed**: Audio quality or service availability issue
+
+### WAHA Engine Compatibility
+
+- **NOWEB Engine**: Limited support - may not provide media URLs for voice messages consistently
+- **WEBJS Engine**: Full support - recommended for voice memo processing
+
+### Example Usage
+
+Send a voice message to a monitored WhatsApp group:
+- "תזכיר לי לקנות חלב מחר" → Creates a task "לקנות חלב" with Hebrew language
+- "Meeting location: Central Park New York" → Creates a location note with coordinates
+- "Great idea: add dark mode to the app" → Creates an idea entry
+
 ## WhatsApp Daily Summary Feature
 
 This project includes an advanced WhatsApp Daily Summary system that provides AI-powered analysis of group conversations with per-group summary generation.

@@ -45,6 +45,8 @@ import {
   X,
   Eye,
   Brain,
+  Server,
+  Wrench,
 } from 'lucide-react';
 
 interface MobileAgentCardProps {
@@ -246,10 +248,33 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
                   <h3 className="font-bold text-base text-gray-900 dark:text-white truncate">
                     {agent.name}
                   </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                    {getAgentIcon(agent.type)}
-                    <span className="capitalize">{agent.type.replace('_', ' ')}</span>
-                  </p>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                      {getAgentIcon(agent.type)}
+                      <span className="capitalize">{agent.type.replace('_', ' ')}</span>
+                    </p>
+                    {/* MCP/Tools Indicators */}
+                    {agent.configuration.mcpServers && agent.configuration.mcpServers.length > 0 && (
+                      <Badge
+                        variant="outline"
+                        className="text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 flex items-center gap-0.5 px-1 py-0"
+                        title={`${agent.configuration.mcpServers.length} MCP Server${agent.configuration.mcpServers.length > 1 ? 's' : ''}`}
+                      >
+                        <Server className="w-2.5 h-2.5" />
+                        {agent.configuration.mcpServers.length}
+                      </Badge>
+                    )}
+                    {agent.configuration.tools && agent.configuration.tools.length > 0 && (
+                      <Badge
+                        variant="outline"
+                        className="text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800 flex items-center gap-0.5 px-1 py-0"
+                        title={`${agent.configuration.tools.length} Tool${agent.configuration.tools.length > 1 ? 's' : ''}`}
+                      >
+                        <Wrench className="w-2.5 h-2.5" />
+                        {agent.configuration.tools.length}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 
                 {/* Always Visible Edit Button in Header */}

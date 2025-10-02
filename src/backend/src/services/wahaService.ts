@@ -2720,8 +2720,28 @@ class WAHAService extends EventEmitter {
           type: messageData.type,
           chatId: messageData.chatId,
           mimeType: messageData.mimeType,
-          hasMedia: messageData.hasMedia
+          hasMedia: messageData.hasMedia,
+          media: messageData.media,
+          hasMediaUrl: !!messageData.mediaUrl
         });
+
+        // For voice messages without media URL, try to fetch full message details with downloadMedia=true
+        if (!messageData.media?.url && !messageData.mediaUrl) {
+          console.log('[WAHA Service] 🎙️ Voice message missing media URL, fetching full message details...');
+          try {
+            const fullMessage = await this.getMessage(messageData.id, true);
+            if (fullMessage?.media?.url) {
+              console.log('[WAHA Service] 🎙️ ✅ Retrieved voice media URL from WAHA:', fullMessage.media.url);
+              messageData.media = fullMessage.media;
+              messageData.mediaUrl = fullMessage.media.url;
+              messageData.mimeType = fullMessage.media.mimetype || fullMessage.mimeType || messageData.mimeType;
+            } else {
+              console.warn('[WAHA Service] 🎙️ ⚠️ Could not retrieve media URL for voice message');
+            }
+          } catch (fetchError) {
+            console.error('[WAHA Service] 🎙️ ❌ Failed to fetch voice message details:', fetchError);
+          }
+        }
       }
 
       console.log('[WAHA Service] Processing media message:', {
@@ -2937,12 +2957,15 @@ class WAHAService extends EventEmitter {
       messageId: messageData.messageId,
       chatId: messageData.chatId,
       groupId: messageData.groupId,
+      isGroup: messageData.isGroup,
       localPath: messageData.localPath,
       mediaUrl: messageData.mediaUrl,
       hasLocalPath: !!messageData.localPath,
-      localPathExists: messageData.localPath ? fs.existsSync(messageData.localPath) : false
+      localPathExists: messageData.localPath ? fs.existsSync(messageData.localPath) : false,
+      senderName: messageData.senderName
     });
 
+    // Extract chat ID and ensure it's properly formatted
     const chatId = this.extractJidFromAny(messageData.chatId || messageData.groupId);
     const groupId = this.extractJidFromAny(messageData.groupId || messageData.chatId);
     const targetChatId = chatId || groupId;
@@ -2972,9 +2995,30 @@ class WAHAService extends EventEmitter {
         messageDataKeys: Object.keys(messageData)
       });
 
+      // Determine error cause for better user feedback
+      let errorMsg = '❌ מצטער, לא הצלחתי לעבד את ההודעה הקולית.\n\n';
+
+      if (!mediaUrl && !messageData.mediaUrl) {
+        errorMsg += '📍 הבעיה: WAHA לא סיפק קישור להורדת הקובץ. זה יכול לקרות עם NOWEB engine.\n';
+        errorMsg += '💡 פתרון: אנא נסה שוב, או שקול להשתמש ב-WEBJS engine במקום NOWEB.\n\n';
+        errorMsg += '---\n\n';
+        errorMsg += '❌ Sorry, I couldn\'t process the voice message.\n\n';
+        errorMsg += '📍 Issue: WAHA did not provide a download URL. This can happen with NOWEB engine.\n';
+        errorMsg += '💡 Solution: Please try again, or consider using WEBJS engine instead of NOWEB.';
+      } else if (mediaUrl && !localPath) {
+        errorMsg += '📍 הבעיה: הורדת הקובץ נכשלה למרות שיש קישור.\n';
+        errorMsg += '💡 פתרון: בדוק את החיבור לאינטרנט או את הגדרות ה-WAHA.\n\n';
+        errorMsg += '---\n\n';
+        errorMsg += '❌ Sorry, I couldn\'t process the voice message.\n\n';
+        errorMsg += '📍 Issue: File download failed despite having URL.\n';
+        errorMsg += '💡 Solution: Check internet connection or WAHA settings.';
+      } else {
+        errorMsg += 'הקובץ לא נמצא במערכת.\n\n';
+        errorMsg += 'File not found in system.';
+      }
+
       // Attempt to send error notification to group
       try {
-        const errorMsg = '❌ מצטער, לא הצלחתי לעבד את ההודעה הקולית. הקובץ לא הורד בהצלחה. / Sorry, I couldn\'t process the voice message. File download failed.';
         await this.sendMessage(targetChatId, errorMsg);
       } catch (sendError) {
         console.error('[WAHA Service] 🎙️ Failed to send error notification:', (sendError as Error).message);

@@ -64,6 +64,8 @@ import {
   Target,
   BarChart3,
   ExternalLink,
+  Server,
+  Wrench,
 } from 'lucide-react';
 
 interface EnhancedAgentCardProps {
@@ -458,8 +460,8 @@ export const EnhancedAgentCard: React.FC<EnhancedAgentCardProps> = ({
                 >
                   {agent.name}
                 </h3>
-                <div className="flex items-center gap-2 mt-1">
-                  <span 
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <span
                     id={descriptionId}
                     className="text-gray-600 dark:text-gray-300"
                     style={typography.small}
@@ -468,14 +470,48 @@ export const EnhancedAgentCard: React.FC<EnhancedAgentCardProps> = ({
                     {getAgentDisplayName(agent.type)}
                   </span>
                   {agent.type === 'crewai_news' && (
-                    <Badge 
-                      variant="outline" 
+                    <Badge
+                      variant="outline"
                       className="text-xs bg-purple-50 text-purple-700 border-purple-200"
                       role="status"
                       aria-label="Enhanced agent with advanced capabilities"
                     >
                       Enhanced
                     </Badge>
+                  )}
+                  {/* MCP Servers Indicator */}
+                  {agent.configuration.mcpServers && agent.configuration.mcpServers.length > 0 && (
+                    <FloatingTooltip
+                      content={`${agent.configuration.mcpServers.length} MCP Server${agent.configuration.mcpServers.length > 1 ? 's' : ''} configured: ${agent.configuration.mcpServers.map(m => m.name).join(', ')}`}
+                      placement="top"
+                    >
+                      <Badge
+                        variant="outline"
+                        className="text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 flex items-center gap-1 cursor-help"
+                        role="status"
+                        aria-label={`${agent.configuration.mcpServers.length} MCP server${agent.configuration.mcpServers.length > 1 ? 's' : ''} configured`}
+                      >
+                        <Server className="w-3 h-3" aria-hidden="true" />
+                        {agent.configuration.mcpServers.length}
+                      </Badge>
+                    </FloatingTooltip>
+                  )}
+                  {/* Tools Indicator */}
+                  {agent.configuration.tools && agent.configuration.tools.length > 0 && (
+                    <FloatingTooltip
+                      content={`${agent.configuration.tools.length} Tool${agent.configuration.tools.length > 1 ? 's' : ''} configured: ${agent.configuration.tools.map(t => t.name).join(', ')}`}
+                      placement="top"
+                    >
+                      <Badge
+                        variant="outline"
+                        className="text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800 flex items-center gap-1 cursor-help"
+                        role="status"
+                        aria-label={`${agent.configuration.tools.length} tool${agent.configuration.tools.length > 1 ? 's' : ''} configured`}
+                      >
+                        <Wrench className="w-3 h-3" aria-hidden="true" />
+                        {agent.configuration.tools.length}
+                      </Badge>
+                    </FloatingTooltip>
                   )}
                 </div>
               </div>

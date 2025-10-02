@@ -169,9 +169,15 @@ const LANGUAGE_OPTIONS = [
 ];
 
 const NEWS_CATEGORIES = [
-  'Technology', 'Business', 'Science', 'Health', 'Sports', 
+  'Technology', 'Business', 'Science', 'Health', 'Sports',
   'Entertainment', 'Politics', 'World', 'Finance', 'Innovation'
 ];
+
+// Helper function to get agent display name
+const getAgentDisplayName = (type: string) => {
+  const typeInfo = AGENT_TYPES.find(t => t.value === type);
+  return typeInfo?.label || `${type} Agent`;
+};
 
 const AgentSettingsPage: React.FC = () => {
   const { agentId } = useParams<{ agentId: string }>();
@@ -1651,6 +1657,164 @@ const AgentSettingsPage: React.FC = () => {
               disabled={!toolForm.name.trim()}
             >
               {editingTool ? 'Update' : 'Add'} Tool
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MCP Templates Dialog */}
+      <Dialog open={showMCPTemplatesDialog} onOpenChange={setShowMCPTemplatesDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Quick Add MCP Server</DialogTitle>
+            <DialogDescription>
+              Select from our curated list of popular MCP servers to quickly add to your agent
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Recommended for this agent type */}
+            {(() => {
+              const recommended = getRecommendedMCPsForAgent(agent.type);
+              if (recommended.length > 0) {
+                return (
+                  <div>
+                    <h4 className="font-medium mb-3 flex items-center gap-2">
+                      <Star className="w-4 h-4 text-yellow-500" />
+                      Recommended for {getAgentDisplayName(agent.type)}
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {recommended.map((template) => (
+                        <Card
+                          key={template.name}
+                          className="cursor-pointer hover:border-primary transition-colors"
+                          onClick={() => {
+                            setSelectedMCPTemplate(template);
+                            setMCPForm({
+                              name: template.name,
+                              serverUri: template.serverUri,
+                              enabled: true,
+                              capabilities: template.capabilities,
+                              description: template.description,
+                              authentication: template.authentication || { type: 'none', credentials: '' }
+                            });
+                            setShowMCPTemplatesDialog(false);
+                            setShowMCPDialog(true);
+                          }}
+                        >
+                          <CardHeader className="pb-3">
+                            <div className="flex items-start gap-3">
+                              <Server className="w-5 h-5 text-primary flex-shrink-0 mt-1" />
+                              <div className="flex-1">
+                                <CardTitle className="text-base">{template.name}</CardTitle>
+                                <CardDescription className="text-xs mt-1">
+                                  {template.description}
+                                </CardDescription>
+                              </div>
+                              <Badge variant="outline" className="text-xs">
+                                {template.category}
+                              </Badge>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="pt-0">
+                            <div className="flex flex-wrap gap-1">
+                              {template.capabilities.slice(0, 3).map((cap, i) => (
+                                <Badge key={i} variant="secondary" className="text-xs">
+                                  {cap}
+                                </Badge>
+                              ))}
+                              {template.capabilities.length > 3 && (
+                                <Badge variant="secondary" className="text-xs">
+                                  +{template.capabilities.length - 3} more
+                                </Badge>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            {/* All templates by category */}
+            <Accordion type="single" collapsible className="space-y-2">
+              {Object.entries(MCP_CATEGORIES).map(([categoryKey, categoryName]) => {
+                const categoryServers = SYNAPSE_MCP_SERVERS.filter(s => s.category === categoryKey);
+                if (categoryServers.length === 0) return null;
+
+                return (
+                  <AccordionItem key={categoryKey} value={categoryKey}>
+                    <AccordionTrigger className="text-sm font-medium">
+                      {categoryName} ({categoryServers.length})
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {categoryServers.map((template) => (
+                          <Card
+                            key={template.name}
+                            className="cursor-pointer hover:border-primary transition-colors"
+                            onClick={() => {
+                              setSelectedMCPTemplate(template);
+                              setMCPForm({
+                                name: template.name,
+                                serverUri: template.serverUri,
+                                enabled: true,
+                                capabilities: template.capabilities,
+                                description: template.description,
+                                authentication: template.authentication || { type: 'none', credentials: '' }
+                              });
+                              setShowMCPTemplatesDialog(false);
+                              setShowMCPDialog(true);
+                            }}
+                          >
+                            <CardHeader className="pb-2">
+                              <div className="flex items-start gap-2">
+                                <Server className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                                <div className="flex-1 min-w-0">
+                                  <CardTitle className="text-sm truncate">{template.name}</CardTitle>
+                                  <CardDescription className="text-xs mt-1 line-clamp-2">
+                                    {template.description}
+                                  </CardDescription>
+                                </div>
+                              </div>
+                            </CardHeader>
+                            <CardContent className="pt-0">
+                              <div className="flex flex-wrap gap-1">
+                                {template.capabilities.slice(0, 2).map((cap, i) => (
+                                  <Badge key={i} variant="secondary" className="text-xs">
+                                    {cap}
+                                  </Badge>
+                                ))}
+                                {template.capabilities.length > 2 && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    +{template.capabilities.length - 2}
+                                  </Badge>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                );
+              })}
+            </Accordion>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowMCPTemplatesDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => {
+              setShowMCPTemplatesDialog(false);
+              handleAddMCP();
+            }}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create Custom MCP
             </Button>
           </DialogFooter>
         </DialogContent>
