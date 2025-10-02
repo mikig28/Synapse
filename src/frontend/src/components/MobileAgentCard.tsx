@@ -292,11 +292,11 @@ export const MobileAgentCard: React.FC<MobileAgentCardProps> = ({
               
               <div className="flex items-center gap-2 flex-shrink-0">
                 {getStatusIcon(agent.status)}
-                <Badge 
+                <Badge
                   variant={agent.isActive ? 'default' : 'secondary'}
                   className="text-xs px-2 py-0.5"
                   style={{
-                    backgroundColor: agent.isActive ? statusColor.primary : statusColor.paused.primary,
+                    backgroundColor: agent.isActive ? statusColor.primary : '#6b7280',
                     color: 'white',
                   }}
                 >

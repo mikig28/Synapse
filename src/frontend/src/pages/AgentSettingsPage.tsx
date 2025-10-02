@@ -1533,7 +1533,10 @@ const AgentSettingsPage: React.FC = () => {
                   value={mcpForm.authentication?.credentials || ''}
                   onChange={(e) => setMCPForm(prev => ({
                     ...prev,
-                    authentication: { ...prev.authentication, credentials: e.target.value }
+                    authentication: {
+                      type: prev.authentication?.type || 'none',
+                      credentials: e.target.value
+                    }
                   }))}
                   placeholder="Enter credentials"
                 />
@@ -1712,7 +1715,7 @@ const AgentSettingsPage: React.FC = () => {
                                 </CardDescription>
                               </div>
                               <Badge variant="outline" className="text-xs">
-                                {template.category}
+                                {String(template.category)}
                               </Badge>
                             </div>
                           </CardHeader>
