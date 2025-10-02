@@ -171,8 +171,8 @@ Important guidelines:
 
 Respond ONLY with the JSON object, no additional text.`;
 
-      // Use SDK with gemini-1.5-flash (same as videoSummarizationService which works)
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      // Use gemini-pro-vision model for SDK v0.1.3 (gemini-1.5-flash not available in old SDK)
+      const model = this.genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
       
       const imagePart = {
         inlineData: {
