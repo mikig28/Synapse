@@ -159,11 +159,19 @@ export class CustomAgentExecutor implements AgentExecutor {
       try {
         const newsItem = new NewsItem({
           userId,
+          agentId: agent._id,
+          runId: run._id,
           title: post.title || 'Untitled Reddit Post',
           content: post.content || post.selftext || '',
-          source: `reddit_r/${post.subreddit}`,
+          source: {
+            id: `reddit_${post.subreddit}`,
+            name: `r/${post.subreddit}`
+          },
           url: post.reddit_url || post.url || '',
           publishedAt: post.created_utc ? new Date(post.created_utc) : new Date(),
+          status: 'pending',
+          isRead: false,
+          isFavorite: false,
           metadata: {
             agentId: agent._id.toString(),
             agentName: agent.name,
@@ -177,8 +185,10 @@ export class CustomAgentExecutor implements AgentExecutor {
 
         await newsItem.save();
         itemsCreated++;
-      } catch (error) {
-        console.error('[CustomAgent] Failed to save Reddit post:', error);
+        console.log(`[CustomAgent] ✅ Saved Reddit post: ${post.title?.substring(0, 50)}...`);
+      } catch (error: any) {
+        console.error('[CustomAgent] ❌ Failed to save Reddit post:', error.message);
+        console.error('[CustomAgent] Post data:', { title: post.title, url: post.url });
       }
     }
 
@@ -188,11 +198,21 @@ export class CustomAgentExecutor implements AgentExecutor {
       try {
         const newsItem = new NewsItem({
           userId,
+          agentId: agent._id,
+          runId: run._id,
           title: article.title || 'Untitled News Article',
           content: article.content || article.summary || '',
-          source: article.source || 'news',
+          source: {
+            id: article.source || 'custom_news',
+            name: article.source || 'News'
+          },
           url: article.url || '',
           publishedAt: article.published_date ? new Date(article.published_date) : new Date(),
+          status: 'pending',
+          isRead: false,
+          isFavorite: false,
+          category: article.source_category,
+          author: article.author,
           metadata: {
             agentId: agent._id.toString(),
             agentName: agent.name,
@@ -204,8 +224,10 @@ export class CustomAgentExecutor implements AgentExecutor {
 
         await newsItem.save();
         itemsCreated++;
-      } catch (error) {
-        console.error('[CustomAgent] Failed to save news article:', error);
+        console.log(`[CustomAgent] ✅ Saved news article: ${article.title?.substring(0, 50)}...`);
+      } catch (error: any) {
+        console.error('[CustomAgent] ❌ Failed to save news article:', error.message);
+        console.error('[CustomAgent] Article data:', { title: article.title, url: article.url });
       }
     }
 
@@ -242,11 +264,19 @@ export class CustomAgentExecutor implements AgentExecutor {
     // Create a sample news item
     const sampleItem = new NewsItem({
       userId: context.userId,
+      agentId: agent._id,
+      runId: run._id,
       title: `Custom Agent Run: ${agent.name}`,
       content: `This is a custom agent execution without CrewAI integration. Goal: ${config.goal || 'No goal specified'}`,
-      source: 'custom_agent_basic',
+      source: {
+        id: 'custom_agent',
+        name: 'Custom Agent'
+      },
       url: `https://synapse.local/agents/${agent._id}`,
       publishedAt: new Date(),
+      status: 'pending',
+      isRead: false,
+      isFavorite: false,
       metadata: {
         agentId: agent._id.toString(),
         agentName: agent.name,
