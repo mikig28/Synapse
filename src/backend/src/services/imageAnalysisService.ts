@@ -171,8 +171,8 @@ Important guidelines:
 
 Respond ONLY with the JSON object, no additional text.`;
 
-      // Use gemini-1.5-flash for vision analysis (supported in SDK v0.24+)
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      // Use gemini-1.5-flash-latest for vision analysis (stable endpoint)
+      const model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
       
       const imagePart = {
         inlineData: {
