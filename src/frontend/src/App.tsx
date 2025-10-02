@@ -70,6 +70,7 @@ const DocsPage = React.lazy(() => import('@/pages/DocsPage'));
 const SearchPage = React.lazy(() => import('@/pages/SearchPage'));
 const TelegramChannelsPage = React.lazy(() => import('@/pages/TelegramChannelsPage'));
 const OnboardingPage = React.lazy(() => import('@/pages/OnboardingPage'));
+const NewsHubPage = React.lazy(() => import('@/pages/NewsHubPage'));
 
 // Beautiful but performant loading component
 const PageLoader = () => (
@@ -148,6 +149,7 @@ function AppContent() {
                     <Route path="/news-desktop" element={isAuthenticated ? <Layout><NewsPageFixed /></Layout> : <Navigate to="/login" />} />
                     <Route path="/news-mobile" element={isAuthenticated ? <MobileNewsPageOptimized /> : <Navigate to="/login" />} />
                     <Route path="/news-legacy" element={isAuthenticated ? <Layout><NewsPage /></Layout> : <Navigate to="/login" />} />
+                    <Route path="/news-hub" element={isAuthenticated ? <Layout><NewsHubPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/images" element={isAuthenticated ? <Layout><ImagesPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/bookmarks" element={isAuthenticated ? <Layout><BookmarksPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/videos" element={isAuthenticated ? <Layout><VideosPage /></Layout> : <Navigate to="/login" />} />
