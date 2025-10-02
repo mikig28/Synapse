@@ -166,17 +166,24 @@ export const bulkAnalyzeImages = async (req: AuthenticatedRequest, res: Response
 
     console.log(`[ImageAnalysis] Bulk analyzing ${unanalyzedImages.length} images for user ${userId}`);
 
-    // Start analysis for each image (don't wait)
+    // Start analysis for each image
     const promises = unanalyzedImages.map(async (item) => {
-      if (!item.mediaGridFsId) return { success: false, itemId: item._id, error: 'No GridFS ID' };
+      if (!item.mediaGridFsId) {
+        console.error(`[ImageAnalysis] Item ${item._id} has no GridFS ID`);
+        return { success: false, itemId: item._id, error: 'No GridFS ID' };
+      }
       
       try {
+        console.log(`[ImageAnalysis] Starting analysis for ${item._id} (GridFS: ${item.mediaGridFsId})`);
         const analysis = await imageAnalysisService.analyzeImageFromGridFS(item.mediaGridFsId);
+        console.log(`[ImageAnalysis] Analysis complete for ${item._id}: ${analysis.mainCategory}`);
+        
         await TelegramItem.findByIdAndUpdate(item._id, { aiAnalysis: analysis });
         return { success: true, itemId: item._id, category: analysis.mainCategory };
       } catch (error: any) {
-        console.error(`[ImageAnalysis] Failed to analyze ${item._id}:`, error);
-        return { success: false, itemId: item._id, error: error.message };
+        console.error(`[ImageAnalysis] ❌ Failed to analyze ${item._id}:`, error.message);
+        console.error('[ImageAnalysis] Full error:', error);
+        return { success: false, itemId: item._id, error: error.message, stack: error.stack?.substring(0, 200) };
       }
     });
 
