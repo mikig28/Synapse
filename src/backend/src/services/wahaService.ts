@@ -6,6 +6,7 @@
 import axios from 'axios';
 import { EventEmitter } from 'events';
 import fs from 'fs';
+import path from 'path';
 import { WhatsAppMediaService, whatsappMediaService, MediaFileInfo } from './whatsappMediaService';
 import WhatsAppMessage from '../models/WhatsAppMessage';
 import WhatsAppContact from '../models/WhatsAppContact';
@@ -1763,6 +1764,57 @@ class WAHAService extends EventEmitter {
   }
 
   /**
+   * Download media directly from WAHA using alternative endpoint
+   * Used when getMessage doesn't return media URL (common with NOWEB engine)
+   */
+  async downloadMediaDirect(messageId: string, chatId: string, sessionName: string = this.defaultSession): Promise<{ localPath: string; mimeType: string } | null> {
+    try {
+      console.log('[WAHA Service] 🎙️ Attempting direct media download via alternative WAHA endpoint:', {
+        messageId,
+        chatId,
+        session: sessionName
+      });
+
+      // Try downloading via the sendFiles endpoint with the message ID
+      // WAHA sometimes stores media temporarily and we can retrieve it
+      const response = await this.httpClient.get(`/api/${sessionName}/messages/${messageId}/media`, {
+        responseType: 'arraybuffer',
+        timeout: 30000
+      });
+
+      if (response.data) {
+        const mimeType = response.headers['content-type'] || 'audio/ogg';
+        const extension = mimeType.includes('ogg') ? 'ogg' : 
+                         mimeType.includes('mp3') ? 'mp3' : 
+                         mimeType.includes('mp4') ? 'mp4' : 'oga';
+        
+        const filename = `voice_${messageId.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.${extension}`;
+        const storageDir = path.join(process.cwd(), 'storage', 'whatsapp-media', 'voice');
+        
+        if (!fs.existsSync(storageDir)) {
+          fs.mkdirSync(storageDir, { recursive: true });
+        }
+        
+        const localPath = path.join(storageDir, filename);
+        fs.writeFileSync(localPath, response.data);
+
+        console.log('[WAHA Service] 🎙️ ✅ Direct media download successful:', {
+          localPath,
+          fileSize: response.data.length,
+          mimeType
+        });
+
+        return { localPath, mimeType };
+      }
+
+      return null;
+    } catch (error: any) {
+      console.error('[WAHA Service] 🎙️ ❌ Direct media download failed:', error?.message || error);
+      return null;
+    }
+  }
+
+  /**
    * Get messages from chat
    */
   async getMessages(chatId: string, limit: number = 50, sessionName: string = this.defaultSession): Promise<WAHAMessage[]> {
@@ -2716,7 +2768,11 @@ class WAHAService extends EventEmitter {
   private async processMediaMessage(messageData: any): Promise<void> {
     try {
       // Check if message contains media OR is a PTT (push-to-talk) voice note
-      const isPTT = messageData.type === 'ptt' || (messageData.type && String(messageData.type).toLowerCase().includes('voice'));
+      const isPTT = messageData.type === 'ptt' || 
+                    messageData.type === 'audio' || 
+                    messageData.type === 'voice' ||
+                    (messageData.type && String(messageData.type).toLowerCase().includes('voice')) ||
+                    (messageData.type && String(messageData.type).toLowerCase().includes('audio'));
       if (!messageData.hasMedia && !messageData.isMedia && !messageData.media && !isPTT) {
         return;
       }
@@ -2733,21 +2789,47 @@ class WAHAService extends EventEmitter {
           hasMediaUrl: !!messageData.mediaUrl
         });
 
-        // For voice messages without media URL, try to fetch full message details with downloadMedia=true
+        // For voice messages without media URL, try multiple approaches
         if (!messageData.media?.url && !messageData.mediaUrl) {
-          console.log('[WAHA Service] 🎙️ Voice message missing media URL, fetching full message details...');
+          console.log('[WAHA Service] 🎙️ Voice message missing media URL, trying multiple download approaches...');
+          
+          // Approach 1: Try to fetch full message details with downloadMedia=true
           try {
             const fullMessage = await this.getMessage(messageData.id, true);
             if (fullMessage?.media?.url) {
-              console.log('[WAHA Service] 🎙️ ✅ Retrieved voice media URL from WAHA:', fullMessage.media.url);
+              console.log('[WAHA Service] 🎙️ ✅ Retrieved voice media URL from WAHA via getMessage:', fullMessage.media.url);
               messageData.media = fullMessage.media;
               messageData.mediaUrl = fullMessage.media.url;
               messageData.mimeType = fullMessage.media.mimetype || fullMessage.mimeType || messageData.mimeType;
             } else {
-              console.warn('[WAHA Service] 🎙️ ⚠️ Could not retrieve media URL for voice message');
+              // Approach 2: Try direct media download endpoint
+              console.log('[WAHA Service] 🎙️ getMessage didn\'t provide URL, trying direct download...');
+              const directDownload = await this.downloadMediaDirect(messageData.id, messageData.chatId);
+              if (directDownload) {
+                console.log('[WAHA Service] 🎙️ ✅ Direct download successful, setting up media data');
+                // Create a pseudo media URL pointing to our local file
+                messageData.localPath = directDownload.localPath;
+                messageData.mimeType = directDownload.mimeType;
+                // Skip the normal download process since we already have the file
+                messageData.skipNormalDownload = true;
+              } else {
+                console.warn('[WAHA Service] 🎙️ ⚠️ Could not retrieve or download voice message media');
+              }
             }
           } catch (fetchError) {
             console.error('[WAHA Service] 🎙️ ❌ Failed to fetch voice message details:', fetchError);
+            // Try direct download as fallback
+            try {
+              const directDownload = await this.downloadMediaDirect(messageData.id, messageData.chatId);
+              if (directDownload) {
+                console.log('[WAHA Service] 🎙️ ✅ Fallback direct download successful');
+                messageData.localPath = directDownload.localPath;
+                messageData.mimeType = directDownload.mimeType;
+                messageData.skipNormalDownload = true;
+              }
+            } catch (directError) {
+              console.error('[WAHA Service] 🎙️ ❌ All download approaches failed:', directError);
+            }
           }
         }
       }
@@ -2845,15 +2927,20 @@ class WAHAService extends EventEmitter {
         hasMedia: true,
         mediaType: this.getMediaType(messageData.mimeType || messageData.media?.mimetype, messageData.type),
         mediaUrl: mediaInfo?.url || null,
-        localPath: null as string | null,
-        fileSize: null as number | null,
+        localPath: messageData.localPath || null, // Use direct download path if available
+        fileSize: messageData.localPath && fs.existsSync(messageData.localPath) ? fs.statSync(messageData.localPath).size : null,
         filename: mediaInfo?.filename || null
       };
 
       let downloadResult = null;
 
+      // Skip download if we already downloaded it directly (for NOWEB voice messages)
+      if (messageData.skipNormalDownload && messageData.localPath) {
+        console.log('[WAHA Service] 🎙️ Skipping normal download - already downloaded directly:', messageData.localPath);
+        downloadResult = { success: true, localPath: messageData.localPath };
+      }
       // Attempt to download media if we have a URL - with retry logic
-      if (mediaInfo && mediaInfo.url && !mediaInfo.error) {
+      else if (mediaInfo && mediaInfo.url && !mediaInfo.error) {
         const maxRetries = 2;
         let retryCount = 0;
         let lastError: any = null;
@@ -4154,15 +4241,20 @@ class WAHAService extends EventEmitter {
                 rawMessageKeys: Object.keys(message)
               });
 
-              // Determine if message has media
+              // Determine if message has media (including voice/audio/ptt)
               const potentiallyHasMedia = message.isMedia || message.hasMedia || 
                                          message.type === 'image' || 
                                          message.type === 'video' || 
                                          message.type === 'document' ||
+                                         message.type === 'ptt' ||
+                                         message.type === 'audio' ||
+                                         message.type === 'voice' ||
                                          (message.mimeType && (
                                            message.mimeType.startsWith('image/') ||
                                            message.mimeType.startsWith('video/') ||
-                                           message.mimeType.startsWith('audio/')
+                                           message.mimeType.startsWith('audio/') ||
+                                           message.mimeType.includes('ogg') ||
+                                           message.mimeType.includes('opus')
                                          ));
 
               // Always fetch full details for media messages to ensure we have downloadable URLs
@@ -4179,16 +4271,32 @@ class WAHAService extends EventEmitter {
                       hasMedia: fullMessage.hasMedia,
                       mediaUrl: fullMessage.media?.url || fullMessage.mediaUrl
                     });
+                  } else {
+                    // If getMessage returns null (404), try alternative approach
+                    console.warn('[WAHA Service] ⚠️ getMessage returned null (404) - will try to infer media type from available data');
+                    // For voice messages, WAHA NOWEB sometimes doesn't provide the message via getMessage
+                    // but we can still detect it from the polling data
+                    if (!fullMessage.type && fullMessage.isMedia && !fullMessage.body) {
+                      // Empty body + isMedia = likely voice message
+                      console.log('[WAHA Service] 🎙️ Inferring voice message type from isMedia=true + empty body');
+                      fullMessage.type = 'ptt'; // Assume PTT voice note
+                    }
                   }
                 } catch (fetchError) {
                   console.warn('[WAHA Service] ⚠️ Failed to fetch full message details:', (fetchError as Error).message);
+                  // Try to infer type from available data
+                  if (!fullMessage.type && fullMessage.isMedia && !fullMessage.body) {
+                    console.log('[WAHA Service] 🎙️ Inferring voice message type after fetch error');
+                    fullMessage.type = 'ptt';
+                  }
                 }
               }
 
-              // Determine final media status
+              // Determine final media status (including voice/audio)
               const hasMediaContent = fullMessage.hasMedia || fullMessage.isMedia || 
                                      fullMessage.media?.url || fullMessage.mediaUrl ||
-                                     fullMessage.type === 'image' || fullMessage.type === 'video';
+                                     fullMessage.type === 'image' || fullMessage.type === 'video' ||
+                                     fullMessage.type === 'ptt' || fullMessage.type === 'audio' || fullMessage.type === 'voice';
 
               const messageData = {
                 id: fullMessage.id,
