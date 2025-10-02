@@ -1850,13 +1850,13 @@ class WAHAService extends EventEmitter {
       }
       
       // WAHA 2025.9.1 API endpoint structure: /api/messages?session={session}&chatId={chatId}
-      // Request downloadMedia=true to get full message details including type and MIME
+      // Request downloadMedia=true to get full message details including type, MIME, and media URLs
       let response = await this.httpClient.get('/api/messages', {
         params: {
           session: sessionName,
           chatId: chatId,
           limit,
-          downloadMedia: 'false' // We'll download media separately for efficiency
+          downloadMedia: 'true' // Required for voice messages and other media to have downloadable URLs
         },
         timeout: 180000 // Increased to 3 minutes for Railway deployment
       });
@@ -1895,7 +1895,8 @@ class WAHAService extends EventEmitter {
             params: { 
               session: sessionName,
               chatId: altId,
-              limit 
+              limit,
+              downloadMedia: 'true' // Include media URLs
             },
             timeout: 180000
           });
