@@ -282,6 +282,13 @@ const SearchPage: React.FC = () => {
       return;
     }
 
+    // Handle images with public URLs - open in new tab
+    if (result.type === 'image' && result.metadata?.publicUrl) {
+      console.log('🖼️ Opening image URL:', result.metadata.publicUrl);
+      window.open(result.metadata.publicUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
     // Get navigation path based on type
     const getNavigationPath = (result: SearchResult) => {
       switch (result.type) {
@@ -298,9 +305,8 @@ const SearchPage: React.FC = () => {
         case 'video':
           return `/videos${result.id ? `?highlight=${result.id}` : ''}`;
         case 'image':
-          // Images can be from WhatsApp or Telegram, try to determine which
-          // For now, route to agents page - we can enhance this later
-          return `/agents?type=images${result.id ? `&highlight=${result.id}` : ''}`;
+          // Route to images page
+          return `/images${result.id ? `?highlight=${result.id}` : ''}`;
         case 'news':
           return `/news${result.id ? `?highlight=${result.id}` : ''}`;
         case 'meeting':

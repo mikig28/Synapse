@@ -346,6 +346,13 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       keywords: [result.type, result.title.toLowerCase()],
       score: result.score,
       action: () => {
+        // Handle images with public URLs - open in new tab
+        if (result.type === 'image' && result.metadata?.publicUrl) {
+          window.open(result.metadata.publicUrl, '_blank', 'noopener,noreferrer');
+          onClose();
+          return;
+        }
+
         const pathMap: Record<string, string> = {
           bookmark: `/bookmarks?highlight=${result.id}`,
           document: `/docs?highlight=${result.id}`,
@@ -353,6 +360,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           task: `/tasks?highlight=${result.id}`,
           idea: `/ideas?highlight=${result.id}`,
           video: `/videos?highlight=${result.id}`,
+          image: `/images?highlight=${result.id}`,
           news: `/news?highlight=${result.id}`,
           meeting: `/meetings?highlight=${result.id}`,
           whatsapp: `/agents?type=whatsapp&highlight=${result.id}`,
