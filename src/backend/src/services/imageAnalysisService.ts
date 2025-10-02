@@ -46,8 +46,8 @@ export class ImageAnalysisService {
     }
     
     this.genAI = new GoogleGenerativeAI(apiKey);
-    // Use Gemini 1.5 Flash - fastest and cheapest with vision capabilities
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
+    // Use Gemini Pro Vision - supports image analysis with SDK v0.1.3
+    this.model = this.genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
   }
 
   /**
