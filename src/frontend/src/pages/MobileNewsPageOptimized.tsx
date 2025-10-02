@@ -615,9 +615,9 @@ const MobileNewsPageOptimized: React.FC = () => {
                 <Newspaper className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold">News Feed</h1>
+                <h1 className="text-xl font-bold">Agents Reports</h1>
                 <p className="text-xs text-gray-500">
-                  {loading ? 'Updating...' : `${filteredItems.length} articles`}
+                  {loading ? 'Updating...' : `${filteredItems.length} reports`}
                 </p>
               </div>
             </div>

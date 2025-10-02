@@ -561,12 +561,12 @@ const NewsPage: React.FC = () => {
             </div>
             <div>
               <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-primary">
-                {filters.runId ? 'Agent Execution Report' : 'News Feed'}
+                {filters.runId ? 'Agent Execution Report' : 'Agents Reports'}
               </h1>
               <p className="text-muted-foreground">
-                {filters.runId 
-                  ? 'Detailed results from agent execution' 
-                  : 'AI-curated news articles from your agents'
+                {filters.runId
+                  ? 'Detailed results from agent execution'
+                  : 'AI-curated reports and outputs from your agents'
                 }
               </p>
             </div>
@@ -582,7 +582,7 @@ const NewsPage: React.FC = () => {
               className="flex items-center gap-2"
             >
               <ChevronLeft className="w-4 h-4" />
-              Back to News Feed
+              Back to Agents Reports
             </Button>
           )}
         </div>
@@ -1005,9 +1005,9 @@ const NewsPage: React.FC = () => {
           <Card className="text-center py-12">
             <CardContent>
               <Newspaper className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <h3 className="text-xl font-semibold mb-2">No News Articles</h3>
+              <h3 className="text-xl font-semibold mb-2">No Agent Reports</h3>
               <p className="text-muted-foreground mb-6">
-                Your AI agents haven't found any articles yet. Create some news agents to start curating content!
+                Your AI agents haven't generated any reports yet. Create and run agents to see their outputs here!
               </p>
             </CardContent>
           </Card>

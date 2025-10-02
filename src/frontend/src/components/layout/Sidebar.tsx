@@ -69,7 +69,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
     { href: "/telegram-channels", label: "Telegram Channels", icon: Send },
     { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
     { href: "/videos", label: "Videos", icon: Youtube },
-    { href: "/news", label: "News", icon: Newspaper }, 
+    { href: "/news", label: "Agents Reports", icon: Newspaper }, 
   ];
 
   const location = useLocation();

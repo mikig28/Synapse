@@ -240,7 +240,7 @@ This is a test report to verify that the modal is working properly.
             <Newspaper className="w-8 h-8 text-primary" />
             <div>
               <h1 className="text-3xl font-bold">
-                {filters.runId ? 'Agent Report' : 'News Feed'}
+                {filters.runId ? 'Agent Report' : 'Agents Reports'}
               </h1>
               <p className="text-muted-foreground">
                 {loading ? 'Loading...' : `${newsItems.length} items`}
