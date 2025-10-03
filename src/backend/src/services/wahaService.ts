@@ -1821,7 +1821,9 @@ class WAHAService extends EventEmitter {
    */
   async getMessage(messageId: string, downloadMedia: boolean = false, sessionName: string = this.defaultSession): Promise<any | null> {
     try {
-      const response = await this.httpClient.get(`/api/messages/${messageId}`, {
+      // URL-encode message ID since it contains special characters like @ and -
+      const encodedMessageId = encodeURIComponent(messageId);
+      const response = await this.httpClient.get(`/api/messages/${encodedMessageId}`, {
         params: {
           session: sessionName,
           downloadMedia: downloadMedia ? 'true' : 'false'
@@ -1847,43 +1849,72 @@ class WAHAService extends EventEmitter {
    */
   async downloadMediaDirect(messageId: string, chatId: string, sessionName: string = this.defaultSession): Promise<{ localPath: string; mimeType: string } | null> {
     try {
-      console.log('[WAHA Service] 🎙️ Attempting direct media download via alternative WAHA endpoint:', {
+      console.log('[WAHA Service] 🎙️ Attempting direct media download via WAHA endpoints:', {
         messageId,
         chatId,
         session: sessionName
       });
 
-      // Try downloading via the sendFiles endpoint with the message ID
-      // WAHA sometimes stores media temporarily and we can retrieve it
-      const response = await this.httpClient.get(`/api/${sessionName}/messages/${messageId}/media`, {
-        responseType: 'arraybuffer',
-        timeout: 30000
-      });
+      // Try multiple WAHA endpoints for media download
+      // Note: chatId format must match WAHA expectations (e.g., "123456789@g.us" for groups)
+      // URL-encode IDs since they contain special characters
+      const encodedMessageId = encodeURIComponent(messageId);
+      const encodedChatId = encodeURIComponent(chatId);
 
-      if (response.data) {
-        const mimeType = response.headers['content-type'] || 'audio/ogg';
-        const extension = mimeType.includes('ogg') ? 'ogg' : 
-                         mimeType.includes('mp3') ? 'mp3' : 
-                         mimeType.includes('mp4') ? 'mp4' : 'oga';
-        
-        const filename = `voice_${messageId.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.${extension}`;
-        const storageDir = path.join(process.cwd(), 'storage', 'whatsapp-media', 'voice');
-        
-        if (!fs.existsSync(storageDir)) {
-          fs.mkdirSync(storageDir, { recursive: true });
+      const endpoints = [
+        // Endpoint 1: WAHA's proper download endpoint for messages (WEBJS/NOWEB)
+        `/api/${sessionName}/chats/${encodedChatId}/messages/${encodedMessageId}/download`,
+        // Endpoint 2: Alternative direct download
+        `/api/${sessionName}/messages/${encodedMessageId}/download`,
+        // Endpoint 3: Standard messages endpoint
+        `/api/${sessionName}/messages/${encodedMessageId}/media`,
+        // Endpoint 4: Alternative format for WEBJS
+        `/api/messages/${encodedMessageId}/media?session=${sessionName}`
+      ];
+
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`[WAHA Service] 🔄 Trying endpoint: ${endpoint}`);
+          const response = await this.httpClient.get(endpoint, {
+            responseType: 'arraybuffer',
+            timeout: 30000,
+            validateStatus: (status) => status === 200
+          });
+
+          if (response.data && response.data.byteLength > 0) {
+            const mimeType = response.headers['content-type'] || 'audio/ogg';
+            const extension = mimeType.includes('ogg') ? 'ogg' :
+                             mimeType.includes('mp3') ? 'mp3' :
+                             mimeType.includes('mp4') ? 'mp4' :
+                             mimeType.includes('mpeg') ? 'mp3' : 'oga';
+
+            const filename = `voice_${messageId.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.${extension}`;
+            const storageDir = path.join(process.cwd(), 'storage', 'whatsapp-media', 'voice');
+
+            if (!fs.existsSync(storageDir)) {
+              fs.mkdirSync(storageDir, { recursive: true });
+            }
+
+            const localPath = path.join(storageDir, filename);
+            fs.writeFileSync(localPath, response.data);
+
+            console.log('[WAHA Service] 🎙️ ✅ Direct media download successful:', {
+              endpoint,
+              localPath,
+              fileSize: response.data.byteLength,
+              mimeType
+            });
+
+            return { localPath, mimeType };
+          }
+        } catch (endpointError: any) {
+          console.log(`[WAHA Service] ⚠️ Endpoint ${endpoint} failed: ${endpointError.response?.status || endpointError.message}`);
+          // Continue to next endpoint
         }
-        
-        const localPath = path.join(storageDir, filename);
-        fs.writeFileSync(localPath, response.data);
-
-        console.log('[WAHA Service] 🎙️ ✅ Direct media download successful:', {
-          localPath,
-          fileSize: response.data.length,
-          mimeType
-        });
-
-        return { localPath, mimeType };
       }
+
+      // If all endpoints fail, try using WAHA's downloadMedia API if the webhook provided media metadata
+      console.log('[WAHA Service] 🔄 All direct endpoints failed, trying downloadMedia API...');
 
       return null;
     } catch (error: any) {
