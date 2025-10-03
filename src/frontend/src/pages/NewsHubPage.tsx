@@ -238,20 +238,19 @@ const NewsHubPage: React.FC = () => {
     if (!newTopic.trim()) return;
 
     try {
-      const updatedInterests = {
-        ...userInterests,
+      const response = await newsHubService.updateInterests({
         topics: [...(userInterests?.topics || []), newTopic.trim()]
-      };
-      const response = await newsHubService.updateInterests(updatedInterests);
+      });
       if (response.success && response.data) {
         setUserInterests(response.data);
         setNewTopic('');
         toast({ title: 'Topic added successfully' });
       }
     } catch (error: any) {
+      console.error('Error adding topic:', error);
       toast({
         title: 'Error',
-        description: 'Failed to add topic',
+        description: error.response?.data?.error || 'Failed to add topic',
         variant: 'destructive'
       });
     }
@@ -259,19 +258,18 @@ const NewsHubPage: React.FC = () => {
 
   const handleRemoveTopic = async (topic: string) => {
     try {
-      const updatedInterests = {
-        ...userInterests,
+      const response = await newsHubService.updateInterests({
         topics: userInterests?.topics.filter(t => t !== topic) || []
-      };
-      const response = await newsHubService.updateInterests(updatedInterests);
+      });
       if (response.success && response.data) {
         setUserInterests(response.data);
         toast({ title: 'Topic removed' });
       }
     } catch (error: any) {
+      console.error('Error removing topic:', error);
       toast({
         title: 'Error',
-        description: 'Failed to remove topic',
+        description: error.response?.data?.error || 'Failed to remove topic',
         variant: 'destructive'
       });
     }
@@ -281,20 +279,19 @@ const NewsHubPage: React.FC = () => {
     if (!newKeyword.trim()) return;
 
     try {
-      const updatedInterests = {
-        ...userInterests,
+      const response = await newsHubService.updateInterests({
         keywords: [...(userInterests?.keywords || []), newKeyword.trim()]
-      };
-      const response = await newsHubService.updateInterests(updatedInterests);
+      });
       if (response.success && response.data) {
         setUserInterests(response.data);
         setNewKeyword('');
         toast({ title: 'Keyword added successfully' });
       }
     } catch (error: any) {
+      console.error('Error adding keyword:', error);
       toast({
         title: 'Error',
-        description: 'Failed to add keyword',
+        description: error.response?.data?.error || 'Failed to add keyword',
         variant: 'destructive'
       });
     }
@@ -302,19 +299,18 @@ const NewsHubPage: React.FC = () => {
 
   const handleRemoveKeyword = async (keyword: string) => {
     try {
-      const updatedInterests = {
-        ...userInterests,
+      const response = await newsHubService.updateInterests({
         keywords: userInterests?.keywords.filter(k => k !== keyword) || []
-      };
-      const response = await newsHubService.updateInterests(updatedInterests);
+      });
       if (response.success && response.data) {
         setUserInterests(response.data);
         toast({ title: 'Keyword removed' });
       }
     } catch (error: any) {
+      console.error('Error removing keyword:', error);
       toast({
         title: 'Error',
-        description: 'Failed to remove keyword',
+        description: error.response?.data?.error || 'Failed to remove keyword',
         variant: 'destructive'
       });
     }
@@ -324,20 +320,19 @@ const NewsHubPage: React.FC = () => {
     if (!newCategory.trim()) return;
 
     try {
-      const updatedInterests = {
-        ...userInterests,
+      const response = await newsHubService.updateInterests({
         categories: [...(userInterests?.categories || []), newCategory.trim()]
-      };
-      const response = await newsHubService.updateInterests(updatedInterests);
+      });
       if (response.success && response.data) {
         setUserInterests(response.data);
         setNewCategory('');
         toast({ title: 'Category added successfully' });
       }
     } catch (error: any) {
+      console.error('Error adding category:', error);
       toast({
         title: 'Error',
-        description: 'Failed to add category',
+        description: error.response?.data?.error || 'Failed to add category',
         variant: 'destructive'
       });
     }
@@ -345,19 +340,18 @@ const NewsHubPage: React.FC = () => {
 
   const handleRemoveCategory = async (category: string) => {
     try {
-      const updatedInterests = {
-        ...userInterests,
+      const response = await newsHubService.updateInterests({
         categories: userInterests?.categories.filter(c => c !== category) || []
-      };
-      const response = await newsHubService.updateInterests(updatedInterests);
+      });
       if (response.success && response.data) {
         setUserInterests(response.data);
         toast({ title: 'Category removed' });
       }
     } catch (error: any) {
+      console.error('Error removing category:', error);
       toast({
         title: 'Error',
-        description: 'Failed to remove category',
+        description: error.response?.data?.error || 'Failed to remove category',
         variant: 'destructive'
       });
     }
