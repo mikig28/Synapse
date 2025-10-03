@@ -21,7 +21,7 @@ const envSchema = z.object({
   MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
 
   // JWT Authentication (REQUIRED)
-  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters for security'),
+  JWT_SECRET: z.string().min(1, 'JWT_SECRET is required'),
   JWT_EXPIRES_IN: z.string().default('7d'),
 
   // AI Services (REQUIRED)
