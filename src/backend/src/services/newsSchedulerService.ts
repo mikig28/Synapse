@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import UserInterest from '../models/UserInterest';
 import { rssNewsAggregationService } from './rssNewsAggregationService';
 import { newsRankingService } from './newsRankingService';
+import { autoPushNewArticles } from './newsPushService';
 import { logger } from '../utils/logger';
 
 interface UserSchedule {
@@ -94,7 +95,10 @@ class NewsSchedulerService {
 
       if (articles.length > 0) {
         // Rank articles
-        await newsRankingService.rankArticles(userId, articles);
+        const rankedArticles = await newsRankingService.rankArticles(userId, articles);
+
+        // Auto-push articles if enabled
+        await autoPushNewArticles(userId, rankedArticles);
 
         logger.info(`✅ Auto-fetched ${articles.length} articles for user ${userId}`);
       } else {

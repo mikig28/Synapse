@@ -4,7 +4,10 @@ import RealNewsArticle, { IRealNewsArticle } from '../../models/RealNewsArticle'
 import { rssNewsAggregationService } from '../../services/rssNewsAggregationService';
 import { newsRankingService } from '../../services/newsRankingService';
 import { userInterestService } from '../../services/userInterestService';
+import { autoPushNewArticles } from '../../services/newsPushService';
 import { logger } from '../../utils/logger';
+import { telegramBotManager } from '../../services/telegramBotManager';
+import WAHAService from '../../services/wahaService';
 
 /**
  * Get personalized news feed for user
@@ -86,6 +89,9 @@ export const refreshNews = async (req: AuthenticatedRequest, res: Response): Pro
 
     // Rank articles
     const rankedArticles = await newsRankingService.rankArticles(userId, articles);
+
+    // Auto-push articles if enabled
+    await autoPushNewArticles(userId, rankedArticles);
 
     res.json({
       success: true,
@@ -406,5 +412,128 @@ export const getNewsHubStats = async (req: AuthenticatedRequest, res: Response):
   } catch (error: any) {
     logger.error('Error getting news hub stats:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * Format article for messaging (for manual push endpoints)
+ */
+function formatArticleForMessaging(article: IRealNewsArticle): string {
+  const lines = [
+    `📰 *${article.title}*`,
+    '',
+    article.description ? article.description : '',
+    '',
+    `📅 ${new Date(article.publishedAt).toLocaleDateString()}`,
+    `📰 Source: ${article.source.name}`,
+    article.category ? `🏷️ Category: ${article.category}` : '',
+    '',
+    `🔗 Read more: ${article.url}`
+  ];
+  
+  return lines.filter(line => line !== '').join('\n');
+}
+
+/**
+ * Push article to user's Telegram bot
+ */
+export const pushArticleToTelegram = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    // Get the article
+    const article = await RealNewsArticle.findOne({ _id: id, userId });
+    if (!article) {
+      res.status(404).json({ success: false, error: 'Article not found' });
+      return;
+    }
+
+    // Get user's bot and send message
+    const userBot = telegramBotManager.getUserBot(userId);
+    if (!userBot) {
+      res.status(400).json({ 
+        success: false, 
+        error: 'No Telegram bot configured. Please set up your bot first.' 
+      });
+      return;
+    }
+
+    // Format article message
+    const message = formatArticleForMessaging(article);
+
+    // Send to user's own chat (bot will send to user who configured it)
+    const success = await telegramBotManager.sendMessage(
+      userId,
+      parseInt(userId), // Send to user's own chat
+      message,
+      { parse_mode: 'Markdown' }
+    );
+
+    if (success) {
+      res.json({
+        success: true,
+        message: 'Article sent to your Telegram bot'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to send article to Telegram'
+      });
+    }
+  } catch (error: any) {
+    logger.error('Error pushing article to Telegram:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * Push article to WhatsApp group
+ */
+export const pushArticleToWhatsApp = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    const { groupId } = req.body;
+
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    if (!groupId) {
+      res.status(400).json({ success: false, error: 'Group ID is required' });
+      return;
+    }
+
+    // Get the article
+    const article = await RealNewsArticle.findOne({ _id: id, userId });
+    if (!article) {
+      res.status(404).json({ success: false, error: 'Article not found' });
+      return;
+    }
+
+    // Format article message
+    const message = formatArticleForMessaging(article);
+
+    // Send via WAHA
+    const wahaService = WAHAService.getInstance();
+    await wahaService.sendMessage(groupId, message, 'default');
+
+    res.json({
+      success: true,
+      message: 'Article sent to WhatsApp group'
+    });
+  } catch (error: any) {
+    logger.error('Error pushing article to WhatsApp:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Failed to send article to WhatsApp'
+    });
   }
 };

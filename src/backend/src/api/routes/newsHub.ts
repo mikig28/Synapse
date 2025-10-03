@@ -27,4 +27,8 @@ router.post('/articles/:id/read', newsHubController.markArticleAsRead);
 router.post('/articles/:id/save', newsHubController.toggleArticleSaved);
 router.post('/articles/:id/favorite', newsHubController.toggleArticleFavorite);
 
+// Push article to messaging platforms
+router.post('/articles/:id/push/telegram', newsHubController.pushArticleToTelegram);
+router.post('/articles/:id/push/whatsapp', newsHubController.pushArticleToWhatsApp);
+
 export default router;

@@ -120,6 +120,22 @@ class NewsHubService {
     const response = await api.post<ApiResponse<RealNewsArticle>>(`/news-hub/articles/${articleId}/favorite`);
     return response.data;
   }
+
+  /**
+   * Push article to Telegram bot
+   */
+  async pushToTelegram(articleId: string): Promise<{ success: boolean; message: string }> {
+    const response = await api.post<{ success: boolean; message: string }>(`/news-hub/articles/${articleId}/push/telegram`);
+    return response.data;
+  }
+
+  /**
+   * Push article to WhatsApp group
+   */
+  async pushToWhatsApp(articleId: string, groupId: string): Promise<{ success: boolean; message: string }> {
+    const response = await api.post<{ success: boolean; message: string }>(`/news-hub/articles/${articleId}/push/whatsapp`, { groupId });
+    return response.data;
+  }
 }
 
 export const newsHubService = new NewsHubService();

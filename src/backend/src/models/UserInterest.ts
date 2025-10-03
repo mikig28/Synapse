@@ -7,6 +7,13 @@ export interface CustomRSSFeed {
   enabled: boolean;
 }
 
+export interface AutoPushSettings {
+  enabled: boolean;
+  platform: 'telegram' | 'whatsapp' | null;
+  whatsappGroupId?: string;
+  minRelevanceScore?: number; // Only push articles above this score (0-1)
+}
+
 export interface IUserInterest extends Document {
   userId: mongoose.Types.ObjectId;
   topics: string[]; // General topics: AI, Technology, Business, Science, etc.
@@ -19,6 +26,7 @@ export interface IUserInterest extends Document {
   refreshInterval: number; // How often to fetch news (in minutes)
   autoFetchEnabled: boolean; // Auto-fetch news or manual only
   maxArticlesPerFetch: number; // Maximum articles to fetch per cycle
+  autoPush: AutoPushSettings; // Auto-push new articles to Telegram or WhatsApp
   createdAt: Date;
   updatedAt: Date;
 }
@@ -81,6 +89,19 @@ const UserInterestSchema: Schema<IUserInterest> = new Schema(
       default: 50,
       min: 10,
       max: 200
+    },
+    autoPush: {
+      type: {
+        enabled: { type: Boolean, default: false },
+        platform: { type: String, enum: ['telegram', 'whatsapp', null], default: null },
+        whatsappGroupId: { type: String },
+        minRelevanceScore: { type: Number, default: 0.5, min: 0, max: 1 }
+      },
+      default: {
+        enabled: false,
+        platform: null,
+        minRelevanceScore: 0.5
+      }
     }
   },
   { timestamps: true }

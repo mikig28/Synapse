@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { newsHubService } from '../services/newsHubService';
+import { whatsappService } from '../services/whatsappService';
 import type {
   RealNewsArticle,
   UserInterest,
@@ -29,7 +30,8 @@ import {
   Star,
   Zap,
   X,
-  Plus
+  Plus,
+  Send
 } from 'lucide-react';
 import {
   Dialog,
@@ -39,6 +41,12 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { PushArticleModal } from '@/components/NewsHub/PushArticleModal';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Slider } from '@/components/ui/slider';
+import type { AutoPushSettings } from '@/types/newsHub';
 
 const NewsHubPage: React.FC = () => {
   const [articles, setArticles] = useState<RealNewsArticle[]>([]);
@@ -70,11 +78,28 @@ const NewsHubPage: React.FC = () => {
   const [refreshInterval, setRefreshInterval] = useState(30);
   const [autoFetchEnabled, setAutoFetchEnabled] = useState(true);
   const [maxArticlesPerFetch, setMaxArticlesPerFetch] = useState(50);
-  const { toast } = useToast();
+  const [pushArticleModalOpen, setPushArticleModalOpen] = useState(false);
+  const [selectedArticleToPush, setSelectedArticleToPush] = useState<RealNewsArticle | null>(null);
+  const [whatsappGroups, setWhatsappGroups] = useState<Array<{ id: string; name: string }>>([]);
+  const [autoPushEnabled, setAutoPushEnabled] = useState(false);
+  const [autoPushPlatform, setAutoPushPlatform] = useState<'telegram' | 'whatsapp' | null>(null);
+  const [autoPushWhatsappGroupId, setAutoPushWhatsappGroupId] = useState<string>('');
+  const [autoPushMinRelevanceScore, setAutoPushMinRelevanceScore] = useState(0.5);
+  const { toast} = useToast();
 
   useEffect(() => {
     fetchUserInterests();
+    fetchWhatsAppGroups();
   }, []);
+
+  const fetchWhatsAppGroups = async () => {
+    try {
+      const groups = await whatsappService.getAvailableGroups();
+      setWhatsappGroups(groups.filter(g => g.isGroup));
+    } catch (error) {
+      console.error('Failed to fetch WhatsApp groups:', error);
+    }
+  };
 
   useEffect(() => {
     if (interestsLoaded && userInterests) {
@@ -144,6 +169,14 @@ const NewsHubPage: React.FC = () => {
         setRefreshInterval(response.data.refreshInterval || 30);
         setAutoFetchEnabled(response.data.autoFetchEnabled ?? true);
         setMaxArticlesPerFetch(response.data.maxArticlesPerFetch || 50);
+        
+        // Initialize auto-push settings
+        if (response.data.autoPush) {
+          setAutoPushEnabled(response.data.autoPush.enabled || false);
+          setAutoPushPlatform(response.data.autoPush.platform || null);
+          setAutoPushWhatsappGroupId(response.data.autoPush.whatsappGroupId || '');
+          setAutoPushMinRelevanceScore(response.data.autoPush.minRelevanceScore || 0.5);
+        }
 
         // Check if user has configured their interests
         const hasTopics = response.data.topics && response.data.topics.length > 0;
@@ -529,6 +562,33 @@ const NewsHubPage: React.FC = () => {
       toast({
         title: 'Error',
         description: error.response?.data?.error || 'Failed to toggle feed',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleUpdateAutoPushSettings = async () => {
+    try {
+      const autoPushSettings: AutoPushSettings = {
+        enabled: autoPushEnabled,
+        platform: autoPushPlatform,
+        whatsappGroupId: autoPushWhatsappGroupId,
+        minRelevanceScore: autoPushMinRelevanceScore
+      };
+
+      await newsHubService.updateUserInterests({
+        autoPush: autoPushSettings
+      });
+
+      toast({
+        title: 'Success',
+        description: 'Auto-push settings updated successfully'
+      });
+    } catch (error) {
+      console.error('Failed to update auto-push settings:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update auto-push settings',
         variant: 'destructive'
       });
     }
@@ -1081,6 +1141,17 @@ const NewsHubPage: React.FC = () => {
                           >
                             <Bookmark className={`w-4 h-4 ${article.isSaved ? 'fill-current' : ''}`} />
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedArticleToPush(article);
+                              setPushArticleModalOpen(true);
+                            }}
+                            title="Push to Telegram or WhatsApp"
+                          >
+                            <Send className="w-4 h-4" />
+                          </Button>
                         </div>
                         <Button
                           variant="ghost"
@@ -1369,6 +1440,97 @@ const NewsHubPage: React.FC = () => {
                     </Button>
                   </div>
                 </div>
+
+                {/* Auto-Push Settings */}
+                <div className="pt-4 border-t space-y-4">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <Send className="w-4 h-4 text-purple-500" />
+                    Auto-Push Settings
+                  </h4>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="auto-push-enable">Enable Auto-Push</Label>
+                      <Switch
+                        id="auto-push-enable"
+                        checked={autoPushEnabled}
+                        onCheckedChange={setAutoPushEnabled}
+                      />
+                    </div>
+
+                    {autoPushEnabled && (
+                      <>
+                        <div className="space-y-2">
+                          <Label>Platform</Label>
+                          <RadioGroup
+                            value={autoPushPlatform || ''}
+                            onValueChange={(value) => setAutoPushPlatform(value as 'telegram' | 'whatsapp')}
+                          >
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="telegram" id="platform-telegram" />
+                              <Label htmlFor="platform-telegram">Telegram Bot</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="whatsapp" id="platform-whatsapp" />
+                              <Label htmlFor="platform-whatsapp">WhatsApp Group</Label>
+                            </div>
+                          </RadioGroup>
+                        </div>
+
+                        {autoPushPlatform === 'whatsapp' && (
+                          <div className="space-y-2">
+                            <Label>WhatsApp Group</Label>
+                            <Select
+                              value={autoPushWhatsappGroupId}
+                              onValueChange={setAutoPushWhatsappGroupId}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a group" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {whatsappGroups.map((group) => (
+                                  <SelectItem key={group.id} value={group.id}>
+                                    {group.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        <div className="space-y-2">
+                          <Label>
+                            Min Relevance Score: {Math.round(autoPushMinRelevanceScore * 100)}%
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Only push articles with relevance score above this threshold
+                          </p>
+                          <Slider
+                            value={[autoPushMinRelevanceScore * 100]}
+                            onValueChange={(value) => setAutoPushMinRelevanceScore(value[0] / 100)}
+                            min={0}
+                            max={100}
+                            step={5}
+                            className="w-full"
+                          />
+                        </div>
+
+                        <div className="text-xs text-muted-foreground p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                          <p className="font-medium mb-1">ℹ️ How it works:</p>
+                          <p>When news is fetched, articles above your relevance threshold will be automatically sent to your selected destination.</p>
+                        </div>
+                      </>
+                    )}
+
+                    <Button
+                      onClick={handleUpdateAutoPushSettings}
+                      className="w-full mt-2"
+                      variant="default"
+                    >
+                      Save Auto-Push Settings
+                    </Button>
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="text-center py-8">
@@ -1382,6 +1544,13 @@ const NewsHubPage: React.FC = () => {
           </ScrollArea>
         </DialogContent>
       </Dialog>
+
+      {/* Push Article Modal */}
+      <PushArticleModal
+        article={selectedArticleToPush}
+        open={pushArticleModalOpen}
+        onOpenChange={setPushArticleModalOpen}
+      />
     </div>
   );
 };

@@ -36,6 +36,13 @@ export interface CustomRSSFeed {
   enabled: boolean;
 }
 
+export interface AutoPushSettings {
+  enabled: boolean;
+  platform: 'telegram' | 'whatsapp' | null;
+  whatsappGroupId?: string;
+  minRelevanceScore?: number;
+}
+
 export interface UserInterest {
   _id: string;
   userId: string;
@@ -49,6 +56,7 @@ export interface UserInterest {
   refreshInterval: number;
   autoFetchEnabled: boolean;
   maxArticlesPerFetch: number;
+  autoPush: AutoPushSettings;
   createdAt: string;
   updatedAt: string;
 }
