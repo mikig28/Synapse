@@ -856,6 +856,47 @@ const NewsHubPage: React.FC = () => {
           </Card>
         )}
 
+        {/* Quick Filters */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">Quick filters:</span>
+          <Button
+            variant={filters.isRead === false ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilters(prev => ({
+              ...prev,
+              isRead: prev.isRead === false ? undefined : false
+            }))}
+            className="h-8"
+          >
+            <Eye className="w-3 h-3 mr-1" />
+            Unread
+          </Button>
+          <Button
+            variant={filters.isRead === true ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilters(prev => ({
+              ...prev,
+              isRead: prev.isRead === true ? undefined : true
+            }))}
+            className="h-8"
+          >
+            <BookOpen className="w-3 h-3 mr-1" />
+            Read
+          </Button>
+          <Button
+            variant={filters.isSaved === true ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilters(prev => ({
+              ...prev,
+              isSaved: prev.isSaved === true ? undefined : true
+            }))}
+            className="h-8"
+          >
+            <Bookmark className="w-3 h-3 mr-1" />
+            Saved
+          </Button>
+        </div>
+
         {/* Filters */}
         <Card>
           <CardContent className="p-4">
@@ -870,6 +911,24 @@ const NewsHubPage: React.FC = () => {
                 />
               </div>
               <Select
+                value={filters.category || 'all'}
+                onValueChange={(value: string) => setFilters(prev => ({ ...prev, category: value === 'all' ? '' : value }))}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  <SelectItem value="technology">Technology</SelectItem>
+                  <SelectItem value="business">Business</SelectItem>
+                  <SelectItem value="science">Science</SelectItem>
+                  <SelectItem value="health">Health</SelectItem>
+                  <SelectItem value="sports">Sports</SelectItem>
+                  <SelectItem value="entertainment">Entertainment</SelectItem>
+                  <SelectItem value="general">General</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
                 value={filters.sortBy}
                 onValueChange={(value: any) => setFilters(prev => ({ ...prev, sortBy: value }))}
               >
@@ -883,6 +942,57 @@ const NewsHubPage: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Active Filters Summary */}
+            {(filters.category || filters.isRead !== undefined || filters.isSaved !== undefined) && (
+              <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t">
+                <span className="text-sm text-muted-foreground">Active filters:</span>
+                {filters.category && (
+                  <Badge
+                    variant="secondary"
+                    className="cursor-pointer hover:bg-destructive/20"
+                    onClick={() => setFilters(prev => ({ ...prev, category: '' }))}
+                  >
+                    {filters.category}
+                    <X className="w-3 h-3 ml-1" />
+                  </Badge>
+                )}
+                {filters.isRead !== undefined && (
+                  <Badge
+                    variant="secondary"
+                    className="cursor-pointer hover:bg-destructive/20"
+                    onClick={() => setFilters(prev => ({ ...prev, isRead: undefined }))}
+                  >
+                    {filters.isRead ? 'Read' : 'Unread'}
+                    <X className="w-3 h-3 ml-1" />
+                  </Badge>
+                )}
+                {filters.isSaved !== undefined && (
+                  <Badge
+                    variant="secondary"
+                    className="cursor-pointer hover:bg-destructive/20"
+                    onClick={() => setFilters(prev => ({ ...prev, isSaved: undefined }))}
+                  >
+                    {filters.isSaved ? 'Saved' : 'Not saved'}
+                    <X className="w-3 h-3 ml-1" />
+                  </Badge>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setFilters({
+                    category: '',
+                    source: '',
+                    sortBy: 'relevance',
+                    isRead: undefined,
+                    isSaved: undefined
+                  })}
+                  className="text-xs h-7"
+                >
+                  Clear all
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
