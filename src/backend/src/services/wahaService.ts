@@ -2643,7 +2643,7 @@ class WAHAService extends EventEmitter {
   private async saveImageToDatabase(messageData: any): Promise<void> {
     try {
       const WhatsAppImage = require('../models/WhatsAppImage').default;
-      const User = require('../models/User').default;
+      const GroupMonitor = require('../models/GroupMonitor').default;
       
       console.log('[WAHA Service] 📸 Saving image to WhatsAppImage database:', {
         messageId: messageData.messageId,
@@ -2659,14 +2659,19 @@ class WAHAService extends EventEmitter {
         return;
       }
 
-      // Find the user who owns this WhatsApp session
-      // For now, we'll use the first user or a configured default user
-      // TODO: Improve this to properly associate with the correct user
-      const user = await User.findOne({ 'whatsappConfig.isActive': true }).sort({ createdAt: 1 });
-      if (!user) {
-        console.warn('[WAHA Service] ⚠️ No active WhatsApp user found, cannot save image');
+      // Find the user who owns this group monitor
+      const monitor = await GroupMonitor.findOne({ 
+        groupId: messageData.chatId,
+        isActive: true 
+      }).populate('userId');
+      
+      if (!monitor) {
+        console.warn('[WAHA Service] ⚠️ No active group monitor found for chatId:', messageData.chatId);
         return;
       }
+
+      const user = monitor.userId;
+      console.log('[WAHA Service] ✅ Found monitoring user:', user.email, 'for group:', messageData.chatName);
 
       // Extract filename from localPath
       const path = require('path');
@@ -2701,7 +2706,8 @@ class WAHAService extends EventEmitter {
       console.log('[WAHA Service] ✅ Image saved to WhatsAppImage database:', {
         imageId: image._id,
         messageId: messageData.messageId,
-        filename: filename
+        filename: filename,
+        userId: user._id
       });
 
       // Emit event for real-time frontend update
@@ -2715,6 +2721,16 @@ class WAHAService extends EventEmitter {
           caption: messageData.caption,
           timestamp: messageData.timestamp
         });
+        console.log('[WAHA Service] 📡 Emitted whatsapp:new-image event to frontend');
+      }
+
+      // Send confirmation message back to the WhatsApp group
+      try {
+        const confirmMessage = `✅ תמונה נשמרה בהצלחה!\n📸 התמונה נוספה לגלריה שלך ב-Synapse`;
+        await this.sendMessage(messageData.chatId, confirmMessage);
+        console.log('[WAHA Service] ✅ Sent confirmation message to group:', messageData.chatId);
+      } catch (sendError) {
+        console.error('[WAHA Service] ❌ Failed to send confirmation to group:', sendError);
       }
 
     } catch (error) {
