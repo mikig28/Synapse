@@ -25,16 +25,43 @@ export class UserInterestService {
     updates: Partial<IUserInterest>
   ): Promise<IUserInterest> {
     try {
+      logger.info(`Attempting to update interests for user ${userId}`, { updates });
+      
+      // Validate userId
+      if (!userId) {
+        throw new Error('User ID is required');
+      }
+      
+      // Validate updates
+      if (!updates || Object.keys(updates).length === 0) {
+        throw new Error('No updates provided');
+      }
+      
       const interests = await UserInterest.findOneAndUpdate(
         { userId },
         { $set: updates },
-        { new: true, upsert: true }
+        { new: true, upsert: true, runValidators: true }
       );
 
-      logger.info(`Updated interests for user ${userId}`);
+      if (!interests) {
+        logger.error(`Failed to update/create interests for user ${userId}`);
+        throw new Error('Failed to update interests');
+      }
+
+      logger.info(`Successfully updated interests for user ${userId}`, { 
+        topics: interests.topics,
+        keywords: interests.keywords,
+        categories: interests.categories
+      });
+      
       return interests;
-    } catch (error) {
-      logger.error('Error updating user interests:', error);
+    } catch (error: any) {
+      logger.error('Error updating user interests:', {
+        userId,
+        updates,
+        error: error.message,
+        stack: error.stack
+      });
       throw error;
     }
   }

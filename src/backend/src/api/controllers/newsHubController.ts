@@ -130,21 +130,77 @@ export const updateUserInterests = async (req: AuthenticatedRequest, res: Respon
   try {
     const userId = req.user?.id;
     if (!userId) {
-      res.status(401).json({ success: false, error: 'Unauthorized' });
+      logger.warn('Unauthorized request to update interests - no user ID');
+      res.status(401).json({ success: false, error: 'Unauthorized - Please log in' });
+      return;
+    }
+
+    // Check MongoDB connection state
+    const mongoose = require('mongoose');
+    if (mongoose.connection.readyState !== 1) {
+      logger.error('MongoDB not connected. Connection state:', mongoose.connection.readyState);
+      res.status(503).json({ 
+        success: false, 
+        error: 'Database is not connected. Please try again later.',
+        debug: {
+          connectionState: mongoose.connection.readyState,
+          states: { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' }
+        }
+      });
       return;
     }
 
     const updates = req.body;
+    logger.info(`Updating interests for user ${userId}:`, updates);
+    
+    // Validate that updates is an object
+    if (!updates || typeof updates !== 'object') {
+      logger.error('Invalid updates object:', updates);
+      res.status(400).json({ success: false, error: 'Invalid request body' });
+      return;
+    }
+    
     const interests = await userInterestService.updateUserInterests(userId, updates);
 
+    if (!interests) {
+      logger.error('Failed to update interests - service returned null');
+      res.status(500).json({ success: false, error: 'Failed to update interests' });
+      return;
+    }
+
+    logger.info(`Successfully updated interests for user ${userId}`);
     res.json({
       success: true,
       data: interests,
       message: 'Interests updated successfully'
     });
   } catch (error: any) {
-    logger.error('Error updating user interests:', error);
-    res.status(500).json({ success: false, error: error.message });
+    logger.error('Error updating user interests:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      updates: req.body
+    });
+    
+    // Provide more specific error messages
+    let errorMessage = error.message || 'Failed to update interests';
+    let statusCode = 500;
+    
+    if (error.message && error.message.includes('Cast to ObjectId failed')) {
+      errorMessage = 'Invalid user ID format';
+      statusCode = 400;
+    } else if (error.name === 'ValidationError') {
+      errorMessage = `Validation error: ${error.message}`;
+      statusCode = 400;
+    } else if (error.name === 'MongoError' || error.name === 'MongoServerError') {
+      errorMessage = 'Database error - please try again';
+      logger.error('MongoDB error details:', error);
+    } else if (error.message && error.message.includes('buffering timed out')) {
+      errorMessage = 'Database connection timeout. Please check if MongoDB is running.';
+      statusCode = 503;
+    }
+    
+    res.status(statusCode).json({ success: false, error: errorMessage });
   }
 };
 
