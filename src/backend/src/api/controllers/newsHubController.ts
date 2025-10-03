@@ -455,7 +455,7 @@ export const pushArticleToTelegram = async (req: AuthenticatedRequest, res: Resp
     }
 
     // Get user's bot and send message
-    const userBot = telegramBotManager.getUserBot(userId);
+    const userBot = telegramBotManager.getBotForUser(userId);
     if (!userBot) {
       res.status(400).json({ 
         success: false, 

@@ -54,7 +54,7 @@ export async function autoPushNewArticles(userId: string, articles: IRealNewsArt
         const message = formatArticleForMessaging(article);
 
         if (platform === 'telegram') {
-          const userBot = telegramBotManager.getUserBot(userId);
+          const userBot = telegramBotManager.getBotForUser(userId);
           if (userBot) {
             await telegramBotManager.sendMessage(
               userId,
