@@ -67,6 +67,9 @@ const NewsHubPage: React.FC = () => {
   const [newFeedCategory, setNewFeedCategory] = useState('general');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [interestsLoaded, setInterestsLoaded] = useState(false);
+  const [refreshInterval, setRefreshInterval] = useState(30);
+  const [autoFetchEnabled, setAutoFetchEnabled] = useState(true);
+  const [maxArticlesPerFetch, setMaxArticlesPerFetch] = useState(50);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -136,12 +139,17 @@ const NewsHubPage: React.FC = () => {
       if (response.success && response.data) {
         setUserInterests(response.data);
         setInterestsLoaded(true);
-        
+
+        // Initialize local state with user preferences
+        setRefreshInterval(response.data.refreshInterval || 30);
+        setAutoFetchEnabled(response.data.autoFetchEnabled ?? true);
+        setMaxArticlesPerFetch(response.data.maxArticlesPerFetch || 50);
+
         // Check if user has configured their interests
         const hasTopics = response.data.topics && response.data.topics.length > 0;
         const hasKeywords = response.data.keywords && response.data.keywords.length > 0;
         const hasCategories = response.data.categories && response.data.categories.length > 0;
-        
+
         // Show onboarding if no interests configured
         if (!hasTopics && !hasKeywords && !hasCategories) {
           setShowOnboarding(true);
@@ -507,11 +515,11 @@ const NewsHubPage: React.FC = () => {
       const updatedFeeds = userInterests?.customFeeds.map(feed =>
         feed.url === feedUrl ? { ...feed, enabled: !feed.enabled } : feed
       ) || [];
-      
+
       const response = await newsHubService.updateInterests({
         customFeeds: updatedFeeds
       });
-      
+
       if (response.success && response.data) {
         setUserInterests(response.data);
         toast({ title: 'Feed status updated' });
@@ -521,6 +529,31 @@ const NewsHubPage: React.FC = () => {
       toast({
         title: 'Error',
         description: error.response?.data?.error || 'Failed to toggle feed',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleUpdateRefreshSettings = async () => {
+    try {
+      const response = await newsHubService.updateInterests({
+        refreshInterval,
+        autoFetchEnabled,
+        maxArticlesPerFetch
+      });
+
+      if (response.success && response.data) {
+        setUserInterests(response.data);
+        toast({
+          title: 'Settings Updated',
+          description: 'Your refresh preferences have been saved'
+        });
+      }
+    } catch (error: any) {
+      console.error('Error updating refresh settings:', error);
+      toast({
+        title: 'Error',
+        description: error.response?.data?.error || 'Failed to update settings',
         variant: 'destructive'
       });
     }
@@ -1157,20 +1190,73 @@ const NewsHubPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="pt-4 border-t space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Refresh Interval:</span>
-                    <span className="font-medium">Every {userInterests.refreshInterval} minutes</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Auto-fetch:</span>
-                    <Badge variant={userInterests.autoFetchEnabled ? 'default' : 'secondary'}>
-                      {userInterests.autoFetchEnabled ? 'Enabled' : 'Disabled'}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Max Articles per Fetch:</span>
-                    <span className="font-medium">{userInterests.maxArticlesPerFetch}</span>
+                <div className="pt-4 border-t space-y-4">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <Settings className="w-4 h-4 text-blue-500" />
+                    Refresh Settings
+                  </h4>
+
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium flex items-center justify-between">
+                        <span>Refresh Interval (minutes)</span>
+                        <span className="text-xs text-muted-foreground">15-1440 min</span>
+                      </label>
+                      <div className="flex gap-2 items-center">
+                        <Input
+                          type="number"
+                          min={15}
+                          max={1440}
+                          value={refreshInterval}
+                          onChange={(e) => setRefreshInterval(Number(e.target.value))}
+                          className="flex-1"
+                        />
+                        <span className="text-sm text-muted-foreground whitespace-nowrap">
+                          ({Math.floor(refreshInterval / 60)}h {refreshInterval % 60}m)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Max Articles per Fetch</label>
+                      <div className="flex gap-2 items-center">
+                        <Input
+                          type="number"
+                          min={10}
+                          max={200}
+                          value={maxArticlesPerFetch}
+                          onChange={(e) => setMaxArticlesPerFetch(Number(e.target.value))}
+                          className="flex-1"
+                        />
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          10-200
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium">Auto-fetch News</label>
+                      <button
+                        onClick={() => setAutoFetchEnabled(!autoFetchEnabled)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          autoFetchEnabled ? 'bg-blue-500' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            autoFetchEnabled ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    <Button
+                      onClick={handleUpdateRefreshSettings}
+                      className="w-full mt-2"
+                      variant="default"
+                    >
+                      Save Refresh Settings
+                    </Button>
                   </div>
                 </div>
               </div>
