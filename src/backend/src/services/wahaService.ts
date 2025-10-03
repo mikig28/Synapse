@@ -223,6 +223,21 @@ class WAHAService extends EventEmitter {
               } catch (error) {
                 console.error('[WAHA Service] ❌ Error updating monitoring stats:', error);
               }
+              // Process media messages (including voice) from webhooks
+              try {
+                const hasMedia = item.hasMedia || item.isMedia || item.type === 'ptt' || item.type === 'audio' || item.type === 'voice' || item.type === 'image' || item.type === 'video';
+                if (hasMedia) {
+                  console.log('[WAHA Service] 📡 Webhook media message detected, processing:', {
+                    messageId: item.id,
+                    type: item.type,
+                    hasMedia: item.hasMedia,
+                    mediaUrl: item.media?.url ? 'present' : 'absent'
+                  });
+                  await this.processMediaMessage(item);
+                }
+              } catch (error) {
+                console.error('[WAHA Service] ❌ Error processing webhook media message:', error);
+              }
             }
           } else {
             await this.persistWAHAMessage(payload);
@@ -235,6 +250,21 @@ class WAHAService extends EventEmitter {
               this.updateMonitoringStats(payload);
             } catch (error) {
               console.error('[WAHA Service] ❌ Error updating monitoring stats:', error);
+            }
+            // Process media messages (including voice) from webhooks
+            try {
+              const hasMedia = payload.hasMedia || payload.isMedia || payload.type === 'ptt' || payload.type === 'audio' || payload.type === 'voice' || payload.type === 'image' || payload.type === 'video';
+              if (hasMedia) {
+                console.log('[WAHA Service] 📡 Webhook media message detected, processing:', {
+                  messageId: payload.id,
+                  type: payload.type,
+                  hasMedia: payload.hasMedia,
+                  mediaUrl: payload.media?.url ? 'present' : 'absent'
+                });
+                await this.processMediaMessage(payload);
+              }
+            } catch (error) {
+              console.error('[WAHA Service] ❌ Error processing webhook media message:', error);
             }
           }
           return;
@@ -253,6 +283,21 @@ class WAHAService extends EventEmitter {
               } catch (error) {
                 console.error('[WAHA Service] ❌ Error updating monitoring stats:', error);
               }
+              // Process media messages (including voice) from webhooks
+              try {
+                const hasMedia = item.hasMedia || item.isMedia || item.type === 'ptt' || item.type === 'audio' || item.type === 'voice' || item.type === 'image' || item.type === 'video';
+                if (hasMedia) {
+                  console.log('[WAHA Service] 📡 Webhook media message detected, processing:', {
+                    messageId: item.id,
+                    type: item.type,
+                    hasMedia: item.hasMedia,
+                    mediaUrl: item.media?.url ? 'present' : 'absent'
+                  });
+                  await this.processMediaMessage(item);
+                }
+              } catch (error) {
+                console.error('[WAHA Service] ❌ Error processing webhook media message:', error);
+              }
             }
           } else {
             await this.persistWAHAMessage(payload);
@@ -266,6 +311,21 @@ class WAHAService extends EventEmitter {
             } catch (error) {
               console.error('[WAHA Service] ❌ Error updating monitoring stats:', error);
             }
+            // Process media messages (including voice) from webhooks
+            try {
+              const hasMedia = payload.hasMedia || payload.isMedia || payload.type === 'ptt' || payload.type === 'audio' || payload.type === 'voice' || payload.type === 'image' || payload.type === 'video';
+              if (hasMedia) {
+                console.log('[WAHA Service] 📡 Webhook media message detected, processing:', {
+                  messageId: payload.id,
+                  type: payload.type,
+                  hasMedia: payload.hasMedia,
+                  mediaUrl: payload.media?.url ? 'present' : 'absent'
+                });
+                await this.processMediaMessage(payload);
+              }
+            } catch (error) {
+              console.error('[WAHA Service] ❌ Error processing webhook media message:', error);
+            }
           }
           return;
         }
@@ -278,9 +338,27 @@ class WAHAService extends EventEmitter {
         if (Array.isArray(payload)) {
           for (const item of payload) {
             await this.persistWAHAMessage(item);
+            // Process media if present
+            try {
+              const hasMedia = item.hasMedia || item.isMedia || item.type === 'ptt' || item.type === 'audio' || item.type === 'voice' || item.type === 'image' || item.type === 'video';
+              if (hasMedia) {
+                await this.processMediaMessage(item);
+              }
+            } catch (error) {
+              console.error('[WAHA Service] ❌ Error processing webhook media message:', error);
+            }
           }
         } else {
           await this.persistWAHAMessage(payload);
+          // Process media if present
+          try {
+            const hasMedia = payload.hasMedia || payload.isMedia || payload.type === 'ptt' || payload.type === 'audio' || payload.type === 'voice' || payload.type === 'image' || payload.type === 'video';
+            if (hasMedia) {
+              await this.processMediaMessage(payload);
+            }
+          } catch (error) {
+            console.error('[WAHA Service] ❌ Error processing webhook media message:', error);
+          }
         }
       }
     } catch (err) {
