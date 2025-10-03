@@ -146,20 +146,51 @@ const NewsHubPage: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Failed to fetch user interests:', error);
+      console.error('Error details:', {
+        status: error?.response?.status,
+        statusText: error?.response?.statusText,
+        data: error?.response?.data,
+        message: error?.message
+      });
       
       // If 404, it means user interests don't exist yet - show onboarding
       if (error?.response?.status === 404 || error?.message?.includes('404')) {
         setShowOnboarding(true);
-      } else {
-        // For other errors, show a toast notification
+        setInterestsLoaded(true);
+      } else if (error?.response?.status === 401) {
+        // User is not authenticated
         toast({
-          title: 'Error',
-          description: 'Failed to load News Hub. Please check your connection and try again.',
+          title: 'Authentication Required',
+          description: 'Please log in to access News Hub.',
           variant: 'destructive'
         });
+        setInterestsLoaded(true);
+      } else if (error?.message?.includes('Network Error') || error?.code === 'ERR_NETWORK') {
+        // Network connectivity issue
+        toast({
+          title: 'Connection Error',
+          description: 'Cannot connect to the server. Please check your internet connection.',
+          variant: 'destructive'
+        });
+        setInterestsLoaded(true);
+      } else if (error?.response?.status === 503 || error?.response?.data?.error?.includes('Database')) {
+        // Database connection issue
+        toast({
+          title: 'Service Unavailable',
+          description: 'The server is temporarily unavailable. Please try again in a few moments.',
+          variant: 'destructive'
+        });
+        setInterestsLoaded(true);
+      } else {
+        // For other errors, show a more specific error message
+        const errorMessage = error?.response?.data?.error || error?.message || 'An unknown error occurred';
+        toast({
+          title: 'Error',
+          description: `Failed to load News Hub: ${errorMessage}`,
+          variant: 'destructive'
+        });
+        setInterestsLoaded(true);
       }
-      
-      setInterestsLoaded(true);
     }
   };
 
