@@ -65,9 +65,16 @@ class NewsHubService {
   /**
    * Update user interests
    */
-  async updateUserInterests(updates: Partial<UserInterest>): Promise<ApiResponse<UserInterest>> {
+  async updateInterests(updates: Partial<UserInterest>): Promise<ApiResponse<UserInterest>> {
     const response = await api.post<ApiResponse<UserInterest>>('/interests', updates);
     return response.data;
+  }
+
+  /**
+   * Update user interests (alias for backwards compatibility)
+   */
+  async updateUserInterests(updates: Partial<UserInterest>): Promise<ApiResponse<UserInterest>> {
+    return this.updateInterests(updates);
   }
 
   /**
