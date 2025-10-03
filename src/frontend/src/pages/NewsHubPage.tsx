@@ -479,42 +479,83 @@ const NewsHubPage: React.FC = () => {
             <DialogTitle>Manage Your Interests</DialogTitle>
           </DialogHeader>
           <ScrollArea className="max-h-[60vh] pr-4">
-            {userInterests && (
-              <div className="space-y-4">
+            {userInterests ? (
+              <div className="space-y-6">
                 <div>
-                  <h4 className="font-medium mb-2">Topics</h4>
+                  <h4 className="font-medium mb-3 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-purple-500" />
+                    Topics
+                  </h4>
                   <div className="flex flex-wrap gap-2">
-                    {userInterests.topics.map((topic, idx) => (
-                      <Badge key={idx} variant="secondary">
-                        {topic}
-                      </Badge>
-                    ))}
+                    {userInterests.topics && userInterests.topics.length > 0 ? (
+                      userInterests.topics.map((topic, idx) => (
+                        <Badge key={idx} variant="secondary" className="text-sm">
+                          {topic}
+                        </Badge>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No topics set</p>
+                    )}
                   </div>
                 </div>
                 <div>
-                  <h4 className="font-medium mb-2">Keywords</h4>
+                  <h4 className="font-medium mb-3 flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-yellow-500" />
+                    Keywords
+                  </h4>
                   <div className="flex flex-wrap gap-2">
-                    {userInterests.keywords.map((keyword, idx) => (
-                      <Badge key={idx} variant="outline">
-                        {keyword}
-                      </Badge>
-                    ))}
+                    {userInterests.keywords && userInterests.keywords.length > 0 ? (
+                      userInterests.keywords.map((keyword, idx) => (
+                        <Badge key={idx} variant="outline" className="text-sm">
+                          {keyword}
+                        </Badge>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No keywords set</p>
+                    )}
                   </div>
                 </div>
                 <div>
-                  <h4 className="font-medium mb-2">Categories</h4>
+                  <h4 className="font-medium mb-3 flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-blue-500" />
+                    Categories
+                  </h4>
                   <div className="flex flex-wrap gap-2">
-                    {userInterests.categories.map((category, idx) => (
-                      <Badge key={idx} variant="default">
-                        {category}
-                      </Badge>
-                    ))}
+                    {userInterests.categories && userInterests.categories.length > 0 ? (
+                      userInterests.categories.map((category, idx) => (
+                        <Badge key={idx} variant="default" className="text-sm">
+                          {category}
+                        </Badge>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No categories set</p>
+                    )}
                   </div>
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  <p>Refresh Interval: Every {userInterests.refreshInterval} minutes</p>
-                  <p>Auto-fetch: {userInterests.autoFetchEnabled ? 'Enabled' : 'Disabled'}</p>
+                <div className="pt-4 border-t space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Refresh Interval:</span>
+                    <span className="font-medium">Every {userInterests.refreshInterval} minutes</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Auto-fetch:</span>
+                    <Badge variant={userInterests.autoFetchEnabled ? 'default' : 'secondary'}>
+                      {userInterests.autoFetchEnabled ? 'Enabled' : 'Disabled'}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Max Articles per Fetch:</span>
+                    <span className="font-medium">{userInterests.maxArticlesPerFetch}</span>
+                  </div>
                 </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Settings className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                <h3 className="text-lg font-semibold mb-2">Loading Interests...</h3>
+                <p className="text-sm text-muted-foreground">
+                  We're fetching your personalized settings
+                </p>
               </div>
             )}
           </ScrollArea>
