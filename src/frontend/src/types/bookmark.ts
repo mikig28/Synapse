@@ -23,4 +23,8 @@ export interface BookmarkItemType {
   redditCreatedUtc?: number;
   tweetData?: any; // Added - consider a more specific type e.g. from react-tweet
   linkedInData?: any; // Added - consider a more specific type
+  // Voice note fields
+  voiceNoteTranscription?: string;
+  voiceNoteAudioFileId?: string;
+  voiceNoteTelegramMessageId?: string;
 }

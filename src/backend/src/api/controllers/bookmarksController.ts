@@ -689,6 +689,33 @@ export const summarizeBookmarkController = async (req: AuthenticatedRequest, res
   }
 }; 
 
+// Function to update bookmark with voice note
+export const updateBookmarkWithVoiceNote = async (
+  bookmarkId: string,
+  transcription: string,
+  audioFileId: string,
+  telegramMessageId: string
+): Promise<void> => {
+  try {
+    const bookmark = await BookmarkItem.findById(bookmarkId);
+
+    if (!bookmark) {
+      throw new Error(`Bookmark not found: ${bookmarkId}`);
+    }
+
+    bookmark.voiceNoteTranscription = transcription;
+    bookmark.voiceNoteAudioFileId = audioFileId;
+    bookmark.voiceNoteTelegramMessageId = new mongoose.Types.ObjectId(telegramMessageId);
+
+    await bookmark.save();
+
+    console.log(`[BookmarkController] Updated bookmark ${bookmarkId} with voice note`);
+  } catch (error) {
+    console.error('[BookmarkController] Error updating bookmark with voice note:', error);
+    throw error;
+  }
+};
+
 export const summarizeLatestBookmarksController = async (req: AuthenticatedRequest, res: Response) => {
   const NUM_LATEST_TO_SUMMARIZE = 5;
   try {

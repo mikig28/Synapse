@@ -23,6 +23,10 @@ export interface IBookmarkItem extends Document { // Renaming to IBookmarkItem f
   redditUpvotes?: number;
   redditNumComments?: number;
   redditCreatedUtc?: number;
+  // Voice note fields
+  voiceNoteTranscription?: string;
+  voiceNoteAudioFileId?: string;
+  voiceNoteTelegramMessageId?: mongoose.Types.ObjectId;
   createdAt: Date;
   // createdAt and updatedAt are automatically added by timestamps: true
 }
@@ -57,6 +61,10 @@ const BookmarkItemSchema: Schema<IBookmarkItem> = new Schema(
     redditUpvotes: { type: Number },
     redditNumComments: { type: Number },
     redditCreatedUtc: { type: Number },
+    // Voice note fields
+    voiceNoteTranscription: { type: String },
+    voiceNoteAudioFileId: { type: String },
+    voiceNoteTelegramMessageId: { type: Schema.Types.ObjectId, ref: 'TelegramItem' },
   },
   { timestamps: true } // Automatically adds createdAt and updatedAt fields
 );

@@ -476,33 +476,39 @@ const BookmarksPage: React.FC = () => {
 
   // Helper function to render the summary section
   const renderSummarySection = (bookmark: BookmarkItemType) => {
-    if (bookmark.summary && bookmark.status === 'summarized') {
-      return (
-        <div className="mt-3 text-sm text-muted-foreground/90 leading-relaxed">
-          <h4 className="font-medium text-primary/80">Summary</h4>
-          <ExpandableContent content={String(bookmark.summary)} maxLength={150} />
-        </div>
-      );
-    }
-    
-    if (bookmark.status === 'pending') {
-      return <p className="text-xs text-amber-500 mt-1">Summary pending...</p>;
-    }
-    
-    if (bookmark.status === 'failed') {
-      return <p className="text-xs text-destructive mt-1">Summary failed.</p>;
-    }
-    
-    if (bookmark.status === 'processing') {
-      return (
-        <div className="flex items-center text-xs text-sky-500 mt-1">
-          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-          <span>Processing summary...</span>
-        </div>
-      );
-    }
-    
-    return null;
+    const hasVoiceNote = bookmark.voiceNoteTranscription && bookmark.voiceNoteTranscription.trim() !== '';
+
+    return (
+      <>
+        {hasVoiceNote && (
+          <div className="mt-3 p-2 rounded-md bg-accent/10 border border-accent/20">
+            <div className="flex items-center gap-2 mb-1">
+              <Volume2 className="w-4 h-4 text-accent" />
+              <h4 className="font-medium text-accent text-sm">Voice Note</h4>
+            </div>
+            <ExpandableContent content={String(bookmark.voiceNoteTranscription)} maxLength={100} />
+          </div>
+        )}
+
+        {bookmark.summary && bookmark.status === 'summarized' && (
+          <div className="mt-3 text-sm text-muted-foreground/90 leading-relaxed">
+            <h4 className="font-medium text-primary/80">Summary</h4>
+            <ExpandableContent content={String(bookmark.summary)} maxLength={150} />
+          </div>
+        )}
+
+        {bookmark.status === 'pending' && <p className="text-xs text-amber-500 mt-1">Summary pending...</p>}
+
+        {bookmark.status === 'failed' && <p className="text-xs text-destructive mt-1">Summary failed.</p>}
+
+        {bookmark.status === 'processing' && (
+          <div className="flex items-center text-xs text-sky-500 mt-1">
+            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+            <span>Processing summary...</span>
+          </div>
+        )}
+      </>
+    );
   };
 
   if (loading) {

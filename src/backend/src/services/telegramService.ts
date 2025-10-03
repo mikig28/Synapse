@@ -39,6 +39,27 @@ const bot = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
 
 console.log('[TelegramBot]: Bot instance created. Polling for messages...');
 
+// Pending bookmark voice note requests
+interface PendingBookmarkNote {
+  bookmarkId: string;
+  bookmarkUrl: string;
+  timestamp: Date;
+  userId: string;
+}
+const pendingBookmarkNotes = new Map<number, PendingBookmarkNote>();
+const BOOKMARK_NOTE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+
+// Clean up expired pending bookmark note requests
+setInterval(() => {
+  const now = Date.now();
+  for (const [chatId, pending] of pendingBookmarkNotes.entries()) {
+    if (now - pending.timestamp.getTime() > BOOKMARK_NOTE_TIMEOUT) {
+      console.log(`[TelegramBot]: Clearing expired bookmark note request for chat ${chatId}`);
+      pendingBookmarkNotes.delete(chatId);
+    }
+  }
+}, 60 * 1000); // Check every minute
+
 // Helper to extract URLs from text and entities
 const extractUrls = (text?: string, entities?: TelegramBot.MessageEntity[]): string[] => {
   const urls: string[] = [];
@@ -74,6 +95,34 @@ const isYouTubeUrl = (url: string): boolean => {
     );
   } catch (e) {
     return false;
+  }
+};
+
+// Function to prompt user for voice note after bookmark creation
+export const promptForBookmarkVoiceNote = async (
+  chatId: number,
+  bookmarkId: string,
+  bookmarkUrl: string,
+  userId: string
+): Promise<void> => {
+  try {
+    const message = `📚 *Bookmark saved!*\n\n` +
+      `🔗 ${bookmarkUrl.substring(0, 60)}${bookmarkUrl.length > 60 ? '...' : ''}\n\n` +
+      `🎤 Would you like to add a note? Send a voice memo within 5 minutes.`;
+
+    await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+
+    // Store pending request
+    pendingBookmarkNotes.set(chatId, {
+      bookmarkId,
+      bookmarkUrl,
+      timestamp: new Date(),
+      userId,
+    });
+
+    console.log(`[TelegramBot]: Bookmark voice note prompt sent for bookmark ${bookmarkId} in chat ${chatId}`);
+  } catch (error) {
+    console.error('[TelegramBot]: Error sending bookmark voice note prompt:', error);
   }
 };
 
@@ -353,8 +402,52 @@ bot.on('message', async (msg: TelegramBot.Message) => {
           try {
             const transcribedText = await transcribeAudio(localFilePath);
             console.log(`[TelegramBot]: Transcription result: ${transcribedText}`);
-            
+
             if (synapseUser && transcribedText && voiceMemoTelegramItem) {
+              // Check if this is a voice note for a pending bookmark
+              const pendingBookmark = pendingBookmarkNotes.get(chatId);
+              if (pendingBookmark && pendingBookmark.userId === synapseUser._id.toString()) {
+                console.log(`[TelegramBot]: Voice note detected for pending bookmark ${pendingBookmark.bookmarkId}`);
+
+                try {
+                  // Import the update function
+                  const { updateBookmarkWithVoiceNote } = await import('../api/controllers/bookmarksController');
+
+                  // Update bookmark with voice note
+                  await updateBookmarkWithVoiceNote(
+                    pendingBookmark.bookmarkId,
+                    transcribedText,
+                    mediaFileId,
+                    (voiceMemoTelegramItem._id as mongoose.Types.ObjectId).toString()
+                  );
+
+                  // Send confirmation message
+                  const preview = transcribedText.substring(0, 50) + (transcribedText.length > 50 ? '...' : '');
+                  const confirmMessage = `✅ *Note added to bookmark!*\n\n` +
+                    `📝 "${preview}"\n\n` +
+                    `🔗 ${pendingBookmark.bookmarkUrl.substring(0, 50)}${pendingBookmark.bookmarkUrl.length > 50 ? '...' : ''}`;
+
+                  await bot.sendMessage(chatId, confirmMessage, {
+                    reply_to_message_id: telegramMessageId,
+                    parse_mode: 'Markdown'
+                  });
+
+                  // Clear pending request
+                  pendingBookmarkNotes.delete(chatId);
+
+                  console.log(`[TelegramBot]: Successfully added voice note to bookmark ${pendingBookmark.bookmarkId}`);
+
+                  // Skip further processing for this voice memo
+                  return;
+                } catch (bookmarkError) {
+                  console.error(`[TelegramBot]: Error adding voice note to bookmark:`, bookmarkError);
+                  await bot.sendMessage(chatId, '❌ Failed to add note to bookmark. The note was saved separately.', {
+                    reply_to_message_id: telegramMessageId
+                  });
+                  // Continue with normal voice memo processing
+                }
+              }
+
               // First, try to extract location information from the transcribed text
               console.log(`[TelegramBot]: ==================== VOICE LOCATION ANALYSIS ====================`);
               console.log(`[TelegramBot]: Analyzing transcribed text for location: "${transcribedText}"`);

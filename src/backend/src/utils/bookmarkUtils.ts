@@ -1,4 +1,5 @@
 import { processAndCreateBookmark } from '../api/controllers/bookmarksController';
+import { promptForBookmarkVoiceNote } from '../services/telegramService';
 
 export type SupportedBookmarkPlatform = 'X' | 'LinkedIn' | 'Reddit' | 'Other';
 export type BookmarkCaptureSource = 'telegram' | 'whatsapp';
@@ -39,6 +40,7 @@ interface ProcessUrlsForBookmarksParams {
   source: BookmarkCaptureSource;
   sourceMessageId?: string;
   logContext?: Record<string, unknown>;
+  chatId?: number; // For Telegram voice note prompts
 }
 
 export const processUrlsForBookmarks = async ({
@@ -47,6 +49,7 @@ export const processUrlsForBookmarks = async ({
   source,
   sourceMessageId,
   logContext = {},
+  chatId,
 }: ProcessUrlsForBookmarksParams): Promise<void> => {
   if (!urls || urls.length === 0) {
     return;
@@ -69,12 +72,17 @@ export const processUrlsForBookmarks = async ({
       };
       console.log('[BookmarkCapture] Processing URL', contextDetails);
 
-      await processAndCreateBookmark(
+      const bookmarkId = await processAndCreateBookmark(
         userId,
         url,
         platform,
         source === 'telegram' ? sourceMessageId : undefined,
       );
+
+      // Send voice note prompt for Telegram bookmarks
+      if (source === 'telegram' && chatId && bookmarkId) {
+        await promptForBookmarkVoiceNote(chatId, bookmarkId.toString(), url, userId);
+      }
     } catch (error) {
       console.error('[BookmarkCapture] Failed to create bookmark', {
         source,

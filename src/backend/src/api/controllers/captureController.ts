@@ -27,6 +27,7 @@ export const processTelegramItemForBookmarks = async (telegramItem: ITelegramIte
     urls: telegramItem.urls,
     source: 'telegram',
     sourceMessageId: (telegramItem._id as ObjectId).toString(),
+    chatId: telegramItem.chatId,
     logContext: {
       telegramMessageId: telegramItem.telegramMessageId,
       chatId: telegramItem.chatId,
