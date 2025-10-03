@@ -1847,9 +1847,37 @@ class WAHAService extends EventEmitter {
    * Download media directly from WAHA using alternative endpoint
    * Used when getMessage doesn't return media URL (common with NOWEB engine)
    */
+  /**
+   * Helper to determine media subdirectory, file extension, and prefix based on mimeType
+   */
+  private getMediaStorageInfo(mimeType: string): { subdir: string; extension: string; prefix: string; icon: string } {
+    const mime = mimeType.toLowerCase();
+    
+    if (mime.startsWith('image/')) {
+      const ext = mime.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+      return { subdir: 'images', extension: ext, prefix: 'image', icon: '🖼️' };
+    } else if (mime.startsWith('video/')) {
+      const ext = mime.split('/')[1] || 'mp4';
+      return { subdir: 'videos', extension: ext, prefix: 'video', icon: '🎥' };
+    } else if (mime.startsWith('audio/') || mime.includes('ogg') || mime.includes('opus')) {
+      let ext = 'oga';
+      if (mime.includes('ogg')) ext = 'ogg';
+      else if (mime.includes('mp3')) ext = 'mp3';
+      else if (mime.includes('mp4')) ext = 'mp4';
+      else if (mime.includes('mpeg')) ext = 'mp3';
+      return { subdir: 'voice', extension: ext, prefix: 'voice', icon: '🎙️' };
+    } else {
+      // Documents and other files
+      let ext = mime.split('/')[1] || 'bin';
+      if (mime.includes('pdf')) ext = 'pdf';
+      else if (mime.includes('document')) ext = 'doc';
+      return { subdir: 'documents', extension: ext, prefix: 'doc', icon: '📄' };
+    }
+  }
+
   async downloadMediaDirect(messageId: string, chatId: string, sessionName: string = this.defaultSession): Promise<{ localPath: string; mimeType: string } | null> {
     try {
-      console.log('[WAHA Service] 🎙️ Attempting direct media download via WAHA endpoints:', {
+      console.log('[WAHA Service] 📥 Attempting direct media download via WAHA endpoints:', {
         messageId,
         chatId,
         session: sessionName
@@ -1878,14 +1906,11 @@ class WAHAService extends EventEmitter {
             });
 
             if (mediaResponse.data && mediaResponse.data.byteLength > 0) {
-              const mimeType = targetMessage.media.mimetype || mediaResponse.headers['content-type'] || 'audio/ogg';
-              const extension = mimeType.includes('ogg') ? 'ogg' :
-                               mimeType.includes('mp3') ? 'mp3' :
-                               mimeType.includes('mp4') ? 'mp4' :
-                               mimeType.includes('mpeg') ? 'mp3' : 'oga';
+              const mimeType = targetMessage.media.mimetype || mediaResponse.headers['content-type'] || 'application/octet-stream';
+              const storageInfo = this.getMediaStorageInfo(mimeType);
 
-              const filename = `voice_${messageId.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.${extension}`;
-              const storageDir = path.join(process.cwd(), 'storage', 'whatsapp-media', 'voice');
+              const filename = `${storageInfo.prefix}_${messageId.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.${storageInfo.extension}`;
+              const storageDir = path.join(process.cwd(), 'storage', 'whatsapp-media', storageInfo.subdir);
 
               if (!fs.existsSync(storageDir)) {
                 fs.mkdirSync(storageDir, { recursive: true });
@@ -1894,10 +1919,11 @@ class WAHAService extends EventEmitter {
               const localPath = path.join(storageDir, filename);
               fs.writeFileSync(localPath, mediaResponse.data);
 
-              console.log('[WAHA Service] 🎙️ ✅ Media download successful from chat messages:', {
+              console.log(`[WAHA Service] ${storageInfo.icon} ✅ Media download successful from chat messages:`, {
                 localPath,
                 fileSize: mediaResponse.data.byteLength,
-                mimeType
+                mimeType,
+                mediaType: storageInfo.prefix
               });
 
               return { localPath, mimeType };
@@ -1940,14 +1966,11 @@ class WAHAService extends EventEmitter {
           });
 
           if (response.data && response.data.byteLength > 0) {
-            const mimeType = response.headers['content-type'] || 'audio/ogg';
-            const extension = mimeType.includes('ogg') ? 'ogg' :
-                             mimeType.includes('mp3') ? 'mp3' :
-                             mimeType.includes('mp4') ? 'mp4' :
-                             mimeType.includes('mpeg') ? 'mp3' : 'oga';
+            const mimeType = response.headers['content-type'] || 'application/octet-stream';
+            const storageInfo = this.getMediaStorageInfo(mimeType);
 
-            const filename = `voice_${messageId.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.${extension}`;
-            const storageDir = path.join(process.cwd(), 'storage', 'whatsapp-media', 'voice');
+            const filename = `${storageInfo.prefix}_${messageId.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.${storageInfo.extension}`;
+            const storageDir = path.join(process.cwd(), 'storage', 'whatsapp-media', storageInfo.subdir);
 
             if (!fs.existsSync(storageDir)) {
               fs.mkdirSync(storageDir, { recursive: true });
@@ -1956,11 +1979,12 @@ class WAHAService extends EventEmitter {
             const localPath = path.join(storageDir, filename);
             fs.writeFileSync(localPath, response.data);
 
-            console.log('[WAHA Service] 🎙️ ✅ Direct media download successful:', {
+            console.log(`[WAHA Service] ${storageInfo.icon} ✅ Direct media download successful:`, {
               endpoint,
               localPath,
               fileSize: response.data.byteLength,
-              mimeType
+              mimeType,
+              mediaType: storageInfo.prefix
             });
 
             return { localPath, mimeType };
@@ -3695,33 +3719,36 @@ class WAHAService extends EventEmitter {
   /**
    * Determine media type from MIME type and message type
    * Enhanced to detect WhatsApp PTT (push-to-talk) voice messages
+   * PRIORITY: mimeType is more reliable than messageType field
    */
   private getMediaType(mimetype: string | undefined, messageType?: string): string {
-    // Check message type first for WhatsApp PTT (push-to-talk) voice notes
+    // PRIORITY 1: Check MIME type first (most reliable indicator)
+    if (mimetype) {
+      const type = mimetype.toLowerCase();
+
+      if (type.startsWith('image/')) {
+        console.log('[WAHA Service] 🖼️ Image detected via MIME type:', mimetype);
+        return 'image';
+      } else if (type.startsWith('audio/') || type.includes('voice') || type.includes('ogg') || type.includes('opus')) {
+        console.log('[WAHA Service] 🎙️ Voice message detected via MIME type:', mimetype);
+        return 'voice';
+      } else if (type.startsWith('video/')) {
+        return 'video';
+      } else if (type.startsWith('application/') || type.startsWith('text/')) {
+        return 'document';
+      }
+    }
+
+    // PRIORITY 2: Fall back to message type only if mimeType is not available or unclear
     if (messageType) {
       const typeStr = String(messageType).toLowerCase();
       if (typeStr === 'ptt' || typeStr === 'voice' || typeStr.includes('voice') || typeStr.includes('ptt')) {
-        console.log('[WAHA Service] 🎙️ Voice message detected via message type:', messageType);
+        console.log('[WAHA Service] 🎙️ Voice message detected via message type (fallback):', messageType);
         return 'voice';
       }
     }
 
-    if (!mimetype) return 'unknown';
-
-    const type = mimetype.toLowerCase();
-
-    if (type.startsWith('image/')) {
-      return 'image';
-    } else if (type.startsWith('audio/') || type.includes('voice') || type.includes('ogg') || type.includes('opus')) {
-      console.log('[WAHA Service] 🎙️ Voice message detected via MIME type:', mimetype);
-      return 'voice';
-    } else if (type.startsWith('video/')) {
-      return 'video';
-    } else if (type.startsWith('application/') || type.startsWith('text/')) {
-      return 'document';
-    } else {
-      return 'unknown';
-    }
+    return 'unknown';
   }
 
   /**
