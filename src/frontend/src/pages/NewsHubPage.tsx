@@ -90,11 +90,16 @@ const NewsHubPage: React.FC = () => {
       setArticles(response.data);
       setTotalPages(response.pagination.totalPages);
     } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch news feed',
-        variant: 'destructive'
-      });
+      console.error('Failed to fetch news feed:', error);
+      
+      // Don't show error toast if it's just a 404 (no articles yet)
+      if (error?.response?.status !== 404) {
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch news feed. Please try again.',
+          variant: 'destructive'
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -139,8 +144,21 @@ const NewsHubPage: React.FC = () => {
           setShowOnboarding(true);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch user interests:', error);
+      
+      // If 404, it means user interests don't exist yet - show onboarding
+      if (error?.response?.status === 404 || error?.message?.includes('404')) {
+        setShowOnboarding(true);
+      } else {
+        // For other errors, show a toast notification
+        toast({
+          title: 'Error',
+          description: 'Failed to load News Hub. Please check your connection and try again.',
+          variant: 'destructive'
+        });
+      }
+      
       setInterestsLoaded(true);
     }
   };
