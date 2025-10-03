@@ -225,6 +225,56 @@ export const FREE_NEWS_SOURCES: RSSSource[] = [
     category: 'startups',
     language: 'en',
     updateFrequency: 30
+  },
+
+  // Sports News
+  {
+    id: 'bbc-sport',
+    name: 'BBC Sport',
+    url: 'http://feeds.bbci.co.uk/sport/rss.xml',
+    category: 'sports',
+    language: 'en',
+    updateFrequency: 30
+  },
+  {
+    id: 'espn',
+    name: 'ESPN',
+    url: 'https://www.espn.com/espn/rss/news',
+    category: 'sports',
+    language: 'en',
+    updateFrequency: 30
+  },
+  {
+    id: 'bleacher-report',
+    name: 'Bleacher Report',
+    url: 'https://bleacherreport.com/articles/feed',
+    category: 'sports',
+    language: 'en',
+    updateFrequency: 30
+  },
+  {
+    id: 'sky-sports',
+    name: 'Sky Sports',
+    url: 'https://www.skysports.com/rss/12040',
+    category: 'sports',
+    language: 'en',
+    updateFrequency: 30
+  },
+  {
+    id: 'goal',
+    name: 'Goal.com',
+    url: 'https://www.goal.com/feeds/en/news',
+    category: 'sports',
+    language: 'en',
+    updateFrequency: 30
+  },
+  {
+    id: 'the-athletic',
+    name: 'The Athletic',
+    url: 'https://theathletic.com/feed/',
+    category: 'sports',
+    language: 'en',
+    updateFrequency: 60
   }
 ];
 

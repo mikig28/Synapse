@@ -29,6 +29,13 @@ export interface RealNewsArticle {
   updatedAt: string;
 }
 
+export interface CustomRSSFeed {
+  name: string;
+  url: string;
+  category?: string;
+  enabled: boolean;
+}
+
 export interface UserInterest {
   _id: string;
   userId: string;
@@ -38,6 +45,7 @@ export interface UserInterest {
   categories: string[];
   excludeKeywords: string[];
   languages: string[];
+  customFeeds: CustomRSSFeed[];
   refreshInterval: number;
   autoFetchEnabled: boolean;
   maxArticlesPerFetch: number;

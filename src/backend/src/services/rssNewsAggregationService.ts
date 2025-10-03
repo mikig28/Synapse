@@ -85,18 +85,37 @@ export class RSSNewsAggregationService {
    * Get relevant sources based on user interests
    */
   private getRelevantSources(userInterest: IUserInterest): RSSSource[] {
+    const sources: RSSSource[] = [];
+
+    // Add custom user feeds first (if enabled)
+    if (userInterest.customFeeds && userInterest.customFeeds.length > 0) {
+      const customSources = userInterest.customFeeds
+        .filter(feed => feed.enabled)
+        .map(feed => ({
+          id: `custom-${crypto.createHash('md5').update(feed.url).digest('hex').substring(0, 8)}`,
+          name: feed.name,
+          url: feed.url,
+          category: feed.category || 'general',
+          language: 'en',
+          updateFrequency: 30
+        }));
+      sources.push(...customSources);
+    }
+
     // If user has specific source preferences, use those
     if (userInterest.sources && userInterest.sources.length > 0) {
-      return getSourcesByPreferences([], userInterest.sources);
+      sources.push(...getSourcesByPreferences([], userInterest.sources));
     }
-
     // Otherwise, get sources matching user categories
-    if (userInterest.categories && userInterest.categories.length > 0) {
-      return getSourcesByPreferences(userInterest.categories, []);
+    else if (userInterest.categories && userInterest.categories.length > 0) {
+      sources.push(...getSourcesByPreferences(userInterest.categories, []));
+    }
+    // Default: return all sources
+    else {
+      sources.push(...FREE_NEWS_SOURCES);
     }
 
-    // Default: return all sources
-    return FREE_NEWS_SOURCES;
+    return sources;
   }
 
   /**

@@ -1,5 +1,12 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export interface CustomRSSFeed {
+  name: string;
+  url: string;
+  category?: string;
+  enabled: boolean;
+}
+
 export interface IUserInterest extends Document {
   userId: mongoose.Types.ObjectId;
   topics: string[]; // General topics: AI, Technology, Business, Science, etc.
@@ -8,6 +15,7 @@ export interface IUserInterest extends Document {
   categories: string[]; // News categories: technology, business, science, health, etc.
   excludeKeywords: string[]; // Keywords to avoid
   languages: string[]; // Preferred languages: en, he, etc.
+  customFeeds: CustomRSSFeed[]; // User-defined custom RSS feeds
   refreshInterval: number; // How often to fetch news (in minutes)
   autoFetchEnabled: boolean; // Auto-fetch news or manual only
   maxArticlesPerFetch: number; // Maximum articles to fetch per cycle
@@ -46,6 +54,17 @@ const UserInterestSchema: Schema<IUserInterest> = new Schema(
     languages: {
       type: [String],
       default: ['en']
+    },
+    customFeeds: {
+      type: [
+        {
+          name: { type: String, required: true },
+          url: { type: String, required: true },
+          category: { type: String },
+          enabled: { type: Boolean, default: true }
+        }
+      ],
+      default: []
     },
     refreshInterval: {
       type: Number,

@@ -62,6 +62,9 @@ const NewsHubPage: React.FC = () => {
   const [newTopic, setNewTopic] = useState('');
   const [newKeyword, setNewKeyword] = useState('');
   const [newCategory, setNewCategory] = useState('');
+  const [newFeedName, setNewFeedName] = useState('');
+  const [newFeedUrl, setNewFeedUrl] = useState('');
+  const [newFeedCategory, setNewFeedCategory] = useState('general');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [interestsLoaded, setInterestsLoaded] = useState(false);
   const { toast } = useToast();
@@ -422,6 +425,102 @@ const NewsHubPage: React.FC = () => {
       toast({
         title: 'Error',
         description: error.response?.data?.error || 'Failed to remove category',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleAddCustomFeed = async () => {
+    if (!newFeedName.trim() || !newFeedUrl.trim()) {
+      toast({
+        title: 'Missing Information',
+        description: 'Please provide both feed name and URL',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Basic URL validation
+    try {
+      new URL(newFeedUrl);
+    } catch {
+      toast({
+        title: 'Invalid URL',
+        description: 'Please enter a valid RSS feed URL',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      const customFeeds = userInterests?.customFeeds || [];
+      const response = await newsHubService.updateInterests({
+        customFeeds: [
+          ...customFeeds,
+          {
+            name: newFeedName.trim(),
+            url: newFeedUrl.trim(),
+            category: newFeedCategory,
+            enabled: true
+          }
+        ]
+      });
+      
+      if (response.success && response.data) {
+        setUserInterests(response.data);
+        setNewFeedName('');
+        setNewFeedUrl('');
+        setNewFeedCategory('general');
+        toast({ title: 'Custom feed added successfully' });
+      }
+    } catch (error: any) {
+      console.error('Error adding custom feed:', error);
+      toast({
+        title: 'Error',
+        description: error.response?.data?.error || 'Failed to add custom feed',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleRemoveCustomFeed = async (feedUrl: string) => {
+    try {
+      const response = await newsHubService.updateInterests({
+        customFeeds: userInterests?.customFeeds.filter(f => f.url !== feedUrl) || []
+      });
+      if (response.success && response.data) {
+        setUserInterests(response.data);
+        toast({ title: 'Custom feed removed' });
+      }
+    } catch (error: any) {
+      console.error('Error removing custom feed:', error);
+      toast({
+        title: 'Error',
+        description: error.response?.data?.error || 'Failed to remove custom feed',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleToggleFeedEnabled = async (feedUrl: string) => {
+    try {
+      const updatedFeeds = userInterests?.customFeeds.map(feed =>
+        feed.url === feedUrl ? { ...feed, enabled: !feed.enabled } : feed
+      ) || [];
+      
+      const response = await newsHubService.updateInterests({
+        customFeeds: updatedFeeds
+      });
+      
+      if (response.success && response.data) {
+        setUserInterests(response.data);
+        toast({ title: 'Feed status updated' });
+      }
+    } catch (error: any) {
+      console.error('Error toggling feed:', error);
+      toast({
+        title: 'Error',
+        description: error.response?.data?.error || 'Failed to toggle feed',
         variant: 'destructive'
       });
     }
@@ -984,6 +1083,80 @@ const NewsHubPage: React.FC = () => {
                     )}
                   </div>
                 </div>
+                
+                {/* Custom RSS Feeds Section */}
+                <div className="pt-4 border-t">
+                  <h4 className="font-medium mb-3 flex items-center gap-2">
+                    <ExternalLink className="w-4 h-4 text-green-500" />
+                    Custom RSS Feeds <span className="text-xs text-muted-foreground">(Add your own sources)</span>
+                  </h4>
+                  <div className="space-y-3 mb-3">
+                    <Input
+                      placeholder="Feed name (e.g., My Tech Blog)"
+                      value={newFeedName}
+                      onChange={(e) => setNewFeedName(e.target.value)}
+                    />
+                    <Input
+                      placeholder="RSS Feed URL (e.g., https://example.com/feed.xml)"
+                      value={newFeedUrl}
+                      onChange={(e) => setNewFeedUrl(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <Select value={newFeedCategory} onValueChange={setNewFeedCategory}>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="general">General</SelectItem>
+                          <SelectItem value="technology">Technology</SelectItem>
+                          <SelectItem value="business">Business</SelectItem>
+                          <SelectItem value="science">Science</SelectItem>
+                          <SelectItem value="sports">Sports</SelectItem>
+                          <SelectItem value="entertainment">Entertainment</SelectItem>
+                          <SelectItem value="health">Health</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button onClick={handleAddCustomFeed} size="sm">
+                        <Plus className="w-4 h-4 mr-1" />
+                        Add Feed
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {userInterests.customFeeds && userInterests.customFeeds.length > 0 ? (
+                      userInterests.customFeeds.map((feed, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-2 bg-muted rounded-lg">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={feed.enabled}
+                              onChange={() => handleToggleFeedEnabled(feed.url)}
+                              className="w-4 h-4 cursor-pointer"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{feed.name}</p>
+                              <p className="text-xs text-muted-foreground truncate">{feed.url}</p>
+                            </div>
+                            {feed.category && (
+                              <Badge variant="outline" className="text-xs">
+                                {feed.category}
+                              </Badge>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleRemoveCustomFeed(feed.url)}
+                            className="ml-2 p-1 hover:bg-destructive/20 rounded-full flex-shrink-0"
+                          >
+                            <X className="w-4 h-4 text-destructive" />
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No custom feeds added yet</p>
+                    )}
+                  </div>
+                </div>
+
                 <div className="pt-4 border-t space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Refresh Interval:</span>
