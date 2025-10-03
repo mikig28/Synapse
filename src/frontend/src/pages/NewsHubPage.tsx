@@ -238,19 +238,40 @@ const NewsHubPage: React.FC = () => {
     if (!newTopic.trim()) return;
 
     try {
+      console.log('Adding topic:', newTopic.trim());
+      console.log('Current interests:', userInterests);
+      
       const response = await newsHubService.updateInterests({
         topics: [...(userInterests?.topics || []), newTopic.trim()]
       });
+      
+      console.log('Update response:', response);
+      
       if (response.success && response.data) {
         setUserInterests(response.data);
         setNewTopic('');
         toast({ title: 'Topic added successfully' });
+      } else {
+        throw new Error(response.error || 'Update failed');
       }
     } catch (error: any) {
-      console.error('Error adding topic:', error);
+      console.error('Error adding topic - Full error:', error);
+      console.error('Error response:', error.response);
+      console.error('Error message:', error.message);
+      
+      let errorMessage = 'Failed to add topic';
+      
+      if (error.response?.status === 401) {
+        errorMessage = 'Please log in again. Your session may have expired.';
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: 'Error',
-        description: error.response?.data?.error || 'Failed to add topic',
+        description: errorMessage,
         variant: 'destructive'
       });
     }
