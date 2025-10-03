@@ -27,7 +27,9 @@ import {
   Sparkles,
   BookOpen,
   Star,
-  Zap
+  Zap,
+  X,
+  Plus
 } from 'lucide-react';
 import {
   Dialog,
@@ -56,6 +58,10 @@ const NewsHubPage: React.FC = () => {
     isSaved: undefined as boolean | undefined
   });
   const [interestsModalOpen, setInterestsModalOpen] = useState(false);
+  const [editingInterests, setEditingInterests] = useState(false);
+  const [newTopic, setNewTopic] = useState('');
+  const [newKeyword, setNewKeyword] = useState('');
+  const [newCategory, setNewCategory] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -207,6 +213,135 @@ const NewsHubPage: React.FC = () => {
   const handleArticleClick = (article: RealNewsArticle) => {
     handleMarkAsRead(article);
     window.open(article.url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleAddTopic = async () => {
+    if (!newTopic.trim()) return;
+
+    try {
+      const updatedInterests = {
+        ...userInterests,
+        topics: [...(userInterests?.topics || []), newTopic.trim()]
+      };
+      const response = await newsHubService.updateInterests(updatedInterests);
+      if (response.success && response.data) {
+        setUserInterests(response.data);
+        setNewTopic('');
+        toast({ title: 'Topic added successfully' });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: 'Failed to add topic',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleRemoveTopic = async (topic: string) => {
+    try {
+      const updatedInterests = {
+        ...userInterests,
+        topics: userInterests?.topics.filter(t => t !== topic) || []
+      };
+      const response = await newsHubService.updateInterests(updatedInterests);
+      if (response.success && response.data) {
+        setUserInterests(response.data);
+        toast({ title: 'Topic removed' });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: 'Failed to remove topic',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleAddKeyword = async () => {
+    if (!newKeyword.trim()) return;
+
+    try {
+      const updatedInterests = {
+        ...userInterests,
+        keywords: [...(userInterests?.keywords || []), newKeyword.trim()]
+      };
+      const response = await newsHubService.updateInterests(updatedInterests);
+      if (response.success && response.data) {
+        setUserInterests(response.data);
+        setNewKeyword('');
+        toast({ title: 'Keyword added successfully' });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: 'Failed to add keyword',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleRemoveKeyword = async (keyword: string) => {
+    try {
+      const updatedInterests = {
+        ...userInterests,
+        keywords: userInterests?.keywords.filter(k => k !== keyword) || []
+      };
+      const response = await newsHubService.updateInterests(updatedInterests);
+      if (response.success && response.data) {
+        setUserInterests(response.data);
+        toast({ title: 'Keyword removed' });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: 'Failed to remove keyword',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleAddCategory = async () => {
+    if (!newCategory.trim()) return;
+
+    try {
+      const updatedInterests = {
+        ...userInterests,
+        categories: [...(userInterests?.categories || []), newCategory.trim()]
+      };
+      const response = await newsHubService.updateInterests(updatedInterests);
+      if (response.success && response.data) {
+        setUserInterests(response.data);
+        setNewCategory('');
+        toast({ title: 'Category added successfully' });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: 'Failed to add category',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleRemoveCategory = async (category: string) => {
+    try {
+      const updatedInterests = {
+        ...userInterests,
+        categories: userInterests?.categories.filter(c => c !== category) || []
+      };
+      const response = await newsHubService.updateInterests(updatedInterests);
+      if (response.success && response.data) {
+        setUserInterests(response.data);
+        toast({ title: 'Category removed' });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: 'Failed to remove category',
+        variant: 'destructive'
+      });
+    }
   };
 
   const formatTimeAgo = (dateString: string) => {
@@ -486,11 +621,28 @@ const NewsHubPage: React.FC = () => {
                     <Sparkles className="w-4 h-4 text-purple-500" />
                     Topics
                   </h4>
+                  <div className="flex gap-2 mb-3">
+                    <Input
+                      placeholder="Add a topic (e.g., AI, Blockchain)"
+                      value={newTopic}
+                      onChange={(e) => setNewTopic(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleAddTopic()}
+                    />
+                    <Button onClick={handleAddTopic} size="sm">
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     {userInterests.topics && userInterests.topics.length > 0 ? (
                       userInterests.topics.map((topic, idx) => (
-                        <Badge key={idx} variant="secondary" className="text-sm">
+                        <Badge key={idx} variant="secondary" className="text-sm flex items-center gap-1">
                           {topic}
+                          <button
+                            onClick={() => handleRemoveTopic(topic)}
+                            className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
                         </Badge>
                       ))
                     ) : (
@@ -503,11 +655,28 @@ const NewsHubPage: React.FC = () => {
                     <Zap className="w-4 h-4 text-yellow-500" />
                     Keywords
                   </h4>
+                  <div className="flex gap-2 mb-3">
+                    <Input
+                      placeholder="Add a keyword (e.g., startup, innovation)"
+                      value={newKeyword}
+                      onChange={(e) => setNewKeyword(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleAddKeyword()}
+                    />
+                    <Button onClick={handleAddKeyword} size="sm">
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     {userInterests.keywords && userInterests.keywords.length > 0 ? (
                       userInterests.keywords.map((keyword, idx) => (
-                        <Badge key={idx} variant="outline" className="text-sm">
+                        <Badge key={idx} variant="outline" className="text-sm flex items-center gap-1">
                           {keyword}
+                          <button
+                            onClick={() => handleRemoveKeyword(keyword)}
+                            className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
                         </Badge>
                       ))
                     ) : (
@@ -520,11 +689,28 @@ const NewsHubPage: React.FC = () => {
                     <Filter className="w-4 h-4 text-blue-500" />
                     Categories
                   </h4>
+                  <div className="flex gap-2 mb-3">
+                    <Input
+                      placeholder="Add a category (e.g., technology, business)"
+                      value={newCategory}
+                      onChange={(e) => setNewCategory(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleAddCategory()}
+                    />
+                    <Button onClick={handleAddCategory} size="sm">
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     {userInterests.categories && userInterests.categories.length > 0 ? (
                       userInterests.categories.map((category, idx) => (
-                        <Badge key={idx} variant="default" className="text-sm">
+                        <Badge key={idx} variant="default" className="text-sm flex items-center gap-1">
                           {category}
+                          <button
+                            onClick={() => handleRemoveCategory(category)}
+                            className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
                         </Badge>
                       ))
                     ) : (
