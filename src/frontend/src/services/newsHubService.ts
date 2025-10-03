@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axiosInstance from './axiosConfig';
 import type {
   RealNewsArticle,
   UserInterest,
@@ -10,31 +10,15 @@ import type {
   ApiResponse
 } from '../types/newsHub';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
-
-// Create axios instance with auth token
-const api = axios.create({
-  baseURL: `${API_BASE_URL}/news-hub`,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-});
-
-// Add auth token to requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// Use the configured axios instance which already handles authentication
+const api = axiosInstance;
 
 class NewsHubService {
   /**
    * Get personalized news feed
    */
   async getNewsFeed(params: NewsFeedParams = {}): Promise<NewsFeedResponse> {
-    const response = await api.get<NewsFeedResponse>('/feed', { params });
+    const response = await api.get<NewsFeedResponse>('/news-hub/feed', { params });
     return response.data;
   }
 
@@ -42,7 +26,7 @@ class NewsHubService {
    * Manually refresh news
    */
   async refreshNews(limit: number = 50): Promise<ApiResponse<RealNewsArticle[]>> {
-    const response = await api.post<ApiResponse<RealNewsArticle[]>>('/refresh', { limit });
+    const response = await api.post<ApiResponse<RealNewsArticle[]>>('/news-hub/refresh', { limit });
     return response.data;
   }
 
@@ -50,7 +34,7 @@ class NewsHubService {
    * Get news hub statistics
    */
   async getStats(): Promise<ApiResponse<NewsHubStats>> {
-    const response = await api.get<ApiResponse<NewsHubStats>>('/stats');
+    const response = await api.get<ApiResponse<NewsHubStats>>('/news-hub/stats');
     return response.data;
   }
 
@@ -58,7 +42,7 @@ class NewsHubService {
    * Get user interests
    */
   async getUserInterests(): Promise<ApiResponse<UserInterest>> {
-    const response = await api.get<ApiResponse<UserInterest>>('/interests');
+    const response = await api.get<ApiResponse<UserInterest>>('/news-hub/interests');
     return response.data;
   }
 
@@ -66,7 +50,7 @@ class NewsHubService {
    * Update user interests
    */
   async updateInterests(updates: Partial<UserInterest>): Promise<ApiResponse<UserInterest>> {
-    const response = await api.post<ApiResponse<UserInterest>>('/interests', updates);
+    const response = await api.post<ApiResponse<UserInterest>>('/news-hub/interests', updates);
     return response.data;
   }
 
@@ -81,7 +65,7 @@ class NewsHubService {
    * Get suggested topics based on reading history
    */
   async getSuggestedTopics(limit: number = 10): Promise<ApiResponse<string[]>> {
-    const response = await api.get<ApiResponse<string[]>>('/interests/suggestions', {
+    const response = await api.get<ApiResponse<string[]>>('/news-hub/interests/suggestions', {
       params: { limit }
     });
     return response.data;
@@ -91,7 +75,7 @@ class NewsHubService {
    * Get trending topics
    */
   async getTrendingTopics(limit: number = 10): Promise<ApiResponse<TrendingTopic[]>> {
-    const response = await api.get<ApiResponse<TrendingTopic[]>>('/trending', {
+    const response = await api.get<ApiResponse<TrendingTopic[]>>('/news-hub/trending', {
       params: { limit }
     });
     return response.data;
@@ -101,7 +85,7 @@ class NewsHubService {
    * Get available news sources
    */
   async getAvailableSources(): Promise<ApiResponse<NewsSource[]>> {
-    const response = await api.get<ApiResponse<NewsSource[]>>('/sources');
+    const response = await api.get<ApiResponse<NewsSource[]>>('/news-hub/sources');
     return response.data;
   }
 
@@ -109,7 +93,7 @@ class NewsHubService {
    * Get available categories
    */
   async getAvailableCategories(): Promise<ApiResponse<string[]>> {
-    const response = await api.get<ApiResponse<string[]>>('/categories');
+    const response = await api.get<ApiResponse<string[]>>('/news-hub/categories');
     return response.data;
   }
 
@@ -117,7 +101,7 @@ class NewsHubService {
    * Mark article as read
    */
   async markAsRead(articleId: string): Promise<ApiResponse<RealNewsArticle>> {
-    const response = await api.post<ApiResponse<RealNewsArticle>>(`/articles/${articleId}/read`);
+    const response = await api.post<ApiResponse<RealNewsArticle>>(`/news-hub/articles/${articleId}/read`);
     return response.data;
   }
 
@@ -125,7 +109,7 @@ class NewsHubService {
    * Toggle article saved status
    */
   async toggleSaved(articleId: string): Promise<ApiResponse<RealNewsArticle>> {
-    const response = await api.post<ApiResponse<RealNewsArticle>>(`/articles/${articleId}/save`);
+    const response = await api.post<ApiResponse<RealNewsArticle>>(`/news-hub/articles/${articleId}/save`);
     return response.data;
   }
 
@@ -133,7 +117,7 @@ class NewsHubService {
    * Toggle article favorite status
    */
   async toggleFavorite(articleId: string): Promise<ApiResponse<RealNewsArticle>> {
-    const response = await api.post<ApiResponse<RealNewsArticle>>(`/articles/${articleId}/favorite`);
+    const response = await api.post<ApiResponse<RealNewsArticle>>(`/news-hub/articles/${articleId}/favorite`);
     return response.data;
   }
 }
