@@ -1,9 +1,13 @@
 ﻿import express, { Express, Request, Response, NextFunction } from 'express';
-import dotenv from 'dotenv';
+import compression from 'compression';
+import { config as envConfig } from './config/env'; // Validate env vars FIRST
+import logger from './config/logger'; // Production logger
 import cors from 'cors';
 import mongoose from 'mongoose'; // Import mongoose to check connection state
 import http from 'http'; // Import http module
 import { Server as SocketIOServer } from 'socket.io'; // Import Server from socket.io
+import requestIdMiddleware from './middleware/requestId'; // Request correlation
+import rateLimiters from './middleware/rateLimiter'; // Rate limiting
 import whatsappRoutes from './api/routes/whatsappRoutes'; // Import WhatsApp routes (legacy)
 import wahaRoutes from './api/routes/wahaRoutes'; // Import WAHA routes (modern)
 import whatsappUnifiedRoutes from './api/routes/whatsappUnifiedRoutes'; // Import WhatsApp Unified routes (complete)
@@ -59,20 +63,18 @@ import { trackApiUsage } from './middleware/usageTracking'; // Import usage trac
 import './services/searchIndexingService'; // Import to initialize search indexing hooks
 import { videoRecommendationScheduler } from './services/videoRecommendationScheduler';
 
-dotenv.config();
-
+// Environment variables are validated in config/env.ts
 const app: Express = express();
-const rawPort = process.env.PORT || '3001'; // Read as string
-const PORT = parseInt(rawPort, 10); // Convert to number
+const PORT = envConfig.app.port;
 
-// Define Frontend URL from environment variable or default to localhost
-const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-console.log(`[CORS Setup] Allowed origin for Express CORS: ${frontendUrl}`); // Log the origin being used
-console.log(`[CORS Setup] NODE_ENV: ${process.env.NODE_ENV}`);
-console.log(`[CORS Setup] All environment variables related to frontend:`);
-console.log(`  - FRONTEND_URL: ${process.env.FRONTEND_URL}`);
-console.log(`  - PORT: ${process.env.PORT}`);
-console.log(`  - NODE_ENV: ${process.env.NODE_ENV}`);
+// Log startup configuration
+logger.info('Starting Synapse Backend', {
+  nodeEnv: envConfig.app.nodeEnv,
+  port: PORT,
+  frontendUrl: envConfig.app.frontendUrl,
+  isProduction: envConfig.app.isProduction,
+  isRender: envConfig.app.isRender,
+});
 
 // Create HTTP server and pass it to Socket.IO
 const httpServer = http.createServer(app);
@@ -82,26 +84,20 @@ httpServer.timeout = 120000; // 2 minutes
 httpServer.keepAliveTimeout = 65000; // 65 seconds (should be less than timeout)
 httpServer.headersTimeout = 66000; // 66 seconds (should be slightly higher than keepAliveTimeout)
 
-// Define allowed origins for Socket.IO
-const allowedSocketOrigins = [
-  frontendUrl, // From environment variable
-  "https://synapse-frontend.onrender.com" // Explicitly add production URL
+// Whitelist CORS origins (SECURITY FIX - No wildcards in production)
+const allowedOrigins = [
+  envConfig.app.frontendUrl,
+  'https://synapse-frontend.onrender.com',
+  ...(envConfig.app.isDevelopment ? ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174'] : []),
 ];
-// For development, you might also want to add your local dev URL if it's different
-// e.g., if frontendUrl is for production, add "http://localhost:5173" here for local testing
 
-console.log(`[Socket.IO CORS Setup] Allowed origins for Socket.IO: ${allowedSocketOrigins.join(', ')}`);
+logger.info('CORS allowed origins', { origins: allowedOrigins });
 
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: [
-      "https://synapse-frontend.onrender.com",
-      "http://localhost:5173",
-      "http://localhost:3000",
-      "http://localhost:5174"
-    ],
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Request-ID"],
     credentials: true
   },
   // Render.com optimized settings for better WebSocket stability
@@ -114,39 +110,40 @@ const io = new SocketIOServer(httpServer, {
   allowUpgrades: true // Allow transport upgrades
 });
 
-// Middleware - Simplified CORS to avoid preflight failures on Render
+// PRODUCTION MIDDLEWARE STACK
+// Order matters - security and monitoring first, then parsing, then routing
+
+// 1. Compression for response optimization
+app.use(compression());
+
+// 2. Request correlation ID for distributed tracing
+app.use(requestIdMiddleware);
+
+// 3. CORS with whitelisted origins (SECURITY FIX)
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, Postman, curl)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      logger.warn('Blocked CORS request from unauthorized origin', { origin });
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control", "X-Request-ID"],
   credentials: true,
   optionsSuccessStatus: 200,
-  preflightContinue: false
 }));
 
-// Add explicit CORS headers middleware
-app.use((req, res, next) => {
-  const origin = req.headers.origin || '*';
-
-  // Reflect origin for all allowed requests (wildcard for non-credentialed requests)
-  res.header('Access-Control-Allow-Origin', origin);
-  res.header('Vary', 'Origin');
-
-  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, Accept, Origin, Cache-Control');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Max-Age', '3600');
-
-  if (req.method === 'OPTIONS') {
-    console.log(`[CORS] Handling preflight OPTIONS for ${req.path} from ${origin}`);
-    res.status(200).end();
-    return;
-  }
-
-  next();
-});
+// 4. Body parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// 5. Global rate limiting (100 requests/minute per IP)
+app.use(rateLimiters.global);
 
 // Usage tracking middleware (should be after auth but before routes)
 app.use(trackApiUsage);
@@ -490,45 +487,14 @@ app.get('/api/v1/ag-ui/events', (req: Request, res: Response) => {
   }
 });
 
-// Health check endpoint for Render
-app.get('/health', (req: Request, res: Response) => {
-  try {
-    const readyState = mongoose.connection.readyState;
-    let dbStatus = 'Unknown';
-    let isHealthy = true;
+// Import health controller
+import healthController from './api/controllers/healthController';
 
-    // Check database connection status
-    switch (readyState) {
-      case 0: dbStatus = 'Disconnected'; isHealthy = false; break;
-      case 1: dbStatus = 'Connected'; break;
-      case 2: dbStatus = 'Connecting'; break;
-      case 3: dbStatus = 'Disconnecting'; isHealthy = false; break;
-      default: dbStatus = `Unknown state: ${readyState}`; isHealthy = false;
-    }
-
-    const healthStatus = {
-      status: isHealthy ? 'healthy' : 'degraded',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      database: {
-        status: dbStatus,
-        readyState: readyState
-      },
-      memory: process.memoryUsage(),
-      version: process.version
-    };
-
-    // Return 200 even if degraded to prevent restart loops
-    res.status(200).json(healthStatus);
-  } catch (error) {
-    // Even if health check fails, return 200 to prevent restart
-    res.status(200).json({
-      status: 'error',
-      timestamp: new Date().toISOString(),
-      error: (error as Error).message
-    });
-  }
-});
+// Health check endpoints
+app.get('/health', healthController.quickHealthCheck);  // For load balancers
+app.get('/api/v1/health/detailed', healthController.detailedHealthCheck);  // Detailed status
+app.get('/api/v1/health/ready', healthController.readinessCheck);  // Kubernetes readiness
+app.get('/api/v1/health/live', healthController.livenessCheck);  // Kubernetes liveness
 
 // Basic route for testing
 app.get('/', (req: Request, res: Response) => {

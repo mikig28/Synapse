@@ -30,12 +30,23 @@ export const connectToDatabase = async () => {
   });
 
   try {
-    // Mongoose handles connection pooling internally.
-    // The options object can be used to set timeouts, etc., if needed.
+    // Production-grade connection pooling configuration
     await mongoose.connect(MONGODB_URI, {
-      // If MONGODB_URI does not include the database name, you might need:
-      // dbName: process.env.DB_NAME || 'synapse_db',
-      // serverSelectionTimeoutMS: 5000, // Optional: Adjust timeout
+      // Connection pool settings - critical for scale
+      maxPoolSize: 100,           // Maximum number of connections (handle 100+ concurrent requests)
+      minPoolSize: 10,            // Keep 10 connections warm for quick response
+      maxIdleTimeMS: 30000,       // Close idle connections after 30 seconds
+
+      // Timeouts
+      serverSelectionTimeoutMS: 10000,  // 10 seconds to find a server
+      socketTimeoutMS: 45000,           // 45 seconds for socket operations
+
+      // Connection behavior
+      retryWrites: true,                // Retry failed writes automatically
+      retryReads: true,                 // Retry failed reads automatically
+
+      // Monitoring
+      autoIndex: process.env.NODE_ENV !== 'production',  // Disable auto-indexing in production
     });
     // The console.log in the 'connected' event listener will confirm success.
     // No need to return the db instance; Mongoose models will use the default connection.

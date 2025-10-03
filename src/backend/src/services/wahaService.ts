@@ -1855,8 +1855,66 @@ class WAHAService extends EventEmitter {
         session: sessionName
       });
 
-      // Try multiple WAHA endpoints for media download
-      // Note: chatId format must match WAHA expectations (e.g., "123456789@g.us" for groups)
+      // WORKAROUND: Fetch recent messages from the chat to find this specific message with media URL
+      // WAHA webhooks don't include media URLs, but the /chats/{chatId}/messages endpoint does
+      console.log('[WAHA Service] 🔍 Fetching recent messages from chat to find media URL...');
+      try {
+        const recentMessages = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(chatId)}/messages`, {
+          params: { limit: 10, downloadMedia: 'false' }, // Don't trigger download yet, just get URL
+          timeout: 15000
+        });
+
+        if (recentMessages.data && Array.isArray(recentMessages.data)) {
+          // Find our message by ID
+          const targetMessage = recentMessages.data.find((msg: any) => msg.id === messageId);
+
+          if (targetMessage && targetMessage.media && targetMessage.media.url) {
+            console.log('[WAHA Service] ✅ Found media URL from recent messages:', targetMessage.media.url);
+
+            // Download the media from the URL
+            const mediaResponse = await this.httpClient.get(targetMessage.media.url, {
+              responseType: 'arraybuffer',
+              timeout: 30000
+            });
+
+            if (mediaResponse.data && mediaResponse.data.byteLength > 0) {
+              const mimeType = targetMessage.media.mimetype || mediaResponse.headers['content-type'] || 'audio/ogg';
+              const extension = mimeType.includes('ogg') ? 'ogg' :
+                               mimeType.includes('mp3') ? 'mp3' :
+                               mimeType.includes('mp4') ? 'mp4' :
+                               mimeType.includes('mpeg') ? 'mp3' : 'oga';
+
+              const filename = `voice_${messageId.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.${extension}`;
+              const storageDir = path.join(process.cwd(), 'storage', 'whatsapp-media', 'voice');
+
+              if (!fs.existsSync(storageDir)) {
+                fs.mkdirSync(storageDir, { recursive: true });
+              }
+
+              const localPath = path.join(storageDir, filename);
+              fs.writeFileSync(localPath, mediaResponse.data);
+
+              console.log('[WAHA Service] 🎙️ ✅ Media download successful from chat messages:', {
+                localPath,
+                fileSize: mediaResponse.data.byteLength,
+                mimeType
+              });
+
+              return { localPath, mimeType };
+            }
+          } else {
+            console.log('[WAHA Service] ⚠️ Message found in recent messages but no media URL:', {
+              messageFound: !!targetMessage,
+              hasMedia: targetMessage?.media ? 'yes' : 'no',
+              hasUrl: targetMessage?.media?.url ? 'yes' : 'no'
+            });
+          }
+        }
+      } catch (chatMessagesError: any) {
+        console.log('[WAHA Service] ⚠️ Failed to fetch recent messages from chat:', chatMessagesError.response?.status || chatMessagesError.message);
+      }
+
+      // Fallback: Try multiple WAHA download endpoints
       // URL-encode IDs since they contain special characters
       const encodedMessageId = encodeURIComponent(messageId);
       const encodedChatId = encodeURIComponent(chatId);
@@ -1913,9 +1971,7 @@ class WAHAService extends EventEmitter {
         }
       }
 
-      // If all endpoints fail, try using WAHA's downloadMedia API if the webhook provided media metadata
-      console.log('[WAHA Service] 🔄 All direct endpoints failed, trying downloadMedia API...');
-
+      console.log('[WAHA Service] ❌ All download methods failed');
       return null;
     } catch (error: any) {
       console.error('[WAHA Service] 🎙️ ❌ Direct media download failed:', error?.message || error);

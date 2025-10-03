@@ -2,6 +2,8 @@ import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 import User from '../../models/User'; // Adjust path as necessary
 import { AuthenticatedRequest } from '../../types/express';
+import { config } from '../../config/env'; // Use validated config
+import logger from '../../config/logger'; // Use Winston logger
 
 // Export AuthenticatedRequest interface for use in other modules
 export { AuthenticatedRequest };
@@ -13,14 +15,13 @@ interface JwtPayload extends jwt.JwtPayload {
 }
 
 export const protect = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  console.log('[AuthMiddleware] Processing request:', {
+  // Use request-scoped logger if available, otherwise use default logger
+  const log = req.logger || logger;
+
+  log.debug('Processing authentication request', {
     method: req.method,
     path: req.path,
-    url: req.url,
-    fullUrl: req.originalUrl,
-    origin: req.headers.origin,
     hasAuth: !!req.headers.authorization,
-    authHeader: req.headers.authorization ? req.headers.authorization.substring(0, 20) + '...' : 'None'
   });
 
   let token;
@@ -28,69 +29,47 @@ export const protect = async (req: AuthenticatedRequest, res: Response, next: Ne
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
       token = req.headers.authorization.split(' ')[1];
-      console.log('[AuthMiddleware] Token extracted, length:', token.length);
-      console.log('[AuthMiddleware] Token preview:', token.substring(0, 20) + '...');
-      console.log('[AuthMiddleware] JWT_SECRET present:', !!process.env.JWT_SECRET);
-      console.log('[AuthMiddleware] JWT_SECRET length:', process.env.JWT_SECRET ? process.env.JWT_SECRET.length : 0);
-      
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'yourfallbacksecret') as JwtPayload;
-      console.log('[AuthMiddleware] Token decoded successfully:', {
+
+      // SECURITY FIX: Use validated JWT secret from config (no fallback)
+      const decoded = jwt.verify(token, config.auth.jwtSecret) as JwtPayload;
+      log.info('Token verified successfully', {
         userId: decoded.id,
-        iat: decoded.iat,
         exp: decoded.exp,
-        isExpired: decoded.exp ? decoded.exp < Date.now() / 1000 : 'No expiration'
       });
-      
+
       // Check if user still exists in database
       const user = await User.findById(decoded.id);
       if (!user) {
-        console.error('[AuthMiddleware] ❌ User not found in database for ID:', decoded.id);
-        setCorsHeaders(res, req.headers.origin);
+        log.warn('User not found in database', { userId: decoded.id });
         res.status(401).json({ message: 'Not authorized, user not found' });
         return;
       }
-      
+
       // Attach user to request object
       req.user = { id: decoded.id, email: decoded.email || '' };
-      
-      console.log('[AuthMiddleware] ✅ Token verified successfully for user:', decoded.id);
+
       next();
     } catch (error: any) {
-      console.error('[AuthMiddleware] ❌ Token verification failed:', {
+      log.error('Token verification failed', {
         error: error.message,
         name: error.name,
         expiredAt: error.expiredAt,
-        tokenPreview: token ? token.substring(0, 20) + '...' : 'No token',
-        jwtSecretPresent: !!process.env.JWT_SECRET
       });
-      // Ensure CORS headers are set before sending 401
-      setCorsHeaders(res, req.headers.origin);
+
       res.status(401).json({ message: 'Not authorized, token failed' });
       return;
     }
   }
 
   if (!token) {
-    console.error('[AuthMiddleware] ❌ No token provided for:', {
+    log.warn('No token provided', {
       method: req.method,
       path: req.path,
-      url: req.url,
-      fullUrl: req.originalUrl,
-      authHeader: req.headers.authorization || 'Missing'
     });
-    // Ensure CORS headers are set before sending 401
-    setCorsHeaders(res, req.headers.origin);
+
     res.status(401).json({ message: 'Not authorized, no token' });
     return;
   }
-};
-
-// Helper function to set CORS headers consistently
-const setCorsHeaders = (res: Response, origin?: string) => {
-  res.header('Access-Control-Allow-Origin', origin || 'https://synapse-frontend.onrender.com');
-  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, Accept, Origin');
-  res.header('Access-Control-Allow-Credentials', 'true');
 };
 
 // Export as authMiddleware for compatibility
