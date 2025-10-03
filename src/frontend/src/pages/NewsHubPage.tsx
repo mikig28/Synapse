@@ -62,14 +62,21 @@ const NewsHubPage: React.FC = () => {
   const [newTopic, setNewTopic] = useState('');
   const [newKeyword, setNewKeyword] = useState('');
   const [newCategory, setNewCategory] = useState('');
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [interestsLoaded, setInterestsLoaded] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchData();
-    fetchStats();
-    fetchTrendingTopics();
     fetchUserInterests();
-  }, [currentPage, filters]);
+  }, []);
+
+  useEffect(() => {
+    if (interestsLoaded && userInterests) {
+      fetchData();
+      fetchStats();
+      fetchTrendingTopics();
+    }
+  }, [currentPage, filters, interestsLoaded, userInterests]);
 
   const fetchData = async () => {
     try {
@@ -120,9 +127,21 @@ const NewsHubPage: React.FC = () => {
       const response = await newsHubService.getUserInterests();
       if (response.success && response.data) {
         setUserInterests(response.data);
+        setInterestsLoaded(true);
+        
+        // Check if user has configured their interests
+        const hasTopics = response.data.topics && response.data.topics.length > 0;
+        const hasKeywords = response.data.keywords && response.data.keywords.length > 0;
+        const hasCategories = response.data.categories && response.data.categories.length > 0;
+        
+        // Show onboarding if no interests configured
+        if (!hasTopics && !hasKeywords && !hasCategories) {
+          setShowOnboarding(true);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch user interests:', error);
+      setInterestsLoaded(true);
     }
   };
 
@@ -344,6 +363,28 @@ const NewsHubPage: React.FC = () => {
     }
   };
 
+  const handleCompleteOnboarding = async () => {
+    // Validate that user has set at least one interest
+    const hasTopics = userInterests?.topics && userInterests.topics.length > 0;
+    const hasKeywords = userInterests?.keywords && userInterests.keywords.length > 0;
+    const hasCategories = userInterests?.categories && userInterests.categories.length > 0;
+
+    if (!hasTopics && !hasKeywords && !hasCategories) {
+      toast({
+        title: 'Set Your Interests',
+        description: 'Please add at least one topic, keyword, or category to continue.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setShowOnboarding(false);
+    toast({
+      title: 'Welcome to News Hub!',
+      description: 'Your personalized news feed is ready. Click "Refresh" to fetch articles.'
+    });
+  };
+
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -360,6 +401,157 @@ const NewsHubPage: React.FC = () => {
 
   return (
     <div className="bg-gradient-to-br from-background via-background to-muted/20 min-h-screen">
+      {/* Onboarding Screen */}
+      {showOnboarding && (
+        <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-3xl"
+          >
+            <Card className="border-2 border-primary/20">
+              <CardHeader className="text-center space-y-4">
+                <div className="mx-auto p-4 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-full w-20 h-20 flex items-center justify-center">
+                  <Sparkles className="w-10 h-10 text-blue-500" />
+                </div>
+                <CardTitle className="text-3xl">Welcome to News Hub!</CardTitle>
+                <CardDescription className="text-lg">
+                  Let's personalize your news feed. Tell us what topics and keywords interest you,
+                  and we'll fetch relevant articles from around the web.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <ScrollArea className="max-h-[50vh] pr-4">
+                  <div className="space-y-6">
+                    {/* Topics Section */}
+                    <div>
+                      <h4 className="font-medium mb-3 flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-purple-500" />
+                        Topics <span className="text-xs text-muted-foreground">(e.g., AI, Blockchain, Space)</span>
+                      </h4>
+                      <div className="flex gap-2 mb-3">
+                        <Input
+                          placeholder="Add a topic..."
+                          value={newTopic}
+                          onChange={(e) => setNewTopic(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && handleAddTopic()}
+                        />
+                        <Button onClick={handleAddTopic} size="sm">
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2 min-h-[2rem]">
+                        {userInterests?.topics && userInterests.topics.length > 0 ? (
+                          userInterests.topics.map((topic, idx) => (
+                            <Badge key={idx} variant="secondary" className="text-sm flex items-center gap-1">
+                              {topic}
+                              <button
+                                onClick={() => handleRemoveTopic(topic)}
+                                className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </Badge>
+                          ))
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No topics added yet</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Keywords Section */}
+                    <div>
+                      <h4 className="font-medium mb-3 flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-yellow-500" />
+                        Keywords <span className="text-xs text-muted-foreground">(e.g., startup, innovation, climate)</span>
+                      </h4>
+                      <div className="flex gap-2 mb-3">
+                        <Input
+                          placeholder="Add a keyword..."
+                          value={newKeyword}
+                          onChange={(e) => setNewKeyword(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && handleAddKeyword()}
+                        />
+                        <Button onClick={handleAddKeyword} size="sm">
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2 min-h-[2rem]">
+                        {userInterests?.keywords && userInterests.keywords.length > 0 ? (
+                          userInterests.keywords.map((keyword, idx) => (
+                            <Badge key={idx} variant="outline" className="text-sm flex items-center gap-1">
+                              {keyword}
+                              <button
+                                onClick={() => handleRemoveKeyword(keyword)}
+                                className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </Badge>
+                          ))
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No keywords added yet</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Categories Section */}
+                    <div>
+                      <h4 className="font-medium mb-3 flex items-center gap-2">
+                        <Filter className="w-4 h-4 text-blue-500" />
+                        Categories <span className="text-xs text-muted-foreground">(e.g., technology, business, health)</span>
+                      </h4>
+                      <div className="flex gap-2 mb-3">
+                        <Input
+                          placeholder="Add a category..."
+                          value={newCategory}
+                          onChange={(e) => setNewCategory(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && handleAddCategory()}
+                        />
+                        <Button onClick={handleAddCategory} size="sm">
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2 min-h-[2rem]">
+                        {userInterests?.categories && userInterests.categories.length > 0 ? (
+                          userInterests.categories.map((category, idx) => (
+                            <Badge key={idx} variant="default" className="text-sm flex items-center gap-1">
+                              {category}
+                              <button
+                                onClick={() => handleRemoveCategory(category)}
+                                className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </Badge>
+                          ))
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No categories added yet</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </ScrollArea>
+
+                <div className="pt-4 border-t flex justify-between items-center">
+                  <p className="text-sm text-muted-foreground">
+                    Add at least one topic, keyword, or category to get started
+                  </p>
+                  <Button 
+                    onClick={handleCompleteOnboarding}
+                    className="bg-gradient-to-r from-blue-500 to-purple-500"
+                    size="lg"
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Get Started
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+      )}
+
       <div className="container mx-auto p-4 md:p-8 space-y-6">
         {/* Header */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
