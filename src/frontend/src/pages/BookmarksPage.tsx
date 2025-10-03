@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { ExternalLink, Info, MessageSquareText, Trash2, CalendarDays, FileText, Zap, AlertCircle, Volume2, Search, BookmarkPlus, CheckCircle, XCircle, Loader2, PlayCircle, StopCircle, Brain, ListFilter, ArrowUpDown, Link as LinkIcon } from 'lucide-react';
-import { getBookmarks, deleteBookmarkService, summarizeBookmarkById, speakTextViaBackend } from '../services/bookmarkService';
+import { getBookmarks, deleteBookmarkService, summarizeBookmarkById, speakTextViaBackend, getBookmarkVoiceAudio } from '../services/bookmarkService';
 import { BookmarkItemType } from '../types/bookmark';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ClientTweetCard } from '@/components/ui/TweetCard';
@@ -43,6 +43,8 @@ const BookmarksPage: React.FC = () => {
   const [summarizingBookmarkId, setSummarizingBookmarkId] = useState<string | null>(null);
   const [playingBookmarkId, setPlayingBookmarkId] = useState<string | null>(null);
   const [audioErrorId, setAudioErrorId] = useState<string | null>(null);
+  const [playingVoiceNoteId, setPlayingVoiceNoteId] = useState<string | null>(null);
+  const [voiceNoteAudioErrorId, setVoiceNoteAudioErrorId] = useState<string | null>(null);
   const {
     latestDigest,
     latestDigestSources,
@@ -53,6 +55,7 @@ const BookmarksPage: React.FC = () => {
   const token = useAuthStore((state) => state.token);
 
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
+  const [currentVoiceNoteAudio, setCurrentVoiceNoteAudio] = useState<HTMLAudioElement | null>(null);
 
   console.log("[BookmarksPage] Component rendered or re-rendered");
   
@@ -384,6 +387,76 @@ const BookmarksPage: React.FC = () => {
     }
   };
 
+  const handlePlayVoiceNote = async (bookmarkId: string) => {
+    console.log(`[handlePlayVoiceNote] Initiated for bookmarkId: ${bookmarkId}`);
+
+    // Stop current voice note audio if playing
+    if (currentVoiceNoteAudio) {
+      console.log("[handlePlayVoiceNote] currentVoiceNoteAudio exists. Pausing and clearing previous audio.");
+      currentVoiceNoteAudio.pause();
+      URL.revokeObjectURL(currentVoiceNoteAudio.src);
+      setCurrentVoiceNoteAudio(null);
+      if (playingVoiceNoteId === bookmarkId) {
+        console.log("[handlePlayVoiceNote] Same bookmark clicked, stopping audio.");
+        setPlayingVoiceNoteId(null);
+        return;
+      }
+    }
+
+    // Proceed to fetch and play voice note
+    setPlayingVoiceNoteId(bookmarkId);
+    setVoiceNoteAudioErrorId(null);
+
+    try {
+      console.log(`[handlePlayVoiceNote] Fetching voice audio for bookmarkId: ${bookmarkId}`);
+      const audioBlob = await getBookmarkVoiceAudio(bookmarkId);
+      const audioUrl = URL.createObjectURL(audioBlob);
+      console.log("[handlePlayVoiceNote] Created audioUrl:", audioUrl);
+      const audio = new Audio(audioUrl);
+      setCurrentVoiceNoteAudio(audio);
+
+      audio.play().then(() => {
+        console.log("[handlePlayVoiceNote] Audio playback started successfully for bookmarkId:", bookmarkId);
+      }).catch((playError: any) => {
+        console.error("[handlePlayVoiceNote] Audio.play() failed for bookmarkId:", bookmarkId, playError);
+        setPlayingVoiceNoteId(null);
+        setVoiceNoteAudioErrorId(bookmarkId);
+        toast({
+          title: "Audio Playback Error",
+          description: "Could not play the voice note.",
+          variant: "destructive",
+        });
+      });
+
+      audio.onended = () => {
+        console.log("[handlePlayVoiceNote] Audio playback ended for bookmarkId:", bookmarkId);
+        setPlayingVoiceNoteId(null);
+        URL.revokeObjectURL(audioUrl);
+        setCurrentVoiceNoteAudio(null);
+      };
+
+      audio.onerror = (e: any) => {
+        console.error("[handlePlayVoiceNote] Audio error event for bookmarkId:", bookmarkId, e);
+        setPlayingVoiceNoteId(null);
+        setVoiceNoteAudioErrorId(bookmarkId);
+        toast({
+          title: "Audio Playback Error",
+          description: "Could not play the voice note audio.",
+          variant: "destructive",
+        });
+      };
+    } catch (error: any) {
+      console.error("[handlePlayVoiceNote] Error in try-catch block for bookmarkId:", bookmarkId, error);
+      setPlayingVoiceNoteId(null);
+      setVoiceNoteAudioErrorId(bookmarkId);
+      toast({
+        title: "Voice Note Error",
+        description: error.message || "Failed to retrieve voice note audio.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -482,9 +555,26 @@ const BookmarksPage: React.FC = () => {
       <>
         {hasVoiceNote && (
           <div className="mt-3 p-2 rounded-md bg-accent/10 border border-accent/20">
-            <div className="flex items-center gap-2 mb-1">
-              <Volume2 className="w-4 h-4 text-accent" />
-              <h4 className="font-medium text-accent text-sm">Voice Note</h4>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <div className="flex items-center gap-2">
+                <Volume2 className="w-4 h-4 text-accent" />
+                <h4 className="font-medium text-accent text-sm">Voice Note</h4>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => handlePlayVoiceNote(bookmark._id)}
+                className={`hover:bg-accent/20 hover:text-accent transition-colors duration-200 h-7 px-2 ${voiceNoteAudioErrorId === bookmark._id ? 'text-destructive' : ''}`}
+                title={voiceNoteAudioErrorId === bookmark._id ? "Audio Error" : (playingVoiceNoteId === bookmark._id ? "Stop Voice Note" : "Play Voice Note")}
+              >
+                {playingVoiceNoteId === bookmark._id ? (
+                  <StopCircle className="w-4 h-4" />
+                ) : voiceNoteAudioErrorId === bookmark._id ? (
+                  <AlertCircle className="w-4 h-4" />
+                ) : (
+                  <PlayCircle className="w-4 h-4" />
+                )}
+              </Button>
             </div>
             <ExpandableContent content={String(bookmark.voiceNoteTranscription)} maxLength={100} />
           </div>

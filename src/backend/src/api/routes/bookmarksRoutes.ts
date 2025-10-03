@@ -1,5 +1,5 @@
 import express from 'express';
-import { getBookmarks, processAndCreateBookmark, deleteBookmark, summarizeBookmarkController, summarizeLatestBookmarksController } from '../controllers/bookmarksController';
+import { getBookmarks, processAndCreateBookmark, deleteBookmark, summarizeBookmarkController, summarizeLatestBookmarksController, getBookmarkVoiceAudio } from '../controllers/bookmarksController';
 import { protect } from '../middleware/authMiddleware'; // Assuming you have auth middleware
 import BookmarkItem from '../../models/BookmarkItem';
 
@@ -16,6 +16,9 @@ router.delete('/:id', protect, deleteBookmark);
 
 // Route to summarize a specific bookmark
 router.post('/:id/summarize', protect, summarizeBookmarkController);
+
+// Route to get voice note audio for a bookmark
+router.get('/:id/voice-audio', protect, getBookmarkVoiceAudio);
 
 // Route to summarize the latest N bookmarks
 router.post('/summarize-latest', protect, summarizeLatestBookmarksController);

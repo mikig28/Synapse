@@ -188,4 +188,17 @@ export const speakTextViaBackend = async (text: string): Promise<Blob> => {
     console.error('Error calling backend TTS endpoint:', error);
     throw error;
   }
+};
+
+export const getBookmarkVoiceAudio = async (bookmarkId: string): Promise<Blob> => {
+  try {
+    const response = await axiosInstance.get<Blob>(
+      `/bookmarks/${bookmarkId}/voice-audio`,
+      { responseType: 'blob' }
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error(`Error fetching voice audio for bookmark ${bookmarkId}:`, error);
+    throw error;
+  }
 }; 

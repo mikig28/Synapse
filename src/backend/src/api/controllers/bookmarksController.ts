@@ -716,6 +716,66 @@ export const updateBookmarkWithVoiceNote = async (
   }
 };
 
+// Function to get voice note audio for a bookmark
+export const getBookmarkVoiceAudio = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const bookmarkId = req.params.id;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(bookmarkId)) {
+      return res.status(400).json({ message: 'Invalid bookmark ID' });
+    }
+
+    const bookmark = await BookmarkItem.findOne({
+      _id: bookmarkId,
+      userId: new Types.ObjectId(userId)
+    });
+
+    if (!bookmark) {
+      return res.status(404).json({ message: 'Bookmark not found or user not authorized' });
+    }
+
+    if (!bookmark.voiceNoteAudioFileId) {
+      return res.status(404).json({ message: 'No voice note audio available for this bookmark' });
+    }
+
+    // Import the bot to get file link
+    const { telegramBot } = await import('../../services/telegramService');
+
+    try {
+      const fileLink = await telegramBot.getFileLink(bookmark.voiceNoteAudioFileId);
+
+      // Fetch the audio file from Telegram
+      const audioResponse = await axios.get(fileLink, { responseType: 'arraybuffer' });
+
+      // Set appropriate headers
+      res.setHeader('Content-Type', 'audio/ogg');
+      res.setHeader('Content-Disposition', `inline; filename="voice_note_${bookmarkId}.ogg"`);
+
+      // Send the audio data
+      res.send(Buffer.from(audioResponse.data));
+
+    } catch (telegramError) {
+      console.error('[BookmarkController] Error fetching audio from Telegram:', telegramError);
+      return res.status(500).json({
+        message: 'Failed to retrieve voice note audio from Telegram',
+        error: telegramError instanceof Error ? telegramError.message : 'Unknown error'
+      });
+    }
+
+  } catch (error) {
+    console.error('[BookmarkController] Error getting bookmark voice audio:', error);
+    return res.status(500).json({
+      message: 'Server error while retrieving voice note audio',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
 export const summarizeLatestBookmarksController = async (req: AuthenticatedRequest, res: Response) => {
   const NUM_LATEST_TO_SUMMARIZE = 5;
   try {
