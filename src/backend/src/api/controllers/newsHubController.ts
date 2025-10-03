@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/authMiddleware';
-import RealNewsArticle from '../../models/RealNewsArticle';
+import RealNewsArticle, { IRealNewsArticle } from '../../models/RealNewsArticle';
 import { rssNewsAggregationService } from '../../services/rssNewsAggregationService';
 import { newsRankingService } from '../../services/newsRankingService';
 import { userInterestService } from '../../services/userInterestService';
@@ -36,7 +36,7 @@ export const getNewsFeed = async (req: AuthenticatedRequest, res: Response): Pro
     if (isSaved !== undefined) query.isSaved = isSaved === 'true';
 
     // Get articles
-    let articles = await RealNewsArticle.find(query)
+    let articles: IRealNewsArticle[] = await RealNewsArticle.find(query)
       .sort({ publishedAt: -1 })
       .limit(Number(limit) * Number(page))
       .skip((Number(page) - 1) * Number(limit));
@@ -172,7 +172,7 @@ export const getTrendingTopics = async (req: AuthenticatedRequest, res: Response
 /**
  * Get available sources
  */
-export const getAvailableSources = async (req: Request, res: Response): Promise<void> => {
+export const getAvailableSources = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const sources = userInterestService.getAvailableSources();
     res.json({ success: true, data: sources });
@@ -185,7 +185,7 @@ export const getAvailableSources = async (req: Request, res: Response): Promise<
 /**
  * Get available categories
  */
-export const getAvailableCategories = async (req: Request, res: Response): Promise<void> => {
+export const getAvailableCategories = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const categories = userInterestService.getAvailableCategories();
     res.json({ success: true, data: categories });

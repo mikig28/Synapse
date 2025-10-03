@@ -51,7 +51,7 @@ export class NewsAggregationService {
         return [];
       }
 
-      const articles: IRealNewsArticle[] = [];
+      const articles: Partial<IRealNewsArticle>[] = [];
 
       // Fetch from NewsAPI
       if (this.newsApiKey) {

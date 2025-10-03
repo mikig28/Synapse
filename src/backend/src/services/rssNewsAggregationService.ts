@@ -53,7 +53,7 @@ export class RSSNewsAggregationService {
         return [];
       }
 
-      const articles: IRealNewsArticle[] = [];
+      const articles: Partial<IRealNewsArticle>[] = [];
 
       // Get sources based on user preferences
       const sources = this.getRelevantSources(userInterest);
