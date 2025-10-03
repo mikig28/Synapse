@@ -568,14 +568,24 @@ const NewsHubPage: React.FC = () => {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={() => setShowOnboarding(true)}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span className="hidden sm:inline">Setup Interests</span>
+              <span className="sm:hidden">Setup</span>
+            </Button>
             <Button
               onClick={() => setInterestsModalOpen(true)}
               variant="outline"
               className="flex items-center gap-2"
             >
               <Settings className="w-4 h-4" />
-              Manage Interests
+              <span className="hidden sm:inline">Manage Interests</span>
+              <span className="sm:hidden">Manage</span>
             </Button>
             <Button
               onClick={handleRefresh}
