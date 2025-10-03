@@ -1860,8 +1860,8 @@ class WAHAService extends EventEmitter {
       console.log('[WAHA Service] 🔍 Fetching recent messages from chat to find media URL...');
       try {
         const recentMessages = await this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(chatId)}/messages`, {
-          params: { limit: 10, downloadMedia: 'false' }, // Don't trigger download yet, just get URL
-          timeout: 15000
+          params: { limit: 10, downloadMedia: 'true' }, // CRITICAL: Must be true to get media URLs
+          timeout: 30000 // Increased timeout since downloading media
         });
 
         if (recentMessages.data && Array.isArray(recentMessages.data)) {

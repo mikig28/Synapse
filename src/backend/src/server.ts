@@ -62,6 +62,7 @@ import { initializeSearchIndexes } from './config/searchIndexes'; // Import sear
 import { trackApiUsage } from './middleware/usageTracking'; // Import usage tracking middleware
 import './services/searchIndexingService'; // Import to initialize search indexing hooks
 import { videoRecommendationScheduler } from './services/videoRecommendationScheduler';
+import { newsSchedulerService } from './services/newsSchedulerService'; // Import news scheduler service
 
 // Environment variables are validated in config/env.ts
 const app: Express = express();
@@ -824,6 +825,10 @@ const initializeServicesInBackground = async () => {
     // Start video recommendation scheduler
     videoRecommendationScheduler.start();
     console.log('[Server] Video recommendation scheduler started');
+
+    // Initialize and start news scheduler
+    await newsSchedulerService.initialize();
+    console.log('[Server] News auto-refresh scheduler started');
 
     if (process.env.WHATSAPP_SUMMARY_SCHEDULER_ENABLED !== 'false') {
       whatsappSummaryScheduleService.start();
