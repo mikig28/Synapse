@@ -28,6 +28,8 @@ import {
   BookOpen,
   Camera,
   Send,
+  UtensilsCrossed,
+  Video,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -69,6 +71,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
     { href: "/telegram-channels", label: "Telegram Channels", icon: Send },
     { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
     { href: "/videos", label: "Videos", icon: Youtube },
+    { href: "/recipes", label: "Recipes", icon: UtensilsCrossed },
+    { href: "/reels-stories", label: "Reels & Stories", icon: Video },
     { href: "/news", label: "Agents Reports", icon: Newspaper },
     { href: "/news-hub", label: "News Hub", icon: Newspaper },
   ];

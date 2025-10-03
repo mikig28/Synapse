@@ -71,6 +71,14 @@ const SearchPage = React.lazy(() => import('@/pages/SearchPage'));
 const TelegramChannelsPage = React.lazy(() => import('@/pages/TelegramChannelsPage'));
 const OnboardingPage = React.lazy(() => import('@/pages/OnboardingPage'));
 const NewsHubPage = React.lazy(() => import('@/pages/NewsHubPage'));
+const CapturePage = React.lazy(() => import('@/pages/CapturePage'));
+const ProjectsPage = React.lazy(() => import('@/pages/ProjectsPage'));
+const PlanningPage = React.lazy(() => import('@/pages/PlanningPage'));
+const GoalsPage = React.lazy(() => import('@/pages/GoalsPage'));
+const HabitsPage = React.lazy(() => import('@/pages/HabitsPage'));
+const AutomationsPage = React.lazy(() => import('@/pages/AutomationsPage'));
+const RecipesPage = React.lazy(() => import('@/pages/RecipesPage'));
+const ReelsAndStoriesPage = React.lazy(() => import('@/pages/ReelsAndStoriesPage'));
 
 // Beautiful but performant loading component
 const PageLoader = () => (
@@ -160,6 +168,14 @@ function AppContent() {
                     <Route path="/places" element={isAuthenticated ? <Layout><PlacesPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/docs" element={isAuthenticated ? <Layout><DocsPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/settings" element={isAuthenticated ? <Layout><SettingsPage /></Layout> : <Navigate to="/login" />} />
+                    <Route path="/capture" element={isAuthenticated ? <Layout><CapturePage /></Layout> : <Navigate to="/login" />} />
+                    <Route path="/projects" element={isAuthenticated ? <Layout><ProjectsPage /></Layout> : <Navigate to="/login" />} />
+                    <Route path="/planning" element={isAuthenticated ? <Layout><PlanningPage /></Layout> : <Navigate to="/login" />} />
+                    <Route path="/goals" element={isAuthenticated ? <Layout><GoalsPage /></Layout> : <Navigate to="/login" />} />
+                    <Route path="/habits" element={isAuthenticated ? <Layout><HabitsPage /></Layout> : <Navigate to="/login" />} />
+                    <Route path="/automations" element={isAuthenticated ? <Layout><AutomationsPage /></Layout> : <Navigate to="/login" />} />
+                    <Route path="/recipes" element={isAuthenticated ? <Layout><RecipesPage /></Layout> : <Navigate to="/login" />} />
+                    <Route path="/reels-stories" element={isAuthenticated ? <Layout><ReelsAndStoriesPage /></Layout> : <Navigate to="/login" />} />
                   </Routes>
                 </Suspense>
               </PageTransition>
