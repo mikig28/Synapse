@@ -162,11 +162,16 @@ const BookmarksPage: React.FC = () => {
     }
   }, [fetchBookmarksCallback, currentPage, token]); // MODIFIED dependencies
 
-  // Refetch when the search term changes
+  // Refetch when the search term changes (debounced)
   useEffect(() => {
     if (!token) return;
-    setCurrentPage(1);
-    fetchBookmarksCallback(1);
+
+    const debounceTimer = setTimeout(() => {
+      setCurrentPage(1);
+      fetchBookmarksCallback(1);
+    }, 500); // Wait 500ms after user stops typing
+
+    return () => clearTimeout(debounceTimer);
   }, [searchTerm, token, fetchBookmarksCallback]);
 
   // Add a new useEffect specifically for authentication status changes
@@ -718,7 +723,7 @@ const BookmarksPage: React.FC = () => {
                   <Input
                     id="bookmarks-search"
                     type="text"
-                    placeholder="Search title, URL, summary..."
+                    placeholder="Search title, URL, summary, voice notes..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 text-sm bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200 min-h-[48px] touch-manipulation"

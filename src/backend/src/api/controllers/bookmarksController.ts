@@ -212,6 +212,7 @@ export const getBookmarks = async (req: AuthenticatedRequest, res: Response) => 
         { redditPostContent: regex },
         { redditAuthor: regex },
         { redditSubreddit: regex },
+        { voiceNoteTranscription: regex },
       ];
     }
 
