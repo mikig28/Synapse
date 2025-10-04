@@ -83,7 +83,11 @@ const BookmarksPage: React.FC = () => {
     console.log(`[BookmarksPage] Fetching bookmarks for page: ${pageToFetch}...`);
     setLoading(true);
     try {
-      const response = await getBookmarks(pageToFetch, PAGE_LIMIT, searchTerm);
+      // Get the highlight ID from URL params
+      const urlParams = new URLSearchParams(window.location.search);
+      const highlightId = urlParams.get('highlight') || undefined;
+
+      const response = await getBookmarks(pageToFetch, PAGE_LIMIT, searchTerm, highlightId);
       console.log("[BookmarksPage] Fetched data:", JSON.stringify(response.data, null, 2));
       console.log("[BookmarksPage] API response structure:", {
         currentPage: response.currentPage,

@@ -198,6 +198,7 @@ export const getBookmarks = async (req: AuthenticatedRequest, res: Response) => 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const search = (req.query.search as string) || '';
+    const highlightId = req.query.highlight as string;
     const skip = (page - 1) * limit;
 
     const filter: any = { userId: new Types.ObjectId(userId) };
@@ -216,18 +217,33 @@ export const getBookmarks = async (req: AuthenticatedRequest, res: Response) => 
       ];
     }
 
-    const bookmarks = await BookmarkItem.find(filter)
+    let bookmarks = await BookmarkItem.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
     const totalBookmarks = await BookmarkItem.countDocuments(filter);
 
+    // If a highlight ID is provided, ensure that bookmark is included in the results
+    if (highlightId && mongoose.Types.ObjectId.isValid(highlightId)) {
+      const highlightedBookmark = await BookmarkItem.findOne({
+        _id: new Types.ObjectId(highlightId),
+        userId: new Types.ObjectId(userId)
+      });
+
+      // Only add the highlighted bookmark if it's not already in the current page results
+      if (highlightedBookmark && !bookmarks.some(b => b._id.toString() === highlightId)) {
+        // Add the highlighted bookmark at the beginning
+        bookmarks = [highlightedBookmark, ...bookmarks.slice(0, limit - 1)];
+      }
+    }
+
     res.status(200).json({
       data: bookmarks,
       currentPage: page,
       totalPages: Math.ceil(totalBookmarks / limit),
-      totalBookmarks
+      totalBookmarks,
+      highlightedId: highlightId || null
     });
   } catch (error) {
     console.error('Error fetching bookmarks:', error);
