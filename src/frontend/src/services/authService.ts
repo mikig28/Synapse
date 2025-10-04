@@ -66,7 +66,13 @@ export const loginService = async (credentials: any): Promise<AuthResponse> => {
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.message || 'Failed to login');
+    // Create error with response data for better error handling
+    const error: any = new Error(data.message || 'Failed to login');
+    error.response = {
+      status: response.status,
+      data: data
+    };
+    throw error;
   }
   return data as AuthResponse;
 };

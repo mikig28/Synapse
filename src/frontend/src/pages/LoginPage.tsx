@@ -51,9 +51,8 @@ const LoginPage: React.FC = () => {
       // Check if error is due to unverified email (403 with requiresVerification)
       if (err.response?.status === 403 && err.response?.data?.requiresVerification) {
         setNeedsVerification(true);
-        setError('Please verify your email before logging in.');
-        // Automatically send verification email
-        handleResendVerification();
+        setError(null); // Clear error, show verification notice instead
+        // DON'T automatically send - let user click the button to avoid rate limiting
       } else {
         setError(err.message || 'An unexpected error occurred during login.');
       }
@@ -80,7 +79,13 @@ const LoginPage: React.FC = () => {
       }
     } catch (error: any) {
       console.error('[LoginPage] Resend verification failed:', error);
-      setError(error.response?.data?.message || 'Failed to resend verification email.');
+      
+      // Better error messaging
+      const errorMessage = error.response?.status === 500 
+        ? 'Email service is currently unavailable. Please contact support or try again later.'
+        : error.response?.data?.message || 'Failed to resend verification email.';
+      
+      setError(errorMessage);
     } finally {
       setResending(false);
     }
@@ -245,6 +250,61 @@ const LoginPage: React.FC = () => {
                 <AlertTitle className="text-red-200 font-semibold">Login Failed</AlertTitle>
                 <AlertDescription className="text-red-300/90">
                   {error}
+                </AlertDescription>
+              </Alert>
+            </motion.div>
+          )}
+
+          {/* Email Verification Needed - Auto-resend Failed */}
+          {needsVerification && !resendSuccess && !resending && (
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3 }}
+              className="mb-6"
+            >
+              <Alert className="glass border-amber-500/30 bg-amber-500/10 text-amber-200">
+                <AlertCircle className="h-4 w-4 text-amber-300" />
+                <AlertTitle className="text-amber-200 font-semibold">Email Verification Required</AlertTitle>
+                <AlertDescription className="text-amber-300/90">
+                  Your email <strong>{email}</strong> is not verified yet.
+                  <br />
+                  <span className="text-xs text-amber-400/70 mt-1 block">
+                    Click below to send a verification email to your inbox.
+                  </span>
+                </AlertDescription>
+              </Alert>
+
+              <AnimatedButton
+                onClick={handleResendVerification}
+                className="w-full mt-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg shadow-amber-500/25"
+                size="sm"
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Send Verification Email
+                </span>
+              </AnimatedButton>
+            </motion.div>
+          )}
+
+          {/* Email Verification - Sending in Progress */}
+          {needsVerification && resending && (
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3 }}
+              className="mb-6"
+            >
+              <Alert className="glass border-blue-500/30 bg-blue-500/10 text-blue-200">
+                <motion.div
+                  className="w-4 h-4 border-2 border-blue-300/30 border-t-blue-300 rounded-full"
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                />
+                <AlertTitle className="text-blue-200 font-semibold">Sending Verification Email...</AlertTitle>
+                <AlertDescription className="text-blue-300/90">
+                  Please wait while we send a verification link to <strong>{email}</strong>
                 </AlertDescription>
               </Alert>
             </motion.div>

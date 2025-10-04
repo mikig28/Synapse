@@ -252,10 +252,15 @@ export const resendVerificationEmail = async (req: Request, res: Response) => {
     const emailSent = await emailService.sendVerificationEmail(email, verificationToken, user.fullName);
 
     if (!emailSent) {
-      console.warn(`[resendVerificationEmail] Failed to send verification email to ${email}`);
-      return res.status(500).json({ message: 'Failed to send verification email. Please try again later.' });
+      console.error(`[resendVerificationEmail] Failed to send verification email to ${email}`);
+      console.error(`[resendVerificationEmail] Check SMTP configuration: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD`);
+      return res.status(500).json({ 
+        message: 'Email service is currently unavailable. Please contact support.',
+        error: 'SMTP_NOT_CONFIGURED'
+      });
     }
 
+    console.log(`[resendVerificationEmail] ✅ Verification email sent successfully to ${email}`);
     res.status(200).json({
       success: true,
       message: 'Verification email sent! Please check your inbox.',
