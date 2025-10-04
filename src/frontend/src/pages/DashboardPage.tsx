@@ -655,9 +655,9 @@ const DashboardPage: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.3 }}
-          className="mb-6 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6"
+          className="mb-6 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 max-w-full overflow-hidden"
         >
-          <GlassCard className="min-w-0">
+          <GlassCard className="min-w-0 max-w-full overflow-hidden">
             <div className="p-4 sm:p-6">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-base sm:text-lg font-semibold truncate">Telegram Feed</h3>
@@ -667,21 +667,21 @@ const DashboardPage: React.FC = () => {
             </div>
           </GlassCard>
 
-          <GlassCard className="h-full min-w-0">
-            <div className="p-4 sm:p-6 h-full flex flex-col min-w-0">
+          <GlassCard className="h-full min-w-0 max-w-full overflow-hidden">
+            <div className="p-4 sm:p-6 h-full flex flex-col min-w-0 max-w-full overflow-hidden">
               <div className="flex items-center justify-between mb-2 gap-2">
                 <h3 className="text-base sm:text-lg font-semibold truncate">Featured Content</h3>
                 <span className="text-xs text-muted-foreground whitespace-nowrap">Curated</span>
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 flex-1 min-w-0">
-                <div className="rounded-xl border border-border/40 bg-background/60 p-3 sm:p-4 backdrop-blur min-w-0">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 flex-1 min-w-0 max-w-full overflow-hidden">
+                <div className="rounded-xl border border-border/40 bg-background/60 p-3 sm:p-4 backdrop-blur min-w-0 max-w-full overflow-hidden">
                   <h4 className="text-xs sm:text-sm font-semibold mb-2 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                     Recommended Video
                   </h4>
                   <RecentVideo />
                 </div>
-                <div className="rounded-xl border border-border/30 bg-background/60 p-3 sm:p-4 backdrop-blur flex flex-col min-w-0">
+                <div className="rounded-xl border border-border/30 bg-background/60 p-3 sm:p-4 backdrop-blur flex flex-col min-w-0 max-w-full overflow-hidden">
                   <h4 className="text-xs sm:text-sm font-semibold mb-2">Active Bookmarks</h4>
                   <div className="flex items-center justify-between text-xs mb-3 text-muted-foreground flex-wrap gap-1">
                     <span>Saved • last 24h</span>

@@ -43,11 +43,11 @@ export const AnimatedDashboardCard: React.FC<AnimatedDashboardCardProps> = ({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.5, ease: 'easeOut' }}
       whileHover={{ y: -4 }}
-      className="group min-w-0"
+      className="group min-w-0 max-w-full overflow-hidden"
     >
-      <GlassCard 
+      <GlassCard
         className={cn(
-          "relative w-full min-w-0 overflow-hidden transition-all duration-300",
+          "relative w-full max-w-full min-w-0 overflow-hidden transition-all duration-300",
           "hover:shadow-lg hover-glow cursor-pointer",
           onClick && "cursor-pointer"
         )}
@@ -71,10 +71,10 @@ export const AnimatedDashboardCard: React.FC<AnimatedDashboardCardProps> = ({
           }}
         />
 
-        <div className="relative p-3 sm:p-6 min-w-0">
+        <div className="relative p-3 sm:p-6 min-w-0 max-w-full overflow-hidden">
           {/* Header */}
           <div className="flex items-start justify-between mb-2 sm:mb-4 gap-2 min-w-0">
-            <h3 className="text-xs sm:text-sm font-medium text-muted-foreground line-clamp-2 flex-1 min-w-0">{title}</h3>
+            <h3 className="text-xs sm:text-sm font-medium text-muted-foreground line-clamp-2 flex-1 min-w-0 break-words">{title}</h3>
             {Icon && (
               <motion.div
                 whileHover={{ scale: 1.1, rotate: 5 }}
@@ -89,14 +89,15 @@ export const AnimatedDashboardCard: React.FC<AnimatedDashboardCardProps> = ({
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            transition={{ 
-              delay: delay + 0.2, 
-              type: 'spring', 
+            transition={{
+              delay: delay + 0.2,
+              type: 'spring',
               stiffness: 200,
               damping: 20
             }}
+            className="overflow-hidden max-w-full"
           >
-            <p className="text-xl sm:text-2xl lg:text-3xl font-bold gradient-text break-words">
+            <p className="text-xl sm:text-2xl lg:text-3xl font-bold gradient-text break-words overflow-hidden" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
               {value}
             </p>
           </motion.div>
@@ -156,7 +157,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
   return (
     <motion.div
       className={cn(
-        "grid w-full min-w-0",
+        "grid w-full max-w-full min-w-0 overflow-hidden",
         columns === 4 && "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4",
         columns === 3 && "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
         columns === 2 && "grid-cols-1 md:grid-cols-2",
