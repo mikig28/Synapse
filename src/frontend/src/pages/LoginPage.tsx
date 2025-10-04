@@ -10,29 +10,36 @@ import useAuthStore from '@/store/authStore';
 import { useGoogleLogin, CredentialResponse, TokenResponse } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
 import { loginService, googleLoginService } from '@/services/authService';
-import { Brain, Mail, Lock, Sparkles, ArrowRight, AlertCircle, ChromeIcon } from 'lucide-react';
+import { Brain, Mail, Lock, Sparkles, ArrowRight, AlertCircle, ChromeIcon, RefreshCw, CheckCircle } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { VideoLogo } from '@/components/ui/VideoLogo';
+import axios from 'axios';
+import { BACKEND_ROOT_URL } from '@/services/axiosConfig';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null); // For displaying login errors
   const [loading, setLoading] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
   const storeLogin = useAuthStore((state) => state.login);
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setNeedsVerification(false);
+    setResendSuccess(false);
     setLoading(true);
     try {
       const data = await loginService({ email, password });
       const loginPayload = {
         user: { id: data._id, email: data.email, fullName: data.fullName },
-        token: data.token, 
+        token: data.token,
       };
       storeLogin(loginPayload);
       console.log('[LoginPage] Email/Pass Login Success - Zustand store updated. Token present:', !!useAuthStore.getState().token);
@@ -40,9 +47,43 @@ const LoginPage: React.FC = () => {
       navigate('/dashboard');
     } catch (err: any) {
       console.error('Login failed:', err);
-      setError(err.message || 'An unexpected error occurred during login.');
+
+      // Check if error is due to unverified email (403 with requiresVerification)
+      if (err.response?.status === 403 && err.response?.data?.requiresVerification) {
+        setNeedsVerification(true);
+        setError('Please verify your email before logging in.');
+        // Automatically send verification email
+        handleResendVerification();
+      } else {
+        setError(err.message || 'An unexpected error occurred during login.');
+      }
     }
     setLoading(false);
+  };
+
+  const handleResendVerification = async () => {
+    if (!email) return;
+
+    console.log('[LoginPage] Resending verification email to:', email);
+    setResending(true);
+    setResendSuccess(false);
+
+    try {
+      const response = await axios.post(`${BACKEND_ROOT_URL}/api/v1/auth/resend-verification`, {
+        email: email
+      });
+
+      console.log('[LoginPage] Resend response:', response.data);
+
+      if (response.data.success) {
+        setResendSuccess(true);
+      }
+    } catch (error: any) {
+      console.error('[LoginPage] Resend verification failed:', error);
+      setError(error.response?.data?.message || 'Failed to resend verification email.');
+    } finally {
+      setResending(false);
+    }
   };
 
   // TEMPORARY DEBUG BUTTON
@@ -206,6 +247,49 @@ const LoginPage: React.FC = () => {
                   {error}
                 </AlertDescription>
               </Alert>
+            </motion.div>
+          )}
+
+          {/* Verification Email Sent Success */}
+          {needsVerification && resendSuccess && (
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3 }}
+              className="mb-6"
+            >
+              <Alert className="glass border-emerald-500/30 bg-emerald-500/10 text-emerald-200">
+                <CheckCircle className="h-4 w-4 text-emerald-300" />
+                <AlertTitle className="text-emerald-200 font-semibold">Verification Email Sent!</AlertTitle>
+                <AlertDescription className="text-emerald-300/90">
+                  Please check your inbox at <strong>{email}</strong> for the verification link.
+                  <br />
+                  <span className="text-xs text-emerald-400/70 mt-1 block">Don't forget to check your spam folder!</span>
+                </AlertDescription>
+              </Alert>
+
+              <AnimatedButton
+                onClick={handleResendVerification}
+                disabled={resending}
+                className="w-full mt-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25"
+                size="sm"
+              >
+                {resending ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <motion.div
+                      className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    />
+                    Sending...
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <RefreshCw className="w-4 h-4" />
+                    Resend Verification Email
+                  </span>
+                )}
+              </AnimatedButton>
             </motion.div>
           )}
 
