@@ -2,6 +2,7 @@ import express from 'express';
 import { registerUser, loginUser, googleLogin, verifyEmail, resendVerificationEmail } from '../controllers/authController';
 import { protect } from '../middleware/authMiddleware';
 import { healthCheck } from '../controllers/healthController';
+import { testEmailController } from '../controllers/testEmailController';
 import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
@@ -44,6 +45,11 @@ router.post('/resend-verification', resendLimiter, resendVerificationEmail);
 // @desc    Health check with email service status
 // @access  Public
 router.get('/health', healthCheck);
+
+// @route   POST api/v1/auth/test-email
+// @desc    Send a test verification email (for debugging SMTP)
+// @access  Public
+router.post('/test-email', testEmailController.sendTestEmail);
 
 // @route   GET api/v1/auth/me
 // @desc    Get current user info (debug endpoint)
