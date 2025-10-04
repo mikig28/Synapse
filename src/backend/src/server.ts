@@ -1,4 +1,4 @@
-﻿import express, { Express, Request, Response, NextFunction } from 'express';
+import express, { Express, Request, Response, NextFunction } from 'express';
 import compression from 'compression';
 import { config as envConfig } from './config/env'; // Validate env vars FIRST
 import logger from './config/logger'; // Production logger
@@ -11,6 +11,7 @@ import rateLimiters from './middleware/rateLimiter'; // Rate limiting
 import whatsappRoutes from './api/routes/whatsappRoutes'; // Import WhatsApp routes (legacy)
 import wahaRoutes from './api/routes/wahaRoutes'; // Import WAHA routes (modern)
 import whatsappUnifiedRoutes from './api/routes/whatsappUnifiedRoutes'; // Import WhatsApp Unified routes (complete)
+import whatsappGridFSRoutes from './api/routes/whatsappGridFSRoutes'; // Import WhatsApp GridFS routes
 import { connectToDatabase } from './config/database'; // Import database connection
 import authRoutes from './api/routes/authRoutes'; // Import auth routes
 import { initializeTelegramService } from './services/telegramServiceNew'; // Import new multi-user Telegram service
@@ -215,6 +216,7 @@ app.use('/api/v1/feedback', feedbackRoutes); // Use feedback routes
 app.use('/api/v1/usage', usageRoutes); // Use usage routes
 app.use('/api/v1/telegram-channels', telegramChannelRoutes); // Use telegram channels routes
 app.use('/api/v1/whatsapp/images', whatsappImagesRoutes); // Use WhatsApp images extraction routes
+app.use('/api/v1/whatsapp-gridfs', whatsappGridFSRoutes); // Use WhatsApp GridFS image serving routes
 
 // TEMPORARY: Simple test endpoint (no auth required) - BEFORE routes
 app.get('/api/v1/whatsapp-summary/test', (req: Request, res: Response) => {

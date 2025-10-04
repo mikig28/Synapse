@@ -1,13 +1,13 @@
 /**
  * WhatsApp Images Controller
  * Handles on-demand image extraction from WhatsApp messages
- */
-
-import { Request, Response } from 'express';
+ *import { Request, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/authMiddleware';
 import WhatsAppImageService from '../../services/whatsappImageService';
+import { whatsappImageGridFSService } from '../../services/whatsappImageGridFSService';
+import WhatsAppMessage from '../../models/WhatsAppMessage';
 import fs from 'fs/promises';
-import path from 'path';
+import path from 'path';m 'path';
 
 // Get WhatsApp Image service instance
 const getImageService = () => {
@@ -177,16 +177,9 @@ export const getImageByMessageId = async (req: AuthenticatedRequest, res: Respon
       data: image
     });
   } catch (error: any) {
-    console.error('[WhatsApp Images] Error getting image by message ID:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to retrieve image'
-    });
-  }
-};
-
-/**
+    console.er/**
  * Serve image file
+ * Updated to serve from GridFS when available for permanent storage
  */
 export const serveImageFile = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -207,6 +200,36 @@ export const serveImageFile = async (req: AuthenticatedRequest, res: Response) =
       });
     }
 
+    // FIRST: Try to serve from GridFS (permanent storage)
+    // This prevents broken images when WAHA URLs expire
+    const message = await WhatsAppMessage.findOne({ messageId });
+    
+    if (message && message.localPath?.startsWith('gridfs://')) {
+      console.log(`[WhatsApp Images] Serving image from GridFS: ${messageId}`);
+      
+      // Extract GridFS ID and serve from GridFS
+      const gridfsId = whatsappImageGridFSService.extractGridFSId(message.localPath);
+      if (gridfsId) {
+        const result = await whatsappImageGridFSService.getImageStream(gridfsId);
+        
+        if (result) {
+          // Set appropriate headers for GridFS image
+          res.setHeader('Content-Type', result.metadata.contentType || message.mimeType || 'image/jpeg');
+          res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year (permanent)
+          res.setHeader('Content-Length', result.metadata.length);
+          
+          if (message.filename) {
+            res.setHeader('Content-Disposition', `inline; filename="${message.filename}"`);
+          }
+          
+          // Stream the image from GridFS
+          return result.stream.pipe(res);
+        }
+      }
+    }
+
+    // FALLBACK: Serve from local file storage (legacy behavior)
+    console.log(`[WhatsApp Images] GridFS not available, using legacy file storage: ${messageId}`);
     const imageService = getImageService();
     const imageFile = await imageService.getImageFile(messageId, userId);
 
@@ -223,6 +246,14 @@ export const serveImageFile = async (req: AuthenticatedRequest, res: Response) =
     
     // Stream the file
     res.sendFile(path.resolve(imageFile.path));
+  } catch (error: any) {
+    console.error('[WhatsApp Images] Error serving image file:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to serve image file'
+    });
+  }
+};geFile.path));
   } catch (error: any) {
     console.error('[WhatsApp Images] Error serving image file:', error);
     res.status(500).json({
