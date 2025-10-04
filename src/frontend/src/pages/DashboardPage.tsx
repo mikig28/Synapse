@@ -365,7 +365,7 @@ const DashboardPage: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 overflow-x-hidden max-w-full">
       <a href="#dashboard-main" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:bg-background focus:text-foreground focus:p-2 focus:rounded focus:z-50">
         Skip to main content
       </a>
@@ -401,7 +401,7 @@ const DashboardPage: React.FC = () => {
         />
       </div>
 
-      <div id="dashboard-main" className="relative z-10 container mx-auto p-3 sm:p-4 md:p-8">
+      <div id="dashboard-main" className="relative z-10 w-full max-w-full mx-auto px-3 sm:px-4 md:px-8 py-3 sm:py-4 md:py-8 overflow-x-hidden">
         {/* Header Section */}
         <motion.div
           ref={headerRef}
@@ -526,8 +526,8 @@ const DashboardPage: React.FC = () => {
                       <AlertDescription>{latestDigest}</AlertDescription>
                     </Alert>
                   ) : (
-                    <div className="prose prose-sm sm:prose dark:prose-invert max-w-none">
-                      <p className="text-sm leading-relaxed break-words overflow-wrap-break-word">{latestDigest}</p>
+                    <div className="prose prose-sm sm:prose dark:prose-invert max-w-none overflow-hidden">
+                      <p className="text-sm leading-relaxed break-words" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{latestDigest}</p>
                     </div>
                   )}
                 </motion.div>

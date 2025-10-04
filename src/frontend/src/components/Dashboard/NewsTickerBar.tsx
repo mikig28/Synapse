@@ -96,7 +96,7 @@ const NewsTickerBar: React.FC = () => {
               ref={tickerRef}
               className="flex gap-4 sm:gap-6"
               animate={{
-                x: isPaused ? undefined : [0, -50 + '%'],
+                x: isPaused ? 0 : [0, '-50%'],
               }}
               transition={{
                 x: {
@@ -118,7 +118,7 @@ const NewsTickerBar: React.FC = () => {
                       {article.category.slice(0, 4)}
                     </span>
                   )}
-                  <span className="text-[10px] sm:text-xs text-foreground font-medium group-hover:text-primary transition-colors whitespace-nowrap max-w-[180px] sm:max-w-[300px] truncate break-words">
+                  <span className="text-[10px] sm:text-xs text-foreground font-medium group-hover:text-primary transition-colors whitespace-nowrap max-w-[200px] sm:max-w-[350px] truncate">
                     {article.title}
                   </span>
                   {!article.isRead && (

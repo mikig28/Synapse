@@ -29,7 +29,7 @@ const RecentItemsAccordion: React.FC<RecentItemsAccordionProps> = ({
   };
 
   return (
-    <GlassCard className="overflow-hidden border border-border/40">
+    <GlassCard className="overflow-hidden border border-border/40 max-w-full" style={{ wordBreak: 'break-word' }}>
       <Accordion type="single" collapsible>
         {/* Notes Section */}
         <AccordionItem value="notes" className="border-none">
@@ -57,7 +57,7 @@ const RecentItemsAccordion: React.FC<RecentItemsAccordionProps> = ({
                     onClick={() => navigate('/notes')}
                   >
                     <div className="flex-1 min-w-0 overflow-hidden">
-                      <p className="text-sm font-medium text-foreground truncate break-words">
+                      <p className="text-sm font-medium text-foreground break-words" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                         {note.title || note.content.slice(0, 60)}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
@@ -105,7 +105,7 @@ const RecentItemsAccordion: React.FC<RecentItemsAccordionProps> = ({
                     onClick={() => navigate('/ideas')}
                   >
                     <div className="flex-1 min-w-0 overflow-hidden">
-                      <p className="text-sm font-medium text-foreground truncate break-words">
+                      <p className="text-sm font-medium text-foreground break-words" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                         {idea.title}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
@@ -157,9 +157,9 @@ const RecentItemsAccordion: React.FC<RecentItemsAccordionProps> = ({
                         <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
                           task.completed ? 'bg-green-500' : 'bg-yellow-500'
                         }`} />
-                        <p className={`text-sm font-medium truncate break-words ${
+                        <p className={`text-sm font-medium break-words flex-1 min-w-0 ${
                           task.completed ? 'text-muted-foreground line-through' : 'text-foreground'
-                        }`}>
+                        }`} style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                           {task.title}
                         </p>
                       </div>
