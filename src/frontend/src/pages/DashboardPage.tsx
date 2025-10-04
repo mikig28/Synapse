@@ -421,9 +421,9 @@ const DashboardPage: React.FC = () => {
         </motion.div>
 
         {/* Stats controls + grid */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
-          <div className="text-xs sm:text-sm text-muted-foreground overflow-hidden">
-            <div className="flex gap-2 sm:gap-4 items-center flex-wrap">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3 overflow-x-hidden max-w-full">
+          <div className="text-xs sm:text-sm text-muted-foreground overflow-x-hidden max-w-full">
+            <div className="flex gap-2 sm:gap-4 items-center flex-wrap overflow-x-hidden max-w-full">
               {docCount !== undefined && <span className="whitespace-nowrap">Docs: {docCount}</span>}
               {meetingsCount !== undefined && <span className="whitespace-nowrap">Meetings: {meetingsCount}</span>}
               {typeof recentBookmarksCount === 'number' && <span className="whitespace-nowrap">Bookmarks: {recentBookmarksCount}</span>}
@@ -434,7 +434,7 @@ const DashboardPage: React.FC = () => {
               )}
             </div>
           </div>
-          <nav aria-label="Usage timeframe">
+          <nav aria-label="Usage timeframe" className="flex-shrink-0">
             <Tabs value={selectedPeriod} onValueChange={(v) => setSelectedPeriod(v as any)}>
               <TabsList>
                 <TabsTrigger value="daily">Daily</TabsTrigger>
@@ -445,7 +445,7 @@ const DashboardPage: React.FC = () => {
           </nav>
         </div>
 
-        <DashboardGrid columns={4} className="gap-3 sm:gap-4 lg:gap-6 min-w-0 mb-6">
+        <DashboardGrid columns={4} className="gap-3 sm:gap-4 lg:gap-6 min-w-0 mb-6 overflow-x-hidden max-w-full">
           {stats.map((stat, index) => (
             <AnimatedDashboardCard
               key={stat.title}
@@ -466,43 +466,43 @@ const DashboardPage: React.FC = () => {
           initial={{ opacity: 0, y: 30 }}
           animate={digestInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
           transition={{ duration: 0.6, delay: 0.1 }}
-          className="mb-6"
+          className="mb-6 overflow-x-hidden max-w-full"
         >
           {isBatchSummarizing ? (
-            <GlassCard className="border-2 border-primary/40">
-              <div className="p-4 sm:p-6" role="status" aria-live="polite">
-                <div className="flex items-center mb-4">
-                  <Zap className="w-5 h-5 mr-2 text-primary animate-pulse" />
-                  <h3 className="text-xl font-semibold">Generating Your Digest...</h3>
+            <GlassCard className="border-2 border-primary/40 overflow-hidden max-w-full">
+              <div className="p-4 sm:p-6 overflow-x-hidden max-w-full" role="status" aria-live="polite">
+                <div className="flex items-center mb-4 overflow-x-hidden max-w-full">
+                  <Zap className="w-5 h-5 mr-2 text-primary animate-pulse flex-shrink-0" />
+                  <h3 className="text-xl font-semibold truncate min-w-0">Generating Your Digest...</h3>
                 </div>
                 <SkeletonText lines={4} />
               </div>
             </GlassCard>
           ) : latestDigest ? (
-            <GlassCard className="animate-fade-in border-2 border-primary/40 bg-gradient-to-br from-primary/5 to-accent/5">
-              <div className="p-4 sm:p-6">
+            <GlassCard className="animate-fade-in border-2 border-primary/40 bg-gradient-to-br from-primary/5 to-accent/5 overflow-hidden max-w-full">
+              <div className="p-4 sm:p-6 overflow-x-hidden max-w-full">
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.5 }}
-                  className="flex items-center justify-between mb-4 gap-2"
+                  className="flex items-center justify-between mb-4 gap-2 overflow-x-hidden max-w-full"
                 >
-                  <div className="flex items-center flex-1 min-w-0">
+                  <div className="flex items-center flex-1 min-w-0 overflow-hidden">
                     <div className="p-2 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full mr-3 flex-shrink-0">
                       <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
                     </div>
-                    <h3 className="text-lg sm:text-xl font-semibold gradient-text">
+                    <h3 className="text-lg sm:text-xl font-semibold gradient-text truncate min-w-0">
                       Latest Bookmarks Digest
                     </h3>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <Button variant="ghost" size="icon" onClick={handleReadAloud} title={isSpeaking ? "Stop Reading" : "Read Aloud"}>
+                    <Button variant="ghost" size="icon" onClick={handleReadAloud} title={isSpeaking ? "Stop Reading" : "Read Aloud"} className="flex-shrink-0">
                       <Volume2 className={`w-5 h-5 ${isSpeaking ? "text-destructive" : "text-primary"}`} />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={handleClearDigest} title="Clear Digest">
+                    <Button variant="ghost" size="icon" onClick={handleClearDigest} title="Clear Digest" className="flex-shrink-0">
                       <XCircle className="w-5 h-5 text-muted-foreground hover:text-destructive" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={handleSummarizeLatestClick} title="Regenerate Digest">
+                    <Button variant="ghost" size="icon" onClick={handleSummarizeLatestClick} title="Regenerate Digest" className="flex-shrink-0">
                       <RefreshCw className="w-5 h-5 text-muted-foreground hover:text-primary" />
                     </Button>
                   </div>
@@ -512,6 +512,7 @@ const DashboardPage: React.FC = () => {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.7, delay: 0.2 }}
+                  className="overflow-x-hidden max-w-full"
                 >
                   {latestDigest.startsWith("OPENAI_API_KEY not configured") ||
                    latestDigest.startsWith("Failed to extract summary") ||
@@ -520,30 +521,30 @@ const DashboardPage: React.FC = () => {
                    latestDigest.startsWith("Could not generate a digest") ||
                    latestDigest.startsWith("No valid content") ||
                    latestDigest.startsWith("No new bookmarks") ? (
-                    <Alert variant="destructive" className="glass border-red-500/20">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>Digest Generation Issue</AlertTitle>
-                      <AlertDescription>{latestDigest}</AlertDescription>
+                    <Alert variant="destructive" className="glass border-red-500/20 overflow-hidden max-w-full">
+                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                      <AlertTitle className="overflow-hidden max-w-full" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>Digest Generation Issue</AlertTitle>
+                      <AlertDescription className="overflow-hidden max-w-full" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{latestDigest}</AlertDescription>
                     </Alert>
                   ) : (
                     <div className="prose prose-sm sm:prose dark:prose-invert max-w-none overflow-hidden">
-                      <p className="text-sm leading-relaxed break-words" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{latestDigest}</p>
+                      <p className="text-sm leading-relaxed overflow-hidden max-w-full" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{latestDigest}</p>
                     </div>
                   )}
                 </motion.div>
               </div>
             </GlassCard>
           ) : (
-            <GlassCard className="border-dashed border-2 border-primary/30">
-              <div className="p-6 text-center">
+            <GlassCard className="border-dashed border-2 border-primary/30 overflow-hidden max-w-full">
+              <div className="p-6 text-center overflow-x-hidden max-w-full">
                 <div className="inline-flex p-3 bg-primary/10 rounded-full mb-4">
                   <FileText className="w-8 h-8 text-primary" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">No Digest Available</h3>
-                <p className="text-sm text-muted-foreground mb-4">Generate a digest from your latest bookmarks</p>
+                <h3 className="text-lg font-semibold mb-2 overflow-hidden max-w-full" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>No Digest Available</h3>
+                <p className="text-sm text-muted-foreground mb-4 overflow-hidden max-w-full" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>Generate a digest from your latest bookmarks</p>
                 <AnimatedButton variant="primary" onClick={handleSummarizeLatestClick} size="lg">
-                  <Zap className="w-4 h-4 mr-2" />
-                  Generate Digest
+                  <Zap className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <span className="truncate">Generate Digest</span>
                 </AnimatedButton>
               </div>
             </GlassCard>
@@ -556,17 +557,17 @@ const DashboardPage: React.FC = () => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.2 }}
-        className="mt-6 mb-6"
+        className="mt-6 mb-6 overflow-x-hidden max-w-full"
       >
-        <GlassCard className="min-w-0 overflow-hidden">
-          <div className="p-4 sm:p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
+        <GlassCard className="min-w-0 max-w-full overflow-hidden">
+          <div className="p-4 sm:p-6 overflow-x-hidden max-w-full">
+            <div className="flex items-center justify-between mb-4 gap-2 overflow-x-hidden max-w-full">
+              <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
                 <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
-                <h3 className="text-base sm:text-lg font-semibold truncate">Recent WhatsApp Summaries</h3>
+                <h3 className="text-base sm:text-lg font-semibold truncate min-w-0">Recent WhatsApp Summaries</h3>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground hidden sm:inline">Last 7 days</span>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="text-xs text-muted-foreground hidden sm:inline whitespace-nowrap">Last 7 days</span>
                 <AnimatedButton
                   variant="ghost"
                   size="sm"
@@ -582,43 +583,43 @@ const DashboardPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 overflow-x-hidden max-w-full">
               {recentSummaries.map((summary, index) => (
                 <motion.div
                   key={summary.groupId}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.3, delay: index * 0.1 }}
-                  className="flex flex-col sm:flex-row items-start justify-between p-3 rounded-lg border border-border/40 bg-background/60 backdrop-blur hover:bg-background/80 transition-colors gap-3"
+                  className="flex flex-col sm:flex-row items-start justify-between p-3 rounded-lg border border-border/40 bg-background/60 backdrop-blur hover:bg-background/80 transition-colors gap-3 overflow-x-hidden max-w-full"
                 >
-                  <div className="flex-1 min-w-0 w-full overflow-hidden">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <h4 className="text-sm font-medium text-foreground truncate flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 w-full max-w-full overflow-hidden">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap overflow-x-hidden max-w-full">
+                      <h4 className="text-sm font-medium text-foreground truncate flex-1 min-w-0 max-w-full" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
                         {summary.groupName}
                       </h4>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary whitespace-nowrap">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary whitespace-nowrap flex-shrink-0">
                         {summary.totalMessages} msg
                       </span>
                     </div>
-                    <div className="text-xs text-muted-foreground space-y-0.5">
-                      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                    <div className="text-xs text-muted-foreground space-y-0.5 overflow-x-hidden max-w-full">
+                      <div className="flex items-center gap-2 sm:gap-3 flex-wrap overflow-x-hidden max-w-full">
                         <span className="whitespace-nowrap">📅 {summary.summaryDate.toLocaleDateString()}</span>
                         <span className="whitespace-nowrap">👥 {summary.activeParticipants}</span>
                       </div>
-                      <div className="truncate">
+                      <div className="truncate overflow-x-hidden max-w-full">
                         ⏱️ {formatDistanceToNow(summary.generatedAt || new Date(), { addSuffix: true })}
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2 break-words">
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2 overflow-hidden max-w-full" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
                       {summary.overallSummary || ''}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1 sm:ml-3 flex-shrink-0">
+                  <div className="flex items-center gap-1 sm:ml-3 flex-shrink-0 w-full sm:w-auto justify-end sm:justify-start">
                     <AnimatedButton
                       variant="ghost"
                       size="sm"
                       onClick={() => downloadSummary(summary)}
-                      className="text-muted-foreground hover:text-foreground p-2"
+                      className="text-muted-foreground hover:text-foreground p-2 flex-shrink-0"
                     >
                       <Download className="w-3 h-3 sm:w-4 sm:h-4" />
                     </AnimatedButton>
@@ -626,7 +627,7 @@ const DashboardPage: React.FC = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleNavigate('/whatsapp-monitor')}
-                      className="text-muted-foreground hover:text-foreground p-2"
+                      className="text-muted-foreground hover:text-foreground p-2 flex-shrink-0"
                     >
                       <MessageSquare className="w-3 h-3 sm:w-4 sm:h-4" />
                     </AnimatedButton>
@@ -635,7 +636,7 @@ const DashboardPage: React.FC = () => {
               ))}
             </div>
 
-            <div className="mt-4 pt-3 border-t border-border/40">
+            <div className="mt-4 pt-3 border-t border-border/40 overflow-x-hidden max-w-full">
               <AnimatedButton
                 variant="outline"
                 size="sm"
@@ -655,86 +656,93 @@ const DashboardPage: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.3 }}
-          className="mb-6 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 max-w-full overflow-hidden"
+          className="mb-6 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 max-w-full overflow-x-hidden"
         >
           <GlassCard className="min-w-0 max-w-full overflow-hidden">
-            <div className="p-4 sm:p-6">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-base sm:text-lg font-semibold truncate">Telegram Feed</h3>
-                <span className="text-xs text-muted-foreground">Live</span>
+            <div className="p-4 sm:p-6 overflow-x-hidden max-w-full">
+              <div className="flex items-center justify-between mb-3 gap-2 overflow-x-hidden max-w-full">
+                <h3 className="text-base sm:text-lg font-semibold truncate min-w-0">Telegram Feed</h3>
+                <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">Live</span>
               </div>
-              <TelegramFeed />
+              <div className="overflow-x-hidden max-w-full">
+                <TelegramFeed />
+              </div>
             </div>
           </GlassCard>
 
           <GlassCard className="h-full min-w-0 max-w-full overflow-hidden">
-            <div className="p-4 sm:p-6 h-full flex flex-col min-w-0 max-w-full overflow-hidden">
-              <div className="flex items-center justify-between mb-2 gap-2">
-                <h3 className="text-base sm:text-lg font-semibold truncate">Featured Content</h3>
-                <span className="text-xs text-muted-foreground whitespace-nowrap">Curated</span>
+            <div className="p-4 sm:p-6 h-full flex flex-col min-w-0 max-w-full overflow-x-hidden">
+              <div className="flex items-center justify-between mb-2 gap-2 overflow-x-hidden max-w-full">
+                <h3 className="text-base sm:text-lg font-semibold truncate min-w-0">Featured Content</h3>
+                <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">Curated</span>
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 flex-1 min-w-0 max-w-full overflow-hidden">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 flex-1 min-w-0 max-w-full overflow-x-hidden">
                 <div className="rounded-xl border border-border/40 bg-background/60 p-3 sm:p-4 backdrop-blur min-w-0 max-w-full overflow-hidden">
-                  <h4 className="text-xs sm:text-sm font-semibold mb-2 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                    Recommended Video
+                  <h4 className="text-xs sm:text-sm font-semibold mb-2 flex items-center gap-2 overflow-x-hidden max-w-full">
+                    <span className="w-2 h-2 rounded-full bg-primary animate-pulse flex-shrink-0" />
+                    <span className="truncate min-w-0">Recommended Video</span>
                   </h4>
-                  <RecentVideo />
+                  <div className="overflow-x-hidden max-w-full">
+                    <RecentVideo />
+                  </div>
                 </div>
                 <div className="rounded-xl border border-border/30 bg-background/60 p-3 sm:p-4 backdrop-blur flex flex-col min-w-0 max-w-full overflow-hidden">
-                  <h4 className="text-xs sm:text-sm font-semibold mb-2">Active Bookmarks</h4>
-                  <div className="flex items-center justify-between text-xs mb-3 text-muted-foreground flex-wrap gap-1">
-                    <span>Saved • last 24h</span>
-                    <span>{recentBookmarksCount ?? '—'} total</span>
+                  <h4 className="text-xs sm:text-sm font-semibold mb-2 overflow-x-hidden max-w-full">Active Bookmarks</h4>
+                  <div className="flex items-center justify-between text-xs mb-3 text-muted-foreground flex-wrap gap-1 overflow-x-hidden max-w-full">
+                    <span className="whitespace-nowrap">Saved • last 24h</span>
+                    <span className="whitespace-nowrap">{recentBookmarksCount ?? '—'} total</span>
                   </div>
-                  <div className="space-y-3 flex-1 overflow-hidden">
-                    <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
-                      <div>
-                        <p className="font-semibold text-foreground text-sm">
+                  <div className="space-y-3 flex-1 overflow-x-hidden max-w-full">
+                    <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground overflow-x-hidden max-w-full">
+                      <div className="min-w-0 overflow-hidden">
+                        <p className="font-semibold text-foreground text-sm truncate">
                           {bookmarkStatusCounts.pending ?? 0}
                         </p>
-                        <p>Pending</p>
+                        <p className="truncate">Pending</p>
                       </div>
-                      <div>
-                        <p className="font-semibold text-foreground text-sm">
+                      <div className="min-w-0 overflow-hidden">
+                        <p className="font-semibold text-foreground text-sm truncate">
                           {bookmarkStatusCounts.summarized ?? 0}
                         </p>
-                        <p>Summarized</p>
+                        <p className="truncate">Summarized</p>
                       </div>
-                      <div>
-                        <p className="font-semibold text-foreground text-sm">
+                      <div className="min-w-0 overflow-hidden">
+                        <p className="font-semibold text-foreground text-sm truncate">
                           {bookmarkStatusCounts.error ?? 0}
                         </p>
-                        <p>Need attention</p>
+                        <p className="truncate">Need attention</p>
                       </div>
                     </div>
-                    <ul className="space-y-2 overflow-y-auto pr-1 min-h-[120px]">
+                    <ul className="space-y-2 overflow-y-auto overflow-x-hidden pr-1 min-h-[120px] max-w-full">
                       {recentBookmarks.map((bookmark) => (
-                        <li key={bookmark._id}>
+                        <li key={bookmark._id} className="overflow-x-hidden max-w-full">
                           <a
                             href={bookmark.originalUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-sm text-primary hover:underline line-clamp-2 break-words"
+                            className="text-sm text-primary hover:underline line-clamp-2 overflow-hidden max-w-full"
+                            style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
                           >
                             {bookmark.title || bookmark.originalUrl}
                           </a>
-                          <span className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
-                            {new Date(bookmark.createdAt).toLocaleDateString()}
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-xs uppercase tracking-wide">
+                          <span className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap overflow-x-hidden max-w-full">
+                            <span className="whitespace-nowrap">{new Date(bookmark.createdAt).toLocaleDateString()}</span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-xs uppercase tracking-wide whitespace-nowrap">
                               {bookmark.status || 'pending'}
                             </span>
                           </span>
                         </li>
                       ))}
                       {recentBookmarks.length === 0 && (
-                        <li className="text-sm text-muted-foreground">Capture articles or links to see them here.</li>
+                        <li className="text-sm text-muted-foreground overflow-hidden max-w-full" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                          Capture articles or links to see them here.
+                        </li>
                       )}
                     </ul>
                     <AnimatedButton
                       variant="outline"
                       size="sm"
-                      className="self-start"
+                      className="self-start w-full sm:w-auto"
                       onClick={handleSummarizeLatestClick}
                       disabled={isBatchSummarizing}
                     >
@@ -752,9 +760,11 @@ const DashboardPage: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          className="mb-6"
+          className="mb-6 overflow-x-hidden max-w-full"
         >
-          <QuickActionsBar onAddNote={handleAddNoteClick} />
+          <div className="overflow-x-hidden max-w-full">
+            <QuickActionsBar onAddNote={handleAddNoteClick} />
+          </div>
         </motion.div>
 
         {/* UPCOMING EVENTS */}
@@ -762,48 +772,54 @@ const DashboardPage: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.45 }}
-          className="mb-6"
+          className="mb-6 overflow-x-hidden max-w-full"
         >
-          <UpcomingEvents />
+          <div className="overflow-x-hidden max-w-full">
+            <UpcomingEvents />
+          </div>
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.3 }}
-          className="mt-6 mb-6"
+          className="mt-6 mb-6 overflow-x-hidden max-w-full"
         >
-          <GlassCard className="overflow-hidden border border-border/40 min-w-0">
+          <GlassCard className="overflow-hidden border border-border/40 min-w-0 max-w-full">
             <Accordion type="single" collapsible defaultValue="intelligence-hub">
               <AccordionItem value="intelligence-hub" className="border-none">
-                <AccordionTrigger className="px-3 sm:px-6">
-                  <div className="flex w-full items-center justify-between gap-2 min-w-0">
-                    <div className="flex items-center gap-2 text-left min-w-0">
+                <AccordionTrigger className="px-3 sm:px-6 overflow-x-hidden max-w-full">
+                  <div className="flex w-full items-center justify-between gap-2 min-w-0 overflow-x-hidden max-w-full">
+                    <div className="flex items-center gap-2 text-left min-w-0 overflow-hidden">
                       <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
-                      <h3 className="text-sm sm:text-base lg:text-lg font-semibold truncate">Intelligence Hub</h3>
+                      <h3 className="text-sm sm:text-base lg:text-lg font-semibold truncate min-w-0">Intelligence Hub</h3>
                     </div>
-                    <span className="hidden text-xs text-muted-foreground lg:inline whitespace-nowrap">Monitor • Track</span>
+                    <span className="hidden text-xs text-muted-foreground lg:inline whitespace-nowrap flex-shrink-0">Monitor • Track</span>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="px-3 sm:px-6">
-                  <div className="mt-3 sm:mt-5 grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-6 overflow-hidden min-w-0">
-                    <div className="rounded-xl border border-border/30 bg-background/60 p-3 sm:p-5 backdrop-blur min-w-0">
-                      <div className="mb-3 flex items-center justify-between gap-2">
-                        <h4 className="text-sm sm:text-base font-semibold">Agent Analytics</h4>
-                        <span className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">Live</span>
+                <AccordionContent className="px-3 sm:px-6 overflow-x-hidden max-w-full">
+                  <div className="mt-3 sm:mt-5 grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-6 overflow-x-hidden min-w-0 max-w-full">
+                    <div className="rounded-xl border border-border/30 bg-background/60 p-3 sm:p-5 backdrop-blur min-w-0 max-w-full overflow-hidden">
+                      <div className="mb-3 flex items-center justify-between gap-2 overflow-x-hidden max-w-full">
+                        <h4 className="text-sm sm:text-base font-semibold truncate min-w-0">Agent Analytics</h4>
+                        <span className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">Live</span>
                       </div>
-                      {isMobile ? (
-                        <MobileMetricsDashboard agents={agents} recentRuns={recentRuns} />
-                      ) : (
-                        <MetricsDashboard agents={agents} recentRuns={recentRuns} />
-                      )}
+                      <div className="overflow-x-hidden max-w-full">
+                        {isMobile ? (
+                          <MobileMetricsDashboard agents={agents} recentRuns={recentRuns} />
+                        ) : (
+                          <MetricsDashboard agents={agents} recentRuns={recentRuns} />
+                        )}
+                      </div>
                     </div>
-                    <div className="rounded-xl border border-border/30 bg-background/60 p-3 sm:p-5 backdrop-blur min-w-0">
-                      <div className="mb-3 flex items-center justify-between gap-2">
-                        <h4 className="text-sm sm:text-base font-semibold">Usage Trends</h4>
-                        <span className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">Billing</span>
+                    <div className="rounded-xl border border-border/30 bg-background/60 p-3 sm:p-5 backdrop-blur min-w-0 max-w-full overflow-hidden">
+                      <div className="mb-3 flex items-center justify-between gap-2 overflow-x-hidden max-w-full">
+                        <h4 className="text-sm sm:text-base font-semibold truncate min-w-0">Usage Trends</h4>
+                        <span className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">Billing</span>
                       </div>
-                      <UsageDashboard />
+                      <div className="overflow-x-hidden max-w-full">
+                        <UsageDashboard />
+                      </div>
                     </div>
                   </div>
                 </AccordionContent>
@@ -817,13 +833,15 @@ const DashboardPage: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.5 }}
-          className="mb-6"
+          className="mb-6 overflow-x-hidden max-w-full"
         >
-          <RecentItemsAccordion
-            notes={recentNotes}
-            ideas={recentIdeas}
-            tasks={recentTasks}
-          />
+          <div className="overflow-x-hidden max-w-full">
+            <RecentItemsAccordion
+              notes={recentNotes}
+              ideas={recentIdeas}
+              tasks={recentTasks}
+            />
+          </div>
         </motion.div>
       </div>
       {/* Add Note Modal */}
