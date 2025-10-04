@@ -39,53 +39,57 @@ const TelegramFeed: React.FC = () => {
   };
 
   return (
-    <div className="telegram-feed-container mobile-card p-3 sm:p-4 border rounded-lg shadow-md bg-card w-full max-w-full overflow-hidden">
-      <h2 className="text-xl font-semibold mb-3 text-card-foreground">Telegram Feed</h2>
-      <p className="mb-2 text-sm text-muted-foreground">
-        Socket Status: {
-          isConnected ? <span className="text-green-500">Connected</span> : <span className="text-red-500">Disconnected</span>
-        }
-      </p>
+    <div className="telegram-feed-container w-full max-w-full min-w-0 overflow-hidden">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-xs sm:text-sm text-muted-foreground truncate">
+          Socket: {
+            isConnected ? <span className="text-green-500">Connected</span> : <span className="text-red-500">Disconnected</span>
+          }
+        </p>
+      </div>
       {telegramItems.length === 0 && (
-        <p className="text-muted-foreground">No Telegram messages yet. Send a message to your bot!</p>
+        <p className="text-xs sm:text-sm text-muted-foreground break-words">No Telegram messages yet. Send a message to your bot!</p>
       )}
-      <ul className="space-y-3 max-h-72 sm:max-h-80 md:max-h-96 overflow-y-auto pr-2 mobile-scroll w-full"> {/* Added pr-2 for scrollbar spacing */}
+      <ul className="space-y-3 max-h-72 sm:max-h-80 md:max-h-96 overflow-y-auto pr-2 w-full min-w-0">
         {telegramItems.map((item: TelegramItemType) => (
-          <motion.li key={item._id} className="mobile-card p-3 sm:p-3 border rounded-md bg-background shadow-sm relative group w-full max-w-full overflow-hidden">
+          <motion.li 
+            key={item._id} 
+            className="p-3 border rounded-md bg-background shadow-sm relative group w-full min-w-0 overflow-hidden"
+          >
             <button 
               onClick={() => handleDelete(item._id, item.title || item.content || item.text || item.messageType)} 
-              className="absolute top-1 right-1 p-1.5 text-muted-foreground hover:text-destructive opacity-75 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100 transition-opacity rounded-full hover:bg-muted/50 tap-target touch-manipulation"
+              className="absolute top-1 right-1 p-1.5 text-muted-foreground hover:text-destructive opacity-75 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100 transition-opacity rounded-full hover:bg-muted/50 touch-manipulation z-10"
               title="Delete item"
             >
-              <X size={16} />
+              <X size={14} className="sm:w-4 sm:h-4" />
             </button>
-            <div className="flex flex-col sm:flex-row sm:justify-between items-start sm:items-center mb-1 w-full max-w-full min-w-0">
-              <span className="font-medium text-sm text-primary truncate max-w-full min-w-0">
-                {item.fromUsername || 'Unknown User'} ({item.chatTitle || 'DM'})
+            <div className="flex flex-col gap-1 mb-2 w-full min-w-0 pr-8">
+              <span className="font-medium text-xs sm:text-sm text-primary truncate">
+                {item.fromUsername || 'Unknown User'} {item.chatTitle && `(${item.chatTitle})`}
               </span>
-              <span className="text-xs text-muted-foreground mt-1 sm:mt-0 text-left sm:text-right flex-shrink-0">
+              <span className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">
                 {new Date(item.receivedAt).toLocaleString()}
               </span>
             </div>
-            <p className="text-sm text-foreground mb-1 line-clamp-3 break-words overflow-wrap-anywhere w-full max-w-full mobile-text-wrap">
+            <p className="text-xs sm:text-sm text-foreground mb-1 line-clamp-3 break-words w-full min-w-0">
               {getMainContent(item)}
             </p>
             
             {/* Display raw transcription if source is voice memo and transcription exists */}
             {item.source === 'telegram_voice_memo' && item.rawTranscription && (
-              <div className="mt-2 pt-2 border-t border-border">
+              <div className="mt-2 pt-2 border-t border-border min-w-0">
                 <div className="flex items-center text-xs text-muted-foreground mb-1">
-                  <MessageSquareText size={14} className="mr-1.5" />
-                  <span>Original Transcription:</span>
+                  <MessageSquareText size={12} className="mr-1.5 flex-shrink-0" />
+                  <span className="truncate">Original Transcription:</span>
                 </div>
-                <p className="text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 p-2 rounded-md break-words overflow-wrap-anywhere w-full max-w-full mobile-text-wrap">
+                <p className="text-[10px] sm:text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 p-2 rounded-md break-words w-full min-w-0">
                   {item.rawTranscription}
                 </p>
               </div>
             )}
 
             {item.messageType === 'photo' && item.mediaGridFsId && (
-              <div className="mt-2 rounded-lg overflow-hidden max-w-full h-auto">
+              <div className="mt-2 rounded-lg overflow-hidden w-full max-w-full">
                 <a href={`/media/${item.mediaGridFsId}`} target="_blank" rel="noopener noreferrer" className="block">
                   <SecureImage 
                     imageId={item.mediaGridFsId}
@@ -96,24 +100,20 @@ const TelegramFeed: React.FC = () => {
               </div>
             )}
             {item.urls && item.urls.length > 0 && (
-              <div className="mt-1 w-full max-w-full min-w-0">
+              <div className="mt-2 w-full min-w-0 space-y-1">
                 {item.urls.map((url, index) => (
                   <a 
                     key={index} 
                     href={url} 
                     target="_blank" 
                     rel="noopener noreferrer" 
-                    className="text-xs text-indigo-500 hover:underline mr-2 min-h-[32px] flex items-center touch-manipulation break-all max-w-full mobile-text-wrap"
+                    className="text-[10px] sm:text-xs text-indigo-500 hover:underline min-h-[28px] flex items-center touch-manipulation break-all w-full"
                   >
                     {url}
                   </a>
                 ))}
               </div>
             )}
-             {/* Debug: Display source and messageType for clarity */}
-            {/* <div className="text-xs text-gray-400 mt-2">
-              Source: {item.source || 'N/A'} | Type: {item.messageType || 'N/A'} | ID: {item._id}
-            </div> */}
           </motion.li>
         ))}
       </ul>
@@ -121,4 +121,4 @@ const TelegramFeed: React.FC = () => {
   );
 };
 
-export default TelegramFeed; 
+export default TelegramFeed;

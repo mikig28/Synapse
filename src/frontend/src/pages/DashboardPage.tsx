@@ -470,7 +470,7 @@ const DashboardPage: React.FC = () => {
         >
           {isBatchSummarizing ? (
             <GlassCard className="border-2 border-primary/40">
-              <div className="p-6" role="status" aria-live="polite">
+              <div className="p-4 sm:p-6" role="status" aria-live="polite">
                 <div className="flex items-center mb-4">
                   <Zap className="w-5 h-5 mr-2 text-primary animate-pulse" />
                   <h3 className="text-xl font-semibold">Generating Your Digest...</h3>
@@ -489,7 +489,7 @@ const DashboardPage: React.FC = () => {
                 >
                   <div className="flex items-center flex-1 min-w-0">
                     <div className="p-2 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full mr-3 flex-shrink-0">
-                      <Zap className="w-5 h-5 text-primary" />
+                      <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
                     </div>
                     <h3 className="text-lg sm:text-xl font-semibold gradient-text">
                       Latest Bookmarks Digest
@@ -556,17 +556,17 @@ const DashboardPage: React.FC = () => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.2 }}
-        className="mt-8"
+        className="mt-6 mb-6"
       >
-        <GlassCard>
-          <div className="p-6">
+        <GlassCard className="min-w-0 overflow-hidden">
+          <div className="p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-primary" />
-                <h3 className="text-lg font-semibold">Recent WhatsApp Summaries</h3>
+                <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+                <h3 className="text-base sm:text-lg font-semibold truncate">Recent WhatsApp Summaries</h3>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Last 7 days</span>
+                <span className="text-xs text-muted-foreground hidden sm:inline">Last 7 days</span>
                 <AnimatedButton
                   variant="ghost"
                   size="sm"
@@ -574,9 +574,9 @@ const DashboardPage: React.FC = () => {
                   disabled={summariesLoading}
                 >
                   {summariesLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
                   ) : (
-                    <RefreshCw className="w-4 h-4" />
+                    <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
                   )}
                 </AnimatedButton>
               </div>
@@ -660,7 +660,7 @@ const DashboardPage: React.FC = () => {
           <GlassCard className="min-w-0">
             <div className="p-4 sm:p-6">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-base sm:text-lg font-semibold">Telegram Feed</h3>
+                <h3 className="text-base sm:text-lg font-semibold truncate">Telegram Feed</h3>
                 <span className="text-xs text-muted-foreground">Live</span>
               </div>
               <TelegramFeed />
@@ -670,7 +670,7 @@ const DashboardPage: React.FC = () => {
           <GlassCard className="h-full min-w-0">
             <div className="p-4 sm:p-6 h-full flex flex-col min-w-0">
               <div className="flex items-center justify-between mb-2 gap-2">
-                <h3 className="text-base sm:text-lg font-semibold">Featured Content</h3>
+                <h3 className="text-base sm:text-lg font-semibold truncate">Featured Content</h3>
                 <span className="text-xs text-muted-foreground whitespace-nowrap">Curated</span>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 flex-1 min-w-0">
@@ -771,7 +771,7 @@ const DashboardPage: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.3 }}
-          className="mt-8"
+          className="mt-6 mb-6"
         >
           <GlassCard className="overflow-hidden border border-border/40 min-w-0">
             <Accordion type="single" collapsible defaultValue="intelligence-hub">
