@@ -5,6 +5,7 @@
 
 import WhatsAppImageExtractor, { ImageExtractionResult } from './whatsappImageExtractor';
 import WhatsAppImage, { IWhatsAppImage } from '../models/WhatsAppImage';
+import imageAnalysisService from './imageAnalysisService';
 import fs from 'fs/promises';
 import path from 'path';
 import sharp from 'sharp';
@@ -141,6 +142,23 @@ class WhatsAppImageService {
         await imageRecord.save();
         
         console.log(`[WhatsApp Image Service] ✅ Successfully extracted image for message ${request.messageId}`);
+        
+        // Automatically analyze image with AI (don't wait, run asynchronously)
+        console.log(`[WhatsApp Image Service] 🔍 Starting AI analysis for image ${imageRecord.localPath}`);
+        imageAnalysisService.analyzeImageFromFile(imageRecord.localPath)
+          .then(async (analysis) => {
+            try {
+              await WhatsAppImage.findByIdAndUpdate(imageRecord._id, {
+                aiAnalysis: analysis
+              });
+              console.log(`[WhatsApp Image Service] ✅ AI analysis complete for image ${imageRecord._id}: ${analysis.mainCategory}`);
+            } catch (error) {
+              console.error(`[WhatsApp Image Service] ❌ Error saving AI analysis:`, error);
+            }
+          })
+          .catch((error) => {
+            console.error(`[WhatsApp Image Service] ❌ AI analysis failed for image ${imageRecord._id}:`, error);
+          });
         
         return {
           success: true,
