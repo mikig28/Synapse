@@ -401,7 +401,7 @@ const DashboardPage: React.FC = () => {
         />
       </div>
 
-      <div id="dashboard-main" className="relative z-10 container mx-auto p-2 sm:p-4 md:p-8">
+      <div id="dashboard-main" className="relative z-10 container mx-auto p-3 sm:p-4 md:p-8">
         {/* Header Section */}
         <motion.div
           ref={headerRef}
@@ -526,8 +526,8 @@ const DashboardPage: React.FC = () => {
                       <AlertDescription>{latestDigest}</AlertDescription>
                     </Alert>
                   ) : (
-                    <div className="prose dark:prose-invert max-w-none">
-                      <p className="text-sm leading-relaxed">{latestDigest}</p>
+                    <div className="prose prose-sm sm:prose dark:prose-invert max-w-none">
+                      <p className="text-sm leading-relaxed break-words overflow-wrap-break-word">{latestDigest}</p>
                     </div>
                   )}
                 </motion.div>
@@ -591,9 +591,9 @@ const DashboardPage: React.FC = () => {
                   transition={{ duration: 0.3, delay: index * 0.1 }}
                   className="flex flex-col sm:flex-row items-start justify-between p-3 rounded-lg border border-border/40 bg-background/60 backdrop-blur hover:bg-background/80 transition-colors gap-3"
                 >
-                  <div className="flex-1 min-w-0 w-full">
+                  <div className="flex-1 min-w-0 w-full overflow-hidden">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <h4 className="text-sm font-medium text-foreground truncate max-w-[200px] sm:max-w-none">
+                      <h4 className="text-sm font-medium text-foreground truncate flex-1 min-w-0">
                         {summary.groupName}
                       </h4>
                       <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary whitespace-nowrap">
@@ -609,7 +609,7 @@ const DashboardPage: React.FC = () => {
                         ⏱️ {formatDistanceToNow(summary.generatedAt || new Date(), { addSuffix: true })}
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2 break-words">
                       {summary.overallSummary || ''}
                     </p>
                   </div>
@@ -683,12 +683,12 @@ const DashboardPage: React.FC = () => {
                 </div>
                 <div className="rounded-xl border border-border/30 bg-background/60 p-3 sm:p-4 backdrop-blur flex flex-col min-w-0">
                   <h4 className="text-xs sm:text-sm font-semibold mb-2">Active Bookmarks</h4>
-                  <div className="flex items-center justify-between text-[10px] sm:text-xs mb-3 text-muted-foreground flex-wrap gap-1">
+                  <div className="flex items-center justify-between text-xs mb-3 text-muted-foreground flex-wrap gap-1">
                     <span>Saved • last 24h</span>
                     <span>{recentBookmarksCount ?? '—'} total</span>
                   </div>
                   <div className="space-y-3 flex-1 overflow-hidden">
-                    <div className="grid grid-cols-3 gap-2 text-[11px] text-muted-foreground">
+                    <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
                       <div>
                         <p className="font-semibold text-foreground text-sm">
                           {bookmarkStatusCounts.pending ?? 0}
@@ -715,13 +715,13 @@ const DashboardPage: React.FC = () => {
                             href={bookmark.originalUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-sm text-primary hover:underline line-clamp-2"
+                            className="text-sm text-primary hover:underline line-clamp-2 break-words"
                           >
                             {bookmark.title || bookmark.originalUrl}
                           </a>
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
                             {new Date(bookmark.createdAt).toLocaleDateString()}
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-[10px] uppercase tracking-wide">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-xs uppercase tracking-wide">
                               {bookmark.status || 'pending'}
                             </span>
                           </span>

@@ -56,8 +56,8 @@ const RecentItemsAccordion: React.FC<RecentItemsAccordionProps> = ({
                     className="flex items-start justify-between p-3 rounded-lg bg-background/60 border border-border/40 hover:bg-background/80 transition-colors cursor-pointer group"
                     onClick={() => navigate('/notes')}
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <p className="text-sm font-medium text-foreground truncate break-words">
                         {note.title || note.content.slice(0, 60)}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
@@ -104,8 +104,8 @@ const RecentItemsAccordion: React.FC<RecentItemsAccordionProps> = ({
                     className="flex items-start justify-between p-3 rounded-lg bg-background/60 border border-border/40 hover:bg-background/80 transition-colors cursor-pointer group"
                     onClick={() => navigate('/ideas')}
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <p className="text-sm font-medium text-foreground truncate break-words">
                         {idea.title}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
@@ -152,12 +152,12 @@ const RecentItemsAccordion: React.FC<RecentItemsAccordionProps> = ({
                     className="flex items-start justify-between p-3 rounded-lg bg-background/60 border border-border/40 hover:bg-background/80 transition-colors cursor-pointer group"
                     onClick={() => navigate('/tasks')}
                   >
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 overflow-hidden">
                       <div className="flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
                           task.completed ? 'bg-green-500' : 'bg-yellow-500'
                         }`} />
-                        <p className={`text-sm font-medium truncate ${
+                        <p className={`text-sm font-medium truncate break-words ${
                           task.completed ? 'text-muted-foreground line-through' : 'text-foreground'
                         }`}>
                           {task.title}

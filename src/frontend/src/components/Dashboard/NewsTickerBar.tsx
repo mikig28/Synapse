@@ -118,7 +118,7 @@ const NewsTickerBar: React.FC = () => {
                       {article.category.slice(0, 4)}
                     </span>
                   )}
-                  <span className="text-[10px] sm:text-xs text-foreground font-medium group-hover:text-primary transition-colors whitespace-nowrap max-w-[150px] sm:max-w-[300px] truncate">
+                  <span className="text-[10px] sm:text-xs text-foreground font-medium group-hover:text-primary transition-colors whitespace-nowrap max-w-[180px] sm:max-w-[300px] truncate break-words">
                     {article.title}
                   </span>
                   {!article.isRead && (

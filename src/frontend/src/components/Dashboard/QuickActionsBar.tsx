@@ -99,8 +99,8 @@ const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
                       {action.badge > 99 ? '99+' : action.badge}
                     </span>
                   )}
-                  <Icon className="w-4 h-4 sm:w-5 sm:h-5 group-hover:scale-110 transition-transform" />
-                  <span className="text-xs font-medium">{action.label}</span>
+                  <Icon className="w-4 h-4 sm:w-5 sm:h-5 group-hover:scale-110 transition-transform flex-shrink-0" />
+                  <span className="text-xs font-medium text-center break-words">{action.label}</span>
                 </AnimatedButton>
               </motion.div>
             );
