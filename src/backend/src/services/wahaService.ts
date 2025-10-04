@@ -14,6 +14,7 @@ import GroupMonitorService from './groupMonitorService';
 import { transcribeAudio } from './transcriptionService';
 import { analyzeTranscription } from './analysisService';
 import { locationExtractionService } from './locationExtractionService';
+import { whatsappImageGridFSService } from './whatsappImageGridFSService';
 import Task from '../models/Task';
 import Note from '../models/Note';
 import Idea from '../models/Idea';
@@ -3234,6 +3235,35 @@ class WAHAService extends EventEmitter {
           } catch (saveError) {
             console.error('[WAHA Service] ❌ Failed to save image to database:', saveError);
           }
+        }
+
+        // 🆕 AUTO-SAVE IMAGE TO GRIDFS for permanent storage
+        // This prevents images from breaking when WAHA URLs expire
+        try {
+          // Find the message in database
+          const message = await WhatsAppMessage.findOne({ messageId: messageData.id });
+          if (message && (message.mediaUrl || baseMessageData.mediaUrl)) {
+            console.log('[WAHA Service] 🗄️ Auto-saving WhatsApp image to GridFS:', messageData.id);
+            
+            // Ensure message has mediaUrl if baseMessageData has it
+            if (!message.mediaUrl && baseMessageData.mediaUrl) {
+              message.mediaUrl = baseMessageData.mediaUrl;
+              await message.save();
+            }
+            
+            // Auto-save to GridFS in background (non-blocking)
+            whatsappImageGridFSService.autoSaveImageToGridFS(message).then(result => {
+              if (result.success) {
+                console.log('[WAHA Service] ✅ Image auto-saved to GridFS:', result.filename);
+              } else {
+                console.warn('[WAHA Service] ⚠️ GridFS auto-save failed:', result.error);
+              }
+            }).catch(err => {
+              console.error('[WAHA Service] ❌ GridFS auto-save error:', err);
+            });
+          }
+        } catch (gridfsError) {
+          console.error('[WAHA Service] ❌ Error in GridFS auto-save:', gridfsError);
         }
       } else if (mediaType === 'document') {
         this.emit('document-message', baseMessageData);
