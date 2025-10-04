@@ -15,6 +15,9 @@ import { AnimatedDashboardCard, DashboardGrid } from '@/components/animations/An
 import UpcomingEvents from '@/components/Dashboard/UpcomingEvents';
 import RecentVideo from '@/components/Dashboard/RecentVideo';
 import TelegramFeed from '@/components/Dashboard/TelegramFeed';
+import NewsTickerBar from '@/components/Dashboard/NewsTickerBar';
+import QuickActionsBar from '@/components/Dashboard/QuickActionsBar';
+import RecentItemsAccordion from '@/components/Dashboard/RecentItemsAccordion';
 import whatsappService, { WhatsAppConnectionStatus } from '@/services/whatsappService';
 import usageService, { UsageData } from '@/services/usageService';
 import { agentService } from '@/services/agentService';
@@ -366,6 +369,10 @@ const DashboardPage: React.FC = () => {
       <a href="#dashboard-main" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:bg-background focus:text-foreground focus:p-2 focus:rounded focus:z-50">
         Skip to main content
       </a>
+
+      {/* News Ticker Bar - Always on top */}
+      <NewsTickerBar />
+
       {/* Animated Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
         <motion.div
@@ -401,7 +408,7 @@ const DashboardPage: React.FC = () => {
           initial={{ opacity: 0, y: 30 }}
           animate={headerInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
           transition={{ duration: 0.6 }}
-          className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4"
+          className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4"
         >
           <div className="min-w-0">
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold gradient-text mb-2">
@@ -411,25 +418,6 @@ const DashboardPage: React.FC = () => {
               Welcome back! Here's what's happening with your digital brain.
             </p>
           </div>
-          
-          <AnimatedButton 
-            onClick={handleSummarizeLatestClick}
-            disabled={isBatchSummarizing}
-            variant="gradient"
-            size="lg"
-            loading={isBatchSummarizing}
-            className="min-h-12 hover-glow"
-            aria-label="Create latest digest"
-          >
-            {isBatchSummarizing ? (
-              <>Generating Digest...</>
-            ) : (
-              <>
-                <FileText className="w-5 h-5 mr-2" />
-                Create Latest Digest
-              </>
-            )}
-          </AnimatedButton>
         </motion.div>
 
         {/* Stats controls + grid */}
@@ -457,7 +445,7 @@ const DashboardPage: React.FC = () => {
           </nav>
         </div>
 
-        <DashboardGrid columns={4} className="gap-3 sm:gap-4 lg:gap-6 min-w-0">
+        <DashboardGrid columns={4} className="gap-3 sm:gap-4 lg:gap-6 min-w-0 mb-6">
           {stats.map((stat, index) => (
             <AnimatedDashboardCard
               key={stat.title}
@@ -471,6 +459,96 @@ const DashboardPage: React.FC = () => {
             />
           ))}
         </DashboardGrid>
+
+        {/* HERO SECTION - Latest Digest */}
+        <motion.div
+          ref={digestRef}
+          initial={{ opacity: 0, y: 30 }}
+          animate={digestInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
+          transition={{ duration: 0.6, delay: 0.1 }}
+          className="mb-6"
+        >
+          {isBatchSummarizing ? (
+            <GlassCard className="border-2 border-primary/40">
+              <div className="p-6" role="status" aria-live="polite">
+                <div className="flex items-center mb-4">
+                  <Zap className="w-5 h-5 mr-2 text-primary animate-pulse" />
+                  <h3 className="text-xl font-semibold">Generating Your Digest...</h3>
+                </div>
+                <SkeletonText lines={4} />
+              </div>
+            </GlassCard>
+          ) : latestDigest ? (
+            <GlassCard className="animate-fade-in border-2 border-primary/40 bg-gradient-to-br from-primary/5 to-accent/5">
+              <div className="p-4 sm:p-6">
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="flex items-center justify-between mb-4 gap-2"
+                >
+                  <div className="flex items-center flex-1 min-w-0">
+                    <div className="p-2 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full mr-3 flex-shrink-0">
+                      <Zap className="w-5 h-5 text-primary" />
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-semibold gradient-text">
+                      Latest Bookmarks Digest
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Button variant="ghost" size="icon" onClick={handleReadAloud} title={isSpeaking ? "Stop Reading" : "Read Aloud"}>
+                      <Volume2 className={`w-5 h-5 ${isSpeaking ? "text-destructive" : "text-primary"}`} />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={handleClearDigest} title="Clear Digest">
+                      <XCircle className="w-5 h-5 text-muted-foreground hover:text-destructive" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={handleSummarizeLatestClick} title="Regenerate Digest">
+                      <RefreshCw className="w-5 h-5 text-muted-foreground hover:text-primary" />
+                    </Button>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.7, delay: 0.2 }}
+                >
+                  {latestDigest.startsWith("OPENAI_API_KEY not configured") ||
+                   latestDigest.startsWith("Failed to extract summary") ||
+                   latestDigest.startsWith("OpenAI API error") ||
+                   latestDigest.startsWith("Content was empty") ||
+                   latestDigest.startsWith("Could not generate a digest") ||
+                   latestDigest.startsWith("No valid content") ||
+                   latestDigest.startsWith("No new bookmarks") ? (
+                    <Alert variant="destructive" className="glass border-red-500/20">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Digest Generation Issue</AlertTitle>
+                      <AlertDescription>{latestDigest}</AlertDescription>
+                    </Alert>
+                  ) : (
+                    <div className="prose dark:prose-invert max-w-none">
+                      <p className="text-sm leading-relaxed">{latestDigest}</p>
+                    </div>
+                  )}
+                </motion.div>
+              </div>
+            </GlassCard>
+          ) : (
+            <GlassCard className="border-dashed border-2 border-primary/30">
+              <div className="p-6 text-center">
+                <div className="inline-flex p-3 bg-primary/10 rounded-full mb-4">
+                  <FileText className="w-8 h-8 text-primary" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">No Digest Available</h3>
+                <p className="text-sm text-muted-foreground mb-4">Generate a digest from your latest bookmarks</p>
+                <AnimatedButton variant="primary" onClick={handleSummarizeLatestClick} size="lg">
+                  <Zap className="w-4 h-4 mr-2" />
+                  Generate Digest
+                </AnimatedButton>
+              </div>
+            </GlassCard>
+          )}
+        </motion.div>
 
     {/* WhatsApp Summaries */}
     {recentSummaries.length > 0 && (
@@ -572,18 +650,34 @@ const DashboardPage: React.FC = () => {
       </motion.div>
     )}
 
-        <div className="mt-8 grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-4 sm:gap-6 min-w-0">
+        {/* RECENT ACTIVITY - WhatsApp + Telegram */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+          className="mb-6 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6"
+        >
+          <GlassCard className="min-w-0">
+            <div className="p-4 sm:p-6">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base sm:text-lg font-semibold">Telegram Feed</h3>
+                <span className="text-xs text-muted-foreground">Live</span>
+              </div>
+              <TelegramFeed />
+            </div>
+          </GlassCard>
+
           <GlassCard className="h-full min-w-0">
             <div className="p-4 sm:p-6 h-full flex flex-col min-w-0">
               <div className="flex items-center justify-between mb-2 gap-2">
-                <h3 className="text-base sm:text-lg font-semibold">Today's Focus</h3>
+                <h3 className="text-base sm:text-lg font-semibold">Featured Content</h3>
                 <span className="text-xs text-muted-foreground whitespace-nowrap">Curated</span>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 flex-1 min-w-0">
                 <div className="rounded-xl border border-border/40 bg-background/60 p-3 sm:p-4 backdrop-blur min-w-0">
                   <h4 className="text-xs sm:text-sm font-semibold mb-2 flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                    Highlighted Video
+                    Recommended Video
                   </h4>
                   <RecentVideo />
                 </div>
@@ -651,61 +745,27 @@ const DashboardPage: React.FC = () => {
               </div>
             </div>
           </GlassCard>
+        </motion.div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 min-w-0">
-            <AnimatedButton
-              variant="outline"
-              className="justify-between text-xs sm:text-sm"
-              onClick={() => handleNavigate('/agents')}
-            >
-              <span>Agents</span>
-              <Users className="w-3 h-3 sm:w-4 sm:h-4" />
-            </AnimatedButton>
-            <AnimatedButton
-              variant="outline"
-              className="justify-between text-xs sm:text-sm"
-              onClick={() => handleNavigate('/videos')}
-            >
-              <span>Videos</span>
-              <Play className="w-3 h-3 sm:w-4 sm:h-4" />
-            </AnimatedButton>
-            <AnimatedButton
-              variant="outline"
-              className="justify-between text-xs sm:text-sm"
-              onClick={() => handleNavigate('/tasks')}
-            >
-              <span>Tasks</span>
-              <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
-            </AnimatedButton>
-          </div>
+        {/* QUICK ACTIONS BAR */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+          className="mb-6"
+        >
+          <QuickActionsBar onAddNote={handleAddNoteClick} />
+        </motion.div>
 
-          <GlassCard className="h-full min-w-0">
-            <div className="p-4 sm:p-6 h-full flex flex-col min-w-0">
-              <div className="flex items-center justify-between mb-3 sm:mb-4 gap-2">
-                <h3 className="text-base sm:text-lg font-semibold">Shortcuts</h3>
-                <span className="text-xs text-muted-foreground whitespace-nowrap">Quick</span>
-              </div>
-              <div className="space-y-2 sm:space-y-3">
-                <AnimatedButton variant="secondary" className="w-full justify-between text-xs sm:text-sm" onClick={handleAddNoteClick}>
-                  <span>New note</span>
-                  <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
-                </AnimatedButton>
-                <AnimatedButton
-                  variant="outline"
-                  className="w-full justify-between text-xs sm:text-sm"
-                  onClick={() => handleNavigate('/bookmarks')}
-                >
-                  <span>Bookmarks</span>
-                  <Bookmark className="w-3 h-3 sm:w-4 sm:h-4" />
-                </AnimatedButton>
-                <AnimatedButton variant="ghost" className="w-full justify-between text-xs sm:text-sm" onClick={handleSummarizeLatestClick}>
-                  <span>Digest</span>
-                  <Zap className="w-3 h-3 sm:w-4 sm:h-4" />
-                </AnimatedButton>
-              </div>
-            </div>
-          </GlassCard>
-        </div>
+        {/* UPCOMING EVENTS */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.45 }}
+          className="mb-6"
+        >
+          <UpcomingEvents />
+        </motion.div>
 
         <motion.div
           initial={{ opacity: 0 }}
@@ -752,251 +812,18 @@ const DashboardPage: React.FC = () => {
           </GlassCard>
         </motion.div>
 
-        <motion.div
-          ref={digestRef}
-          initial={{ opacity: 0, y: 30 }}
-          animate={digestInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-          className="mt-8"
-        >
-          {isBatchSummarizing ? (
-            <GlassCard className="mb-6">
-              <div className="p-6" role="status" aria-live="polite">
-                <div className="flex items-center mb-4">
-                  <Zap className="w-5 h-5 mr-2 text-primary animate-pulse" />
-                  <h3 className="text-xl font-semibold">Generating Your Digest...</h3>
-                </div>
-                <SkeletonText lines={4} />
-              </div>
-            </GlassCard>
-          ) : latestDigest ? (
-            <GlassCard className="mb-6 animate-fade-in min-w-0">
-              <div className="p-4 sm:p-6 min-w-0">
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.5 }}
-                  className="flex items-center justify-between mb-4 gap-2 min-w-0"
-                >
-                  <div className="flex items-center min-w-0 flex-1">
-                    <div className="p-1.5 sm:p-2 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full mr-2 sm:mr-3 flex-shrink-0">
-                      <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-                    </div>
-                    <h3 className="text-base sm:text-lg lg:text-xl font-semibold gradient-text truncate">
-                      Bookmarks Digest
-                    </h3>
-                  </div>
-                  <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                    <Button variant="ghost" size="icon" onClick={handleReadAloud} title={isSpeaking ? "Stop Reading" : "Read Aloud"} className="h-8 w-8 sm:h-10 sm:w-10">
-                      <Volume2 className={`w-4 h-4 sm:w-5 sm:h-5 ${isSpeaking ? "text-destructive" : "text-primary"}`} />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={handleClearDigest} title="Clear Digest" className="h-8 w-8 sm:h-10 sm:w-10">
-                      <XCircle className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground hover:text-destructive" />
-                    </Button>
-                  </div>
-                </motion.div>
-                
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.7, delay: 0.2 }}
-                >
-                  {latestDigest.startsWith("OPENAI_API_KEY not configured") || 
-                   latestDigest.startsWith("Failed to extract summary") || 
-                   latestDigest.startsWith("OpenAI API error") || 
-                   latestDigest.startsWith("Content was empty") ||
-                   latestDigest.startsWith("Could not generate a digest") ||
-                   latestDigest.startsWith("No valid content") ||
-                   latestDigest.startsWith("No new bookmarks") ? (
-                    <Alert variant="destructive" className="glass border-red-500/20">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>Digest Generation Issue</AlertTitle>
-                      <AlertDescription>{latestDigest}</AlertDescription>
-                    </Alert>
-                  ) : (
-                    <div className="prose dark:prose-invert max-w-none">
-                      <p className="text-xs sm:text-sm line-clamp-4 break-words">{latestDigest}</p>
-                    </div>
-                  )}
-                </motion.div>
-              </div>
-            </GlassCard>
-          ) : (
-            <GlassCard className="mb-6 min-w-0">
-              <div className="p-4 sm:p-6 text-center">
-                <p className="text-sm sm:text-base text-muted-foreground">No recent digest available.</p>
-                <AnimatedButton variant="primary" onClick={handleSummarizeLatestClick} className="mt-4 text-xs sm:text-sm">
-                  Generate Digest
-                </AnimatedButton>
-              </div>
-            </GlassCard>
-          )}
-        </motion.div>
-
+        {/* RECENT ITEMS ACCORDION */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.5 }}
-          className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 overflow-hidden min-w-0"
+          className="mb-6"
         >
-          <GlassCard className="min-w-0">
-            <div className="p-4 sm:p-6 min-w-0">
-              <div className="flex items-center justify-between mb-3 sm:mb-4 gap-2">
-                <h3 className="text-base sm:text-lg font-semibold">Notes & Ideas</h3>
-                <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">Last 5</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 overflow-hidden min-w-0">
-                <div className="min-w-0">
-                  <p className="text-xs sm:text-sm text-muted-foreground mb-2">Notes</p>
-                  <ul className="space-y-2 overflow-hidden max-h-32 min-w-0">
-                    {recentNotes.map(n => (
-                      <li key={n._id} className="text-xs sm:text-sm truncate">
-                        {n.title || n.content.slice(0, 60)}
-                      </li>
-                    ))}
-                    {recentNotes.length === 0 && (
-                      <li className="text-sm text-muted-foreground">No recent notes</li>
-                    )}
-                  </ul>
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs sm:text-sm text-muted-foreground mb-2">Ideas</p>
-                  <ul className="space-y-2 overflow-hidden max-h-32 min-w-0">
-                    {recentIdeas.map(i => (
-                      <li key={i._id} className="text-xs sm:text-sm truncate">
-                        {i.title}
-                      </li>
-                    ))}
-                    {recentIdeas.length === 0 && (
-                      <li className="text-sm text-muted-foreground">No recent ideas</li>
-                    )}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="min-w-0">
-            <div className="p-4 sm:p-6 min-w-0">
-              <div className="flex items-center justify-between mb-3 sm:mb-4 gap-2">
-                <h3 className="text-base sm:text-lg font-semibold">Tasks & Bookmarks</h3>
-                <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">Last 5</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 min-w-0">
-                <div className="min-w-0">
-                  <p className="text-xs sm:text-sm text-muted-foreground mb-2">Tasks</p>
-                  <ul className="space-y-2 overflow-hidden max-h-32 min-w-0">
-                    {recentTasks.map(t => (
-                      <li key={t._id} className="text-xs sm:text-sm truncate">
-                        {t.title}
-                      </li>
-                    ))}
-                    {recentTasks.length === 0 && (
-                      <li className="text-sm text-muted-foreground">No recent tasks</li>
-                    )}
-                  </ul>
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs sm:text-sm text-muted-foreground mb-2">Bookmarks</p>
-                  <p className="text-xs sm:text-sm">Total: {recentBookmarksCount ?? '—'}</p>
-                </div>
-              </div>
-            </div>
-          </GlassCard>
-        </motion.div>
-
-        {/* Integrations & media */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.55 }}
-          className="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 overflow-hidden min-w-0"
-        >
-          <GlassCard className="min-w-0">
-            <div className="p-4 sm:p-6 min-w-0">
-              <div className="flex items-center justify-between mb-2 gap-2">
-                <h3 className="text-base sm:text-lg font-semibold">Telegram Feed</h3>
-                <span className="text-xs text-muted-foreground whitespace-nowrap">Live</span>
-              </div>
-              <TelegramFeed />
-            </div>
-          </GlassCard>
-
-          <GlassCard className="min-w-0">
-            <div className="p-4 sm:p-6 min-w-0">
-              <div className="flex items-center justify-between mb-2 gap-2">
-                <h3 className="text-base sm:text-lg font-semibold">Latest Video</h3>
-              </div>
-              <RecentVideo />
-            </div>
-          </GlassCard>
-        </motion.div>
-
-        {/* Upcoming Tasks */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
-        >
-          <UpcomingEvents />
-        </motion.div>
-
-        <GlassCard className="mt-8 border-dashed border-accent/40 bg-accent/5 min-w-0">
-          <div className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 min-w-0">
-            <div className="min-w-0">
-              <h4 className="text-sm sm:text-base font-semibold">Nothing scheduled?</h4>
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                Kickstart your day by saving a bookmark or task.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2 flex-shrink-0">
-              <AnimatedButton variant="outline" size="sm" onClick={handleAddNoteClick} className="text-xs sm:text-sm">
-                Note
-              </AnimatedButton>
-              <AnimatedButton variant="outline" size="sm" onClick={() => handleNavigate('/tasks')} className="text-xs sm:text-sm">
-                Tasks
-              </AnimatedButton>
-              <AnimatedButton variant="outline" size="sm" onClick={() => handleNavigate('/bookmarks')} className="text-xs sm:text-sm">
-                Bookmarks
-              </AnimatedButton>
-            </div>
-          </div>
-        </GlassCard>
-
-        {/* Welcome Section */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.8, delay: 0.6 }}
-        >
-          <GlassCard className="text-center min-w-0">
-            <div className="p-6 sm:p-8 min-w-0">
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 200, delay: 0.8 }}
-                className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-primary to-accent rounded-full mx-auto mb-3 sm:mb-4 flex items-center justify-center"
-              >
-                <Zap className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-              </motion.div>
-              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold gradient-text mb-2">
-                Your Digital Brain is Ready
-              </h2>
-              <p className="text-xs sm:text-sm text-muted-foreground mb-4 sm:mb-6">
-                Start capturing ideas and building your second brain.
-              </p>
-              <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
-                <AnimatedButton variant="primary" onClick={handleAddNoteClick} className="text-xs sm:text-sm">
-                  <FileText className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 pointer-events-none" />
-                  Add Note
-                </AnimatedButton>
-                <AnimatedButton variant="secondary" className="text-xs sm:text-sm">
-                  <LinkIcon className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
-                  Bookmark
-                </AnimatedButton>
-              </div>
-            </div>
-          </GlassCard>
+          <RecentItemsAccordion
+            notes={recentNotes}
+            ideas={recentIdeas}
+            tasks={recentTasks}
+          />
         </motion.div>
       </div>
       {/* Add Note Modal */}
