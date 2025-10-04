@@ -8,6 +8,7 @@ import { Brain, CheckCircle, XCircle, Mail, Loader2, ArrowRight, Clock } from 'l
 import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import axios from 'axios';
+import { BACKEND_ROOT_URL } from '@/services/axiosConfig';
 
 type VerificationStatus = 'verifying' | 'success' | 'error' | 'expired';
 
@@ -34,8 +35,7 @@ const EmailVerificationPage: React.FC = () => {
 
   const verifyEmail = async (verificationToken: string) => {
     try {
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const response = await axios.get(`${apiBaseUrl}/api/v1/auth/verify-email/${verificationToken}`);
+      const response = await axios.get(`${BACKEND_ROOT_URL}/api/v1/auth/verify-email/${verificationToken}`);
 
       if (response.data.success) {
         setStatus('success');
@@ -68,8 +68,7 @@ const EmailVerificationPage: React.FC = () => {
     setResendSuccess(false);
 
     try {
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const response = await axios.post(`${apiBaseUrl}/api/v1/auth/resend-verification`, {
+      const response = await axios.post(`${BACKEND_ROOT_URL}/api/v1/auth/resend-verification`, {
         email: email || prompt('Please enter your email address:')
       });
 

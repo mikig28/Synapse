@@ -12,6 +12,7 @@ import axios from 'axios';
 import { Brain, User, Mail, Lock, Sparkles, ArrowRight, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { BACKEND_ROOT_URL } from '@/services/axiosConfig';
 
 const RegisterPage: React.FC = () => {
   const [fullName, setFullName] = useState('');
@@ -67,10 +68,9 @@ const RegisterPage: React.FC = () => {
     setError(null);
 
     try {
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      console.log('[RegisterPage] Using API base URL:', apiBaseUrl);
+      console.log('[RegisterPage] Using backend root URL:', BACKEND_ROOT_URL);
 
-      const response = await axios.post(`${apiBaseUrl}/api/v1/auth/resend-verification`, {
+      const response = await axios.post(`${BACKEND_ROOT_URL}/api/v1/auth/resend-verification`, {
         email: email
       });
 
