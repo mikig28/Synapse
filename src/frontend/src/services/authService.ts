@@ -21,15 +21,21 @@ interface UserData {
 }
 
 interface AuthResponse {
-  token: string;
+  token?: string;
   // Include other user fields directly if your backend sends them flat
   // For now, let's assume it sends user details nested or we reconstruct it
-  _id: string;
+  _id?: string;
   fullName?: string;
-  email: string;
+  email?: string;
+  // Email verification fields
+  success?: boolean;
+  message?: string;
+  requiresVerification?: boolean;
 }
 
 export const registerService = async (userData: any): Promise<AuthResponse> => {
+  console.log('[authService] Registering user:', userData.email);
+
   const response = await fetch(`${API_AUTH_URL}/register`, {
     method: 'POST',
     headers: {
@@ -39,6 +45,7 @@ export const registerService = async (userData: any): Promise<AuthResponse> => {
   });
 
   const data = await response.json();
+  console.log('[authService] Registration response:', data);
 
   if (!response.ok) {
     // If server returns error, data might contain { message: string }

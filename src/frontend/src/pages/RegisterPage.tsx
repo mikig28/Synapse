@@ -30,10 +30,13 @@ const RegisterPage: React.FC = () => {
     setError(null);
     setLoading(true);
     try {
+      console.log('[RegisterPage] Submitting registration for:', email);
       const data = await registerService({ fullName, email, password });
+      console.log('[RegisterPage] Registration response received:', data);
 
       // Check if email verification is required
       if (data.requiresVerification) {
+        console.log('[RegisterPage] Email verification required, showing success message');
         setRegistrationSuccess(true);
         setLoading(false);
         return;
@@ -41,14 +44,15 @@ const RegisterPage: React.FC = () => {
 
       // Legacy flow - auto login (for backward compatibility)
       if (data.token) {
+        console.log('[RegisterPage] Legacy flow - auto login');
         storeLogin({
-          user: { id: data._id, email: data.email, fullName: data.fullName },
+          user: { id: data._id!, email: data.email!, fullName: data.fullName },
           token: data.token,
         });
         navigate('/dashboard');
       }
     } catch (err: any) {
-      console.error('Registration failed:', err);
+      console.error('[RegisterPage] Registration failed:', err);
       setError(err.message || 'An unexpected error occurred during registration.');
     }
     setLoading(false);
@@ -57,21 +61,27 @@ const RegisterPage: React.FC = () => {
   const handleResendVerification = async () => {
     if (!email) return;
 
+    console.log('[RegisterPage] Resending verification email to:', email);
     setResending(true);
     setResendSuccess(false);
     setError(null);
 
     try {
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      console.log('[RegisterPage] Using API base URL:', apiBaseUrl);
+
       const response = await axios.post(`${apiBaseUrl}/api/v1/auth/resend-verification`, {
         email: email
       });
+
+      console.log('[RegisterPage] Resend response:', response.data);
 
       if (response.data.success) {
         setResendSuccess(true);
       }
     } catch (err: any) {
-      console.error('Resend verification failed:', err);
+      console.error('[RegisterPage] Resend verification failed:', err);
+      console.error('[RegisterPage] Error response:', err.response?.data);
       setError(err.response?.data?.message || 'Failed to resend verification email. Please try again.');
     } finally {
       setResending(false);
@@ -167,7 +177,10 @@ const RegisterPage: React.FC = () => {
                 <CheckCircle className="h-4 w-4 text-emerald-300" />
                 <AlertTitle className="text-emerald-200 font-semibold">Registration Successful!</AlertTitle>
                 <AlertDescription className="text-emerald-300/90">
-                  We've sent a verification email to <strong>{email}</strong>. Please check your inbox and click the verification link to activate your account.
+                  We've sent a verification email to <strong>{email}</strong>. Please check your inbox (and spam folder) and click the verification link to activate your account.
+                  <div className="mt-2 text-xs text-emerald-400/70">
+                    💡 Didn't receive it? Click the resend button below.
+                  </div>
                 </AlertDescription>
               </Alert>
 
