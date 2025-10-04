@@ -3287,6 +3287,30 @@ class WAHAService extends EventEmitter {
       return;
     }
 
+    // Fetch monitors early to determine if we should send feedback messages
+    let monitors;
+    try {
+      monitors = await this.groupMonitorService.getActiveMonitorsForGroup(targetChatId);
+    } catch (error) {
+      console.error('[WAHA Service] 🎙️ Failed to fetch monitors for voice processing', {
+        groupId: targetChatId,
+        error: (error as Error).message
+      });
+      return;
+    }
+
+    const eligibleMonitors = monitors.filter(monitor => monitor.settings?.processVoiceNotes !== false);
+    const shouldSendFeedback = eligibleMonitors.some(m => m.settings?.sendFeedbackMessages === true);
+    
+    if (eligibleMonitors.length === 0) {
+      console.log('[WAHA Service] 🎙️ No monitors enabled for voice processing in this group', {
+        groupId: targetChatId,
+        totalMonitors: monitors.length,
+        eligibleMonitors: 0
+      });
+      return;
+    }
+
     const localPath: string | null = messageData.localPath || null;
     const mediaUrl: string | null = messageData.mediaUrl || null;
 
@@ -3331,28 +3355,6 @@ class WAHAService extends EventEmitter {
           console.error('[WAHA Service] 🎙️ Failed to send error notification:', (sendError as Error).message);
         }
       }
-      return;
-    }
-
-    let monitors;
-    try {
-      monitors = await this.groupMonitorService.getActiveMonitorsForGroup(targetChatId);
-    } catch (error) {
-      console.error('[WAHA Service] 🎙️ Failed to fetch monitors for voice processing', {
-        groupId: targetChatId,
-        error: (error as Error).message
-      });
-      return;
-    }
-
-    const eligibleMonitors = monitors.filter(monitor => monitor.settings?.processVoiceNotes !== false);
-    const shouldSendFeedback = eligibleMonitors.some(m => m.settings?.sendFeedbackMessages === true);
-    if (eligibleMonitors.length === 0) {
-      console.log('[WAHA Service] 🎙️ No monitors enabled for voice processing in this group', {
-        groupId: targetChatId,
-        totalMonitors: monitors.length,
-        eligibleMonitors: 0
-      });
       return;
     }
 
