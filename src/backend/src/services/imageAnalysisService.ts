@@ -145,6 +145,55 @@ export class ImageAnalysisService {
   }
 
   /**
+   * Analyze an image from a local file path (for WhatsApp images)
+   */
+  async analyzeImageFromFile(filePath: string): Promise<ImageAnalysisResult> {
+    try {
+      console.log(`[ImageAnalysisService] Reading image from file: ${filePath}`);
+      
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      
+      // Read the file
+      const imageBuffer = await fs.readFile(filePath);
+      const base64Image = imageBuffer.toString('base64');
+      
+      // Determine content type from file extension
+      const ext = path.extname(filePath).toLowerCase();
+      const contentTypeMap: { [key: string]: string } = {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp'
+      };
+      const contentType = contentTypeMap[ext] || 'image/jpeg';
+      
+      console.log(`[ImageAnalysisService] Read image (${imageBuffer.length} bytes), sending to OpenAI GPT-4o-mini...`);
+      
+      // Analyze with OpenAI Vision
+      const result = await this.analyzeWithOpenAI(base64Image, contentType);
+      
+      console.log(`[ImageAnalysisService] ✅ Analysis complete for file`);
+      return result;
+      
+    } catch (error: any) {
+      console.error(`[ImageAnalysisService] ❌ Error analyzing image from file:`, error);
+      return {
+        isAnalyzed: false,
+        analyzedAt: new Date(),
+        description: '',
+        mainCategory: 'Other',
+        categories: [],
+        tags: [],
+        sentiment: 'neutral',
+        confidence: 0,
+        error: error.message || 'Failed to analyze image'
+      };
+    }
+  }
+
+  /**
    * Core analysis using OpenAI GPT-4o-mini Vision API
    */
   private async analyzeWithOpenAI(base64Image: string, contentType: string): Promise<ImageAnalysisResult> {
