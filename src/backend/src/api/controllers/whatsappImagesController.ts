@@ -7,6 +7,7 @@ import { AuthenticatedRequest } from '../middleware/authMiddleware';
 import WhatsAppImageService from '../../services/whatsappImageService';
 import { whatsappImageGridFSService } from '../../services/whatsappImageGridFSService';
 import WhatsAppMessage from '../../models/WhatsAppMessage';
+import GroupMonitor from '../../models/GroupMonitor';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -60,6 +61,31 @@ export const extractImage = async (req: AuthenticatedRequest, res: Response) => 
 
     if (result.success) {
       console.log(`[WhatsApp Images] ✅ Successfully extracted image for message ${messageId}`);
+      
+      // Update group monitor statistics if this is from a monitored group
+      // Only increment if this is a NEW extraction (not already exists)
+      if (isGroup && chatId && !result.alreadyExists) {
+        try {
+          const monitors = await GroupMonitor.find({
+            groupId: chatId,
+            userId: userId,
+            isActive: true
+          });
+
+          if (monitors.length > 0) {
+            console.log(`[WhatsApp Images] Updating statistics for ${monitors.length} group monitor(s)`);
+            
+            for (const monitor of monitors) {
+              await (monitor as any).incrementStats('images');
+              console.log(`[WhatsApp Images] ✅ Incremented image counter for monitor ${monitor._id}`);
+            }
+          }
+        } catch (error) {
+          console.error('[WhatsApp Images] ⚠️ Failed to update group monitor statistics:', error);
+          // Don't fail the request if stats update fails
+        }
+      }
+      
       res.json({
         success: true,
         data: {
