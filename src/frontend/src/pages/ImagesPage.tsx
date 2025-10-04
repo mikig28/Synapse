@@ -399,17 +399,18 @@ const ImagesPage: React.FC = () => {
       return (
         <SecureImage 
           imageId={item.mediaGridFsId}
+          source="telegram"
           alt={item.aiAnalysis?.description || `Photo from ${item.fromUsername || 'Unknown'}`}
           className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-110"
         />
       );
-    } else if (item.source === 'whatsapp' && item.publicUrl) {
+    } else if (item.source === 'whatsapp' && item.messageId) {
       return (
-        <img 
-          src={item.publicUrl}
+        <SecureImage 
+          messageId={item.messageId}
+          source="whatsapp"
           alt={item.aiAnalysis?.description || `Photo from ${item.fromUsername || 'Unknown'}`}
           className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-110"
-          crossOrigin="use-credentials"
         />
       );
     } else {

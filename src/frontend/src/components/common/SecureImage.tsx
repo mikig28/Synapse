@@ -3,11 +3,20 @@ import { useSecureImage } from '../../hooks/useSecureImage';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 interface SecureImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
-  imageId: string | undefined;
+  imageId?: string;
+  messageId?: string;
+  source?: 'telegram' | 'whatsapp';
 }
 
-export const SecureImage: React.FC<SecureImageProps> = ({ imageId, className, alt, ...props }) => {
-  const { imageUrl, isLoading, error } = useSecureImage(imageId);
+export const SecureImage: React.FC<SecureImageProps> = ({ 
+  imageId, 
+  messageId, 
+  source = 'telegram',
+  className, 
+  alt, 
+  ...props 
+}) => {
+  const { imageUrl, isLoading, error } = useSecureImage({ imageId, messageId, source });
 
   if (isLoading) {
     return (
