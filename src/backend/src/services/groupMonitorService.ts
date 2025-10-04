@@ -13,6 +13,7 @@ export interface GroupMonitorSettings {
   replyMessage?: string;
   captureSocialLinks: boolean;
   processVoiceNotes: boolean;
+  sendFeedbackMessages: boolean;
 }
 
 export interface CreateGroupMonitorData {
@@ -130,6 +131,7 @@ class GroupMonitorService {
       autoReply: false,
       captureSocialLinks: false,
       processVoiceNotes: true,
+      sendFeedbackMessages: false,
       ...monitorData.settings
     };
 

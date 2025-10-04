@@ -14,6 +14,7 @@ export interface IGroupMonitor extends Document {
     replyMessage?: string;
     captureSocialLinks?: boolean;
     processVoiceNotes?: boolean;
+    sendFeedbackMessages?: boolean;
   };
   statistics: {
     totalMessages: number;
@@ -83,6 +84,10 @@ const GroupMonitorSchema: Schema<IGroupMonitor> = new Schema(
       processVoiceNotes: {
         type: Boolean,
         default: true
+      },
+      sendFeedbackMessages: {
+        type: Boolean,
+        default: false
       },
       replyMessage: {
         type: String,
