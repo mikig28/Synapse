@@ -23,7 +23,9 @@ import {
   MapPin,
   Plus,
   Clock,
-  Loader2
+  Loader2,
+  Image,
+  Send
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import searchService, { SearchResult } from '@/services/searchService';
@@ -136,13 +138,25 @@ const useNavigationCommands = (navigate: ReturnType<typeof useNavigate>, onClose
     },
     {
       id: 'nav-news',
-      title: 'News',
-      description: 'Read latest news',
+      title: 'Agents Report',
+      description: 'View AI agents news reports',
       icon: <Newspaper className="w-4 h-4" />,
       category: 'Navigation',
-      keywords: ['news', 'articles', 'updates'],
+      keywords: ['news', 'agents', 'report', 'articles', 'updates', 'ai'],
       action: () => {
         navigate('/news');
+        onClose();
+      },
+    },
+    {
+      id: 'nav-news-hub',
+      title: 'News Hub',
+      description: 'Browse and manage news sources',
+      icon: <Newspaper className="w-4 h-4" />,
+      category: 'Navigation',
+      keywords: ['news', 'hub', 'sources', 'feed', 'articles', 'reading'],
+      action: () => {
+        navigate('/news-hub');
         onClose();
       },
     },
@@ -215,6 +229,54 @@ const useNavigationCommands = (navigate: ReturnType<typeof useNavigate>, onClose
       keywords: ['documents', 'files', 'docs'],
       action: () => {
         navigate('/docs');
+        onClose();
+      },
+    },
+    {
+      id: 'nav-images',
+      title: 'Images',
+      description: 'View and manage images',
+      icon: <Image className="w-4 h-4" />,
+      category: 'Navigation',
+      keywords: ['images', 'photos', 'pictures', 'gallery', 'media'],
+      action: () => {
+        navigate('/images');
+        onClose();
+      },
+    },
+    {
+      id: 'nav-whatsapp',
+      title: 'WhatsApp',
+      description: 'WhatsApp integration and messages',
+      icon: <MessageSquare className="w-4 h-4" />,
+      category: 'Navigation',
+      keywords: ['whatsapp', 'messages', 'chat', 'messaging'],
+      action: () => {
+        navigate('/whatsapp');
+        onClose();
+      },
+    },
+    {
+      id: 'nav-whatsapp-monitor',
+      title: 'WhatsApp Monitor',
+      description: 'Monitor WhatsApp groups and summaries',
+      icon: <Users className="w-4 h-4" />,
+      category: 'Navigation',
+      keywords: ['whatsapp', 'monitor', 'groups', 'summaries', 'tracking'],
+      action: () => {
+        navigate('/whatsapp-monitor');
+        onClose();
+      },
+    },
+    {
+      id: 'nav-telegram-channels',
+      title: 'Telegram Channels',
+      description: 'Manage Telegram channels and messages',
+      icon: <Send className="w-4 h-4" />,
+      category: 'Navigation',
+      keywords: ['telegram', 'channels', 'messages', 'chat', 'messaging'],
+      action: () => {
+        navigate('/telegram-channels');
         onClose();
       },
     },
