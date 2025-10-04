@@ -8,7 +8,7 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import useAuthStore from '@/store/authStore';
 import { registerService } from '@/services/authService';
-import { Brain, User, Mail, Lock, Sparkles, ArrowRight, AlertCircle } from 'lucide-react';
+import { Brain, User, Mail, Lock, Sparkles, ArrowRight, AlertCircle, CheckCircle } from 'lucide-react';
 import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -18,6 +18,7 @@ const RegisterPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const storeLogin = useAuthStore((state) => state.login);
   const navigate = useNavigate();
 
@@ -27,11 +28,22 @@ const RegisterPage: React.FC = () => {
     setLoading(true);
     try {
       const data = await registerService({ fullName, email, password });
-      storeLogin({
-        user: { id: data._id, email: data.email, fullName: data.fullName },
-        token: data.token,
-      });
-      navigate('/dashboard');
+
+      // Check if email verification is required
+      if (data.requiresVerification) {
+        setRegistrationSuccess(true);
+        setLoading(false);
+        return;
+      }
+
+      // Legacy flow - auto login (for backward compatibility)
+      if (data.token) {
+        storeLogin({
+          user: { id: data._id, email: data.email, fullName: data.fullName },
+          token: data.token,
+        });
+        navigate('/dashboard');
+      }
     } catch (err: any) {
       console.error('Registration failed:', err);
       setError(err.message || 'An unexpected error occurred during registration.');
@@ -107,7 +119,7 @@ const RegisterPage: React.FC = () => {
                 </motion.div>
               </motion.div>
             </div>
-            
+
             <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-200 to-teal-200 bg-clip-text text-transparent mb-2">
               Join SYNAPSE
             </h1>
@@ -115,6 +127,29 @@ const RegisterPage: React.FC = () => {
               Create your account and unlock your potential
             </p>
           </motion.div>
+
+          {/* Success Message */}
+          {registrationSuccess && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3 }}
+              className="mb-6"
+            >
+              <Alert className="glass border-emerald-500/30 bg-emerald-500/10 text-emerald-200">
+                <CheckCircle className="h-4 w-4 text-emerald-300" />
+                <AlertTitle className="text-emerald-200 font-semibold">Registration Successful!</AlertTitle>
+                <AlertDescription className="text-emerald-300/90">
+                  We've sent a verification email to <strong>{email}</strong>. Please check your inbox and click the verification link to activate your account.
+                </AlertDescription>
+              </Alert>
+              <div className="mt-4 text-center">
+                <Link to="/login" className="text-emerald-300 hover:text-emerald-200 font-medium transition-colors text-sm">
+                  Back to Login →
+                </Link>
+              </div>
+            </motion.div>
+          )}
 
           {/* Error Message */}
           {error && (
@@ -135,6 +170,7 @@ const RegisterPage: React.FC = () => {
           )}
 
           {/* Register Form */}
+          {!registrationSuccess && (
           <motion.form
             onSubmit={handleSubmit}
             className="space-y-6"
@@ -222,8 +258,10 @@ const RegisterPage: React.FC = () => {
               )}
             </AnimatedButton>
           </motion.form>
+          )}
 
           {/* Login Link */}
+          {!registrationSuccess && (
           <motion.div
             className="text-center mt-6"
             initial={{ opacity: 0 }}
@@ -237,6 +275,7 @@ const RegisterPage: React.FC = () => {
               </Link>
             </p>
           </motion.div>
+          )}
         </GlassCard>
 
         {/* Back to Home */}

@@ -156,6 +156,15 @@ NODE_ENV=development
 PORT=3000                         # Backend server port
 API_BASE_URL=http://localhost:3000
 
+# Email Service (Required for email verification)
+SMTP_HOST=smtp.gmail.com          # SMTP server host
+SMTP_PORT=587                     # SMTP port (587 for TLS, 465 for SSL)
+SMTP_USER=your-email@gmail.com    # SMTP username/email
+SMTP_PASSWORD=your-app-password   # SMTP password (use app-specific password for Gmail)
+SMTP_FROM_NAME=SYNAPSE            # Email sender name
+SMTP_FROM_EMAIL=noreply@synapse.ai # Email sender address
+FRONTEND_URL=http://localhost:5173 # Frontend URL for verification links
+
 # Vector Database & Embedding Services
 VOYAGE_API_KEY=your_key           # For cost-efficient Voyage AI embeddings
 EMBEDDING_PROVIDER=openai         # Primary provider ('voyage' | 'gemini' | 'openai')

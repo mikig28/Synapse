@@ -45,6 +45,16 @@ export const protect = async (req: AuthenticatedRequest, res: Response, next: Ne
         return;
       }
 
+      // Check if email is verified (skip for Google OAuth users)
+      if (!user.isEmailVerified && !user.googleId) {
+        log.warn('User email not verified', { userId: decoded.id, email: user.email });
+        res.status(403).json({
+          message: 'Please verify your email before accessing this resource.',
+          requiresVerification: true,
+        });
+        return;
+      }
+
       // Attach user to request object
       req.user = { id: decoded.id, email: decoded.email || '' };
 

@@ -7,6 +7,9 @@ export interface IUser extends Document {
   email: string;
   password?: string; // Password might not be present if using OAuth only for a user
   googleId?: string; // For Google OAuth
+  isEmailVerified?: boolean; // Email verification status
+  emailVerificationToken?: string; // Token for email verification
+  emailVerificationExpires?: Date; // Expiration time for verification token
   monitoredTelegramChats?: number[]; // Added for storing Telegram chat IDs to monitor
   sendAgentReportsToTelegram?: boolean; // Toggle for sending agent reports to Telegram
   telegramBotToken?: string; // User's personal Telegram bot token
@@ -42,6 +45,18 @@ const UserSchema: Schema<IUser> = new Schema(
       type: String,
       unique: true,
       sparse: true, // Allows multiple documents without this field to exist (nulls aren't unique)
+    },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    emailVerificationToken: {
+      type: String,
+      select: false, // Don't return by default for security
+    },
+    emailVerificationExpires: {
+      type: Date,
+      select: false, // Don't return by default
     },
     monitoredTelegramChats: {
       type: [Number], // Array of numbers

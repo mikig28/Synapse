@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import User, { IUser } from '../../models/User'; // Adjust path as necessary
 import jwt from 'jsonwebtoken'; // We'll install this next
+import crypto from 'crypto';
+import emailService from '../../services/emailService';
 
 // Function to generate JWT
 // Store your JWT_SECRET in .env file
@@ -12,7 +14,7 @@ const generateToken = (id: string) => {
 };
 
 export const registerUser = async (req: Request, res: Response) => {
-  console.log('Received registration request body:', req.body); // ADDED THIS LOG
+  console.log('Received registration request body:', req.body);
   const { fullName, email, password } = req.body;
 
   // Simple validation to ensure email and password are provided before Mongoose validation
@@ -27,31 +29,40 @@ export const registerUser = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'User already exists' });
     }
 
-    // Create new user
+    // Generate email verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
+    const tokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    // Create new user (email not verified yet)
     const user = new User({
       fullName,
       email,
       password,
+      isEmailVerified: false,
+      emailVerificationToken: hashedToken,
+      emailVerificationExpires: tokenExpiry,
     });
 
     await user.save();
 
-    // Password is not selected by default, so user object from save() won't have it.
-    // We fetch it again if we need it, or more commonly, just generate token with id.
-    // For the response, we typically don't send the password back.
+    // Send verification email
+    const emailSent = await emailService.sendVerificationEmail(email, verificationToken, fullName);
 
-    if (user && user.id) {
-      res.status(201).json({
-        _id: user.id,
-        fullName: user.fullName,
-        email: user.email,
-        token: generateToken(user.id),
-      });
-    } else {
-      res.status(400).json({ message: 'Invalid user data or user ID not found after save' });
+    if (!emailSent) {
+      console.warn(`[registerUser] Failed to send verification email to ${email}`);
     }
+
+    // Return success WITHOUT logging the user in
+    res.status(201).json({
+      success: true,
+      message: 'Registration successful! Please check your email to verify your account.',
+      email: user.email,
+      requiresVerification: true,
+    });
+
   } catch (error: any) {
-    console.error('[REGISTER_USER_ERROR]', error); // Log the full error
+    console.error('[REGISTER_USER_ERROR]', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -69,11 +80,20 @@ export const loginUser = async (req: Request, res: Response) => {
   }
 
   try {
-    // Find user by email. We need to explicitly select the password field 
+    // Find user by email. We need to explicitly select the password field
     // because it's set to select: false in the schema by default.
     const user = await User.findOne({ email }).select('+password');
 
     if (user && (await user.comparePassword(password))) {
+      // Check if email is verified
+      if (!user.isEmailVerified) {
+        return res.status(403).json({
+          message: 'Please verify your email before logging in. Check your inbox for the verification link.',
+          requiresVerification: true,
+          email: user.email
+        });
+      }
+
       const token = generateToken(user.id);
       console.log(`[loginUser] User ${user.email} (ID: ${user.id}) logged in. Token generated.`);
       res.json({
@@ -84,7 +104,7 @@ export const loginUser = async (req: Request, res: Response) => {
       });
     } else {
       // Generic message for security; don't reveal if email exists but password was wrong
-      res.status(401).json({ message: 'Invalid email or password' }); 
+      res.status(401).json({ message: 'Invalid email or password' });
     }
   } catch (error: any) {
     console.error('[LOGIN_USER_ERROR]', error);
@@ -106,7 +126,7 @@ export const googleLogin = async (req: Request, res: Response) => {
     let user = await User.findOne({ email: googleUserInfo.email });
 
     if (!user) {
-      // Create new user with Google info
+      // Create new user with Google info (auto-verified)
       user = new User({
         fullName: googleUserInfo.name,
         email: googleUserInfo.email,
@@ -114,15 +134,17 @@ export const googleLogin = async (req: Request, res: Response) => {
         // or handle this differently in your User model
         password: `google_${googleUserInfo.sub}_${Date.now()}`, // Temporary password
         googleId: googleUserInfo.sub, // Store Google ID for future reference
+        isEmailVerified: true, // Google users are auto-verified
       });
 
       await user.save();
       console.log(`[googleLogin] New user created for Google login: ${user.email} (ID: ${user.id})`);
     } else {
       console.log(`[googleLogin] Existing user found for Google login: ${user.email} (ID: ${user.id})`);
-      // Optionally update Google ID if not set
+      // Optionally update Google ID if not set and auto-verify
       if (!user.googleId) {
         user.googleId = googleUserInfo.sub;
+        user.isEmailVerified = true;
         await user.save();
       }
     }
@@ -140,5 +162,100 @@ export const googleLogin = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('[GOOGLE_LOGIN_ERROR]', error);
     res.status(500).json({ message: error.message });
+  }
+};
+
+export const verifyEmail = async (req: Request, res: Response) => {
+  const { token } = req.params;
+
+  if (!token) {
+    return res.status(400).json({ message: 'Verification token is required' });
+  }
+
+  try {
+    // Hash the token to compare with stored hash
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Find user with matching token that hasn't expired
+    const user = await User.findOne({
+      emailVerificationToken: hashedToken,
+      emailVerificationExpires: { $gt: Date.now() },
+    }).select('+emailVerificationToken +emailVerificationExpires');
+
+    if (!user) {
+      return res.status(400).json({
+        message: 'Invalid or expired verification token. Please request a new verification email.',
+        expired: true,
+      });
+    }
+
+    // Mark email as verified and clear verification fields
+    user.isEmailVerified = true;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpires = undefined;
+    await user.save();
+
+    console.log(`[verifyEmail] Email verified successfully for user: ${user.email}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Email verified successfully! You can now log in.',
+      email: user.email,
+    });
+
+  } catch (error: any) {
+    console.error('[VERIFY_EMAIL_ERROR]', error);
+    res.status(500).json({ message: 'Failed to verify email. Please try again.' });
+  }
+};
+
+export const resendVerificationEmail = async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: 'Email is required' });
+  }
+
+  try {
+    // Find user by email
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      // Don't reveal if user exists for security
+      return res.status(200).json({
+        success: true,
+        message: 'If an account exists with that email, a verification link has been sent.',
+      });
+    }
+
+    if (user.isEmailVerified) {
+      return res.status(400).json({ message: 'Email is already verified. You can log in now.' });
+    }
+
+    // Generate new verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
+    const tokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    user.emailVerificationToken = hashedToken;
+    user.emailVerificationExpires = tokenExpiry;
+    await user.save();
+
+    // Send verification email
+    const emailSent = await emailService.sendVerificationEmail(email, verificationToken, user.fullName);
+
+    if (!emailSent) {
+      console.warn(`[resendVerificationEmail] Failed to send verification email to ${email}`);
+      return res.status(500).json({ message: 'Failed to send verification email. Please try again later.' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Verification email sent! Please check your inbox.',
+    });
+
+  } catch (error: any) {
+    console.error('[RESEND_VERIFICATION_ERROR]', error);
+    res.status(500).json({ message: 'Failed to resend verification email. Please try again.' });
   }
 }; 

@@ -46,6 +46,7 @@ const preloadCriticalPages = () => {
 };
 const LoginPage = React.lazy(() => import('@/pages/LoginPage'));
 const RegisterPage = React.lazy(() => import('@/pages/RegisterPage'));
+const EmailVerificationPage = React.lazy(() => import('@/pages/EmailVerificationPage'));
 const ImagesPage = React.lazy(() => import('@/pages/ImagesPage'));
 const BookmarksPage = React.lazy(() => import('./pages/BookmarksPage'));
 const VideosPage = React.lazy(() => import('./pages/VideosPage'));
@@ -137,7 +138,8 @@ function AppContent() {
                     <Route path="/" element={isAuthenticated ? (needsOnboarding ? <Navigate to="/onboarding" /> : <Navigate to="/dashboard" />) : <HomePage />} />
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/register" element={<RegisterPage />} />
-                    
+                    <Route path="/verify-email" element={<EmailVerificationPage />} />
+
                     {/* Onboarding route - temporarily accessible without auth for testing */}
                     <Route path="/onboarding" element={<OnboardingPage />} />
                     
