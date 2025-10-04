@@ -45,12 +45,18 @@ export const registerUser = async (req: Request, res: Response) => {
     });
 
     await user.save();
+    console.log(`[registerUser] User created successfully: ${email}`);
 
     // Send verification email
+    console.log(`[registerUser] Attempting to send verification email to ${email}...`);
     const emailSent = await emailService.sendVerificationEmail(email, verificationToken, fullName);
 
     if (!emailSent) {
-      console.warn(`[registerUser] Failed to send verification email to ${email}`);
+      console.error(`[registerUser] ❌ FAILED to send verification email to ${email}`);
+      console.error(`[registerUser] User was created but email was not sent. User must use resend or manual verification.`);
+      // Still return success - user was created, they can resend email later
+    } else {
+      console.log(`[registerUser] ✅ Verification email sent successfully to ${email}`);
     }
 
     // Return success WITHOUT logging the user in
@@ -59,6 +65,7 @@ export const registerUser = async (req: Request, res: Response) => {
       message: 'Registration successful! Please check your email to verify your account.',
       email: user.email,
       requiresVerification: true,
+      emailSent: emailSent, // Let frontend know if email was actually sent
     });
 
   } catch (error: any) {

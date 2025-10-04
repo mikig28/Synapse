@@ -72,12 +72,30 @@ class EmailService {
       return true;
     } catch (error: any) {
       console.error('[EmailService] ❌ Failed to send email:', error.message);
+      console.error('[EmailService] Full error object:', error);
       console.error('[EmailService] Error details:', {
         code: error.code,
         command: error.command,
         response: error.response,
         responseCode: error.responseCode,
+        stack: error.stack,
       });
+
+      // Provide specific guidance based on error type
+      if (error.code === 'EAUTH') {
+        console.error('[EmailService] 🔐 AUTHENTICATION FAILED!');
+        console.error('[EmailService] Common causes:');
+        console.error('[EmailService] 1. Wrong Gmail App Password (should be 16 chars, no spaces)');
+        console.error('[EmailService] 2. Using regular password instead of App Password');
+        console.error('[EmailService] 3. 2FA not enabled on Gmail account');
+        console.error('[EmailService] 4. App Password was revoked or expired');
+        console.error('[EmailService] Generate new App Password: https://myaccount.google.com/apppasswords');
+      } else if (error.code === 'ETIMEDOUT' || error.code === 'ECONNREFUSED') {
+        console.error('[EmailService] 🌐 CONNECTION FAILED!');
+        console.error('[EmailService] Check SMTP_HOST and SMTP_PORT are correct');
+        console.error('[EmailService] Current: ' + process.env.SMTP_HOST + ':' + process.env.SMTP_PORT);
+      }
+
       return false;
     }
   }
