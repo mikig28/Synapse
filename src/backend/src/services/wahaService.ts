@@ -2724,13 +2724,18 @@ class WAHAService extends EventEmitter {
         console.log('[WAHA Service] 📡 Emitted whatsapp:new-image event to frontend');
       }
 
-      // Send confirmation message back to the WhatsApp group
-      try {
-        const confirmMessage = `✅ תמונה נשמרה בהצלחה!\n📸 התמונה נוספה לגלריה שלך ב-Synapse`;
-        await this.sendMessage(messageData.chatId, confirmMessage);
-        console.log('[WAHA Service] ✅ Sent confirmation message to group:', messageData.chatId);
-      } catch (sendError) {
-        console.error('[WAHA Service] ❌ Failed to send confirmation to group:', sendError);
+      // Send confirmation message back to the WhatsApp group (only if enabled)
+      if (monitor.settings?.sendFeedbackMessages) {
+        try {
+          const confirmMessage = `✅ תמונה נשמרה בהצלחה!
+📸 התמונה נוספה לגלריה שלך ב-Synapse`;
+          await this.sendMessage(messageData.chatId, confirmMessage);
+          console.log('[WAHA Service] ✅ Sent confirmation message to group:', messageData.chatId);
+        } catch (sendError) {
+          console.error('[WAHA Service] ❌ Failed to send confirmation to group:', sendError);
+        }
+      } else {
+        console.log('[WAHA Service] ℹ️ Feedback disabled, skipping image confirmation');
       }
 
     } catch (error) {
@@ -3319,10 +3324,12 @@ class WAHAService extends EventEmitter {
       }
 
       // Attempt to send error notification to group
-      try {
-        await this.sendMessage(targetChatId, errorMsg);
-      } catch (sendError) {
-        console.error('[WAHA Service] 🎙️ Failed to send error notification:', (sendError as Error).message);
+      if (shouldSendFeedback) {
+        try {
+          await this.sendMessage(targetChatId, errorMsg);
+        } catch (sendError) {
+          console.error('[WAHA Service] 🎙️ Failed to send error notification:', (sendError as Error).message);
+        }
       }
       return;
     }
@@ -3339,6 +3346,7 @@ class WAHAService extends EventEmitter {
     }
 
     const eligibleMonitors = monitors.filter(monitor => monitor.settings?.processVoiceNotes !== false);
+    const shouldSendFeedback = eligibleMonitors.some(m => m.settings?.sendFeedbackMessages === true);
     if (eligibleMonitors.length === 0) {
       console.log('[WAHA Service] 🎙️ No monitors enabled for voice processing in this group', {
         groupId: targetChatId,
@@ -3376,13 +3384,15 @@ class WAHAService extends EventEmitter {
       });
 
       const failureMessage = 'מצטער, לא הצלחתי לתמלל את ההודעה הקולית הזו.';
-      try {
-        await this.sendMessage(targetChatId, failureMessage);
-      } catch (sendError) {
-        console.error('[WAHA Service] 🎙️ Failed to notify chat about transcription failure', {
-          chatId: targetChatId,
-          error: (sendError as Error).message
-        });
+      if (shouldSendFeedback) {
+        try {
+          await this.sendMessage(targetChatId, failureMessage);
+        } catch (sendError) {
+          console.error('[WAHA Service] 🎙️ Failed to notify chat about transcription failure', {
+            chatId: targetChatId,
+            error: (sendError as Error).message
+          });
+        }
       }
       return;
     }
@@ -3446,14 +3456,16 @@ class WAHAService extends EventEmitter {
           : `📍 Location added to the map!\n\n🏷️ Name: ${locationName}\n📍 Address: ${locationData.address || 'Not available'}\n🎤 Voice: "${transcription}"\n🎯 Confidence: ${confidence}\n\n✅ Location saved successfully and will appear on your map.`;
 
         console.log('[WAHA Service] 🎙️ Sending location confirmation to WhatsApp group...');
-        try {
-          await this.sendMessage(targetChatId, locationMessage);
-          console.log('[WAHA Service] 🎙️ ✅ Location confirmation sent successfully');
-        } catch (sendError) {
-          console.error('[WAHA Service] 🎙️ Failed to send location confirmation to chat', {
-            chatId: targetChatId,
-            error: (sendError as Error).message
-          });
+        if (shouldSendFeedback) {
+          try {
+            await this.sendMessage(targetChatId, locationMessage);
+            console.log('[WAHA Service] 🎙️ ✅ Location confirmation sent successfully');
+          } catch (sendError) {
+            console.error('[WAHA Service] 🎙️ Failed to send location confirmation to chat', {
+              chatId: targetChatId,
+              error: (sendError as Error).message
+            });
+          }
         }
 
         return;
@@ -3464,13 +3476,15 @@ class WAHAService extends EventEmitter {
           ? `🤔 זיהיתי אולי בקשה למיקום אבל לא הצלחתי למצוא "${locationExtraction.extractedText}". נסה שוב עם שם מדויק יותר.`
           : `🤔 I detected a possible location request but couldn't find "${locationExtraction.extractedText}". Try again with a more specific name.`;
 
-        try {
-          await this.sendMessage(targetChatId, debugMessage);
-        } catch (sendError) {
-          console.warn('[WAHA Service] 🎙️ Failed to send location debug message', {
-            chatId: targetChatId,
-            error: (sendError as Error).message
-          });
+        if (shouldSendFeedback) {
+          try {
+            await this.sendMessage(targetChatId, debugMessage);
+          } catch (sendError) {
+            console.warn('[WAHA Service] 🎙️ Failed to send location debug message', {
+              chatId: targetChatId,
+              error: (sendError as Error).message
+            });
+          }
         }
       }
 
@@ -3490,14 +3504,16 @@ class WAHAService extends EventEmitter {
         const neutralMessage = isHebrew
           ? 'נותח תמלול אך לא זוהו משימות, הערות או רעיונות ספציפיים.'
           : 'Transcription analyzed but no specific tasks, notes, or ideas were identified.';
-        try {
-          await this.sendMessage(targetChatId, neutralMessage);
-          console.log('[WAHA Service] 🎙️ ✅ Neutral message sent');
-        } catch (sendError) {
-          console.warn('[WAHA Service] 🎙️ Failed to send neutral voice memo summary', {
-            chatId: targetChatId,
-            error: (sendError as Error).message
-          });
+        if (shouldSendFeedback) {
+          try {
+            await this.sendMessage(targetChatId, neutralMessage);
+            console.log('[WAHA Service] 🎙️ ✅ Neutral message sent');
+          } catch (sendError) {
+            console.warn('[WAHA Service] 🎙️ Failed to send neutral voice memo summary', {
+              chatId: targetChatId,
+              error: (sendError as Error).message
+            });
+          }
         }
       } else {
         console.log('[WAHA Service] 🎙️ ===== CREATING ITEMS =====');
@@ -3603,15 +3619,17 @@ class WAHAService extends EventEmitter {
         }
 
         console.log('[WAHA Service] 🎙️ Sending summary to WhatsApp group:', summaryMessage);
-        try {
-          await this.sendMessage(targetChatId, summaryMessage);
-          console.log('[WAHA Service] 🎙️ ✅ Summary message sent successfully');
-          console.log('[WAHA Service] 🎙️ ===== VOICE MEMO PROCESSING COMPLETE =====');
-        } catch (sendError) {
-          console.warn('[WAHA Service] 🎙️ Failed to send voice memo summary', {
-            chatId: targetChatId,
-            error: (sendError as Error).message
-          });
+        if (shouldSendFeedback) {
+          try {
+            await this.sendMessage(targetChatId, summaryMessage);
+            console.log('[WAHA Service] 🎙️ ✅ Summary message sent successfully');
+            console.log('[WAHA Service] 🎙️ ===== VOICE MEMO PROCESSING COMPLETE =====');
+          } catch (sendError) {
+            console.warn('[WAHA Service] 🎙️ Failed to send voice memo summary', {
+              chatId: targetChatId,
+              error: (sendError as Error).message
+            });
+          }
         }
       }
 

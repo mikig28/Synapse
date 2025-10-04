@@ -80,6 +80,7 @@ interface GroupMonitorSettings {
   replyMessage?: string;
   captureSocialLinks: boolean;
   processVoiceNotes: boolean;
+  sendFeedbackMessages: boolean;
 }
 
 interface GroupMonitor {
@@ -100,9 +101,10 @@ interface GroupMonitor {
 }
 
 type ApiGroupMonitor = Omit<GroupMonitor, 'settings'> & {
-  settings: Omit<GroupMonitorSettings, 'captureSocialLinks'> & {
+  settings: Omit<GroupMonitorSettings, 'captureSocialLinks' | 'sendFeedbackMessages'> & {
     captureSocialLinks?: boolean;
     processVoiceNotes?: boolean;
+    sendFeedbackMessages?: boolean;
   };
 };
 
@@ -112,6 +114,7 @@ const normalizeMonitor = (monitor: ApiGroupMonitor): GroupMonitor => ({
     ...monitor.settings,
     captureSocialLinks: monitor.settings.captureSocialLinks ?? false,
     processVoiceNotes: monitor.settings.processVoiceNotes ?? true,
+    sendFeedbackMessages: monitor.settings.sendFeedbackMessages ?? false,
   },
 });
 
@@ -396,6 +399,7 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
       replyMessage: '',
       captureSocialLinks: false,
       processVoiceNotes: true,
+      sendFeedbackMessages: false,
     }
   });
   
@@ -1670,6 +1674,12 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                               <span>Voice notes</span>
                             </div>
                           )}
+                          {monitor.settings.sendFeedbackMessages && (
+                            <div className="flex items-center gap-1">
+                              <MessageSquare className="w-3 h-3" />
+                              <span>Feedback msgs</span>
+                            </div>
+                          )}
                         </div>
 
                         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -1702,6 +1712,26 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                           <Switch
                             checked={Boolean(monitor.settings.processVoiceNotes)}
                             onCheckedChange={(checked) => updateMonitorSettings(monitor._id, { processVoiceNotes: checked })}
+                            disabled={settingsUpdateTarget === monitor._id}
+                          />
+                        </div>
+
+                        {/* Send Feedback Messages Toggle */}
+                        <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <MessageSquare className="w-4 h-4 text-purple-400" />
+                              <span className="text-sm font-medium text-white">Send Feedback Messages</span>
+                            </div>
+                            <div className="mt-1">
+                              <span className="text-xs text-blue-200/60">
+                                Send confirmation messages to WhatsApp group when images or voice memos are processed.
+                              </span>
+                            </div>
+                          </div>
+                          <Switch
+                            checked={Boolean(monitor.settings.sendFeedbackMessages)}
+                            onCheckedChange={(checked) => updateMonitorSettings(monitor._id, { sendFeedbackMessages: checked })}
                             disabled={settingsUpdateTarget === monitor._id}
                           />
                         </div>
@@ -2542,6 +2572,22 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                           onCheckedChange={(checked) => setMonitorForm(prev => ({
                             ...prev,
                             settings: { ...prev.settings, processVoiceNotes: checked }
+                          }))}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className="text-sm text-white font-medium">Send Feedback Messages</p>
+                          <p className="text-xs text-blue-200/70 mt-1">
+                            Send confirmation messages to WhatsApp group when images or voice memos are processed.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={Boolean(monitorForm.settings.sendFeedbackMessages)}
+                          onCheckedChange={(checked) => setMonitorForm(prev => ({
+                            ...prev,
+                            settings: { ...prev.settings, sendFeedbackMessages: checked }
                           }))}
                         />
                       </div>
