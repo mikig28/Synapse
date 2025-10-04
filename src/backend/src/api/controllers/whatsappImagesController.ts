@@ -1,13 +1,14 @@
 /**
  * WhatsApp Images Controller
  * Handles on-demand image extraction from WhatsApp messages
- *import { Request, Response } from 'express';
+ */
+import { Request, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/authMiddleware';
 import WhatsAppImageService from '../../services/whatsappImageService';
 import { whatsappImageGridFSService } from '../../services/whatsappImageGridFSService';
 import WhatsAppMessage from '../../models/WhatsAppMessage';
 import fs from 'fs/promises';
-import path from 'path';m 'path';
+import path from 'path';
 
 // Get WhatsApp Image service instance
 const getImageService = () => {
@@ -177,7 +178,15 @@ export const getImageByMessageId = async (req: AuthenticatedRequest, res: Respon
       data: image
     });
   } catch (error: any) {
-    console.er/**
+    console.error('[WhatsApp Images] Error getting image by message ID:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve image'
+    });
+  }
+};
+
+/**
  * Serve image file
  * Updated to serve from GridFS when available for permanent storage
  */
@@ -246,14 +255,6 @@ export const serveImageFile = async (req: AuthenticatedRequest, res: Response) =
     
     // Stream the file
     res.sendFile(path.resolve(imageFile.path));
-  } catch (error: any) {
-    console.error('[WhatsApp Images] Error serving image file:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to serve image file'
-    });
-  }
-};geFile.path));
   } catch (error: any) {
     console.error('[WhatsApp Images] Error serving image file:', error);
     res.status(500).json({
