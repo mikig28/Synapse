@@ -25,6 +25,7 @@ const BookmarksPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all');
+  const [platformFilter, setPlatformFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [sortOrder, setSortOrder] = useState<string>('desc');
 
@@ -204,14 +205,17 @@ const BookmarksPage: React.FC = () => {
       
       try {
         const bookmarkDate = new Date(bookmark.createdAt);
-        const matchesFilter = 
+        const matchesDateFilter =
           filter === 'all' ? true :
           filter === 'week' ? bookmarkDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7) :
           filter === 'month' ? bookmarkDate >= new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()) :
-          filter === bookmark.sourcePlatform ? true :
           true;
 
-        const matchesSearch = 
+        const matchesPlatformFilter =
+          platformFilter === 'all' ? true :
+          bookmark.sourcePlatform === platformFilter;
+
+        const matchesSearch =
           searchTerm === '' ? true :
           bookmark.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           bookmark.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -223,7 +227,7 @@ const BookmarksPage: React.FC = () => {
             bookmark.redditSubreddit?.toLowerCase().includes(searchTerm.toLowerCase())
           ));
 
-        return matchesFilter && matchesSearch;
+        return matchesDateFilter && matchesPlatformFilter && matchesSearch;
       } catch (err) {
         console.error("[BookmarksPage] Error filtering bookmark:", err, "Bookmark:", bookmark);
         return false;
@@ -719,7 +723,7 @@ const BookmarksPage: React.FC = () => {
           className="opacity-100"
         >
           <Card className="p-3 sm:p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50 mobile-card">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-end">
               <div className="lg:col-span-1">
                 <Label htmlFor="bookmarks-search" className="text-sm font-medium text-muted-foreground mb-2 block">Search</Label>
                 <div className="relative">
@@ -733,6 +737,22 @@ const BookmarksPage: React.FC = () => {
                     className="w-full pl-10 pr-4 py-3 text-sm bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200 min-h-[48px] touch-manipulation"
                   />
                 </div>
+              </div>
+
+              <div>
+                <Label htmlFor="bookmarks-platform-filter" className="text-sm font-medium text-muted-foreground mb-2 block">Platform Filter</Label>
+                <Select value={platformFilter} onValueChange={setPlatformFilter}>
+                  <SelectTrigger id="bookmarks-platform-filter" className="w-full bg-background/50 hover:bg-background/70 focus:bg-background/70 border-border/50 focus:ring-primary focus:border-primary transition-all duration-200 min-h-[48px] touch-manipulation">
+                    <SelectValue placeholder="Filter by platform..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border-border shadow-xl">
+                    <SelectItem value="all">All Platforms</SelectItem>
+                    <SelectItem value="X">X (Twitter)</SelectItem>
+                    <SelectItem value="LinkedIn">LinkedIn</SelectItem>
+                    <SelectItem value="Reddit">Reddit</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>
@@ -780,10 +800,10 @@ const BookmarksPage: React.FC = () => {
             <Card className="p-8 my-6 text-center bg-background/80 backdrop-blur-sm border-border/50 mobile-card">
               <BookmarkPlus className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
               <h3 className="text-xl font-semibold text-foreground mb-2">
-                {searchTerm || filter !== 'all' ? 'No Bookmarks Match Your Criteria' : 'No Bookmarks Yet'}
+                {searchTerm || filter !== 'all' || platformFilter !== 'all' ? 'No Bookmarks Match Your Criteria' : 'No Bookmarks Yet'}
               </h3>
               <p className="text-muted-foreground mb-6">
-                {searchTerm || filter !== 'all' ? 'Try adjusting your search or filters.' : 'Start adding bookmarks to see them here.'}
+                {searchTerm || filter !== 'all' || platformFilter !== 'all' ? 'Try adjusting your search or filters.' : 'Start adding bookmarks to see them here.'}
               </p>
             </Card>
           )}
