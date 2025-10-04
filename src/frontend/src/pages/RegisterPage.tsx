@@ -21,6 +21,7 @@ const RegisterPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [emailSentDuringRegistration, setEmailSentDuringRegistration] = useState(false);
   const [resending, setResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
   const storeLogin = useAuthStore((state) => state.login);
@@ -38,7 +39,9 @@ const RegisterPage: React.FC = () => {
       // Check if email verification is required
       if (data.requiresVerification) {
         console.log('[RegisterPage] Email verification required, showing success message');
+        console.log('[RegisterPage] Email sent during registration:', data.emailSent);
         setRegistrationSuccess(true);
+        setEmailSentDuringRegistration(data.emailSent || false);
         setLoading(false);
         return;
       }
@@ -165,8 +168,8 @@ const RegisterPage: React.FC = () => {
             </p>
           </motion.div>
 
-          {/* Success Message */}
-          {registrationSuccess && (
+          {/* Success Message - Email Sent */}
+          {registrationSuccess && emailSentDuringRegistration && !resendSuccess && (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -184,22 +187,53 @@ const RegisterPage: React.FC = () => {
                 </AlertDescription>
               </Alert>
 
-              {resendSuccess && (
-                <Alert className="glass border-emerald-500/30 bg-emerald-500/10 text-emerald-200">
-                  <Mail className="h-4 w-4 text-emerald-300" />
-                  <AlertTitle className="text-emerald-200 font-semibold">Email Sent!</AlertTitle>
-                  <AlertDescription className="text-emerald-300/90">
-                    A new verification email has been sent. Please check your inbox.
-                  </AlertDescription>
-                </Alert>
-              )}
+              <AnimatedButton
+                onClick={handleResendVerification}
+                disabled={resending}
+                className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25"
+                size="sm"
+              >
+                {resending ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <motion.div
+                      className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    />
+                    Sending...
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <RefreshCw className="w-4 h-4" />
+                    Resend Verification Email
+                  </span>
+                )}
+              </AnimatedButton>
+            </motion.div>
+          )}
+
+          {/* Resend Success - After Manual Send */}
+          {registrationSuccess && resendSuccess && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3 }}
+              className="mb-6 space-y-4"
+            >
+              <Alert className="glass border-emerald-500/30 bg-emerald-500/10 text-emerald-200">
+                <CheckCircle className="h-4 w-4 text-emerald-300" />
+                <AlertTitle className="text-emerald-200 font-semibold">Verification Email Sent!</AlertTitle>
+                <AlertDescription className="text-emerald-300/90">
+                  We've sent a verification email to <strong>{email}</strong>. Please check your inbox (and spam folder) and click the verification link to activate your account.
+                </AlertDescription>
+              </Alert>
 
               <div className="space-y-3">
                 <AnimatedButton
                   onClick={handleResendVerification}
                   disabled={resending}
-                  className="w-full bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white shadow-lg shadow-teal-500/25"
-                  size="lg"
+                  className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25"
+                  size="sm"
                 >
                   {resending ? (
                     <span className="flex items-center justify-center gap-2">
@@ -221,7 +255,61 @@ const RegisterPage: React.FC = () => {
                 <Button
                   variant="outline"
                   onClick={() => navigate('/login')}
-                  className="w-full border-white/10 bg-white/5 text-teal-100 hover:bg-white/10"
+                  className="w-full border-white/10 bg-white/5 text-emerald-100 hover:bg-white/10"
+                >
+                  Back to Login
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Success Message - Email FAILED to Send */}
+          {registrationSuccess && !emailSentDuringRegistration && !resendSuccess && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3 }}
+              className="mb-6 space-y-4"
+            >
+              <Alert className="glass border-amber-500/30 bg-amber-500/10 text-amber-200">
+                <AlertCircle className="h-4 w-4 text-amber-300" />
+                <AlertTitle className="text-amber-200 font-semibold">Registration Successful!</AlertTitle>
+                <AlertDescription className="text-amber-300/90">
+                  Your account was created for <strong>{email}</strong>, but we couldn't send the verification email automatically.
+                  <div className="mt-2 text-xs text-amber-400/70">
+                    💡 Click the button below to send your verification email.
+                  </div>
+                </AlertDescription>
+              </Alert>
+
+              <div className="space-y-3">
+                <AnimatedButton
+                  onClick={handleResendVerification}
+                  disabled={resending}
+                  className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg shadow-amber-500/25"
+                  size="lg"
+                >
+                  {resending ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <motion.div
+                        className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      />
+                      Sending...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-2">
+                      <Mail className="w-4 h-4" />
+                      Send Verification Email
+                    </span>
+                  )}
+                </AnimatedButton>
+
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/login')}
+                  className="w-full border-white/10 bg-white/5 text-amber-100 hover:bg-white/10"
                 >
                   Back to Login
                 </Button>

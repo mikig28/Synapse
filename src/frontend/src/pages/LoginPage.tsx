@@ -275,16 +275,30 @@ const LoginPage: React.FC = () => {
                 </AlertDescription>
               </Alert>
 
-              <AnimatedButton
-                onClick={handleResendVerification}
-                className="w-full mt-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg shadow-amber-500/25"
-                size="sm"
-              >
-                <span className="flex items-center justify-center gap-2">
-                  <Mail className="w-4 h-4" />
-                  Send Verification Email
-                </span>
-              </AnimatedButton>
+              <div className="space-y-3">
+                <AnimatedButton
+                  onClick={handleResendVerification}
+                  className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg shadow-amber-500/25"
+                  size="lg"
+                >
+                  <span className="flex items-center justify-center gap-2">
+                    <Mail className="w-4 h-4" />
+                    Send Verification Email
+                  </span>
+                </AnimatedButton>
+
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setNeedsVerification(false);
+                    setError(null);
+                    setResendSuccess(false);
+                  }}
+                  className="w-full border-white/10 bg-white/5 text-amber-100 hover:bg-white/10"
+                >
+                  Back to Login
+                </Button>
+              </div>
             </motion.div>
           )}
 
@@ -328,39 +342,54 @@ const LoginPage: React.FC = () => {
                 </AlertDescription>
               </Alert>
 
-              <AnimatedButton
-                onClick={handleResendVerification}
-                disabled={resending}
-                className="w-full mt-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25"
-                size="sm"
-              >
-                {resending ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <motion.div
-                      className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                    />
-                    Sending...
-                  </span>
-                ) : (
-                  <span className="flex items-center justify-center gap-2">
-                    <RefreshCw className="w-4 h-4" />
-                    Resend Verification Email
-                  </span>
-                )}
-              </AnimatedButton>
+              <div className="space-y-3">
+                <AnimatedButton
+                  onClick={handleResendVerification}
+                  disabled={resending}
+                  className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/25"
+                  size="sm"
+                >
+                  {resending ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <motion.div
+                        className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      />
+                      Sending...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-2">
+                      <RefreshCw className="w-4 h-4" />
+                      Resend Verification Email
+                    </span>
+                  )}
+                </AnimatedButton>
+
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setNeedsVerification(false);
+                    setError(null);
+                    setResendSuccess(false);
+                  }}
+                  className="w-full border-white/10 bg-white/5 text-emerald-100 hover:bg-white/10"
+                >
+                  Back to Login
+                </Button>
+              </div>
             </motion.div>
           )}
 
-          {/* Login Form */}
-          <motion.form
-            onSubmit={handleSubmit}
-            className="space-y-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-          >
+          {/* Login Form - Hidden when email verification is needed */}
+          {!needsVerification && (
+            <motion.form
+              onSubmit={handleSubmit}
+              className="space-y-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+            >
             <div className="space-y-2">
               <Label htmlFor="email" className="text-blue-100 font-medium">
                 Email
@@ -421,28 +450,33 @@ const LoginPage: React.FC = () => {
                 </span>
               )}
             </AnimatedButton>
-          </motion.form>
+            </motion.form>
+          )}
 
-          {/* OR Separator */}
-          <div className="my-6 flex items-center">
-            <div className="flex-grow border-t border-blue-300/20"></div>
-            <span className="mx-4 text-blue-200/70 text-sm">OR</span>
-            <div className="flex-grow border-t border-blue-300/20"></div>
-          </div>
+          {/* OR Separator - Hidden when verification needed */}
+          {!needsVerification && (
+            <>
+              <div className="my-6 flex items-center">
+                <div className="flex-grow border-t border-blue-300/20"></div>
+                <span className="mx-4 text-blue-200/70 text-sm">OR</span>
+                <div className="flex-grow border-t border-blue-300/20"></div>
+              </div>
 
-          {/* Google Sign-In Button */}
-          <AnimatedButton 
-            onClick={() => googleLogin()}
-            variant="secondary" 
-            className="w-full bg-white/90 hover:bg-white text-gray-700 hover:text-gray-900 shadow-md hover:shadow-lg border border-gray-300/50"
-            size="lg"
-            disabled={loading}
-          >
-            <span className="flex items-center justify-center gap-2">
-              <ChromeIcon className="w-5 h-5" /> {/* Using ChromeIcon as a stand-in for Google logo */}
-              Sign in with Google
-            </span>
-          </AnimatedButton>
+              {/* Google Sign-In Button */}
+              <AnimatedButton 
+                onClick={() => googleLogin()}
+                variant="secondary" 
+                className="w-full bg-white/90 hover:bg-white text-gray-700 hover:text-gray-900 shadow-md hover:shadow-lg border border-gray-300/50"
+                size="lg"
+                disabled={loading}
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <ChromeIcon className="w-5 h-5" /> {/* Using ChromeIcon as a stand-in for Google logo */}
+                  Sign in with Google
+                </span>
+              </AnimatedButton>
+            </>
+          )}
 
           {/* TEMPORARY DEBUG BUTTON */}
           {useAuthStore.getState().isAuthenticated && (
