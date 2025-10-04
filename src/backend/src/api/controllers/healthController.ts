@@ -210,9 +210,47 @@ export const livenessCheck = async (req: Request, res: Response) => {
   });
 };
 
+/**
+ * Email service health check - for debugging SMTP configuration
+ * Shows whether email service is properly configured
+ */
+export const healthCheck = async (req: Request, res: Response) => {
+  const smtpConfigured = !!(
+    process.env.SMTP_HOST &&
+    process.env.SMTP_PORT &&
+    process.env.SMTP_USER &&
+    process.env.SMTP_PASSWORD
+  );
+
+  const emailConfig = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: config.app.nodeEnv,
+    services: {
+      email: {
+        configured: smtpConfigured,
+        host: process.env.SMTP_HOST || 'NOT_SET',
+        port: process.env.SMTP_PORT || 'NOT_SET',
+        user: process.env.SMTP_USER ? '***' + process.env.SMTP_USER.slice(-10) : 'NOT_SET',
+        fromName: process.env.SMTP_FROM_NAME || 'NOT_SET',
+        fromEmail: process.env.SMTP_FROM_EMAIL || 'NOT_SET',
+      },
+      frontend: {
+        url: process.env.FRONTEND_URL || 'NOT_SET',
+      },
+      database: {
+        connected: mongoose.connection.readyState === 1,
+      }
+    }
+  };
+
+  res.json(emailConfig);
+};
+
 export default {
   quickHealthCheck,
   detailedHealthCheck,
   readinessCheck,
   livenessCheck,
+  healthCheck,
 };
