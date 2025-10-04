@@ -48,6 +48,7 @@ class EmailService {
   async sendEmail(options: EmailOptions): Promise<boolean> {
     if (!this.transporter) {
       console.error('[EmailService] Email service not configured. Cannot send email.');
+      console.error('[EmailService] Please set SMTP environment variables: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD');
       return false;
     }
 
@@ -55,7 +56,10 @@ class EmailService {
       const fromName = process.env.SMTP_FROM_NAME || 'SYNAPSE';
       const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
 
-      await this.transporter.sendMail({
+      console.log(`[EmailService] Attempting to send email to ${options.to}...`);
+      console.log(`[EmailService] Using SMTP: ${process.env.SMTP_HOST}:${process.env.SMTP_PORT}`);
+
+      const info = await this.transporter.sendMail({
         from: `"${fromName}" <${fromEmail}>`,
         to: options.to,
         subject: options.subject,
@@ -63,10 +67,17 @@ class EmailService {
         text: options.text,
       });
 
-      console.log(`[EmailService] Email sent successfully to ${options.to}`);
+      console.log(`[EmailService] ✅ Email sent successfully to ${options.to}`);
+      console.log(`[EmailService] Message ID: ${info.messageId}`);
       return true;
-    } catch (error) {
-      console.error('[EmailService] Failed to send email:', error);
+    } catch (error: any) {
+      console.error('[EmailService] ❌ Failed to send email:', error.message);
+      console.error('[EmailService] Error details:', {
+        code: error.code,
+        command: error.command,
+        response: error.response,
+        responseCode: error.responseCode,
+      });
       return false;
     }
   }
@@ -75,6 +86,9 @@ class EmailService {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const verificationLink = `${frontendUrl}/verify-email?token=${token}`;
     const displayName = fullName || 'there';
+
+    console.log(`[EmailService] Preparing verification email for ${email}`);
+    console.log(`[EmailService] Verification link: ${verificationLink}`);
 
     const html = `
       <!DOCTYPE html>

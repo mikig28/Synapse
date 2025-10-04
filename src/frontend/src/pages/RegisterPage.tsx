@@ -8,7 +8,8 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import useAuthStore from '@/store/authStore';
 import { registerService } from '@/services/authService';
-import { Brain, User, Mail, Lock, Sparkles, ArrowRight, AlertCircle, CheckCircle } from 'lucide-react';
+import axios from 'axios';
+import { Brain, User, Mail, Lock, Sparkles, ArrowRight, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -19,6 +20,8 @@ const RegisterPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
   const storeLogin = useAuthStore((state) => state.login);
   const navigate = useNavigate();
 
@@ -49,6 +52,30 @@ const RegisterPage: React.FC = () => {
       setError(err.message || 'An unexpected error occurred during registration.');
     }
     setLoading(false);
+  };
+
+  const handleResendVerification = async () => {
+    if (!email) return;
+
+    setResending(true);
+    setResendSuccess(false);
+    setError(null);
+
+    try {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const response = await axios.post(`${apiBaseUrl}/api/v1/auth/resend-verification`, {
+        email: email
+      });
+
+      if (response.data.success) {
+        setResendSuccess(true);
+      }
+    } catch (err: any) {
+      console.error('Resend verification failed:', err);
+      setError(err.response?.data?.message || 'Failed to resend verification email. Please try again.');
+    } finally {
+      setResending(false);
+    }
   };
 
   return (
@@ -134,7 +161,7 @@ const RegisterPage: React.FC = () => {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.3 }}
-              className="mb-6"
+              className="mb-6 space-y-4"
             >
               <Alert className="glass border-emerald-500/30 bg-emerald-500/10 text-emerald-200">
                 <CheckCircle className="h-4 w-4 text-emerald-300" />
@@ -143,10 +170,48 @@ const RegisterPage: React.FC = () => {
                   We've sent a verification email to <strong>{email}</strong>. Please check your inbox and click the verification link to activate your account.
                 </AlertDescription>
               </Alert>
-              <div className="mt-4 text-center">
-                <Link to="/login" className="text-emerald-300 hover:text-emerald-200 font-medium transition-colors text-sm">
-                  Back to Login →
-                </Link>
+
+              {resendSuccess && (
+                <Alert className="glass border-emerald-500/30 bg-emerald-500/10 text-emerald-200">
+                  <Mail className="h-4 w-4 text-emerald-300" />
+                  <AlertTitle className="text-emerald-200 font-semibold">Email Sent!</AlertTitle>
+                  <AlertDescription className="text-emerald-300/90">
+                    A new verification email has been sent. Please check your inbox.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="space-y-3">
+                <AnimatedButton
+                  onClick={handleResendVerification}
+                  disabled={resending}
+                  className="w-full bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white shadow-lg shadow-teal-500/25"
+                  size="lg"
+                >
+                  {resending ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <motion.div
+                        className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      />
+                      Sending...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-2">
+                      <RefreshCw className="w-4 h-4" />
+                      Resend Verification Email
+                    </span>
+                  )}
+                </AnimatedButton>
+
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/login')}
+                  className="w-full border-white/10 bg-white/5 text-teal-100 hover:bg-white/10"
+                >
+                  Back to Login
+                </Button>
               </div>
             </motion.div>
           )}
