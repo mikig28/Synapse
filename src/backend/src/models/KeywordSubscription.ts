@@ -17,6 +17,10 @@ export interface IKeywordSubscription extends Document {
   autoFetchLastError?: string;
   autoFetchLastFetchedCount?: number;
   autoFetchTimezone?: string;
+  languageFilter?: {
+    mode: 'include' | 'exclude'; // include only these languages OR exclude these languages
+    languages: string[]; // ISO 639-1 language codes (e.g., 'en', 'he', 'zh')
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -44,6 +48,13 @@ const KeywordSubscriptionSchema = new Schema<IKeywordSubscription>(
     autoFetchLastError: { type: String },
     autoFetchLastFetchedCount: { type: Number, min: 0 },
     autoFetchTimezone: { type: String, default: 'UTC' },
+    languageFilter: {
+      type: {
+        mode: { type: String, enum: ['include', 'exclude'], required: true },
+        languages: { type: [String], required: true, default: [] },
+      },
+      required: false,
+    },
   },
   { timestamps: true }
 );

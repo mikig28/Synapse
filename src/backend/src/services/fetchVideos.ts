@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import KeywordSubscription, { IKeywordSubscription } from '../models/KeywordSubscription';
 import Video, { IVideo } from '../models/Video';
-import { searchYouTube, isLikelyShort, YouTubeSearchArgs } from './youtube';
+import { searchYouTube, isLikelyShort, YouTubeSearchArgs, detectVideoLanguage, shouldFilterByLanguage } from './youtube';
 import { scoreRelevance } from './relevance';
 
 export interface FetchForUserArgs {
@@ -26,6 +26,11 @@ export async function fetchForUser({ userId, apiKey, subscriptionId }: FetchForU
     const since = new Date();
     since.setDate(since.getDate() - (sub.freshnessDays || 14));
 
+    // If language filter is set to 'include' mode with languages, add relevanceLanguage hint
+    const relevanceLanguage = sub.languageFilter?.mode === 'include' && sub.languageFilter.languages.length > 0
+      ? sub.languageFilter.languages[0] // Use first language as relevance hint
+      : undefined;
+
     const args: YouTubeSearchArgs = {
       q: sub.keywords.join(' '),
       publishedAfter: since.toISOString(),
@@ -33,6 +38,7 @@ export async function fetchForUser({ userId, apiKey, subscriptionId }: FetchForU
       maxResults: Math.min(sub.maxPerFetch || 20, 50),
       safeSearch: 'moderate',
       pageToken: sub.nextPageToken,
+      relevanceLanguage,
     };
 
     let remaining = sub.maxPerFetch || 20;
@@ -47,6 +53,20 @@ export async function fetchForUser({ userId, apiKey, subscriptionId }: FetchForU
         if (!vid) continue;
         const title = item.snippet?.title || 'Untitled';
         if (!sub.includeShorts && isLikelyShort(title)) continue;
+
+        // Apply language filter if configured
+        if (sub.languageFilter && sub.languageFilter.languages.length > 0) {
+          const videoLang = detectVideoLanguage(item.snippet);
+          const shouldExclude = shouldFilterByLanguage(
+            videoLang,
+            sub.languageFilter.mode,
+            sub.languageFilter.languages
+          );
+          if (shouldExclude) {
+            console.log(`[FetchVideos] Filtered out video "${title}" (lang: ${videoLang || 'unknown'}) based on ${sub.languageFilter.mode} filter`);
+            continue;
+          }
+        }
 
         const description = item.snippet?.description || '';
         const text = `${title}\n${description}`;

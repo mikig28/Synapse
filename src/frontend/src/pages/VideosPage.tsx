@@ -358,19 +358,19 @@ const VideosPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 text-white p-4 md:p-8 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 dark:from-slate-900 dark:via-purple-950 dark:to-slate-900 bg-slate-50 text-slate-900 dark:text-white p-4 md:p-8 relative overflow-hidden">
       <FloatingParticles items={30} />
-      <motion.div 
+      <motion.div
         className="container mx-auto relative z-10"
         initial="hidden"
         animate="visible"
-        variants={containerVariants}  
+        variants={containerVariants}
       >
-        <motion.h1 
-          className="text-4xl md:text-5xl font-bold mb-10 md:mb-12 text-center bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-500 to-red-400 py-2"
+        <motion.h1
+          className="text-4xl md:text-5xl font-bold mb-10 md:mb-12 text-center bg-clip-text text-transparent bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 dark:from-purple-400 dark:via-pink-500 dark:to-red-400 py-2"
           variants={itemVariants}
         >
-          <Film className="inline-block h-10 w-10 mr-3 mb-1" /> My Video Library
+          <Film className="inline-block h-10 w-10 mr-3 mb-1 text-purple-600 dark:text-purple-400" /> My Video Library
         </motion.h1>
 
         {/* YouTube Recommendations section */}
@@ -417,10 +417,10 @@ const VideosPage: React.FC = () => {
         {videos.length === 0 ? (
            <motion.div variants={itemVariants}>
               <GlassCard className="max-w-lg mx-auto text-center p-8 mt-10">
-                  <HelpCircle className="h-12 w-12 mx-auto mb-4 text-purple-400/70" />
-                  <AlertTitle className="text-xl font-semibold text-white mb-2">No Videos Yet!</AlertTitle>
-                  <AlertDescription className="text-purple-200/80">
-                      Your video library is empty. Send YouTube links to your Synapse Telegram bot, 
+                  <HelpCircle className="h-12 w-12 mx-auto mb-4 text-purple-600 dark:text-purple-400/70" />
+                  <AlertTitle className="text-xl font-semibold text-slate-900 dark:text-white mb-2">No Videos Yet!</AlertTitle>
+                  <AlertDescription className="text-slate-700 dark:text-purple-200/80">
+                      Your video library is empty. Send YouTube links to your Synapse Telegram bot,
                       and they'll appear here, ready to be organized and watched.
                   </AlertDescription>
               </GlassCard>
@@ -430,10 +430,10 @@ const VideosPage: React.FC = () => {
             <motion.section key={section.status} className="mb-12" variants={itemVariants}>
               <div className="flex items-center mb-6">
                 {section.icon}
-                <motion.h2 className="text-2xl font-semibold" variants={itemVariants}>{section.title} ({groupedVideos[section.status]?.length || 0})</motion.h2>
+                <motion.h2 className="text-2xl font-semibold text-slate-900 dark:text-white" variants={itemVariants}>{section.title} ({groupedVideos[section.status]?.length || 0})</motion.h2>
               </div>
               {(groupedVideos[section.status]?.length || 0) === 0 ? (
-                <motion.p className="text-muted-foreground ml-10" variants={itemVariants}>No videos in this section.</motion.p>
+                <motion.p className="text-slate-600 dark:text-muted-foreground ml-10" variants={itemVariants}>No videos in this section.</motion.p>
               ) : (
                 <motion.div 
                   className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
@@ -467,11 +467,11 @@ const VideosPage: React.FC = () => {
                           </div>
                         </div>
                         <CardHeader className="flex-grow p-3 md:p-4">
-                          <CardTitle className="text-sm md:text-base font-semibold leading-tight mb-1 line-clamp-2 text-gray-100 hover:text-pink-300 transition-colors" title={video.title}>
+                          <CardTitle className="text-sm md:text-base font-semibold leading-tight mb-1 line-clamp-2 text-slate-900 dark:text-gray-100 hover:text-pink-600 dark:hover:text-pink-300 transition-colors" title={video.title}>
                             {video.title}
                           </CardTitle>
                           {video.channelTitle && (
-                            <CardDescription className="text-xs text-purple-400 line-clamp-1">
+                            <CardDescription className="text-xs text-purple-700 dark:text-purple-400 line-clamp-1">
                               {video.channelTitle}
                             </CardDescription>
                           )}
@@ -480,24 +480,24 @@ const VideosPage: React.FC = () => {
                         {/* Summary Section */}
                         {video.summary && (
                           <CardContent className="p-3 md:p-4 pt-0">
-                            <div className="bg-slate-800/50 rounded-lg border border-purple-700/30 overflow-hidden">
+                            <div className="bg-slate-200 dark:bg-slate-800/50 rounded-lg border border-purple-300 dark:border-purple-700/30 overflow-hidden">
                               {/* Accordion Header */}
                               <button
                                 onClick={() => toggleSummaryExpansion(video._id)}
-                                className="w-full flex items-center justify-between p-3 hover:bg-slate-700/30 transition-colors duration-200"
+                                className="w-full flex items-center justify-between p-3 hover:bg-slate-300 dark:hover:bg-slate-700/30 transition-colors duration-200"
                               >
                                 <div className="flex items-center">
-                                  <FileText className="w-4 h-4 text-purple-400 mr-2" />
-                                  <span className="text-xs font-medium text-purple-300">סיכום AI חכם</span>
+                                  <FileText className="w-4 h-4 text-purple-600 dark:text-purple-400 mr-2" />
+                                  <span className="text-xs font-medium text-purple-700 dark:text-purple-300">סיכום AI חכם</span>
                                 </div>
                                 <motion.div
                                   animate={{ rotate: expandedSummaries.has(video._id) ? 180 : 0 }}
                                   transition={{ duration: 0.2 }}
                                 >
-                                  <ChevronDown className="w-4 h-4 text-purple-400" />
+                                  <ChevronDown className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                                 </motion.div>
                               </button>
-                              
+
                               {/* Accordion Content */}
                               <AnimatePresence>
                                 {expandedSummaries.has(video._id) && (
@@ -509,13 +509,13 @@ const VideosPage: React.FC = () => {
                                     className="overflow-hidden"
                                   >
                                     <div className="px-3 pb-3">
-                                      <div className="text-xs text-gray-300 leading-relaxed whitespace-pre-line border-t border-purple-800/30 pt-3">
+                                      <div className="text-xs text-slate-800 dark:text-gray-300 leading-relaxed whitespace-pre-line border-t border-purple-300 dark:border-purple-800/30 pt-3">
                                         {video.summary}
                                       </div>
-                                      
+
                                       {/* Read Aloud Button */}
-                                      <div className="mt-3 pt-2 border-t border-purple-800/30 flex items-center justify-between">
-                                        <span className="text-xs text-purple-400/70 italic">
+                                      <div className="mt-3 pt-2 border-t border-purple-300 dark:border-purple-800/30 flex items-center justify-between">
+                                        <span className="text-xs text-purple-600 dark:text-purple-400/70 italic">
                                           * סיכום זה נוצר על ידי AI על בסיס ניתוח הכותרת והמטאדטה של הסרטון
                                         </span>
                                         
@@ -555,11 +555,11 @@ const VideosPage: React.FC = () => {
 
                         {/* Search Moments Section */}
                         <CardContent className="p-3 md:p-4 pt-0">
-                          <div className="bg-slate-800/50 rounded-lg border border-purple-700/30 overflow-hidden">
+                          <div className="bg-slate-200 dark:bg-slate-800/50 rounded-lg border border-purple-300 dark:border-purple-700/30 overflow-hidden">
                             <div className="w-full flex items-center justify-between p-3">
-                              <span className="text-xs font-medium text-purple-300">Search Moments</span>
+                              <span className="text-xs font-medium text-purple-700 dark:text-purple-300">Search Moments</span>
                               {indexedMap[video._id] ? (
-                                <span className="text-[10px] text-green-400">Indexed</span>
+                                <span className="text-[10px] text-green-600 dark:text-green-400">Indexed</span>
                               ) : (
                                 <AnimatedButton
                                   size="sm"
@@ -595,35 +595,35 @@ const VideosPage: React.FC = () => {
                                         setPlayingVideoId(video.videoId);
                                         setPlayingStartSeconds(item.metadata?.start_time ?? 0);
                                       }}
-                                      className="w-full text-left text-xs bg-slate-900/40 hover:bg-slate-900/70 rounded p-2 border border-purple-700/30"
+                                      className="w-full text-left text-xs bg-slate-100 dark:bg-slate-900/40 hover:bg-slate-200 dark:hover:bg-slate-900/70 rounded p-2 border border-purple-300 dark:border-purple-700/30"
                                     >
-                                      <div className="text-purple-200 line-clamp-2">{item.content.text.trim()}</div>
-                                      <div className="text-[10px] text-purple-400/70">t= {item.metadata?.start_time ?? 0}s</div>
+                                      <div className="text-slate-800 dark:text-purple-200 line-clamp-2">{item.content.text.trim()}</div>
+                                      <div className="text-[10px] text-purple-600 dark:text-purple-400/70">t= {item.metadata?.start_time ?? 0}s</div>
                                     </button>
                                   ))}
                                   {searchLoadingMap[video._id] && (
-                                    <div className="text-xs text-purple-300">Searching...</div>
+                                    <div className="text-xs text-purple-700 dark:text-purple-300">Searching...</div>
                                   )}
                                 </div>
                               </div>
                             )}
                           </div>
                         </CardContent>
-                        
-                        <CardFooter className="p-3 md:p-4 pt-2 border-t border-purple-800/50">
+
+                        <CardFooter className="p-3 md:p-4 pt-2 border-t border-purple-300 dark:border-purple-800/50">
                           <div className="flex flex-col w-full gap-2">
                             {/* Status and Actions Row */}
                             <div className="flex items-center justify-between">
-                              <Select 
+                              <Select
                                   value={video.watchedStatus}
                                   onValueChange={(newStatus: VideoItemType['watchedStatus']) => handleStatusChange(video._id, newStatus)}
                               >
-                                  <SelectTrigger className="flex-1 text-xs h-9 bg-slate-700/50 border-purple-600/70 hover:border-purple-500">
+                                  <SelectTrigger className="flex-1 text-xs h-9 bg-slate-200 dark:bg-slate-700/50 border-purple-400 dark:border-purple-600/70 hover:border-purple-500">
                                       <SelectValue placeholder="Change status" />
                                   </SelectTrigger>
-                                  <SelectContent className="bg-slate-800 border-purple-600 text-white">
+                                  <SelectContent className="bg-white dark:bg-slate-800 border-purple-400 dark:border-purple-600 text-slate-900 dark:text-white">
                                       {statusOptions.map(opt => (
-                                          <SelectItem key={opt.value} value={opt.value} className="text-xs hover:bg-purple-700/50 focus:bg-purple-700/60">
+                                          <SelectItem key={opt.value} value={opt.value} className="text-xs hover:bg-purple-100 dark:hover:bg-purple-700/50 focus:bg-purple-200 dark:focus:bg-purple-700/60">
                                               {opt.label}
                                           </SelectItem>
                                       ))}

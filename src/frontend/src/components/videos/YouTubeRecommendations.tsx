@@ -41,6 +41,9 @@ export const YouTubeRecommendations: React.FC = () => {
   const [newAutoFetchEnabled, setNewAutoFetchEnabled] = useState<boolean>(false);
   const [newAutoFetchInterval, setNewAutoFetchInterval] = useState<number>(DEFAULT_AUTO_FETCH_INTERVAL);
   const [newAutoFetchTimezone, setNewAutoFetchTimezone] = useState<string>('UTC');
+  const [newLanguageFilterMode, setNewLanguageFilterMode] = useState<'include' | 'exclude'>('include');
+  const [newLanguageFilterLangs, setNewLanguageFilterLangs] = useState<string>('');
+  const [newLanguageFilterEnabled, setNewLanguageFilterEnabled] = useState<boolean>(false);
   const [creating, setCreating] = useState<boolean>(false);
   // Manage/edit subscription dialog
   const [manageOpen, setManageOpen] = useState<boolean>(false);
@@ -54,6 +57,9 @@ export const YouTubeRecommendations: React.FC = () => {
   const [editAutoFetchInterval, setEditAutoFetchInterval] = useState<number>(DEFAULT_AUTO_FETCH_INTERVAL);
   const [editAutoFetchTimezone, setEditAutoFetchTimezone] = useState<string>('UTC');
   const [editIsActive, setEditIsActive] = useState<boolean>(true);
+  const [editLanguageFilterMode, setEditLanguageFilterMode] = useState<'include' | 'exclude'>('include');
+  const [editLanguageFilterLangs, setEditLanguageFilterLangs] = useState<string>('');
+  const [editLanguageFilterEnabled, setEditLanguageFilterEnabled] = useState<boolean>(false);
 
   const statusParam = useMemo<VideoModerationStatus | undefined>(() => {
     if (status === 'all') return undefined;
@@ -153,6 +159,9 @@ export const YouTubeRecommendations: React.FC = () => {
     setNewAutoFetchEnabled(false);
     setNewAutoFetchInterval(DEFAULT_AUTO_FETCH_INTERVAL);
     setNewAutoFetchTimezone('UTC');
+    setNewLanguageFilterEnabled(false);
+    setNewLanguageFilterMode('include');
+    setNewLanguageFilterLangs('');
   };
 
   const resetEditState = () => {
@@ -165,6 +174,9 @@ export const YouTubeRecommendations: React.FC = () => {
     setEditAutoFetchEnabled(false);
     setEditAutoFetchInterval(DEFAULT_AUTO_FETCH_INTERVAL);
     setEditAutoFetchTimezone('UTC');
+    setEditLanguageFilterEnabled(false);
+    setEditLanguageFilterMode('include');
+    setEditLanguageFilterLangs('');
   };
 
   const formatDateTime = (iso?: string) => {
@@ -199,6 +211,13 @@ export const YouTubeRecommendations: React.FC = () => {
     }
     try {
       setCreating(true);
+      const languageFilter = newLanguageFilterEnabled && newLanguageFilterLangs.trim()
+        ? {
+            mode: newLanguageFilterMode,
+            languages: newLanguageFilterLangs.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
+          }
+        : undefined;
+
       const payload = {
         keywords: newKeywords.split(',').map((s) => s.trim()).filter(Boolean),
         includeShorts: newIncludeShorts,
@@ -208,6 +227,7 @@ export const YouTubeRecommendations: React.FC = () => {
         autoFetchEnabled: newAutoFetchEnabled,
         autoFetchIntervalMinutes: newAutoFetchInterval,
         autoFetchTimezone: newAutoFetchTimezone,
+        languageFilter,
       };
       const created = await createSubscription(payload);
       setSubscriptions((prev) => [created, ...prev]);
@@ -227,7 +247,7 @@ export const YouTubeRecommendations: React.FC = () => {
   return (
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <h2 className="text-2xl font-semibold flex items-center">
+        <h2 className="text-2xl font-semibold flex items-center text-slate-900 dark:text-white">
           <Youtube className="h-6 w-6 text-red-500 mr-2" /> YouTube Recommendations
         </h2>
         <div className="flex items-center gap-2">
@@ -249,22 +269,22 @@ export const YouTubeRecommendations: React.FC = () => {
               </DialogHeader>
               <div className="space-y-3">
                 <div>
-                  <label className="text-sm">Keywords (comma-separated)</label>
+                  <label className="text-sm text-slate-900 dark:text-white">Keywords (comma-separated)</label>
                   <Input value={newKeywords} onChange={(e) => setNewKeywords(e.target.value)} placeholder="ai, machine learning, typescript" />
                 </div>
                 <div className="flex gap-3">
                   <div className="flex-1">
-                    <label className="text-sm">Freshness days</label>
+                    <label className="text-sm text-slate-900 dark:text-white">Freshness days</label>
                     <Input type="number" min={1} max={90} value={newFreshness} onChange={(e) => setNewFreshness(parseInt(e.target.value || '14', 10))} />
                   </div>
                   <div className="flex-1">
-                    <label className="text-sm">Max per fetch</label>
+                    <label className="text-sm text-slate-900 dark:text-white">Max per fetch</label>
                     <Input type="number" min={1} max={50} value={newMaxFetch} onChange={(e) => setNewMaxFetch(parseInt(e.target.value || '20', 10))} />
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <input id="includeShorts" type="checkbox" checked={newIncludeShorts} onChange={(e) => setNewIncludeShorts(e.target.checked)} />
-                  <label htmlFor="includeShorts" className="text-sm">Include Shorts</label>
+                  <label htmlFor="includeShorts" className="text-sm text-slate-900 dark:text-white">Include Shorts</label>
                 </div>
                 <div className="flex items-center justify-between">
                   <Label htmlFor="new-auto-fetch" className="text-sm">Auto-fetch recommendations</Label>
@@ -300,6 +320,41 @@ export const YouTubeRecommendations: React.FC = () => {
                     </div>
                   </div>
                 )}
+
+                {/* Language Filter Section */}
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="new-language-filter" className="text-sm">Language Filter</Label>
+                  <Switch id="new-language-filter" checked={newLanguageFilterEnabled} onCheckedChange={setNewLanguageFilterEnabled} />
+                </div>
+                {newLanguageFilterEnabled && (
+                  <div className="space-y-2 p-3 border border-purple-300 dark:border-purple-700/30 rounded-md bg-slate-100 dark:bg-slate-800/30">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs">Mode:</Label>
+                      <Select value={newLanguageFilterMode} onValueChange={(v: 'include' | 'exclude') => setNewLanguageFilterMode(v)}>
+                        <SelectTrigger className="h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="include">Include only</SelectItem>
+                          <SelectItem value="exclude">Exclude</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="new-lang-codes" className="text-xs">Language codes (comma-separated)</Label>
+                      <Input
+                        id="new-lang-codes"
+                        value={newLanguageFilterLangs}
+                        onChange={(e) => setNewLanguageFilterLangs(e.target.value)}
+                        placeholder="en, he, es"
+                        className="text-xs"
+                      />
+                      <p className="text-[10px] text-slate-600 dark:text-purple-400/60 mt-1">
+                        Use ISO 639-1 codes (e.g., en=English, he=Hebrew, zh=Chinese, ar=Arabic)
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <AnimatedButton onClick={onCreateSub} disabled={creating}>
@@ -324,14 +379,14 @@ export const YouTubeRecommendations: React.FC = () => {
               </DialogHeader>
               <div className="space-y-3 max-h-[60vh] overflow-auto pr-2">
                 {subscriptions.length === 0 ? (
-                  <div className="text-sm text-purple-300/80">No subscriptions yet.</div>
+                  <div className="text-sm text-slate-700 dark:text-purple-300/80">No subscriptions yet.</div>
                 ) : (
                   subscriptions.map((s) => (
-                    <div key={s._id} className="p-3 border border-purple-800/40 rounded-md bg-slate-900/40">
-                      <div className="text-sm font-medium text-purple-200 line-clamp-2">{s.keywords.join(', ')}</div>
-                      <div className="text-[11px] text-purple-400/70 mt-1">freshness {s.freshnessDays}d • max {s.maxPerFetch} • {s.includeShorts ? 'shorts:on' : 'shorts:off'} • {s.isActive ? 'active' : 'inactive'}</div>
-                      <div className="text-[11px] text-purple-300/60 mt-1">{getAutoFetchSummary(s)}</div>
-                      <div className="text-[11px] text-purple-400/60 mt-1">last run: {formatDateTime(s.autoFetchLastRunAt)} • last fetched: {s.autoFetchLastFetchedCount ?? 0}</div>
+                    <div key={s._id} className="p-3 border border-purple-300 dark:border-purple-800/40 rounded-md bg-slate-100 dark:bg-slate-900/40">
+                      <div className="text-sm font-medium text-slate-900 dark:text-purple-200 line-clamp-2">{s.keywords.join(', ')}</div>
+                      <div className="text-[11px] text-purple-700 dark:text-purple-400/70 mt-1">freshness {s.freshnessDays}d • max {s.maxPerFetch} • {s.includeShorts ? 'shorts:on' : 'shorts:off'} • {s.isActive ? 'active' : 'inactive'}</div>
+                      <div className="text-[11px] text-purple-600 dark:text-purple-300/60 mt-1">{getAutoFetchSummary(s)}</div>
+                      <div className="text-[11px] text-purple-600 dark:text-purple-400/60 mt-1">last run: {formatDateTime(s.autoFetchLastRunAt)} • last fetched: {s.autoFetchLastFetchedCount ?? 0}</div>
                       <div className="mt-2 flex items-center gap-2">
                         <AnimatedButton
                           variant="outline"
@@ -346,6 +401,9 @@ export const YouTubeRecommendations: React.FC = () => {
                             setEditAutoFetchInterval(s.autoFetchIntervalMinutes ?? DEFAULT_AUTO_FETCH_INTERVAL);
                             setEditAutoFetchTimezone(s.autoFetchTimezone || 'UTC');
                             setEditIsActive(s.isActive);
+                            setEditLanguageFilterEnabled(!!s.languageFilter);
+                            setEditLanguageFilterMode(s.languageFilter?.mode || 'include');
+                            setEditLanguageFilterLangs(s.languageFilter?.languages.join(', ') || '');
                           }}
                         >Edit</AnimatedButton>
                         <AnimatedButton
@@ -372,8 +430,8 @@ export const YouTubeRecommendations: React.FC = () => {
                             <Input type="number" min={1} max={50} value={editMaxFetch} onChange={(e) => setEditMaxFetch(parseInt(e.target.value || '20', 10))} />
                           </div>
                           <div className="flex items-center gap-4">
-                            <label className="text-xs flex items-center gap-1"><input type="checkbox" checked={editIncludeShorts} onChange={(e) => setEditIncludeShorts(e.target.checked)} />Include Shorts</label>
-                            <label className="text-xs flex items-center gap-1"><input type="checkbox" checked={editIsActive} onChange={(e) => setEditIsActive(e.target.checked)} />Active</label>
+                            <label className="text-xs flex items-center gap-1 text-slate-900 dark:text-white"><input type="checkbox" checked={editIncludeShorts} onChange={(e) => setEditIncludeShorts(e.target.checked)} />Include Shorts</label>
+                            <label className="text-xs flex items-center gap-1 text-slate-900 dark:text-white"><input type="checkbox" checked={editIsActive} onChange={(e) => setEditIsActive(e.target.checked)} />Active</label>
                           </div>
                         <div className="flex items-center justify-between">
                           <Label htmlFor={`autoFetch-${s._id}`} className="text-xs">Auto-Fetch</Label>
@@ -419,12 +477,52 @@ export const YouTubeRecommendations: React.FC = () => {
                             />
                           </div>
                         )}
+
+                        {/* Language Filter in Edit Mode */}
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor={`langFilter-${s._id}`} className="text-xs">Language Filter</Label>
+                          <Switch id={`langFilter-${s._id}`} checked={editLanguageFilterEnabled} onCheckedChange={setEditLanguageFilterEnabled} />
+                        </div>
+                        {editLanguageFilterEnabled && (
+                          <div className="space-y-2 p-2 border border-purple-300 dark:border-purple-700/30 rounded-md bg-slate-100 dark:bg-slate-800/30">
+                            <div className="flex items-center gap-2">
+                              <Label className="text-[10px]">Mode:</Label>
+                              <Select value={editLanguageFilterMode} onValueChange={(v: 'include' | 'exclude') => setEditLanguageFilterMode(v)}>
+                                <SelectTrigger className="h-7 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="include">Include only</SelectItem>
+                                  <SelectItem value="exclude">Exclude</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label htmlFor={`langCodes-${s._id}`} className="text-[10px]">Languages (comma-separated)</Label>
+                              <Input
+                                id={`langCodes-${s._id}`}
+                                value={editLanguageFilterLangs}
+                                onChange={(e) => setEditLanguageFilterLangs(e.target.value)}
+                                placeholder="en, he, es"
+                                className="text-xs h-7"
+                              />
+                            </div>
+                          </div>
+                        )}
+
                         <div className="flex items-center gap-2">
                           <AnimatedButton
                             size="sm"
                             onClick={async () => {
                               try {
                                 setEditing(true);
+                                const languageFilter = editLanguageFilterEnabled && editLanguageFilterLangs.trim()
+                                  ? {
+                                      mode: editLanguageFilterMode,
+                                      languages: editLanguageFilterLangs.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
+                                    }
+                                  : null;
+
                                 const payload = {
                                   keywords: editKeywords.split(',').map((x) => x.trim()).filter(Boolean),
                                   freshnessDays: editFreshness,
@@ -434,6 +532,7 @@ export const YouTubeRecommendations: React.FC = () => {
                                   autoFetchEnabled: editAutoFetchEnabled,
                                   autoFetchIntervalMinutes: editAutoFetchInterval,
                                   autoFetchTimezone: editAutoFetchTimezone,
+                                  languageFilter,
                                 };
                                 const updated = await updateSubscriptionApi(s._id, payload);
                                 setSubscriptions((prev) => prev.map((x) => (x._id === s._id ? updated : x)));
@@ -503,7 +602,7 @@ export const YouTubeRecommendations: React.FC = () => {
       <GlassCard>
         <div className="p-3 flex flex-col md:flex-row gap-3 md:items-end">
           <div className="flex-1">
-            <label className="text-sm">Subscription</label>
+            <label className="text-sm text-slate-900 dark:text-white">Subscription</label>
             <Select value={selectedSubId} onValueChange={setSelectedSubId}>
               <SelectTrigger>
                 <SelectValue placeholder="All subscriptions" />
@@ -517,7 +616,7 @@ export const YouTubeRecommendations: React.FC = () => {
             </Select>
           </div>
           <div className="flex-1">
-            <label className="text-sm">Search</label>
+            <label className="text-sm text-slate-900 dark:text-white">Search</label>
             <div className="flex gap-2">
               <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search title/description" />
               <AnimatedButton onClick={onSearch} variant="outline" className="flex items-center">
@@ -526,11 +625,11 @@ export const YouTubeRecommendations: React.FC = () => {
             </div>
           </div>
           <div>
-            <label className="text-sm">From</label>
+            <label className="text-sm text-slate-900 dark:text-white">From</label>
             <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
           </div>
           <div>
-            <label className="text-sm">To</label>
+            <label className="text-sm text-slate-900 dark:text-white">To</label>
             <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
         </div>
@@ -548,10 +647,10 @@ export const YouTubeRecommendations: React.FC = () => {
 
       {/* Grid */}
       {loading ? (
-        <div className="text-sm text-purple-200">Loading recommendations...</div>
+        <div className="text-sm text-slate-700 dark:text-purple-200">Loading recommendations...</div>
       ) : videos.length === 0 ? (
         <GlassCard>
-          <div className="p-6 text-sm text-purple-200">No recommendations yet. Create a subscription and click Fetch now.</div>
+          <div className="p-6 text-sm text-slate-700 dark:text-purple-200">No recommendations yet. Create a subscription and click Fetch now.</div>
         </GlassCard>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -574,15 +673,15 @@ export const YouTubeRecommendations: React.FC = () => {
                 </button>
               </div>
               <CardHeader className="p-3">
-                <CardTitle className="text-sm line-clamp-2">{v.title}</CardTitle>
-                <div className="text-[11px] text-purple-300/80 line-clamp-1">{v.channelTitle || 'YouTube'}</div>
-                <div className="text-[10px] text-purple-400/60 mt-1">{v.publishedAt ? new Date(v.publishedAt).toLocaleString() : ''} {typeof v.relevance === 'number' ? `• rel ${v.relevance.toFixed(2)}` : ''}</div>
+                <CardTitle className="text-sm line-clamp-2 text-slate-900 dark:text-white">{v.title}</CardTitle>
+                <div className="text-[11px] text-purple-700 dark:text-purple-300/80 line-clamp-1">{v.channelTitle || 'YouTube'}</div>
+                <div className="text-[10px] text-purple-600 dark:text-purple-400/60 mt-1">{v.publishedAt ? new Date(v.publishedAt).toLocaleString() : ''} {typeof v.relevance === 'number' ? `• rel ${v.relevance.toFixed(2)}` : ''}</div>
               </CardHeader>
               <CardContent className="p-3 pt-0">
-                <div className="text-xs text-purple-100/80 line-clamp-3">{v.description}</div>
+                <div className="text-xs text-slate-700 dark:text-purple-100/80 line-clamp-3">{v.description}</div>
               </CardContent>
               <CardFooter className="p-3 pt-0 flex items-center justify-between">
-                <a href={`https://www.youtube.com/watch?v=${v.videoId}`} target="_blank" rel="noreferrer" className="text-[12px] text-blue-300 hover:underline">Open on YouTube</a>
+                <a href={`https://www.youtube.com/watch?v=${v.videoId}`} target="_blank" rel="noreferrer" className="text-[12px] text-blue-600 dark:text-blue-300 hover:underline">Open on YouTube</a>
                 <div className="flex items-center gap-2">
                   {v.status !== 'approved' && (
                     <AnimatedButton size="sm" variant="outline" onClick={() => onApprove(v._id)} className="text-xs flex items-center">
@@ -608,7 +707,7 @@ export const YouTubeRecommendations: React.FC = () => {
 
       {/* Pagination */}
       <div className="flex items-center justify-between">
-        <div className="text-xs text-purple-200/80">Page {page} / {totalPages} • {total} total</div>
+        <div className="text-xs text-slate-700 dark:text-purple-200/80">Page {page} / {totalPages} • {total} total</div>
         <div className="flex items-center gap-2">
           <AnimatedButton size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</AnimatedButton>
           <AnimatedButton size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</AnimatedButton>

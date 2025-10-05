@@ -17,6 +17,11 @@ export interface RecommendationVideo {
   updatedAt: string;
 }
 
+export interface LanguageFilter {
+  mode: 'include' | 'exclude';
+  languages: string[]; // ISO 639-1 language codes
+}
+
 export interface KeywordSubscription {
   _id: string;
   userId: string;
@@ -35,6 +40,7 @@ export interface KeywordSubscription {
   autoFetchLastError?: string;
   autoFetchLastFetchedCount?: number;
   autoFetchTimezone?: string;
+  languageFilter?: LanguageFilter;
   createdAt: string;
   updatedAt: string;
 }

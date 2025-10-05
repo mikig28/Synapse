@@ -7,6 +7,7 @@ export interface YouTubeSearchArgs {
   maxResults?: number; // 1..50 (API caps at 50)
   safeSearch?: 'moderate' | 'none' | 'strict';
   pageToken?: string;
+  relevanceLanguage?: string; // ISO 639-1 language code for relevance
 }
 
 export interface YouTubeSearchItem {
@@ -17,6 +18,8 @@ export interface YouTubeSearchItem {
     title: string;
     description?: string;
     thumbnails?: Record<string, { url: string; width?: number; height?: number }>;
+    defaultAudioLanguage?: string; // ISO 639-1 language code
+    defaultLanguage?: string; // ISO 639-1 language code
   };
 }
 
@@ -49,6 +52,7 @@ export async function searchYouTube(apiKey: string, args: YouTubeSearchArgs, max
     maxResults: Math.min(Math.max(args.maxResults ?? 20, 1), 50),
     safeSearch: args.safeSearch || 'moderate',
     pageToken: args.pageToken,
+    relevanceLanguage: args.relevanceLanguage, // Adds language preference to search
   };
 
   let attempt = 0;
@@ -80,6 +84,58 @@ export function isLikelyShort(title: string): boolean {
   if (t.includes('shorts') || t.includes('#shorts')) return true;
   if (t.length <= 25) return true;
   return false;
+}
+
+/**
+ * Detect video language from YouTube snippet data
+ * Returns ISO 639-1 language code or undefined if not detectable
+ */
+export function detectVideoLanguage(snippet: YouTubeSearchItem['snippet']): string | undefined {
+  // Try defaultAudioLanguage first (most reliable)
+  if (snippet.defaultAudioLanguage) {
+    return snippet.defaultAudioLanguage.toLowerCase();
+  }
+  // Fallback to defaultLanguage
+  if (snippet.defaultLanguage) {
+    return snippet.defaultLanguage.toLowerCase();
+  }
+  return undefined;
+}
+
+/**
+ * Check if video should be filtered based on language settings
+ * @param videoLang - Detected video language (undefined if not detected)
+ * @param filterMode - 'include' or 'exclude'
+ * @param filterLangs - Array of language codes to filter
+ * @returns true if video should be EXCLUDED, false if it should be INCLUDED
+ */
+export function shouldFilterByLanguage(
+  videoLang: string | undefined,
+  filterMode: 'include' | 'exclude',
+  filterLangs: string[]
+): boolean {
+  if (!filterLangs || filterLangs.length === 0) {
+    return false; // No filter, include all
+  }
+
+  // If video language is not detected, we can't filter
+  // In 'include' mode: exclude unknown languages (conservative approach)
+  // In 'exclude' mode: include unknown languages (allow unknown)
+  if (!videoLang) {
+    return filterMode === 'include'; // Exclude if mode is 'include', include if mode is 'exclude'
+  }
+
+  const normalizedLang = videoLang.toLowerCase();
+  const normalizedFilterLangs = filterLangs.map(l => l.toLowerCase());
+  const isInFilterList = normalizedFilterLangs.includes(normalizedLang);
+
+  if (filterMode === 'include') {
+    // Include mode: exclude if NOT in the list
+    return !isInFilterList;
+  } else {
+    // Exclude mode: exclude if IN the list
+    return isInFilterList;
+  }
 }
 
 

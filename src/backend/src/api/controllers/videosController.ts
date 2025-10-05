@@ -430,10 +430,21 @@ export const createSubscription = async (req: AuthenticatedRequest, res: Respons
     autoFetchEnabled = false,
     autoFetchIntervalMinutes,
     autoFetchTimezone,
+    languageFilter,
   } = req.body || {};
 
   if (!Array.isArray(keywords) || keywords.length === 0) {
     return res.status(400).json({ message: 'keywords[] is required' });
+  }
+
+  // Validate language filter if provided
+  if (languageFilter) {
+    if (!languageFilter.mode || !['include', 'exclude'].includes(languageFilter.mode)) {
+      return res.status(400).json({ message: 'languageFilter.mode must be "include" or "exclude"' });
+    }
+    if (!Array.isArray(languageFilter.languages)) {
+      return res.status(400).json({ message: 'languageFilter.languages must be an array' });
+    }
   }
 
   const normalizedInterval = clampAutoFetchInterval(autoFetchIntervalMinutes);
@@ -452,6 +463,7 @@ export const createSubscription = async (req: AuthenticatedRequest, res: Respons
     autoFetchNextRunAt,
     autoFetchStatus: 'idle',
     autoFetchTimezone: timezone,
+    languageFilter: languageFilter || undefined,
   });
   return res.status(201).json(doc);
 };
@@ -491,6 +503,7 @@ export const updateSubscription = async (req: AuthenticatedRequest, res: Respons
     autoFetchIntervalMinutes,
     resetAutoFetch,
     autoFetchTimezone,
+    languageFilter,
   } = req.body || {};
 
   const subscription = await KeywordSubscription.findOne({
@@ -506,6 +519,18 @@ export const updateSubscription = async (req: AuthenticatedRequest, res: Respons
   if (typeof freshnessDays === 'number') subscription.freshnessDays = freshnessDays;
   if (typeof maxPerFetch === 'number') subscription.maxPerFetch = maxPerFetch;
   if (typeof isActive === 'boolean') subscription.isActive = isActive;
+
+  // Update language filter if provided
+  if (languageFilter !== undefined) {
+    if (languageFilter === null) {
+      // Allow clearing the filter by passing null
+      subscription.languageFilter = undefined;
+    } else if (languageFilter.mode && ['include', 'exclude'].includes(languageFilter.mode) && Array.isArray(languageFilter.languages)) {
+      subscription.languageFilter = languageFilter;
+    } else {
+      return res.status(400).json({ message: 'Invalid languageFilter format' });
+    }
+  }
 
   let normalizedInterval: number | undefined;
   if (typeof autoFetchIntervalMinutes === 'number') {
