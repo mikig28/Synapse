@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import Feedback, { IFeedback } from '../../models/Feedback';
 import User from '../../models/User';
+import emailService from '../../services/emailService';
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -121,13 +122,32 @@ export const createFeedback = async (req: AuthenticatedRequest, res: Response) =
     // Populate user info if available
     await feedback.populate('userId', 'name email');
 
+    // Send email notification to developer
+    try {
+      const userEmail = email || req.user?.email || 'anonymous@synapse.ai';
+      const userName = req.user ?
+        await User.findById(req.user.id).then(u => u?.fullName || 'Anonymous User') :
+        'Anonymous User';
+
+      await emailService.sendFeedbackEmail(
+        userEmail,
+        userName,
+        type,
+        `${title}\n\n${description}${steps ? `\n\nSteps:\n${steps}` : ''}${expectedBehavior ? `\n\nExpected: ${expectedBehavior}` : ''}${actualBehavior ? `\n\nActual: ${actualBehavior}` : ''}`,
+        rating
+      );
+      console.log('[FeedbackController] Email notification sent to developer');
+    } catch (emailError) {
+      console.error('[FeedbackController] Failed to send email notification:', emailError);
+      // Don't fail the request if email fails
+    }
+
     res.status(201).json({
       success: true,
       data: feedback,
       message: 'Feedback submitted successfully'
     });
 
-    // TODO: Send notification to admin/development team
     // TODO: Auto-create GitHub issue for bugs/features if configured
 
   } catch (error) {

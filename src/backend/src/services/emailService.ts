@@ -253,6 +253,219 @@ If you didn't create an account with SYNAPSE, you can safely ignore this email.
       text,
     });
   }
+
+  async sendFeedbackEmail(
+    userEmail: string,
+    userName: string,
+    feedbackType: string,
+    message: string,
+    rating?: number
+  ): Promise<boolean> {
+    const developerEmail = 'mikig20@gmail.com';
+    const timestamp = new Date().toLocaleString('en-US', {
+      timeZone: 'UTC',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+
+    console.log(`[EmailService] Preparing feedback email from ${userEmail} (${userName})`);
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+          }
+          .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+            padding: 40px 20px;
+          }
+          .card {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+          }
+          .logo {
+            text-align: center;
+            margin-bottom: 30px;
+          }
+          .logo-text {
+            font-size: 32px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+          }
+          h1 {
+            color: #1a1a1a;
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+          }
+          .info-section {
+            background: #f9fafb;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+          }
+          .info-row {
+            display: flex;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e5e7eb;
+          }
+          .info-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+          }
+          .info-label {
+            font-weight: 600;
+            color: #374151;
+            min-width: 120px;
+          }
+          .info-value {
+            color: #6b7280;
+          }
+          .feedback-type {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+          }
+          .type-bug {
+            background: #fee2e2;
+            color: #991b1b;
+          }
+          .type-feature {
+            background: #dbeafe;
+            color: #1e40af;
+          }
+          .type-improvement {
+            background: #fef3c7;
+            color: #92400e;
+          }
+          .type-other {
+            background: #e5e7eb;
+            color: #374151;
+          }
+          .message-box {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 15px;
+            line-height: 1.6;
+          }
+          .rating-stars {
+            color: #f59e0b;
+            font-size: 24px;
+            letter-spacing: 4px;
+          }
+          .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #888;
+            font-size: 14px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="card">
+            <div class="logo">
+              <div class="logo-text">🧠 SYNAPSE</div>
+            </div>
+
+            <h1>📬 New User Feedback</h1>
+
+            <div class="info-section">
+              <div class="info-row">
+                <span class="info-label">From:</span>
+                <span class="info-value">${userName} (${userEmail})</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Type:</span>
+                <span class="info-value">
+                  <span class="feedback-type type-${feedbackType.toLowerCase()}">${feedbackType}</span>
+                </span>
+              </div>
+              ${rating ? `
+              <div class="info-row">
+                <span class="info-label">Rating:</span>
+                <span class="info-value">
+                  <span class="rating-stars">${'★'.repeat(rating)}${'☆'.repeat(5 - rating)}</span>
+                  <span style="margin-left: 10px; color: #6b7280;">(${rating}/5)</span>
+                </span>
+              </div>
+              ` : ''}
+              <div class="info-row">
+                <span class="info-label">Submitted:</span>
+                <span class="info-value">${timestamp} UTC</span>
+              </div>
+            </div>
+
+            <h2 style="color: #374151; font-size: 18px; margin-top: 30px; margin-bottom: 10px;">Message:</h2>
+            <div class="message-box">${message}</div>
+
+            <div class="footer">
+              <p style="margin: 5px 0; color: #6b7280;">Reply directly to this email to contact the user</p>
+              <p style="margin: 5px 0;">© ${new Date().getFullYear()} SYNAPSE Feedback System</p>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const text = `
+SYNAPSE USER FEEDBACK
+=====================
+
+From: ${userName} (${userEmail})
+Type: ${feedbackType}
+${rating ? `Rating: ${rating}/5 stars\n` : ''}Submitted: ${timestamp} UTC
+
+MESSAGE:
+--------
+${message}
+
+---
+Reply directly to this email to contact the user.
+© ${new Date().getFullYear()} SYNAPSE Feedback System
+    `.trim();
+
+    return this.sendEmail({
+      to: developerEmail,
+      subject: `SYNAPSE Feedback: ${feedbackType} from ${userName}`,
+      html,
+      text,
+    });
+  }
 }
 
 export default new EmailService();
