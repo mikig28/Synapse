@@ -245,12 +245,12 @@ export const YouTubeRecommendations: React.FC = () => {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <h2 className="text-2xl font-semibold flex items-center text-slate-900 dark:text-white">
-          <Youtube className="h-6 w-6 text-red-500 mr-2" /> YouTube Recommendations
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <h2 className="text-2xl md:text-3xl font-bold flex items-center bg-gradient-to-r from-red-600 via-red-500 to-orange-500 dark:from-red-400 dark:via-red-500 dark:to-orange-400 bg-clip-text text-transparent">
+          <Youtube className="h-7 w-7 text-red-500 dark:text-red-400 mr-3 flex-shrink-0" /> YouTube Recommendations
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Dialog
             open={openDialog}
             onOpenChange={(val) => {
@@ -259,7 +259,7 @@ export const YouTubeRecommendations: React.FC = () => {
             }}
           >
             <DialogTrigger asChild>
-              <AnimatedButton variant="outline" size="sm" className="flex items-center">
+              <AnimatedButton variant="outline" size="sm" className="flex items-center bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-200 dark:hover:bg-slate-700/50 border-slate-300 dark:border-slate-600">
                 <Plus className="h-4 w-4 mr-1" /> New Subscription
               </AnimatedButton>
             </DialogTrigger>
@@ -371,7 +371,7 @@ export const YouTubeRecommendations: React.FC = () => {
             }}
           >
             <DialogTrigger asChild>
-              <AnimatedButton variant="outline" size="sm">Manage Subscriptions</AnimatedButton>
+              <AnimatedButton variant="outline" size="sm" className="bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-200 dark:hover:bg-slate-700/50 border-slate-300 dark:border-slate-600">Manage Subscriptions</AnimatedButton>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
@@ -578,7 +578,7 @@ export const YouTubeRecommendations: React.FC = () => {
               </div>
             </DialogContent>
           </Dialog>
-          <AnimatedButton onClick={onFetchNow} disabled={fetching} className="flex items-center">
+          <AnimatedButton onClick={onFetchNow} disabled={fetching} className="flex items-center bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-800/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300">
             <RefreshCw className="h-4 w-4 mr-1" /> {fetching ? 'Fetching...' : 'Fetch now'}
           </AnimatedButton>
           {status === 'hidden' && (
@@ -599,8 +599,8 @@ export const YouTubeRecommendations: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <GlassCard>
-        <div className="p-3 flex flex-col md:flex-row gap-3 md:items-end">
+      <GlassCard className="border-slate-200 dark:border-slate-700/50 bg-white/80 dark:bg-slate-800/50">
+        <div className="p-4 flex flex-col md:flex-row gap-4 md:items-end">
           <div className="flex-1">
             <label className="text-sm text-slate-900 dark:text-white">Subscription</label>
             <Select value={selectedSubId} onValueChange={setSelectedSubId}>
@@ -633,13 +633,13 @@ export const YouTubeRecommendations: React.FC = () => {
             <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
         </div>
-        <div className="px-3 pb-3">
+        <div className="px-4 pb-4">
           <Tabs value={status} onValueChange={(v) => setStatus(v as StatusTab)}>
-            <TabsList>
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="pending">Pending</TabsTrigger>
-              <TabsTrigger value="approved">Approved</TabsTrigger>
-              <TabsTrigger value="hidden">Hidden</TabsTrigger>
+            <TabsList className="bg-slate-100 dark:bg-slate-700/50">
+              <TabsTrigger value="all" className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-600">All</TabsTrigger>
+              <TabsTrigger value="pending" className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-600">Pending</TabsTrigger>
+              <TabsTrigger value="approved" className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-600">Approved</TabsTrigger>
+              <TabsTrigger value="hidden" className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-600">Hidden</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -647,15 +647,24 @@ export const YouTubeRecommendations: React.FC = () => {
 
       {/* Grid */}
       {loading ? (
-        <div className="text-sm text-slate-700 dark:text-purple-200">Loading recommendations...</div>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-3"></div>
+            <div className="text-sm text-slate-700 dark:text-slate-300">Loading recommendations...</div>
+          </div>
+        </div>
       ) : videos.length === 0 ? (
-        <GlassCard>
-          <div className="p-6 text-sm text-slate-700 dark:text-purple-200">No recommendations yet. Create a subscription and click Fetch now.</div>
+        <GlassCard className="border-slate-200 dark:border-slate-700/50 bg-white/80 dark:bg-slate-800/50">
+          <div className="p-8 text-center">
+            <Youtube className="h-12 w-12 text-slate-400 dark:text-slate-500 mx-auto mb-4" />
+            <div className="text-lg font-medium text-slate-800 dark:text-slate-200 mb-2">No recommendations yet</div>
+            <div className="text-sm text-slate-600 dark:text-slate-400">Create a subscription and click "Fetch now" to get started.</div>
+          </div>
         </GlassCard>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
           {videos.map((v) => (
-            <GlassCard key={v._id} className="overflow-hidden">
+            <GlassCard key={v._id} className="overflow-hidden border-slate-200 dark:border-slate-700/50 bg-white/90 dark:bg-slate-800/60 hover:shadow-lg hover:shadow-slate-200/50 dark:hover:shadow-slate-900/50 transition-all duration-300 hover:scale-[1.02]">
               <div className="relative aspect-[16/9] cursor-pointer" onClick={() => setPlayingVideoId(v.videoId)}>
                 {/* thumbnail */}
                 {v.thumbnails?.high?.url || v.thumbnails?.default?.url ? (
@@ -672,29 +681,46 @@ export const YouTubeRecommendations: React.FC = () => {
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <CardHeader className="p-3">
-                <CardTitle className="text-sm line-clamp-2 text-slate-900 dark:text-white">{v.title}</CardTitle>
-                <div className="text-[11px] text-purple-700 dark:text-purple-300/80 line-clamp-1">{v.channelTitle || 'YouTube'}</div>
-                <div className="text-[10px] text-purple-600 dark:text-purple-400/60 mt-1">{v.publishedAt ? new Date(v.publishedAt).toLocaleString() : ''} {typeof v.relevance === 'number' ? `• rel ${v.relevance.toFixed(2)}` : ''}</div>
+              <CardHeader className="p-4">
+                <CardTitle className="text-sm font-semibold line-clamp-2 text-slate-900 dark:text-white leading-tight">{v.title}</CardTitle>
+                <div className="text-xs text-slate-600 dark:text-slate-400 line-clamp-1 mt-1">{v.channelTitle || 'YouTube'}</div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-500 mt-1 flex items-center gap-1">
+                  <span>{v.publishedAt ? new Date(v.publishedAt).toLocaleDateString() : ''}</span>
+                  {typeof v.relevance === 'number' && (
+                    <>
+                      <span>•</span>
+                      <span>rel {v.relevance.toFixed(2)}</span>
+                    </>
+                  )}
+                </div>
               </CardHeader>
-              <CardContent className="p-3 pt-0">
-                <div className="text-xs text-slate-700 dark:text-purple-100/80 line-clamp-3">{v.description}</div>
+              <CardContent className="p-4 pt-0">
+                <div className="text-xs text-slate-700 dark:text-slate-300 line-clamp-3 leading-relaxed">{v.description}</div>
               </CardContent>
-              <CardFooter className="p-3 pt-0 flex items-center justify-between">
-                <a href={`https://www.youtube.com/watch?v=${v.videoId}`} target="_blank" rel="noreferrer" className="text-[12px] text-blue-600 dark:text-blue-300 hover:underline">Open on YouTube</a>
-                <div className="flex items-center gap-2">
+              <CardFooter className="p-4 pt-0 flex flex-col gap-3">
+                <div className="flex items-center justify-between w-full">
+                  <a href={`https://www.youtube.com/watch?v=${v.videoId}`} target="_blank" rel="noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">Open on YouTube</a>
+                  <div className={`px-2 py-1 rounded-full text-[10px] font-medium ${
+                    v.status === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
+                    v.status === 'hidden' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
+                    'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+                  }`}>
+                    {v.status}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 w-full">
                   {v.status !== 'approved' && (
-                    <AnimatedButton size="sm" variant="outline" onClick={() => onApprove(v._id)} className="text-xs flex items-center">
+                    <AnimatedButton size="sm" variant="outline" onClick={() => onApprove(v._id)} className="text-xs flex items-center flex-1 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30">
                       <Check className="h-3 w-3 mr-1" /> Approve
                     </AnimatedButton>
                   )}
                   {v.status !== 'hidden' && (
-                    <AnimatedButton size="sm" variant="outline" onClick={() => onHide(v._id)} className="text-xs flex items-center">
+                    <AnimatedButton size="sm" variant="outline" onClick={() => onHide(v._id)} className="text-xs flex items-center flex-1 bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/30">
                       <EyeOff className="h-3 w-3 mr-1" /> Hide
                     </AnimatedButton>
                   )}
                   {v.status === 'hidden' && (
-                    <AnimatedButton size="sm" variant="ghost" onClick={() => onDeleteRecommendation(v._id)} className="text-xs text-red-400">
+                    <AnimatedButton size="sm" variant="ghost" onClick={() => onDeleteRecommendation(v._id)} className="text-xs text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex-1">
                       Delete
                     </AnimatedButton>
                   )}
@@ -706,13 +732,34 @@ export const YouTubeRecommendations: React.FC = () => {
       )}
 
       {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <div className="text-xs text-slate-700 dark:text-purple-200/80">Page {page} / {totalPages} • {total} total</div>
-        <div className="flex items-center gap-2">
-          <AnimatedButton size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</AnimatedButton>
-          <AnimatedButton size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</AnimatedButton>
+      {total > 0 && (
+        <div className="flex items-center justify-between bg-white/50 dark:bg-slate-800/30 rounded-lg p-4 border border-slate-200 dark:border-slate-700/50">
+          <div className="text-sm text-slate-700 dark:text-slate-300 font-medium">
+            Page {page} of {totalPages} • {total.toLocaleString()} total videos
+          </div>
+          <div className="flex items-center gap-2">
+            <AnimatedButton 
+              size="sm" 
+              variant="outline" 
+              disabled={page <= 1} 
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600"
+            >
+              Prev
+            </AnimatedButton>
+            <span className="px-3 py-1 text-sm text-slate-600 dark:text-slate-400">{page}</span>
+            <AnimatedButton 
+              size="sm" 
+              variant="outline" 
+              disabled={page >= totalPages} 
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600"
+            >
+              Next
+            </AnimatedButton>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Player Overlay */}
       {playingVideoId && (
