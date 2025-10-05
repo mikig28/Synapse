@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useTheme } from '@/components/theme-provider';
 
 // Define props for Sidebar
 interface SidebarProps {
@@ -43,6 +44,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
   const [showScrollTop, setShowScrollTop] = React.useState(false);
   const [showScrollBottom, setShowScrollBottom] = React.useState(false);
   const navRef = React.useRef<HTMLElement>(null);
+  const { theme } = useTheme();
+  
+  // Determine which logo to use based on theme
+  const isDarkMode = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const logoSrc = isDarkMode ? '/assets/images/synapse-logo-dark.png' : '/assets/images/synapse-logo-light.png';
   
   // Debug log to see if prop is being received
   React.useEffect(() => {
@@ -153,7 +159,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
         {/* Synapse Logo/Icon - visible when open, tiny icon when closed */}
         <Link to="/dashboard" className="flex items-center gap-2">
           <motion.img 
-            src="/assets/images/synapse-logo.png" 
+            src={logoSrc}
             alt="Synapse Logo"
             className="rounded-lg transition-all duration-300"
             style={{
@@ -162,6 +168,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
             }}
             whileHover={{ scale: 1.05 }}
             transition={{ duration: 0.3 }}
+            key={logoSrc}
           />
           {isSidebarOpen && (
             <h2 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent whitespace-nowrap ml-2">

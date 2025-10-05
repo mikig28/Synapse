@@ -23,6 +23,10 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
   const { theme, setTheme } = useTheme();
   const { isAuthenticated, user, logout } = useAuthStore();
   const navigate = useNavigate();
+  
+  // Determine which logo to use based on theme
+  const isDarkMode = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const logoSrc = isDarkMode ? '/assets/images/synapse-logo-dark.png' : '/assets/images/synapse-logo-light.png';
 
   const handleSetTheme = (newTheme: "light" | "dark" | "system") => {
     console.log(`Attempting to set theme to: ${newTheme}. Current theme: ${theme}`);
@@ -56,9 +60,10 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
           )}
           <Link to={isAuthenticated ? "/dashboard" : "/"} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
             <img 
-              src="/assets/images/synapse-logo.png" 
+              src={logoSrc}
               alt="Synapse Logo"
-              className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg transition-transform hover:scale-105"
+              className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg transition-all duration-300 hover:scale-105"
+              key={logoSrc}
             />
             <span className="text-xl font-semibold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
               Synapse
