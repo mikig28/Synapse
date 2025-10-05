@@ -33,7 +33,6 @@ import {
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { VideoLogo } from '@/components/ui/VideoLogo';
 
 // Define props for Sidebar
 interface SidebarProps {
@@ -148,24 +147,19 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
       <div className={`px-4 pt-4 pb-2 flex items-center flex-shrink-0 ${isSidebarOpen ? 'justify-start' : 'justify-center'}`}>
         {/* Synapse Logo/Icon - visible when open, tiny icon when closed */}
         <Link to="/dashboard" className="flex items-center gap-2">
-          <VideoLogo 
-            size={isSidebarOpen ? "lg" : "sm"} 
-            playOnHover={true}
-            className="transition-all duration-300 glow-effect-purple-sm"
-            fallbackIcon={
-              <motion.svg 
-                width={isSidebarOpen ? "48" : "24"} 
-                height={isSidebarOpen ? "48" : "24"} 
-                viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
-                className="text-purple-400 transition-all duration-300"
-                animate={{ rotate: isSidebarOpen ? 0 : 360 }}
-                transition={{ duration: 0.5 }}
-              >
-                <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </motion.svg>
-            }
+          <motion.img 
+            src="/assets/images/synapse-logo.png" 
+            alt="Synapse Logo"
+            className="transition-all duration-300 rounded-lg"
+            style={{
+              width: isSidebarOpen ? '48px' : '32px',
+              height: isSidebarOpen ? '48px' : '32px',
+            }}
+            animate={{ 
+              scale: isSidebarOpen ? 1 : 0.9,
+            }}
+            whileHover={{ scale: 1.05 }}
+            transition={{ duration: 0.3 }}
           />
           <h2 className={`text-xl md:text-2xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent whitespace-nowrap transition-all duration-300 ${isSidebarOpen ? 'opacity-100 w-auto ml-2 visible' : 'opacity-0 w-0 ml-0 invisible overflow-hidden'}`}>
             Synapse

@@ -12,7 +12,6 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import useAuthStore from '@/store/authStore';
-import { VideoLogo } from "@/components/ui/VideoLogo";
 
 // Define props for Header
 interface HeaderProps {
@@ -56,10 +55,10 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
             </AnimatedButton>
           )}
           <Link to={isAuthenticated ? "/dashboard" : "/"} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <VideoLogo 
-              size="md" 
-              playOnHover={true} 
-              className="glow-effect-purple-sm" 
+            <img 
+              src="/assets/images/synapse-logo.png" 
+              alt="Synapse Logo"
+              className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg transition-transform hover:scale-105"
             />
             <span className="text-xl font-semibold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
               Synapse
