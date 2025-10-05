@@ -41,6 +41,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   }, [location.pathname, isMobile]);
 
   const toggleSidebar = () => {
+    console.log('[Layout] Toggling sidebar. Current:', isSidebarOpen, '-> New:', !isSidebarOpen);
     setIsSidebarOpen(!isSidebarOpen);
   };
 
@@ -110,7 +111,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <Sidebar isSidebarOpen={isSidebarOpen} />
         
         {/* Main content area with page transitions */}
-        <main className="flex flex-grow flex-col relative">
+        <main className="flex flex-grow flex-col relative transition-all duration-300 ease-in-out w-full">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={location.pathname}
@@ -119,7 +120,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               exit="out"
               variants={pageVariants}
               transition={pageTransition}
-              className="flex-1 overflow-y-auto"
+              className="flex-1 overflow-y-auto w-full"
               style={{
                 scrollbarWidth: 'thin',
               }}
