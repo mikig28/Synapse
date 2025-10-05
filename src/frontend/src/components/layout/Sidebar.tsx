@@ -133,19 +133,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
   return (
     <aside
       className={`
-        flex flex-col z-40
+        flex flex-col
         bg-gray-900 backdrop-blur-sm border-r border-white/10
         transition-all duration-300 ease-in-out
 
         /* DESKTOP (≥ md) ----------------------------------- */
-        hidden md:flex md:fixed md:top-[64px] md:left-0
+        hidden md:flex md:fixed md:top-[64px] md:left-0 md:z-40
         md:h-[calc(100vh-64px)] md:max-h-[calc(100vh-64px)] md:overflow-hidden
         ${isSidebarOpen ? "md:w-64" : "md:w-20"}
 
         /* MOBILE (< md) ------------------------------------ */
-        ${isSidebarOpen ? "flex" : "hidden"}
-        fixed top-[64px] left-0 h-[calc(100dvh-64px)]
-        ${isSidebarOpen ? "w-64 translate-x-0 shadow-2xl" : "w-20 -translate-x-full"}
+        fixed top-[64px] left-0 h-[calc(100dvh-64px)] w-64 z-50
+        ${isSidebarOpen ? "flex translate-x-0 shadow-2xl" : "hidden -translate-x-full"}
 
         /* Mobile optimizations for better clarity */
         md:bg-gray-900/95 md:backdrop-blur-md
