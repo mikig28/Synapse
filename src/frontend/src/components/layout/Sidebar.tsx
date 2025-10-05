@@ -44,6 +44,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
   const [showScrollTop, setShowScrollTop] = React.useState(false);
   const [showScrollBottom, setShowScrollBottom] = React.useState(false);
   const navRef = React.useRef<HTMLElement>(null);
+  
+  // Debug log to see if prop is being received
+  React.useEffect(() => {
+    console.log('[Sidebar] isSidebarOpen:', isSidebarOpen);
+  }, [isSidebarOpen]);
 
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -217,7 +222,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
                     ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-purple-300'}
                   `} />
                   {isSidebarOpen && (
-                    <span className="text-sm font-medium whitespace-nowrap ml-3">
+                    <span 
+                      className="text-sm font-medium whitespace-nowrap ml-3"
+                      style={{ display: 'block', opacity: 1, visibility: 'visible' }}
+                    >
                       {item.label}
                     </span>
                   )}
