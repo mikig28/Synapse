@@ -288,8 +288,8 @@ export const serveImageFile = async (req: AuthenticatedRequest, res: Response) =
       }
     }
 
-    // FALLBACK: Serve from local file storage (legacy behavior)
-    console.log(`[WhatsApp Images] GridFS not available, using legacy file storage: ${messageId}`);
+    // FALLBACK: Get image through service (handles both GridFS and local storage)
+    console.log(`[WhatsApp Images] Primary GridFS lookup failed, trying service layer: ${messageId}`);
     const imageService = getImageService();
     const imageFile = await imageService.getImageFile(messageId, userId);
 
@@ -300,7 +300,34 @@ export const serveImageFile = async (req: AuthenticatedRequest, res: Response) =
       });
     }
 
-    // Set appropriate headers
+    // Check if service returned a GridFS path
+    if (imageFile.isGridFS && imageFile.path.startsWith('gridfs://')) {
+      console.log(`[WhatsApp Images] Service returned GridFS path, extracting from GridFS: ${imageFile.path}`);
+
+      const gridfsId = whatsappImageGridFSService.extractGridFSId(imageFile.path);
+      if (gridfsId) {
+        const result = await whatsappImageGridFSService.getImageStream(gridfsId);
+
+        if (result) {
+          // Set appropriate headers for GridFS image
+          res.setHeader('Content-Type', result.metadata.contentType || imageFile.mimeType || 'image/jpeg');
+          res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year (permanent)
+          res.setHeader('Content-Length', result.metadata.length);
+
+          // Stream the image from GridFS
+          return result.stream.pipe(res);
+        }
+      }
+
+      // If GridFS extraction failed, return error
+      return res.status(404).json({
+        success: false,
+        error: 'Failed to retrieve image from GridFS'
+      });
+    }
+
+    // Serve from local file storage (legacy behavior)
+    console.log(`[WhatsApp Images] Serving from local file storage: ${imageFile.path}`);
     res.setHeader('Content-Type', imageFile.mimeType);
     res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
 

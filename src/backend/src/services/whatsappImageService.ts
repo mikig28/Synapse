@@ -291,21 +291,33 @@ class WhatsAppImageService {
   }
 
   /**
-   * Serve image file
+   * Serve image file (supports both GridFS and local storage)
+   * NOTE: For GridFS images, returns gridfs:// path that should be handled by controller
    */
-  async getImageFile(messageId: string, userId: string): Promise<{ path: string; mimeType: string } | null> {
+  async getImageFile(messageId: string, userId: string): Promise<{ path: string; mimeType: string; isGridFS?: boolean } | null> {
     try {
       const image = await this.getImageByMessageId(messageId, userId);
       if (!image || !image.localPath) {
         return null;
       }
 
-      // Check if file exists
+      // Check if image is stored in GridFS
+      if (image.localPath.startsWith('gridfs://')) {
+        console.log(`[WhatsApp Image Service] Image stored in GridFS: ${image.localPath}`);
+        return {
+          path: image.localPath,
+          mimeType: image.mimeType,
+          isGridFS: true
+        };
+      }
+
+      // For local files, check if file exists
       try {
         await fs.access(image.localPath);
         return {
           path: image.localPath,
-          mimeType: image.mimeType
+          mimeType: image.mimeType,
+          isGridFS: false
         };
       } catch {
         console.warn(`[WhatsApp Image Service] Image file not found: ${image.localPath}`);
@@ -361,17 +373,32 @@ class WhatsAppImageService {
   }
 
   /**
-   * Delete extracted image
+   * Delete extracted image (supports both GridFS and local storage)
    */
   async deleteImage(messageId: string, userId: string): Promise<boolean> {
     try {
       const image = await WhatsAppImage.findOne({ messageId, userId });
       if (!image) return false;
 
-      // Delete file from disk
+      // Delete file from GridFS or local disk
       try {
         if (image.localPath) {
-          await fs.unlink(image.localPath);
+          if (image.localPath.startsWith('gridfs://')) {
+            // Delete from GridFS
+            const gridfsId = whatsappImageGridFSService.extractGridFSId(image.localPath);
+            if (gridfsId) {
+              const deleted = await whatsappImageGridFSService.deleteImage(gridfsId);
+              if (deleted) {
+                console.log(`[WhatsApp Image Service] ✅ Deleted image from GridFS: ${gridfsId}`);
+              } else {
+                console.warn(`[WhatsApp Image Service] ⚠️ Failed to delete image from GridFS: ${gridfsId}`);
+              }
+            }
+          } else {
+            // Delete from local file system
+            await fs.unlink(image.localPath);
+            console.log(`[WhatsApp Image Service] ✅ Deleted local file: ${image.localPath}`);
+          }
         }
       } catch (error) {
         console.warn('[WhatsApp Image Service] Could not delete file:', error);
@@ -379,8 +406,8 @@ class WhatsAppImageService {
 
       // Delete database record
       await WhatsAppImage.deleteOne({ _id: image._id });
-      
-      console.log(`[WhatsApp Image Service] ✅ Deleted image for message ${messageId}`);
+
+      console.log(`[WhatsApp Image Service] ✅ Deleted image record for message ${messageId}`);
       return true;
     } catch (error) {
       console.error('[WhatsApp Image Service] Error deleting image:', error);
