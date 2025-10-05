@@ -139,8 +139,9 @@ class WhatsAppImageGridFSService {
 
   /**
    * Save image buffer to GridFS
+   * Made public to allow direct usage from WhatsAppImageService
    */
-  private async saveBufferToGridFS(buffer: Buffer, message: IWhatsAppMessage): Promise<ImageSaveResult> {
+  async saveBufferToGridFS(buffer: Buffer, message: IWhatsAppMessage): Promise<ImageSaveResult> {
     return new Promise((resolve) => {
       try {
         const bucket = getBucket();

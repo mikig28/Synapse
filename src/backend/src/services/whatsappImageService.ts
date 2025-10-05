@@ -6,6 +6,7 @@
 import WhatsAppImageExtractor, { ImageExtractionResult } from './whatsappImageExtractor';
 import WhatsAppImage, { IWhatsAppImage } from '../models/WhatsAppImage';
 import imageAnalysisService from './imageAnalysisService';
+import { whatsappImageGridFSService } from './whatsappImageGridFSService';
 import fs from 'fs/promises';
 import path from 'path';
 import sharp from 'sharp';
@@ -132,34 +133,95 @@ class WhatsAppImageService {
       // Update record with successful extraction
       if (extractionResult.metadata && extractionResult.localPath) {
         imageRecord.filename = extractionResult.metadata.filename;
-        imageRecord.localPath = extractionResult.localPath;
         imageRecord.size = extractionResult.metadata.size;
         imageRecord.mimeType = extractionResult.metadata.mimeType;
         imageRecord.dimensions = extractionResult.metadata.dimensions;
+
+        // IMPORTANT: Save image to GridFS for permanent storage (like Telegram images)
+        // This prevents broken images when accessing from mobile or when local files are removed
+        console.log(`[WhatsApp Image Service] 💾 Saving image to GridFS for permanent storage...`);
+        try {
+          const imageBuffer = await fs.readFile(extractionResult.localPath);
+
+          // Create a temporary message-like object for GridFS service
+          const tempMessage: any = {
+            messageId: request.messageId,
+            to: request.chatId,
+            from: request.senderId,
+            timestamp: new Date(),
+            mimeType: extractionResult.metadata.mimeType,
+            caption: request.caption,
+            metadata: {
+              isGroup: request.isGroup,
+              groupName: request.chatName
+            }
+          };
+
+          const gridfsResult = await whatsappImageGridFSService.saveBufferToGridFS(imageBuffer, tempMessage);
+
+          if (gridfsResult.success && gridfsResult.gridfsId) {
+            // Save GridFS reference instead of local file path
+            imageRecord.localPath = `gridfs://${gridfsResult.gridfsId}`;
+            console.log(`[WhatsApp Image Service] ✅ Image saved to GridFS: ${gridfsResult.filename}`);
+
+            // Clean up the temporary local file
+            try {
+              await fs.unlink(extractionResult.localPath);
+              console.log(`[WhatsApp Image Service] 🧹 Cleaned up temporary file`);
+            } catch (cleanupError) {
+              console.warn(`[WhatsApp Image Service] ⚠️ Could not delete temporary file:`, cleanupError);
+            }
+          } else {
+            // Fallback: Keep local file path if GridFS fails
+            imageRecord.localPath = extractionResult.localPath;
+            console.warn(`[WhatsApp Image Service] ⚠️ GridFS save failed, using local storage: ${gridfsResult.error}`);
+          }
+        } catch (gridfsError) {
+          console.error(`[WhatsApp Image Service] ❌ Error saving to GridFS:`, gridfsError);
+          // Fallback: Use local file path
+          imageRecord.localPath = extractionResult.localPath;
+        }
+
         imageRecord.status = 'extracted';
         imageRecord.publicUrl = imageRecord.getPublicUrl();
-        
+
         await imageRecord.save();
-        
+
         console.log(`[WhatsApp Image Service] ✅ Successfully extracted image for message ${request.messageId}`);
-        
+
         // Automatically analyze image with AI (don't wait, run asynchronously)
-        console.log(`[WhatsApp Image Service] 🔍 Starting AI analysis for image ${imageRecord.localPath}`);
-        imageAnalysisService.analyzeImageFromFile(imageRecord.localPath)
-          .then(async (analysis) => {
-            try {
-              await WhatsAppImage.findByIdAndUpdate(imageRecord._id, {
-                aiAnalysis: analysis
-              });
-              console.log(`[WhatsApp Image Service] ✅ AI analysis complete for image ${imageRecord._id}: ${analysis.mainCategory}`);
-            } catch (error) {
-              console.error(`[WhatsApp Image Service] ❌ Error saving AI analysis:`, error);
+        // Note: For GridFS images, we need to get the buffer first
+        console.log(`[WhatsApp Image Service] 🔍 Starting AI analysis for image ${imageRecord._id}`);
+
+        (async () => {
+          try {
+            let analysisResult;
+
+            if (imageRecord.localPath.startsWith('gridfs://')) {
+              // Extract from GridFS for analysis
+              const gridfsId = whatsappImageGridFSService.extractGridFSId(imageRecord.localPath);
+              if (gridfsId) {
+                const buffer = await whatsappImageGridFSService.getImageBuffer(gridfsId);
+                if (buffer) {
+                  analysisResult = await imageAnalysisService.analyzeImageFromBuffer(buffer);
+                }
+              }
+            } else {
+              // Analyze from local file
+              analysisResult = await imageAnalysisService.analyzeImageFromFile(imageRecord.localPath);
             }
-          })
-          .catch((error) => {
+
+            if (analysisResult) {
+              await WhatsAppImage.findByIdAndUpdate(imageRecord._id, {
+                aiAnalysis: analysisResult
+              });
+              console.log(`[WhatsApp Image Service] ✅ AI analysis complete for image ${imageRecord._id}: ${analysisResult.mainCategory}`);
+            }
+          } catch (error) {
             console.error(`[WhatsApp Image Service] ❌ AI analysis failed for image ${imageRecord._id}:`, error);
-          });
-        
+          }
+        })();
+
         return {
           success: true,
           image: imageRecord
