@@ -204,18 +204,32 @@ export const bulkAnalyzeImages = async (req: AuthenticatedRequest, res: Response
       }
     });
 
-    // Process WhatsApp images
+    // Process WhatsApp images (handle both GridFS and local file paths)
     const whatsappPromises = unanalyzedWhatsApp.map(async (item) => {
       if (!item.localPath) {
         console.error(`[ImageAnalysis] WhatsApp item ${item._id} has no local path`);
         return { success: false, itemId: item._id, source: 'whatsapp', error: 'No local path' };
       }
-      
+
       try {
         console.log(`[ImageAnalysis] Analyzing WhatsApp image ${item._id} (Path: ${item.localPath})`);
-        const analysis = await imageAnalysisService.analyzeImageFromFile(item.localPath);
+
+        let analysis;
+
+        // Check if image is stored in GridFS
+        if (item.localPath.startsWith('gridfs://')) {
+          // Extract GridFS ID and analyze from GridFS
+          const gridfsId = item.localPath.replace('gridfs://', '');
+          console.log(`[ImageAnalysis] WhatsApp image stored in GridFS: ${gridfsId}`);
+          analysis = await imageAnalysisService.analyzeImageFromGridFS(gridfsId);
+        } else {
+          // Analyze from local file path
+          console.log(`[ImageAnalysis] WhatsApp image stored locally: ${item.localPath}`);
+          analysis = await imageAnalysisService.analyzeImageFromFile(item.localPath);
+        }
+
         console.log(`[ImageAnalysis] ✅ WhatsApp ${item._id}: ${analysis.mainCategory}`);
-        
+
         await WhatsAppImage.findByIdAndUpdate(item._id, { aiAnalysis: analysis });
         return { success: true, itemId: item._id, source: 'whatsapp', category: analysis.mainCategory };
       } catch (error: any) {
