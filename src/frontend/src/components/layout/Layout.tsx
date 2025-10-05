@@ -110,8 +110,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         <Sidebar isSidebarOpen={isSidebarOpen} />
         
-        {/* Main content area with page transitions */}
-        <main className="flex flex-grow flex-col relative transition-all duration-300 ease-in-out w-full">
+        {/* Main content area with page transitions - adjusts width based on sidebar state */}
+        <main 
+          className="flex flex-col relative transition-all duration-300 ease-in-out"
+          style={{
+            width: isMobile ? '100%' : (isSidebarOpen ? 'calc(100% - 256px)' : 'calc(100% - 80px)'),
+            flexGrow: 1,
+            flexShrink: 1,
+            minWidth: 0
+          }}
+        >
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={location.pathname}
