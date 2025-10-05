@@ -401,7 +401,7 @@ const DashboardPage: React.FC = () => {
         />
       </div>
 
-      <div id="dashboard-main" className="relative z-10 w-full max-w-full mx-auto px-2 sm:px-4 md:px-8 py-3 sm:py-4 md:py-8 overflow-x-hidden box-border">
+      <div id="dashboard-main" className="relative z-10 w-full max-w-full mx-auto px-1 sm:px-4 md:px-8 py-2 sm:py-4 md:py-8 overflow-x-hidden box-border">
         {/* Header Section */}
         <motion.div
           ref={headerRef}
@@ -445,7 +445,7 @@ const DashboardPage: React.FC = () => {
           </nav>
         </div>
 
-        <DashboardGrid columns={4} className="gap-2 sm:gap-4 lg:gap-6 min-w-0 mb-4 sm:mb-6 overflow-x-hidden max-w-full">
+        <DashboardGrid columns={4} className="gap-1.5 sm:gap-4 lg:gap-6 min-w-0 mb-3 sm:mb-6 overflow-x-hidden max-w-full">
           {stats.map((stat, index) => (
             <AnimatedDashboardCard
               key={stat.title}
@@ -466,11 +466,11 @@ const DashboardPage: React.FC = () => {
           initial={{ opacity: 0, y: 30 }}
           animate={digestInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
           transition={{ duration: 0.6, delay: 0.1 }}
-          className="mb-4 sm:mb-6 overflow-x-hidden max-w-full"
+          className="mb-3 sm:mb-6 overflow-x-hidden max-w-full"
         >
           {isBatchSummarizing ? (
             <GlassCard className="border-2 border-primary/40 overflow-hidden max-w-full">
-              <div className="p-4 sm:p-6 overflow-x-hidden max-w-full" role="status" aria-live="polite">
+              <div className="p-2 sm:p-6 overflow-x-hidden max-w-full" role="status" aria-live="polite">
                 <div className="flex items-center mb-4 overflow-x-hidden max-w-full">
                   <Zap className="w-5 h-5 mr-2 text-primary animate-pulse flex-shrink-0" />
                   <h3 className="text-xl font-semibold truncate min-w-0">Generating Your Digest...</h3>
@@ -480,7 +480,7 @@ const DashboardPage: React.FC = () => {
             </GlassCard>
           ) : latestDigest ? (
             <GlassCard className="animate-fade-in border-2 border-primary/40 bg-gradient-to-br from-primary/5 to-accent/5 overflow-hidden max-w-full">
-              <div className="p-4 sm:p-6 overflow-x-hidden max-w-full">
+              <div className="p-2 sm:p-6 overflow-x-hidden max-w-full">
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -536,7 +536,7 @@ const DashboardPage: React.FC = () => {
             </GlassCard>
           ) : (
             <GlassCard className="border-dashed border-2 border-primary/30 overflow-hidden max-w-full">
-              <div className="p-6 text-center overflow-x-hidden max-w-full">
+              <div className="p-3 sm:p-6 text-center overflow-x-hidden max-w-full">
                 <div className="inline-flex p-3 bg-primary/10 rounded-full mb-4">
                   <FileText className="w-8 h-8 text-primary" />
                 </div>
@@ -557,11 +557,11 @@ const DashboardPage: React.FC = () => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.2 }}
-        className="mt-4 sm:mt-6 mb-4 sm:mb-6 overflow-x-hidden max-w-full"
+        className="mt-3 sm:mt-6 mb-3 sm:mb-6 overflow-x-hidden max-w-full"
       >
         <GlassCard className="min-w-0 max-w-full overflow-hidden">
-          <div className="p-3 sm:p-6 overflow-x-hidden max-w-full">
-            <div className="flex items-center justify-between mb-4 gap-2 overflow-x-hidden max-w-full">
+          <div className="p-2 sm:p-6 overflow-x-hidden max-w-full">
+            <div className="flex items-center justify-between mb-3 gap-2 overflow-x-hidden max-w-full">
               <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
                 <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
                 <h3 className="text-base sm:text-lg font-semibold truncate min-w-0">Recent WhatsApp Summaries</h3>
@@ -590,7 +590,7 @@ const DashboardPage: React.FC = () => {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.3, delay: index * 0.1 }}
-                  className="flex flex-col sm:flex-row items-start justify-between p-3 rounded-lg border border-border/40 bg-background/60 backdrop-blur hover:bg-background/80 transition-colors gap-3 overflow-x-hidden max-w-full"
+                  className="flex flex-col sm:flex-row items-start justify-between p-2 sm:p-3 rounded-lg border border-border/40 bg-background/60 backdrop-blur hover:bg-background/80 transition-colors gap-2 sm:gap-3 overflow-x-hidden max-w-full"
                 >
                   <div className="flex-1 min-w-0 w-full max-w-full overflow-hidden">
                     <div className="flex items-center gap-2 mb-1 flex-wrap overflow-x-hidden max-w-full">
@@ -656,11 +656,11 @@ const DashboardPage: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.3 }}
-          className="mb-4 sm:mb-6 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 max-w-full overflow-x-hidden"
+          className="mb-3 sm:mb-6 grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-6 max-w-full overflow-x-hidden"
         >
           <GlassCard className="min-w-0 max-w-full overflow-hidden">
-            <div className="p-3 sm:p-6 overflow-x-hidden max-w-full">
-              <div className="flex items-center justify-between mb-3 gap-2 overflow-x-hidden max-w-full">
+            <div className="p-2 sm:p-6 overflow-x-hidden max-w-full">
+              <div className="flex items-center justify-between mb-2 gap-2 overflow-x-hidden max-w-full">
                 <h3 className="text-base sm:text-lg font-semibold truncate min-w-0">Telegram Feed</h3>
                 <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">Live</span>
               </div>
@@ -671,13 +671,13 @@ const DashboardPage: React.FC = () => {
           </GlassCard>
 
           <GlassCard className="h-full min-w-0 max-w-full overflow-hidden">
-            <div className="p-3 sm:p-6 h-full flex flex-col min-w-0 max-w-full overflow-x-hidden">
+            <div className="p-2 sm:p-6 h-full flex flex-col min-w-0 max-w-full overflow-x-hidden">
               <div className="flex items-center justify-between mb-2 gap-2 overflow-x-hidden max-w-full">
                 <h3 className="text-base sm:text-lg font-semibold truncate min-w-0">Featured Content</h3>
                 <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">Curated</span>
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 flex-1 min-w-0 max-w-full overflow-x-hidden">
-                <div className="rounded-xl border border-border/40 bg-background/60 p-3 sm:p-4 backdrop-blur min-w-0 max-w-full overflow-hidden">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-4 flex-1 min-w-0 max-w-full overflow-x-hidden">
+                <div className="rounded-xl border border-border/40 bg-background/60 p-2 sm:p-4 backdrop-blur min-w-0 max-w-full overflow-hidden">
                   <h4 className="text-xs sm:text-sm font-semibold mb-2 flex items-center gap-2 overflow-x-hidden max-w-full">
                     <span className="w-2 h-2 rounded-full bg-primary animate-pulse flex-shrink-0" />
                     <span className="truncate min-w-0">Recommended Video</span>
@@ -686,7 +686,7 @@ const DashboardPage: React.FC = () => {
                     <RecentVideo />
                   </div>
                 </div>
-                <div className="rounded-xl border border-border/30 bg-background/60 p-3 sm:p-4 backdrop-blur flex flex-col min-w-0 max-w-full overflow-hidden">
+                <div className="rounded-xl border border-border/30 bg-background/60 p-2 sm:p-4 backdrop-blur flex flex-col min-w-0 max-w-full overflow-hidden">
                   <h4 className="text-xs sm:text-sm font-semibold mb-2 overflow-x-hidden max-w-full">Active Bookmarks</h4>
                   <div className="flex items-center justify-between text-xs mb-3 text-muted-foreground flex-wrap gap-1 overflow-x-hidden max-w-full">
                     <span className="whitespace-nowrap">Saved • last 24h</span>
@@ -760,7 +760,7 @@ const DashboardPage: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          className="mb-4 sm:mb-6 overflow-x-hidden max-w-full"
+          className="mb-3 sm:mb-6 overflow-x-hidden max-w-full"
         >
           <div className="overflow-x-hidden max-w-full">
             <QuickActionsBar onAddNote={handleAddNoteClick} />
@@ -772,7 +772,7 @@ const DashboardPage: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.45 }}
-          className="mb-4 sm:mb-6 overflow-x-hidden max-w-full"
+          className="mb-3 sm:mb-6 overflow-x-hidden max-w-full"
         >
           <div className="overflow-x-hidden max-w-full">
             <UpcomingEvents />
@@ -783,12 +783,12 @@ const DashboardPage: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.3 }}
-          className="mt-4 sm:mt-6 mb-4 sm:mb-6 overflow-x-hidden max-w-full"
+          className="mt-3 sm:mt-6 mb-3 sm:mb-6 overflow-x-hidden max-w-full"
         >
           <GlassCard className="overflow-hidden border border-border/40 min-w-0 max-w-full">
             <Accordion type="single" collapsible defaultValue="intelligence-hub">
               <AccordionItem value="intelligence-hub" className="border-none">
-                <AccordionTrigger className="px-3 sm:px-6 overflow-x-hidden max-w-full">
+                <AccordionTrigger className="px-2 sm:px-6 overflow-x-hidden max-w-full">
                   <div className="flex w-full items-center justify-between gap-2 min-w-0 overflow-x-hidden max-w-full">
                     <div className="flex items-center gap-2 text-left min-w-0 overflow-hidden">
                       <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
@@ -833,7 +833,7 @@ const DashboardPage: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.5 }}
-          className="mb-4 sm:mb-6 overflow-x-hidden max-w-full"
+          className="mb-3 sm:mb-6 overflow-x-hidden max-w-full"
         >
           <div className="overflow-x-hidden max-w-full">
             <RecentItemsAccordion
