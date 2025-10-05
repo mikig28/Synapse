@@ -91,8 +91,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </div>
 
       <Header isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
-      
-      <div className="flex flex-1 relative">
+
+      <div className="flex flex-1 relative pt-[64px]">
         {/* Enhanced scrim with blur effect */}
         <AnimatePresence>
           {isMobile && isSidebarOpen && (
@@ -109,12 +109,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </AnimatePresence>
 
         <Sidebar isSidebarOpen={isSidebarOpen} />
-        
-        {/* Main content area with page transitions - adjusts width based on sidebar state */}
-        <main 
-          className="flex flex-col relative transition-all duration-300 ease-in-out"
+
+        {/* Main content area with page transitions - adjusts margin based on sidebar state */}
+        <main
+          className="flex flex-col relative transition-all duration-300 ease-in-out w-full"
           style={{
-            width: isMobile ? '100%' : (isSidebarOpen ? 'calc(100% - 256px)' : 'calc(100% - 80px)'),
+            marginLeft: isMobile ? '0' : (isSidebarOpen ? '256px' : '80px'),
             flexGrow: 1,
             flexShrink: 1,
             minWidth: 0
