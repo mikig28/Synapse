@@ -9,6 +9,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
+  // Sidebar should be CLOSED by default (collapsed to icons only)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const location = useLocation();
 
@@ -22,6 +23,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       const newMobileState = window.innerWidth < 768;
       if (newMobileState !== isMobile) {
         setIsMobile(newMobileState);
+        // Close sidebar when transitioning to mobile
+        if (newMobileState) {
+          setIsSidebarOpen(false);
+        }
       }
     };
     window.addEventListener("resize", onResize);

@@ -125,17 +125,17 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
       className={`
         flex flex-col z-40
         bg-gray-900 backdrop-blur-sm border-r border-white/10
+        transition-all duration-300 ease-in-out
         
         /* DESKTOP (≥ md) ----------------------------------- */
-        md:block md:sticky md:top-0 
-        ${isSidebarOpen ? "md:w-64" : "md:w-20"}
+        hidden md:flex md:sticky md:top-0 
         md:h-screen md:max-h-screen md:overflow-hidden
+        ${isSidebarOpen ? "md:w-64" : "md:w-20"}
 
         /* MOBILE (< md) ------------------------------------ */
+        ${isSidebarOpen ? "flex" : "hidden"}
         fixed top-0 left-0 md:relative h-dvh 
-        transition-all duration-300 ease-in-out 
-        ${isSidebarOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}
-        w-64
+        ${isSidebarOpen ? "w-64 translate-x-0 shadow-2xl" : "w-20 -translate-x-full"}
         
         /* Mobile optimizations for better clarity */
         md:bg-gray-900/95 md:backdrop-blur-md
@@ -145,7 +145,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
       aria-label="Primary"
     >
       {/* Header section - fixed height */}
-      <div className="px-4 pt-4 pb-2 flex items-center justify-center flex-shrink-0">
+      <div className={`px-4 pt-4 pb-2 flex items-center flex-shrink-0 ${isSidebarOpen ? 'justify-start' : 'justify-center'}`}>
         {/* Synapse Logo/Icon - visible when open, tiny icon when closed */}
         <Link to="/dashboard" className="flex items-center gap-2">
           <VideoLogo 
@@ -167,7 +167,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
               </motion.svg>
             }
           />
-          <h2 className={`text-xl md:text-2xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent overflow-hidden whitespace-nowrap transition-all duration-300 ${isSidebarOpen ? 'opacity-100 w-auto ml-2' : 'opacity-0 w-0 ml-0'}`}>
+          <h2 className={`text-xl md:text-2xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent whitespace-nowrap transition-all duration-300 ${isSidebarOpen ? 'opacity-100 w-auto ml-2 visible' : 'opacity-0 w-0 ml-0 invisible overflow-hidden'}`}>
             Synapse
           </h2>
         </Link>
@@ -229,7 +229,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
                     ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-purple-300'}
                     ${isSidebarOpen ? 'mr-3' : 'mx-auto'}
                   `} />
-                  <span className={`text-sm font-medium overflow-hidden whitespace-nowrap transition-all duration-300 ${isSidebarOpen ? 'opacity-100 max-w-full' : 'opacity-0 max-w-0'}`}>
+                  <span className={`text-sm font-medium whitespace-nowrap transition-all duration-300 ${isSidebarOpen ? 'opacity-100 visible ml-0' : 'opacity-0 invisible overflow-hidden w-0 max-w-0'}`}>
                     {item.label}
                   </span>
                 </Link>
