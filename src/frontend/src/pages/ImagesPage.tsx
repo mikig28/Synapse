@@ -28,6 +28,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { SecureImage } from '@/components/common/SecureImage';
+import { useHighlightItem } from '@/hooks/useHighlightItem';
 
 interface ImageStats {
   total: number;
@@ -115,6 +116,9 @@ const ImagesPage: React.FC = () => {
   const [whatsappImages, setWhatsappImages] = useState<WhatsAppImage[]>([]);
   const [isLoadingWhatsApp, setIsLoadingWhatsApp] = useState(true);
 
+  // Combined loading state for highlight hook
+  const isLoading = isLoadingStats || isLoadingWhatsApp;
+
   // Fetch WhatsApp images
   useEffect(() => {
     const fetchWhatsAppImages = async () => {
@@ -179,10 +183,13 @@ const ImagesPage: React.FC = () => {
   // Merge all images and sort by date
   const imageItems = useMemo(() => {
     const allImages = [...telegramImageItems, ...whatsappImageItems];
-    return allImages.sort((a, b) => 
+    return allImages.sort((a, b) =>
       new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
     );
   }, [telegramImageItems, whatsappImageItems]);
+
+  // Use the highlight hook to handle search result navigation
+  const imageRefs = useHighlightItem(imageItems, isLoading);
 
   // Filter images by category
   const filteredImages = useMemo(() => {
@@ -646,6 +653,9 @@ const ImagesPage: React.FC = () => {
               return (
                 <motion.div
                   key={item._id}
+                  ref={(el) => {
+                    if (el) imageRefs.current[item._id] = el;
+                  }}
                   variants={itemVariants}
                   whileHover={{ y: -5, scale: 1.02 }}
                   transition={{ type: "spring", stiffness: 300, damping: 15 }}
