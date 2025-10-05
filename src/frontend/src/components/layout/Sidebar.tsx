@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { VideoLogo } from '@/components/ui/VideoLogo';
 
 // Define props for Sidebar
 interface SidebarProps {
@@ -147,23 +148,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
       <div className={`px-4 pt-4 pb-2 flex items-center flex-shrink-0 ${isSidebarOpen ? 'justify-start' : 'justify-center'}`}>
         {/* Synapse Logo/Icon - visible when open, tiny icon when closed */}
         <Link to="/dashboard" className="flex items-center gap-2">
-          <motion.img 
-            src="/assets/images/synapse-logo.png" 
-            alt="Synapse Logo"
-            className="transition-all duration-300 rounded-lg"
-            style={{
-              width: isSidebarOpen ? '48px' : '32px',
-              height: isSidebarOpen ? '48px' : '32px',
-            }}
-            animate={{ 
-              scale: isSidebarOpen ? 1 : 0.9,
-            }}
-            whileHover={{ scale: 1.05 }}
-            transition={{ duration: 0.3 }}
+          <VideoLogo 
+            size={isSidebarOpen ? "lg" : "md"} 
+            playOnHover={true}
+            className="transition-all duration-300 glow-effect-purple-sm"
           />
-          <h2 className={`text-xl md:text-2xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent whitespace-nowrap transition-all duration-300 ${isSidebarOpen ? 'opacity-100 w-auto ml-2 visible' : 'opacity-0 w-0 ml-0 invisible overflow-hidden'}`}>
-            Synapse
-          </h2>
+          {isSidebarOpen && (
+            <h2 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent whitespace-nowrap ml-2">
+              Synapse
+            </h2>
+          )}
         </Link>
       </div>
       
