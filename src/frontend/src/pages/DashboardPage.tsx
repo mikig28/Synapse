@@ -527,8 +527,8 @@ const DashboardPage: React.FC = () => {
                       <AlertDescription className="overflow-hidden max-w-full" style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{latestDigest}</AlertDescription>
                     </Alert>
                   ) : (
-                    <div className="prose prose-sm sm:prose dark:prose-invert max-w-none overflow-hidden w-full">
-                      <p className="text-sm sm:text-base leading-relaxed overflow-hidden w-full" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{latestDigest}</p>
+                    <div className="w-full max-w-full">
+                      <p className="text-sm sm:text-base leading-relaxed text-foreground w-full max-w-full" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere', margin: 0 }}>{latestDigest}</p>
                     </div>
                   )}
                 </motion.div>

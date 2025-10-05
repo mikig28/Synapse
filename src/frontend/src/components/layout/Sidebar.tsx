@@ -210,7 +210,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
                 <Link 
                   to={item.href} 
                   className={`
-                    flex items-center p-2 md:p-3 rounded-lg group transition-all duration-200 ease-in-out
+                    flex items-center p-2 md:p-3 rounded-lg group transition-all duration-200 ease-in-out w-full
                     ${isSidebarOpen ? 'justify-start' : 'justify-center'}
                     ${isActive 
                       ? 'bg-gradient-to-r from-pink-500/30 to-purple-500/30 text-white shadow-md border border-white/20' 
@@ -221,11 +221,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
                   <IconComponent className={`
                     h-5 w-5 md:h-5 md:w-5 transition-colors duration-200 flex-shrink-0
                     ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-purple-300'}
-                    ${isSidebarOpen ? 'mr-3' : 'mx-auto'}
                   `} />
-                  <span className={`text-sm font-medium whitespace-nowrap transition-all duration-300 ${isSidebarOpen ? 'opacity-100 visible ml-0' : 'opacity-0 invisible overflow-hidden w-0 max-w-0'}`}>
-                    {item.label}
-                  </span>
+                  {isSidebarOpen && (
+                    <span className="text-sm font-medium whitespace-nowrap ml-3">
+                      {item.label}
+                    </span>
+                  )}
                 </Link>
               </motion.li>
             );
