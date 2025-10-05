@@ -64,44 +64,44 @@ const RecentVideo: React.FC = () => {
     : fallbackVideo?.createdAt ? new Date(fallbackVideo.createdAt).toLocaleDateString() : undefined;
 
   return (
-    <GlassCard className="mb-6">
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center">
-            <Film className="w-5 h-5 text-primary mr-2" />
-            <h3 className="text-lg font-semibold">{hasRecommendation ? 'Recommended For You' : 'Recent Video'}</h3>
-          </div>
-          <span className="text-xs text-muted-foreground">
-            {hasRecommendation ? description : 'Latest capture'}
-          </span>
+    <div className="w-full max-w-full min-w-0 overflow-hidden">
+      <div className="flex items-center justify-between mb-2 overflow-hidden max-w-full">
+        <div className="flex items-center min-w-0 flex-1 overflow-hidden">
+          <Film className="w-4 h-4 sm:w-5 sm:h-5 text-primary mr-2 flex-shrink-0" />
+          <h3 className="text-sm sm:text-base font-semibold truncate min-w-0">{hasRecommendation ? 'Recommended For You' : 'Recent Video'}</h3>
         </div>
-        <div className="flex items-center gap-4">
-          {thumbnail && (
-            <img src={thumbnail} alt={title} className="w-32 h-20 object-cover rounded" />
-          )}
-          <div className="flex-1">
-            <p className="font-medium mb-1 line-clamp-2 text-sm">{title}</p>
-            {channel && <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{channel}</p>}
-            {timestamp && <p className="text-[11px] text-muted-foreground/80 mb-2">{timestamp}</p>}
-            <AnimatedButton
-              variant="secondary"
-              size="sm"
-              className="flex items-center gap-1"
-              onClick={() => {
-                if (hasRecommendation) {
-                  window.open(link, '_blank', 'noopener');
-                } else {
-                  window.location.href = link;
-                }
-              }}
-            >
-              <Play className="w-3 h-3" />
-              Watch
-            </AnimatedButton>
+        <span className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap flex-shrink-0 ml-2">
+          {hasRecommendation ? description : 'Latest capture'}
+        </span>
+      </div>
+      <div className="flex items-start gap-2 sm:gap-3 overflow-hidden max-w-full">
+        {thumbnail && (
+          <div className="flex-shrink-0 w-20 sm:w-24 overflow-hidden rounded">
+            <img src={thumbnail} alt={title} className="w-full h-auto object-cover rounded" style={{ maxHeight: '60px' }} />
           </div>
+        )}
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <p className="font-medium mb-1 line-clamp-2 text-xs sm:text-sm overflow-hidden" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{title}</p>
+          {channel && <p className="text-[10px] sm:text-xs text-muted-foreground mb-1 line-clamp-1 truncate">{channel}</p>}
+          {timestamp && <p className="text-[10px] text-muted-foreground/80 mb-2 truncate">{timestamp}</p>}
+          <AnimatedButton
+            variant="secondary"
+            size="sm"
+            className="flex items-center gap-1 text-xs"
+            onClick={() => {
+              if (hasRecommendation) {
+                window.open(link, '_blank', 'noopener');
+              } else {
+                window.location.href = link;
+              }
+            }}
+          >
+            <Play className="w-3 h-3 flex-shrink-0" />
+            <span className="truncate">Watch</span>
+          </AnimatedButton>
         </div>
       </div>
-    </GlassCard>
+    </div>
   );
 };
 

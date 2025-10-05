@@ -39,22 +39,22 @@ const TelegramFeed: React.FC = () => {
   };
 
   return (
-    <div className="telegram-feed-container w-full max-w-full min-w-0 overflow-hidden">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-xs sm:text-sm text-muted-foreground truncate">
+    <div className="telegram-feed-container w-full max-w-full min-w-0 overflow-x-hidden box-border">
+      <div className="mb-2 flex items-center justify-between gap-2 overflow-x-hidden max-w-full">
+        <p className="text-xs sm:text-sm text-muted-foreground truncate min-w-0">
           Socket: {
             isConnected ? <span className="text-green-500">Connected</span> : <span className="text-red-500">Disconnected</span>
           }
         </p>
       </div>
       {telegramItems.length === 0 && (
-        <p className="text-xs sm:text-sm text-muted-foreground break-words">No Telegram messages yet. Send a message to your bot!</p>
+        <p className="text-xs sm:text-sm text-muted-foreground break-words overflow-hidden max-w-full" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>No Telegram messages yet. Send a message to your bot!</p>
       )}
-      <ul className="space-y-3 max-h-72 sm:max-h-80 md:max-h-96 overflow-y-auto pr-2 w-full min-w-0">
+      <ul className="space-y-3 max-h-72 sm:max-h-80 md:max-h-96 overflow-y-auto overflow-x-hidden pr-2 w-full max-w-full min-w-0 box-border">
         {telegramItems.map((item: TelegramItemType) => (
           <motion.li 
             key={item._id} 
-            className="p-3 border rounded-md bg-background shadow-sm relative group w-full min-w-0 overflow-hidden"
+            className="p-2 sm:p-3 border rounded-md bg-background shadow-sm relative group w-full max-w-full min-w-0 overflow-hidden box-border"
           >
             <button 
               onClick={() => handleDelete(item._id, item.title || item.content || item.text || item.messageType)} 
@@ -63,51 +63,53 @@ const TelegramFeed: React.FC = () => {
             >
               <X size={14} className="sm:w-4 sm:h-4" />
             </button>
-            <div className="flex flex-col gap-1 mb-2 w-full min-w-0 pr-8">
-              <span className="font-medium text-xs sm:text-sm text-primary truncate">
+            <div className="flex flex-col gap-1 mb-2 w-full max-w-full min-w-0 pr-8 overflow-hidden">
+              <span className="font-medium text-xs sm:text-sm text-primary truncate min-w-0">
                 {item.fromUsername || 'Unknown User'} {item.chatTitle && `(${item.chatTitle})`}
               </span>
-              <span className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">
+              <span className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap truncate min-w-0">
                 {new Date(item.receivedAt).toLocaleString()}
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-foreground mb-1 line-clamp-3 break-words w-full min-w-0">
+            <p className="text-xs sm:text-sm text-foreground mb-1 line-clamp-3 w-full max-w-full min-w-0 overflow-hidden" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
               {getMainContent(item)}
             </p>
             
             {/* Display raw transcription if source is voice memo and transcription exists */}
             {item.source === 'telegram_voice_memo' && item.rawTranscription && (
-              <div className="mt-2 pt-2 border-t border-border min-w-0">
-                <div className="flex items-center text-xs text-muted-foreground mb-1">
+              <div className="mt-2 pt-2 border-t border-border min-w-0 max-w-full overflow-hidden">
+                <div className="flex items-center text-xs text-muted-foreground mb-1 overflow-hidden max-w-full">
                   <MessageSquareText size={12} className="mr-1.5 flex-shrink-0" />
-                  <span className="truncate">Original Transcription:</span>
+                  <span className="truncate min-w-0">Original Transcription:</span>
                 </div>
-                <p className="text-[10px] sm:text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 p-2 rounded-md break-words w-full min-w-0">
+                <p className="text-[10px] sm:text-xs text-muted-foreground whitespace-pre-wrap bg-muted/50 p-2 rounded-md w-full max-w-full min-w-0 overflow-hidden" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                   {item.rawTranscription}
                 </p>
               </div>
             )}
 
             {item.messageType === 'photo' && item.mediaGridFsId && (
-              <div className="mt-2 rounded-lg overflow-hidden w-full max-w-full">
-                <a href={`/media/${item.mediaGridFsId}`} target="_blank" rel="noopener noreferrer" className="block">
+              <div className="mt-2 rounded-lg overflow-hidden w-full max-w-full min-w-0 box-border">
+                <a href={`/media/${item.mediaGridFsId}`} target="_blank" rel="noopener noreferrer" className="block w-full max-w-full overflow-hidden">
                   <SecureImage 
                     imageId={item.mediaGridFsId}
                     alt="Telegram attachment" 
-                    className="w-full h-auto object-cover max-w-full" 
+                    className="w-full h-auto object-contain max-w-full block" 
+                    style={{ maxHeight: '300px' }}
                   />
                 </a>
               </div>
             )}
             {item.urls && item.urls.length > 0 && (
-              <div className="mt-2 w-full min-w-0 space-y-1">
+              <div className="mt-2 w-full max-w-full min-w-0 space-y-1 overflow-hidden">
                 {item.urls.map((url, index) => (
                   <a 
                     key={index} 
                     href={url} 
                     target="_blank" 
                     rel="noopener noreferrer" 
-                    className="text-[10px] sm:text-xs text-indigo-500 hover:underline min-h-[28px] flex items-center touch-manipulation break-all w-full"
+                    className="text-[10px] sm:text-xs text-indigo-500 hover:underline min-h-[28px] flex items-center touch-manipulation w-full max-w-full overflow-hidden"
+                    style={{ wordBreak: 'break-all', overflowWrap: 'anywhere' }}
                   >
                     {url}
                   </a>
