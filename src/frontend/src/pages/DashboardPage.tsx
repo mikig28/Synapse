@@ -365,7 +365,7 @@ const DashboardPage: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 overflow-x-hidden max-w-full">
+    <div className="min-h-full w-full bg-gradient-to-br from-background via-background to-muted/20 overflow-x-hidden max-w-full">
       <a href="#dashboard-main" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:bg-background focus:text-foreground focus:p-2 focus:rounded focus:z-50">
         Skip to main content
       </a>
