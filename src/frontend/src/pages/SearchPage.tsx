@@ -634,7 +634,7 @@ const SearchPage: React.FC = () => {
 
             {/* Results List */}
             {dedupedResults.length > 0 ? (
-              <div className="grid gap-2 sm:gap-3 lg:gap-4">
+              <div className="grid gap-2 sm:gap-3 lg:gap-4 overflow-y-auto overflow-x-hidden pr-1 max-h-[calc(100vh-500px)]">
                 {dedupedResults.map((result, index) => renderSearchResult(result, index))}
               </div>
             ) : (
