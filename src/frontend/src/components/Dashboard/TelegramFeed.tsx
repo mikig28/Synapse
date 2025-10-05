@@ -95,7 +95,7 @@ const TelegramFeed: React.FC = () => {
                     imageId={item.mediaGridFsId}
                     alt="Telegram attachment" 
                     className="w-full h-auto object-contain max-w-full block" 
-                    style={{ maxHeight: '300px' }}
+                    style={{ maxHeight: '450px' }}
                   />
                 </a>
               </div>

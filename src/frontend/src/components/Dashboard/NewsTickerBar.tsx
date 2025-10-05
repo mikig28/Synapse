@@ -9,8 +9,16 @@ const NewsTickerBar: React.FC = () => {
   const [articles, setArticles] = useState<RealNewsArticle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const navigate = useNavigate();
   const tickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     loadLatestNews();
@@ -91,6 +99,8 @@ const NewsTickerBar: React.FC = () => {
             className="flex-1 overflow-hidden relative"
             onMouseEnter={() => setIsPaused(true)}
             onMouseLeave={() => setIsPaused(false)}
+            onTouchStart={() => setIsPaused(true)}
+            onTouchEnd={() => setIsPaused(false)}
           >
             <motion.div
               ref={tickerRef}
@@ -102,16 +112,17 @@ const NewsTickerBar: React.FC = () => {
                 x: {
                   repeat: Infinity,
                   repeatType: "loop",
-                  duration: 60,
+                  duration: isMobile ? 45 : 60, // Faster on mobile for better visibility
                   ease: "linear",
                 },
               }}
+              style={{ willChange: 'transform' }}
             >
               {doubledArticles.map((article, index) => (
                 <button
                   key={`${article._id}-${index}`}
                   onClick={() => handleArticleClick(article)}
-                  className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 group cursor-pointer hover:opacity-80 transition-opacity"
+                  className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 group cursor-pointer hover:opacity-80 active:opacity-60 transition-opacity touch-manipulation"
                 >
                   {article.category && (
                     <span className={`px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold uppercase tracking-wide border ${getCategoryColor(article.category)}`}>
