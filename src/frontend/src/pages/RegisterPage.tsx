@@ -50,7 +50,7 @@ const RegisterPage: React.FC = () => {
       if (data.token) {
         console.log('[RegisterPage] Legacy flow - auto login');
         storeLogin({
-          user: { id: data._id!, email: data.email!, fullName: data.fullName },
+          user: { id: data._id!, email: data.email!, fullName: data.fullName, role: data.role },
           token: data.token,
         });
         navigate('/dashboard');

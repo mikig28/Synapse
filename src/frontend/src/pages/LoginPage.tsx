@@ -38,7 +38,7 @@ const LoginPage: React.FC = () => {
     try {
       const data = await loginService({ email, password });
       const loginPayload = {
-        user: { id: data._id, email: data.email, fullName: data.fullName },
+        user: { id: data._id, email: data.email, fullName: data.fullName, role: data.role },
         token: data.token,
       };
       storeLogin(loginPayload);
@@ -123,6 +123,7 @@ const LoginPage: React.FC = () => {
           id: authData._id,
           email: authData.email,
           fullName: authData.fullName,
+          role: authData.role,
         },
         token: authData.token, // Now using proper JWT from backend
       };
