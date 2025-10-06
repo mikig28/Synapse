@@ -5,6 +5,7 @@ interface User {
   id: string;
   email: string;
   fullName?: string;
+  role?: 'admin' | 'user'; // User role for admin access control
   // Add other user properties as needed
 }
 
@@ -16,6 +17,7 @@ interface AuthState {
   register: (userData: { user: User; token: string }) => void; // Simulate successful registration
   logout: () => void;
   checkAuthState: () => boolean; // New method to validate auth state
+  isAdmin: () => boolean; // Check if current user is admin
   // You can add more actions like setLoading, setError, etc.
   _resetAuthIfInconsistent: () => void; // Internal action
   hasHydrated: boolean; // NEW: indicates whether persisted auth state has hydrated
@@ -78,15 +80,19 @@ const useAuthStore = create<AuthState>()(
         const state = get();
         const isValid = state.isAuthenticated && !!state.token && !!state.user;
         logAuthState(state, `Auth check (valid: ${isValid})`);
-        
+
         // If inconsistent, fix it
         if (state.isAuthenticated && (!state.token || !state.user)) {
           console.warn('[AuthStore] Inconsistent auth state detected during check. Resetting.');
           get()._resetAuthIfInconsistent();
           return false;
         }
-        
+
         return isValid;
+      },
+      isAdmin: () => {
+        const state = get();
+        return state.isAuthenticated && state.user?.role === 'admin';
       },
       _resetAuthIfInconsistent: () => {
         const state = get();

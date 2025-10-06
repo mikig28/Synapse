@@ -7,9 +7,16 @@ export interface IUser extends Document {
   email: string;
   password?: string; // Password might not be present if using OAuth only for a user
   googleId?: string; // For Google OAuth
+  role: 'admin' | 'user'; // User role for hierarchy
   isEmailVerified?: boolean; // Email verification status
   emailVerificationToken?: string; // Token for email verification
   emailVerificationExpires?: Date; // Expiration time for verification token
+  lastLogin?: Date; // Track last login for analytics
+  metadata?: {
+    lastIp?: string;
+    lastUserAgent?: string;
+    registrationIp?: string;
+  };
   monitoredTelegramChats?: number[]; // Added for storing Telegram chat IDs to monitor
   sendAgentReportsToTelegram?: boolean; // Toggle for sending agent reports to Telegram
   telegramBotToken?: string; // User's personal Telegram bot token
@@ -46,6 +53,12 @@ const UserSchema: Schema<IUser> = new Schema(
       unique: true,
       sparse: true, // Allows multiple documents without this field to exist (nulls aren't unique)
     },
+    role: {
+      type: String,
+      enum: ['admin', 'user'],
+      default: 'user',
+      index: true, // Index for efficient admin queries
+    },
     isEmailVerified: {
       type: Boolean,
       default: false,
@@ -57,6 +70,15 @@ const UserSchema: Schema<IUser> = new Schema(
     emailVerificationExpires: {
       type: Date,
       select: false, // Don't return by default
+    },
+    lastLogin: {
+      type: Date,
+      default: null,
+    },
+    metadata: {
+      lastIp: { type: String },
+      lastUserAgent: { type: String },
+      registrationIp: { type: String },
     },
     monitoredTelegramChats: {
       type: [Number], // Array of numbers

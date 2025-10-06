@@ -199,6 +199,21 @@ RENDER=true                       # Render.com deployment flag
 FRONTEND_URL=http://localhost:3000 # Frontend URL for CORS
 CREWAI_SERVICE_URL=your_crewai_url # CrewAI service endpoint
 
+# Production Service URLs (Render.com & Railway.app)
+# Backend: https://synapse-backend-7lq6.onrender.com
+# Frontend: https://synapse-frontend.onrender.com
+# CrewAI: https://synapse-crewai.onrender.com
+# WAHA: https://waha-synapse-production.up.railway.app
+
+# Redis (Required for Socket.io horizontal scaling across multiple server instances)
+REDIS_URL=redis://your-redis-url  # Full Redis connection URL (recommended)
+# OR use individual variables:
+# REDIS_HOST=localhost             # Redis server host
+# REDIS_PORT=6379                  # Redis server port
+# REDIS_PASSWORD=your_password     # Optional: Redis password
+# REDIS_USERNAME=default           # Optional: Redis username
+# REDIS_DB=0                       # Optional: Redis database number (default 0)
+
 # Optional Services
 FIRECRAWL_API_KEY=your_key        # For web scraping via Firecrawl
 TASK_REMINDER_TIME=09:00          # Daily task reminder time

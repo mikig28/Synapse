@@ -101,12 +101,22 @@ export const loginUser = async (req: Request, res: Response) => {
         });
       }
 
+      // Update last login timestamp and metadata
+      user.lastLogin = new Date();
+      if (!user.metadata) {
+        user.metadata = {};
+      }
+      user.metadata.lastIp = req.ip || req.connection.remoteAddress;
+      user.metadata.lastUserAgent = req.headers['user-agent'];
+      await user.save();
+
       const token = generateToken(user.id);
       console.log(`[loginUser] User ${user.email} (ID: ${user.id}) logged in. Token generated.`);
       res.json({
         _id: user.id,
         fullName: user.fullName,
         email: user.email,
+        role: user.role,
         token: token,
       });
     } else {
@@ -152,17 +162,26 @@ export const googleLogin = async (req: Request, res: Response) => {
       if (!user.googleId) {
         user.googleId = googleUserInfo.sub;
         user.isEmailVerified = true;
-        await user.save();
       }
     }
 
+    // Update last login timestamp and metadata for all Google logins
+    user.lastLogin = new Date();
+    if (!user.metadata) {
+      user.metadata = {};
+    }
+    user.metadata.lastIp = req.ip || req.connection.remoteAddress;
+    user.metadata.lastUserAgent = req.headers['user-agent'];
+    await user.save();
+
     const token = generateToken(user.id);
     console.log(`[googleLogin] User ${user.email} (ID: ${user.id}) logged in via Google. Token generated.`);
-    
+
     res.json({
       _id: user.id,
       fullName: user.fullName,
       email: user.email,
+      role: user.role,
       token: token,
     });
 

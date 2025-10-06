@@ -30,10 +30,12 @@ import {
   Send,
   UtensilsCrossed,
   Video,
+  Crown,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/components/theme-provider';
+import useAuthStore from '@/store/authStore';
 
 // Define props for Sidebar
 interface SidebarProps {
@@ -45,11 +47,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
   const [showScrollBottom, setShowScrollBottom] = React.useState(false);
   const navRef = React.useRef<HTMLElement>(null);
   const { theme } = useTheme();
-  
+  const { isAdmin } = useAuthStore();
+
   // Determine which logo to use based on theme
   const isDarkMode = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   const logoSrc = isDarkMode ? '/assets/images/synapse-logo-dark.png' : '/assets/images/synapse-logo-light.png';
-  
+
   // Debug log to see if prop is being received
   React.useEffect(() => {
     console.log('[Sidebar] isSidebarOpen:', isSidebarOpen);
@@ -60,9 +63,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
     { href: "/search", label: "Search", icon: Search },
     { href: "/inbox", label: "Inbox", icon: Inbox },
     { href: "/settings", label: "Settings", icon: SettingsIcon },
+    // Admin-only section
+    ...(isAdmin() ? [{ href: "/admin", label: "Admin Dashboard", icon: Crown, adminOnly: true }] : []),
     { href: "/images", label: "Images", icon: ImageIcon },
-    { href: "/capture", label: "Capture", icon: Aperture }, 
-    { href: "/projects", label: "Projects", icon: Briefcase }, 
+    { href: "/capture", label: "Capture", icon: Aperture },
+    { href: "/projects", label: "Projects", icon: Briefcase },
     { href: "/tasks", label: "Tasks", icon: ListChecks },
     { href: "/notes", label: "Notes", icon: FileText },
     { href: "/ideas", label: "Ideas", icon: Lightbulb },
@@ -70,14 +75,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
     { href: "/meetings", label: "Meetings", icon: Mic },
     { href: "/agents", label: "AI Agents", icon: Bot },
     { href: "/scheduled-agents", label: "Scheduled Agents", icon: Clock },
-    { href: "/calendar", label: "Calendar", icon: CalendarDays }, 
+    { href: "/calendar", label: "Calendar", icon: CalendarDays },
     { href: "/places", label: "Places", icon: MapIcon },
-    { href: "/planning", label: "Planning", icon: Plane }, 
-    { href: "/goals", label: "Goals", icon: Target }, 
-    { href: "/habits", label: "Habits", icon: Repeat }, 
-    { href: "/automations", label: "Automations", icon: Repeat }, 
-    { href: "/whatsapp", label: "WhatsApp", icon: MessageSquare }, 
-    { href: "/whatsapp-monitor", label: "WhatsApp Monitor", icon: Camera }, 
+    { href: "/planning", label: "Planning", icon: Plane },
+    { href: "/goals", label: "Goals", icon: Target },
+    { href: "/habits", label: "Habits", icon: Repeat },
+    { href: "/automations", label: "Automations", icon: Repeat },
+    { href: "/whatsapp", label: "WhatsApp", icon: MessageSquare },
+    { href: "/whatsapp-monitor", label: "WhatsApp Monitor", icon: Camera },
     { href: "/telegram-channels", label: "Telegram Channels", icon: Send },
     { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
     { href: "/videos", label: "Videos", icon: Youtube },
@@ -209,8 +214,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
           {navItems.map((item, index) => {
             const IconComponent = item.icon;
             const isActive = location.pathname.startsWith(item.href);
+            const isAdminLink = (item as any).adminOnly === true;
             return (
-              <motion.li 
+              <motion.li
                 key={item.label}
                 variants={linkVariants}
                 initial="initial"
@@ -219,24 +225,31 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
                 whileTap="tap"
                 transition={{ delay: index * 0.05, type: "spring", stiffness: 300, damping: 20 }}
               >
-                <Link 
-                  to={item.href} 
+                <Link
+                  to={item.href}
                   className={`
                     flex items-center p-2 md:p-3 rounded-lg group transition-all duration-200 ease-in-out w-full
                     ${isSidebarOpen ? 'justify-start' : 'justify-center'}
-                    ${isActive 
-                      ? 'bg-gradient-to-r from-pink-500/30 to-purple-500/30 text-white shadow-md border border-white/20' 
-                      : 'text-gray-300 hover:text-white hover:bg-white/10'
+                    ${isActive
+                      ? isAdminLink
+                        ? 'bg-gradient-to-r from-yellow-500/30 to-orange-500/30 text-white shadow-md border border-yellow-400/40'
+                        : 'bg-gradient-to-r from-pink-500/30 to-purple-500/30 text-white shadow-md border border-white/20'
+                      : isAdminLink
+                        ? 'text-yellow-300 hover:text-yellow-100 hover:bg-yellow-500/10 border border-yellow-500/20'
+                        : 'text-gray-300 hover:text-white hover:bg-white/10'
                     }
                   `}
                 >
                   <IconComponent className={`
                     h-5 w-5 md:h-5 md:w-5 transition-colors duration-200 flex-shrink-0
-                    ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-purple-300'}
+                    ${isActive
+                      ? isAdminLink ? 'text-yellow-300' : 'text-white'
+                      : isAdminLink ? 'text-yellow-400 group-hover:text-yellow-200' : 'text-gray-400 group-hover:text-purple-300'
+                    }
                   `} />
                   {isSidebarOpen && (
-                    <span 
-                      className="text-sm font-medium whitespace-nowrap ml-3"
+                    <span
+                      className={`text-sm font-medium whitespace-nowrap ml-3 ${isAdminLink ? 'font-semibold' : ''}`}
                       style={{ display: 'block', opacity: 1, visibility: 'visible' }}
                     >
                       {item.label}

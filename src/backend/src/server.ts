@@ -6,6 +6,8 @@ import cors from 'cors';
 import mongoose from 'mongoose'; // Import mongoose to check connection state
 import http from 'http'; // Import http module
 import { Server as SocketIOServer } from 'socket.io'; // Import Server from socket.io
+import { createAdapter } from '@socket.io/redis-adapter'; // Redis adapter for horizontal scaling
+import { createRedisClient, testRedisConnection } from './config/redis'; // Redis client
 import requestIdMiddleware from './middleware/requestId'; // Request correlation
 import rateLimiters from './middleware/rateLimiter'; // Rate limiting
 import whatsappRoutes from './api/routes/whatsappRoutes'; // Import WhatsApp routes (legacy)
@@ -52,6 +54,7 @@ import telegramChannelRoutes from './api/routes/telegramChannelRoutes'; // Impor
 import whatsappImagesRoutes from './api/routes/whatsappImagesRoutes'; // Import WhatsApp images routes
 import whatsappSummaryRoutes from './api/routes/whatsappSummaryRoutes'; // Import WhatsApp summary routes
 import migrationRoutes from './api/routes/migrationRoutes'; // Import migration routes
+import adminRoutes from './api/routes/adminRoutes'; // Import admin routes
 import { generateTodaySummary } from './api/controllers/whatsappSummaryController'; // Direct import for WhatsApp summary endpoint
 import { authMiddleware } from './api/middleware/authMiddleware'; // Import auth middleware
 import { initializeTaskReminderScheduler } from './services/taskReminderService'; // Import task reminder service
@@ -95,6 +98,7 @@ const allowedOrigins = [
 
 logger.info('CORS allowed origins', { origins: allowedOrigins });
 
+// Initialize Socket.io server (Redis adapter will be configured after server start)
 const io = new SocketIOServer(httpServer, {
   cors: {
     origin: allowedOrigins,
@@ -217,6 +221,7 @@ app.use('/api/v1/usage', usageRoutes); // Use usage routes
 app.use('/api/v1/telegram-channels', telegramChannelRoutes); // Use telegram channels routes
 app.use('/api/v1/whatsapp/images', whatsappImagesRoutes); // Use WhatsApp images extraction routes
 app.use('/api/v1/whatsapp-gridfs', whatsappGridFSRoutes); // Use WhatsApp GridFS image serving routes
+app.use('/api/v1/admin', adminRoutes); // Use admin routes (requires admin role)
 
 // TEMPORARY: Simple test endpoint (no auth required) - BEFORE routes
 app.get('/api/v1/whatsapp-summary/test', (req: Request, res: Response) => {
@@ -700,6 +705,39 @@ const initializeServicesInBackground = async () => {
   console.log('[Server] ðŸ”„ Starting background service initialization...');
   
   try {
+    // Initialize Redis adapter for Socket.io horizontal scaling
+    try {
+      logger.info('[Socket.io] Initializing Redis adapter for horizontal scaling...');
+
+      const pubClient = await createRedisClient();
+      const subClient = pubClient?.duplicate();
+
+      if (pubClient && subClient) {
+        await subClient.connect();
+
+        // Configure Socket.io with Redis adapter
+        io.adapter(createAdapter(pubClient, subClient));
+
+        // Test Redis connection
+        const isHealthy = await testRedisConnection(pubClient);
+
+        if (isHealthy) {
+          logger.info('[Socket.io] Redis adapter configured successfully');
+          logger.info('[Socket.io] Server can now scale horizontally across multiple instances');
+        } else {
+          logger.error('[Socket.io] Redis health check failed');
+        }
+      } else {
+        logger.warn('[Socket.io] Running without Redis adapter (single instance only)');
+        logger.warn('[Socket.io] WebSocket events will NOT be shared across multiple server instances');
+      }
+
+    } catch (redisError) {
+      logger.error('[Socket.io] Failed to initialize Redis adapter:', redisError);
+      logger.warn('[Socket.io] Continuing with in-memory adapter (not suitable for production scale)');
+      // Don't crash the server - Socket.io will use in-memory adapter as fallback
+    }
+
     // Initialize search indexes for optimal search performance
     try {
       await initializeSearchIndexes();
