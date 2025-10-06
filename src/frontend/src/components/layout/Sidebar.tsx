@@ -130,6 +130,20 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
     tap: { scale: 0.98 }
   };
 
+  const headerOffsetVar = 'var(--app-header-height, 64px)';
+  const supportsDynamicViewport =
+    typeof window !== 'undefined' ? window.CSS?.supports?.('height: 100dvh') : true;
+  const sidebarHeightValue = supportsDynamicViewport
+    ? `calc(100dvh - ${headerOffsetVar})`
+    : `calc(100vh - ${headerOffsetVar})`;
+
+  const sidebarStyle: React.CSSProperties = {
+    pointerEvents: isSidebarOpen ? 'auto' : undefined,
+    top: headerOffsetVar,
+    height: sidebarHeightValue,
+    maxHeight: sidebarHeightValue,
+  };
+
   return (
     <aside
       className={`
@@ -138,13 +152,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
         transition-all duration-300 ease-in-out will-change-transform
 
         /* DESKTOP (≥ md) ----------------------------------- */
-        md:fixed md:top-[64px] md:left-0 md:z-40
-        md:h-[calc(100vh-64px)] md:max-h-[calc(100vh-64px)] md:overflow-hidden
+        md:fixed md:left-0 md:z-40
+        md:overflow-hidden
         ${isSidebarOpen ? 'md:w-64' : 'md:w-20'}
 
         /* MOBILE (< md) ------------------------------------ */
-        fixed top-[calc(64px_+_var(--safe-area-inset-top,_0px))] left-0
-        h-[calc(100dvh_-_64px_-_var(--safe-area-inset-top,_0px))] w-64 z-50
+        fixed left-0 w-64 z-50
         ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'}
 
         /* Mobile optimizations for better clarity */
@@ -152,7 +165,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
         supports-[backdrop-filter]:md:bg-gray-900/90
         supports-[backdrop-filter]:md:backdrop-blur-lg
       `}
-      style={{ pointerEvents: isSidebarOpen ? 'auto' : undefined }}
+      style={sidebarStyle}
       aria-label="Primary"
     >
       {/* Header section - fixed height */}

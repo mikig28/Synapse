@@ -48,9 +48,39 @@ const Header: React.FC<HeaderProps> = ({ isSidebarOpen, toggleSidebar }) => {
     navigate('/login');
   };
 
+  const headerRef = React.useRef<HTMLElement | null>(null);
+
+  const updateHeaderOffset = React.useCallback(() => {
+    const element = headerRef.current;
+    if (!element || typeof document === 'undefined') {
+      return;
+    }
+
+    const height = element.getBoundingClientRect().height;
+    document.documentElement.style.setProperty('--app-header-height', `${Math.round(height)}px`);
+  }, []);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    updateHeaderOffset();
+    window.addEventListener('resize', updateHeaderOffset);
+
+    return () => {
+      window.removeEventListener('resize', updateHeaderOffset);
+    };
+  }, [updateHeaderOffset]);
+
+  React.useEffect(() => {
+    updateHeaderOffset();
+  }, [isAuthenticated, theme, updateHeaderOffset]);
+
   return (
     <header
-      className="sticky top-0 z-50 w-full md:fixed md:top-0 md:left-0 md:right-0 bg-black/40 md:bg-transparent border-b border-white/10 shadow-lg backdrop-blur-md pb-3 pr-4 md:pr-8 min-h-[64px] overflow-visible"
+      ref={headerRef}
+      className="fixed top-0 left-0 right-0 z-50 w-full bg-black/40 md:bg-transparent border-b border-white/10 shadow-lg backdrop-blur-md pb-3 pr-4 md:pr-8 min-h-[64px] overflow-visible"
       style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
     >
       <div className="w-full pl-3 md:pl-6 flex items-center justify-between h-full max-w-none">
