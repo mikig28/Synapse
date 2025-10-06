@@ -141,66 +141,12 @@ class WAHAService extends EventEmitter {
       const isGroup = chatId.includes('@g.us');
       const groupName = isGroup ? (item.chat?.name || item.groupName || notifyName) : undefined;
 
-      // Ensure contact exists (by phone number portion of JID if possible)
-      const phone = typeof fromJid === 'string' && fromJid.includes('@') ? fromJid.split('@')[0] : String(fromJid || '');
-      // TODO: Need userId context here! This is called from webhook processing
-      // For now, we'll need to pass userId through webhook routing
-      // Temporarily skip user-specific contact creation until we have userId context
-      console.warn('[WAHA Service] persistWAHAMessage: userId context needed for multi-user support');
-      return; // Skip for now - will be handled by webhook router with userId
-      
-      /* 
-      let contact = await WhatsAppContact.findOne({ phoneNumber: phone });
-      if (!contact) {
-        contact = await WhatsAppContact.create({
-          phoneNumber: phone,
-          name: notifyName || phone,
-          isOnline: false,
-          lastSeen: ts,
-          unreadCount: isIncoming ? 1 : 0,
-          isBusinessContact: isGroup || false,
-          totalMessages: 1,
-          totalIncomingMessages: isIncoming ? 1 : 0,
-          totalOutgoingMessages: isIncoming ? 0 : 1
-        } as any);
-      */
-      } else {
-        // Lightweight stat updates
-        contact.lastSeen = ts;
-        contact.lastMessage = body || '[Media]';
-        contact.lastMessageTimestamp = ts;
-        contact.totalMessages = (contact.totalMessages || 0) + 1;
-        if (isIncoming) {
-          contact.totalIncomingMessages = (contact.totalIncomingMessages || 0) + 1;
-          contact.unreadCount = (contact.unreadCount || 0) + 1;
-        } else {
-          contact.totalOutgoingMessages = (contact.totalOutgoingMessages || 0) + 1;
-        }
-        await contact.save();
-      }
-
-      const doc = {
-        messageId,
-        from: fromJid || '',
-        to: chatId,
-        message: body || '',
-        timestamp: ts,
-        type,
-        status: fromMe ? 'sent' as const : 'received' as const,
-        isIncoming,
-        contactId: contact._id,
-        metadata: {
-          isGroup,
-          groupId: isGroup ? chatId : undefined,
-          groupName
-        }
-      } as any;
-
-      await WhatsAppMessage.updateOne(
-        { messageId: doc.messageId },
-        { $setOnInsert: doc },
-        { upsert: true }
-      );
+      // TODO: MULTI-USER SUPPORT NEEDED
+      // This method is called from webhooks which don't have userId context yet
+      // Temporarily disabled to prevent data corruption
+      // Will be re-enabled once webhook routing passes userId
+      console.warn('[WAHA Service] persistWAHAMessage: Temporarily disabled pending userId context from webhook routing');
+      return;
     } catch (err) {
       console.warn('[WAHA Service] ⚠️ Persist WAHA message failed:', (err as any)?.message || err);
     }
