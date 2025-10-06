@@ -16,9 +16,9 @@
 import mongoose from 'mongoose';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
-import User from '../models/User';
-import WhatsAppContact from '../models/WhatsAppContact';
-import WhatsAppMessage from '../models/WhatsAppMessage';
+import User from '../src/models/User';
+import WhatsAppContact from '../src/models/WhatsAppContact';
+import WhatsAppMessage from '../src/models/WhatsAppMessage';
 
 // Load environment variables
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
@@ -115,30 +115,13 @@ async function migrateWhatsAppData(): Promise<MigrationStats> {
     console.log(`   Found ${stats.messagesWithoutUserId} messages without userId`);
 
     if (stats.messagesWithoutUserId > 0) {
-      // Update messages in batches (more efficient for large collections)
-      const BATCH_SIZE = 1000;
-      let processed = 0;
+      // Update all messages at once
+      const messageResult = await WhatsAppMessage.updateMany(
+        { userId: { $exists: false } },
+        { $set: { userId: primaryUser._id } }
+      );
       
-      while (processed < stats.messagesWithoutUserId) {
-        const messageResult = await WhatsAppMessage.updateMany(
-          { userId: { $exists: false } },
-          { $set: { userId: primaryUser._id } },
-          { limit: BATCH_SIZE }
-        );
-        
-        processed += messageResult.modifiedCount;
-        stats.messagesUpdated += messageResult.modifiedCount;
-        
-        if (stats.messagesWithoutUserId > BATCH_SIZE) {
-          console.log(`   Progress: ${processed}/${stats.messagesWithoutUserId} messages...`);
-        }
-        
-        // If no more documents were modified, break
-        if (messageResult.modifiedCount === 0) {
-          break;
-        }
-      }
-      
+      stats.messagesUpdated = messageResult.modifiedCount;
       console.log(`   ✅ Updated ${stats.messagesUpdated} messages`);
       
       if (stats.messagesUpdated !== stats.messagesWithoutUserId) {
