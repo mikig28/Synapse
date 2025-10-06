@@ -3,6 +3,21 @@ import { ParamsDictionary } from 'express-serve-static-core';
 import { ParsedQs } from 'qs';
 import { IUser } from '../models/User';
 
+// Extend Express Request to include our custom properties
+// Note: logger is declared in requestId.ts middleware
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: string;
+        email: string;
+      };
+      adminUser?: IUser;
+      isAdmin?: boolean;
+    }
+  }
+}
+
 export interface AuthenticatedRequest<
   P = ParamsDictionary,
   ResBody = any,
@@ -15,7 +30,6 @@ export interface AuthenticatedRequest<
   };
   adminUser?: IUser; // Full user object for admin routes
   isAdmin?: boolean; // Flag for conditional admin logic
-  logger?: any; // Winston logger instance
 }
 
 export type AuthRequest = ExpressRequest & {
