@@ -13,13 +13,16 @@ const RecentVideo: React.FC = () => {
 
   const loadRecommended = async () => {
     try {
+      // Fetch multiple recommendations (pending or approved) to pick randomly from
       const res = await listRecommendations({
-        status: 'approved',
+        status: undefined, // Get all statuses (pending, approved, etc.)
         page: 1,
-        pageSize: 1,
+        pageSize: 20, // Get more to have variety
       });
       if (res.items.length > 0) {
-        setRecommended(res.items[0]);
+        // Pick a random video from the list
+        const randomIndex = Math.floor(Math.random() * res.items.length);
+        setRecommended(res.items[randomIndex]);
         return;
       }
     } catch (error) {
@@ -58,7 +61,7 @@ const RecentVideo: React.FC = () => {
   const link = hasRecommendation
     ? `https://www.youtube.com/watch?v=${recommended?.videoId}`
     : '/videos';
-  const description = hasRecommendation ? 'Daily recommendation' : 'Most recently added';
+  const description = hasRecommendation ? 'Fresh pick' : 'Most recently added';
   const timestamp = hasRecommendation
     ? recommended?.publishedAt ? new Date(recommended.publishedAt).toLocaleDateString() : undefined
     : fallbackVideo?.createdAt ? new Date(fallbackVideo.createdAt).toLocaleDateString() : undefined;
