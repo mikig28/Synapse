@@ -133,24 +133,26 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
   return (
     <aside
       className={`
-        flex flex-col
-        bg-gray-900 backdrop-blur-sm border-r border-white/10
-        transition-all duration-300 ease-in-out
+        ${isSidebarOpen ? 'flex' : 'hidden'} md:flex
+        flex-col bg-gray-900 backdrop-blur-sm border-r border-white/10
+        transition-all duration-300 ease-in-out will-change-transform
 
         /* DESKTOP (≥ md) ----------------------------------- */
-        hidden md:flex md:fixed md:top-[64px] md:left-0 md:z-40
+        md:fixed md:top-[64px] md:left-0 md:z-40
         md:h-[calc(100vh-64px)] md:max-h-[calc(100vh-64px)] md:overflow-hidden
-        ${isSidebarOpen ? "md:w-64" : "md:w-20"}
+        ${isSidebarOpen ? 'md:w-64' : 'md:w-20'}
 
         /* MOBILE (< md) ------------------------------------ */
-        fixed top-[64px] left-0 h-[calc(100dvh-64px)] w-64 z-50
-        ${isSidebarOpen ? "flex translate-x-0 shadow-2xl" : "hidden -translate-x-full"}
+        fixed top-[calc(64px_+_var(--safe-area-inset-top,_0px))] left-0
+        h-[calc(100dvh_-_64px_-_var(--safe-area-inset-top,_0px))] w-64 z-50
+        ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'}
 
         /* Mobile optimizations for better clarity */
         md:bg-gray-900/95 md:backdrop-blur-md
         supports-[backdrop-filter]:md:bg-gray-900/90
         supports-[backdrop-filter]:md:backdrop-blur-lg
       `}
+      style={{ pointerEvents: isSidebarOpen ? 'auto' : undefined }}
       aria-label="Primary"
     >
       {/* Header section - fixed height */}
