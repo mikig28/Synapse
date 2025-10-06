@@ -118,11 +118,11 @@ export function shouldFilterByLanguage(
     return false; // No filter, include all
   }
 
-  // If video language is not detected, we can't filter
-  // In 'include' mode: exclude unknown languages (conservative approach)
-  // In 'exclude' mode: include unknown languages (allow unknown)
+  // If video language is not detected, we can't filter reliably
+  // CHANGED: Include unknown languages by default since most YouTube videos don't have language metadata
+  // This makes the filter opt-in rather than overly restrictive
   if (!videoLang) {
-    return filterMode === 'include'; // Exclude if mode is 'include', include if mode is 'exclude'
+    return false; // Include videos with unknown language (permissive approach for both modes)
   }
 
   const normalizedLang = videoLang.toLowerCase();

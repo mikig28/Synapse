@@ -23,6 +23,7 @@ export async function fetchForUser({ userId, apiKey, subscriptionId }: FetchForU
   let totalUpserts = 0;
 
   for (const sub of subs) {
+    console.log(`[FetchVideos] Processing subscription ${sub._id}: keywords="${sub.keywords.join(' ')}", languageFilter=${JSON.stringify(sub.languageFilter)}`);
     const since = new Date();
     since.setDate(since.getDate() - (sub.freshnessDays || 14));
 
@@ -44,15 +45,25 @@ export async function fetchForUser({ userId, apiKey, subscriptionId }: FetchForU
     let remaining = sub.maxPerFetch || 20;
     let pageToken: string | undefined = sub.nextPageToken;
 
+    let videosProcessed = 0;
+    let videosFiltered = 0;
+    let subUpserts = 0;
     while (remaining > 0) {
       const res = await searchYouTube(apiKey, { ...args, maxResults: Math.min(remaining, 50), pageToken });
       pageToken = res.nextPageToken;
 
       for (const item of res.items) {
+        videosProcessed++;
         const vid = item.id?.videoId;
-        if (!vid) continue;
+        if (!vid) {
+          videosFiltered++;
+          continue;
+        }
         const title = item.snippet?.title || 'Untitled';
-        if (!sub.includeShorts && isLikelyShort(title)) continue;
+        if (!sub.includeShorts && isLikelyShort(title)) {
+          videosFiltered++;
+          continue;
+        }
 
         // Apply language filter if configured
         if (sub.languageFilter && sub.languageFilter.languages.length > 0) {
@@ -63,8 +74,11 @@ export async function fetchForUser({ userId, apiKey, subscriptionId }: FetchForU
             sub.languageFilter.languages
           );
           if (shouldExclude) {
-            console.log(`[FetchVideos] Filtered out video "${title}" (lang: ${videoLang || 'unknown'}) based on ${sub.languageFilter.mode} filter`);
+            console.log(`[FetchVideos] Filtered out video "${title}" (lang: ${videoLang || 'unknown'}, mode: ${sub.languageFilter.mode}, filter: ${sub.languageFilter.languages.join(',')})`);
+            videosFiltered++;
             continue;
+          } else if (videoLang) {
+            console.log(`[FetchVideos] Accepted video "${title}" (lang: ${videoLang}, mode: ${sub.languageFilter.mode})`);
           }
         }
 
@@ -92,6 +106,7 @@ export async function fetchForUser({ userId, apiKey, subscriptionId }: FetchForU
             { upsert: true }
           );
           totalUpserts += 1;
+          subUpserts += 1;
         } catch (e: any) {
           // Ignore duplicates due to unique index
           if (e && e.code === 11000) continue;
@@ -107,10 +122,12 @@ export async function fetchForUser({ userId, apiKey, subscriptionId }: FetchForU
     if (pageToken && (!sub.nextPageToken || sub.nextPageToken !== pageToken)) {
       sub.nextPageToken = pageToken;
     }
+    console.log(`[FetchVideos] Subscription ${sub._id} complete: ${videosProcessed} videos processed, ${videosFiltered} filtered out, ${subUpserts} upserted`);
     sub.lastFetchedAt = new Date();
     await sub.save();
   }
 
+  console.log(`[FetchVideos] Total fetched across all subscriptions: ${totalUpserts}`);
   return { fetched: totalUpserts };
 }
 
