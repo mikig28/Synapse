@@ -179,7 +179,7 @@ function AppContent() {
                     <Route path="/automations" element={isAuthenticated ? <Layout><AutomationsPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/recipes" element={isAuthenticated ? <Layout><RecipesPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/reels-stories" element={isAuthenticated ? <Layout><ReelsAndStoriesPage /></Layout> : <Navigate to="/login" />} />
-                    <Route path="/admin" element={isAuthenticated ? <AdminDashboardPage /> : <Navigate to="/login" />} />
+                    <Route path="/admin" element={isAuthenticated ? <Layout><AdminDashboardPage /></Layout> : <Navigate to="/login" />} />
                   </Routes>
                 </Suspense>
               </PageTransition>
