@@ -24,9 +24,28 @@ const monitoringStats = {
   lastReset: new Date()
 };
 
+
+// Status cache configuration
+const CACHE_DURATION = 5000; // 5 seconds cache
+const statusCache: { data: any; timestamp: number } = {
+  data: null,
+  timestamp: 0
+};
+
+// Global WAHA service instance for non-authenticated endpoints
+let globalWAHAService: WAHAService | null = null;
+
 // Get WhatsApp Session Manager instance
 const getSessionManager = () => {
   return WhatsAppSessionManager.getInstance();
+};
+
+// Get WAHA service instance (global default session)
+const getWAHAService = () => {
+  if (!globalWAHAService) {
+    globalWAHAService = new WAHAService('default');
+  }
+  return globalWAHAService;
 };
 
 // Get WAHA service for specific user
@@ -305,9 +324,9 @@ export const sendMessage = async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
-    const wahaService = getWAHAService();
+    const wahaService = await getWAHAServiceForUser(userId);
     const messageText = message || text;
-    const sessionName = session || 'default';
+    const sessionName = 'default';
     
     console.log('[WAHA Controller] Attempting to send message:', {
       chatId,
@@ -429,7 +448,6 @@ export const getChats = async (req: AuthenticatedRequest, res: Response) => {
       },
       meta: {
         count: chats.length,
-        loadTime: duration
       }
     });
   } catch (error: any) {
@@ -897,15 +915,6 @@ export const getGroups = async (req: AuthenticatedRequest, res: Response) => {
       { $limit: limit }
     ]);
     
-    const duration = Date.now() - startTime;
-    
-    if (!groups || groups.length === 0) {
-      console.log('[WAHA Controller] No groups found, trying refresh...');
-      // Ask WAHA to refresh then try again quickly
-      const refreshResult = await wahaService.refreshGroups();
-      console.log('[WAHA Controller] Group refresh result:', refreshResult);
-      groups = await wahaService.getGroups('default', options);
-    }
     
     const duration = Date.now() - startTime;
     console.log(`[WAHA Controller] ✅ Successfully fetched ${groups.length} groups in ${duration}ms`);
@@ -924,7 +933,6 @@ export const getGroups = async (req: AuthenticatedRequest, res: Response) => {
       },
       meta: {
         count: groups.length,
-        loadTime: duration
       }
     });
   } catch (error: any) {
@@ -999,7 +1007,6 @@ export const getPrivateChats = async (req: AuthenticatedRequest, res: Response) 
       },
       meta: {
         count: privateChats.length,
-        loadTime: duration
       }
     });
   } catch (error: any) {
