@@ -92,7 +92,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       <Header isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
 
-      <div className="flex flex-1 relative pt-0 md:pt-[64px]">
+      <div
+        className="flex flex-1 relative"
+        style={{ paddingTop: 'var(--app-header-height, 96px)' }}
+      >
         {/* Enhanced scrim with blur effect */}
         <AnimatePresence>
           {isMobile && isSidebarOpen && (

@@ -25,6 +25,10 @@
     width: 100%;
   }
 
+  :root {
+    --app-header-height: calc(64px + env(safe-area-inset-top, 0px));
+  }
+
   * {
     /* Prevent text overflow on all elements */
     word-wrap: break-word;
