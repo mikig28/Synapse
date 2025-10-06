@@ -79,6 +79,20 @@
   .fixed-element {
     -webkit-transform: translateZ(0);
     -webkit-backface-visibility: hidden;
+    position: fixed !important;
+  }
+
+  /* Ensure header stays fixed on iOS mobile */
+  header {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
   }
 }
 

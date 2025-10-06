@@ -71,7 +71,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-muted/10">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/10">
       {/* Subtle animated background pattern */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <motion.div
@@ -92,7 +92,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       <Header isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
 
-      <div className="flex flex-1 relative pt-[64px]">
+      <div className="flex relative pt-[64px]">
         {/* Enhanced scrim with blur effect */}
         <AnimatePresence>
           {isMobile && isSidebarOpen && (
@@ -112,7 +112,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         {/* Main content area with page transitions - adjusts margin based on sidebar state */}
         <main
-          className="flex flex-col relative transition-all duration-300 ease-in-out w-full"
+          className="flex flex-col relative transition-all duration-300 ease-in-out w-full min-h-screen"
           style={{
             marginLeft: isMobile ? '0' : (isSidebarOpen ? '256px' : '80px'),
             flexGrow: 1,
@@ -128,10 +128,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               exit="out"
               variants={pageVariants}
               transition={pageTransition}
-              className="flex-1 overflow-y-auto w-full"
-              style={{
-                scrollbarWidth: 'thin',
-              }}
+              className="flex-1 w-full"
             >
               <div className="relative z-10">
                 {children}
