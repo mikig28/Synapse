@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IWhatsAppContact extends Document {
+  userId: mongoose.Types.ObjectId;
   phoneNumber: string;
   name: string;
   avatar?: string;
@@ -59,10 +60,15 @@ export interface IWhatsAppContact extends Document {
 
 const WhatsAppContactSchema: Schema<IWhatsAppContact> = new Schema(
   {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true
+    },
     phoneNumber: { 
       type: String, 
       required: true, 
-      unique: true,
       index: true,
       // Remove non-numeric characters for consistency
       set: (v: string) => v.replace(/[^\d+]/g, '')
@@ -194,18 +200,21 @@ const WhatsAppContactSchema: Schema<IWhatsAppContact> = new Schema(
     // Enable text search on name and notes
     index: [
       { name: 'text', notes: 'text' },
-      { lastSeen: -1 },
-      { lastMessageTimestamp: -1 },
-      { totalMessages: -1 }
+      { userId: 1, lastSeen: -1 },
+      { userId: 1, lastMessageTimestamp: -1 },
+      { userId: 1, totalMessages: -1 }
     ]
   }
 );
 
+// Ensure unique phoneNumber per user (contacts are unique per user)
+WhatsAppContactSchema.index({ userId: 1, phoneNumber: 1 }, { unique: true });
+
 // Compound indexes for efficient queries
-WhatsAppContactSchema.index({ isBlocked: 1, lastSeen: -1 });
-WhatsAppContactSchema.index({ isBusinessContact: 1, lastMessageTimestamp: -1 });
-WhatsAppContactSchema.index({ tags: 1, lastSeen: -1 });
-WhatsAppContactSchema.index({ labels: 1, lastMessageTimestamp: -1 });
+WhatsAppContactSchema.index({ userId: 1, isBlocked: 1, lastSeen: -1 });
+WhatsAppContactSchema.index({ userId: 1, isBusinessContact: 1, lastMessageTimestamp: -1 });
+WhatsAppContactSchema.index({ userId: 1, tags: 1, lastSeen: -1 });
+WhatsAppContactSchema.index({ userId: 1, labels: 1, lastMessageTimestamp: -1 });
 
 // Virtual for full name with company
 WhatsAppContactSchema.virtual('displayName').get(function() {
@@ -260,11 +269,12 @@ WhatsAppContactSchema.methods.toggleMute = function(duration?: number) {
   return this.save();
 };
 
-// Static method to search contacts
-WhatsAppContactSchema.statics.searchContacts = function(query: string, limit: number = 20) {
+// Static method to search contacts (user-specific)
+WhatsAppContactSchema.statics.searchContacts = function(userId: string, query: string, limit: number = 20) {
   const searchRegex = new RegExp(query, 'i');
   
   return this.find({
+    userId: userId,
     $or: [
       { name: searchRegex },
       { phoneNumber: searchRegex },
@@ -277,12 +287,13 @@ WhatsAppContactSchema.statics.searchContacts = function(query: string, limit: nu
   .limit(limit);
 };
 
-// Static method to get active contacts (with recent messages)
-WhatsAppContactSchema.statics.getActiveContacts = function(days: number = 30, limit: number = 50) {
+// Static method to get active contacts (with recent messages) - user-specific
+WhatsAppContactSchema.statics.getActiveContacts = function(userId: string, days: number = 30, limit: number = 50) {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - days);
   
   return this.find({
+    userId: userId,
     lastMessageTimestamp: { $gte: cutoffDate }
   })
   .sort({ lastMessageTimestamp: -1 })

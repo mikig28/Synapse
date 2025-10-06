@@ -22,6 +22,18 @@ export interface IUser extends Document {
   telegramBotToken?: string; // User's personal Telegram bot token
   telegramBotUsername?: string; // Bot username for display purposes
   telegramBotActive?: boolean; // Whether the user's bot is currently active
+  
+  // WhatsApp session fields
+  whatsappSessionId?: string; // Unique session identifier for WAHA (e.g., 'user_123abc')
+  whatsappPhoneNumber?: string; // Connected WhatsApp phone number
+  whatsappConnected?: boolean; // Whether WhatsApp is currently connected
+  whatsappLastConnected?: Date; // Last successful connection timestamp
+  whatsappSessionData?: {
+    status?: 'STOPPED' | 'STARTING' | 'SCAN_QR_CODE' | 'WORKING' | 'FAILED';
+    qrCode?: string; // Store last QR code (temporary, for recovery)
+    lastError?: string; // Last error message if any
+  };
+  
   // Add other fields like profilePicture, etc.
   createdAt: Date;
   updatedAt: Date;
@@ -98,6 +110,36 @@ const UserSchema: Schema<IUser> = new Schema(
     telegramBotActive: {
       type: Boolean,
       default: false,
+    },
+    
+    // WhatsApp session fields
+    whatsappSessionId: {
+      type: String,
+      index: true, // For efficient session lookups
+    },
+    whatsappPhoneNumber: {
+      type: String,
+    },
+    whatsappConnected: {
+      type: Boolean,
+      default: false,
+      index: true, // For finding active connections
+    },
+    whatsappLastConnected: {
+      type: Date,
+    },
+    whatsappSessionData: {
+      status: {
+        type: String,
+        enum: ['STOPPED', 'STARTING', 'SCAN_QR_CODE', 'WORKING', 'FAILED'],
+      },
+      qrCode: {
+        type: String,
+        select: false, // Don't return QR by default
+      },
+      lastError: {
+        type: String,
+      },
     },
     // You can add more fields here as your application grows
     // e.g., profilePictureUrl: String,

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { AuthenticatedRequest } from '../middleware/authMiddleware';
 import WhatsAppMessage from '../../models/WhatsAppMessage';
 import WhatsAppContact from '../../models/WhatsAppContact';
 import WhatsAppBaileysService from '../../services/whatsappBaileysService';
@@ -273,9 +274,10 @@ function isBusinessHours(): boolean {
 }
 
 // Get all WhatsApp contacts for a user
-export const getWhatsAppContacts = async (req: Request, res: Response) => {
+export const getWhatsAppContacts = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const contacts = await WhatsAppContact.find()
+    const userId = req.user!.id;
+    const contacts = await WhatsAppContact.find({ userId })
       .sort({ lastSeen: -1 })
       .limit(50);
     
@@ -293,12 +295,22 @@ export const getWhatsAppContacts = async (req: Request, res: Response) => {
 };
 
 // Get messages for a specific contact
-export const getContactMessages = async (req: Request, res: Response) => {
+export const getContactMessages = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { contactId } = req.params;
     const { page = 1, limit = 50 } = req.query;
     
-    const messages = await WhatsAppMessage.find({ contactId })
+    // First verify the contact belongs to this user
+    const contact = await WhatsAppContact.findOne({ _id: contactId, userId });
+    if (!contact) {
+      return res.status(404).json({
+        success: false,
+        error: 'Contact not found'
+      });
+    }
+    
+    const messages = await WhatsAppMessage.find({ userId, contactId })
       .sort({ timestamp: -1 })
       .limit(Number(limit))
       .skip((Number(page) - 1) * Number(limit))
@@ -349,9 +361,11 @@ async function sendMessageViaService(to: string, message: string) {
 }
 
 // Send a WhatsApp message
-export const sendWhatsAppMessage = async (req: Request, res: Response) => {
+export const sendWhatsAppMessage = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
     console.log('[WhatsApp Controller] Send message request received:', {
+      userId,
       body: req.body,
       headers: {
         'content-type': req.headers['content-type'],
@@ -370,16 +384,18 @@ export const sendWhatsAppMessage = async (req: Request, res: Response) => {
     }
     
     console.log('[WhatsApp Controller] Processing send request:', {
+      userId,
       to,
       messageLength: message.length,
       messagePreview: message.substring(0, 50) + (message.length > 50 ? '...' : ''),
       type
     });
     
-    // Find or create contact
-    let contact = await WhatsAppContact.findOne({ phoneNumber: to });
+    // Find or create contact for this user
+    let contact = await WhatsAppContact.findOne({ userId, phoneNumber: to });
     if (!contact) {
       contact = new WhatsAppContact({
+        userId,
         phoneNumber: to,
         name: `Contact ${to}`,
         isOnline: false,
@@ -407,6 +423,7 @@ export const sendWhatsAppMessage = async (req: Request, res: Response) => {
     
     // Save the message to our database
     const whatsappMessage = new WhatsAppMessage({
+      userId,
       messageId: `msg_${Date.now()}`,
       from: 'business',
       to: to,
@@ -664,10 +681,31 @@ export const restartWhatsAppService = async (req: Request, res: Response) => {
 };
 
 // Get WhatsApp groups
-export const getWhatsAppGroups = async (req: Request, res: Response) => {
+export const getWhatsAppGroups = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const whatsappService = getWhatsAppService();
-    const groups = whatsappService.getGroups();
+    const userId = req.user!.id;
+    
+    // Get group messages from database filtered by userId
+    const groups = await WhatsAppMessage.aggregate([
+      {
+        $match: {
+          userId: userId,
+          'metadata.isGroup': true
+        }
+      },
+      {
+        $group: {
+          _id: '$metadata.groupId',
+          groupName: { $first: '$metadata.groupName' },
+          lastMessage: { $last: '$message' },
+          lastTimestamp: { $max: '$timestamp' },
+          messageCount: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { lastTimestamp: -1 }
+      }
+    ]);
     
     res.json({
       success: true,
@@ -683,10 +721,17 @@ export const getWhatsAppGroups = async (req: Request, res: Response) => {
 };
 
 // Get WhatsApp private chats
-export const getWhatsAppPrivateChats = async (req: Request, res: Response) => {
+export const getWhatsAppPrivateChats = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const whatsappService = getWhatsAppService();
-    const privateChats = whatsappService.getPrivateChats();
+    const userId = req.user!.id;
+    
+    // Get private chats (contacts with recent messages) from database
+    const privateChats = await WhatsAppContact.find({
+      userId,
+      lastMessageTimestamp: { $exists: true }
+    })
+    .sort({ lastMessageTimestamp: -1 })
+    .limit(50);
     
     res.json({
       success: true,
@@ -702,14 +747,23 @@ export const getWhatsAppPrivateChats = async (req: Request, res: Response) => {
 };
 
 // Get WhatsApp messages
-export const getWhatsAppMessages = async (req: Request, res: Response) => {
+export const getWhatsAppMessages = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const whatsappService = getWhatsAppService();
+    const userId = req.user!.id;
     const { limit = 50, groupId, chatId } = req.query;
     
     // Support both groupId (legacy) and chatId (new) parameters
     const targetChatId = chatId || groupId;
-    const messages = whatsappService.getMessages(Number(limit), targetChatId as string);
+    
+    // Query database messages filtered by userId
+    const query: any = { userId };
+    if (targetChatId) {
+      query['metadata.groupId'] = targetChatId;
+    }
+    
+    const messages = await WhatsAppMessage.find(query)
+      .sort({ timestamp: -1 })
+      .limit(Number(limit));
     
     res.json({
       success: true,

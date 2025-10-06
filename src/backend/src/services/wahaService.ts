@@ -77,10 +77,10 @@ export interface WAHASession {
 }
 
 class WAHAService extends EventEmitter {
-  private static instance: WAHAService | null = null;
+  // NOTE: No longer a singleton! Each user gets their own instance
   private httpClient: any;
   private wahaBaseUrl: string;
-  private defaultSession: string = 'default';
+  private defaultSession: string; // Set per-user via constructor
   private isReady = false;
   private connectionStatus = 'disconnected';
   private statusMonitorInterval: NodeJS.Timeout | null = null;
@@ -143,6 +143,13 @@ class WAHAService extends EventEmitter {
 
       // Ensure contact exists (by phone number portion of JID if possible)
       const phone = typeof fromJid === 'string' && fromJid.includes('@') ? fromJid.split('@')[0] : String(fromJid || '');
+      // TODO: Need userId context here! This is called from webhook processing
+      // For now, we'll need to pass userId through webhook routing
+      // Temporarily skip user-specific contact creation until we have userId context
+      console.warn('[WAHA Service] persistWAHAMessage: userId context needed for multi-user support');
+      return; // Skip for now - will be handled by webhook router with userId
+      
+      /* 
       let contact = await WhatsAppContact.findOne({ phoneNumber: phone });
       if (!contact) {
         contact = await WhatsAppContact.create({
@@ -156,6 +163,7 @@ class WAHAService extends EventEmitter {
           totalIncomingMessages: isIncoming ? 1 : 0,
           totalOutgoingMessages: isIncoming ? 0 : 1
         } as any);
+      */
       } else {
         // Lightweight stat updates
         contact.lastSeen = ts;
@@ -378,8 +386,16 @@ class WAHAService extends EventEmitter {
     this.lastHealthCheckTimestamp = 0;
   }
 
-  private constructor() {
+  /**
+   * Constructor now accepts a sessionId parameter for multi-user support
+   * @param sessionId - Unique session identifier for this user (e.g., 'user_123abc')
+   */
+  constructor(sessionId: string = 'default') {
     super();
+    
+    // Set the user-specific session as the default for this instance
+    this.defaultSession = sessionId;
+    console.log(`[WAHA Service] Creating instance for session: ${sessionId}`);
     
     this.wahaBaseUrl = process.env.WAHA_SERVICE_URL || 'https://waha-synapse-production.up.railway.app';
     // Normalize base URL: ensure scheme and no trailing slash
@@ -549,11 +565,13 @@ class WAHAService extends EventEmitter {
     }
   }
 
-  public static getInstance(): WAHAService {
-    if (!WAHAService.instance) {
-      WAHAService.instance = new WAHAService();
-    }
-    return WAHAService.instance;
+  /**
+   * DEPRECATED: No longer needed - instances are created per-user via WhatsAppSessionManager
+   * Kept for backward compatibility but will be removed in future versions
+   */
+  public static getInstance(sessionId: string = 'default'): WAHAService {
+    console.warn('[WAHA Service] WARNING: getInstance() is deprecated. Use WhatsAppSessionManager instead.');
+    return new WAHAService(sessionId);
   }
 
   /**

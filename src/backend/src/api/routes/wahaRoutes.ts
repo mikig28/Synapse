@@ -4,6 +4,7 @@
  */
 
 import { Router } from 'express';
+import { authMiddleware } from '../middleware/authMiddleware';
 import {
   getStatus,
   getMonitoringStats,
@@ -42,8 +43,14 @@ import {
 
 const router = Router();
 
-// Health check
+// Health check (no auth required)
 router.get('/health', healthCheck);
+
+// Webhook endpoint (no auth required - WhatsApp webhooks don't send auth)
+router.post('/webhook', webhook);
+
+// All other routes require authentication
+router.use(authMiddleware);
 
 // Session management
 router.post('/session/start', startSession);
@@ -95,9 +102,6 @@ router.get('/media-stats', getMediaStats);
 // Message polling and backfill routes
 router.post('/trigger-polling', triggerMessagePolling);
 router.post('/backfill-messages', backfillMessages);
-
-// Webhook for WAHA events
-router.post('/webhook', webhook);
 
 // Legacy compatibility routes (for gradual migration)
 router.get('/connection-status', getStatus);

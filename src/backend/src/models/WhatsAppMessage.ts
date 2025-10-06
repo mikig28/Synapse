@@ -1,6 +1,7 @@
 ﻿import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IWhatsAppMessage extends Document {
+  userId: mongoose.Types.ObjectId;
   messageId: string;
   from: string;
   to: string;
@@ -53,10 +54,15 @@ export interface IWhatsAppMessage extends Document {
 
 const WhatsAppMessageSchema: Schema<IWhatsAppMessage> = new Schema(
   {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true
+    },
     messageId: { 
       type: String, 
       required: true, 
-      unique: true,
       index: true 
     },
     from: { 
@@ -158,16 +164,19 @@ const WhatsAppMessageSchema: Schema<IWhatsAppMessage> = new Schema(
     timestamps: true,
     // Optimize for common queries
     index: [
-      { contactId: 1, timestamp: -1 },
-      { from: 1, to: 1, timestamp: -1 },
-      { status: 1, timestamp: -1 }
+      { userId: 1, contactId: 1, timestamp: -1 },
+      { userId: 1, from: 1, to: 1, timestamp: -1 },
+      { userId: 1, status: 1, timestamp: -1 }
     ]
   }
 );
 
+// Ensure unique messageId per user
+WhatsAppMessageSchema.index({ userId: 1, messageId: 1 }, { unique: true });
+
 // Compound indexes for efficient queries
-WhatsAppMessageSchema.index({ contactId: 1, timestamp: -1 });
-WhatsAppMessageSchema.index({ from: 1, to: 1, timestamp: -1 });
+WhatsAppMessageSchema.index({ userId: 1, contactId: 1, timestamp: -1 });
+WhatsAppMessageSchema.index({ userId: 1, from: 1, to: 1, timestamp: -1 });
 WhatsAppMessageSchema.index({ isIncoming: 1, timestamp: -1 });
 // Summary query indexes
 
