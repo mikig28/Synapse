@@ -56,12 +56,13 @@ class WhatsAppSessionManager extends EventEmitter {
 
   /**
    * Generate unique session ID for user
+   * WAHA-PLUS requires alphanumeric names only (no special chars except underscore)
    */
   private generateSessionId(userId: string): string {
-    // Use user ID + short hash for uniqueness
-    const timestamp = Date.now().toString(36);
-    const random = Math.random().toString(36).substring(2, 7);
-    return `user_${userId}_${timestamp}_${random}`;
+    // Use just the user ID - it's already unique (MongoDB ObjectId)
+    // Remove any non-alphanumeric characters except underscores
+    const cleanUserId = userId.replace(/[^a-zA-Z0-9_]/g, '');
+    return `user_${cleanUserId}`;
   }
 
   /**
