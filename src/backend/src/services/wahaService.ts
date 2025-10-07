@@ -4454,6 +4454,18 @@ class WAHAService extends EventEmitter {
         return;
       }
 
+      // Check if session is authenticated before polling
+      try {
+        const sessionStatus = await this.getSessionStatus(sessionName);
+        if (sessionStatus.status !== 'WORKING') {
+          console.log(`[WAHA Service] Skipping message polling - session '${sessionName}' not authenticated (status: ${sessionStatus.status})`);
+          return;
+        }
+      } catch (error) {
+        console.log(`[WAHA Service] Skipping message polling - session '${sessionName}' not found or unavailable`);
+        return;
+      }
+
       console.log('[WAHA Service] Polling active group monitors:', Array.from(activeGroupIdSet));
 
       const chats = await this.getChats(sessionName, { limit: 50 });
