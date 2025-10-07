@@ -755,8 +755,22 @@ class WAHAService extends EventEmitter {
           console.warn('[WAHA Service] Engine mismatch handling failed (non-fatal):', engineCheckErr);
         }
         
+        // If session is FAILED, delete and recreate it
+        if (sessionData?.status === 'FAILED') {
+          console.log(`[WAHA Service] ⚠️ Session '${sessionName}' is in FAILED state, deleting and recreating...`);
+          try {
+            await this.httpClient.delete(`/api/sessions/${sessionName}`);
+            console.log(`[WAHA Service] ✅ Deleted failed session '${sessionName}'`);
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s for cleanup
+            sessionExists = false; // Force recreation
+          } catch (deleteErr: any) {
+            console.error(`[WAHA Service] ❌ Failed to delete session '${sessionName}':`, deleteErr.message);
+            // Continue anyway - will try to create
+            sessionExists = false;
+          }
+        }
         // If session is stopped, we need to start it
-        if (sessionData?.status === 'STOPPED') {
+        else if (sessionData?.status === 'STOPPED') {
           console.log(`[WAHA Service] Session '${sessionName}' is stopped, attempting to start...`);
           try {
             await this.httpClient.post(`/api/sessions/${sessionName}/start`);
