@@ -1,6 +1,6 @@
-const CACHE_NAME = 'synapse-v1.0.0';
-const STATIC_CACHE = 'synapse-static-v1.0.0';
-const DYNAMIC_CACHE = 'synapse-dynamic-v1.0.0';
+const CACHE_NAME = 'synapse-v1.0.2';
+const STATIC_CACHE = 'synapse-static-v1.0.2';
+const DYNAMIC_CACHE = 'synapse-dynamic-v1.0.2';
 
 // Assets to cache immediately
 const STATIC_ASSETS = [
@@ -84,10 +84,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Skip cross-origin requests that might have CORS issues
-  if (url.origin !== self.location.origin && 
-      !url.href.startsWith('https://synapse-backend-7lq6.onrender.com')) {
-    return;
+  // Bypass cross-origin requests so the browser handles auth headers/CORS
+  if (url.origin !== self.location.origin) {
+    return; // let browser handle cross-origin requests (preserves auth headers/timeouts)
   }
 
   // Handle different types of requests with error handling

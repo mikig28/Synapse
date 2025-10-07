@@ -64,6 +64,8 @@ const envSchema = z.object({
   WAHA_NOWEB_STORE_FULLSYNC: z.string().transform(val => val === 'true').default('true'),
   PUPPETEER_EXECUTABLE_PATH: z.string().optional(),
   PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: z.string().optional(),
+  WAHA_DEFAULT_SESSION: z.string().optional(),
+  WAHA_DISABLE_DEFAULT_SESSION: z.string().transform(val => val === 'true').default('false'),
 
   // Google Services
   GOOGLE_CLIENT_ID: z.string().optional(),
@@ -171,6 +173,8 @@ export const config = {
     autoReplyEnabled: env.WHATSAPP_AUTO_REPLY_ENABLED,
     engine: env.WAHA_ENGINE,
     puppeteerExecutablePath: env.PUPPETEER_EXECUTABLE_PATH,
+    defaultSession: env.WAHA_DEFAULT_SESSION,
+    disableDefaultSession: env.WAHA_DISABLE_DEFAULT_SESSION,
   },
 
   google: {

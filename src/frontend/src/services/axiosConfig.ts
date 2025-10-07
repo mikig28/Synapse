@@ -62,7 +62,7 @@ if (typeof window !== 'undefined') {
 
 const axiosInstance = axios.create({
   baseURL: FULL_API_BASE_URL, // e.g., http://localhost:3001/api/v1 or https://your-backend.onrender.com/api/v1
-  timeout: 60000, // 60 second timeout (increased from 30s)
+  timeout: 120000, // 120 second timeout to support slow WAHA syncs
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',

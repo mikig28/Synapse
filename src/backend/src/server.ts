@@ -12,7 +12,6 @@ import requestIdMiddleware from './middleware/requestId'; // Request correlation
 import rateLimiters from './middleware/rateLimiter'; // Rate limiting
 import whatsappRoutes from './api/routes/whatsappRoutes'; // Import WhatsApp routes (legacy)
 import wahaRoutes from './api/routes/wahaRoutes'; // Import WAHA routes (modern)
-import whatsappUnifiedRoutes from './api/routes/whatsappUnifiedRoutes'; // Import WhatsApp Unified routes (complete)
 import whatsappGridFSRoutes from './api/routes/whatsappGridFSRoutes'; // Import WhatsApp GridFS routes
 import { connectToDatabase } from './config/database'; // Import database connection
 import authRoutes from './api/routes/authRoutes'; // Import auth routes
@@ -23,8 +22,6 @@ import { AgentScheduler } from './services/agentScheduler'; // Import agent sche
 import { initializeAgentServices } from './api/controllers/agentsController'; // Import agent services initializer
 import { registerAgentExecutors } from './services/agents'; // Import agent executors registry
 import WhatsAppBaileysService from './services/whatsappBaileysService'; // Import WhatsApp Baileys service (legacy)
-import WAHAService from './services/wahaService'; // Import WAHA service (modern)
-import WhatsAppUnifiedService from './services/whatsappUnifiedService'; // Import WhatsApp Unified service (complete)
 import captureRoutes from './api/routes/captureRoutes'; // Import capture routes
 import path from 'path'; // <-- Import path module
 import fs from 'fs'; // <-- Import fs module
@@ -210,7 +207,6 @@ console.log(`[Static Files] Serving static files from /public mapped to physical
 app.use('/public', express.static(publicDir)); // Serve files under /public URL path
 
 // API Routes - WhatsApp (Unified as primary, WAHA as fallback)
-app.use('/api/v1/whatsapp-unified', whatsappUnifiedRoutes); // NEW: Unified WhatsApp Web functionality
 app.use('/api/v1/whatsapp', wahaRoutes); // WAHA routes (primary per WAHA docs)
 app.use('/api/v1/whatsapp-legacy', whatsappRoutes); // Legacy Baileys routes (explicit)
 // Compatibility: also expose legacy endpoints under /whatsapp for paths WAHA doesn't implement (e.g., /contacts)
@@ -733,7 +729,7 @@ const startServer = async () => {
 
 // Initialize all other services asynchronously after server is running
 const initializeServicesInBackground = async () => {
-  console.log('[Server] ðŸ”„ Starting background service initialization...');
+  console.log('[Server] Starting background service initialization...');
   
   try {
     // Initialize Redis adapter for Socket.io horizontal scaling
@@ -772,9 +768,9 @@ const initializeServicesInBackground = async () => {
     // Initialize search indexes for optimal search performance
     try {
       await initializeSearchIndexes();
-      console.log('[Server] âœ… Search indexes initialized successfully');
+      console.log('[Server] ✅ Search indexes initialized successfully');
     } catch (error) {
-      console.error('[Server] âŒ Failed to initialize search indexes:', error);
+      console.error('[Server] ❌ Failed to initialize search indexes:', error);
       // Don't exit - search will still work without optimal indexes
     }
 
@@ -782,81 +778,12 @@ const initializeServicesInBackground = async () => {
     
     // Initialize existing bot configurations for users
     try {
-      console.log('[Server] ðŸ¤– Initializing existing Telegram bots...');
+      console.log('[Server] 🤖 Initializing existing Telegram bots...');
       await telegramBotManager.initializeExistingBots();
-      console.log('[Server] âœ… Existing Telegram bots initialized successfully');
+      console.log('[Server] ✅ Existing Telegram bots initialized successfully');
     } catch (error) {
-      console.error('[Server] âŒ Failed to initialize existing Telegram bots:', error);
+      console.error('[Server] ❌ Failed to initialize existing Telegram bots:', error);
       // Don't exit - bots can be configured individually later
-    }
-
-    // Initialize WAHA service (modern WhatsApp implementation) with retry logic
-    console.log('[Server] ðŸ”„ Initializing WAHA service with network retry...');
-    let wahaInitialized = false;
-
-    // Try WAHA initialization with retries (network issues on Render.com)
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        console.log(`[Server] WAHA initialization attempt ${attempt}/3...`);
-        const wahaService = WAHAService.getInstance();
-        await wahaService.initialize();
-        console.log('[Server] âœ… WAHA service initialized successfully');
-        
-        // Initialize WhatsApp Unified Service after WAHA is ready
-        try {
-          console.log('[Server] ðŸš€ Initializing WhatsApp Unified service...');
-          const unifiedService = WhatsAppUnifiedService.getInstance();
-          await unifiedService.initialize();
-          console.log('[Server] âœ… WhatsApp Unified service initialized successfully (full WhatsApp Web functionality available)');
-        } catch (unifiedError) {
-          console.warn('[Server] âš ï¸ WhatsApp Unified service failed to initialize:', unifiedError);
-          console.log('[Server] Continuing with WAHA-only functionality...');
-        }
-        
-        wahaInitialized = true;
-        break;
-      } catch (wahaError) {
-        console.error(`[Server] âŒ WAHA attempt ${attempt} failed:`, wahaError);
-        if (attempt < 3) {
-          console.log(`[Server] Retrying WAHA in ${attempt * 5} seconds...`);
-          await new Promise(resolve => setTimeout(resolve, attempt * 5000)); // 5s, 10s delays
-        } else {
-          console.log('[Server] âš ï¸ WAHA initialization failed after 3 attempts');
-          console.log('[Server] Using Baileys fallback (WAHA will retry in background)');
-        }
-      }
-    }
-
-    // If WAHA failed, set up background retry
-    if (!wahaInitialized) {
-      console.log('[Server] ðŸ”„ Setting up WAHA background retry (every 30 seconds)...');
-      const backgroundRetry = setInterval(async () => {
-        try {
-          console.log('[Server] ðŸ”„ Background WAHA retry...');
-          const wahaService = WAHAService.getInstance();
-          await wahaService.initialize();
-          console.log('[Server] âœ… WAHA service connected via background retry!');
-          
-          // Initialize unified service after background WAHA success
-          try {
-            const unifiedService = WhatsAppUnifiedService.getInstance();
-            await unifiedService.initialize();
-            console.log('[Server] âœ… WhatsApp Unified service initialized via background retry!');
-          } catch (unifiedError) {
-            console.warn('[Server] âš ï¸ WhatsApp Unified service failed in background retry:', unifiedError);
-          }
-          
-          clearInterval(backgroundRetry);
-        } catch (error) {
-          console.log('[Server] Background WAHA retry failed, will try again...');
-        }
-      }, 30000); // Every 30 seconds
-
-      // Stop trying after 10 minutes
-      setTimeout(() => {
-        clearInterval(backgroundRetry);
-        console.log('[Server] Stopped WAHA background retries after 10 minutes');
-      }, 600000);
     }
 
     // Legacy: Initialize WhatsApp Baileys service (fallback - will be removed)
@@ -916,9 +843,9 @@ const initializeServicesInBackground = async () => {
     // Make agent service available globally for AG-UI commands
     (global as any).agentService = agentService;
 
-    console.log('[Server] âœ… All background services initialized successfully');
+    console.log('[Server] ✅ All background services initialized successfully');
   } catch (error) {
-    console.error('[Server] âŒ Background service initialization failed:', error);
+    console.error('[Server] ❌ Background service initialization failed:', error);
     // Don't crash the server - let it continue with basic functionality
   }
 };
@@ -929,6 +856,3 @@ startServer();
 export { io };
 
 export default app; // Optional: export app for testing purposes
-
-
-

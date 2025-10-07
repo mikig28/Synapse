@@ -1,10 +1,10 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../../types/express';
 import WhatsAppMessage from '../../models/WhatsAppMessage';
 import WhatsAppContact from '../../models/WhatsAppContact';
 import WhatsAppGroupSummary from '../../models/WhatsAppGroupSummary';
-import WAHAService from '../../services/wahaService';
+import WhatsAppSessionManager from '../../services/whatsappSessionManager';
 import WhatsAppSummarizationService from '../../services/whatsappSummarizationService';
 import WhatsAppAISummarizationService from '../../services/whatsappAISummarizationService';
 import {
@@ -43,18 +43,33 @@ const summarizationService = hasOpenAI || hasAnthropic || hasGemini
 
 console.log('[WhatsApp Summary] Using service:', summarizationService.constructor.name);
 
+const sessionManager = WhatsAppSessionManager.getInstance();
+
+const assertUser = (req: AuthenticatedRequest) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    throw new Error('User not authenticated');
+  }
+  return userId;
+};
+
+const getWAHAServiceForRequest = async (req: AuthenticatedRequest) => {
+  const userId = assertUser(req);
+  return sessionManager.getSessionForUser(userId);
+};
+
 /**
  * Get available WhatsApp groups for summary generation
  */
-export const getAvailableGroups = async (req: Request, res: Response) => {
+export const getAvailableGroups = async (req: AuthenticatedRequest, res: Response) => {
   try {
     console.log('[WhatsApp Summary] Fetching available conversations...');
 
-    const wahaService = WAHAService.getInstance();
+    const wahaService = await getWAHAServiceForRequest(req);
 
     let chats: any[] = [];
     try {
-      chats = await wahaService.getChats('default');
+      chats = await wahaService.getChats();
       console.log(`[WhatsApp Summary] Got ${chats.length} chats from WAHA service`);
     } catch (wahaError) {
       console.warn('[WhatsApp Summary] WAHA chats service failed:', wahaError);
@@ -342,9 +357,10 @@ export const getAvailableGroups = async (req: Request, res: Response) => {
     } as ApiResponse<GroupInfo[]>);
   } catch (error) {
     console.error('[WhatsApp Summary] Error fetching groups:', error);
-    res.status(500).json({
+    const isAuthError = (error as Error)?.message === 'User not authenticated';
+    res.status(isAuthError ? 401 : 500).json({
       success: false,
-      error: 'Failed to fetch WhatsApp groups'
+      error: isAuthError ? 'Unauthorized' : 'Failed to fetch WhatsApp groups'
     } as ApiResponse);
   }
 };
@@ -352,7 +368,7 @@ export const getAvailableGroups = async (req: Request, res: Response) => {
 /**
  * Get messages for a specific group and time range
  */
-export const getGroupMessages = async (req: Request, res: Response) => {
+export const getGroupMessages = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { groupId } = req.params;
     const { start, end, page = 1, limit = 1000 } = req.query;
@@ -382,7 +398,7 @@ export const getGroupMessages = async (req: Request, res: Response) => {
     }
     
     // Get group info from WhatsApp service
-    const wahaService = WAHAService.getInstance();
+    const wahaService = await getWAHAServiceForRequest(req);
     const groups = await wahaService.getGroups();
     const groupInfo = groups.find(g => g.id === groupId);
     
@@ -430,7 +446,7 @@ export const getGroupMessages = async (req: Request, res: Response) => {
 
     if (messages.length === 0) {
       // Fallback: use in-memory Baileys store
-      console.log('[WhatsApp Summary] No DB messages found, falling back to in-memory store for group:', groupId);
+      console.log('[WhatsApp Summary] No DB messages found, falling back to WAHA live messages for group:', groupId);
       try {
         // Fetch a large batch from memory and filter by date
         const inMem = await wahaService.getMessages(groupId, 5000);
@@ -507,9 +523,10 @@ export const getGroupMessages = async (req: Request, res: Response) => {
     
   } catch (error) {
     console.error('[WhatsApp Summary] Error fetching messages:', error);
-    res.status(500).json({
+    const isAuthError = (error as Error)?.message === 'User not authenticated';
+    res.status(isAuthError ? 401 : 500).json({
       success: false,
-      error: 'Failed to fetch messages'
+      error: isAuthError ? 'Unauthorized' : 'Failed to fetch messages'
     } as ApiResponse);
   }
 };
@@ -517,7 +534,7 @@ export const getGroupMessages = async (req: Request, res: Response) => {
 /**
  * Generate daily summary for a specific group
  */
-export const generateDailySummary = async (req: Request, res: Response) => {
+export const generateDailySummary = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const {
       groupId,
@@ -573,10 +590,10 @@ export const generateDailySummary = async (req: Request, res: Response) => {
 
     const requestedChatType = chatType as 'group' | 'private' | undefined;
 
-    const wahaService = WAHAService.getInstance();
+    const wahaService = await getWAHAServiceForRequest(req);
     let serviceChats: any[] = [];
     try {
-      serviceChats = await wahaService.getChats('default');
+      serviceChats = await wahaService.getChats();
       console.log(`[WhatsApp Summary] Loaded ${serviceChats.length} chats from WAHA service for context resolution`);
     } catch (chatErr) {
       console.warn('[WhatsApp Summary] Failed to load chats from WAHA service:', chatErr);
@@ -1161,9 +1178,10 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     
   } catch (error) {
     console.error('[WhatsApp Summary] Error generating summary:', error);
-    res.status(500).json({
+    const isAuthError = (error as Error)?.message === 'User not authenticated';
+    res.status(isAuthError ? 401 : 500).json({
       success: false,
-      error: 'Failed to generate summary: ' + (error as Error).message
+      error: isAuthError ? 'Unauthorized' : 'Failed to generate summary: ' + (error as Error).message
     } as ApiResponse);
   }
 };
@@ -1171,7 +1189,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
 /**
  * Generate summary for current day (today)
  */
-export const generateTodaySummary = async (req: Request, res: Response) => {
+export const generateTodaySummary = async (req: AuthenticatedRequest, res: Response) => {
   try {
     console.log('[WhatsApp Summary] generateTodaySummary called with body:', req.body);
     const { groupId, timezone = 'Asia/Jerusalem', chatType } = req.body;
@@ -1209,7 +1227,7 @@ export const generateTodaySummary = async (req: Request, res: Response) => {
 /**
  * Get available date ranges with message counts
  */
-export const getAvailableDateRanges = async (req: Request, res: Response) => {
+export const getAvailableDateRanges = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { groupId } = req.params;
     
@@ -1221,8 +1239,8 @@ export const getAvailableDateRanges = async (req: Request, res: Response) => {
     }
     
     // Get group info
-    const wahaService = WAHAService.getInstance();
-    const groups = await wahaService.getGroups('default');
+    const wahaService = await getWAHAServiceForRequest(req);
+    const groups = await wahaService.getGroups();
     let groupInfo = groups.find(g => g.id === groupId);
 
     if (!groupInfo) {
@@ -1343,9 +1361,10 @@ export const getAvailableDateRanges = async (req: Request, res: Response) => {
     
   } catch (error) {
     console.error('[WhatsApp Summary] Error fetching date ranges:', error);
-    res.status(500).json({
+    const isAuthError = (error as Error)?.message === 'User not authenticated';
+    res.status(isAuthError ? 401 : 500).json({
       success: false,
-      error: 'Failed to fetch date ranges'
+      error: isAuthError ? 'Unauthorized' : 'Failed to fetch date ranges'
     } as ApiResponse);
   }
 };
@@ -1353,8 +1372,9 @@ export const getAvailableDateRanges = async (req: Request, res: Response) => {
 /**
  * Debug endpoint to diagnose message query issues
  */
-export const debugMessages = async (req: Request, res: Response) => {
+export const debugMessages = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    assertUser(req);
     const { groupId, date, timezone = 'Asia/Jerusalem' } = req.query;
     
     if (!groupId || !date) {
@@ -1433,9 +1453,10 @@ export const debugMessages = async (req: Request, res: Response) => {
     
   } catch (error) {
     console.error('[WhatsApp Summary] Debug error:', error);
-    res.status(500).json({
+    const isAuthError = (error as Error)?.message === 'User not authenticated';
+    res.status(isAuthError ? 401 : 500).json({
       success: false,
-      error: 'Debug failed: ' + (error as Error).message
+      error: isAuthError ? 'Unauthorized' : 'Debug failed: ' + (error as Error).message
     });
   }
 };
@@ -1443,7 +1464,7 @@ export const debugMessages = async (req: Request, res: Response) => {
 /**
  * Get summary statistics for a group
  */
-export const getGroupSummaryStats = async (req: Request, res: Response) => {
+export const getGroupSummaryStats = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { groupId } = req.params;
     const { days = 7 } = req.query;
@@ -1455,8 +1476,8 @@ export const getGroupSummaryStats = async (req: Request, res: Response) => {
       } as ApiResponse);
     }
     
-    const wahaService = WAHAService.getInstance();
-    const groups = await wahaService.getGroups('default');
+    const wahaService = await getWAHAServiceForRequest(req);
+    const groups = await wahaService.getGroups();
     const groupInfo = groups.find(g => g.id === groupId);
     
     if (!groupInfo) {
@@ -1572,9 +1593,10 @@ export const getGroupSummaryStats = async (req: Request, res: Response) => {
     
   } catch (error) {
     console.error('[WhatsApp Summary] Error fetching group stats:', error);
-    res.status(500).json({
+    const isAuthError = (error as Error)?.message === 'User not authenticated';
+    res.status(isAuthError ? 401 : 500).json({
       success: false,
-      error: 'Failed to fetch group statistics'
+      error: isAuthError ? 'Unauthorized' : 'Failed to fetch group statistics'
     } as ApiResponse);
   }
 };

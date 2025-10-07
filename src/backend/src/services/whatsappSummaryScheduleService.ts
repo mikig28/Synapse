@@ -10,7 +10,7 @@ import WhatsAppGroupSummary from '../models/WhatsAppGroupSummary';
 import WhatsAppMessage from '../models/WhatsAppMessage';
 import WhatsAppSummarizationService from './whatsappSummarizationService';
 import WhatsAppAISummarizationService from './whatsappAISummarizationService';
-import WAHAService from './wahaService';
+import WhatsAppSessionManager from './whatsappSessionManager';
 import { SummaryGenerationOptions, MessageData, DateRange } from '../types/whatsappSummary';
 
 export class WhatsAppSummaryScheduleService {
@@ -174,7 +174,12 @@ export class WhatsAppSummaryScheduleService {
         console.log(`[WhatsApp Summary Schedule] Current time: ${new Date().toISOString()}`);
         console.log(`[WhatsApp Summary Schedule] Execution window:`, executionWindow);
 
-        const wahaService = WAHAService.getInstance();
+        const userId = schedule.userId ? String(schedule.userId) : null;
+        if (!userId) {
+          console.warn('[WhatsApp Summary Schedule] Skipping schedule without userId');
+          continue;
+        }
+        const wahaService = await WhatsAppSessionManager.getInstance().getSessionForUser(userId);
         let wahaMessages: any[] = [];
 
         try {
@@ -439,5 +444,4 @@ export class WhatsAppSummaryScheduleService {
 }
 
 export const whatsappSummaryScheduleService = new WhatsAppSummaryScheduleService();
-
 

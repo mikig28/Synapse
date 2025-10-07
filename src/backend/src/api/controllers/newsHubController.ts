@@ -7,7 +7,7 @@ import { userInterestService } from '../../services/userInterestService';
 import { autoPushNewArticles } from '../../services/newsPushService';
 import { logger } from '../../utils/logger';
 import { telegramBotManager } from '../../services/telegramBotManager';
-import WAHAService from '../../services/wahaService';
+import WhatsAppSessionManager from '../../services/whatsappSessionManager';
 
 /**
  * Get personalized news feed for user
@@ -522,8 +522,9 @@ export const pushArticleToWhatsApp = async (req: AuthenticatedRequest, res: Resp
     const message = formatArticleForMessaging(article);
 
     // Send via WAHA
-    const wahaService = WAHAService.getInstance();
-    await wahaService.sendMessage(groupId, message, 'default');
+    const sessionManager = WhatsAppSessionManager.getInstance();
+    const wahaService = await sessionManager.getSessionForUser(userId);
+    await wahaService.sendMessage(groupId, message);
 
     res.json({
       success: true,

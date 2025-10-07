@@ -81,6 +81,7 @@ class WAHAService extends EventEmitter {
   private httpClient: any;
   private wahaBaseUrl: string;
   private defaultSession: string; // Set per-user via constructor
+  private readonly disableDefaultSession: boolean;
   private isReady = false;
   private connectionStatus = 'disconnected';
   private statusMonitorInterval: NodeJS.Timeout | null = null;
@@ -339,9 +340,26 @@ class WAHAService extends EventEmitter {
   constructor(sessionId: string = 'default') {
     super();
     
-    // Set the user-specific session as the default for this instance
-    this.defaultSession = sessionId;
-    console.log(`[WAHA Service] Creating instance for session: ${sessionId}`);
+    const configuredDefaultSession = (process.env.WAHA_DEFAULT_SESSION || '').trim();
+    const resolvedSession =
+      sessionId === 'default' && configuredDefaultSession
+        ? configuredDefaultSession
+        : sessionId;
+
+    this.defaultSession = resolvedSession || 'default';
+    this.disableDefaultSession =
+      sessionId === 'default' &&
+      String(process.env.WAHA_DISABLE_DEFAULT_SESSION || 'false').toLowerCase() === 'true';
+
+    console.log(
+      `[WAHA Service] Creating instance for session: ${this.defaultSession}` +
+        (this.defaultSession !== sessionId ? ` (requested: ${sessionId})` : '')
+    );
+    if (this.disableDefaultSession) {
+      console.log(
+        `[WAHA Service] Default session operations disabled via WAHA_DISABLE_DEFAULT_SESSION for session '${this.defaultSession}'`
+      );
+    }
     
     this.wahaBaseUrl = process.env.WAHA_SERVICE_URL || 'https://synapse-waha.onrender.com';
     // Normalize base URL: ensure scheme and no trailing slash
@@ -517,7 +535,10 @@ class WAHAService extends EventEmitter {
    */
   public static getInstance(sessionId: string = 'default'): WAHAService {
     console.warn('[WAHA Service] WARNING: getInstance() is deprecated. Use WhatsAppSessionManager instead.');
-    return new WAHAService(sessionId);
+    const configuredDefault = (process.env.WAHA_DEFAULT_SESSION || '').trim();
+    const resolvedSession =
+      sessionId === 'default' && configuredDefault ? configuredDefault : sessionId;
+    return new WAHAService(resolvedSession);
   }
 
   /**
@@ -533,37 +554,49 @@ class WAHAService extends EventEmitter {
       this.connectionStatus = healthCheckResult.healthy ? 'connected' : 'disconnected';
       
       // Start default session (don't fail initialization if this fails)
-      try {
-        await this.startSession();
-        
-        // Check session status
-        const status = await this.getSessionStatus();
-        this.connectionStatus = status.status;
-        this.isReady = status.status === 'WORKING';
-        
-        console.log(`[WAHA Service] ✅ Initialized. Status: ${status.status}`);
-      } catch (sessionError) {
-        console.warn('[WAHA Service] ⚠️ Failed to start/check session during initialization:', sessionError);
-        // Service is healthy but session failed - still usable for QR generation
-        this.connectionStatus = 'session_failed';
-        this.isReady = true; // Still mark as ready for basic operations
+      if (!this.disableDefaultSession) {
+        try {
+          await this.startSession();
+          
+          // Check session status
+          const status = await this.getSessionStatus();
+          this.connectionStatus = status.status;
+          this.isReady = status.status === 'WORKING';
+          
+          console.log(`[WAHA Service] ✅ Initialized. Status: ${status.status}`);
+        } catch (sessionError) {
+          console.warn('[WAHA Service] ⚠️ Failed to start/check session during initialization:', sessionError);
+          // Service is healthy but session failed - still usable for QR generation
+          this.connectionStatus = 'session_failed';
+          this.isReady = true; // Still mark as ready for basic operations
+        }
+      } else {
+        console.log(
+          `[WAHA Service] Skipping automatic start for session '${this.defaultSession}' (disabled via WAHA_DISABLE_DEFAULT_SESSION)`
+        );
       }
       
       this.emit('ready');
       
-      // Initialize polling timestamp to capture recent messages (last 1 hour for better debugging)
-      this.lastPolledTimestamp = Date.now() - (1 * 60 * 60 * 1000); // 1 hour ago
-      console.log(`[WAHA Service] 📅 Set polling timestamp to capture last 1 hour: ${new Date(this.lastPolledTimestamp)}`);
-      
-      // Start automatic message polling as fallback for webhooks
-      this.startMessagePolling(30000); // Poll every 30 seconds
-      console.log('[WAHA Service] 🔄 Started automatic message polling fallback');
-      
-      // Start status monitoring after successful initialization
-      this.startStatusMonitoring();
-      
-      // Try to initialize default session immediately
-      this.initializeDefaultSession();
+      if (!this.disableDefaultSession) {
+        // Initialize polling timestamp to capture recent messages (last 1 hour for better debugging)
+        this.lastPolledTimestamp = Date.now() - (1 * 60 * 60 * 1000); // 1 hour ago
+        console.log(`[WAHA Service] 📅 Set polling timestamp to capture last 1 hour: ${new Date(this.lastPolledTimestamp)}`);
+        
+        // Start automatic message polling as fallback for webhooks
+        this.startMessagePolling(30000); // Poll every 30 seconds
+        console.log('[WAHA Service] 🔄 Started automatic message polling fallback');
+        
+        // Start status monitoring after successful initialization
+        this.startStatusMonitoring();
+        
+        // Try to initialize default session immediately
+        this.initializeDefaultSession();
+      } else {
+        console.log(
+          `[WAHA Service] Message polling and status monitoring disabled for session '${this.defaultSession}'`
+        );
+      }
       
     } catch (error) {
       console.error('[WAHA Service] ❌ Initialization failed:', error);
@@ -589,6 +622,12 @@ class WAHAService extends EventEmitter {
    * Initialize default session (create if doesn't exist)
    */
   private async initializeDefaultSession(): Promise<void> {
+    if (this.disableDefaultSession) {
+      console.log(
+        `[WAHA Service] initializeDefaultSession skipped for '${this.defaultSession}' (disabled via WAHA_DISABLE_DEFAULT_SESSION)`
+      );
+      return;
+    }
     try {
       console.log('[WAHA Service] Initializing default session...');
       
@@ -4195,6 +4234,12 @@ class WAHAService extends EventEmitter {
    * Enhanced status monitoring with connection failure detection
    */
   public startEnhancedStatusMonitoring(): void {
+    if (this.disableDefaultSession) {
+      console.log(
+        `[WAHA Service] Enhanced status monitoring skipped for '${this.defaultSession}' (disabled via WAHA_DISABLE_DEFAULT_SESSION)`
+      );
+      return;
+    }
     if (this.statusMonitorInterval) {
       clearInterval(this.statusMonitorInterval);
     }

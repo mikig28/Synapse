@@ -1,7 +1,7 @@
 import { IRealNewsArticle } from '../models/RealNewsArticle';
 import { userInterestService } from './userInterestService';
 import { telegramBotManager } from './telegramBotManager';
-import WAHAService from './wahaService';
+import WhatsAppSessionManager from './whatsappSessionManager';
 import { logger } from '../utils/logger';
 
 /**
@@ -48,6 +48,9 @@ export async function autoPushNewArticles(userId: string, articles: IRealNewsArt
 
     logger.info(`[Auto-Push] Pushing ${articlesToPush.length} articles for user ${userId} to ${platform}`);
 
+    const sessionManager = WhatsAppSessionManager.getInstance();
+    let wahaService: any = null;
+
     // Push each article
     for (const article of articlesToPush) {
       try {
@@ -66,8 +69,10 @@ export async function autoPushNewArticles(userId: string, articles: IRealNewsArt
             logger.warn(`[Auto-Push] No Telegram bot configured for user ${userId}`);
           }
         } else if (platform === 'whatsapp' && whatsappGroupId) {
-          const wahaService = WAHAService.getInstance();
-          await wahaService.sendMessage(whatsappGroupId, message, 'default');
+          if (!wahaService) {
+            wahaService = await sessionManager.getSessionForUser(userId);
+          }
+          await wahaService.sendMessage(whatsappGroupId, message);
         }
 
         // Small delay to avoid rate limiting
@@ -84,4 +89,3 @@ export async function autoPushNewArticles(userId: string, articles: IRealNewsArt
     // Don't throw - we don't want to break the refresh flow
   }
 }
-

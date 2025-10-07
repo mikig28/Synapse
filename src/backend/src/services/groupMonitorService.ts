@@ -4,6 +4,7 @@ import PersonProfile from '../models/PersonProfile';
 import axios from 'axios';
 import mongoose, { Types } from 'mongoose';
 import { extractUrlsFromText, processUrlsForBookmarks } from '../utils/bookmarkUtils';
+import WhatsAppSessionManager from './whatsappSessionManager';
 
 export interface GroupMonitorSettings {
   notifyOnMatch: boolean;
@@ -472,7 +473,7 @@ class GroupMonitorService {
 
         // Send auto-reply if enabled
         if (monitor.settings.autoReply && monitor.settings.replyMessage) {
-          await this.sendAutoReply(monitor.groupId, monitor.settings.replyMessage);
+          await this.sendAutoReply(monitor.userId?.toString(), monitor.groupId, monitor.settings.replyMessage);
         }
       } else if (monitor.settings.saveAllImages) {
         // Save image even without matches if saveAllImages is enabled
@@ -620,12 +621,15 @@ class GroupMonitorService {
   /**
    * Send auto-reply to WhatsApp group
    */
-  private async sendAutoReply(groupId: string, replyMessage: string): Promise<void> {
+  private async sendAutoReply(userId: string | undefined, groupId: string, replyMessage: string): Promise<void> {
+    if (!userId) {
+      console.warn('[GroupMonitorService] Cannot send auto-reply without userId');
+      return;
+    }
     try {
-      const { default: WAHAService } = await import('./wahaService');
-      const wahaService = WAHAService.getInstance();
+      const wahaService = await WhatsAppSessionManager.getInstance().getSessionForUser(userId);
       await wahaService.sendMessage(groupId, replyMessage);
-      console.log(`📱 Auto-reply sent to group ${groupId}: ${replyMessage}`);
+      console.log(`📱 Auto-reply sent to group ${groupId} for user ${userId}: ${replyMessage}`);
     } catch (error) {
       console.error('Error sending auto-reply:', error);
     }
