@@ -379,7 +379,7 @@ export const getChats = async (req: AuthenticatedRequest, res: Response) => {
     const startTime = Date.now();
     
     // Get chats from WAHA service (live data)
-    const chats = await wahaService.getChats('default', options);
+    const chats = await wahaService.getChats(undefined, options); // Use instance's defaultSession
     const duration = Date.now() - startTime;
     
     console.log(`[WAHA Controller] ✅ Successfully fetched ${chats.length} chats in ${duration}ms`);
@@ -828,12 +828,12 @@ export const getGroups = async (req: AuthenticatedRequest, res: Response) => {
     const startTime = Date.now();
     
     // Get groups from WAHA service (live data)
-    let groups = await wahaService.getGroups('default', options);
+    let groups = await wahaService.getGroups(undefined, options); // Use instance's defaultSession
     if (!groups || groups.length === 0) {
       console.log('[WAHA Controller] No groups found, trying refresh...');
       const refreshResult = await wahaService.refreshGroups();
       console.log('[WAHA Controller] Group refresh result:', refreshResult);
-      groups = await wahaService.getGroups('default', options);
+      groups = await wahaService.getGroups(undefined, options); // Use instance's defaultSession
     }
     
     const duration = Date.now() - startTime;
@@ -908,7 +908,7 @@ export const getPrivateChats = async (req: AuthenticatedRequest, res: Response) 
     const startTime = Date.now();
 
     // Get chats from WAHA and filter only private chats
-    const chats = await wahaService.getChats('default', { limit, offset, sortBy, sortOrder });
+    const chats = await wahaService.getChats(undefined, { limit, offset, sortBy, sortOrder }); // Use instance's defaultSession
     
     // Filter only private chats (not @g.us)
     let privateChats = chats.filter(chat => !chat.isGroup && !(typeof chat.id === 'string' && chat.id.includes('@g.us')));
@@ -1825,9 +1825,9 @@ export const backfillMessages = async (req: AuthenticatedRequest, res: Response)
     const results = [];
     
     // Get all chats or specific group
-    const chats = groupId ? 
-      [await wahaService.getGroupDetails(groupId)] : 
-      await wahaService.getChats('default', { limit: 100 });
+    const chats = groupId ?
+      [await wahaService.getGroupDetails(groupId)] :
+      await wahaService.getChats(undefined, { limit: 100 }); // Use instance's defaultSession
     
     console.log(`[WAHA Controller] Processing ${chats.length} chats for backfill`);
     
