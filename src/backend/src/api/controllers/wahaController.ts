@@ -360,60 +360,38 @@ export const sendMedia = async (req: AuthenticatedRequest, res: Response) => {
 export const getChats = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
+    const wahaService = await getWAHAServiceForUser(userId);
     
-    // Get chats from database filtered by userId
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
-    const skip = req.query.offset ? parseInt(req.query.offset as string) : 0;
+    // Parse WAHA-compliant query parameters
+    const options = {
+      limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
+      offset: req.query.offset ? parseInt(req.query.offset as string) : undefined,
+      sortBy: 'id' as 'id',
+      sortOrder: req.query.sortOrder as 'desc' | 'asc' | undefined,
+      exclude: req.query.exclude ? (req.query.exclude as string).split(',') : undefined
+    };
     
-    // Get unique chats (both groups and private)
-    const groupChats = await WhatsAppMessage.aggregate([
-      {
-        $match: {
-          userId: userId,
-          'metadata.isGroup': true
-        }
-      },
-      {
-        $group: {
-          _id: '$metadata.groupId',
-          id: { $first: '$metadata.groupId' },
-          name: { $first: '$metadata.groupName' },
-          lastMessageTimestamp: { $max: '$timestamp' },
-          unreadCount: { $sum: { $cond: [{ $and: ['$isIncoming', { $eq: ['$status', 'received'] }] }, 1, 0] } }
-        }
-      },
-      { $sort: { lastMessageTimestamp: -1 } },
-      { $skip: skip },
-      { $limit: limit }
-    ]);
+    console.log('[WAHA Controller] Getting chats for user', userId, 'with options:', options);
+    const startTime = Date.now();
     
-    const privateChats = await WhatsAppContact.find({
-      userId,
-      lastMessageTimestamp: { $exists: true }
-    })
-    .select('phoneNumber name lastMessageTimestamp unreadCount')
-    .sort({ lastMessageTimestamp: -1 })
-    .skip(skip)
-    .limit(limit);
+    // Get chats from WAHA service (live data)
+    const chats = await wahaService.getChats('default', options);
+    const duration = Date.now() - startTime;
     
-    const chats = [
-      ...groupChats.map(g => ({ ...g, isGroup: true })),
-      ...privateChats.map(c => ({ id: c.phoneNumber, name: c.name, lastMessageTimestamp: c.lastMessageTimestamp, unreadCount: c.unreadCount, isGroup: false }))
-    ].sort((a, b) => new Date(b.lastMessageTimestamp).getTime() - new Date(a.lastMessageTimestamp).getTime());
-    
-    console.log(`[WAHA Controller] ✅ Fetched ${chats.length} chats for user ${userId}`);
+    console.log(`[WAHA Controller] ✅ Successfully fetched ${chats.length} chats in ${duration}ms`);
     
     res.json({
       success: true,
       data: chats,
       pagination: {
-        limit,
-        offset: skip,
+        limit: options.limit,
+        offset: options.offset,
         total: chats.length,
-        hasMore: chats.length >= limit
+        hasMore: options.limit ? chats.length >= options.limit : false
       },
       meta: {
-        count: chats.length
+        count: chats.length,
+        loadTime: duration
       }
     });
   } catch (error: any) {
@@ -454,17 +432,16 @@ export const getChats = async (req: AuthenticatedRequest, res: Response) => {
 export const getMessages = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
+    const wahaService = await getWAHAServiceForUser(userId);
+    
     // Support both URL param and query param for chatId
     let chatId: string | undefined = req.params.chatId || (req.query.chatId as string | undefined);
     const limit = parseInt(req.query.limit as string) || 50;
     
     // Validate and sanitize chatId to prevent [object Object] errors
     if (chatId) {
-      // Check if chatId is an object (shouldn't happen but defensive coding)
-      // Note: typeof null === 'object' in JavaScript, so we need to check for null explicitly
       if (chatId !== null && typeof chatId === 'object') {
         console.error('[WAHA Controller] ❌ chatId is an object:', chatId);
-        // Type assertion to tell TypeScript chatId is not null here
         const chatIdObj = chatId as any;
         if ('id' in chatIdObj) {
           chatId = chatIdObj.id;
@@ -479,11 +456,8 @@ export const getMessages = async (req: AuthenticatedRequest, res: Response) => {
         }
       }
       
-      // Convert to string if needed
       chatId = String(chatId);
-      // TypeScript type guard - chatId is definitely a string now
       
-      // Check for literal "[object Object]" string
       if (chatId === '[object Object]' || chatId.includes('[object')) {
         console.error('[WAHA Controller] ❌ Invalid chatId "[object Object]" detected');
         return res.status(400).json({
@@ -494,33 +468,27 @@ export const getMessages = async (req: AuthenticatedRequest, res: Response) => {
       }
     }
     
-    // Query database filtered by userId
-    const query: any = { userId };
-    
+    // Get messages from WAHA service (live data)
     if (!chatId) {
-      // If no chatId provided, get recent messages from all chats
-      console.log(`[WAHA Controller] No chatId provided, fetching recent messages for user ${userId}`);
-      const allMessages = await WhatsAppMessage.find(query)
-        .sort({ timestamp: -1 })
-        .limit(limit);
-      console.log(`[WAHA Controller] Found ${allMessages.length} recent messages for user ${userId}`);
-      return res.json({
-        success: true,
-        data: allMessages
-      });
+      console.log('[WAHA Controller] No chatId provided, fetching recent messages from all chats');
+      try {
+        const allMessages = await wahaService.getRecentMessages(limit);
+        console.log('[WAHA Controller] Found recent messages:', allMessages.length);
+        return res.json({
+          success: true,
+          data: allMessages
+        });
+      } catch (recentError) {
+        console.warn('[WAHA Controller] Failed to get recent messages, returning empty array:', recentError);
+        return res.json({
+          success: true,
+          data: []
+        });
+      }
     }
 
-    // Filter by chatId (either group or private chat)
-    query.$or = [
-      { 'metadata.groupId': chatId },
-      { from: chatId },
-      { to: chatId }
-    ];
-
-    const messages = await WhatsAppMessage.find(query)
-      .sort({ timestamp: -1 })
-      .limit(limit);
-    console.log(`[WAHA Controller] Found ${messages.length} messages for chat ${chatId} and user ${userId}`);
+    const messages = await wahaService.getMessages(chatId as string, limit);
+    console.log('[WAHA Controller] Found messages for chat', chatId, ':', messages.length);
     
     res.json({
       success: true,
@@ -841,61 +809,49 @@ export const verifyPhoneAuthCode = async (req: AuthenticatedRequest, res: Respon
 export const getGroups = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
+    const wahaService = await getWAHAServiceForUser(userId);
     
-    // Parse query parameters
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
-    const skip = req.query.offset ? parseInt(req.query.offset as string) : 0;
+    // Parse WAHA-compliant query parameters for groups
+    const options = {
+      limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
+      offset: req.query.offset ? parseInt(req.query.offset as string) : undefined,
+      sortBy: req.query.sortBy as 'id' | 'subject' | undefined,
+      sortOrder: req.query.sortOrder as 'desc' | 'asc' | undefined,
+      exclude: req.query.exclude ? (req.query.exclude as string).split(',') : undefined
+    };
     
-    console.log(`[WAHA Controller] Getting groups for user ${userId} with limit ${limit}`);
-    // Get groups from database filtered by userId
-    const groups = await WhatsAppMessage.aggregate([
-      {
-        $match: {
-          userId: userId,
-          'metadata.isGroup': true
-        }
-      },
-      {
-        $group: {
-          _id: '$metadata.groupId',
-          id: { $first: '$metadata.groupId' },
-          name: { $first: '$metadata.groupName' },
-          lastMessageTimestamp: { $max: '$timestamp' },
-          messageCount: { $sum: 1 },
-          participantCount: { $addToSet: '$from' }
-        }
-      },
-      {
-        $project: {
-          _id: 0,
-          id: 1,
-          name: 1,
-          lastMessageTimestamp: 1,
-          messageCount: 1,
-          participantCount: { $size: '$participantCount' }
-        }
-      },
-      { $sort: { lastMessageTimestamp: -1 } },
-      { $skip: skip },
-      { $limit: limit }
-    ]);
+    console.log('[WAHA Controller] Getting groups for user', userId, 'with options:', options);
+    const startTime = Date.now();
     
-    console.log(`[WAHA Controller] ✅ Fetched ${groups.length} groups for user ${userId}`);
+    // Get groups from WAHA service (live data)
+    let groups = await wahaService.getGroups('default', options);
+    if (!groups || groups.length === 0) {
+      console.log('[WAHA Controller] No groups found, trying refresh...');
+      const refreshResult = await wahaService.refreshGroups();
+      console.log('[WAHA Controller] Group refresh result:', refreshResult);
+      groups = await wahaService.getGroups('default', options);
+    }
+    
+    const duration = Date.now() - startTime;
+    console.log(`[WAHA Controller] ✅ Successfully fetched ${groups.length} groups in ${duration}ms`);
     
     res.json({
       success: true,
       data: groups,
       pagination: {
-        limit,
-        offset: skip,
+        limit: options.limit,
+        offset: options.offset,
         total: groups.length,
-        hasMore: groups.length >= limit
+        hasMore: options.limit ? groups.length >= options.limit : false
       },
       metadata: {
+        groupsWithAdminRole: groups.filter(g => g.role === 'ADMIN').length,
+        groupsWithRestrictions: groups.filter(g => g.settings?.messagesAdminOnly || g.settings?.infoAdminOnly).length,
         totalParticipants: groups.reduce((sum, g) => sum + (g.participantCount || 0), 0)
       },
       meta: {
-        count: groups.length
+        count: groups.length,
+        loadTime: duration
       }
     });
   } catch (error: any) {
@@ -936,40 +892,48 @@ export const getGroups = async (req: AuthenticatedRequest, res: Response) => {
 export const getPrivateChats = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
+    const wahaService = await getWAHAServiceForUser(userId);
     
     // Parse pagination/sorting options
-    const limit = req.query.limit ? Math.max(1, Math.min(500, parseInt(req.query.limit as string))) : 50;
-    const skip = req.query.offset ? Math.max(0, parseInt(req.query.offset as string)) : 0;
+    const limit = req.query.limit ? Math.max(1, Math.min(500, parseInt(req.query.limit as string))) : undefined;
+    const offset = req.query.offset ? Math.max(0, parseInt(req.query.offset as string)) : undefined;
+    const sortBy = 'id';
     const sortOrder = (req.query.sortOrder as 'desc' | 'asc' | undefined) || 'desc';
     
-    console.log(`[WAHA Controller] Fetching private chats for user ${userId}...`, { limit, offset: skip, sortOrder });
+    console.log('[WAHA Controller] Fetching private chats for user', userId, '...', { limit, offset, sortBy, sortOrder });
     const startTime = Date.now();
+
+    // Get chats from WAHA and filter only private chats
+    const chats = await wahaService.getChats('default', { limit, offset, sortBy, sortOrder });
     
-    // Get private chats (contacts with recent messages) from database
-    const sortDirection = sortOrder === 'desc' ? -1 : 1;
-    const privateChats = await WhatsAppContact.find({
-      userId,
-      lastMessageTimestamp: { $exists: true }
-    })
-    .select('phoneNumber name lastMessageTimestamp unreadCount totalMessages isOnline avatar')
-    .sort({ lastMessageTimestamp: sortDirection })
-    .skip(skip)
-    .limit(limit);
+    // Filter only private chats (not @g.us)
+    let privateChats = chats.filter(chat => !chat.isGroup && !(typeof chat.id === 'string' && chat.id.includes('@g.us')));
+
+    // Sort client-side as fallback
+    privateChats = privateChats.sort((a, b) => (sortOrder === 'desc' ? (b.id || '').localeCompare(a.id || '') : (a.id || '').localeCompare(b.id || '')));
+
+    // Apply pagination client-side if needed
+    const total = privateChats.length;
+    let paged = privateChats;
+    if (typeof limit === 'number') {
+      const start = typeof offset === 'number' ? offset : 0;
+      paged = privateChats.slice(start, start + limit);
+    }
 
     const duration = Date.now() - startTime;
-    console.log(`[WAHA Controller] ✅ Fetched ${privateChats.length} private chats for user ${userId} in ${duration}ms`);
+    console.log(`[WAHA Controller] ✅ Successfully fetched ${paged.length}/${total} private chats in ${duration}ms`);
     
     res.json({
       success: true,
-      data: privateChats,
+      data: paged,
       pagination: {
         limit,
-        offset: skip,
-        total: privateChats.length,
-        hasMore: privateChats.length >= limit
+        offset: typeof offset === 'number' ? offset : 0,
+        total,
+        hasMore: typeof limit === 'number' ? (typeof offset === 'number' ? offset + paged.length < total : paged.length < total) : false
       },
       meta: {
-        count: privateChats.length,
+        count: paged.length,
         loadTime: duration
       }
     });
