@@ -8,6 +8,8 @@ import {
   updateUserRole,
   getRealtimeStats,
   getSystemHealth,
+  triggerWhatsAppCleanup,
+  getWhatsAppCleanupConfig,
 } from '../controllers/adminController';
 
 const router = Router();
@@ -59,5 +61,19 @@ router.get('/realtime-stats', protect, isAdmin, getRealtimeStats);
  * @access  Admin only
  */
 router.get('/system-health', protect, isAdmin, getSystemHealth);
+
+/**
+ * @route   POST /api/v1/admin/whatsapp-cleanup
+ * @desc    Manually trigger WhatsApp message cleanup
+ * @access  Admin only
+ */
+router.post('/whatsapp-cleanup', protect, isAdmin, triggerWhatsAppCleanup);
+
+/**
+ * @route   GET /api/v1/admin/whatsapp-cleanup/config
+ * @desc    Get WhatsApp cleanup service configuration
+ * @access  Admin only
+ */
+router.get('/whatsapp-cleanup/config', protect, isAdmin, getWhatsAppCleanupConfig);
 
 export default router;

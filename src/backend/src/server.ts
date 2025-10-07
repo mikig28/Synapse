@@ -67,6 +67,7 @@ import { trackApiUsage } from './middleware/usageTracking'; // Import usage trac
 import './services/searchIndexingService'; // Import to initialize search indexing hooks
 import { videoRecommendationScheduler } from './services/videoRecommendationScheduler';
 import { newsSchedulerService } from './services/newsSchedulerService'; // Import news scheduler service
+import WhatsAppMessageCleanupService from './services/whatsappMessageCleanupService'; // Import WhatsApp message cleanup service
 
 // Environment variables are validated in config/env.ts
 const app: Express = express();
@@ -876,6 +877,11 @@ const initializeServicesInBackground = async () => {
     } else {
       console.log('[Server] WhatsApp summary scheduler disabled via env');
     }
+
+    // Initialize WhatsApp message cleanup service
+    const whatsappCleanupService = WhatsAppMessageCleanupService.getInstance();
+    whatsappCleanupService.initialize();
+    console.log('[Server] WhatsApp message cleanup service initialized (3-day retention)');
 
     // Make agent service available globally for AG-UI commands
     (global as any).agentService = agentService;

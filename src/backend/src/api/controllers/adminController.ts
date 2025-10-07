@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../../types/express';
 import { adminAnalyticsService } from '../../services/adminAnalyticsService';
 import logger from '../../config/logger';
+import WhatsAppMessageCleanupService from '../../services/whatsappMessageCleanupService';
 
 /**
  * Get platform-wide analytics
@@ -237,6 +238,66 @@ export const getSystemHealth = async (req: AuthenticatedRequest, res: Response):
     res.status(500).json({
       success: false,
       message: 'Failed to fetch system health',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Manually trigger WhatsApp message cleanup
+ * POST /api/v1/admin/whatsapp-cleanup
+ */
+export const triggerWhatsAppCleanup = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const log = req.logger || logger;
+
+  try {
+    log.info('Manually triggering WhatsApp message cleanup', { adminId: req.user.id });
+
+    const cleanupService = WhatsAppMessageCleanupService.getInstance();
+    const stats = await cleanupService.triggerManualCleanup();
+
+    res.status(200).json({
+      success: true,
+      data: stats,
+      message: `Cleanup complete: ${stats.messagesDeleted} messages deleted, ~${stats.spaceSavedMB} MB freed`
+    });
+  } catch (error: any) {
+    log.error('Error triggering WhatsApp cleanup', {
+      error: error.message,
+      stack: error.stack,
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to trigger WhatsApp cleanup',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get WhatsApp cleanup service configuration
+ * GET /api/v1/admin/whatsapp-cleanup/config
+ */
+export const getWhatsAppCleanupConfig = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const log = req.logger || logger;
+
+  try {
+    const cleanupService = WhatsAppMessageCleanupService.getInstance();
+    const config = cleanupService.getConfig();
+
+    res.status(200).json({
+      success: true,
+      data: config
+    });
+  } catch (error: any) {
+    log.error('Error fetching WhatsApp cleanup config', {
+      error: error.message,
+    });
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch WhatsApp cleanup config',
       error: error.message,
     });
   }
