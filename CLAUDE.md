@@ -175,20 +175,20 @@ PINECONE_API_KEY=your_key         # For Pinecone vector database
 TELEGRAM_BOT_TOKEN=your_token     # For Telegram bot integration
 TWITTER_API_KEY=your_key          # For Twitter/X integration
 
-# WhatsApp Integration (WAHA Service)
-WAHA_API_KEY=your_waha_api_key    # Required for WAHA service authentication
-WAHA_SERVICE_URL=https://waha-synapse-production.up.railway.app  # WAHA service endpoint
+# WhatsApp Integration (WAHA-PLUS Service)
+WAHA_API_KEY=your_waha_api_key    # Required for WAHA-PLUS service authentication
+WAHA_SERVICE_URL=https://synapse-waha.onrender.com  # WAHA-PLUS service endpoint (Render.com)
 
-# Engine Configuration (choose ONE based on your needs)
-# Option 1: NOWEB (read-only, lightweight, free tier)
-WAHA_ENGINE=NOWEB                 # Use NOWEB engine for monitoring only
-WAHA_NOWEB_STORE_ENABLED=true     # Required: Enable NOWEB store for chats/messages access
-WAHA_NOWEB_STORE_FULLSYNC=true    # Required: Enable full sync for complete message history
+# Engine Configuration (WAHA-PLUS supports all engines)
+# Recommended: WEBJS (full functionality with WAHA-PLUS features)
+WAHA_ENGINE=WEBJS                 # Use WEBJS engine for full WhatsApp Web functionality + media support
+WAHA_WEBJS_STORE_ENABLED=true     # Required: Enable WEBJS store for chats/messages access
+WAHA_WEBJS_HEADLESS=true          # Run browser in headless mode (recommended for production)
 
-# Option 2: WEBJS (full functionality, sending + media, requires more resources)  
-# WAHA_ENGINE=WEBJS                # Use WEBJS engine for full WhatsApp Web functionality
-# WAHA_WEBJS_STORE_ENABLED=true    # Required: Enable WEBJS store for chats/messages access
-# WAHA_WEBJS_HEADLESS=true         # Run browser in headless mode (recommended for production)
+# Alternative: NOWEB (lightweight, monitoring-focused)
+# WAHA_ENGINE=NOWEB                # Use NOWEB engine for monitoring (limited media support)
+# WAHA_NOWEB_STORE_ENABLED=true    # Required: Enable NOWEB store for chats/messages access
+# WAHA_NOWEB_STORE_FULLSYNC=true   # Required: Enable full sync for complete message history
 
 WHATSAPP_AUTO_REPLY_ENABLED=false # Enable/disable WhatsApp auto-reply
 PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome  # Chrome path for containers
@@ -199,11 +199,11 @@ RENDER=true                       # Render.com deployment flag
 FRONTEND_URL=http://localhost:3000 # Frontend URL for CORS
 CREWAI_SERVICE_URL=your_crewai_url # CrewAI service endpoint
 
-# Production Service URLs (Render.com & Railway.app)
+# Production Service URLs (Render.com)
 # Backend: https://synapse-backend-7lq6.onrender.com
 # Frontend: https://synapse-frontend.onrender.com
 # CrewAI: https://synapse-crewai.onrender.com
-# WAHA: https://waha-synapse-production.up.railway.app
+# WAHA-PLUS: https://synapse-waha.onrender.com
 
 # Redis (Required for Socket.io horizontal scaling across multiple server instances)
 REDIS_URL=redis://your-redis-url  # Full Redis connection URL (recommended)
