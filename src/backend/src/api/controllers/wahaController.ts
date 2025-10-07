@@ -31,36 +31,38 @@ const getSessionManager = () => {
 
 // Get WAHA service for specific user
 const getWAHAServiceForUser = async (userId: string) => {
-  const sessionManager = getSessionManager();
-  const userSession = await sessionManager.getSessionForUser(userId);
+  // IMPORTANT: WAHA Core (free) ONLY supports 'default' session
+  // WAHA PLUS is required for multi-session support
+  // For now, ALWAYS use 'default' session if it's connected
   
-  // BACKWARD COMPATIBILITY: Check if user's session is connected
-  // If not, check if 'default' session is connected and use that temporarily
-  try {
-    const userStatus = await userSession.getSessionStatus();
-    if (userStatus.status === 'WORKING') {
-      console.log(`[SessionManager] Using user's connected session for ${userId}`);
-      return userSession;
-    }
-  } catch (error) {
-    console.log(`[SessionManager] User session not connected, checking default session...`);
-  }
-  
-  // Check if 'default' session exists and is connected (legacy session)
+  // Check if 'default' session exists and is connected (shared session for WAHA Core)
   try {
     const defaultService = new (await import('../../services/wahaService')).default('default');
     const defaultStatus = await defaultService.getSessionStatus();
     if (defaultStatus.status === 'WORKING') {
-      console.log(`[SessionManager] BACKWARD COMPAT: Using legacy 'default' session for user ${userId}`);
-      console.log(`[SessionManager] ⚠️ User should reconnect WhatsApp to get their own session`);
+      console.log(`[SessionManager] Using 'default' session for user ${userId} (WAHA Core compatibility)`);
       return defaultService;
     }
   } catch (error) {
-    console.log(`[SessionManager] Default session not connected either`);
+    console.log(`[SessionManager] Default session not connected, checking user session...`);
   }
   
-  // Return user's session anyway (they'll need to connect)
-  return userSession;
+  // If default session not working, try user-specific session (WAHA PLUS)
+  const sessionManager = getSessionManager();
+  const userSession = await sessionManager.getSessionForUser(userId);
+  
+  try {
+    const userStatus = await userSession.getSessionStatus();
+    if (userStatus.status === 'WORKING') {
+      console.log(`[SessionManager] Using user-specific session for ${userId} (WAHA PLUS)`);
+      return userSession;
+    }
+  } catch (error) {
+    console.log(`[SessionManager] User session not connected`);
+  }
+  
+  // Return default service (user needs to connect)
+  return new (await import('../../services/wahaService')).default('default');
 };
 
 /**
