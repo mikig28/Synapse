@@ -54,6 +54,7 @@ import migrationRoutes from './api/routes/migrationRoutes'; // Import migration 
 import adminRoutes from './api/routes/adminRoutes'; // Import admin routes
 import { generateTodaySummary } from './api/controllers/whatsappSummaryController'; // Direct import for WhatsApp summary endpoint
 import { authMiddleware } from './api/middleware/authMiddleware'; // Import auth middleware
+import type { AuthenticatedRequest } from './api/middleware/authMiddleware';
 import { initializeTaskReminderScheduler } from './services/taskReminderService'; // Import task reminder service
 import { schedulerService } from './services/schedulerService'; // Import scheduler service
 import { whatsappSummaryScheduleService } from './services/whatsappSummaryScheduleService';
@@ -252,7 +253,9 @@ app.get('/api/v1/whatsapp-summary/test', (req: Request, res: Response) => {
 app.post('/api/v1/whatsapp-summary/generate-today-noauth', async (req: Request, res: Response) => {
   try {
     console.log('[WhatsApp Summary] Real implementation called with body:', req.body);
-    const { groupId, timezone = 'UTC' } = req.body;
+    const { groupId, timezone = 'UTC', userId: explicitUserId } = req.body;
+    const fallbackUserId = req.query.userId as string | undefined;
+    const userId = explicitUserId || fallbackUserId;
 
     if (!groupId) {
       console.log('[WhatsApp Summary] Error: No groupId provided');
@@ -262,14 +265,24 @@ app.post('/api/v1/whatsapp-summary/generate-today-noauth', async (req: Request, 
       });
     }
 
+    if (!userId) {
+      console.log('[WhatsApp Summary] Error: No userId provided for no-auth route');
+      return res.status(400).json({
+        success: false,
+        error: 'User ID is required for summary generation'
+      });
+    }
+
     // Use today's date
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
     console.log(`[WhatsApp Summary] Generating summary for group ${groupId} on date ${today}`);
 
     // Create a mock request object with the required body
     const mockReq = {
-      body: { groupId, date: today, timezone }
-    } as Request;
+      ...req,
+      body: { groupId, date: today, timezone, chatType: req.body?.chatType },
+      user: { id: String(userId), email: '' }
+    } as AuthenticatedRequest;
 
     // Call the real controller function
     await generateTodaySummary(mockReq, res);
