@@ -73,6 +73,8 @@ router.post('/send-media', sendMedia);
 router.get('/chats', getChats);
 router.get('/groups', getGroups);
 router.get('/private-chats', getPrivateChats);
+// Compatibility: some frontends call /contacts for private chats
+router.get('/contacts', getPrivateChats);
 router.get('/messages/:chatId', getMessages);
 router.get('/messages', getMessages); // Support query param format
 router.post('/refresh-chats', refreshChats);
