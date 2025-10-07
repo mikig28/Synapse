@@ -158,15 +158,15 @@ class WhatsAppUnifiedService extends EventEmitter {
     
     try {
       // Get chats from WAHA (no filtering - get everything)
-      const wahaChats = await this.wahaService.getChats('default', {
+      const wahaChats = await this.wahaService.getChats(undefined, { // Use instance's defaultSession
         limit: options?.limit,
         offset: options?.offset,
         sortBy: 'id', // Fixed to only supported sortBy value
         sortOrder: options?.sortOrder
       });
-      
+
       // Get groups separately to ensure we have everything
-      const wahaGroups = await this.wahaService.getGroups('default', {
+      const wahaGroups = await this.wahaService.getGroups(undefined, { // Use instance's defaultSession
         limit: options?.limit,
         offset: options?.offset,
         sortBy: options?.sortBy === 'name' ? 'subject' : (options?.sortBy as 'id' | 'subject'),
