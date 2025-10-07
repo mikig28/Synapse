@@ -57,12 +57,19 @@ class WhatsAppSessionManager extends EventEmitter {
   /**
    * Generate unique session ID for user
    * WAHA-PLUS requires alphanumeric names only (no special chars except underscore)
+   *
+   * CRITICAL: MongoDB Atlas has 38-byte database name limit
+   * WAHA adds prefix: waha_webjs_ (11 chars) or waha_noweb_ (11 chars)
+   * So session name must be <= 27 characters to stay under limit
+   *
+   * Format: u_{first12chars} = 14 characters
+   * Total DB name: waha_webjs_u_{first12chars} = 25 characters ✅
    */
   private generateSessionId(userId: string): string {
-    // Use just the user ID - it's already unique (MongoDB ObjectId)
-    // Remove any non-alphanumeric characters except underscores
-    const cleanUserId = userId.replace(/[^a-zA-Z0-9_]/g, '');
-    return `user_${cleanUserId}`;
+    // Use just first 12 characters of user ID (still unique enough)
+    // MongoDB ObjectId is 24 hex chars, first 12 is timestamp + machine ID
+    const shortId = userId.substring(0, 12);
+    return `u_${shortId}`;
   }
 
   /**

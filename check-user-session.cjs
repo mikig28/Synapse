@@ -24,9 +24,9 @@ async function checkUserSession() {
       console.log('\n👤 Found user:', user.email || user.username || user._id);
       console.log('📱 WhatsApp session ID:', user.whatsappSessionId || 'NOT SET');
 
-      if (user.whatsappSessionId && user.whatsappSessionId.includes('mgg36r3k')) {
-        console.log('\n⚠️  Found OLD broken session ID:', user.whatsappSessionId);
-        console.log('🗑️  Clearing it...');
+      if (user.whatsappSessionId) {
+        console.log('\n⚠️  Found existing session ID:', user.whatsappSessionId);
+        console.log('🗑️  Clearing it to allow new shorter format...');
 
         await users.updateOne(
           { _id: new ObjectId('6828510b49ea27a15a2226c0') },
@@ -36,8 +36,8 @@ async function checkUserSession() {
           }
         );
 
-        console.log('✅ Cleared broken session ID from user record');
-        console.log('📝 Next login will create new session: user_6828510b49ea27a15a2226c0');
+        console.log('✅ Cleared old session ID from user record');
+        console.log('📝 Next login will create new short session: u_6828510b49ea');
       } else {
         console.log('✅ Session ID is already clean or not set');
       }
