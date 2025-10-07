@@ -66,25 +66,13 @@ export const getMonitoringStats = async (req: Request, res: Response) => {
 /**
  * Get WhatsApp connection status
  */
-export const getStatus = async (req: Request, res: Response) => {
+export const getStatus = async (req: AuthenticatedRequest, res: Response) => {
   try {
     monitoringStats.totalRequests++;
-    
-    // Check if we have cached data that's still fresh
-    const now = Date.now();
-    if (statusCache.data && (now - statusCache.timestamp) < CACHE_DURATION) {
-      console.log('[WAHA Controller] Returning cached status');
-      monitoringStats.cacheHits++;
-      return res.json({
-        success: true,
-        data: statusCache.data
-      });
-    }
-
-    monitoringStats.cacheMisses++;
     monitoringStats.apiCalls++;
     
-    const wahaService = getWAHAService();
+    const userId = req.user!.id;
+    const wahaService = await getWAHAServiceForUser(userId);
     
     // Try to get status with connection test
     let wahaStatus;
@@ -178,9 +166,7 @@ export const getStatus = async (req: Request, res: Response) => {
       lastActivity: lastActivity
     };
     
-    // Cache the status
-    statusCache.data = status;
-    statusCache.timestamp = now;
+    // Note: Per-user status caching removed for multi-user support
     
     // Check if we need to emit authentication status change via Socket.IO
     const io_instance = (global as any).io;
@@ -305,18 +291,16 @@ export const sendMessage = async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
-    const wahaService = getWAHAService();
+    const wahaService = await getWAHAServiceForUser(userId);
     const messageText = message || text;
-    const sessionName = session || 'default';
     
     console.log('[WAHA Controller] Attempting to send message:', {
       chatId,
       messageLength: messageText.length,
-      messagePreview: messageText.substring(0, 50) + (messageText.length > 50 ? '...' : ''),
-      session: sessionName
+      messagePreview: messageText.substring(0, 50) + (messageText.length > 50 ? '...' : '')
     });
     
-    const result = await wahaService.sendMessage(chatId, messageText, sessionName);
+    const result = await wahaService.sendMessage(chatId, messageText);
     
     console.log('[WAHA Controller] ✅ Message sent successfully:', result);
     res.json({
@@ -340,9 +324,9 @@ export const sendMessage = async (req: AuthenticatedRequest, res: Response) => {
 };
 
 /**
- * Send media message
+ * Send media message from user's session
  */
-export const sendMedia = async (req: Request, res: Response) => {
+export const sendMedia = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { chatId, mediaUrl, caption } = req.body;
     
@@ -353,7 +337,8 @@ export const sendMedia = async (req: Request, res: Response) => {
       });
     }
 
-    const wahaService = getWAHAService();
+    const userId = req.user!.id;
+    const wahaService = await getWAHAServiceForUser(userId);
     const result = await wahaService.sendMedia(chatId, mediaUrl, caption);
     
     res.json({
@@ -428,8 +413,7 @@ export const getChats = async (req: AuthenticatedRequest, res: Response) => {
         hasMore: chats.length >= limit
       },
       meta: {
-        count: chats.length,
-        loadTime: duration
+        count: chats.length
       }
     });
   } catch (error: any) {
@@ -554,12 +538,12 @@ export const getMessages = async (req: AuthenticatedRequest, res: Response) => {
 /**
  * Start WhatsApp session
  */
-export const startSession = async (req: Request, res: Response) => {
+export const startSession = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { sessionName } = req.body;
-    const wahaService = getWAHAService();
+    const userId = req.user!.id;
+    const wahaService = await getWAHAServiceForUser(userId);
     
-    const session = await wahaService.startSession(sessionName);
+    const session = await wahaService.startSession();
     
     res.json({
       success: true,
@@ -577,12 +561,12 @@ export const startSession = async (req: Request, res: Response) => {
 /**
  * Stop WhatsApp session
  */
-export const stopSession = async (req: Request, res: Response) => {
+export const stopSession = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { sessionName } = req.body;
-    const wahaService = getWAHAService();
-    
-    await wahaService.stopSession(sessionName);
+    const userId = req.user!.id;
+    const wahaService = await getWAHAServiceForUser(userId);
+    const sessionManager = getSessionManager();
+    await sessionManager.stopSessionForUser(userId);
     
     res.json({
       success: true,
@@ -648,10 +632,9 @@ export const webhook = async (req: Request, res: Response) => {
       });
     }
     
-    const wahaService = getWAHAService();
-    
-    // Handle the webhook through the service
-    wahaService.handleWebhook(payload);
+    // TODO: Route webhook to correct user's session based on sessionId in webhook body
+    // Temporarily disabled pending multi-user routing implementation
+    console.warn('[WAHA Controller] Webhook processing temporarily disabled for multi-user migration');
     
     // Additional Socket.IO broadcasting for session status changes
     // WAHA event structure: { id, timestamp, event, session, payload }
@@ -707,7 +690,7 @@ export const webhook = async (req: Request, res: Response) => {
 /**
  * Send phone authentication code
  */
-export const sendPhoneAuthCode = async (req: Request, res: Response) => {
+export const sendPhoneAuthCode = async (req: AuthenticatedRequest, res: Response) => {
   try {
     console.log('[WAHA Controller] Phone auth code request received:', req.body);
     const { phoneNumber } = req.body;
@@ -732,8 +715,9 @@ export const sendPhoneAuthCode = async (req: Request, res: Response) => {
       });
     }
     
-    console.log('[WAHA Controller] Getting WAHA service instance...');
-    const wahaService = getWAHAService();
+    console.log('[WAHA Controller] Getting WAHA service instance for user...');
+    const userId = req.user!.id;
+    const wahaService = await getWAHAServiceForUser(userId);
     
     console.log('[WAHA Controller] Requesting phone code via WAHA service...');
     const result = await wahaService.requestPhoneCode(cleanedPhone);
@@ -794,7 +778,7 @@ export const sendPhoneAuthCode = async (req: Request, res: Response) => {
 /**
  * Verify phone authentication code
  */
-export const verifyPhoneAuthCode = async (req: Request, res: Response) => {
+export const verifyPhoneAuthCode = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { phoneNumber, code } = req.body;
     
@@ -812,7 +796,8 @@ export const verifyPhoneAuthCode = async (req: Request, res: Response) => {
       });
     }
     
-    const wahaService = getWAHAService();
+    const userId = req.user!.id;
+    const wahaService = await getWAHAServiceForUser(userId);
     const result = await wahaService.verifyPhoneCode(phoneNumber, code);
     
     if (result.success) {
@@ -862,8 +847,6 @@ export const getGroups = async (req: AuthenticatedRequest, res: Response) => {
     const skip = req.query.offset ? parseInt(req.query.offset as string) : 0;
     
     console.log(`[WAHA Controller] Getting groups for user ${userId} with limit ${limit}`);
-    const startTime = Date.now();
-    
     // Get groups from database filtered by userId
     const groups = await WhatsAppMessage.aggregate([
       {
@@ -897,18 +880,7 @@ export const getGroups = async (req: AuthenticatedRequest, res: Response) => {
       { $limit: limit }
     ]);
     
-    const duration = Date.now() - startTime;
-    
-    if (!groups || groups.length === 0) {
-      console.log('[WAHA Controller] No groups found, trying refresh...');
-      // Ask WAHA to refresh then try again quickly
-      const refreshResult = await wahaService.refreshGroups();
-      console.log('[WAHA Controller] Group refresh result:', refreshResult);
-      groups = await wahaService.getGroups('default', options);
-    }
-    
-    const duration = Date.now() - startTime;
-    console.log(`[WAHA Controller] ✅ Successfully fetched ${groups.length} groups in ${duration}ms`);
+    console.log(`[WAHA Controller] ✅ Fetched ${groups.length} groups for user ${userId}`);
     
     res.json({
       success: true,
@@ -923,8 +895,7 @@ export const getGroups = async (req: AuthenticatedRequest, res: Response) => {
         totalParticipants: groups.reduce((sum, g) => sum + (g.participantCount || 0), 0)
       },
       meta: {
-        count: groups.length,
-        loadTime: duration
+        count: groups.length
       }
     });
   } catch (error: any) {
@@ -1037,23 +1008,17 @@ export const getPrivateChats = async (req: AuthenticatedRequest, res: Response) 
 /**
  * Restart WhatsApp session
  */
-export const restartSession = async (req: Request, res: Response) => {
+export const restartSession = async (req: AuthenticatedRequest, res: Response) => {
   try {
     console.log('[WAHA Controller] Restart session request received');
-    const wahaService = getWAHAService();
-    
-    const session = await wahaService.restartSession();
+    const userId = req.user!.id;
+    const sessionManager = getSessionManager();
+    await sessionManager.restartSessionForUser(userId);
     console.log('[WAHA Controller] ✅ Session restarted successfully');
     
     res.json({
       success: true,
-      message: 'WhatsApp session restarted successfully',
-      data: {
-        sessionStatus: session.status,
-        sessionName: session.name,
-        isReady: session.status === 'WORKING',
-        qrAvailable: session.status === 'SCAN_QR_CODE'
-      }
+      message: 'WhatsApp session restarted successfully'
     });
   } catch (error) {
     console.error('[WAHA Controller] ❌ Error restarting session:', error);
@@ -1068,10 +1033,13 @@ export const restartSession = async (req: Request, res: Response) => {
 /**
  * Force restart WhatsApp session
  */
-export const forceRestart = async (req: Request, res: Response) => {
+export const forceRestart = async (req: AuthenticatedRequest, res: Response) => {
   try {
     console.log('[WAHA Controller] Force restart session request received');
-    const wahaService = getWAHAService();
+    const userId = req.user!.id;
+    const sessionManager = getSessionManager();
+    await sessionManager.stopSessionForUser(userId);
+    const wahaService = await getWAHAServiceForUser(userId);
     
     // Stop monitoring during restart
     wahaService.stopStatusMonitoring();
@@ -1109,10 +1077,11 @@ export const forceRestart = async (req: Request, res: Response) => {
 /**
  * Get group participants (WAHA-compliant)
  */
-export const getGroupParticipants = async (req: Request, res: Response) => {
+export const getGroupParticipants = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { groupId } = req.params;
-    const wahaService = getWAHAService();
+    const wahaService = await getWAHAServiceForUser(userId);
     
     if (!groupId) {
       return res.status(400).json({
@@ -1142,10 +1111,11 @@ export const getGroupParticipants = async (req: Request, res: Response) => {
 /**
  * Get specific group details (WAHA-compliant)
  */
-export const getGroupDetails = async (req: Request, res: Response) => {
+export const getGroupDetails = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { groupId } = req.params;
-    const wahaService = getWAHAService();
+    const wahaService = await getWAHAServiceForUser(userId);
     
     if (!groupId) {
       return res.status(400).json({
@@ -1180,9 +1150,10 @@ export const getGroupDetails = async (req: Request, res: Response) => {
 /**
  * Refresh groups using WAHA-compliant endpoint
  */
-export const refreshGroups = async (req: Request, res: Response) => {
+export const refreshGroups = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const wahaService = getWAHAService();
+    const userId = req.user!.id;
+    const wahaService = await getWAHAServiceForUser(userId);
     console.log('[WAHA Controller] Refreshing groups...');
     
     const result = await wahaService.refreshGroups();
@@ -1201,9 +1172,10 @@ export const refreshGroups = async (req: Request, res: Response) => {
   }
 };
 
-export const refreshChats = async (req: Request, res: Response) => {
+export const refreshChats = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const wahaService = getWAHAService();
+    const userId = req.user!.id;
+    const wahaService = await getWAHAServiceForUser(userId);
     const status = await wahaService.getStatus();
     
     // Check if WAHA service is ready
@@ -1347,7 +1319,8 @@ export const removeMonitoredKeyword = async (req: Request, res: Response) => {
  */
 export const healthCheck = async (req: Request, res: Response) => {
   try {
-    const wahaService = getWAHAService();
+    // Health check doesn't require auth - use default session
+    const wahaService = new (await import('../../services/wahaService')).default('health-check');
     const isHealthy = await wahaService.healthCheck();
     
     res.json({
@@ -1369,10 +1342,11 @@ export const healthCheck = async (req: Request, res: Response) => {
 /**
  * Initialize/Create session endpoint
  */
-export const initializeSession = async (req: Request, res: Response) => {
+export const initializeSession = async (req: AuthenticatedRequest, res: Response) => {
   try {
     console.log('[WAHA Controller] 🚀 MANUAL session initialization request received');
-    const wahaService = getWAHAService();
+    const userId = req.user!.id;
+    const wahaService = await getWAHAServiceForUser(userId);
     
     // First check current session status
     let currentStatus;
@@ -1417,12 +1391,15 @@ export const initializeSession = async (req: Request, res: Response) => {
 /**
  * Restart failed session endpoint
  */
-export const restartFailedSession = async (req: Request, res: Response) => {
+export const restartFailedSession = async (req: AuthenticatedRequest, res: Response) => {
   try {
     console.log('[WAHA Controller] 🔄 Session restart request received');
-    const wahaService = getWAHAService();
+    const userId = req.user!.id;
+    const sessionManager = getSessionManager();
+    await sessionManager.restartSessionForUser(userId);
     
     // Check current session status
+    const wahaService = await getWAHAServiceForUser(userId);
     let currentStatus;
     try {
       currentStatus = await wahaService.getSessionStatus();
@@ -1482,12 +1459,15 @@ export const restartFailedSession = async (req: Request, res: Response) => {
 /**
  * Auto-recover session from FAILED state
  */
-export const autoRecoverSession = async (req: Request, res: Response) => {
+export const autoRecoverSession = async (req: AuthenticatedRequest, res: Response) => {
   try {
     console.log('[WAHA Controller] 🔄 Auto-recovery request received');
-    const wahaService = getWAHAService();
+    const userId = req.user!.id;
+    const sessionManager = getSessionManager();
+    const result = await sessionManager.validateAndRecoverSession(userId);
     
     // Check if auto-recovery is needed
+    const wahaService = await getWAHAServiceForUser(userId);
     const currentStatus = await wahaService.getSessionStatus();
     console.log('[WAHA Controller] Current session status:', currentStatus);
     
@@ -1537,7 +1517,7 @@ export const autoRecoverSession = async (req: Request, res: Response) => {
 /**
  * Extract image from WhatsApp message (Shula-style functionality)
  */
-export const extractImageFromMessage = async (req: Request, res: Response) => {
+export const extractImageFromMessage = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { messageId } = req.params;
     
@@ -1549,7 +1529,8 @@ export const extractImageFromMessage = async (req: Request, res: Response) => {
     }
     
     console.log(`[WAHA Controller] 📷 Extracting image from message: ${messageId}`);
-    const wahaService = getWAHAService();
+    const userId = req.user!.id;
+    const wahaService = await getWAHAServiceForUser(userId);
     
     // Extract image using WAHA service
     const extractionResult = await wahaService.extractImageFromMessage(messageId);
@@ -1588,10 +1569,13 @@ export const extractImageFromMessage = async (req: Request, res: Response) => {
  * Recreate session with new engine configuration
  * Use this when you change WAHA_ENGINE environment variable
  */
-export const recreateSession = async (req: Request, res: Response) => {
+export const recreateSession = async (req: AuthenticatedRequest, res: Response) => {
   try {
     console.log('[WAHA Controller] 🔄 Session recreation request received');
-    const wahaService = getWAHAService();
+    const userId = req.user!.id;
+    const sessionManager = getSessionManager();
+    await sessionManager.stopSessionForUser(userId);
+    const wahaService = await getWAHAServiceForUser(userId);
     
     // Get current session info
     let currentStatus;
@@ -1643,10 +1627,11 @@ export const recreateSession = async (req: Request, res: Response) => {
 /**
  * Clear WAHA service caches and force fresh status check
  */
-export const clearCaches = async (req: Request, res: Response) => {
+export const clearCaches = async (req: AuthenticatedRequest, res: Response) => {
   try {
     console.log('[WAHA Controller] 🗑️ Cache clearing request received');
-    const wahaService = getWAHAService();
+    const userId = req.user!.id;
+    const wahaService = await getWAHAServiceForUser(userId);
     
     // Clear all caches
     wahaService.clearAllCaches();
@@ -1805,10 +1790,11 @@ export const getMediaStats = async (req: Request, res: Response) => {
 /**
  * Trigger manual message polling for testing
  */
-export const triggerMessagePolling = async (req: Request, res: Response) => {
+export const triggerMessagePolling = async (req: AuthenticatedRequest, res: Response) => {
   try {
     console.log('[WAHA Controller] 🔄 Manual message polling triggered');
-    const wahaService = getWAHAService();
+    const userId = req.user!.id;
+    const wahaService = await getWAHAServiceForUser(userId);
     
     // Set polling timestamp for specified hours back or default 24 hours
     const hoursBack = req.query.hoursBack ? parseInt(req.query.hoursBack as string) : 24;
@@ -1844,7 +1830,7 @@ export const triggerMessagePolling = async (req: Request, res: Response) => {
 /**
  * Create historical message backfill for specific date range
  */
-export const backfillMessages = async (req: Request, res: Response) => {
+export const backfillMessages = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { startDate, endDate, groupId } = req.body;
     
@@ -1856,7 +1842,8 @@ export const backfillMessages = async (req: Request, res: Response) => {
     }
     
     console.log(`[WAHA Controller] 📥 Starting message backfill: ${startDate} to ${endDate}`);
-    const wahaService = getWAHAService();
+    const userId = req.user!.id;
+    const wahaService = await getWAHAServiceForUser(userId);
     
     // Convert dates to timestamps
     const startTimestamp = new Date(startDate + 'T00:00:00Z').getTime();
