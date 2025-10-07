@@ -29,40 +29,14 @@ const getSessionManager = () => {
   return WhatsAppSessionManager.getInstance();
 };
 
-// Get WAHA service for specific user
+// Get WAHA service for specific user (WAHA PLUS enabled)
 const getWAHAServiceForUser = async (userId: string) => {
-  // IMPORTANT: WAHA Core (free) ONLY supports 'default' session
-  // WAHA PLUS is required for multi-session support
-  // For now, ALWAYS use 'default' session if it's connected
-  
-  // Check if 'default' session exists and is connected (shared session for WAHA Core)
-  try {
-    const defaultService = new (await import('../../services/wahaService')).default('default');
-    const defaultStatus = await defaultService.getSessionStatus();
-    if (defaultStatus.status === 'WORKING') {
-      console.log(`[SessionManager] Using 'default' session for user ${userId} (WAHA Core compatibility)`);
-      return defaultService;
-    }
-  } catch (error) {
-    console.log(`[SessionManager] Default session not connected, checking user session...`);
-  }
-  
-  // If default session not working, try user-specific session (WAHA PLUS)
+  // WAHA PLUS supports multiple sessions - each user gets their own
   const sessionManager = getSessionManager();
   const userSession = await sessionManager.getSessionForUser(userId);
   
-  try {
-    const userStatus = await userSession.getSessionStatus();
-    if (userStatus.status === 'WORKING') {
-      console.log(`[SessionManager] Using user-specific session for ${userId} (WAHA PLUS)`);
-      return userSession;
-    }
-  } catch (error) {
-    console.log(`[SessionManager] User session not connected`);
-  }
-  
-  // Return default service (user needs to connect)
-  return new (await import('../../services/wahaService')).default('default');
+  console.log(`[SessionManager] Using user-specific session for ${userId} (WAHA PLUS)`);
+  return userSession;
 };
 
 /**
