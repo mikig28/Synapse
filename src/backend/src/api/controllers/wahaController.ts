@@ -32,7 +32,35 @@ const getSessionManager = () => {
 // Get WAHA service for specific user
 const getWAHAServiceForUser = async (userId: string) => {
   const sessionManager = getSessionManager();
-  return await sessionManager.getSessionForUser(userId);
+  const userSession = await sessionManager.getSessionForUser(userId);
+  
+  // BACKWARD COMPATIBILITY: Check if user's session is connected
+  // If not, check if 'default' session is connected and use that temporarily
+  try {
+    const userStatus = await userSession.getSessionStatus();
+    if (userStatus.status === 'WORKING') {
+      console.log(`[SessionManager] Using user's connected session for ${userId}`);
+      return userSession;
+    }
+  } catch (error) {
+    console.log(`[SessionManager] User session not connected, checking default session...`);
+  }
+  
+  // Check if 'default' session exists and is connected (legacy session)
+  try {
+    const defaultService = new (await import('../../services/wahaService')).default('default');
+    const defaultStatus = await defaultService.getSessionStatus();
+    if (defaultStatus.status === 'WORKING') {
+      console.log(`[SessionManager] BACKWARD COMPAT: Using legacy 'default' session for user ${userId}`);
+      console.log(`[SessionManager] ⚠️ User should reconnect WhatsApp to get their own session`);
+      return defaultService;
+    }
+  } catch (error) {
+    console.log(`[SessionManager] Default session not connected either`);
+  }
+  
+  // Return user's session anyway (they'll need to connect)
+  return userSession;
 };
 
 /**
