@@ -1041,7 +1041,7 @@ class WAHAService extends EventEmitter {
   /**
    * Get session status (with caching to reduce API calls)
    */
-  async getSessionStatus(sessionName: string = 'default'): Promise<any> {
+  async getSessionStatus(sessionName: string = this.defaultSession): Promise<any> {
     try {
       // Check cache first
       const now = Date.now();
