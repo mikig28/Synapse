@@ -43,6 +43,31 @@ import {
 
 const router = Router();
 
+// CORS middleware for WAHA routes
+router.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'https://synapse-frontend.onrender.com',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:5174'
+  ];
+  
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, X-Request-ID');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  
+  next();
+});
+
 // Health check (no auth required)
 router.get('/health', healthCheck);
 

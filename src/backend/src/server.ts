@@ -133,9 +133,10 @@ app.use(cors({
     if (!origin) return callback(null, true);
 
     if (allowedOrigins.indexOf(origin) !== -1) {
+      logger.info('CORS request allowed from origin', { origin });
       callback(null, true);
     } else {
-      logger.warn('Blocked CORS request from unauthorized origin', { origin });
+      logger.warn('Blocked CORS request from unauthorized origin', { origin, allowedOrigins });
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -143,11 +144,32 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control", "X-Request-ID"],
   credentials: true,
   optionsSuccessStatus: 200,
+  preflightContinue: false,
 }));
+
+// Additional CORS debugging middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  logger.info('Request received', { 
+    method: req.method, 
+    url: req.url, 
+    origin: req.headers.origin,
+    userAgent: req.headers['user-agent']
+  });
+  next();
+});
 
 // 4. Body parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// 5. CORS test endpoint for debugging
+app.get('/api/v1/cors-test', (req: Request, res: Response) => {
+  res.json({ 
+    message: 'CORS test successful', 
+    origin: req.headers.origin,
+    timestamp: new Date().toISOString()
+  });
+});
 
 // 5. Global rate limiting (100 requests/minute per IP)
 app.use(rateLimiters.global);
@@ -326,13 +348,21 @@ app.get('/api/v1/ag-ui/events', (req: Request, res: Response) => {
 
   try {
     // Set SSE headers with proper CORS
-    const origin = req.headers.origin || 'https://synapse-frontend.onrender.com';
+    const origin = req.headers.origin;
+    const allowedOrigins = [
+      'https://synapse-frontend.onrender.com',
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'http://localhost:5174'
+    ];
+    
+    const corsOrigin = origin && allowedOrigins.includes(origin) ? origin : 'https://synapse-frontend.onrender.com';
 
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-store, must-revalidate',
       'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Origin': corsOrigin,
       'Access-Control-Allow-Headers': 'Cache-Control, Content-Type, Authorization, X-Requested-With, Accept, Origin',
       'Access-Control-Allow-Credentials': 'true',
       'X-Accel-Buffering': 'no', // Disable nginx buffering
