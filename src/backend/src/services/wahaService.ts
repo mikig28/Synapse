@@ -782,7 +782,20 @@ class WAHAService extends EventEmitter {
               throw startStoppedErr;
             }
           }
-          console.log(`[WAHA Service] ✅ Session '${sessionName}' started from stopped state`);
+          console.log(`[WAHA Service] ✅ Session '${sessionName}' start command sent, waiting for state transition...`);
+
+          // Wait for session to transition from STOPPED to STARTING/SCAN_QR_CODE/WORKING
+          await new Promise(resolve => setTimeout(resolve, 3000));
+
+          // Fetch updated session status
+          try {
+            const updatedSession = await this.httpClient.get(`/api/sessions/${sessionName}`);
+            sessionData = updatedSession.data;
+            console.log(`[WAHA Service] ✅ Session '${sessionName}' transitioned to: ${sessionData.status}`);
+          } catch (fetchErr) {
+            console.warn(`[WAHA Service] Could not fetch updated session status after start:`, fetchErr);
+          }
+
           return sessionData;
         } else if (sessionData?.status === 'WORKING' || sessionData?.status === 'SCAN_QR_CODE' || sessionData?.status === 'STARTING') {
           console.log(`[WAHA Service] ✅ Session '${sessionName}' is already active (${sessionData?.status})`);
@@ -4001,21 +4014,33 @@ class WAHAService extends EventEmitter {
   private async waitForSessionState(sessionName: string, expectedStates: string[], timeoutMs: number = 30000): Promise<void> {
     const startTime = Date.now();
     const pollInterval = 2000; // Check every 2 seconds
-    
+    let stoppedCount = 0;
+
     while (Date.now() - startTime < timeoutMs) {
       try {
         const sessionStatus = await this.getSessionStatus(sessionName);
         console.log(`[WAHA Service] Session '${sessionName}' current state: ${sessionStatus.status}`);
-        
+
         if (expectedStates.includes(sessionStatus.status)) {
           console.log(`[WAHA Service] ✅ Session '${sessionName}' reached expected state: ${sessionStatus.status}`);
           return;
         }
-        
-        if (sessionStatus.status === 'FAILED' || sessionStatus.status === 'STOPPED') {
-          throw new Error(`Session failed or stopped: ${sessionStatus.status}`);
+
+        // Only fail if session has been STOPPED for multiple consecutive checks (not just transitioning)
+        if (sessionStatus.status === 'STOPPED') {
+          stoppedCount++;
+          if (stoppedCount >= 3) { // Allow 3 consecutive STOPPED checks before failing
+            throw new Error(`Session stuck in STOPPED state after ${stoppedCount} checks`);
+          }
+          console.log(`[WAHA Service] ⚠️ Session in STOPPED state (check ${stoppedCount}/3), waiting for transition...`);
+        } else {
+          stoppedCount = 0; // Reset counter if not STOPPED
         }
-        
+
+        if (sessionStatus.status === 'FAILED') {
+          throw new Error(`Session failed: ${sessionStatus.status}`);
+        }
+
         console.log(`[WAHA Service] Waiting for session '${sessionName}' to transition from ${sessionStatus.status} to one of [${expectedStates.join(', ')}]...`);
         await new Promise(resolve => setTimeout(resolve, pollInterval));
       } catch (error) {
@@ -4023,7 +4048,7 @@ class WAHAService extends EventEmitter {
         await new Promise(resolve => setTimeout(resolve, pollInterval));
       }
     }
-    
+
     throw new Error(`Timeout waiting for session '${sessionName}' to reach state [${expectedStates.join(', ')}]`);
   }
 
