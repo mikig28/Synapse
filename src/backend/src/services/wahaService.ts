@@ -1564,7 +1564,7 @@ class WAHAService extends EventEmitter {
             console.log(`[WAHA Service] Using legacy endpoint: ${legacyEndpoint}`);
             // Queue request to prevent WAHA overload
             let res = await this.queueRequest<AxiosResponse<any>>(() =>
-              this.httpClient.get(legacyEndpoint, { timeout: Math.min(timeoutMs, 60000) })
+              this.httpClient.get(legacyEndpoint, { timeout: timeoutMs }) // Use full timeout for WEBJS (110s)
             );
             const items = normalizeChats(res.data);
             console.log(`[WAHA Service] ✅ Direct /chats successful; got ${items.length} items (sortBy='${sortBy}')`);
@@ -1587,7 +1587,7 @@ class WAHAService extends EventEmitter {
                 const sessionsEndpoint2 = `/api/sessions/${sessionName}/chats${queryString2 ? `?${queryString2}` : ''}`;
                 console.log(`[WAHA Service] Trying sessions /chats endpoint: ${sessionsEndpoint2}`);
                 const resSessions = await this.queueRequest<AxiosResponse<any>>(() =>
-                  this.httpClient.get(sessionsEndpoint2, { timeout: Math.min(timeoutMs, 60000) })
+                  this.httpClient.get(sessionsEndpoint2, { timeout: timeoutMs }) // Use full timeout for WEBJS
                 );
                 const itemsSessions = normalizeChats(resSessions.data);
                 console.log(`[WAHA Service] ✅ Sessions /chats successful; got ${itemsSessions.length} items (sortBy='${sortBy}')`);
