@@ -3,7 +3,7 @@
  * Replaces the complex WhatsAppBaileysService with simple HTTP calls to WAHA microservice
  */
 
-import axios from 'axios';
+import axios, { AxiosResponse } from 'axios';
 import { EventEmitter } from 'events';
 import fs from 'fs';
 import path from 'path';
@@ -1352,10 +1352,10 @@ class WAHAService extends EventEmitter {
       console.log(`[WAHA Service] Making request to: ${this.wahaBaseUrl}${endpoint}`);
       console.log(`[WAHA Service] Request payload:`, payload);
 
-      const response = await this.queueRequest(() =>
+      const response = await this.queueRequest<AxiosResponse<any>>(() =>
         this.httpClient.post(endpoint, payload)
       );
-      
+
       console.log(`[WAHA Service] ✅ Message sent to ${chatId}. Response:`, response.data);
       return response.data;
     } catch (error: any) {
@@ -1383,7 +1383,7 @@ class WAHAService extends EventEmitter {
       console.log(`[WAHA Service] Sending media to ${chatId} in session '${sessionName}'...`);
 
       // WAHA API structure: POST /api/{session}/sendFile
-      const response = await this.queueRequest(() =>
+      const response = await this.queueRequest<AxiosResponse<any>>(() =>
         this.httpClient.post(`/api/sessions/${sessionName}/sendFile`, {
           chatId,
           file: {
@@ -1392,7 +1392,7 @@ class WAHAService extends EventEmitter {
           caption
         })
       );
-      
+
       console.log(`[WAHA Service] ✅ Media sent to ${chatId}`);
       return response.data;
     } catch (error: any) {
@@ -1481,7 +1481,7 @@ class WAHAService extends EventEmitter {
           try {
             console.log(`[WAHA Service] Trying chats overview with sortBy='${sortBy}' and 180s timeout...`);
             // Use WAHA sessions-based endpoint first (modern WAHA)
-            const res = await this.queueRequest(() =>
+            const res = await this.queueRequest<AxiosResponse<any>>(() =>
               this.httpClient.get(`/api/sessions/${sessionName}/chats/overview`, {
                 timeout: 60000,
                 params: {
@@ -1505,7 +1505,7 @@ class WAHAService extends EventEmitter {
             if (status === 404) {
               try {
                 console.log(`[WAHA Service] Trying legacy overview path: /api/${sessionName}/chats/overview`);
-                const resLegacy = await this.queueRequest(() =>
+                const resLegacy = await this.queueRequest<AxiosResponse<any>>(() =>
                   this.httpClient.get(`/api/${sessionName}/chats/overview`, {
                     timeout: 60000,
                     params: {
@@ -1563,7 +1563,7 @@ class WAHAService extends EventEmitter {
             console.log(`[WAHA Service] Trying direct /chats (legacy-first) with sortBy='${sortBy}' and ${timeoutMs/1000}s timeout...`);
             console.log(`[WAHA Service] Using legacy endpoint: ${legacyEndpoint}`);
             // Queue request to prevent WAHA overload
-            let res = await this.queueRequest(() =>
+            let res = await this.queueRequest<AxiosResponse<any>>(() =>
               this.httpClient.get(legacyEndpoint, { timeout: Math.min(timeoutMs, 60000) })
             );
             const items = normalizeChats(res.data);
@@ -1586,7 +1586,7 @@ class WAHAService extends EventEmitter {
                 const queryString2 = params2.toString();
                 const sessionsEndpoint2 = `/api/sessions/${sessionName}/chats${queryString2 ? `?${queryString2}` : ''}`;
                 console.log(`[WAHA Service] Trying sessions /chats endpoint: ${sessionsEndpoint2}`);
-                const resSessions = await this.queueRequest(() =>
+                const resSessions = await this.queueRequest<AxiosResponse<any>>(() =>
                   this.httpClient.get(sessionsEndpoint2, { timeout: Math.min(timeoutMs, 60000) })
                 );
                 const itemsSessions = normalizeChats(resSessions.data);
@@ -1609,7 +1609,7 @@ class WAHAService extends EventEmitter {
         try {
           const minimalLegacy = `/api/${sessionName}/chats`;
           console.log(`[WAHA Service] Trying minimal legacy /chats without params: ${minimalLegacy}`);
-          const resMinLegacy = await this.queueRequest(() =>
+          const resMinLegacy = await this.queueRequest<AxiosResponse<any>>(() =>
             this.httpClient.get(minimalLegacy, { timeout: 45000 })
           );
           const itemsMinLegacy = normalizeChats(resMinLegacy.data);
@@ -1620,7 +1620,7 @@ class WAHAService extends EventEmitter {
           try {
             const minimalSessions = `/api/sessions/${sessionName}/chats`;
             console.log(`[WAHA Service] Trying minimal sessions /chats without params: ${minimalSessions}`);
-            const resMinSessions = await this.queueRequest(() =>
+            const resMinSessions = await this.queueRequest<AxiosResponse<any>>(() =>
               this.httpClient.get(minimalSessions, { timeout: 45000 })
             );
             const itemsMinSessions = normalizeChats(resMinSessions.data);
@@ -1638,7 +1638,7 @@ class WAHAService extends EventEmitter {
           const altQuery = altParams.toString();
           const altEndpoint = `/api/chats${altQuery ? `?${altQuery}` : ''}`;
           console.log(`[WAHA Service] Trying alternate endpoint: ${altEndpoint}`);
-          const res = await this.queueRequest(() =>
+          const res = await this.queueRequest<AxiosResponse<any>>(() =>
             this.httpClient.get(altEndpoint, { timeout: timeoutMs })
           );
           const items = normalizeChats(res.data);
@@ -1788,7 +1788,7 @@ class WAHAService extends EventEmitter {
         const endpoint = `/api/sessions/${sessionName}/groups${queryString ? `?${queryString}` : ''}`;
 
         console.log(`[WAHA Service] Using WAHA-compliant groups endpoint with performance opts: ${endpoint}`);
-        const res = await this.queueRequest(() =>
+        const res = await this.queueRequest<AxiosResponse<any>>(() =>
           this.httpClient.get(endpoint, { timeout: 180000 })
         ); // Use 3min timeout
         
@@ -1877,7 +1877,7 @@ class WAHAService extends EventEmitter {
       if (engineName === 'WEBJS') {
         console.log(`[WAHA Service] Using WEBJS engine - groups refresh supported`);
       }
-      const response = await this.queueRequest(() =>
+      const response = await this.queueRequest<AxiosResponse<any>>(() =>
         this.httpClient.post(`/api/sessions/${sessionName}/groups/refresh`, {}, { timeout: 15000 })
       );
       console.log(`[WAHA Service] ✅ Groups refreshed successfully`);
@@ -1909,7 +1909,7 @@ class WAHAService extends EventEmitter {
   async getGroupParticipants(groupId: string, sessionName: string = this.defaultSession): Promise<any[]> {
     try {
       console.log(`[WAHA Service] Getting participants for group '${groupId}'`);
-      const response = await this.queueRequest(() =>
+      const response = await this.queueRequest<AxiosResponse<any>>(() =>
         this.httpClient.get(`/api/${sessionName}/groups/${encodeURIComponent(groupId)}/participants`)
       );
       return response.data || [];
@@ -1925,7 +1925,7 @@ class WAHAService extends EventEmitter {
   async getGroupDetails(groupId: string, sessionName: string = this.defaultSession): Promise<any> {
     try {
       console.log(`[WAHA Service] Getting details for group '${groupId}'`);
-      const response = await this.queueRequest(() =>
+      const response = await this.queueRequest<AxiosResponse<any>>(() =>
         this.httpClient.get(`/api/${sessionName}/groups/${encodeURIComponent(groupId)}`)
       );
       return response.data;
@@ -1942,7 +1942,7 @@ class WAHAService extends EventEmitter {
     try {
       // URL-encode message ID since it contains special characters like @ and -
       const encodedMessageId = encodeURIComponent(messageId);
-      const response = await this.queueRequest(() =>
+      const response = await this.queueRequest<AxiosResponse<any>>(() =>
         this.httpClient.get(`/api/messages/${encodedMessageId}`, {
           params: {
             session: sessionName,
@@ -2008,7 +2008,7 @@ class WAHAService extends EventEmitter {
       // WAHA webhooks don't include media URLs, but the /chats/{chatId}/messages endpoint does
       console.log('[WAHA Service] 🔍 Fetching recent messages from chat to find media URL...');
       try {
-        const recentMessages = await this.queueRequest(() =>
+        const recentMessages = await this.queueRequest<AxiosResponse<any>>(() =>
           this.httpClient.get(`/api/${sessionName}/chats/${encodeURIComponent(chatId)}/messages`, {
             params: { limit: 10, downloadMedia: 'true' }, // CRITICAL: Must be true to get media URLs
             timeout: 30000 // Increased timeout since downloading media
@@ -2082,7 +2082,7 @@ class WAHAService extends EventEmitter {
       for (const endpoint of endpoints) {
         try {
           console.log(`[WAHA Service] 🔄 Trying endpoint: ${endpoint}`);
-          const response = await this.queueRequest(() =>
+          const response = await this.queueRequest<AxiosResponse<any>>(() =>
             this.httpClient.get(endpoint, {
               responseType: 'arraybuffer',
               timeout: 30000,
@@ -2165,7 +2165,7 @@ class WAHAService extends EventEmitter {
       
       // WAHA 2025.9.1 API endpoint structure: /api/messages?session={session}&chatId={chatId}
       // Request downloadMedia=true to get full message details including type, MIME, and media URLs
-      let response = await this.queueRequest(() =>
+      let response = await this.queueRequest<AxiosResponse<any>>(() =>
         this.httpClient.get('/api/messages', {
           params: {
           session: sessionName,
@@ -2207,7 +2207,7 @@ class WAHAService extends EventEmitter {
         const altId = chatId.replace(/@s\.whatsapp\.net$/, '@c.us');
         try {
           console.warn(`[WAHA Service] Retrying with alternate private JID: ${altId}`);
-          const retryRes = await this.queueRequest(() =>
+          const retryRes = await this.queueRequest<AxiosResponse<any>>(() =>
             this.httpClient.get('/api/messages', {
               params: {
                 session: sessionName,
@@ -2242,7 +2242,7 @@ class WAHAService extends EventEmitter {
         const altId = chatId.replace(/@c\.us$/, '@s.whatsapp.net');
         try {
           console.warn(`[WAHA Service] Retrying with alternate private JID: ${altId}`);
-          const retryRes = await this.queueRequest(() =>
+          const retryRes = await this.queueRequest<AxiosResponse<any>>(() =>
             this.httpClient.get('/api/messages', {
               params: {
                 session: sessionName,
@@ -4071,7 +4071,7 @@ class WAHAService extends EventEmitter {
       await this.startSession(sessionName);
 
       // Use WAHA's phone authentication endpoint (may not be supported by all engines)
-      const response = await this.queueRequest(() =>
+      const response = await this.queueRequest<AxiosResponse<any>>(() =>
         this.httpClient.post(`/api/sessions/${sessionName}/auth/request-code`, {
           phoneNumber: phoneNumber.replace(/\D/g, '') // Remove non-digits
         })
@@ -4113,7 +4113,7 @@ class WAHAService extends EventEmitter {
       console.log(`[WAHA Service] Verifying phone code for: ${phoneNumber}`);
 
       // Use WAHA's phone verification endpoint (may not be supported by all engines)
-      const response = await this.queueRequest(() =>
+      const response = await this.queueRequest<AxiosResponse<any>>(() =>
         this.httpClient.post(`/api/sessions/${sessionName}/auth/authorize-code`, {
           phoneNumber: phoneNumber.replace(/\D/g, ''),
           code: code
@@ -4458,7 +4458,7 @@ class WAHAService extends EventEmitter {
       const messageUrl = `${this.wahaBaseUrl}/api/messages/${messageId}`;
       console.log(`[WAHA Service] Getting message details: ${messageUrl}`);
 
-      const messageResponse = await this.queueRequest(() =>
+      const messageResponse = await this.queueRequest<AxiosResponse<any>>(() =>
         this.httpClient.get(messageUrl, {
           params: { session }
         })
@@ -4485,7 +4485,7 @@ class WAHAService extends EventEmitter {
       const mediaUrl = `${this.wahaBaseUrl}/api/files/${messageId}`;
       console.log(`[WAHA Service] Downloading image: ${mediaUrl}`);
 
-      const mediaResponse = await this.queueRequest(() =>
+      const mediaResponse = await this.queueRequest<AxiosResponse<any>>(() =>
         this.httpClient.get(mediaUrl, {
           params: { session },
           responseType: 'stream'
