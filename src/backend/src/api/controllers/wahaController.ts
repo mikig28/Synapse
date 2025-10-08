@@ -1990,3 +1990,91 @@ export const backfillMessages = async (req: AuthenticatedRequest, res: Response)
     });
   }
 };
+
+/**
+ * Get session statistics and memory usage (Admin endpoint)
+ */
+export const getSessionStats = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const sessionManager = WhatsAppSessionManager.getInstance();
+
+    // Get all active sessions
+    const activeSessions = sessionManager.getActiveSessions();
+
+    // Get memory usage
+    const memoryUsage = process.memoryUsage();
+    const memoryStats = {
+      heapUsed: Math.round(memoryUsage.heapUsed / 1024 / 1024), // MB
+      heapTotal: Math.round(memoryUsage.heapTotal / 1024 / 1024), // MB
+      heapUsedPercent: Math.round((memoryUsage.heapUsed / memoryUsage.heapTotal) * 100),
+      external: Math.round(memoryUsage.external / 1024 / 1024), // MB
+      rss: Math.round(memoryUsage.rss / 1024 / 1024) // MB
+    };
+
+    console.log('[WAHA Controller] Session stats requested:', {
+      totalSessions: activeSessions.length,
+      memory: memoryStats
+    });
+
+    res.json({
+      success: true,
+      data: {
+        sessions: {
+          total: activeSessions.length,
+          details: activeSessions.map(s => ({
+            userId: s.userId,
+            sessionId: s.sessionId,
+            status: s.status,
+            lastActivity: s.lastActivity,
+            inactiveMinutes: Math.round((Date.now() - s.lastActivity.getTime()) / 1000 / 60)
+          }))
+        },
+        memory: memoryStats,
+        warnings: []
+      }
+    });
+  } catch (error: any) {
+    console.error('[WAHA Controller] Error getting session stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get session statistics: ' + error.message
+    });
+  }
+};
+
+/**
+ * Force cleanup of oldest/inactive sessions (Admin endpoint)
+ */
+export const forceCleanupSessions = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const maxSessions = req.body.maxSessions || 3;
+    const sessionManager = WhatsAppSessionManager.getInstance();
+
+    console.log(`[WAHA Controller] Force cleanup requested, keeping ${maxSessions} sessions`);
+
+    const cleanedCount = await sessionManager.forceCleanupOldestSessions(maxSessions);
+
+    const remainingSessions = sessionManager.getSessionCount();
+    const memoryAfter = process.memoryUsage();
+
+    res.json({
+      success: true,
+      message: `Cleaned up ${cleanedCount} sessions`,
+      data: {
+        cleanedSessions: cleanedCount,
+        remainingSessions,
+        memoryAfter: {
+          heapUsed: Math.round(memoryAfter.heapUsed / 1024 / 1024), // MB
+          heapTotal: Math.round(memoryAfter.heapTotal / 1024 / 1024), // MB
+          heapUsedPercent: Math.round((memoryAfter.heapUsed / memoryAfter.heapTotal) * 100)
+        }
+      }
+    });
+  } catch (error: any) {
+    console.error('[WAHA Controller] Error forcing session cleanup:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to force cleanup sessions: ' + error.message
+    });
+  }
+};

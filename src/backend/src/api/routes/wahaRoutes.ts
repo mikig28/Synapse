@@ -38,7 +38,9 @@ import {
   getMediaFile,
   getMediaStats,
   triggerMessagePolling,
-  backfillMessages
+  backfillMessages,
+  getSessionStats,
+  forceCleanupSessions
 } from '../controllers/wahaController';
 
 const router = Router();
@@ -129,6 +131,10 @@ router.get('/media-stats', getMediaStats);
 // Message polling and backfill routes
 router.post('/trigger-polling', triggerMessagePolling);
 router.post('/backfill-messages', backfillMessages);
+
+// Admin routes for session management and monitoring
+router.get('/admin/session-stats', getSessionStats);
+router.post('/admin/force-cleanup', forceCleanupSessions);
 
 // Legacy compatibility routes (for gradual migration)
 router.get('/connection-status', getStatus);
