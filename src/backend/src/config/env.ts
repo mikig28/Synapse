@@ -59,9 +59,10 @@ const envSchema = z.object({
 
   // WhatsApp Configuration
   WHATSAPP_AUTO_REPLY_ENABLED: z.string().transform(val => val === 'true').default('false'),
-  WAHA_ENGINE: z.enum(['NOWEB', 'WEBJS']).default('NOWEB'),
+  WAHA_ENGINE: z.enum(['NOWEB', 'WEBJS']).default('WEBJS'),
   WAHA_NOWEB_STORE_ENABLED: z.string().transform(val => val === 'true').default('true'),
   WAHA_NOWEB_STORE_FULLSYNC: z.string().transform(val => val === 'true').default('true'),
+  WAHA_WEBJS_STORE_ENABLED: z.string().transform(val => val === 'true').default('true'),
   PUPPETEER_EXECUTABLE_PATH: z.string().optional(),
   PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: z.string().optional(),
   WAHA_DEFAULT_SESSION: z.string().optional(),

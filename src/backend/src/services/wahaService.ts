@@ -1192,13 +1192,32 @@ class WAHAService extends EventEmitter {
       // Ensure session exists and is in a proper state for QR
       console.log(`[WAHA Service] Ensuring session '${sessionName}' exists and is configured...`);
       let current = await this.getSessionStatus(sessionName);
+
+      // If session is stuck in STARTING for too long, recreate it
+      if (current.status === 'STARTING') {
+        console.warn(`[WAHA Service] ⚠️ Session '${sessionName}' stuck in STARTING state, checking if we should recreate...`);
+        // Try waiting briefly first
+        try {
+          await this.waitForSessionState(sessionName, ['SCAN_QR_CODE', 'WORKING', 'FAILED'], 5000); // 5 second check
+          current = await this.getSessionStatus(sessionName);
+          console.log(`[WAHA Service] Session transitioned to: ${current.status}`);
+        } catch (waitErr) {
+          console.warn(`[WAHA Service] Session still STARTING after 5s, forcing recreation...`);
+          await this.stopSession(sessionName);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          await this.startSession(sessionName);
+          current = await this.getSessionStatus(sessionName);
+        }
+      }
+
       if (current.status === 'STOPPED' || current.status === 'FAILED') {
+        console.log(`[WAHA Service] Session is ${current.status}, starting...`);
         await this.startSession(sessionName);
         current = await this.getSessionStatus(sessionName);
       }
-      
+
       // Wait for session to reach SCAN_QR_CODE state with longer timeout
-      console.log(`[WAHA Service] Waiting for session '${sessionName}' to reach QR ready state...`);
+      console.log(`[WAHA Service] Waiting for session '${sessionName}' to reach QR ready state (current: ${current.status})...`);
       await this.waitForSessionState(sessionName, ['SCAN_QR_CODE'], 30000); // 30 seconds for stability
       
       // Get QR code using WAHA's proper endpoint: GET /api/{session}/auth/qr (per official docs)
