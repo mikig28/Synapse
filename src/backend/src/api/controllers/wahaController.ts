@@ -296,14 +296,28 @@ export const sendMessage = async (req: AuthenticatedRequest, res: Response) => {
     }
 
     const wahaService = await getWAHAServiceForUser(userId);
+
+    // Check if session is authenticated before attempting to send message
+    const sessionStatus = await wahaService.getStatus();
+    if (sessionStatus.status !== 'WORKING') {
+      console.log(`[WAHA Controller] Session not in WORKING state (${sessionStatus.status}), cannot send message`);
+      return res.status(400).json({
+        success: false,
+        error: sessionStatus.status === 'SCAN_QR_CODE'
+          ? 'Please scan QR code to authenticate before sending messages'
+          : `Session is ${sessionStatus.status}, cannot send messages`,
+        sessionStatus: sessionStatus.status
+      });
+    }
+
     const messageText = message || text;
-    
+
     console.log('[WAHA Controller] Attempting to send message:', {
       chatId,
       messageLength: messageText.length,
       messagePreview: messageText.substring(0, 50) + (messageText.length > 50 ? '...' : '')
     });
-    
+
     const result = await wahaService.sendMessage(chatId, messageText);
     
     console.log('[WAHA Controller] ✅ Message sent successfully:', result);
@@ -343,6 +357,20 @@ export const sendMedia = async (req: AuthenticatedRequest, res: Response) => {
 
     const userId = req.user!.id;
     const wahaService = await getWAHAServiceForUser(userId);
+
+    // Check if session is authenticated before attempting to send media
+    const sessionStatus = await wahaService.getStatus();
+    if (sessionStatus.status !== 'WORKING') {
+      console.log(`[WAHA Controller] Session not in WORKING state (${sessionStatus.status}), cannot send media`);
+      return res.status(400).json({
+        success: false,
+        error: sessionStatus.status === 'SCAN_QR_CODE'
+          ? 'Please scan QR code to authenticate before sending media'
+          : `Session is ${sessionStatus.status}, cannot send media`,
+        sessionStatus: sessionStatus.status
+      });
+    }
+
     const result = await wahaService.sendMedia(chatId, mediaUrl, caption);
     
     res.json({
@@ -383,12 +411,28 @@ export const getChats = async (req: AuthenticatedRequest, res: Response) => {
     const sessionStatus = await wahaService.getStatus();
     const isWORKING = sessionStatus.status === 'WORKING';
 
+    // Don't attempt to fetch chats if session is not authenticated
+    if (!isWORKING) {
+      console.log(`[WAHA Controller] Session not in WORKING state (${sessionStatus.status}), returning empty chats`);
+      return res.json({
+        success: true,
+        data: [],
+        meta: {
+          count: 0,
+          syncing: sessionStatus.status === 'STARTING' || sessionStatus.status === 'SCAN_QR_CODE',
+          message: sessionStatus.status === 'SCAN_QR_CODE'
+            ? 'Please scan QR code to authenticate'
+            : `Session is ${sessionStatus.status}, waiting for authentication`
+        }
+      });
+    }
+
     // Retry logic for WEBJS initial sync period
     // During initial sync after QR authentication, chats may timeout
     // We retry with exponential backoff to allow sync to complete
     let chats: any[] = [];
     let lastError: Error | null = null;
-    const maxRetries = isWORKING ? 3 : 0; // Only retry if session is WORKING
+    const maxRetries = 3; // Retry up to 3 times since we know session is WORKING
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
@@ -480,7 +524,23 @@ export const getMessages = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const wahaService = await getWAHAServiceForUser(userId);
-    
+
+    // Check if session is authenticated before attempting to fetch messages
+    const sessionStatus = await wahaService.getStatus();
+    if (sessionStatus.status !== 'WORKING') {
+      console.log(`[WAHA Controller] Session not in WORKING state (${sessionStatus.status}), cannot fetch messages`);
+      return res.json({
+        success: true,
+        data: [],
+        meta: {
+          syncing: sessionStatus.status === 'STARTING' || sessionStatus.status === 'SCAN_QR_CODE',
+          message: sessionStatus.status === 'SCAN_QR_CODE'
+            ? 'Please scan QR code to authenticate'
+            : `Session is ${sessionStatus.status}, waiting for authentication`
+        }
+      });
+    }
+
     // Support both URL param and query param for chatId
     let chatId: string | undefined = req.params.chatId || (req.query.chatId as string | undefined);
     const limit = parseInt(req.query.limit as string) || 50;
@@ -874,6 +934,28 @@ export const getGroups = async (req: AuthenticatedRequest, res: Response) => {
     const sessionStatus = await wahaService.getStatus();
     const isWORKING = sessionStatus.status === 'WORKING';
 
+    // Don't attempt to fetch groups if session is not authenticated
+    if (!isWORKING) {
+      console.log(`[WAHA Controller] Session not in WORKING state (${sessionStatus.status}), returning empty groups`);
+      return res.json({
+        success: true,
+        data: [],
+        pagination: {
+          limit: options.limit,
+          offset: options.offset,
+          total: 0,
+          hasMore: false
+        },
+        metadata: {
+          groupsWithAdminRole: 0,
+          syncing: sessionStatus.status === 'STARTING' || sessionStatus.status === 'SCAN_QR_CODE',
+          message: sessionStatus.status === 'SCAN_QR_CODE'
+            ? 'Please scan QR code to authenticate'
+            : `Session is ${sessionStatus.status}, waiting for authentication`
+        }
+      });
+    }
+
     // Retry logic for WEBJS initial sync period
     let groups: any[] = [];
     const maxRetries = isWORKING ? 3 : 0; // Only retry if session is WORKING
@@ -979,13 +1061,36 @@ export const getPrivateChats = async (req: AuthenticatedRequest, res: Response) 
   try {
     const userId = req.user!.id;
     const wahaService = await getWAHAServiceForUser(userId);
-    
+
+    // Check if session is authenticated before attempting to fetch chats
+    const sessionStatus = await wahaService.getStatus();
+    if (sessionStatus.status !== 'WORKING') {
+      console.log(`[WAHA Controller] Session not in WORKING state (${sessionStatus.status}), returning empty private chats`);
+      return res.json({
+        success: true,
+        data: [],
+        pagination: {
+          limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
+          offset: req.query.offset ? parseInt(req.query.offset as string) : 0,
+          total: 0,
+          hasMore: false
+        },
+        meta: {
+          count: 0,
+          syncing: sessionStatus.status === 'STARTING' || sessionStatus.status === 'SCAN_QR_CODE',
+          message: sessionStatus.status === 'SCAN_QR_CODE'
+            ? 'Please scan QR code to authenticate'
+            : `Session is ${sessionStatus.status}, waiting for authentication`
+        }
+      });
+    }
+
     // Parse pagination/sorting options
     const limit = req.query.limit ? Math.max(1, Math.min(500, parseInt(req.query.limit as string))) : undefined;
     const offset = req.query.offset ? Math.max(0, parseInt(req.query.offset as string)) : undefined;
     const sortBy = 'id';
     const sortOrder = (req.query.sortOrder as 'desc' | 'asc' | undefined) || 'desc';
-    
+
     console.log('[WAHA Controller] Fetching private chats for user', userId, '...', { limit, offset, sortBy, sortOrder });
     const startTime = Date.now();
 
