@@ -35,8 +35,9 @@ class WhatsAppSessionManager extends EventEmitter {
   private static instance: WhatsAppSessionManager | null = null;
   private sessions: Map<string, UserSession> = new Map();
   private cleanupInterval: NodeJS.Timeout | null = null;
-  private readonly CLEANUP_INTERVAL = 15 * 60 * 1000; // 15 minutes (more frequent for memory management)
-  private readonly SESSION_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours of inactivity (reduced from 24h for WAHA memory constraints)
+  private readonly CLEANUP_INTERVAL = 15 * 60 * 1000; // 15 minutes
+  private readonly INACTIVE_TIMEOUT = 48 * 60 * 60 * 1000; // 48 hours of inactivity (only cleanup truly inactive users)
+  private readonly MAX_CONCURRENT_SESSIONS = 10; // Limit total sessions to control memory
 
   private constructor() {
     super();
@@ -283,7 +284,13 @@ class WhatsAppSessionManager extends EventEmitter {
   }
 
   /**
-   * Clean up inactive sessions
+   * Clean up inactive sessions - SMART CLEANUP STRATEGY
+   *
+   * Strategy:
+   * 1. NEVER cleanup WORKING sessions (users expect persistent WhatsApp connection)
+   * 2. Cleanup FAILED/STOPPED sessions immediately (they're broken anyway)
+   * 3. Cleanup truly inactive sessions (48h+ with no activity)
+   * 4. If over MAX_CONCURRENT_SESSIONS, remove oldest inactive sessions
    */
   private async cleanupInactiveSessions(): Promise<void> {
     try {
@@ -295,20 +302,52 @@ class WhatsAppSessionManager extends EventEmitter {
       const memoryUsage = process.memoryUsage();
       logger.info(`[WhatsAppSessionManager] Cleanup check: ${totalSessions} active sessions, Memory: ${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB used`);
 
+      // Strategy 1: Clean up FAILED/STOPPED sessions immediately (they're broken)
       for (const [userId, session] of this.sessions.entries()) {
-        const inactiveTime = now - session.lastActivity.getTime();
-
-        if (inactiveTime > this.SESSION_TIMEOUT) {
+        if (session.status === 'FAILED' || session.status === 'STOPPED') {
           sessionsToCleanup.push(userId);
-          logger.info(`[WhatsAppSessionManager] Marking session for cleanup: ${userId} (inactive for ${Math.round(inactiveTime / 1000 / 60)} minutes, status: ${session.status})`);
+          logger.info(`[WhatsAppSessionManager] Marking broken session for cleanup: ${userId} (status: ${session.status})`);
         }
       }
 
-      // Clean up marked sessions
+      // Strategy 2: Clean up truly inactive sessions (48h+ with no activity)
+      // BUT: Never cleanup WORKING sessions regardless of inactivity (users expect persistence)
+      for (const [userId, session] of this.sessions.entries()) {
+        const inactiveTime = now - session.lastActivity.getTime();
+
+        if (inactiveTime > this.INACTIVE_TIMEOUT && session.status !== 'WORKING') {
+          if (!sessionsToCleanup.includes(userId)) {
+            sessionsToCleanup.push(userId);
+            logger.info(`[WhatsAppSessionManager] Marking truly inactive session for cleanup: ${userId} (inactive for ${Math.round(inactiveTime / 1000 / 60 / 60)} hours, status: ${session.status})`);
+          }
+        }
+      }
+
+      // Strategy 3: If over MAX_CONCURRENT_SESSIONS, remove oldest inactive sessions
+      // Prioritize keeping WORKING sessions
+      if (this.sessions.size > this.MAX_CONCURRENT_SESSIONS) {
+        logger.warn(`[WhatsAppSessionManager] Over session limit (${this.sessions.size}/${this.MAX_CONCURRENT_SESSIONS}), cleaning up oldest inactive sessions`);
+
+        // Get all sessions sorted by last activity (oldest first), excluding WORKING sessions
+        const inactiveSessions = Array.from(this.sessions.entries())
+          .filter(([userId, session]) => session.status !== 'WORKING' && !sessionsToCleanup.includes(userId))
+          .sort(([, a], [, b]) => a.lastActivity.getTime() - b.lastActivity.getTime());
+
+        const excessCount = this.sessions.size - this.MAX_CONCURRENT_SESSIONS;
+        for (let i = 0; i < Math.min(excessCount, inactiveSessions.length); i++) {
+          const [userId] = inactiveSessions[i];
+          if (!sessionsToCleanup.includes(userId)) {
+            sessionsToCleanup.push(userId);
+            logger.info(`[WhatsAppSessionManager] Marking excess session for cleanup: ${userId}`);
+          }
+        }
+      }
+
+      // Execute cleanup
       for (const userId of sessionsToCleanup) {
         try {
           await this.stopSessionForUser(userId);
-          logger.info(`[WhatsAppSessionManager] Cleaned up inactive session for user ${userId}`);
+          logger.info(`[WhatsAppSessionManager] Cleaned up session for user ${userId}`);
         } catch (error) {
           logger.error(`[WhatsAppSessionManager] Error cleaning up session for user ${userId}:`, error);
         }
@@ -319,11 +358,11 @@ class WhatsAppSessionManager extends EventEmitter {
         logger.info(`[WhatsAppSessionManager] Cleanup complete: ${sessionsToCleanup.length} sessions cleaned, ${totalSessions - sessionsToCleanup.length} remaining, Memory: ${Math.round(memoryAfter.heapUsed / 1024 / 1024)}MB used`);
       }
 
-      // If memory is still high (>80% of heap limit), trigger force cleanup
+      // Emergency memory cleanup if still high
       const heapUsedPercent = (memoryUsage.heapUsed / memoryUsage.heapTotal) * 100;
-      if (heapUsedPercent > 80 && this.sessions.size > 3) {
-        logger.warn(`[WhatsAppSessionManager] High memory usage detected (${Math.round(heapUsedPercent)}%), triggering force cleanup`);
-        await this.forceCleanupOldestSessions(3); // Keep only 3 most recent sessions
+      if (heapUsedPercent > 85 && this.sessions.size > 5) {
+        logger.warn(`[WhatsAppSessionManager] CRITICAL memory usage (${Math.round(heapUsedPercent)}%), triggering emergency cleanup`);
+        await this.forceCleanupOldestSessions(5); // Keep only 5 most recent sessions in emergency
       }
     } catch (error) {
       logger.error('[WhatsAppSessionManager] Error during cleanup routine:', error);
