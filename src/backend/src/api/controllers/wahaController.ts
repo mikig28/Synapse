@@ -360,12 +360,13 @@ export const sendMedia = async (req: AuthenticatedRequest, res: Response) => {
 
 /**
  * Get all chats with WAHA-compliant pagination and filtering
+ * Includes retry logic for WEBJS initial sync period
  */
 export const getChats = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const wahaService = await getWAHAServiceForUser(userId);
-    
+
     // Parse WAHA-compliant query parameters
     const options = {
       limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
@@ -374,16 +375,57 @@ export const getChats = async (req: AuthenticatedRequest, res: Response) => {
       sortOrder: req.query.sortOrder as 'desc' | 'asc' | undefined,
       exclude: req.query.exclude ? (req.query.exclude as string).split(',') : undefined
     };
-    
+
     console.log('[WAHA Controller] Getting chats for user', userId, 'with options:', options);
     const startTime = Date.now();
-    
-    // Get chats from WAHA service (live data)
-    const chats = await wahaService.getChats(undefined, options); // Use instance's defaultSession
+
+    // Check if session is in WORKING state (for retry logic)
+    const sessionStatus = await wahaService.getStatus();
+    const isWORKING = sessionStatus.status === 'WORKING';
+
+    // Retry logic for WEBJS initial sync period
+    // During initial sync after QR authentication, chats may timeout
+    // We retry with exponential backoff to allow sync to complete
+    let chats: any[] = [];
+    let lastError: Error | null = null;
+    const maxRetries = isWORKING ? 3 : 0; // Only retry if session is WORKING
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        if (attempt > 0) {
+          // Exponential backoff: 5s, 10s, 20s between retries
+          const delay = Math.pow(2, attempt - 1) * 5000;
+          console.log(`[WAHA Controller] Retry attempt ${attempt}/${maxRetries} after ${delay}ms delay...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+
+        // Get chats from WAHA service (live data)
+        chats = await wahaService.getChats(undefined, options); // Use instance's defaultSession
+
+        // Success - break retry loop
+        const duration = Date.now() - startTime;
+        console.log(`[WAHA Controller] ✅ Successfully fetched ${chats.length} chats in ${duration}ms (attempt ${attempt + 1})`);
+        break;
+
+      } catch (error: any) {
+        lastError = error;
+
+        // Only retry on timeout errors when session is WORKING
+        const isTimeout = error.message?.includes('timeout');
+        const shouldRetry = isTimeout && isWORKING && attempt < maxRetries;
+
+        if (shouldRetry) {
+          console.log(`[WAHA Controller] ⚠️ Timeout on attempt ${attempt + 1}/${maxRetries + 1}. Session is WORKING, likely still syncing. Retrying...`);
+          continue; // Try again
+        } else {
+          // Don't retry - throw error
+          throw error;
+        }
+      }
+    }
+
     const duration = Date.now() - startTime;
-    
-    console.log(`[WAHA Controller] ✅ Successfully fetched ${chats.length} chats in ${duration}ms`);
-    
+
     res.json({
       success: true,
       data: chats,
@@ -395,20 +437,21 @@ export const getChats = async (req: AuthenticatedRequest, res: Response) => {
       },
       meta: {
         count: chats.length,
-        loadTime: duration
+        loadTime: duration,
+        syncing: chats.length === 0 && isWORKING // Indicate if sync might still be in progress
       }
     });
   } catch (error: any) {
     console.error('[WAHA Controller] Error getting chats:', error);
-    
+
     let statusCode = 500;
     let errorMessage = 'Failed to get chats';
     let suggestion = 'Please try again or check your connection';
-    
+
     if (error.message?.includes('timeout')) {
       statusCode = 408;
       errorMessage = 'Chat loading timed out';
-      suggestion = 'The WhatsApp service is taking longer than expected. Please try again in a moment.';
+      suggestion = 'WhatsApp is still syncing your chats. This can take 5-10 minutes after first connection. Please wait a moment and try again.';
     } else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
       statusCode = 503;
       errorMessage = 'WhatsApp service unavailable';
@@ -418,7 +461,7 @@ export const getChats = async (req: AuthenticatedRequest, res: Response) => {
       errorMessage = 'WhatsApp authentication required';
       suggestion = 'Please authenticate with WhatsApp first.';
     }
-    
+
     res.status(statusCode).json({
       success: false,
       error: errorMessage,
@@ -814,7 +857,7 @@ export const getGroups = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const wahaService = await getWAHAServiceForUser(userId);
-    
+
     // Parse WAHA-compliant query parameters for groups
     const options = {
       limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
@@ -823,22 +866,60 @@ export const getGroups = async (req: AuthenticatedRequest, res: Response) => {
       sortOrder: req.query.sortOrder as 'desc' | 'asc' | undefined,
       exclude: req.query.exclude ? (req.query.exclude as string).split(',') : undefined
     };
-    
+
     console.log('[WAHA Controller] Getting groups for user', userId, 'with options:', options);
     const startTime = Date.now();
-    
-    // Get groups from WAHA service (live data)
-    let groups = await wahaService.getGroups(undefined, options); // Use instance's defaultSession
-    if (!groups || groups.length === 0) {
-      console.log('[WAHA Controller] No groups found, trying refresh...');
-      const refreshResult = await wahaService.refreshGroups();
-      console.log('[WAHA Controller] Group refresh result:', refreshResult);
-      groups = await wahaService.getGroups(undefined, options); // Use instance's defaultSession
+
+    // Check if session is in WORKING state (for retry logic)
+    const sessionStatus = await wahaService.getStatus();
+    const isWORKING = sessionStatus.status === 'WORKING';
+
+    // Retry logic for WEBJS initial sync period
+    let groups: any[] = [];
+    const maxRetries = isWORKING ? 3 : 0; // Only retry if session is WORKING
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        if (attempt > 0) {
+          // Exponential backoff: 5s, 10s, 20s between retries
+          const delay = Math.pow(2, attempt - 1) * 5000;
+          console.log(`[WAHA Controller] Retry attempt ${attempt}/${maxRetries} after ${delay}ms delay...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+
+        // Get groups from WAHA service (live data)
+        groups = await wahaService.getGroups(undefined, options); // Use instance's defaultSession
+
+        // If no groups found on first attempt, try refresh
+        if (!groups || groups.length === 0 && attempt === 0) {
+          console.log('[WAHA Controller] No groups found, trying refresh...');
+          const refreshResult = await wahaService.refreshGroups();
+          console.log('[WAHA Controller] Group refresh result:', refreshResult);
+          groups = await wahaService.getGroups(undefined, options); // Use instance's defaultSession
+        }
+
+        // Success - break retry loop
+        const duration = Date.now() - startTime;
+        console.log(`[WAHA Controller] ✅ Successfully fetched ${groups.length} groups in ${duration}ms (attempt ${attempt + 1})`);
+        break;
+
+      } catch (error: any) {
+        // Only retry on timeout errors when session is WORKING
+        const isTimeout = error.message?.includes('timeout');
+        const shouldRetry = isTimeout && isWORKING && attempt < maxRetries;
+
+        if (shouldRetry) {
+          console.log(`[WAHA Controller] ⚠️ Timeout on attempt ${attempt + 1}/${maxRetries + 1}. Session is WORKING, likely still syncing. Retrying...`);
+          continue; // Try again
+        } else {
+          // Don't retry - throw error
+          throw error;
+        }
+      }
     }
-    
+
     const duration = Date.now() - startTime;
-    console.log(`[WAHA Controller] ✅ Successfully fetched ${groups.length} groups in ${duration}ms`);
-    
+
     res.json({
       success: true,
       data: groups,
@@ -855,20 +936,21 @@ export const getGroups = async (req: AuthenticatedRequest, res: Response) => {
       },
       meta: {
         count: groups.length,
-        loadTime: duration
+        loadTime: duration,
+        syncing: groups.length === 0 && isWORKING // Indicate if sync might still be in progress
       }
     });
   } catch (error: any) {
     console.error('[WAHA Controller] Error getting groups:', error);
-    
+
     let statusCode = 500;
     let errorMessage = 'Failed to get WhatsApp groups';
     let suggestion = 'Please try again or check your connection';
-    
+
     if (error.message?.includes('timeout')) {
       statusCode = 408;
       errorMessage = 'Group loading timed out';
-      suggestion = 'The WhatsApp service is taking longer than expected. Please try again in a moment.';
+      suggestion = 'WhatsApp is still syncing your groups. This can take 5-10 minutes after first connection. Please wait a moment and try again.';
     } else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
       statusCode = 503;
       errorMessage = 'WhatsApp service unavailable';
@@ -878,7 +960,7 @@ export const getGroups = async (req: AuthenticatedRequest, res: Response) => {
       errorMessage = 'WhatsApp authentication required';
       suggestion = 'Please authenticate with WhatsApp first.';
     }
-    
+
     res.status(statusCode).json({
       success: false,
       error: errorMessage,
