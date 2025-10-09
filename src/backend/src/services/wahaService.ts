@@ -934,7 +934,7 @@ class WAHAService extends EventEmitter {
         
         // Add WEBJS-specific configuration to help with initialization
         if (engine === 'WEBJS') {
-          // WAHA Plus uses a different format for WEBJS configuration
+          // Try multiple configuration formats for better compatibility
           createPayload.config.webjs = {
             headless: true,
             puppeteer: {
@@ -947,11 +947,25 @@ class WAHAService extends EventEmitter {
                 '--no-zygote',
                 '--disable-gpu',
                 '--disable-web-security',
-                '--disable-features=VizDisplayCompositor'
+                '--disable-features=VizDisplayCompositor',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding',
+                '--disable-extensions',
+                '--disable-plugins',
+                '--disable-default-apps',
+                '--disable-sync',
+                '--disable-translate',
+                '--hide-scrollbars',
+                '--mute-audio',
+                '--no-default-browser-check',
+                '--no-pings',
+                '--no-zygote',
+                '--single-process'
               ]
             }
           };
-          console.log(`[WAHA Service] 🔧 Added WEBJS configuration for better initialization`);
+          console.log(`[WAHA Service] 🔧 Added comprehensive WEBJS configuration for better initialization`);
         }
 
         console.log(`[WAHA Service] Making POST request to /api/sessions with payload:`, createPayload);
@@ -1333,6 +1347,13 @@ class WAHAService extends EventEmitter {
           try {
             const healthCheck = await this.healthCheck();
             console.log(`[WAHA Service] WAHA service health before recreation:`, healthCheck);
+            
+            // If WAHA service is healthy but sessions keep getting stuck, this might be a resource issue
+            if (healthCheck.healthy) {
+              console.warn(`[WAHA Service] ⚠️ WAHA service is healthy but sessions keep getting stuck in STARTING state`);
+              console.warn(`[WAHA Service] This might indicate resource constraints or WEBJS engine issues`);
+              console.warn(`[WAHA Service] Consider checking WAHA service logs for Puppeteer/Chrome errors`);
+            }
           } catch (healthError) {
             console.error(`[WAHA Service] ❌ WAHA service health check failed before recreation:`, healthError);
             throw new Error(`WAHA service is not healthy and cannot generate QR codes: ${healthError.message}`);
@@ -1409,28 +1430,47 @@ class WAHAService extends EventEmitter {
           console.warn(`[WAHA Service] 🔍 Could not get detailed session info:`, detailError.message);
         }
         
-        // Try to get QR code even if session is in STARTING state (some WAHA versions allow this)
-        console.log(`[WAHA Service] 🔍 Attempting to get QR code even though session is in STARTING state...`);
+        // Check if this is a persistent STARTING issue - try to force session to SCAN_QR_CODE
+        console.log(`[WAHA Service] 🔍 Attempting to force session to SCAN_QR_CODE state...`);
         try {
-          const qrResponse = await this.httpClient.get(`/api/${sessionName}/auth/qr?format=image`, {
-            responseType: 'arraybuffer',
-            timeout: 10000,
-            validateStatus: (status: number) => status === 200,
-            headers: {
-              'Accept': 'image/png'
-            }
-          });
+          // Try to stop and start the session to force state transition
+          console.log(`[WAHA Service] 🔄 Stopping session to force state reset...`);
+          await this.httpClient.post(`/api/sessions/${sessionName}/stop`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
           
-          if (qrResponse.data && qrResponse.data.byteLength > 0) {
-            const base64 = Buffer.from(qrResponse.data).toString('base64');
-            console.log(`[WAHA Service] ✅ QR code retrieved from STARTING session!`);
-            const dataUrl = `data:image/png;base64,${base64}`;
-            this.lastQrDataUrl = dataUrl;
-            this.lastQrGeneratedAt = Date.now();
-            return dataUrl;
+          console.log(`[WAHA Service] 🔄 Starting session to force SCAN_QR_CODE state...`);
+          await this.httpClient.post(`/api/sessions/${sessionName}/start`);
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          
+          // Check if session is now in SCAN_QR_CODE state
+          const resetStatus = await this.getSessionStatus(sessionName);
+          console.log(`[WAHA Service] 🔍 Session status after force reset: ${resetStatus.status}`);
+          
+          if (resetStatus.status === 'SCAN_QR_CODE') {
+            console.log(`[WAHA Service] ✅ Force reset successful! Session now ready for QR code.`);
+            // Try to get QR code now
+            try {
+              const qrResponse = await this.httpClient.get(`/api/${sessionName}/auth/qr?format=image`, {
+                responseType: 'arraybuffer',
+                timeout: 10000,
+                validateStatus: (status: number) => status === 200,
+                headers: { 'Accept': 'image/png' }
+              });
+              
+              if (qrResponse.data && qrResponse.data.byteLength > 0) {
+                const base64 = Buffer.from(qrResponse.data).toString('base64');
+                console.log(`[WAHA Service] ✅ QR code retrieved after force reset!`);
+                const dataUrl = `data:image/png;base64,${base64}`;
+                this.lastQrDataUrl = dataUrl;
+                this.lastQrGeneratedAt = Date.now();
+                return dataUrl;
+              }
+            } catch (qrError) {
+              console.warn(`[WAHA Service] 🔍 QR fetch after force reset failed:`, qrError.message);
+            }
           }
-        } catch (qrError) {
-          console.warn(`[WAHA Service] 🔍 Could not get QR from STARTING session:`, qrError.message);
+        } catch (resetError) {
+          console.warn(`[WAHA Service] 🔍 Force reset failed:`, resetError.message);
         }
       }
       
