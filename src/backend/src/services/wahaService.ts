@@ -934,17 +934,22 @@ class WAHAService extends EventEmitter {
         
         // Add WEBJS-specific configuration to help with initialization
         if (engine === 'WEBJS') {
+          // WAHA Plus uses a different format for WEBJS configuration
           createPayload.config.webjs = {
             headless: true,
-            args: [
-              '--no-sandbox',
-              '--disable-setuid-sandbox',
-              '--disable-dev-shm-usage',
-              '--disable-accelerated-2d-canvas',
-              '--no-first-run',
-              '--no-zygote',
-              '--disable-gpu'
-            ]
+            puppeteer: {
+              args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu',
+                '--disable-web-security',
+                '--disable-features=VizDisplayCompositor'
+              ]
+            }
           };
           console.log(`[WAHA Service] 🔧 Added WEBJS configuration for better initialization`);
         }
@@ -1248,12 +1253,40 @@ class WAHAService extends EventEmitter {
       
       let current = await this.getSessionStatus(sessionName);
 
-      // If session is stuck in STARTING for too long, delete and recreate it
+      // If session is stuck in STARTING for too long, try different approaches
       if (current.status === 'STARTING') {
-        console.warn(`[WAHA Service] ⚠️ Session '${sessionName}' stuck in STARTING state, checking if we should recreate...`);
-        // Try waiting briefly first
+        console.warn(`[WAHA Service] ⚠️ Session '${sessionName}' stuck in STARTING state, trying multiple approaches...`);
+        
+        // First, try to restart the session instead of waiting
         try {
-          await this.waitForSessionState(sessionName, ['SCAN_QR_CODE', 'WORKING', 'FAILED'], 15000); // 15 second check - WAHA needs more time
+          console.log(`[WAHA Service] 🔄 Attempting to restart stuck session...`);
+          await this.httpClient.post(`/api/sessions/${sessionName}/restart`);
+          console.log(`[WAHA Service] ✅ Session restart initiated`);
+          
+          // Wait a bit for restart to take effect
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          current = await this.getSessionStatus(sessionName);
+          console.log(`[WAHA Service] Session status after restart: ${current.status}`);
+          
+          if (current.status === 'SCAN_QR_CODE') {
+            console.log(`[WAHA Service] ✅ Session successfully restarted and ready for QR!`);
+            // Try to get QR code now
+            try {
+              const qrResponse = await this.httpClient.get(`/api/sessions/${sessionName}/qr-code`);
+              if (qrResponse.data && qrResponse.data.qr) {
+                return qrResponse.data.qr;
+              }
+            } catch (qrError) {
+              console.warn(`[WAHA Service] QR fetch after restart failed:`, qrError.message);
+            }
+          }
+        } catch (restartError) {
+          console.warn(`[WAHA Service] ⚠️ Session restart failed:`, restartError.message);
+        }
+        
+        // If restart didn't work, try waiting with timeout
+        try {
+          await this.waitForSessionState(sessionName, ['SCAN_QR_CODE', 'WORKING', 'FAILED'], 10000); // Reduced to 10s since we tried restart first
           current = await this.getSessionStatus(sessionName);
           console.log(`[WAHA Service] Session transitioned to: ${current.status}`);
         } catch (waitErr) {
@@ -1262,21 +1295,41 @@ class WAHAService extends EventEmitter {
           // Try to force QR code generation before recreating
           try {
             console.log(`[WAHA Service] 🔄 Attempting to force QR code generation for stuck session...`);
-            const qrResponse = await this.httpClient.get(`/api/sessions/${sessionName}/qr`);
+            // Try the correct WAHA API endpoint for QR code
+            const qrResponse = await this.httpClient.get(`/api/sessions/${sessionName}/qr-code`);
             if (qrResponse.data && qrResponse.data.qr) {
               console.log(`[WAHA Service] ✅ Successfully forced QR code generation!`);
               return qrResponse.data.qr;
             }
           } catch (qrError) {
-            console.warn(`[WAHA Service] ⚠️ Force QR generation failed:`, qrError);
+            console.warn(`[WAHA Service] ⚠️ Force QR generation failed, trying alternative endpoint:`, qrError.message);
+            // Try alternative endpoint
+            try {
+              const altQrResponse = await this.httpClient.get(`/api/${sessionName}/qr`);
+              if (altQrResponse.data && altQrResponse.data.qr) {
+                console.log(`[WAHA Service] ✅ Successfully forced QR code generation via alternative endpoint!`);
+                return altQrResponse.data.qr;
+              }
+            } catch (altError) {
+              console.warn(`[WAHA Service] ⚠️ Alternative QR endpoint also failed:`, altError.message);
+            }
           }
           
-          console.warn(`[WAHA Service] Force QR failed, proceeding with complete recreation (delete + create)...`);
+          console.warn(`[WAHA Service] All approaches failed, proceeding with complete recreation (delete + create)...`);
+
+          // Check if WAHA service itself might be having issues
+          try {
+            const healthCheck = await this.healthCheck();
+            console.log(`[WAHA Service] WAHA service health before recreation:`, healthCheck);
+          } catch (healthError) {
+            console.error(`[WAHA Service] ❌ WAHA service health check failed before recreation:`, healthError);
+            throw new Error(`WAHA service is not healthy and cannot generate QR codes: ${healthError.message}`);
+          }
 
           // Step 1: Try to stop the session first
           try {
             await this.stopSession(sessionName);
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Increased wait time
           } catch (stopErr: any) {
             console.warn(`[WAHA Service] Could not stop session (may already be stopped): ${stopErr.message}`);
           }
