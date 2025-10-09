@@ -1272,7 +1272,7 @@ class WAHAService extends EventEmitter {
             console.log(`[WAHA Service] ✅ Session successfully restarted and ready for QR!`);
             // Try to get QR code now
             try {
-              const qrResponse = await this.httpClient.get(`/api/sessions/${sessionName}/qr-code`);
+              const qrResponse = await this.httpClient.get(`/api/${sessionName}/auth/qr`);
               if (qrResponse.data && qrResponse.data.qr) {
                 return qrResponse.data.qr;
               }
@@ -1296,7 +1296,7 @@ class WAHAService extends EventEmitter {
           try {
             console.log(`[WAHA Service] 🔄 Attempting to force QR code generation for stuck session...`);
             // Try the correct WAHA API endpoint for QR code
-            const qrResponse = await this.httpClient.get(`/api/sessions/${sessionName}/qr-code`);
+            const qrResponse = await this.httpClient.get(`/api/${sessionName}/auth/qr`);
             if (qrResponse.data && qrResponse.data.qr) {
               console.log(`[WAHA Service] ✅ Successfully forced QR code generation!`);
               return qrResponse.data.qr;
@@ -1381,18 +1381,19 @@ class WAHAService extends EventEmitter {
       await this.waitForSessionState(sessionName, ['SCAN_QR_CODE'], 30000); // 30 seconds for stability
       
       // Get QR code using WAHA's proper endpoint: GET /api/{session}/auth/qr (per official docs)
-      console.log(`[WAHA Service] Requesting QR code from GET /api/sessions/${sessionName}/auth/qr (with legacy fallback)`);
+      console.log(`[WAHA Service] Requesting QR code from GET /api/${sessionName}/auth/qr`);
       let response;
       try {
-        response = await this.httpClient.get(`/api/sessions/${sessionName}/auth/qr`, {
+        response = await this.httpClient.get(`/api/${sessionName}/auth/qr`, {
           responseType: 'arraybuffer',
           timeout: 15000, // 15 second timeout for QR generation
           validateStatus: (status: number) => status === 200 // Only accept 200 status
         });
       } catch (qrErr: any) {
         if (qrErr?.response?.status === 404) {
-          console.warn(`[WAHA Service] QR 404 on /api/sessions/${sessionName}/auth/qr. Trying legacy /api/${sessionName}/auth/qr...`);
-          response = await this.httpClient.get(`/api/${sessionName}/auth/qr`, {
+          console.warn(`[WAHA Service] QR 404 on /api/${sessionName}/auth/qr. Trying alternative endpoint...`);
+          // Try alternative endpoint format
+          response = await this.httpClient.get(`/api/sessions/${sessionName}/qr`, {
             responseType: 'arraybuffer',
             timeout: 15000,
             validateStatus: (status: number) => status === 200
