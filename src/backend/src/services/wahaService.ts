@@ -1272,9 +1272,13 @@ class WAHAService extends EventEmitter {
             console.log(`[WAHA Service] ✅ Session successfully restarted and ready for QR!`);
             // Try to get QR code now
             try {
-              const qrResponse = await this.httpClient.get(`/api/${sessionName}/auth/qr`);
-              if (qrResponse.data && qrResponse.data.qr) {
-                return qrResponse.data.qr;
+              const qrResponse = await this.httpClient.get(`/api/${sessionName}/auth/qr?format=image`, {
+                responseType: 'arraybuffer',
+                headers: { 'Accept': 'image/png' }
+              });
+              if (qrResponse.data && qrResponse.data.byteLength > 0) {
+                const base64 = Buffer.from(qrResponse.data).toString('base64');
+                return `data:image/png;base64,${base64}`;
               }
             } catch (qrError) {
               console.warn(`[WAHA Service] QR fetch after restart failed:`, qrError.message);
@@ -1296,19 +1300,27 @@ class WAHAService extends EventEmitter {
           try {
             console.log(`[WAHA Service] 🔄 Attempting to force QR code generation for stuck session...`);
             // Try the correct WAHA API endpoint for QR code
-            const qrResponse = await this.httpClient.get(`/api/${sessionName}/auth/qr`);
-            if (qrResponse.data && qrResponse.data.qr) {
+            const qrResponse = await this.httpClient.get(`/api/${sessionName}/auth/qr?format=image`, {
+              responseType: 'arraybuffer',
+              headers: { 'Accept': 'image/png' }
+            });
+            if (qrResponse.data && qrResponse.data.byteLength > 0) {
+              const base64 = Buffer.from(qrResponse.data).toString('base64');
               console.log(`[WAHA Service] ✅ Successfully forced QR code generation!`);
-              return qrResponse.data.qr;
+              return `data:image/png;base64,${base64}`;
             }
           } catch (qrError) {
             console.warn(`[WAHA Service] ⚠️ Force QR generation failed, trying alternative endpoint:`, qrError.message);
             // Try alternative endpoint
             try {
-              const altQrResponse = await this.httpClient.get(`/api/${sessionName}/qr`);
-              if (altQrResponse.data && altQrResponse.data.qr) {
+              const altQrResponse = await this.httpClient.get(`/api/${sessionName}/qr`, {
+                responseType: 'arraybuffer',
+                headers: { 'Accept': 'image/png' }
+              });
+              if (altQrResponse.data && altQrResponse.data.byteLength > 0) {
+                const base64 = Buffer.from(altQrResponse.data).toString('base64');
                 console.log(`[WAHA Service] ✅ Successfully forced QR code generation via alternative endpoint!`);
-                return altQrResponse.data.qr;
+                return `data:image/png;base64,${base64}`;
               }
             } catch (altError) {
               console.warn(`[WAHA Service] ⚠️ Alternative QR endpoint also failed:`, altError.message);
@@ -1378,28 +1390,124 @@ class WAHAService extends EventEmitter {
 
       // Wait for session to reach SCAN_QR_CODE state with longer timeout
       console.log(`[WAHA Service] Waiting for session '${sessionName}' to reach QR ready state (current: ${current.status})...`);
-      await this.waitForSessionState(sessionName, ['SCAN_QR_CODE'], 30000); // 30 seconds for stability
+      
+      // Add detailed debugging for stuck sessions
+      if (current.status === 'STARTING') {
+        console.log(`[WAHA Service] 🔍 DEBUG: Session stuck in STARTING state. Checking WAHA service health...`);
+        try {
+          const healthStatus = await this.healthCheck();
+          console.log(`[WAHA Service] 🔍 WAHA service health:`, healthStatus);
+        } catch (healthError) {
+          console.error(`[WAHA Service] 🔍 WAHA service health check failed:`, healthError);
+        }
+        
+        // Try to get more detailed session info
+        try {
+          const detailedSession = await this.httpClient.get(`/api/sessions/${sessionName}`);
+          console.log(`[WAHA Service] 🔍 Detailed session info:`, JSON.stringify(detailedSession.data, null, 2));
+        } catch (detailError) {
+          console.warn(`[WAHA Service] 🔍 Could not get detailed session info:`, detailError.message);
+        }
+        
+        // Try to get QR code even if session is in STARTING state (some WAHA versions allow this)
+        console.log(`[WAHA Service] 🔍 Attempting to get QR code even though session is in STARTING state...`);
+        try {
+          const qrResponse = await this.httpClient.get(`/api/${sessionName}/auth/qr?format=image`, {
+            responseType: 'arraybuffer',
+            timeout: 10000,
+            validateStatus: (status: number) => status === 200,
+            headers: {
+              'Accept': 'image/png'
+            }
+          });
+          
+          if (qrResponse.data && qrResponse.data.byteLength > 0) {
+            const base64 = Buffer.from(qrResponse.data).toString('base64');
+            console.log(`[WAHA Service] ✅ QR code retrieved from STARTING session!`);
+            const dataUrl = `data:image/png;base64,${base64}`;
+            this.lastQrDataUrl = dataUrl;
+            this.lastQrGeneratedAt = Date.now();
+            return dataUrl;
+          }
+        } catch (qrError) {
+          console.warn(`[WAHA Service] 🔍 Could not get QR from STARTING session:`, qrError.message);
+        }
+      }
+      
+      try {
+        await this.waitForSessionState(sessionName, ['SCAN_QR_CODE'], 30000); // 30 seconds for stability
+      } catch (timeoutError) {
+        console.error(`[WAHA Service] ❌ Session '${sessionName}' timed out waiting for SCAN_QR_CODE state`);
+        console.error(`[WAHA Service] This usually indicates WAHA service issues or resource constraints`);
+        
+        // Try to force the session to restart and get QR code anyway
+        console.log(`[WAHA Service] 🔄 Attempting emergency session restart...`);
+        try {
+          await this.httpClient.post(`/api/sessions/${sessionName}/restart`);
+          console.log(`[WAHA Service] ✅ Emergency restart initiated`);
+          
+          // Wait a bit for restart
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          
+          // Check if session is now ready
+          const restartStatus = await this.getSessionStatus(sessionName);
+          console.log(`[WAHA Service] Session status after emergency restart: ${restartStatus.status}`);
+          
+          if (restartStatus.status === 'SCAN_QR_CODE') {
+            console.log(`[WAHA Service] ✅ Emergency restart successful, session ready for QR!`);
+          } else {
+            console.warn(`[WAHA Service] ⚠️ Emergency restart did not resolve the issue. Session still: ${restartStatus.status}`);
+            // Continue anyway - maybe we can still get a QR code
+          }
+        } catch (restartError) {
+          console.error(`[WAHA Service] ❌ Emergency restart failed:`, restartError);
+          // Continue anyway - maybe we can still get a QR code
+        }
+      }
       
       // Get QR code using WAHA's proper endpoint: GET /api/{session}/auth/qr (per official docs)
-      console.log(`[WAHA Service] Requesting QR code from GET /api/${sessionName}/auth/qr`);
+      console.log(`[WAHA Service] Requesting QR code from GET /api/${sessionName}/auth/qr?format=image`);
       let response;
       try {
-        response = await this.httpClient.get(`/api/${sessionName}/auth/qr`, {
+        response = await this.httpClient.get(`/api/${sessionName}/auth/qr?format=image`, {
           responseType: 'arraybuffer',
           timeout: 15000, // 15 second timeout for QR generation
-          validateStatus: (status: number) => status === 200 // Only accept 200 status
+          validateStatus: (status: number) => status === 200, // Only accept 200 status
+          headers: {
+            'Accept': 'image/png'
+          }
         });
       } catch (qrErr: any) {
-        if (qrErr?.response?.status === 404) {
-          console.warn(`[WAHA Service] QR 404 on /api/${sessionName}/auth/qr. Trying alternative endpoint...`);
-          // Try alternative endpoint format
-          response = await this.httpClient.get(`/api/sessions/${sessionName}/qr`, {
-            responseType: 'arraybuffer',
-            timeout: 15000,
-            validateStatus: (status: number) => status === 200
-          });
-        } else {
-          throw qrErr;
+        console.warn(`[WAHA Service] Primary QR endpoint failed:`, qrErr.message);
+        
+        // Try multiple alternative endpoints with correct format parameters
+        const alternativeEndpoints = [
+          { url: `/api/${sessionName}/auth/qr`, headers: { 'Accept': 'image/png' } },
+          { url: `/api/sessions/${sessionName}/auth/qr?format=image`, headers: { 'Accept': 'image/png' } },
+          { url: `/api/${sessionName}/qr`, headers: { 'Accept': 'image/png' } },
+          { url: `/api/sessions/${sessionName}/qr`, headers: { 'Accept': 'image/png' } }
+        ];
+        
+        let qrSuccess = false;
+        for (const endpoint of alternativeEndpoints) {
+          try {
+            console.log(`[WAHA Service] Trying alternative endpoint: ${endpoint.url}`);
+            response = await this.httpClient.get(endpoint.url, {
+              responseType: 'arraybuffer',
+              timeout: 15000,
+              validateStatus: (status: number) => status === 200,
+              headers: endpoint.headers
+            });
+            qrSuccess = true;
+            console.log(`[WAHA Service] ✅ QR code retrieved from ${endpoint.url}`);
+            break;
+          } catch (altErr: any) {
+            console.warn(`[WAHA Service] Alternative endpoint ${endpoint.url} failed:`, altErr.message);
+          }
+        }
+        
+        if (!qrSuccess) {
+          throw new Error(`All QR code endpoints failed. Last error: ${qrErr.message}`);
         }
       }
       
