@@ -118,6 +118,12 @@ const WhatsAppPage: React.FC = () => {
   // Summary modal state
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [selectedSummary, setSelectedSummary] = useState<GroupSummaryData | null>(null);
+
+  // NEW: Initial sync state management
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStartTime, setSyncStartTime] = useState<number | null>(null);
+  const [syncRetryCount, setSyncRetryCount] = useState(0);
+  const [syncEstimatedTime, setSyncEstimatedTime] = useState<string>('5-10 minutes');
   
   // Mobile-specific states
   const [isMobile, setIsMobile] = useState(false);
@@ -314,19 +320,48 @@ const WhatsAppPage: React.FC = () => {
         
         // Check if we just became authenticated (polling fallback)
         if (!prevAuthenticated && status?.authenticated) {
-          console.log('[WhatsApp Status Polling] Authentication detected, fetching chats...');
+          console.log('[WhatsApp Status Polling] Authentication detected, attempting to load chats...');
           toast({
             title: "WhatsApp Connected",
             description: "Authentication successful! Loading your chats...",
           });
-          
-          // Fetch data with a small delay to ensure backend is ready
-          setTimeout(() => {
-            fetchGroups();
-            fetchPrivateChats();
-            fetchMessages();
+
+          // Attempt to fetch data with a small delay
+          setTimeout(async () => {
+            try {
+              const [groupsRes, chatsRes] = await Promise.all([
+                api.get('/waha/groups?limit=10').catch(() => ({ data: { success: false } })),
+                api.get('/waha/private-chats?limit=10').catch(() => ({ data: { success: false } }))
+              ]);
+
+              const hasData = (groupsRes.data.success && groupsRes.data.data?.length > 0) ||
+                               (chatsRes.data.success && chatsRes.data.data?.length > 0);
+
+              if (!hasData) {
+                // No data yet - start sync polling
+                console.log('[WhatsApp Sync] No chats available yet, starting initial sync polling...');
+                setIsSyncing(true);
+                setSyncStartTime(Date.now());
+                toast({
+                  title: "Syncing Messages",
+                  description: "WhatsApp is syncing your chats. This typically takes 5-10 minutes for first connection.",
+                });
+                pollForChatsWithRetry(0);
+              } else {
+                // Data available - fetch normally
+                fetchGroups();
+                fetchPrivateChats();
+                fetchMessages();
+              }
+            } catch (error) {
+              console.error('[WhatsApp Status Polling] Error checking for data:', error);
+              // Try fetching anyway
+              fetchGroups();
+              fetchPrivateChats();
+              fetchMessages();
+            }
           }, 1000);
-          
+
           // Reduce polling frequency after successful auth
           pollInterval = 60000; // 60 seconds when authenticated and stable
         }
@@ -526,25 +561,52 @@ const WhatsAppPage: React.FC = () => {
           title: "WhatsApp Connected",
           description: "Loading your chats and groups...",
         });
-        
-        // Fetch data after authentication with loading indicators
-        setTimeout(() => {
-          Promise.all([
-            fetchGroups(true),
-            fetchPrivateChats(true),
-            fetchMessages()
-          ]).then(() => {
-            console.log('[WhatsApp Socket.IO] ✅ All data fetched after authentication');
+
+        // Check if data is available before full fetch
+        setTimeout(async () => {
+          try {
+            const [groupsRes, chatsRes] = await Promise.all([
+              api.get('/waha/groups?limit=10').catch(() => ({ data: { success: false } })),
+              api.get('/waha/private-chats?limit=10').catch(() => ({ data: { success: false } }))
+            ]);
+
+            const hasData = (groupsRes.data.success && groupsRes.data.data?.length > 0) ||
+                             (chatsRes.data.success && chatsRes.data.data?.length > 0);
+
+            if (!hasData) {
+              // No data yet - enter sync mode
+              console.log('[WhatsApp Socket.IO] No chats available, starting sync polling...');
+              setLoadingChats(false);
+              setIsSyncing(true);
+              setSyncStartTime(Date.now());
+              toast({
+                title: "Syncing Messages",
+                description: "WhatsApp is syncing your chats. This typically takes 5-10 minutes.",
+              });
+              pollForChatsWithRetry(0);
+            } else {
+              // Data available - fetch everything
+              Promise.all([
+                fetchGroups(true),
+                fetchPrivateChats(true),
+                fetchMessages()
+              ]).then(() => {
+                console.log('[WhatsApp Socket.IO] ✅ All data fetched after authentication');
+                setLoadingChats(false);
+              }).catch((error) => {
+                console.error('[WhatsApp Socket.IO] ❌ Error fetching data after authentication:', error);
+                setLoadingChats(false);
+                toast({
+                  title: "Chat Loading Issue",
+                  description: "WhatsApp connected but couldn't load chats. Please refresh.",
+                  variant: "destructive",
+                });
+              });
+            }
+          } catch (error) {
+            console.error('[WhatsApp Socket.IO] Error checking for data:', error);
             setLoadingChats(false);
-          }).catch((error) => {
-            console.error('[WhatsApp Socket.IO] ❌ Error fetching data after authentication:', error);
-            setLoadingChats(false);
-            toast({
-              title: "Chat Loading Issue",
-              description: "WhatsApp connected but couldn't load chats. Please refresh.",
-              variant: "destructive",
-            });
-          });
+          }
         }, 1000); // Small delay to ensure backend is ready
         
         // Close auth modal if open
@@ -918,15 +980,82 @@ const WhatsAppPage: React.FC = () => {
     }
   };
 
+  /**
+   * Poll for chats during initial WEBJS sync period
+   * Implements exponential backoff with max 10 attempts over ~15 minutes
+   */
+  const pollForChatsWithRetry = async (attempt = 0, maxAttempts = 10) => {
+    if (attempt >= maxAttempts) {
+      console.log('[WhatsApp Sync] Max polling attempts reached, stopping sync polling');
+      setIsSyncing(false);
+      toast({
+        title: "Sync Timeout",
+        description: "Chat loading is taking longer than expected. Please try refreshing manually.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSyncRetryCount(attempt + 1);
+    console.log(`[WhatsApp Sync] Polling attempt ${attempt + 1}/${maxAttempts}`);
+
+    try {
+      // Try fetching groups and private chats
+      const [groupsResponse, chatsResponse] = await Promise.all([
+        api.get('/waha/groups?limit=50').catch(() => ({ data: { success: false } })),
+        api.get('/waha/private-chats?limit=50').catch(() => ({ data: { success: false } }))
+      ]);
+
+      // Check if we got data
+      const hasGroups = groupsResponse.data.success && groupsResponse.data.data?.length > 0;
+      const hasChats = chatsResponse.data.success && chatsResponse.data.data?.length > 0;
+
+      if (hasGroups || hasChats) {
+        // Success! Sync completed
+        console.log('[WhatsApp Sync] ✅ Sync completed! Chats are now available');
+        setIsSyncing(false);
+        setSyncRetryCount(0);
+        setSyncStartTime(null);
+
+        // Update UI with loaded data
+        if (hasGroups) setGroups(groupsResponse.data.data || []);
+        if (hasChats) setPrivateChats(chatsResponse.data.data || []);
+
+        toast({
+          title: "Sync Complete!",
+          description: `Loaded ${(groupsResponse.data.data?.length || 0) + (chatsResponse.data.data?.length || 0)} chats successfully`,
+        });
+
+        return;
+      }
+
+      // Still syncing, retry with exponential backoff
+      const delay = Math.min(30000, 5000 * Math.pow(1.5, attempt)); // 5s, 7.5s, 11s, 17s, 25s, 30s max
+      console.log(`[WhatsApp Sync] Still syncing, retrying in ${Math.round(delay/1000)}s...`);
+
+      setTimeout(() => {
+        pollForChatsWithRetry(attempt + 1, maxAttempts);
+      }, delay);
+
+    } catch (error) {
+      console.error('[WhatsApp Sync] Error during polling:', error);
+      // Continue polling even on error
+      const delay = Math.min(30000, 5000 * Math.pow(1.5, attempt));
+      setTimeout(() => {
+        pollForChatsWithRetry(attempt + 1, maxAttempts);
+      }, delay);
+    }
+  };
+
   const fetchGroups = async (showLoading = false, options?: { limit?: number; offset?: number }) => {
     try {
       if (showLoading) setLoadingChats(true);
-      
+
       // Build WAHA-compliant query parameters
       const params = new URLSearchParams();
       if (options?.limit) params.append('limit', options.limit.toString());
       if (options?.offset) params.append('offset', options.offset.toString());
-      
+
       const queryString = params.toString();
       
       // Try WAHA modern endpoint
@@ -2461,16 +2590,28 @@ const WhatsAppPage: React.FC = () => {
               
               <div className={`flex items-center gap-2 sm:gap-4 ${isMobile ? 'flex-wrap' : ''}`}>
                 <div className="flex items-center gap-2">
-                  <StatusIcon className={`w-4 h-4 sm:w-5 sm:h-5 ${getStatusColor()}`} />
-                  <span className={`text-xs sm:text-sm ${getStatusColor()}`}>
-                    {status?.connected && status?.isReady && status?.isClientReady 
-                      ? 'Connected' 
-                      : status?.qrAvailable 
-                      ? 'QR Available' 
+                  <StatusIcon className={`w-4 h-4 sm:w-5 sm:h-5 ${isSyncing ? 'text-yellow-400 animate-pulse' : getStatusColor()}`} />
+                  <span className={`text-xs sm:text-sm ${isSyncing ? 'text-yellow-400' : getStatusColor()}`}>
+                    {isSyncing
+                      ? `Syncing... (${syncRetryCount}/10 attempts)`
+                      : status?.connected && status?.isReady && status?.isClientReady
+                      ? 'Connected'
+                      : status?.qrAvailable
+                      ? 'QR Available'
                       : 'Disconnected'
                     }
                   </span>
                 </div>
+
+                {/* Syncing Progress Indicator */}
+                {isSyncing && syncStartTime && (
+                  <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-500/20 border border-yellow-500/30">
+                    <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-400 animate-spin" />
+                    <span className="text-xs text-yellow-300">
+                      {Math.floor((Date.now() - syncStartTime) / 1000)}s - Est. {syncEstimatedTime}
+                    </span>
+                  </div>
+                )}
 
                 {/* Service Type Indicator */}
                 {activeService && (

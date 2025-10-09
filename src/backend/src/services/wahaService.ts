@@ -1655,10 +1655,20 @@ class WAHAService extends EventEmitter {
       const isWebJS = engineName === 'WEBJS';
       // Reduce timeouts to fit platform proxy limits (avoid 502/120s timeouts). Use shorter retries instead.
       const baseTimeout = isWebJS ? 110000 : 90000; // ~110s WEBJS, 90s others
-      
+
       console.log(`[WAHA Service] Starting ${engineName}-optimized chat loading sequence for session '${sessionName}'...`);
+
+      // NEW: Check engine state to avoid long timeouts during initial sync
+      if (isWebJS && sessionStatus.engine?.state === 'OPENING') {
+        console.log(`[WAHA Service] ⚠️ WEBJS engine is still OPENING (initial sync in progress)`);
+        console.log(`[WAHA Service] Returning empty array to allow frontend polling instead of long timeout`);
+        console.log(`[WAHA Service] Frontend should detect this and start sync polling with shorter intervals`);
+        return [];
+      }
+
       if (isWebJS) {
         console.log(`[WAHA Service] Using extended timeouts for WEBJS engine (initial sync can take 5+ minutes)`);
+        console.log(`[WAHA Service] Engine state: ${sessionStatus.engine?.state || 'unknown'}`);
       }
       
       // Skip overview endpoint (not supported on many builds); use direct /chats path

@@ -482,7 +482,11 @@ export const getChats = async (req: AuthenticatedRequest, res: Response) => {
       meta: {
         count: chats.length,
         loadTime: duration,
-        syncing: chats.length === 0 && isWORKING // Indicate if sync might still be in progress
+        syncing: chats.length === 0 && isWORKING, // Indicate if sync might still be in progress
+        engineState: sessionStatus.engine?.state,
+        message: chats.length === 0 && isWORKING && sessionStatus.engine?.state === 'OPENING'
+          ? 'WEBJS engine is syncing chats. This typically takes 5-10 minutes after initial authentication.'
+          : undefined
       }
     });
   } catch (error: any) {
