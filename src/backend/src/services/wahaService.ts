@@ -964,15 +964,8 @@ class WAHAService extends EventEmitter {
             }
           ];
           console.log(`[WAHA Service] 🔗 Adding webhook configuration to fallback session: ${fullWebhookUrl}`);
-          
-          if (engine && engine.toUpperCase() === 'NOWEB' && nowebStoreEnabledEnv) {
-            fallbackPayload.config.noweb = {
-              store: {
-                enabled: true,
-                fullSync: nowebFullSyncEnv
-              }
-            };
-          }
+
+          // Note: WAHA Plus handles storage automatically - no manual store configuration needed
           const startRes = await this.httpClient.post(`/api/${sessionName}/start`, fallbackPayload);
           console.log(`[WAHA Service] ✅ Fallback start created/started session '${sessionName}':`, startRes.status);
           sessionData = { name: sessionName, status: 'STARTING' };
