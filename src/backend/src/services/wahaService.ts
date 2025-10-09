@@ -901,21 +901,17 @@ class WAHAService extends EventEmitter {
           createPayload.engine = engine;
           console.log(`[WAHA Service] Using configured WAHA engine: ${engine}`);
         }
-        // Engine-specific configuration for WAHA compliance
-        const nowebStoreEnabledEnv = String(process.env.WAHA_NOWEB_STORE_ENABLED || '').toLowerCase() === 'true';
-        const nowebFullSyncEnv = String(process.env.WAHA_NOWEB_STORE_FULLSYNC || '').toLowerCase() === 'true';
-        const webjsStoreEnabledEnv = String(process.env.WAHA_WEBJS_STORE_ENABLED || '').toLowerCase() === 'true';
-        
+
         // Initialize config object
         if (!createPayload.config) {
           createPayload.config = {};
         }
-        
+
         // Add webhook configuration - use environment variables if available
-        const webhookEvents = process.env.WHATSAPP_HOOK_EVENTS ? 
-          process.env.WHATSAPP_HOOK_EVENTS.split(',').map(e => e.trim()) : 
+        const webhookEvents = process.env.WHATSAPP_HOOK_EVENTS ?
+          process.env.WHATSAPP_HOOK_EVENTS.split(',').map(e => e.trim()) :
           ['session.status', 'message', 'message.any'];
-        
+
         createPayload.config.webhooks = [
           {
             url: process.env.WHATSAPP_HOOK_URL || fullWebhookUrl,
@@ -930,23 +926,10 @@ class WAHAService extends EventEmitter {
         ];
         console.log(`[WAHA Service] 🔗 Adding webhook configuration to session: ${process.env.WHATSAPP_HOOK_URL || fullWebhookUrl}`);
         console.log(`[WAHA Service] 📡 Webhook events: ${webhookEvents.join(', ')}`);
-        
-        if (engine && engine.toUpperCase() === 'NOWEB' && nowebStoreEnabledEnv) {
-          createPayload.config.noweb = {
-            store: {
-              enabled: true,
-              fullSync: nowebFullSyncEnv
-            }
-          };
-          console.log(`[WAHA Service] Enabling NOWEB store in session create (enabled=true, fullSync=${nowebFullSyncEnv})`);
-        } else if (engine && engine.toUpperCase() === 'WEBJS' && webjsStoreEnabledEnv) {
-          createPayload.config.webjs = {
-            store: {
-              enabled: true
-            }
-          };
-          console.log(`[WAHA Service] Enabling WEBJS store in session create (enabled=true)`);
-        }
+
+        // Engine-specific configuration (WAHA Plus handles storage internally)
+        // Note: WAHA automatically uses configured storage backend (MongoDB, PostgreSQL, or local)
+        // No manual "store.enabled" flags needed - they don't exist in WAHA Plus API
         console.log(`[WAHA Service] Making POST request to /api/sessions with payload:`, createPayload);
         
         try {
@@ -1421,23 +1404,12 @@ class WAHAService extends EventEmitter {
       const sessionStatus = await this.getSessionStatus(sessionName);
       console.log(`[WAHA Service] Session '${sessionName}' status: ${sessionStatus.status}`);
       const engineName = String(sessionStatus?.engine?.engine || '').toUpperCase();
-      const nowebStoreEnabledEnv = String(process.env.WAHA_NOWEB_STORE_ENABLED || '').toLowerCase() === 'true';
-      const webjsStoreEnabledEnv = String(process.env.WAHA_WEBJS_STORE_ENABLED || '').toLowerCase() === 'true';
-      
-      console.log(`[WAHA Service DEBUG] Engine: ${engineName}, WAHA_NOWEB_STORE_ENABLED: ${process.env.WAHA_NOWEB_STORE_ENABLED}, WAHA_WEBJS_STORE_ENABLED: ${process.env.WAHA_WEBJS_STORE_ENABLED}`);
-      
-      if (engineName === 'NOWEB' && !nowebStoreEnabledEnv) {
-        console.log(`[WAHA Service] ⚠️ CRITICAL: Engine NOWEB without store: skipping chats listing`);
-        console.log(`[WAHA Service] ⚠️ SOLUTION: Set WAHA_NOWEB_STORE_ENABLED=true in your backend environment variables`);
-        return [];
-      }
-      
-      if (engineName === 'WEBJS' && !webjsStoreEnabledEnv) {
-        console.log(`[WAHA Service] ⚠️ CRITICAL: Engine WEBJS without store: skipping chats listing`);
-        console.log(`[WAHA Service] ⚠️ SOLUTION: Set WAHA_WEBJS_STORE_ENABLED=true in your backend environment variables`);
-        return [];
-      }
-      
+
+      console.log(`[WAHA Service DEBUG] Engine: ${engineName}`);
+
+      // Note: WAHA Plus handles chat storage automatically based on configured storage backend
+      // No manual store configuration needed - MongoDB/PostgreSQL/Local storage is configured at WAHA service level
+
       if (sessionStatus.status === 'STOPPED' || sessionStatus.status === 'FAILED') {
         console.log(`[WAHA Service] Session not ready (${sessionStatus.status}), returning empty chats`);
         return [];
@@ -1754,19 +1726,8 @@ class WAHAService extends EventEmitter {
       const sessionStatus = await this.getSessionStatus(sessionName);
       console.log(`[WAHA Service] getGroups - Session status: ${sessionStatus.status}`);
       const engineName = String(sessionStatus?.engine?.engine || '').toUpperCase();
-      const nowebStoreEnabledEnv = String(process.env.WAHA_NOWEB_STORE_ENABLED || '').toLowerCase() === 'true';
-      const webjsStoreEnabledEnv = String(process.env.WAHA_WEBJS_STORE_ENABLED || '').toLowerCase() === 'true';
-      
-      if (engineName === 'NOWEB' && !nowebStoreEnabledEnv) {
-        console.log(`[WAHA Service] getGroups - NOWEB without store: skipping groups listing (set WAHA_NOWEB_STORE_ENABLED=true)`);
-        return [];
-      }
-      
-      if (engineName === 'WEBJS' && !webjsStoreEnabledEnv) {
-        console.log(`[WAHA Service] getGroups - WEBJS without store: skipping groups listing (set WAHA_WEBJS_STORE_ENABLED=true)`);
-        return [];
-      }
-      
+      // Note: WAHA Plus handles storage automatically - no manual store configuration needed
+
       // Allow groups to be fetched if session is in a working state
       if (sessionStatus.status === 'STOPPED' || sessionStatus.status === 'FAILED') {
         console.log(`[WAHA Service] getGroups - Session not ready (${sessionStatus.status}), returning empty array`);
