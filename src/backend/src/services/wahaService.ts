@@ -857,8 +857,9 @@ class WAHAService extends EventEmitter {
             await this.httpClient.post(`/api/sessions/${sessionName}/start`);
           } catch (startStoppedErr: any) {
             if (startStoppedErr?.response?.status === 404) {
-              console.warn(`[WAHA Service] Start via /api/sessions/${sessionName}/start 404. Trying legacy /api/${sessionName}/start...`);
-              await this.httpClient.post(`/api/${sessionName}/start`);
+              console.warn(`[WAHA Service] Start via /api/sessions/${sessionName}/start 404. Trying alternative endpoint...`);
+              // Try alternative start endpoint if the primary one fails
+              await this.httpClient.post(`/api/sessions/${sessionName}/restart`);
             } else {
               throw startStoppedErr;
             }
@@ -1004,7 +1005,7 @@ class WAHAService extends EventEmitter {
           console.log(`[WAHA Service] 🔗 Adding webhook configuration to fallback session: ${fullWebhookUrl}`);
 
           // Note: WAHA Plus handles storage automatically - no manual store configuration needed
-          const startRes = await this.httpClient.post(`/api/${sessionName}/start`, fallbackPayload);
+          const startRes = await this.httpClient.post(`/api/sessions/${sessionName}/start`, fallbackPayload);
           console.log(`[WAHA Service] ✅ Fallback start created/started session '${sessionName}':`, startRes.status);
           sessionData = { name: sessionName, status: 'STARTING' };
           sessionExists = true;
