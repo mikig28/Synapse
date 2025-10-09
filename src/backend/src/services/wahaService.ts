@@ -930,6 +930,19 @@ class WAHAService extends EventEmitter {
         // Engine-specific configuration (WAHA Plus handles storage internally)
         // Note: WAHA automatically uses configured storage backend (MongoDB, PostgreSQL, or local)
         // No manual "store.enabled" flags needed - they don't exist in WAHA Plus API
+
+        // Log MongoDB storage configuration for debugging
+        const mongoUrl = process.env.WHATSAPP_SESSIONS_MONGO_URL;
+        if (mongoUrl) {
+          // Mask password in logs
+          const maskedUrl = mongoUrl.replace(/:[^:@]+@/, ':****@');
+          console.log(`[WAHA Service] 🗄️ MongoDB storage configured: ${maskedUrl}`);
+          console.log(`[WAHA Service] 🔐 WAHA_ZIPPER: ${process.env.WAHA_ZIPPER || 'NOT SET (Required for WEBJS + MongoDB!)'}`);
+        } else {
+          console.warn(`[WAHA Service] ⚠️ NO MongoDB storage configured - sessions will be lost on restart!`);
+          console.warn(`[WAHA Service] ⚠️ Set WHATSAPP_SESSIONS_MONGO_URL in WAHA service environment to enable persistence`);
+        }
+
         console.log(`[WAHA Service] Making POST request to /api/sessions with payload:`, createPayload);
         
         try {
@@ -1211,7 +1224,7 @@ class WAHAService extends EventEmitter {
       console.log(`[WAHA Service] Ensuring session '${sessionName}' exists and is configured...`);
       let current = await this.getSessionStatus(sessionName);
 
-      // If session is stuck in STARTING for too long, recreate it
+      // If session is stuck in STARTING for too long, delete and recreate it
       if (current.status === 'STARTING') {
         console.warn(`[WAHA Service] ⚠️ Session '${sessionName}' stuck in STARTING state, checking if we should recreate...`);
         // Try waiting briefly first
@@ -1220,11 +1233,35 @@ class WAHAService extends EventEmitter {
           current = await this.getSessionStatus(sessionName);
           console.log(`[WAHA Service] Session transitioned to: ${current.status}`);
         } catch (waitErr) {
-          console.warn(`[WAHA Service] Session still STARTING after 5s, forcing recreation...`);
-          await this.stopSession(sessionName);
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          await this.startSession(sessionName);
+          console.warn(`[WAHA Service] Session still STARTING after 5s, forcing complete recreation (delete + create)...`);
+
+          // Step 1: Try to stop the session first
+          try {
+            await this.stopSession(sessionName);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } catch (stopErr: any) {
+            console.warn(`[WAHA Service] Could not stop session (may already be stopped): ${stopErr.message}`);
+          }
+
+          // Step 2: Delete the corrupted session completely
+          try {
+            console.log(`[WAHA Service] Deleting corrupted session '${sessionName}'...`);
+            await this.httpClient.delete(`/api/sessions/${sessionName}`);
+            console.log(`[WAHA Service] ✅ Session deleted successfully`);
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for cleanup
+          } catch (deleteErr: any) {
+            console.warn(`[WAHA Service] Could not delete session: ${deleteErr.message}`);
+            // Continue anyway - session might not exist
+          }
+
+          // Step 3: Create a fresh session
+          console.log(`[WAHA Service] Creating fresh session '${sessionName}'...`);
+          await this.startSession(sessionName); // This will create if doesn't exist
+          await new Promise(resolve => setTimeout(resolve, 3000)); // Wait for initialization
+
+          // Step 4: Verify new session status
           current = await this.getSessionStatus(sessionName);
+          console.log(`[WAHA Service] New session status: ${current.status}`);
         }
       }
 
