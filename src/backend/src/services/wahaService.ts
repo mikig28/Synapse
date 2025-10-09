@@ -1413,8 +1413,8 @@ class WAHAService extends EventEmitter {
       console.log(`[WAHA Service] Waiting for session '${sessionName}' to reach QR ready state (current: ${current.status})...`);
       
       // Add detailed debugging for stuck sessions
-      if (current.status === 'STARTING') {
-        console.log(`[WAHA Service] 🔍 DEBUG: Session stuck in STARTING state. Checking WAHA service health...`);
+      if (current.status === 'STARTING' || current.status === 'FAILED') {
+        console.log(`[WAHA Service] 🔍 DEBUG: Session stuck in ${current.status} state. Checking WAHA service health...`);
         try {
           const healthStatus = await this.healthCheck();
           console.log(`[WAHA Service] 🔍 WAHA service health:`, healthStatus);
@@ -1428,6 +1428,14 @@ class WAHAService extends EventEmitter {
           console.log(`[WAHA Service] 🔍 Detailed session info:`, JSON.stringify(detailedSession.data, null, 2));
         } catch (detailError) {
           console.warn(`[WAHA Service] 🔍 Could not get detailed session info:`, detailError.message);
+        }
+        
+        // Handle FAILED sessions differently
+        if (current.status === 'FAILED') {
+          console.error(`[WAHA Service] ❌ Session is in FAILED state - this usually indicates Puppeteer/Chrome crashes`);
+          console.error(`[WAHA Service] This is likely due to resource constraints in the Render environment`);
+          console.error(`[WAHA Service] Recommendation: Upgrade Render plan or switch to VENOM engine`);
+          throw new Error(`Session failed due to Puppeteer/Chrome issues. Consider upgrading Render plan or switching to VENOM engine.`);
         }
         
         // Check if this is a persistent STARTING issue - try to force session to SCAN_QR_CODE
