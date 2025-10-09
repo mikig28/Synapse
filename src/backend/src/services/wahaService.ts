@@ -962,8 +962,31 @@ class WAHAService extends EventEmitter {
                 '--no-default-browser-check',
                 '--no-pings',
                 '--no-zygote',
-                '--single-process'
-              ]
+                '--single-process',
+                '--memory-pressure-off',
+                '--max_old_space_size=4096',
+                '--disable-background-networking',
+                '--disable-client-side-phishing-detection',
+                '--disable-hang-monitor',
+                '--disable-popup-blocking',
+                '--disable-prompt-on-repost',
+                '--disable-domain-reliability',
+                '--disable-features=TranslateUI',
+                '--disable-ipc-flooding-protection',
+                '--no-service-autorun',
+                '--password-store=basic',
+                '--use-mock-keychain',
+                '--disable-component-extensions-with-background-pages',
+                '--force-color-profile=srgb',
+                '--metrics-recording-only'
+              ],
+              timeout: 120000, // 2 minutes timeout
+              protocolTimeout: 120000, // 2 minutes protocol timeout
+              slowMo: 0,
+              defaultViewport: {
+                width: 1280,
+                height: 720
+              }
             }
           };
           console.log(`[WAHA Service] 🔧 Added comprehensive WEBJS configuration for better initialization`);
@@ -1012,8 +1035,8 @@ class WAHAService extends EventEmitter {
         }
         
         // CRITICAL: Wait for WAHA to initialize the session
-        console.log(`[WAHA Service] ⏳ Waiting 5 seconds for WAHA to initialize session...`);
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        console.log(`[WAHA Service] ⏳ Waiting 10 seconds for WAHA to initialize session...`);
+        await new Promise(resolve => setTimeout(resolve, 10000));
         
         // Check session status after initial wait
         try {
@@ -1435,8 +1458,76 @@ class WAHAService extends EventEmitter {
         if (current.status === 'FAILED') {
           console.error(`[WAHA Service] ❌ Session is in FAILED state - this usually indicates Puppeteer/Chrome crashes`);
           console.error(`[WAHA Service] This is likely due to resource constraints in the Render environment`);
-          console.error(`[WAHA Service] Recommendation: Upgrade Render plan or switch to VENOM engine`);
-          throw new Error(`Session failed due to Puppeteer/Chrome issues. Consider upgrading Render plan or switching to VENOM engine.`);
+          console.error(`[WAHA Service] Attempting to recreate session with VENOM engine as fallback...`);
+          
+          try {
+            // Try to recreate with VENOM engine as fallback
+            console.log(`[WAHA Service] 🔄 Recreating session with VENOM engine...`);
+            
+            // Delete the failed session first
+            try {
+              await this.httpClient.delete(`/api/sessions/${sessionName}`);
+              console.log(`[WAHA Service] ✅ Deleted failed session`);
+            } catch (deleteError) {
+              console.warn(`[WAHA Service] Could not delete failed session:`, deleteError.message);
+            }
+            
+            // Create new session with VENOM engine
+            const webhookUrl = process.env.BACKEND_URL || 'https://synapse-backend-7lq6.onrender.com';
+            const fullWebhookUrl = `${webhookUrl}/api/v1/waha/webhook`;
+            
+            const venomPayload = {
+              name: sessionName,
+              start: true,
+              engine: 'VENOM',
+              config: {
+                webhooks: [{
+                  url: fullWebhookUrl,
+                  events: ['session.status', 'message'],
+                  hmac: null,
+                  retries: {
+                    delaySeconds: 2,
+                    attempts: 15
+                  }
+                }]
+              }
+            };
+            
+            await this.httpClient.post('/api/sessions', venomPayload);
+            console.log(`[WAHA Service] ✅ Created new session with VENOM engine`);
+            await new Promise(resolve => setTimeout(resolve, 10000)); // Wait for VENOM initialization
+            
+            const venomStatus = await this.getSessionStatus(sessionName);
+            console.log(`[WAHA Service] 🔍 VENOM session status: ${venomStatus.status}`);
+            
+            if (venomStatus.status === 'SCAN_QR_CODE') {
+              console.log(`[WAHA Service] ✅ VENOM engine successful! Session ready for QR code.`);
+              // Try to get QR code with VENOM
+              try {
+                const qrResponse = await this.httpClient.get(`/api/${sessionName}/auth/qr?format=image`, {
+                  responseType: 'arraybuffer',
+                  timeout: 10000,
+                  validateStatus: (status: number) => status === 200,
+                  headers: { 'Accept': 'image/png' }
+                });
+                
+                if (qrResponse.data && qrResponse.data.byteLength > 0) {
+                  const base64 = Buffer.from(qrResponse.data).toString('base64');
+                  console.log(`[WAHA Service] ✅ QR code retrieved with VENOM engine!`);
+                  const dataUrl = `data:image/png;base64,${base64}`;
+                  this.lastQrDataUrl = dataUrl;
+                  this.lastQrGeneratedAt = Date.now();
+                  return dataUrl;
+                }
+              } catch (qrError) {
+                console.warn(`[WAHA Service] QR fetch with VENOM failed:`, qrError.message);
+              }
+            }
+          } catch (venomError) {
+            console.error(`[WAHA Service] VENOM engine fallback also failed:`, venomError.message);
+          }
+          
+          throw new Error(`Session failed due to Puppeteer/Chrome issues. Both WEBJS and VENOM engines failed. Consider upgrading Render plan.`);
         }
         
         // Check if this is a persistent STARTING issue - try to force session to SCAN_QR_CODE
@@ -1445,11 +1536,11 @@ class WAHAService extends EventEmitter {
           // Try to stop and start the session to force state transition
           console.log(`[WAHA Service] 🔄 Stopping session to force state reset...`);
           await this.httpClient.post(`/api/sessions/${sessionName}/stop`);
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise(resolve => setTimeout(resolve, 5000)); // Wait longer for stop
           
           console.log(`[WAHA Service] 🔄 Starting session to force SCAN_QR_CODE state...`);
           await this.httpClient.post(`/api/sessions/${sessionName}/start`);
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          await new Promise(resolve => setTimeout(resolve, 10000)); // Wait longer for start
           
           // Check if session is now in SCAN_QR_CODE state
           const resetStatus = await this.getSessionStatus(sessionName);
@@ -4432,7 +4523,7 @@ class WAHAService extends EventEmitter {
   /**
    * Wait for session to reach expected state
    */
-  private async waitForSessionState(sessionName: string, expectedStates: string[], timeoutMs: number = 30000): Promise<void> {
+  private async waitForSessionState(sessionName: string, expectedStates: string[], timeoutMs: number = 60000): Promise<void> {
     const startTime = Date.now();
     const pollInterval = 2000; // Check every 2 seconds
     let stoppedCount = 0;
