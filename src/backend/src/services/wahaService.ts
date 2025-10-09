@@ -930,18 +930,7 @@ class WAHAService extends EventEmitter {
         // Engine-specific configuration (WAHA Plus handles storage internally)
         // Note: WAHA automatically uses configured storage backend (MongoDB, PostgreSQL, or local)
         // No manual "store.enabled" flags needed - they don't exist in WAHA Plus API
-
-        // Log MongoDB storage configuration for debugging
-        const mongoUrl = process.env.WHATSAPP_SESSIONS_MONGO_URL;
-        if (mongoUrl) {
-          // Mask password in logs
-          const maskedUrl = mongoUrl.replace(/:[^:@]+@/, ':****@');
-          console.log(`[WAHA Service] 🗄️ MongoDB storage configured: ${maskedUrl}`);
-          console.log(`[WAHA Service] 🔐 WAHA_ZIPPER: ${process.env.WAHA_ZIPPER || 'NOT SET (Required for WEBJS + MongoDB!)'}`);
-        } else {
-          console.warn(`[WAHA Service] ⚠️ NO MongoDB storage configured - sessions will be lost on restart!`);
-          console.warn(`[WAHA Service] ⚠️ Set WHATSAPP_SESSIONS_MONGO_URL in WAHA service environment to enable persistence`);
-        }
+        // MongoDB storage is configured directly in WAHA service, not in backend
 
         console.log(`[WAHA Service] Making POST request to /api/sessions with payload:`, createPayload);
         
