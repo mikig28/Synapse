@@ -1442,7 +1442,14 @@ class WAHAService extends EventEmitter {
         console.log(`[WAHA Service] Session not ready (${sessionStatus.status}), returning empty chats`);
         return [];
       }
-      
+
+      // NEW: Early detection of SCAN_QR_CODE status to avoid 13s timeout + 422 error
+      if (sessionStatus.status === 'SCAN_QR_CODE') {
+        console.log(`[WAHA Service] ⚠️ Session requires authentication (SCAN_QR_CODE), returning empty chats`);
+        console.log(`[WAHA Service] Frontend should detect this and show QR code to user`);
+        return [];
+      }
+
       if (sessionStatus.status === 'STARTING') {
         console.log(`[WAHA Service] ⚠️ WEBJS session still starting (${sessionStatus.status}), this may take a few minutes for full sync...`);
         console.log(`[WAHA Service] Attempting to fetch chats anyway - some may be incomplete during initial sync`);
@@ -1765,8 +1772,15 @@ class WAHAService extends EventEmitter {
         console.log(`[WAHA Service] getGroups - Session not ready (${sessionStatus.status}), returning empty array`);
         return [];
       }
-      
-      // For other statuses (STARTING, SCAN_QR_CODE, WORKING, etc.), try to fetch groups anyway
+
+      // NEW: Early detection of SCAN_QR_CODE status to avoid timeout + 422 error
+      if (sessionStatus.status === 'SCAN_QR_CODE') {
+        console.log(`[WAHA Service] getGroups - Session requires authentication (SCAN_QR_CODE), returning empty array`);
+        console.log(`[WAHA Service] Frontend should detect this and show QR code to user`);
+        return [];
+      }
+
+      // For other statuses (STARTING, WORKING, etc.), try to fetch groups anyway
       console.log(`[WAHA Service] getGroups - Session status ${sessionStatus.status}, attempting to fetch groups`);
       
       // Check circuit breaker for groups endpoint
