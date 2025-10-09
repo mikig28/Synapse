@@ -931,6 +931,23 @@ class WAHAService extends EventEmitter {
         // Note: WAHA automatically uses configured storage backend (MongoDB, PostgreSQL, or local)
         // No manual "store.enabled" flags needed - they don't exist in WAHA Plus API
         // MongoDB storage is configured directly in WAHA service, not in backend
+        
+        // Add WEBJS-specific configuration to help with initialization
+        if (engine === 'WEBJS') {
+          createPayload.config.webjs = {
+            headless: true,
+            args: [
+              '--no-sandbox',
+              '--disable-setuid-sandbox',
+              '--disable-dev-shm-usage',
+              '--disable-accelerated-2d-canvas',
+              '--no-first-run',
+              '--no-zygote',
+              '--disable-gpu'
+            ]
+          };
+          console.log(`[WAHA Service] 🔧 Added WEBJS configuration for better initialization`);
+        }
 
         console.log(`[WAHA Service] Making POST request to /api/sessions with payload:`, createPayload);
         
@@ -975,8 +992,16 @@ class WAHAService extends EventEmitter {
         }
         
         // CRITICAL: Wait for WAHA to initialize the session
-        console.log(`[WAHA Service] ⏳ Waiting 3 seconds for WAHA to initialize session...`);
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        console.log(`[WAHA Service] ⏳ Waiting 5 seconds for WAHA to initialize session...`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        
+        // Check session status after initial wait
+        try {
+          const initialStatus = await this.getSessionStatus(sessionName);
+          console.log(`[WAHA Service] 📊 Initial session status after 5s wait:`, initialStatus);
+        } catch (statusError) {
+          console.warn(`[WAHA Service] ⚠️ Could not get initial session status:`, statusError);
+        }
         
         // Verify session was actually created by listing all sessions
         try {
@@ -1211,6 +1236,16 @@ class WAHAService extends EventEmitter {
 
       // Ensure session exists and is in a proper state for QR
       console.log(`[WAHA Service] Ensuring session '${sessionName}' exists and is configured...`);
+      
+      // First check if WAHA service is healthy
+      try {
+        await this.healthCheck();
+        console.log(`[WAHA Service] ✅ WAHA service health check passed`);
+      } catch (healthError) {
+        console.error(`[WAHA Service] ❌ WAHA service health check failed:`, healthError);
+        throw new Error(`WAHA service is not healthy: ${healthError.message}`);
+      }
+      
       let current = await this.getSessionStatus(sessionName);
 
       // If session is stuck in STARTING for too long, delete and recreate it
@@ -1218,11 +1253,25 @@ class WAHAService extends EventEmitter {
         console.warn(`[WAHA Service] ⚠️ Session '${sessionName}' stuck in STARTING state, checking if we should recreate...`);
         // Try waiting briefly first
         try {
-          await this.waitForSessionState(sessionName, ['SCAN_QR_CODE', 'WORKING', 'FAILED'], 5000); // 5 second check
+          await this.waitForSessionState(sessionName, ['SCAN_QR_CODE', 'WORKING', 'FAILED'], 15000); // 15 second check - WAHA needs more time
           current = await this.getSessionStatus(sessionName);
           console.log(`[WAHA Service] Session transitioned to: ${current.status}`);
         } catch (waitErr) {
-          console.warn(`[WAHA Service] Session still STARTING after 5s, forcing complete recreation (delete + create)...`);
+          console.warn(`[WAHA Service] Session still STARTING after 15s, trying to force QR code generation first...`);
+          
+          // Try to force QR code generation before recreating
+          try {
+            console.log(`[WAHA Service] 🔄 Attempting to force QR code generation for stuck session...`);
+            const qrResponse = await this.httpClient.get(`/api/sessions/${sessionName}/qr`);
+            if (qrResponse.data && qrResponse.data.qr) {
+              console.log(`[WAHA Service] ✅ Successfully forced QR code generation!`);
+              return qrResponse.data.qr;
+            }
+          } catch (qrError) {
+            console.warn(`[WAHA Service] ⚠️ Force QR generation failed:`, qrError);
+          }
+          
+          console.warn(`[WAHA Service] Force QR failed, proceeding with complete recreation (delete + create)...`);
 
           // Step 1: Try to stop the session first
           try {
