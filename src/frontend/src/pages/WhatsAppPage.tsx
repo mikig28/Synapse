@@ -293,13 +293,22 @@ const WhatsAppPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchStatus();
-    fetchGroups();
-    fetchPrivateChats();
-    fetchContacts();
-    fetchMessages();
-    fetchMonitoredKeywords();
-    
+    // Only fetch status initially, wait for session to be ready before fetching data
+    const initializeData = async () => {
+      try {
+        await fetchStatus();
+
+        // After status is fetched, check if session is ready
+        // The fetchStatus function will automatically trigger data fetching
+        // if authenticated (see lines 883-890 and 911-918)
+      } catch (error) {
+        console.error('[WhatsApp Frontend] Failed to fetch initial status:', error);
+      }
+    };
+
+    initializeData();
+    fetchMonitoredKeywords(); // This endpoint doesn't depend on session status
+
     // Intelligent status monitoring with enhanced exponential backoff (optimized for rate limiting)
     let pollInterval = 30000; // Start with 30 seconds (reduced from 15s to prevent rate limiting)
     let failureCount = 0;
@@ -878,15 +887,19 @@ const WhatsAppPage: React.FC = () => {
         setStatus(enhancedStatus);
         setActiveService('waha');
         console.log('✅ Using WAHA service (modern)');
-        
-        // If authenticated and we don't have chats yet, fetch them
-        if (enhancedStatus.authenticated && groups.length === 0 && privateChats.length === 0) {
-          console.log('[WhatsApp Frontend] Authenticated but no chats loaded, fetching...');
+
+        // Only fetch chats if session is WORKING (not STARTING, SCAN_QR_CODE, etc.)
+        if (enhancedStatus.authenticated &&
+            enhancedStatus.sessionStatus === 'WORKING' &&
+            groups.length === 0 && privateChats.length === 0) {
+          console.log('[WhatsApp Frontend] Session is WORKING and authenticated, fetching chats...');
           setTimeout(() => {
             fetchGroups(true);
             fetchPrivateChats(true);
             fetchMessages();
           }, 1000);
+        } else if (enhancedStatus.sessionStatus !== 'WORKING') {
+          console.log(`[WhatsApp Frontend] Session status is '${enhancedStatus.sessionStatus}', waiting for WORKING status before fetching chats...`);
         }
       }
     } catch (error: any) {
@@ -2546,6 +2559,7 @@ const WhatsAppPage: React.FC = () => {
   const getStatusColor = () => {
     if (!status) return 'text-gray-500';
     if (status.connected && status.isReady && status.isClientReady) return 'text-green-400';
+    if (status.sessionStatus === 'STARTING') return 'text-blue-400'; // Blue for initializing
     if (status.qrAvailable) return 'text-yellow-400';
     return 'text-red-400';
   };
@@ -2553,6 +2567,7 @@ const WhatsAppPage: React.FC = () => {
   const getStatusIcon = () => {
     if (!status) return WifiOff;
     if (status.connected && status.isReady && status.isClientReady) return Wifi;
+    if (status.sessionStatus === 'STARTING') return RefreshCw; // Show refresh icon for initializing
     if (status.qrAvailable) return QrCode;
     return WifiOff;
   };
@@ -2594,6 +2609,8 @@ const WhatsAppPage: React.FC = () => {
                   <span className={`text-xs sm:text-sm ${isSyncing ? 'text-yellow-400' : getStatusColor()}`}>
                     {isSyncing
                       ? `Syncing... (${syncRetryCount}/10 attempts)`
+                      : status?.sessionStatus === 'STARTING'
+                      ? 'Initializing...'
                       : status?.connected && status?.isReady && status?.isClientReady
                       ? 'Connected'
                       : status?.qrAvailable

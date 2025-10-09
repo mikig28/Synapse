@@ -61,6 +61,20 @@ class TelegramBotManager extends EventEmitter {
     try {
       console.log(`[TelegramBotManager] Setting bot for user: ${userId}`);
 
+      // Check if bot is already active for this user with same token
+      const existingBot = this.botInstances.get(userId);
+      if (existingBot && existingBot.isActive) {
+        // Check if it's the same token
+        const user = await User.findById(userId).select('+telegramBotToken');
+        if (user?.telegramBotToken === botToken) {
+          console.log(`[TelegramBotManager] Bot already active for user ${userId} with same token, skipping initialization`);
+          return {
+            success: true,
+            botInfo: { username: existingBot.username }
+          };
+        }
+      }
+
       // Validate the token first
       const validation = await this.validateBotToken(botToken);
       if (!validation.isValid) {
@@ -269,10 +283,29 @@ class TelegramBotManager extends EventEmitter {
       this.emit('message', { userId, message: msg, bot });
     });
 
-    // Polling error handler
-    bot.on('polling_error', (error) => {
-      console.error(`[TelegramBotManager] Polling error for user ${userId}:`, error.message);
-      this.emit('botError', { userId, error: error.message });
+    // Polling error handler with conflict detection
+    bot.on('polling_error', async (error) => {
+      const errorMessage = error.message;
+
+      // Handle 409 Conflict (multiple polling instances)
+      if (errorMessage.includes('409') || errorMessage.includes('Conflict') ||
+          errorMessage.includes('terminated by other getUpdates')) {
+        console.warn(`[TelegramBotManager] ⚠️ Polling conflict detected for user ${userId} - another instance is polling. Stopping this instance.`);
+
+        // Stop this bot instance to prevent continuous conflicts
+        try {
+          await this.stopBotForUser(userId);
+          console.log(`[TelegramBotManager] ✅ Stopped conflicting bot instance for user ${userId}`);
+        } catch (stopError) {
+          console.error(`[TelegramBotManager] Error stopping conflicting bot for user ${userId}:`, stopError);
+        }
+
+        return; // Don't emit general botError for conflicts
+      }
+
+      // Handle other polling errors normally
+      console.error(`[TelegramBotManager] Polling error for user ${userId}:`, errorMessage);
+      this.emit('botError', { userId, error: errorMessage });
     });
 
     // Webhook error handler
