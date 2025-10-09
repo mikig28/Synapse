@@ -1232,23 +1232,37 @@ class WAHAService extends EventEmitter {
             console.warn(`[WAHA Service] Could not stop session (may already be stopped): ${stopErr.message}`);
           }
 
-          // Step 2: Delete the corrupted session completely
+          // Step 2: Clear cache to avoid stale data
+          console.log(`[WAHA Service] 🗑️ Clearing session status cache before deletion`);
+          this.sessionStatusCache.data = null;
+          this.sessionStatusCache.timestamp = 0;
+
+          // Step 3: Delete the corrupted session completely
           try {
             console.log(`[WAHA Service] Deleting corrupted session '${sessionName}'...`);
             await this.httpClient.delete(`/api/sessions/${sessionName}`);
             console.log(`[WAHA Service] ✅ Session deleted successfully`);
+
+            // Clear cache again after deletion
+            this.sessionStatusCache.data = null;
+            this.sessionStatusCache.timestamp = 0;
+
             await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for cleanup
           } catch (deleteErr: any) {
             console.warn(`[WAHA Service] Could not delete session: ${deleteErr.message}`);
-            // Continue anyway - session might not exist
+            // Clear cache anyway since session state is unknown
+            this.sessionStatusCache.data = null;
+            this.sessionStatusCache.timestamp = 0;
           }
 
-          // Step 3: Create a fresh session
+          // Step 4: Create a fresh session
           console.log(`[WAHA Service] Creating fresh session '${sessionName}'...`);
           await this.startSession(sessionName); // This will create if doesn't exist
           await new Promise(resolve => setTimeout(resolve, 3000)); // Wait for initialization
 
-          // Step 4: Verify new session status
+          // Step 5: Clear cache and get fresh status
+          this.sessionStatusCache.data = null;
+          this.sessionStatusCache.timestamp = 0;
           current = await this.getSessionStatus(sessionName);
           console.log(`[WAHA Service] New session status: ${current.status}`);
         }
@@ -4163,8 +4177,17 @@ class WAHAService extends EventEmitter {
     const pollInterval = 2000; // Check every 2 seconds
     let stoppedCount = 0;
 
+    // Clear cache at start to ensure fresh status checks
+    console.log(`[WAHA Service] 🗑️ Clearing cache before waiting for state transition`);
+    this.sessionStatusCache.data = null;
+    this.sessionStatusCache.timestamp = 0;
+
     while (Date.now() - startTime < timeoutMs) {
       try {
+        // Force fresh status check by clearing cache before each poll
+        this.sessionStatusCache.data = null;
+        this.sessionStatusCache.timestamp = 0;
+
         const sessionStatus = await this.getSessionStatus(sessionName);
         console.log(`[WAHA Service] Session '${sessionName}' current state: ${sessionStatus.status}`);
 
