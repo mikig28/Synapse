@@ -1776,7 +1776,8 @@ class WAHAService extends EventEmitter {
 
       // WAHA API structure: POST /{session}/sendFile
       const response = await this.queueRequest<AxiosResponse<any>>(() =>
-        this.httpClient.post(`/sessions/${sessionName}/sendFile`, {
+        this.httpClient.post('/api/sendFile', {
+          session: sessionName,
           chatId,
           file: {
             url: mediaUrl
@@ -1871,7 +1872,7 @@ class WAHAService extends EventEmitter {
             console.log(`[WAHA Service] Trying chats overview with sortBy=${sortBy} and 180s timeout...`);
             // Use WAHA sessions-based endpoint first (modern WAHA)
             const res = await this.queueRequest<AxiosResponse<any>>(() =>
-              this.httpClient.get(`/sessions/${sessionName}/chats/overview`, {
+              this.httpClient.get(`/api/${sessionName}/chats/overview`, {
                 timeout: 60000,
                 params: {
                   limit: Math.min(options.limit || 100, 30), // Use smaller pages
@@ -1893,9 +1894,9 @@ class WAHAService extends EventEmitter {
             // Legacy path fallback if 404
             if (status === 404) {
               try {
-                console.log(`[WAHA Service] Trying legacy overview path: /${sessionName}/chats/overview`);
+                console.log(`[WAHA Service] Trying WAHA-compliant overview path: /api/${sessionName}/chats/overview`);
                 const resLegacy = await this.queueRequest<AxiosResponse<any>>(() =>
-                  this.httpClient.get(`/${sessionName}/chats/overview`, {
+                  this.httpClient.get(`/api/${sessionName}/chats/overview`, {
                     timeout: 60000,
                     params: {
                       limit: Math.min(options.limit || 100, 30),
@@ -1945,12 +1946,12 @@ class WAHAService extends EventEmitter {
             if (options.exclude?.length) params.append('exclude', options.exclude.join(','));
 
             const queryString = params.toString();
-            // Prefer legacy path first for maximum compatibility, then sessions path
-            const legacyEndpoint = `/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
-            const sessionsEndpoint = `/sessions/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
+            // Prefer modern path first for maximum compatibility, then sessions path
+            const legacyEndpoint = `/api/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
+            const sessionsEndpoint = `/api/sessions/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
 
             console.log(`[WAHA Service] Trying direct /chats (legacy-first) with sortBy='${sortBy}' and ${timeoutMs/1000}s timeout...`);
-            console.log(`[WAHA Service] Using legacy endpoint: ${legacyEndpoint}`);
+            console.log(`[WAHA Service] Using primary endpoint: ${legacyEndpoint}`);
             // Queue request to prevent WAHA overload
             let res = await this.queueRequest<AxiosResponse<any>>(() =>
               this.httpClient.get(legacyEndpoint, { timeout: timeoutMs }) // Use full timeout for WEBJS (110s)
@@ -1962,7 +1963,7 @@ class WAHAService extends EventEmitter {
             const status = e?.response?.status;
             const errorMsg = e?.message || e;
             console.log(`[WAHA Service] ❌ /chats failed (sortBy='${sortBy}', ${timeoutMs/1000}s): ${errorMsg}`);
-            // If legacy path 404s, try sessions path
+            // If primary path 404s, try sessions path
             if (status === 404) {
               try {
                 const params2 = new URLSearchParams();
@@ -1973,7 +1974,7 @@ class WAHAService extends EventEmitter {
                 params2.append('sortOrder', options.sortOrder || 'desc');
                 if (options.exclude?.length) params2.append('exclude', options.exclude.join(','));
                 const queryString2 = params2.toString();
-                const sessionsEndpoint2 = `/sessions/${sessionName}/chats${queryString2 ? `?${queryString2}` : ''}`;
+                const sessionsEndpoint2 = `/api/sessions/${sessionName}/chats${queryString2 ? `?${queryString2}` : ''}`;
                 console.log(`[WAHA Service] Trying sessions /chats endpoint: ${sessionsEndpoint2}`);
                 const resSessions = await this.queueRequest<AxiosResponse<any>>(() =>
                   this.httpClient.get(sessionsEndpoint2, { timeout: timeoutMs }) // Use full timeout for WEBJS
@@ -1994,9 +1995,9 @@ class WAHAService extends EventEmitter {
             }
           }
         }
-        // Minimal-parameter fallback: try legacy, then sessions without params
+        // Minimal-parameter fallback: try modern path, then sessions without params
         try {
-          const minimalLegacy = `/${sessionName}/chats`;
+          const minimalLegacy = `/api/${sessionName}/chats`;
           console.log(`[WAHA Service] Trying minimal legacy /chats without params: ${minimalLegacy}`);
           const resMinLegacy = await this.queueRequest<AxiosResponse<any>>(() =>
             this.httpClient.get(minimalLegacy, { timeout: 45000 })
@@ -2007,7 +2008,7 @@ class WAHAService extends EventEmitter {
         } catch (e1: any) {
           console.log(`[WAHA Service] ❌ Minimal legacy /chats failed:`, e1?.response?.status || e1?.message || e1);
           try {
-            const minimalSessions = `/sessions/${sessionName}/chats`;
+            const minimalSessions = `/api/sessions/${sessionName}/chats`;
             console.log(`[WAHA Service] Trying minimal sessions /chats without params: ${minimalSessions}`);
             const resMinSessions = await this.queueRequest<AxiosResponse<any>>(() =>
               this.httpClient.get(minimalSessions, { timeout: 45000 })
@@ -2031,10 +2032,10 @@ class WAHAService extends EventEmitter {
             this.httpClient.get(altEndpoint, { timeout: timeoutMs })
           );
           const items = normalizeChats(res.data);
-          console.log(`[WAHA Service] ✅ Alternate /api/chats successful; got ${items.length} items`);
+          console.log(`[WAHA Service] ✅ Alternate /chats successful; got ${items.length} items`);
           if (items.length > 0) return mapChats(items);
         } catch (e: any) {
-          console.log(`[WAHA Service] ❌ Alternate /api/chats failed:`, e?.response?.status || e?.message || e);
+          console.log(`[WAHA Service] ❌ Alternate /chats failed:`, e?.response?.status || e?.message || e);
         }
 
         return null;
@@ -2186,7 +2187,7 @@ class WAHAService extends EventEmitter {
         }
 
         const queryString = params.toString();
-        const endpoint = `/sessions/${sessionName}/groups${queryString ? `?${queryString}` : ''}`;
+        const endpoint = `/api/${sessionName}/groups${queryString ? `?${queryString}` : ''}`;
 
         console.log(`[WAHA Service] Using WAHA-compliant groups endpoint with performance opts: ${endpoint}`);
         const res = await this.queueRequest<AxiosResponse<any>>(() =>
@@ -2285,7 +2286,7 @@ class WAHAService extends EventEmitter {
         console.log(`[WAHA Service] Using WEBJS engine - groups refresh supported`);
       }
       const response = await this.queueRequest<AxiosResponse<any>>(() =>
-        this.httpClient.post(`/sessions/${sessionName}/groups/refresh`, {}, { timeout: 15000 })
+        this.httpClient.post(`/api/${sessionName}/groups/refresh`, {}, { timeout: 15000 })
       );
       console.log(`[WAHA Service] ✅ Groups refreshed successfully`);
       return { success: true, message: 'Groups refreshed successfully' };
