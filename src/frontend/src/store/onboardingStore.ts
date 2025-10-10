@@ -281,14 +281,19 @@ const createInitialProgress = (totalSteps: number): OnboardingProgress => ({
 const deriveCompletedSteps = (steps: OnboardingStep[]): string[] =>
   steps.filter((step) => step.completed).map((step) => step.id);
 
-const normalizeStepUnlocks = (steps: OnboardingStep[]): OnboardingStep[] => {
+const normalizeStepUnlocks = (steps: OnboardingStep[], skippedSteps: string[] = []): OnboardingStep[] => {
   let prerequisitesMet = true;
 
   return steps.map((step, index) => {
     const unlocked = index === 0 ? true : prerequisitesMet;
 
+    // Allow progression if step is completed, OR if it's optional and was skipped
+    const isSkipped = skippedSteps.includes(step.id);
     if (!step.optional && !step.completed) {
       prerequisitesMet = false;
+    } else if (step.optional && (step.completed || isSkipped)) {
+      // Optional steps that are completed or skipped don't block progression
+      prerequisitesMet = true;
     }
 
     return {
@@ -349,7 +354,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       currentTip: undefined,
 
       startOnboarding: () => {
-        const steps = normalizeStepUnlocks(createDefaultSteps());
+        const steps = normalizeStepUnlocks(createDefaultSteps(), []);
         const progress = createInitialProgress(steps.length);
 
         set({
@@ -379,7 +384,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         ]);
 
         const nextIntegrationStatus = createInitialIntegrationStatus();
-        const updatedSteps = normalizeStepUnlocks([...get().steps]);
+        const updatedSteps = normalizeStepUnlocks([...get().steps], get().progress.skippedSteps);
         const errors: string[] = [];
 
         // Telegram status
@@ -477,7 +482,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           }
         }
 
-        const normalizedSteps = normalizeStepUnlocks(updatedSteps);
+        const normalizedSteps = normalizeStepUnlocks(updatedSteps, get().progress.skippedSteps);
         const completedSteps = deriveCompletedSteps(normalizedSteps);
         const currentStep = determineCurrentStep(normalizedSteps, get().currentStep);
 
@@ -565,10 +570,16 @@ export const useOnboardingStore = create<OnboardingState>()(
           return;
         }
 
+        const newSkippedSteps = unique([...state.progress.skippedSteps, currentStepId]);
+
+        // Re-normalize steps with updated skipped list to unlock next steps
+        const normalizedSteps = normalizeStepUnlocks(state.steps, newSkippedSteps);
+
         set({
+          steps: normalizedSteps,
           progress: {
             ...state.progress,
-            skippedSteps: unique([...state.progress.skippedSteps, currentStepId]),
+            skippedSteps: newSkippedSteps,
           },
         });
 
@@ -586,7 +597,7 @@ export const useOnboardingStore = create<OnboardingState>()(
             : step,
         );
 
-        const normalizedSteps = normalizeStepUnlocks(updatedSteps);
+        const normalizedSteps = normalizeStepUnlocks(updatedSteps, state.progress.skippedSteps);
         const completedSteps = deriveCompletedSteps(normalizedSteps);
 
         set({
@@ -699,7 +710,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       },
 
       reset: () => {
-        const steps = normalizeStepUnlocks(createDefaultSteps());
+        const steps = normalizeStepUnlocks(createDefaultSteps(), []);
         set({
           isOnboarding: false,
           isInitialized: false,
