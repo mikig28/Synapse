@@ -938,11 +938,20 @@ class WAHAService extends EventEmitter {
         console.log(`[WAHA Service] 🔗 Adding webhook configuration to session: ${process.env.WHATSAPP_HOOK_URL || fullWebhookUrl}`);
         console.log(`[WAHA Service] 📡 Webhook events: ${webhookEvents.join(', ')}`);
 
-        // Engine-specific configuration (WAHA Plus handles storage internally)
-        // Note: WAHA automatically uses configured storage backend (MongoDB, PostgreSQL, or local)
-        // No manual "store.enabled" flags needed - they don't exist in WAHA Plus API
-        // MongoDB storage is configured directly in WAHA service, not in backend
-        
+        // Engine-specific configuration
+
+        // NOWEB engine REQUIRES explicit store configuration to retrieve chats/contacts
+        // See: https://waha.devlike.pro/docs/engines/noweb#store
+        if (engine === 'NOWEB') {
+          createPayload.config.noweb = {
+            store: {
+              enabled: true,
+              fullSync: true // Get max 1 year of history (up to 100k messages per chat)
+            }
+          };
+          console.log(`[WAHA Service] 🔧 Enabled NOWEB store for chat/contact retrieval`);
+        }
+
         // Add WEBJS-specific configuration to help with initialization
         if (engine === 'WEBJS') {
           // Try multiple configuration formats for better compatibility
@@ -1037,7 +1046,17 @@ class WAHAService extends EventEmitter {
           ];
           console.log(`[WAHA Service] 🔗 Adding webhook configuration to fallback session: ${fullWebhookUrl}`);
 
-          // Note: WAHA Plus handles storage automatically - no manual store configuration needed
+          // NOWEB engine REQUIRES explicit store configuration
+          if (engine === 'NOWEB') {
+            fallbackPayload.config.noweb = {
+              store: {
+                enabled: true,
+                fullSync: true
+              }
+            };
+            console.log(`[WAHA Service] 🔧 Enabled NOWEB store for fallback session`);
+          }
+
           const startRes = await this.httpClient.post(`api/sessions/${sessionName}/start`, fallbackPayload);
           console.log(`[WAHA Service] ✅ Fallback start created/started session '${sessionName}':`, startRes.status);
           sessionData = { name: sessionName, status: 'STARTING' };
