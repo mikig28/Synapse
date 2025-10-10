@@ -1,10 +1,71 @@
 import { VideoItemType } from '../types/video';
 import axiosInstance, { BACKEND_ROOT_URL } from './axiosConfig';
 
+// Interface for YouTube recommendations from backend
+interface YouTubeVideo {
+  _id: string;
+  userId: string;
+  source: 'youtube';
+  videoId: string;
+  subscriptionId?: string;
+  title: string;
+  channelTitle?: string;
+  description?: string;
+  thumbnails?: Record<string, { url: string; width?: number; height?: number }>;
+  publishedAt?: string;
+  relevance?: number;
+  status: 'pending' | 'approved' | 'hidden';
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Convert YouTube Video to VideoItemType format
+const convertYouTubeVideoToVideoItem = (video: YouTubeVideo): VideoItemType => {
+  // Get the best thumbnail URL (prefer high quality, fallback to default)
+  const thumbnailUrl = video.thumbnails?.high?.url || 
+                      video.thumbnails?.medium?.url || 
+                      video.thumbnails?.default?.url;
+
+  // Map status to watchedStatus
+  const statusMap: Record<string, VideoItemType['watchedStatus']> = {
+    'pending': 'unwatched',
+    'approved': 'unwatched', // New recommendations start as unwatched
+    'hidden': 'unwatched'    // Hidden videos still show as unwatched in main list
+  };
+
+  return {
+    _id: video._id,
+    userId: video.userId,
+    originalUrl: `https://www.youtube.com/watch?v=${video.videoId}`,
+    videoId: video.videoId,
+    title: video.title,
+    thumbnailUrl,
+    channelTitle: video.channelTitle,
+    sourcePlatform: 'YouTube',
+    watchedStatus: statusMap[video.status] || 'unwatched',
+    createdAt: video.createdAt,
+    updatedAt: video.updatedAt
+  };
+};
+
 export const getVideosService = async (): Promise<VideoItemType[]> => {
   try {
-    const response = await axiosInstance.get<VideoItemType[]>(`/videos`);
-    return response.data;
+    // Fetch both legacy VideoItem videos and YouTube recommendations
+    const [legacyVideos, youtubeRecommendations] = await Promise.all([
+      axiosInstance.get<VideoItemType[]>(`/videos`),
+      axiosInstance.get<{ items: YouTubeVideo[] }>(`/videos?source=youtube`)
+    ]);
+    
+    // Convert YouTube videos to VideoItemType format
+    const convertedYouTubeVideos = youtubeRecommendations.data.items.map(convertYouTubeVideoToVideoItem);
+    
+    // Combine both types of videos
+    const allVideos = [...legacyVideos.data, ...convertedYouTubeVideos];
+    
+    // Sort by creation date (newest first)
+    allVideos.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    
+    return allVideos;
   } catch (error) {
     console.error('Error fetching videos:', error);
     throw error;
@@ -16,7 +77,8 @@ export const updateVideoStatusService = async (
   status: 'unwatched' | 'watching' | 'watched'
 ): Promise<VideoItemType> => {
   try {
-    // Ensure videoIdParam is just the ID, not part of a longer string
+    // For now, only update legacy VideoItem videos
+    // YouTube recommendations don't support status updates in the same way
     const response = await axiosInstance.put<VideoItemType>(
       `/videos/${videoIdParam}/status`, 
       { status }
