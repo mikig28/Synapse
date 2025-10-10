@@ -179,17 +179,22 @@ TWITTER_API_KEY=your_key          # For Twitter/X integration
 WAHA_API_KEY=your_waha_api_key    # Required for WAHA Plus service authentication
 WAHA_SERVICE_URL=https://synapse-waha.onrender.com  # WAHA Plus service endpoint (Render.com)
 
-# Engine Configuration (WAHA Plus supports WEBJS, NOWEB, VENOM engines)
+# Engine Configuration (WAHA supports WEBJS, NOWEB, GOWS engines)
 # Recommended: WEBJS (full functionality with browser-based WhatsApp Web)
-WAHA_ENGINE=WEBJS                 # Use WEBJS engine for full WhatsApp Web functionality + media support
+# Official docs: https://waha.devlike.pro/docs/how-to/engines/
+WHATSAPP_DEFAULT_ENGINE=WEBJS     # ⚠️ Correct variable name (not WAHA_ENGINE)
 WAHA_WEBJS_HEADLESS=true          # Run browser in headless mode (recommended for production)
 WAHA_WEBJS_CACHE_TYPE=local       # Enable browser cache for faster loads (reduces sync time)
 WAHA_WEBJS_WEB_VERSION=2.3000.1028213955  # Optional: Pin specific WhatsApp Web version
 
 # Session Persistence (CRITICAL for avoiding re-sync on restart)
-# Use MongoDB for persistent session storage (avoids 5-15 min re-sync on each restart)
-WHATSAPP_SESSIONS_MONGO_URL=mongodb://user:password@host:port/waha_sessions  # MongoDB connection URL
+# ⚠️ IMPORTANT: MongoDB storage is DEPRECATED - PostgreSQL recommended for new deployments
+# Official docs: https://waha.devlike.pro/docs/how-to/storages/
+WHATSAPP_SESSIONS_MONGO_URL=mongodb://user:password@host:port/  # ⚠️ NO database name at end!
 WAHA_ZIPPER=ZIPUNZIP              # Required for WEBJS + MongoDB (compresses auth data)
+
+# Alternative: PostgreSQL (RECOMMENDED for new deployments)
+# WHATSAPP_SESSIONS_POSTGRES_URL=postgresql://user:password@host:port/waha_sessions
 
 # Alternative: Local storage (not recommended for production - sessions lost on container restart)
 # WAHA_LOCAL_STORE_BASE_DIR=/app/.sessions  # Local session storage directory

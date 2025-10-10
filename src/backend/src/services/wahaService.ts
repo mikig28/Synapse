@@ -1209,19 +1209,23 @@ class WAHAService extends EventEmitter {
       
       return response.data;
     } catch (error: any) {
-      // Return cached data if available on error
-      if (this.sessionStatusCache.data) {
-        console.warn('[WAHA Service] Error fetching session status, returning cached data:', error.message);
-        return this.sessionStatusCache.data;
-      }
-      
+      // Clear cache on 404 errors - session doesn't exist so cached data is invalid
       if (error.response?.status === 404) {
+        console.warn(`[WAHA Service] 🗑️ Session 404 - clearing stale cache before auto-create attempt`);
+        this.sessionStatusCache.data = null;
+        this.sessionStatusCache.timestamp = 0;
+
         console.warn(`[WAHA Service] Session '${sessionName}' not found on all paths. Attempting auto-create/start...`);
         try {
           // Reuse robust start flow (has fallback to /api/{session}/start)
           await this.startSession(sessionName);
           // Brief delay then retry status fetch
           await new Promise(resolve => setTimeout(resolve, 1000));
+
+          // Clear cache before retry to ensure fresh status
+          this.sessionStatusCache.data = null;
+          this.sessionStatusCache.timestamp = 0;
+
           let retry;
           try {
             retry = await this.httpClient.get(`/api/sessions/${sessionName}`);
@@ -1248,11 +1252,23 @@ class WAHAService extends EventEmitter {
           return retry.data;
         } catch (autoErr: any) {
           console.error(`[WAHA Service] ❌ Auto-create failed for '${sessionName}':`, autoErr?.response?.status || autoErr?.message);
+          // Clear cache on failure
+          this.sessionStatusCache.data = null;
+          this.sessionStatusCache.timestamp = 0;
           throw new Error('Session not found. Please create a new session.');
         }
       }
-      
-      console.error('[WAHA Service] Error getting session status:', error.message);
+
+      // For non-404 errors, only return cached data if it's recent (within 5 seconds)
+      if (this.sessionStatusCache.data && (Date.now() - this.sessionStatusCache.timestamp) < 5000) {
+        console.warn('[WAHA Service] Error fetching session status, returning RECENT cached data (<5s old):', error.message);
+        return this.sessionStatusCache.data;
+      }
+
+      // Clear stale cache and throw error
+      console.error('[WAHA Service] Error getting session status, clearing stale cache:', error.message);
+      this.sessionStatusCache.data = null;
+      this.sessionStatusCache.timestamp = 0;
       throw error;
     }
   }
@@ -1620,12 +1636,13 @@ class WAHAService extends EventEmitter {
       } catch (qrErr: any) {
         console.warn(`[WAHA Service] Primary QR endpoint failed:`, qrErr.message);
         
-        // Try multiple alternative endpoints with correct format parameters
+        // Try multiple alternative endpoints (all using correct WAHA API format: /api/{session}/...)
+        // Per official docs: https://waha.devlike.pro/docs/how-to/sessions/
         const alternativeEndpoints = [
           { url: `/api/${sessionName}/auth/qr`, headers: { 'Accept': 'image/png' } },
-          { url: `/api/sessions/${sessionName}/auth/qr?format=image`, headers: { 'Accept': 'image/png' } },
+          { url: `/api/${sessionName}/auth/qr?format=raw`, headers: { 'Accept': 'image/png' } },
           { url: `/api/${sessionName}/qr`, headers: { 'Accept': 'image/png' } },
-          { url: `/api/sessions/${sessionName}/qr`, headers: { 'Accept': 'image/png' } }
+          { url: `/api/${sessionName}/screenshot`, headers: { 'Accept': 'image/png' } } // Last resort: screenshot method
         ];
         
         let qrSuccess = false;
@@ -2532,17 +2549,16 @@ class WAHAService extends EventEmitter {
         return [];
       }
       
-      // WAHA 2025.9.1 API endpoint structure: /api/messages?session={session}&chatId={chatId}
+      // WAHA Official API: /api/{session}/chats/{chatId}/messages
+      // Per official WAHA docs: https://waha.devlike.pro/docs/how-to/chats/
       // Request downloadMedia=true to get full message details including type, MIME, and media URLs
       let response = await this.queueRequest<AxiosResponse<any>>(() =>
-        this.httpClient.get('/api/messages', {
+        this.httpClient.get(`/api/${sessionName}/chats/${chatId}/messages`, {
           params: {
-          session: sessionName,
-          chatId: chatId,
-          limit,
-          downloadMedia: 'true' // Required for voice messages and other media to have downloadable URLs
-        },
-        timeout: 180000 // Increased to 3 minutes for Railway deployment
+            limit,
+            downloadMedia: 'true' // Required for voice messages and other media to have downloadable URLs
+          },
+          timeout: 180000 // Increased to 3 minutes for Railway deployment
         })
       );
       
