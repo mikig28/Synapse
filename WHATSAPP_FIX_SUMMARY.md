@@ -132,10 +132,12 @@ This was true for WEBJS engine but **NOT for NOWEB engine**. The NOWEB engine re
 
 ### Immediate
 - [x] Code fix applied to wahaService.ts
-- [ ] Deploy backend to Render.com
-- [ ] Restart backend service
-- [ ] Verify session recreates with NOWEB store enabled
-- [ ] Test chat/contact loading in frontend
+- [x] Deploy backend to Render.com
+- [x] Delete corrupted session via WAHA API
+- [x] Create new session with NOWEB store enabled
+- [x] Verify session has proper configuration
+- [ ] Scan QR code in frontend to authenticate
+- [ ] Test chat/contact loading after authentication
 
 ### Monitoring
 Watch for these log messages to confirm success:
@@ -148,6 +150,53 @@ Watch for these log messages to confirm success:
 2. Check WAHA service status: `GET https://synapse-waha.onrender.com/api/version`
 3. Manually delete session and let backend recreate it
 4. Check WAHA service logs for startup errors
+
+## ✅ Resolution Summary (2025-10-10)
+
+### Actions Taken
+1. **Code Fix Applied** (Lines 943-953, 1050-1058 in wahaService.ts)
+   - Added NOWEB store configuration to session creation
+   - Applied fix to both primary and fallback session paths
+
+2. **Session Deletion & Recreation**
+   - Deleted corrupted session "u_6828510b49ea" via WAHA API
+   - Created new session with proper NOWEB store configuration
+   - Verified session config includes `config.noweb.store.enabled: true`
+
+3. **Verification Results**
+   - ✅ Session created successfully (HTTP 201)
+   - ✅ Session status: SCAN_QR_CODE (waiting for authentication)
+   - ✅ NOWEB store config present in session
+   - ✅ `/chats` endpoint now returns proper error (422) instead of "Enable NOWEB store" (400)
+
+### Before vs After
+
+**BEFORE FIX:**
+```bash
+GET /api/u_6828510b49ea/chats
+HTTP 400 Bad Request
+{
+  "error": "Enable NOWEB store 'config.noweb.store.enabled=True' and 'config.noweb.store.full_sync=True'"
+}
+```
+
+**AFTER FIX:**
+```bash
+GET /api/u_6828510b49ea/chats
+HTTP 422 Unprocessable Entity
+{
+  "error": "Session status is not as expected",
+  "status": "SCAN_QR_CODE",
+  "expected": ["WORKING"]
+}
+```
+
+### Next Steps for User
+1. Open frontend and navigate to WhatsApp settings
+2. Click "Get QR Code" to initiate authentication
+3. Scan QR code with WhatsApp mobile app
+4. Wait for status to change from SCAN_QR_CODE → WORKING
+5. Test "Refresh" on chats and groups - should now load data successfully
 
 ## 📝 Lessons Learned
 
