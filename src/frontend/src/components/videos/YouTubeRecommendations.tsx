@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -15,7 +15,11 @@ import { Label } from '@/components/ui/label';
 
 type StatusTab = 'all' | 'pending' | 'approved' | 'hidden';
 
-export const YouTubeRecommendations: React.FC = () => {
+interface YouTubeRecommendationsProps {
+  onVideosUpdated?: () => void;
+}
+
+export const YouTubeRecommendations: React.FC<YouTubeRecommendationsProps> = ({ onVideosUpdated }) => {
   const { toast } = useToast();
   const [subscriptions, setSubscriptions] = useState<KeywordSubscription[]>([]);
   const [selectedSubId, setSelectedSubId] = useState<string>('all');
@@ -30,6 +34,7 @@ export const YouTubeRecommendations: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
   const [fetching, setFetching] = useState<boolean>(false);
+  const notifyParentRef = useRef<boolean>(false);
 
   // New subscription dialog state
   const [openDialog, setOpenDialog] = useState<boolean>(false);
@@ -89,6 +94,12 @@ export const YouTubeRecommendations: React.FC = () => {
       });
       setVideos(res.items);
       setTotal(res.total);
+
+      // If we need to notify parent after this load, do it now
+      if (notifyParentRef.current && onVideosUpdated) {
+        onVideosUpdated();
+        notifyParentRef.current = false;
+      }
     } catch (e) {
       toast({ title: 'Failed to load recommendations', variant: 'destructive' });
     } finally {
@@ -143,7 +154,14 @@ export const YouTubeRecommendations: React.FC = () => {
       setFetching(true);
       const res = await triggerFetchNow(selectedSubId === 'all' ? undefined : selectedSubId);
       toast({ title: 'Fetch complete', description: `Upserted ${res.fetched} videos` });
-      await loadVideos();
+
+      // Set flag to notify parent after next video load
+      notifyParentRef.current = true;
+
+      // Reset to page 1 and switch to pending tab to show newly fetched videos
+      // The useEffect hook will automatically reload videos when these state changes occur
+      setPage(1);
+      setStatus('pending');
     } catch {
       toast({ title: 'Fetch failed', variant: 'destructive' });
     } finally {

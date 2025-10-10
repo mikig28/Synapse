@@ -190,7 +190,10 @@ export const getVideos = async (req: AuthenticatedRequest, res: Response) => {
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
     const sizeNum = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
 
-    const mongoQuery = Video.find(filter).sort({ publishedAt: -1, relevance: -1, createdAt: -1 });
+    // Sort by createdAt first to show recently fetched videos at the top
+    // This ensures that when user clicks "Fetch Now", new videos appear on page 1
+    // even if their YouTube publishedAt date is older than existing videos
+    const mongoQuery = Video.find(filter).sort({ createdAt: -1, relevance: -1, publishedAt: -1 });
     if (q) {
       // Use text search if index exists; fallback to regex
       mongoQuery.find({ $text: { $search: q } });

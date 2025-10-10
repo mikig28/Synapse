@@ -375,7 +375,7 @@ const VideosPage: React.FC = () => {
 
         {/* YouTube Recommendations section */}
         <motion.div variants={itemVariants} className="mb-12">
-          <YouTubeRecommendations />
+          <YouTubeRecommendations onVideosUpdated={fetchVideos} />
         </motion.div>
         
         {/* YouTube Player Section */}
