@@ -113,8 +113,18 @@ class WAHAService extends EventEmitter {
   // Groups endpoint circuit breaker
   private groupsEndpointFailures = 0;
   private groupsEndpointLastFailure = 0;
-  private readonly GROUPS_CIRCUIT_BREAKER_THRESHOLD = 3;
-  private readonly GROUPS_CIRCUIT_BREAKER_RESET_TIME = 300000; // 5 minutes
+  private readonly GROUPS_CIRCUIT_BREAKER_THRESHOLD = 5; // 5 minutes
+  private readonly GROUPS_CIRCUIT_BREAKER_RESET_TIME = 600000; // 10 minutes
+
+  // Groups cache
+  private groupsCache: {
+    data: WAHAChat[];
+    timestamp: number;
+  } = {
+    data: [],
+    timestamp: 0
+  };
+  private readonly GROUPS_CACHE_DURATION = 60000; // 1 minute
 
   private groupMonitorService: GroupMonitorService;
 
@@ -701,12 +711,12 @@ class WAHAService extends EventEmitter {
         return this.lastHealthCheckResult;
       }
       
-      const healthEndpoints = ['/api/version', '/api/sessions', '/ping', '/'];
+      const healthEndpoints = ['version', 'sessions', 'ping', '/'];
       const results: any[] = [];
       
       for (const endpoint of healthEndpoints) {
         try {
-          const response = await this.httpClient.get(endpoint, {
+          const response = await this.httpClient.get(endpoint === '/' ? '/' : `api/${endpoint}`, {
             timeout: 5000,
             validateStatus: (status) => status < 500
           });
@@ -795,18 +805,18 @@ class WAHAService extends EventEmitter {
       try {
         let existingSession;
         try {
-          existingSession = await this.httpClient.get(`/api/sessions/${sessionName}`);
+          existingSession = await this.httpClient.get(`api/sessions/${sessionName}`);
         } catch (primaryCheckErr: any) {
           // Fallback to legacy status path if primary path is 404
           if (primaryCheckErr?.response?.status === 404) {
-            console.warn(`[WAHA Service] /api/sessions/${sessionName} returned 404. Trying legacy /api/${sessionName} status path...`);
+            console.warn(`[WAHA Service] /api/sessions/${sessionName} returned 404. Trying legacy api/${sessionName} status path...`);
             try {
-              existingSession = await this.httpClient.get(`/api/${sessionName}`);
+              existingSession = await this.httpClient.get(`api/${sessionName}`);
             } catch (legacyStatusErr: any) {
               // Some versions expose explicit status endpoint
               if (legacyStatusErr?.response?.status === 404) {
-                console.warn(`[WAHA Service] Legacy /api/${sessionName} also 404. Trying /api/${sessionName}/status...`);
-                existingSession = await this.httpClient.get(`/api/${sessionName}/status`);
+                console.warn(`[WAHA Service] Legacy api/${sessionName} also 404. Trying api/${sessionName}/status...`);
+                existingSession = await this.httpClient.get(`api/${sessionName}/status`);
               } else {
                 throw legacyStatusErr;
               }
@@ -828,7 +838,7 @@ class WAHAService extends EventEmitter {
             await this.recreateSessionWithEngine(sessionName);
             // Brief delay then refetch status
             await new Promise(resolve => setTimeout(resolve, 1000));
-            const refreshed = await this.httpClient.get(`/api/sessions/${sessionName}`);
+            const refreshed = await this.httpClient.get(`api/sessions/${sessionName}`);
             sessionData = refreshed.data;
             console.log(`[WAHA Service] ✅ Session recreated with engine: ${sessionData?.engine?.engine}`);
           }
@@ -840,7 +850,7 @@ class WAHAService extends EventEmitter {
         if (sessionData?.status === 'FAILED') {
           console.log(`[WAHA Service] ⚠️ Session '${sessionName}' is in FAILED state, deleting and recreating...`);
           try {
-            await this.httpClient.delete(`/api/sessions/${sessionName}`);
+            await this.httpClient.delete(`api/sessions/${sessionName}`);
             console.log(`[WAHA Service] ✅ Deleted failed session '${sessionName}'`);
             await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s for cleanup
             sessionExists = false; // Force recreation
@@ -854,12 +864,12 @@ class WAHAService extends EventEmitter {
         else if (sessionData?.status === 'STOPPED') {
           console.log(`[WAHA Service] Session '${sessionName}' is stopped, attempting to start...`);
           try {
-            await this.httpClient.post(`/api/sessions/${sessionName}/start`);
+            await this.httpClient.post(`api/sessions/${sessionName}/start`);
           } catch (startStoppedErr: any) {
             if (startStoppedErr?.response?.status === 404) {
-              console.warn(`[WAHA Service] Start via /api/sessions/${sessionName}/start 404. Trying alternative endpoint...`);
+              console.warn(`[WAHA Service] Start via api/sessions/${sessionName}/start 404. Trying alternative endpoint...`);
               // Try alternative start endpoint if the primary one fails
-              await this.httpClient.post(`/api/sessions/${sessionName}/restart`);
+              await this.httpClient.post(`api/sessions/${sessionName}/restart`);
             } else {
               throw startStoppedErr;
             }
@@ -871,7 +881,7 @@ class WAHAService extends EventEmitter {
 
           // Fetch updated session status
           try {
-            const updatedSession = await this.httpClient.get(`/api/sessions/${sessionName}`);
+            const updatedSession = await this.httpClient.get(`sessions/${sessionName}`);
             sessionData = updatedSession.data;
             console.log(`[WAHA Service] ✅ Session '${sessionName}' transitioned to: ${sessionData.status}`);
           } catch (fetchErr) {
@@ -992,18 +1002,18 @@ class WAHAService extends EventEmitter {
           console.log(`[WAHA Service] 🔧 Added comprehensive WEBJS configuration for better initialization`);
         }
 
-        console.log(`[WAHA Service] Making POST request to /api/sessions with payload:`, createPayload);
+        console.log(`[WAHA Service] Making POST request to api/sessions with payload:`, createPayload);
         
         try {
           // Create session (minimal payload; webhooks added after successful start)
-          const response = await this.httpClient.post('/api/sessions', createPayload);
+          const response = await this.httpClient.post('api/sessions', createPayload);
           console.log(`[WAHA Service] ✅ Session creation response:`, response.status);
           console.log(`[WAHA Service] 📋 Full response data:`, JSON.stringify(response.data, null, 2));
           sessionData = response.data;
           sessionExists = true;
         } catch (createErr: any) {
           const status = createErr?.response?.status;
-          console.warn(`[WAHA Service] ⚠️ Session create via /api/sessions failed (${status}). Falling back to /api/${sessionName}/start`);
+          console.warn(`[WAHA Service] ⚠️ Session create via api/sessions failed (${status}). Falling back to api/${sessionName}/start`);
           // Fallback path (supported by some WAHA versions): create+start in one call
           const fallbackPayload: any = { name: sessionName, start: true };
           if (engine) fallbackPayload.engine = engine;
@@ -1028,7 +1038,7 @@ class WAHAService extends EventEmitter {
           console.log(`[WAHA Service] 🔗 Adding webhook configuration to fallback session: ${fullWebhookUrl}`);
 
           // Note: WAHA Plus handles storage automatically - no manual store configuration needed
-          const startRes = await this.httpClient.post(`/api/sessions/${sessionName}/start`, fallbackPayload);
+          const startRes = await this.httpClient.post(`api/sessions/${sessionName}/start`, fallbackPayload);
           console.log(`[WAHA Service] ✅ Fallback start created/started session '${sessionName}':`, startRes.status);
           sessionData = { name: sessionName, status: 'STARTING' };
           sessionExists = true;
@@ -1048,7 +1058,7 @@ class WAHAService extends EventEmitter {
         
         // Verify session was actually created by listing all sessions
         try {
-          const allSessions = await this.httpClient.get('/api/sessions');
+          const allSessions = await this.httpClient.get('api/sessions');
           console.log(`[WAHA Service] 📋 All sessions after creation:`, allSessions.data);
         } catch (listError) {
           console.log(`[WAHA Service] ⚠️ Could not list sessions:`, listError);
@@ -1064,17 +1074,16 @@ class WAHAService extends EventEmitter {
         while (!startSuccess && attempts < maxAttempts) {
           attempts++;
           try {
-            console.log(`[WAHA Service] 🚀 Starting session '${sessionName}' (attempt ${attempts}/${maxAttempts}) with POST /api/sessions/${sessionName}/start`);
+            console.log(`[WAHA Service] 🚀 Starting session '${sessionName}' (attempt ${attempts}/${maxAttempts}) with POST sessions/${sessionName}/start`);
             
             // First verify session exists before starting
-            try {
-              const sessionCheck = await this.httpClient.get(`/api/sessions/${sessionName}`);
-              console.log(`[WAHA Service] ✅ Session exists before start attempt (primary path)`);
+                      try {
+                        const sessionCheck = await this.httpClient.get(`sessions/${sessionName}`);              console.log(`[WAHA Service] ✅ Session exists before start attempt (primary path)`);
             } catch (checkErr: any) {
               if (checkErr?.response?.status === 404) {
-                console.warn(`[WAHA Service] Session check 404 at /api/sessions/${sessionName}. Trying legacy /api/${sessionName}...`);
+                console.warn(`[WAHA Service] Session check 404 at sessions/${sessionName}. Trying legacy ${sessionName}...`);
                 try {
-                  await this.httpClient.get(`/api/${sessionName}`);
+                  await this.httpClient.get(`${sessionName}`);
                   console.log(`[WAHA Service] ✅ Session exists via legacy path`);
                 } catch (legacyCheckErr: any) {
                   if (legacyCheckErr?.response?.status === 404) {
@@ -1091,12 +1100,12 @@ class WAHAService extends EventEmitter {
             // Try primary start endpoint, then legacy fallback on 404
             let startResponse;
             try {
-              startResponse = await this.httpClient.post(`/api/sessions/${sessionName}/start`);
+              startResponse = await this.httpClient.post(`api/sessions/${sessionName}/start`);
               console.log(`[WAHA Service] ✅ Session '${sessionName}' start response (primary):`, startResponse.status);
             } catch (startPrimaryErr: any) {
               if (startPrimaryErr?.response?.status === 404) {
-                console.warn(`[WAHA Service] Start 404 on /api/sessions/${sessionName}/start. Trying legacy /api/${sessionName}/start...`);
-                startResponse = await this.httpClient.post(`/api/${sessionName}/start`);
+                console.warn(`[WAHA Service] Start 404 on sessions/${sessionName}/start. Trying legacy ${sessionName}/start...`);
+                startResponse = await this.httpClient.post(`${sessionName}/start`);
                 console.log(`[WAHA Service] ✅ Session '${sessionName}' start response (legacy):`, startResponse.status);
               } else {
                 throw startPrimaryErr;
@@ -1145,12 +1154,12 @@ class WAHAService extends EventEmitter {
         console.log(`[WAHA Service] ✅ Session '${sessionName}' already exists (422 handled)`);
         // Try to get the existing session and start it if needed
         try {
-          const existingSession = await this.httpClient.get(`/api/sessions/${sessionName}`);
+          const existingSession = await this.httpClient.get(`api/sessions/${sessionName}`);
           const sessionData = existingSession.data;
           
           // If it's stopped, start it
           if (sessionData?.status === 'STOPPED') {
-            await this.httpClient.post(`/api/sessions/${sessionName}/start`);
+            await this.httpClient.post(`api/sessions/${sessionName}/start`);
             console.log(`[WAHA Service] ✅ Restarted stopped session '${sessionName}'`);
           }
           
@@ -1179,15 +1188,15 @@ class WAHAService extends EventEmitter {
       }
       let response;
       try {
-        response = await this.httpClient.get(`/api/sessions/${sessionName}`);
+        response = await this.httpClient.get(`api/sessions/${sessionName}`);
       } catch (primaryErr: any) {
         if (primaryErr?.response?.status === 404) {
-          console.warn(`[WAHA Service] getSessionStatus 404 on /api/sessions/${sessionName}. Trying legacy paths...`);
+          console.warn(`[WAHA Service] getSessionStatus 404 on api/sessions/${sessionName}. Trying legacy paths...`);
           try {
-            response = await this.httpClient.get(`/api/${sessionName}`);
+            response = await this.httpClient.get(`api/${sessionName}`);
           } catch (legacyErr: any) {
             if (legacyErr?.response?.status === 404) {
-              response = await this.httpClient.get(`/api/${sessionName}/status`);
+              response = await this.httpClient.get(`api/${sessionName}/status`);
             } else {
               throw legacyErr;
             }
@@ -1228,15 +1237,15 @@ class WAHAService extends EventEmitter {
 
           let retry;
           try {
-            retry = await this.httpClient.get(`/api/sessions/${sessionName}`);
+            retry = await this.httpClient.get(`api/sessions/${sessionName}`);
           } catch (retryErr: any) {
             if (retryErr?.response?.status === 404) {
               // Try legacy again
               try {
-                retry = await this.httpClient.get(`/api/${sessionName}`);
+                retry = await this.httpClient.get(`api/${sessionName}`);
               } catch (retryLegacyErr: any) {
                 if (retryLegacyErr?.response?.status === 404) {
-                  retry = await this.httpClient.get(`/api/${sessionName}/status`);
+                  retry = await this.httpClient.get(`api/${sessionName}/status`);
                 } else {
                   throw retryLegacyErr;
                 }
@@ -1326,7 +1335,7 @@ class WAHAService extends EventEmitter {
             console.log(`[WAHA Service] ✅ Session successfully restarted and ready for QR!`);
             // Try to get QR code now
             try {
-              const qrResponse = await this.httpClient.get(`/api/${sessionName}/auth/qr?format=image`, {
+              const qrResponse = await this.httpClient.get(`${sessionName}/auth/qr?format=image`, {
                 responseType: 'arraybuffer',
                 headers: { 'Accept': 'image/png' }
               });
@@ -1350,12 +1359,11 @@ class WAHAService extends EventEmitter {
         } catch (waitErr) {
           console.warn(`[WAHA Service] Session still STARTING after 15s, trying to force QR code generation first...`);
           
-          // Try to force QR code generation before recreating
-          try {
-            console.log(`[WAHA Service] 🔄 Attempting to force QR code generation for stuck session...`);
-            // Try the correct WAHA API endpoint for QR code
-            const qrResponse = await this.httpClient.get(`/api/${sessionName}/auth/qr?format=image`, {
-              responseType: 'arraybuffer',
+                      // Try to force QR code generation before recreating
+                    try {
+                      console.log(`[WAHA Service] 🔄 Attempting to force QR code generation for stuck session...`);
+                      // Try the correct WAHA API endpoint for QR code
+                      const qrResponse = await this.httpClient.get(`api/${sessionName}/auth/qr?format=image`, {              responseType: 'arraybuffer',
               headers: { 'Accept': 'image/png' }
             });
             if (qrResponse.data && qrResponse.data.byteLength > 0) {
@@ -1367,7 +1375,7 @@ class WAHAService extends EventEmitter {
             console.warn(`[WAHA Service] ⚠️ Force QR generation failed, trying alternative endpoint:`, qrError.message);
             // Try alternative endpoint
             try {
-              const altQrResponse = await this.httpClient.get(`/api/${sessionName}/qr`, {
+              const altQrResponse = await this.httpClient.get(`${sessionName}/qr`, {
                 responseType: 'arraybuffer',
                 headers: { 'Accept': 'image/png' }
               });
@@ -1415,7 +1423,7 @@ class WAHAService extends EventEmitter {
           // Step 3: Delete the corrupted session completely
           try {
             console.log(`[WAHA Service] Deleting corrupted session '${sessionName}'...`);
-            await this.httpClient.delete(`/api/sessions/${sessionName}`);
+            await this.httpClient.delete(`sessions/${sessionName}`);
             console.log(`[WAHA Service] ✅ Session deleted successfully`);
 
             // Clear cache again after deletion
@@ -1482,7 +1490,7 @@ class WAHAService extends EventEmitter {
             
             // Delete the failed session first
             try {
-              await this.httpClient.delete(`/api/sessions/${sessionName}`);
+              await this.httpClient.delete(`sessions/${sessionName}`);
               console.log(`[WAHA Service] ✅ Deleted failed session`);
             } catch (deleteError) {
               console.warn(`[WAHA Service] Could not delete failed session:`, deleteError.message);
@@ -1509,7 +1517,7 @@ class WAHAService extends EventEmitter {
               }
             };
             
-            await this.httpClient.post('/api/sessions', venomPayload);
+            await this.httpClient.post('sessions', venomPayload);
             console.log(`[WAHA Service] ✅ Created new session with VENOM engine`);
             await new Promise(resolve => setTimeout(resolve, 10000)); // Wait for VENOM initialization
             
@@ -1520,7 +1528,7 @@ class WAHAService extends EventEmitter {
               console.log(`[WAHA Service] ✅ VENOM engine successful! Session ready for QR code.`);
               // Try to get QR code with VENOM
               try {
-                const qrResponse = await this.httpClient.get(`/api/${sessionName}/auth/qr?format=image`, {
+                const qrResponse = await this.httpClient.get(`api/${sessionName}/auth/qr?format=image`, {
                   responseType: 'arraybuffer',
                   timeout: 10000,
                   validateStatus: (status: number) => status === 200,
@@ -1551,11 +1559,11 @@ class WAHAService extends EventEmitter {
         try {
           // Try to stop and start the session to force state transition
           console.log(`[WAHA Service] 🔄 Stopping session to force state reset...`);
-          await this.httpClient.post(`/api/sessions/${sessionName}/stop`);
+          await this.httpClient.post(`api/sessions/${sessionName}/stop`);
           await new Promise(resolve => setTimeout(resolve, 5000)); // Wait longer for stop
           
           console.log(`[WAHA Service] 🔄 Starting session to force SCAN_QR_CODE state...`);
-          await this.httpClient.post(`/api/sessions/${sessionName}/start`);
+          await this.httpClient.post(`api/sessions/${sessionName}/start`);
           await new Promise(resolve => setTimeout(resolve, 10000)); // Wait longer for start
           
           // Check if session is now in SCAN_QR_CODE state
@@ -1599,7 +1607,7 @@ class WAHAService extends EventEmitter {
         // Try to force the session to restart and get QR code anyway
         console.log(`[WAHA Service] 🔄 Attempting emergency session restart...`);
         try {
-          await this.httpClient.post(`/api/sessions/${sessionName}/restart`);
+          await this.httpClient.post(`sessions/${sessionName}/restart`);
           console.log(`[WAHA Service] ✅ Emergency restart initiated`);
           
           // Wait a bit for restart
@@ -1622,10 +1630,10 @@ class WAHAService extends EventEmitter {
       }
       
       // Get QR code using WAHA's proper endpoint: GET /api/{session}/auth/qr (per official docs)
-      console.log(`[WAHA Service] Requesting QR code from GET /api/${sessionName}/auth/qr?format=image`);
+      console.log(`[WAHA Service] Requesting QR code from GET api/${sessionName}/auth/qr?format=image`);
       let response;
       try {
-        response = await this.httpClient.get(`/api/${sessionName}/auth/qr?format=image`, {
+        response = await this.httpClient.get(`api/${sessionName}/auth/qr?format=image`, {
           responseType: 'arraybuffer',
           timeout: 15000, // 15 second timeout for QR generation
           validateStatus: (status: number) => status === 200, // Only accept 200 status
@@ -1636,13 +1644,13 @@ class WAHAService extends EventEmitter {
       } catch (qrErr: any) {
         console.warn(`[WAHA Service] Primary QR endpoint failed:`, qrErr.message);
         
-        // Try multiple alternative endpoints (all using correct WAHA API format: /api/{session}/...)
+        // Try multiple alternative endpoints (all using correct WAHA API format: api/{session}/...)
         // Per official docs: https://waha.devlike.pro/docs/how-to/sessions/
         const alternativeEndpoints = [
-          { url: `/api/${sessionName}/auth/qr`, headers: { 'Accept': 'image/png' } },
-          { url: `/api/${sessionName}/auth/qr?format=raw`, headers: { 'Accept': 'image/png' } },
-          { url: `/api/${sessionName}/qr`, headers: { 'Accept': 'image/png' } },
-          { url: `/api/${sessionName}/screenshot`, headers: { 'Accept': 'image/png' } } // Last resort: screenshot method
+          { url: `api/${sessionName}/auth/qr`, headers: { 'Accept': 'image/png' } },
+          { url: `api/${sessionName}/auth/qr?format=raw`, headers: { 'Accept': 'image/png' } },
+          { url: `api/${sessionName}/qr`, headers: { 'Accept': 'image/png' } },
+          { url: `api/${sessionName}/screenshot`, headers: { 'Accept': 'image/png' } } // Last resort: screenshot method
         ];
         
         let qrSuccess = false;
@@ -1729,8 +1737,8 @@ class WAHAService extends EventEmitter {
         // Continue anyway - might still work
       }
       
-      // WAHA API structure: POST /api/sendText (with session in payload)
-      const endpoint = `/api/sendText`;
+      // WAHA API structure: POST /sendText (with session in payload)
+      const endpoint = `/sendText`;
       const payload = { session: sessionName, chatId, text };
 
       console.log(`[WAHA Service] Making request to: ${this.wahaBaseUrl}${endpoint}`);
@@ -1766,9 +1774,9 @@ class WAHAService extends EventEmitter {
     try {
       console.log(`[WAHA Service] Sending media to ${chatId} in session '${sessionName}'...`);
 
-      // WAHA API structure: POST /api/{session}/sendFile
+      // WAHA API structure: POST /{session}/sendFile
       const response = await this.queueRequest<AxiosResponse<any>>(() =>
-        this.httpClient.post(`/api/sessions/${sessionName}/sendFile`, {
+        this.httpClient.post(`/sessions/${sessionName}/sendFile`, {
           chatId,
           file: {
             url: mediaUrl
@@ -1841,6 +1849,7 @@ class WAHAService extends EventEmitter {
           const safeId = extractedId ?? String(chat.id ?? '');
           return {
             id: safeId,
+            // WAHA does not always return contact names, so we fall back to the ID
             name: chat.name || chat.subject || chat.title || safeId,
             // Robust group detection: WAHA may omit isGroup. Treat *@g.us as group.
             isGroup: Boolean(chat.isGroup) || (typeof safeId === 'string' && safeId.includes('@g.us')),
@@ -1859,10 +1868,10 @@ class WAHAService extends EventEmitter {
 
         for (const sortBy of candidates) {
           try {
-            console.log(`[WAHA Service] Trying chats overview with sortBy='${sortBy}' and 180s timeout...`);
+            console.log(`[WAHA Service] Trying chats overview with sortBy=${sortBy} and 180s timeout...`);
             // Use WAHA sessions-based endpoint first (modern WAHA)
             const res = await this.queueRequest<AxiosResponse<any>>(() =>
-              this.httpClient.get(`/api/sessions/${sessionName}/chats/overview`, {
+              this.httpClient.get(`/sessions/${sessionName}/chats/overview`, {
                 timeout: 60000,
                 params: {
                   limit: Math.min(options.limit || 100, 30), // Use smaller pages
@@ -1884,9 +1893,9 @@ class WAHAService extends EventEmitter {
             // Legacy path fallback if 404
             if (status === 404) {
               try {
-                console.log(`[WAHA Service] Trying legacy overview path: /api/${sessionName}/chats/overview`);
+                console.log(`[WAHA Service] Trying legacy overview path: /${sessionName}/chats/overview`);
                 const resLegacy = await this.queueRequest<AxiosResponse<any>>(() =>
-                  this.httpClient.get(`/api/${sessionName}/chats/overview`, {
+                  this.httpClient.get(`/${sessionName}/chats/overview`, {
                     timeout: 60000,
                     params: {
                       limit: Math.min(options.limit || 100, 30),
@@ -1937,8 +1946,8 @@ class WAHAService extends EventEmitter {
 
             const queryString = params.toString();
             // Prefer legacy path first for maximum compatibility, then sessions path
-            const legacyEndpoint = `/api/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
-            const sessionsEndpoint = `/api/sessions/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
+            const legacyEndpoint = `/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
+            const sessionsEndpoint = `/sessions/${sessionName}/chats${queryString ? `?${queryString}` : ''}`;
 
             console.log(`[WAHA Service] Trying direct /chats (legacy-first) with sortBy='${sortBy}' and ${timeoutMs/1000}s timeout...`);
             console.log(`[WAHA Service] Using legacy endpoint: ${legacyEndpoint}`);
@@ -1964,7 +1973,7 @@ class WAHAService extends EventEmitter {
                 params2.append('sortOrder', options.sortOrder || 'desc');
                 if (options.exclude?.length) params2.append('exclude', options.exclude.join(','));
                 const queryString2 = params2.toString();
-                const sessionsEndpoint2 = `/api/sessions/${sessionName}/chats${queryString2 ? `?${queryString2}` : ''}`;
+                const sessionsEndpoint2 = `/sessions/${sessionName}/chats${queryString2 ? `?${queryString2}` : ''}`;
                 console.log(`[WAHA Service] Trying sessions /chats endpoint: ${sessionsEndpoint2}`);
                 const resSessions = await this.queueRequest<AxiosResponse<any>>(() =>
                   this.httpClient.get(sessionsEndpoint2, { timeout: timeoutMs }) // Use full timeout for WEBJS
@@ -1987,7 +1996,7 @@ class WAHAService extends EventEmitter {
         }
         // Minimal-parameter fallback: try legacy, then sessions without params
         try {
-          const minimalLegacy = `/api/${sessionName}/chats`;
+          const minimalLegacy = `/${sessionName}/chats`;
           console.log(`[WAHA Service] Trying minimal legacy /chats without params: ${minimalLegacy}`);
           const resMinLegacy = await this.queueRequest<AxiosResponse<any>>(() =>
             this.httpClient.get(minimalLegacy, { timeout: 45000 })
@@ -1998,7 +2007,7 @@ class WAHAService extends EventEmitter {
         } catch (e1: any) {
           console.log(`[WAHA Service] ❌ Minimal legacy /chats failed:`, e1?.response?.status || e1?.message || e1);
           try {
-            const minimalSessions = `/api/sessions/${sessionName}/chats`;
+            const minimalSessions = `/sessions/${sessionName}/chats`;
             console.log(`[WAHA Service] Trying minimal sessions /chats without params: ${minimalSessions}`);
             const resMinSessions = await this.queueRequest<AxiosResponse<any>>(() =>
               this.httpClient.get(minimalSessions, { timeout: 45000 })
@@ -2016,7 +2025,7 @@ class WAHAService extends EventEmitter {
           const altParams = new URLSearchParams();
           altParams.append('session', sessionName);
           const altQuery = altParams.toString();
-          const altEndpoint = `/api/chats${altQuery ? `?${altQuery}` : ''}`;
+          const altEndpoint = `/chats${altQuery ? `?${altQuery}` : ''}`;
           console.log(`[WAHA Service] Trying alternate endpoint: ${altEndpoint}`);
           const res = await this.queueRequest<AxiosResponse<any>>(() =>
             this.httpClient.get(altEndpoint, { timeout: timeoutMs })
@@ -2123,6 +2132,13 @@ class WAHAService extends EventEmitter {
     } = {}
   ): Promise<WAHAChat[]> {
     try {
+      // Check cache first
+      const now = Date.now();
+      if (this.groupsCache.data.length > 0 && (now - this.groupsCache.timestamp) < this.GROUPS_CACHE_DURATION) {
+        console.log('[WAHA Service] Returning cached groups');
+        return this.groupsCache.data;
+      }
+
       // Ensure session is working - but be more lenient
       const sessionStatus = await this.getSessionStatus(sessionName);
       console.log(`[WAHA Service] getGroups - Session status: ${sessionStatus.status}`);
@@ -2146,7 +2162,6 @@ class WAHAService extends EventEmitter {
       console.log(`[WAHA Service] getGroups - Session status ${sessionStatus.status}, attempting to fetch groups`);
       
       // Check circuit breaker for groups endpoint
-      const now = Date.now();
       const isCircuitBreakerOpen = this.groupsEndpointFailures >= this.GROUPS_CIRCUIT_BREAKER_THRESHOLD &&
                                    (now - this.groupsEndpointLastFailure) < this.GROUPS_CIRCUIT_BREAKER_RESET_TIME;
 
@@ -2171,7 +2186,7 @@ class WAHAService extends EventEmitter {
         }
 
         const queryString = params.toString();
-        const endpoint = `/api/sessions/${sessionName}/groups${queryString ? `?${queryString}` : ''}`;
+        const endpoint = `/sessions/${sessionName}/groups${queryString ? `?${queryString}` : ''}`;
 
         console.log(`[WAHA Service] Using WAHA-compliant groups endpoint with performance opts: ${endpoint}`);
         const res = await this.queueRequest<AxiosResponse<any>>(() =>
@@ -2190,7 +2205,7 @@ class WAHAService extends EventEmitter {
         // Reset circuit breaker on success
         this.groupsEndpointFailures = 0;
         console.log(`[WAHA Service] Received ${items.length} groups`);
-        return items.map((g: any) => ({
+        const groups = items.map((g: any) => ({
           id: this.extractJidFromAny(g.id || g.chatId || g.groupId) || String(g.id || g.chatId || g.groupId || ''),
           name: String(g.name || g.subject || g.title || g.id || 'Unnamed Group'),
           description: g.description ? String(g.description) : undefined,
@@ -2207,6 +2222,12 @@ class WAHAService extends EventEmitter {
             infoAdminOnly: g.settings?.infoAdminOnly
           }
         }));
+
+        // Cache the result
+        this.groupsCache.data = groups;
+        this.groupsCache.timestamp = now;
+
+        return groups;
       } catch (e: any) {
         const status = e.response?.status;
         
@@ -2264,7 +2285,7 @@ class WAHAService extends EventEmitter {
         console.log(`[WAHA Service] Using WEBJS engine - groups refresh supported`);
       }
       const response = await this.queueRequest<AxiosResponse<any>>(() =>
-        this.httpClient.post(`/api/sessions/${sessionName}/groups/refresh`, {}, { timeout: 15000 })
+        this.httpClient.post(`/sessions/${sessionName}/groups/refresh`, {}, { timeout: 15000 })
       );
       console.log(`[WAHA Service] ✅ Groups refreshed successfully`);
       return { success: true, message: 'Groups refreshed successfully' };
@@ -2296,7 +2317,7 @@ class WAHAService extends EventEmitter {
     try {
       console.log(`[WAHA Service] Getting participants for group '${groupId}'`);
       const response = await this.queueRequest<AxiosResponse<any>>(() =>
-        this.httpClient.get(`/api/${sessionName}/groups/${encodeURIComponent(groupId)}/participants`)
+        this.httpClient.get(`/${sessionName}/groups/${encodeURIComponent(groupId)}/participants`)
       );
       return response.data || [];
     } catch (error: any) {
@@ -2312,7 +2333,7 @@ class WAHAService extends EventEmitter {
     try {
       console.log(`[WAHA Service] Getting details for group '${groupId}'`);
       const response = await this.queueRequest<AxiosResponse<any>>(() =>
-        this.httpClient.get(`/api/${sessionName}/groups/${encodeURIComponent(groupId)}`)
+        this.httpClient.get(`/${sessionName}/groups/${encodeURIComponent(groupId)}`)
       );
       return response.data;
     } catch (error: any) {
@@ -2329,7 +2350,7 @@ class WAHAService extends EventEmitter {
       // URL-encode message ID since it contains special characters like @ and -
       const encodedMessageId = encodeURIComponent(messageId);
       const response = await this.queueRequest<AxiosResponse<any>>(() =>
-        this.httpClient.get(`/api/messages/${encodedMessageId}`, {
+        this.httpClient.get(`/messages/${encodedMessageId}`, {
           params: {
             session: sessionName,
             downloadMedia: downloadMedia ? 'true' : 'false'
@@ -2454,17 +2475,16 @@ class WAHAService extends EventEmitter {
       const encodedMessageId = encodeURIComponent(messageId);
       const encodedChatId = encodeURIComponent(chatId);
 
-      const endpoints = [
-        // Endpoint 1: WAHA's proper download endpoint for messages (WEBJS/NOWEB)
-        `/api/${sessionName}/chats/${encodedChatId}/messages/${encodedMessageId}/download`,
-        // Endpoint 2: Alternative direct download
-        `/api/${sessionName}/messages/${encodedMessageId}/download`,
-        // Endpoint 3: Standard messages endpoint
-        `/api/${sessionName}/messages/${encodedMessageId}/media`,
-        // Endpoint 4: Alternative format for WEBJS
-        `/api/messages/${encodedMessageId}/media?session=${sessionName}`
-      ];
-
+              const endpoints = [
+                // Endpoint 1: WAHA's proper download endpoint for messages (WEBJS/NOWEB)
+                `/${sessionName}/chats/${encodedChatId}/messages/${encodedMessageId}/download`,
+                // Endpoint 2: Alternative direct download
+                `/${sessionName}/messages/${encodedMessageId}/download`,
+                // Endpoint 3: Standard messages endpoint
+                `/${sessionName}/messages/${encodedMessageId}/media`,
+                // Endpoint 4: Alternative format for WEBJS
+                `/messages/${encodedMessageId}/media?session=${sessionName}`
+              ];
       for (const endpoint of endpoints) {
         try {
           console.log(`[WAHA Service] 🔄 Trying endpoint: ${endpoint}`);
@@ -2549,11 +2569,11 @@ class WAHAService extends EventEmitter {
         return [];
       }
       
-      // WAHA Official API: /api/{session}/chats/{chatId}/messages
+      // WAHA Official API: /{session}/chats/{chatId}/messages
       // Per official WAHA docs: https://waha.devlike.pro/docs/how-to/chats/
       // Request downloadMedia=true to get full message details including type, MIME, and media URLs
       let response = await this.queueRequest<AxiosResponse<any>>(() =>
-        this.httpClient.get(`/api/${sessionName}/chats/${chatId}/messages`, {
+        this.httpClient.get(`/${sessionName}/chats/${chatId}/messages`, {
           params: {
             limit,
             downloadMedia: 'true' // Required for voice messages and other media to have downloadable URLs
@@ -2593,13 +2613,7 @@ class WAHAService extends EventEmitter {
         try {
           console.warn(`[WAHA Service] Retrying with alternate private JID: ${altId}`);
           const retryRes = await this.queueRequest<AxiosResponse<any>>(() =>
-            this.httpClient.get('/api/messages', {
-              params: {
-                session: sessionName,
-                chatId: altId,
-                limit,
-                downloadMedia: 'true' // Include media URLs
-              },
+            this.httpClient.get(`/messages`, {
               timeout: 180000
             })
           );
@@ -2740,7 +2754,7 @@ class WAHAService extends EventEmitter {
    */
   async stopSession(sessionName: string = this.defaultSession): Promise<void> {
     try {
-      await this.httpClient.delete(`/api/sessions/${sessionName}`);
+      await this.httpClient.delete(`/sessions/${sessionName}`);
       console.log(`[WAHA Service] ✅ Session '${sessionName}' stopped`);
       this.connectionStatus = 'disconnected';
       this.isReady = false;
@@ -2771,7 +2785,7 @@ class WAHAService extends EventEmitter {
       
       // First, delete the existing session
       try {
-        await this.httpClient.delete(`/api/sessions/${sessionName}`);
+        await this.httpClient.delete(`/sessions/${sessionName}`);
         console.log(`[WAHA Service] ✅ Deleted existing session '${sessionName}'`);
       } catch (deleteError: any) {
         if (deleteError.response?.status === 404) {
@@ -2800,15 +2814,15 @@ class WAHAService extends EventEmitter {
       
       let responseData: any = null;
       try {
-        const response = await this.httpClient.post('/api/sessions', createPayload);
+        const response = await this.httpClient.post('/sessions', createPayload);
         console.log(`[WAHA Service] ✅ Session recreated with engine configuration`);
         responseData = response.data;
       } catch (createErr: any) {
         const status = createErr?.response?.status;
-        console.warn(`[WAHA Service] ⚠️ Recreate via /api/sessions failed (${status}). Falling back to /api/${sessionName}/start`);
+        console.warn(`[WAHA Service] ⚠️ Recreate via /sessions failed (${status}). Falling back to /${sessionName}/start`);
         const fallbackPayload: any = { name: sessionName, start: true };
         if (engine) fallbackPayload.engine = engine;
-        const startRes = await this.httpClient.post(`/api/${sessionName}/start`, fallbackPayload);
+        const startRes = await this.httpClient.post(`/${sessionName}/start`, fallbackPayload);
         console.log(`[WAHA Service] ✅ Fallback start created/started session '${sessionName}':`, startRes.status);
         responseData = { name: sessionName, status: 'STARTING' };
       }
@@ -2816,7 +2830,7 @@ class WAHAService extends EventEmitter {
       // Start the new session (idempotent; safe if already started by fallback)
       try {
         await new Promise(resolve => setTimeout(resolve, 1000));
-        await this.httpClient.post(`/api/sessions/${sessionName}/start`);
+        await this.httpClient.post(`/sessions/${sessionName}/start`);
         console.log(`[WAHA Service] ✅ New session '${sessionName}' started`);
       } catch (startErr: any) {
         const st = startErr?.response?.status;
@@ -4457,7 +4471,7 @@ class WAHAService extends EventEmitter {
 
       // Use WAHA's phone authentication endpoint (may not be supported by all engines)
       const response = await this.queueRequest<AxiosResponse<any>>(() =>
-        this.httpClient.post(`/api/sessions/${sessionName}/auth/request-code`, {
+        this.httpClient.post(`/sessions/${sessionName}/auth/request-code`, {
           phoneNumber: phoneNumber.replace(/\D/g, '') // Remove non-digits
         })
       );
@@ -4499,7 +4513,7 @@ class WAHAService extends EventEmitter {
 
       // Use WAHA's phone verification endpoint (may not be supported by all engines)
       const response = await this.queueRequest<AxiosResponse<any>>(() =>
-        this.httpClient.post(`/api/sessions/${sessionName}/auth/authorize-code`, {
+        this.httpClient.post(`/sessions/${sessionName}/auth/authorize-code`, {
           phoneNumber: phoneNumber.replace(/\D/g, ''),
           code: code
         })
@@ -4598,7 +4612,7 @@ class WAHAService extends EventEmitter {
       
       // First, delete the failed session
       try {
-        await this.httpClient.delete(`/api/sessions/${sessionName}`);
+        await this.httpClient.delete(`/sessions/${sessionName}`);
         console.log(`[WAHA Service] ✅ Deleted failed session '${sessionName}'`);
       } catch (deleteError: any) {
         console.log(`[WAHA Service] ⚠️ Could not delete session (might not exist):`, deleteError.response?.status);
@@ -4608,7 +4622,7 @@ class WAHAService extends EventEmitter {
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       // Start new session
-      const response = await this.httpClient.post(`/api/sessions/${sessionName}/start`, {
+      const response = await this.httpClient.post(`/sessions/${sessionName}/start`, {
         name: sessionName
       });
       
@@ -4849,7 +4863,7 @@ class WAHAService extends EventEmitter {
       console.log(`[WAHA Service] 📷 Extracting image from message: ${messageId} (session: ${session})`);
       
       // First, get the message details to verify it contains media
-      const messageUrl = `${this.wahaBaseUrl}/api/messages/${messageId}`;
+      const messageUrl = `${this.wahaBaseUrl}/messages/${messageId}`;
       console.log(`[WAHA Service] Getting message details: ${messageUrl}`);
 
       const messageResponse = await this.queueRequest<AxiosResponse<any>>(() =>
@@ -4876,7 +4890,7 @@ class WAHAService extends EventEmitter {
       }
       
       // Download the image using WAHA API
-      const mediaUrl = `${this.wahaBaseUrl}/api/files/${messageId}`;
+      const mediaUrl = `${this.wahaBaseUrl}/files/${messageId}`;
       console.log(`[WAHA Service] Downloading image: ${mediaUrl}`);
 
       const mediaResponse = await this.queueRequest<AxiosResponse<any>>(() =>
