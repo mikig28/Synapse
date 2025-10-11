@@ -1889,6 +1889,86 @@ class WAHAService extends EventEmitter {
   }
 
   /**
+   * Resolve contact name from various sources
+   */
+  private resolveContactName(contactId: string, messageData: any, contactsMap: { [key: string]: any } = {}): string {
+    // First try to get from contacts map
+    const contactInfo = contactsMap[contactId];
+    if (contactInfo) {
+      const name = contactInfo.name ||
+                  contactInfo.pushName ||
+                  contactInfo.notify ||
+                  contactInfo.verifiedName ||
+                  contactInfo.formattedName ||
+                  contactInfo.displayName;
+      if (name && name.trim() && name !== contactId) {
+        console.log(`[WAHA Service] ✅ Resolved contact name from contacts map: ${name} for ${contactId}`);
+        return name.trim();
+      }
+    }
+
+    // Try message data fields
+    const messageName = messageData.notifyName ||
+                       messageData.senderName ||
+                       messageData.contactName ||
+                       messageData.pushName ||
+                       messageData.notify ||
+                       messageData.verifiedName;
+    
+    if (messageName && messageName.trim() && messageName !== contactId) {
+      console.log(`[WAHA Service] ✅ Resolved contact name from message data: ${messageName} for ${contactId}`);
+      return messageName.trim();
+    }
+
+    // Fallback to formatted phone number
+    const phoneNumber = contactId.split('@')[0];
+    const formattedPhone = this.formatPhoneNumber(phoneNumber) || phoneNumber || 'Unknown';
+    console.log(`[WAHA Service] ⚠️ Using fallback contact name: ${formattedPhone} for ${contactId}`);
+    return formattedPhone;
+  }
+
+  /**
+   * Get contacts from WAHA API
+   */
+  async getContacts(
+    sessionName: string = this.defaultSession
+  ): Promise<any[]> {
+    try {
+      console.log(`[WAHA Service] Fetching contacts for session: ${sessionName}`);
+      
+      // Try WAHA contacts endpoint
+      const response = await this.queueRequest<AxiosResponse<any>>(() =>
+        this.httpClient.get(`/api/${sessionName}/contacts`, {
+          timeout: 30000
+        })
+      );
+
+      if (response.data && Array.isArray(response.data)) {
+        console.log(`[WAHA Service] ✅ Fetched ${response.data.length} contacts`);
+        return response.data;
+      }
+
+      // Try alternative contacts endpoint
+      const altResponse = await this.queueRequest<AxiosResponse<any>>(() =>
+        this.httpClient.get(`/api/sessions/${sessionName}/contacts`, {
+          timeout: 30000
+        })
+      );
+
+      if (altResponse.data && Array.isArray(altResponse.data)) {
+        console.log(`[WAHA Service] ✅ Fetched ${altResponse.data.length} contacts via sessions endpoint`);
+        return altResponse.data;
+      }
+
+      console.log(`[WAHA Service] ⚠️ No contacts found or invalid response format`);
+      return [];
+    } catch (error: any) {
+      console.error(`[WAHA Service] ❌ Error fetching contacts:`, error?.response?.status || error?.message || error);
+      return [];
+    }
+  }
+
+  /**
    * Get chats with WAHA-compliant pagination and filtering
    */
   async getChats(
@@ -1906,6 +1986,21 @@ class WAHAService extends EventEmitter {
       
       // Check session status first
       const sessionStatus = await this.getSessionStatus(sessionName);
+
+      // Fetch contacts to improve name resolution
+      let contactsMap: { [key: string]: any } = {};
+      try {
+        const contacts = await this.getContacts(sessionName);
+        contactsMap = contacts.reduce((acc: any, contact: any) => {
+          if (contact.id) {
+            acc[contact.id] = contact;
+          }
+          return acc;
+        }, {});
+        console.log(`[WAHA Service] Loaded ${Object.keys(contactsMap).length} contacts for name resolution`);
+      } catch (contactError) {
+        console.warn(`[WAHA Service] Could not fetch contacts, proceeding without contact names:`, contactError);
+      }
       console.log(`[WAHA Service] Session '${sessionName}' status: ${sessionStatus.status}`);
       const engineName = String(sessionStatus?.engine?.engine || '').toUpperCase();
 
@@ -1943,6 +2038,11 @@ class WAHAService extends EventEmitter {
           const extractedId = this.extractJidFromAny(chat.id);
           const safeId = extractedId ?? String(chat.id ?? '');
 
+          // Debug logging to see what fields are available
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`[WAHA Service] Chat data for ${safeId}:`, JSON.stringify(chat, null, 2));
+          }
+
           // Enhanced name resolution with improved fallback logic
           let chatName = chat.name || chat.subject || chat.title;
 
@@ -1956,19 +2056,32 @@ class WAHAService extends EventEmitter {
                         chat.notifyName || chat.verifiedName ||
                         `Group ${safeId.includes('@g.us') ? safeId.split('@')[0] : safeId}`;
             } else {
-              // For private chats, prioritize actual names over phone numbers
-              chatName = chat.contact?.name ||
-                        chat.contact?.pushName ||
-                        chat.contact?.notify ||
-                        chat.contact?.verifiedName ||
-                        chat.contact?.formattedName ||
-                        chat.pushName ||
-                        chat.notify ||
-                        chat.verifiedName ||
-                        chat.notifyName ||
-                        // Only use formatted phone as very last resort
-                        this.formatPhoneNumber(safeId.split('@')[0]) ||
-                        `Contact ${safeId.split('@')[0]}`;
+              // For private chats, try to get name from contacts first
+              const contactInfo = contactsMap[safeId];
+              if (contactInfo) {
+                chatName = contactInfo.name ||
+                          contactInfo.pushName ||
+                          contactInfo.notify ||
+                          contactInfo.verifiedName ||
+                          contactInfo.formattedName ||
+                          contactInfo.displayName;
+              }
+
+              // If still no name from contacts, try chat data
+              if (!chatName || chatName === safeId || !chatName.trim()) {
+                chatName = chat.contact?.name ||
+                          chat.contact?.pushName ||
+                          chat.contact?.notify ||
+                          chat.contact?.verifiedName ||
+                          chat.contact?.formattedName ||
+                          chat.pushName ||
+                          chat.notify ||
+                          chat.verifiedName ||
+                          chat.notifyName ||
+                          // Only use formatted phone as very last resort
+                          this.formatPhoneNumber(safeId.split('@')[0]) ||
+                          `Contact ${safeId.split('@')[0]}`;
+              }
             }
           }
 
@@ -2738,7 +2851,7 @@ class WAHAService extends EventEmitter {
                msg.mimeType?.startsWith('audio/') ? 'audio' :
                msg.hasMedia || msg.mediaUrl ? 'media' : 'text'),
         isGroup: msg.chatId?.includes('@g.us') || false,
-        contactName: msg.notifyName || msg.from,
+        contactName: this.resolveContactName(msg.from, msg, {}),
         chatId: msg.chatId,
         time: new Date(msg.timestamp * 1000).toLocaleTimeString(),
         isMedia: msg.type !== 'text' || Boolean(msg.hasMedia || msg.mediaUrl || msg.mimeType)
@@ -2775,7 +2888,7 @@ class WAHAService extends EventEmitter {
                msg.mimeType?.startsWith('audio/') ? 'audio' :
                msg.hasMedia || msg.mediaUrl ? 'media' : 'text'),
             isGroup: msg.chatId?.includes('@g.us') || false,
-            contactName: msg.notifyName || msg.from,
+            contactName: this.resolveContactName(msg.from, msg, {}),
             chatId: msg.chatId,
             time: new Date(msg.timestamp * 1000).toLocaleTimeString(),
             isMedia: msg.type !== 'text' || Boolean(msg.hasMedia || msg.mediaUrl || msg.mimeType)
@@ -2809,7 +2922,7 @@ class WAHAService extends EventEmitter {
                msg.mimeType?.startsWith('audio/') ? 'audio' :
                msg.hasMedia || msg.mediaUrl ? 'media' : 'text'),
             isGroup: msg.chatId?.includes('@g.us') || false,
-            contactName: msg.notifyName || msg.from,
+            contactName: this.resolveContactName(msg.from, msg, {}),
             chatId: msg.chatId,
             time: new Date(msg.timestamp * 1000).toLocaleTimeString(),
             isMedia: msg.type !== 'text' || Boolean(msg.hasMedia || msg.mediaUrl || msg.mimeType)

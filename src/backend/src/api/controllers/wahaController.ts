@@ -1059,6 +1059,59 @@ export const getGroups = async (req: AuthenticatedRequest, res: Response) => {
 };
 
 /**
+ * Get WhatsApp contacts
+ */
+export const getContacts = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const wahaService = await getWAHAServiceForUser(userId);
+
+    // Check if session is authenticated before attempting to fetch contacts
+    const sessionStatus = await wahaService.getStatus();
+    if (sessionStatus.status !== 'WORKING') {
+      console.log(`[WAHA Controller] Session not in WORKING state (${sessionStatus.status}), returning empty contacts`);
+      return res.json({
+        success: true,
+        data: [],
+        meta: {
+          count: 0,
+          syncing: sessionStatus.status === 'STARTING' || sessionStatus.status === 'SCAN_QR_CODE',
+          message: sessionStatus.status === 'SCAN_QR_CODE'
+            ? 'Please scan QR code to authenticate'
+            : `Session is ${sessionStatus.status}, waiting for authentication`
+        }
+      });
+    }
+
+    console.log('[WAHA Controller] Fetching contacts for user', userId);
+    const startTime = Date.now();
+
+    // Get contacts from WAHA
+    const contacts = await wahaService.getContacts();
+
+    const duration = Date.now() - startTime;
+    console.log(`[WAHA Controller] ✅ Fetched ${contacts.length} contacts in ${duration}ms`);
+
+    res.json({
+      success: true,
+      data: contacts,
+      meta: {
+        count: contacts.length,
+        duration: `${duration}ms`,
+        syncing: false
+      }
+    });
+  } catch (error: any) {
+    console.error('[WAHA Controller] Error fetching contacts:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch contacts',
+      details: error.message
+    });
+  }
+};
+
+/**
  * Get WhatsApp private chats
  */
 export const getPrivateChats = async (req: AuthenticatedRequest, res: Response) => {
