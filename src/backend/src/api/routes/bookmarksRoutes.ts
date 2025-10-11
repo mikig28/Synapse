@@ -1,5 +1,6 @@
 import express from 'express';
 import { getBookmarks, processAndCreateBookmark, deleteBookmark, summarizeBookmarkController, summarizeLatestBookmarksController, getBookmarkVoiceAudio } from '../controllers/bookmarksController';
+import { toggleBookmarkReminder, updateBookmarkReminder } from '../controllers/reminderController';
 import { protect } from '../middleware/authMiddleware'; // Assuming you have auth middleware
 import BookmarkItem from '../../models/BookmarkItem';
 
@@ -22,6 +23,10 @@ router.get('/:id/voice-audio', protect, getBookmarkVoiceAudio);
 
 // Route to summarize the latest N bookmarks
 router.post('/summarize-latest', protect, summarizeLatestBookmarksController);
+
+// Reminder management routes
+router.post('/:id/reminder/toggle', protect, toggleBookmarkReminder);
+router.patch('/:id/reminder', protect, updateBookmarkReminder);
 
 // TEST ENDPOINT - Add test bookmark manually
 router.post('/test-create', protect, async (req: any, res: any) => {
