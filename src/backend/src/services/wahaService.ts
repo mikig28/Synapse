@@ -1892,15 +1892,19 @@ class WAHAService extends EventEmitter {
    * Resolve contact name from various sources
    */
   private resolveContactName(contactId: string, messageData: any, contactsMap: { [key: string]: any } = {}): string {
-    // First try to get from contacts map
+    // Try to get from contacts map using contact ID
     const contactInfo = contactsMap[contactId];
     if (contactInfo) {
+      // WAHA Plus official format: name, pushname, shortName (per documentation)
       const name = contactInfo.name ||
+                  contactInfo.pushname ||
+                  contactInfo.shortName ||
                   contactInfo.pushName ||
                   contactInfo.notify ||
                   contactInfo.verifiedName ||
                   contactInfo.formattedName ||
-                  contactInfo.displayName;
+                  contactInfo.displayName ||
+                  contactInfo.vname;
       if (name && name.trim() && name !== contactId) {
         console.log(`[WAHA Service] ✅ Resolved contact name from contacts map: ${name} for ${contactId}`);
         return name.trim();
@@ -1912,6 +1916,7 @@ class WAHAService extends EventEmitter {
                        messageData.senderName ||
                        messageData.contactName ||
                        messageData.pushName ||
+                       messageData.pushname ||
                        messageData.notify ||
                        messageData.verifiedName;
     
@@ -1928,7 +1933,7 @@ class WAHAService extends EventEmitter {
   }
 
   /**
-   * Get contacts from WAHA API
+   * Get contacts from WAHA Plus API (supports both VENOM and NOWEB engines)
    */
   async getContacts(
     sessionName: string = this.defaultSession
@@ -1936,34 +1941,91 @@ class WAHAService extends EventEmitter {
     try {
       console.log(`[WAHA Service] Fetching contacts for session: ${sessionName}`);
       
-      // Try WAHA contacts endpoint
-      const response = await this.queueRequest<AxiosResponse<any>>(() =>
-        this.httpClient.get(`/api/${sessionName}/contacts`, {
-          timeout: 30000
-        })
-      );
+      // Try WAHA Plus contacts endpoint - /api/contacts/all?session={NAME} (official format)
+      try {
+        const response = await this.queueRequest<AxiosResponse<any>>(() =>
+          this.httpClient.get(`/api/contacts/all?session=${sessionName}`, {
+            timeout: 30000
+          })
+        );
 
-      if (response.data && Array.isArray(response.data)) {
-        console.log(`[WAHA Service] ✅ Fetched ${response.data.length} contacts`);
-        return response.data;
+        if (response.data && Array.isArray(response.data)) {
+          console.log(`[WAHA Service] ✅ Fetched ${response.data.length} contacts via /api/contacts/all`);
+          return response.data;
+        }
+      } catch (allContactsError) {
+        console.log(`[WAHA Service] /api/contacts/all not available, trying session-specific endpoint`);
       }
 
-      // Try alternative contacts endpoint
-      const altResponse = await this.queueRequest<AxiosResponse<any>>(() =>
-        this.httpClient.get(`/api/sessions/${sessionName}/contacts`, {
-          timeout: 30000
-        })
-      );
+      // Try session-specific contacts endpoint (works with NOWEB and VENOM)
+      try {
+        const sessionResponse = await this.queueRequest<AxiosResponse<any>>(() =>
+          this.httpClient.get(`/api/sessions/${sessionName}/contacts`, {
+            timeout: 30000
+          })
+        );
 
-      if (altResponse.data && Array.isArray(altResponse.data)) {
-        console.log(`[WAHA Service] ✅ Fetched ${altResponse.data.length} contacts via sessions endpoint`);
-        return altResponse.data;
+        if (sessionResponse.data && Array.isArray(sessionResponse.data)) {
+          console.log(`[WAHA Service] ✅ Fetched ${sessionResponse.data.length} contacts via sessions endpoint`);
+          return sessionResponse.data;
+        }
+      } catch (sessionContactsError) {
+        console.log(`[WAHA Service] /api/sessions/${sessionName}/contacts not available, trying legacy endpoint`);
       }
 
-      console.log(`[WAHA Service] ⚠️ No contacts found or invalid response format`);
+      // Try legacy contacts endpoint (works with older WAHA versions)
+      try {
+        const legacyResponse = await this.queueRequest<AxiosResponse<any>>(() =>
+          this.httpClient.get(`/api/${sessionName}/contacts`, {
+            timeout: 30000
+          })
+        );
+
+        if (legacyResponse.data && Array.isArray(legacyResponse.data)) {
+          console.log(`[WAHA Service] ✅ Fetched ${legacyResponse.data.length} contacts via legacy endpoint`);
+          return legacyResponse.data;
+        }
+      } catch (legacyError) {
+        console.log(`[WAHA Service] Legacy contacts endpoint not available`);
+      }
+
+      // For NOWEB engine, try to get contacts from the store
+      try {
+        const storeResponse = await this.queueRequest<AxiosResponse<any>>(() =>
+          this.httpClient.get(`/api/sessions/${sessionName}/store/contacts`, {
+            timeout: 30000
+          })
+        );
+
+        if (storeResponse.data && Array.isArray(storeResponse.data)) {
+          console.log(`[WAHA Service] ✅ Fetched ${storeResponse.data.length} contacts via NOWEB store`);
+          return storeResponse.data;
+        }
+      } catch (storeError) {
+        console.log(`[WAHA Service] NOWEB store contacts not available`);
+      }
+
+      console.log(`[WAHA Service] ⚠️ No contacts found with any endpoint`);
       return [];
     } catch (error: any) {
       console.error(`[WAHA Service] ❌ Error fetching contacts:`, error?.response?.status || error?.message || error);
+      return [];
+    }
+  }
+
+  /**
+   * Get LIDs (Linked IDs) from WAHA Plus API
+   * Note: LIDs functionality is not clearly documented in WAHA Plus docs
+   * This method is kept for future implementation when LIDs API is available
+   */
+  async getLIDs(
+    sessionName: string = this.defaultSession
+  ): Promise<any[]> {
+    try {
+      console.log(`[WAHA Service] LIDs functionality not implemented - WAHA Plus docs don't show clear LIDs endpoint`);
+      return [];
+    } catch (error: any) {
+      console.error(`[WAHA Service] ❌ Error fetching LIDs:`, error?.response?.status || error?.message || error);
       return [];
     }
   }
@@ -1989,22 +2051,41 @@ class WAHAService extends EventEmitter {
 
       // Fetch contacts to improve name resolution
       let contactsMap: { [key: string]: any } = {};
+      
+      // Detect engine for better debugging
+      const engineName = String(sessionStatus?.engine?.engine || '').toUpperCase();
+      console.log(`[WAHA Service] Detected engine: ${engineName}`);
+      
       try {
         const contacts = await this.getContacts(sessionName);
+        
+        // Create contacts map
         contactsMap = contacts.reduce((acc: any, contact: any) => {
           if (contact.id) {
             acc[contact.id] = contact;
           }
           return acc;
         }, {});
-        console.log(`[WAHA Service] Loaded ${Object.keys(contactsMap).length} contacts for name resolution`);
+        
+        console.log(`[WAHA Service] Loaded ${Object.keys(contactsMap).length} contacts for name resolution (${engineName} engine)`);
+        
+        // Debug: Show sample contact data for engine-specific debugging
+        if (Object.keys(contactsMap).length > 0) {
+          const sampleContact = Object.values(contactsMap)[0] as any;
+          console.log(`[WAHA Service] Sample contact data (${engineName}):`, {
+            id: sampleContact.id,
+            name: sampleContact.name,
+            shortName: sampleContact.shortName,
+            pushname: sampleContact.pushname,
+            pushName: sampleContact.pushName,
+            notify: sampleContact.notify,
+            vname: sampleContact.vname
+          });
+        }
       } catch (contactError) {
-        console.warn(`[WAHA Service] Could not fetch contacts, proceeding without contact names:`, contactError);
+        console.warn(`[WAHA Service] Could not fetch contacts for ${engineName} engine, proceeding without contact names:`, contactError);
       }
       console.log(`[WAHA Service] Session '${sessionName}' status: ${sessionStatus.status}`);
-      const engineName = String(sessionStatus?.engine?.engine || '').toUpperCase();
-
-      console.log(`[WAHA Service DEBUG] Engine: ${engineName}`);
 
       // Note: WAHA Plus handles chat storage automatically based on configured storage backend
       // No manual store configuration needed - MongoDB/PostgreSQL/Local storage is configured at WAHA service level
@@ -2059,22 +2140,28 @@ class WAHAService extends EventEmitter {
               // For private chats, try to get name from contacts first
               const contactInfo = contactsMap[safeId];
               if (contactInfo) {
+                // WAHA Plus official format: name, pushname, shortName (per documentation)
                 chatName = contactInfo.name ||
+                          contactInfo.pushname ||
+                          contactInfo.shortName ||
                           contactInfo.pushName ||
                           contactInfo.notify ||
                           contactInfo.verifiedName ||
                           contactInfo.formattedName ||
-                          contactInfo.displayName;
+                          contactInfo.displayName ||
+                          contactInfo.vname;
               }
 
               // If still no name from contacts, try chat data
               if (!chatName || chatName === safeId || !chatName.trim()) {
                 chatName = chat.contact?.name ||
                           chat.contact?.pushName ||
+                          chat.contact?.pushname ||
                           chat.contact?.notify ||
                           chat.contact?.verifiedName ||
                           chat.contact?.formattedName ||
                           chat.pushName ||
+                          chat.pushname ||
                           chat.notify ||
                           chat.verifiedName ||
                           chat.notifyName ||
@@ -2793,6 +2880,10 @@ class WAHAService extends EventEmitter {
    * Get messages from chat
    */
   async getMessages(chatId: string, limit: number = 50, sessionName: string = this.defaultSession): Promise<WAHAMessage[]> {
+    // Initialize contacts and LIDs maps at method level for scope access
+    let contactsMap: { [key: string]: any } = {};
+    let lidsMap: { [key: string]: string } = {};
+
     try {
       // Validate chatId to prevent [object Object] errors
       if (!chatId || typeof chatId !== 'string') {
@@ -2823,6 +2914,25 @@ class WAHAService extends EventEmitter {
         console.log(`[WAHA Service] Session not in WORKING status (${sessionStatus.status}), returning empty messages`);
         return [];
       }
+
+      // Fetch contacts for name resolution
+      try {
+        const contacts = await this.getContacts(sessionName);
+        
+        // Create contacts map
+        contactsMap = contacts.reduce((acc: any, contact: any) => {
+          if (contact.id) {
+            acc[contact.id] = contact;
+          }
+          return acc;
+        }, {});
+        
+        console.log(`[WAHA Service] Loaded ${Object.keys(contactsMap).length} contacts for message name resolution`);
+      } catch (contactError) {
+        console.warn(`[WAHA Service] Could not fetch contacts for messages, proceeding without contact names:`, contactError);
+        // Ensure variables are initialized even if fetching fails
+        contactsMap = {};
+      }
       
       // WAHA Official API: /api/{session}/chats/{chatId}/messages
       // Per official WAHA docs: https://waha.devlike.pro/docs/how-to/chats/
@@ -2851,7 +2961,7 @@ class WAHAService extends EventEmitter {
                msg.mimeType?.startsWith('audio/') ? 'audio' :
                msg.hasMedia || msg.mediaUrl ? 'media' : 'text'),
         isGroup: msg.chatId?.includes('@g.us') || false,
-        contactName: this.resolveContactName(msg.from, msg, {}),
+        contactName: this.resolveContactName(msg.from, msg, contactsMap),
         chatId: msg.chatId,
         time: new Date(msg.timestamp * 1000).toLocaleTimeString(),
         isMedia: msg.type !== 'text' || Boolean(msg.hasMedia || msg.mediaUrl || msg.mimeType)
@@ -2888,7 +2998,7 @@ class WAHAService extends EventEmitter {
                msg.mimeType?.startsWith('audio/') ? 'audio' :
                msg.hasMedia || msg.mediaUrl ? 'media' : 'text'),
             isGroup: msg.chatId?.includes('@g.us') || false,
-            contactName: this.resolveContactName(msg.from, msg, {}),
+            contactName: this.resolveContactName(msg.from, msg, contactsMap),
             chatId: msg.chatId,
             time: new Date(msg.timestamp * 1000).toLocaleTimeString(),
             isMedia: msg.type !== 'text' || Boolean(msg.hasMedia || msg.mediaUrl || msg.mimeType)
@@ -2922,7 +3032,7 @@ class WAHAService extends EventEmitter {
                msg.mimeType?.startsWith('audio/') ? 'audio' :
                msg.hasMedia || msg.mediaUrl ? 'media' : 'text'),
             isGroup: msg.chatId?.includes('@g.us') || false,
-            contactName: this.resolveContactName(msg.from, msg, {}),
+            contactName: this.resolveContactName(msg.from, msg, contactsMap),
             chatId: msg.chatId,
             time: new Date(msg.timestamp * 1000).toLocaleTimeString(),
             isMedia: msg.type !== 'text' || Boolean(msg.hasMedia || msg.mediaUrl || msg.mimeType)
