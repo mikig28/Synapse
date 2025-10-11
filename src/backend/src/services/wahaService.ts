@@ -2180,8 +2180,18 @@ class WAHAService extends EventEmitter {
 
       // For other statuses (STARTING, WORKING, etc.), try to fetch groups anyway
       console.log(`[WAHA Service] getGroups - Session status ${sessionStatus.status}, attempting to fetch groups`);
-      
-      // Check circuit breaker for groups endpoint
+
+      // NOWEB engine: skip /groups endpoint entirely as it's unreliable, use chats filter instead
+      const engine = sessionStatus.engine?.engine || process.env.WAHA_ENGINE?.trim();
+      if (engine === 'NOWEB') {
+        console.log(`[WAHA Service] NOWEB engine detected - skipping /groups endpoint (known instability), using chats filter`);
+        const chats = await this.getChats(sessionName);
+        const groups = chats.filter(c => c.isGroup || (typeof c.id === 'string' && c.id.includes('@g.us')));
+        console.log(`[WAHA Service] Found ${groups.length} groups via chats filter`);
+        return groups;
+      }
+
+      // Check circuit breaker for groups endpoint (other engines)
       const isCircuitBreakerOpen = this.groupsEndpointFailures >= this.GROUPS_CIRCUIT_BREAKER_THRESHOLD &&
                                    (now - this.groupsEndpointLastFailure) < this.GROUPS_CIRCUIT_BREAKER_RESET_TIME;
 
