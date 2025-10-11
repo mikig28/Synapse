@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { ExternalLink, Info, MessageSquareText, Trash2, CalendarDays, FileText, Zap, AlertCircle, Volume2, Search, BookmarkPlus, CheckCircle, XCircle, Loader2, PlayCircle, StopCircle, Brain, ListFilter, ArrowUpDown, Link as LinkIcon, Bell, Clock } from 'lucide-react';
-import { getBookmarks, deleteBookmarkService, summarizeBookmarkById, speakTextViaBackend, getBookmarkVoiceAudio } from '../services/bookmarkService';
+import { ExternalLink, Info, MessageSquareText, Trash2, CalendarDays, FileText, Zap, AlertCircle, Volume2, Search, BookmarkPlus, CheckCircle, XCircle, Loader2, PlayCircle, StopCircle, Brain, ListFilter, ArrowUpDown, Link as LinkIcon, Bell, Clock, BellOff, Edit2 } from 'lucide-react';
+import { getBookmarks, deleteBookmarkService, summarizeBookmarkById, speakTextViaBackend, getBookmarkVoiceAudio, toggleBookmarkReminder, updateBookmarkReminder } from '../services/bookmarkService';
 import { BookmarkItemType } from '../types/bookmark';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ClientTweetCard } from '@/components/ui/TweetCard';
@@ -46,6 +46,9 @@ const BookmarksPage: React.FC = () => {
   const [audioErrorId, setAudioErrorId] = useState<string | null>(null);
   const [playingVoiceNoteId, setPlayingVoiceNoteId] = useState<string | null>(null);
   const [voiceNoteAudioErrorId, setVoiceNoteAudioErrorId] = useState<string | null>(null);
+  const [editingReminderId, setEditingReminderId] = useState<string | null>(null);
+  const [reminderDateTime, setReminderDateTime] = useState<string>('');
+  const [togglingReminderId, setTogglingReminderId] = useState<string | null>(null);
   const {
     latestDigest,
     latestDigestSources,
@@ -470,6 +473,128 @@ const BookmarksPage: React.FC = () => {
     }
   };
 
+  const handleToggleReminder = async (bookmarkId: string) => {
+    setTogglingReminderId(bookmarkId);
+    try {
+      const response = await toggleBookmarkReminder(bookmarkId);
+
+      // Update bookmark in state
+      setBookmarks(prevBookmarks =>
+        prevBookmarks.map(b => {
+          if (b._id === bookmarkId) {
+            if (response.hasReminder && response.reminder) {
+              return {
+                ...b,
+                hasReminder: true,
+                reminderId: response.reminder.id,
+                reminderScheduledFor: response.reminder.scheduledFor,
+                reminderMessage: response.reminder.message,
+                reminderPriority: response.reminder.priority,
+                reminderStatus: 'pending'
+              };
+            } else {
+              return {
+                ...b,
+                hasReminder: false,
+                reminderId: undefined,
+                reminderScheduledFor: undefined,
+                reminderMessage: undefined,
+                reminderPriority: undefined,
+                reminderStatus: undefined
+              };
+            }
+          }
+          return b;
+        })
+      );
+
+      toast({
+        title: response.hasReminder ? "Reminder Set" : "Reminder Cancelled",
+        description: response.message,
+        variant: "default",
+      });
+    } catch (error: any) {
+      console.error(`Error toggling reminder for bookmark ${bookmarkId}:`, error);
+      toast({
+        title: "Reminder Error",
+        description: error.message || "Failed to toggle reminder.",
+        variant: "destructive",
+      });
+    } finally {
+      setTogglingReminderId(null);
+    }
+  };
+
+  const handleUpdateReminder = async (bookmarkId: string) => {
+    if (!reminderDateTime) {
+      toast({
+        title: "Invalid Date",
+        description: "Please select a valid date and time.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await updateBookmarkReminder(bookmarkId, reminderDateTime);
+
+      // Update bookmark in state
+      setBookmarks(prevBookmarks =>
+        prevBookmarks.map(b => {
+          if (b._id === bookmarkId && response.reminder) {
+            return {
+              ...b,
+              hasReminder: true,
+              reminderId: response.reminder.id,
+              reminderScheduledFor: response.reminder.scheduledFor,
+              reminderMessage: response.reminder.message,
+              reminderPriority: response.reminder.priority,
+              reminderStatus: response.reminder.status || 'pending'
+            };
+          }
+          return b;
+        })
+      );
+
+      setEditingReminderId(null);
+      setReminderDateTime('');
+
+      toast({
+        title: "Reminder Updated",
+        description: response.message,
+        variant: "default",
+      });
+    } catch (error: any) {
+      console.error(`Error updating reminder for bookmark ${bookmarkId}:`, error);
+      toast({
+        title: "Update Error",
+        description: error.message || "Failed to update reminder.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEditReminderClick = (bookmarkId: string, currentTime?: string) => {
+    setEditingReminderId(bookmarkId);
+    if (currentTime) {
+      // Convert to datetime-local format
+      const date = new Date(currentTime);
+      const localDateTime = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 16);
+      setReminderDateTime(localDateTime);
+    } else {
+      // Default to tomorrow at 9 AM
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(9, 0, 0, 0);
+      const localDateTime = new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 16);
+      setReminderDateTime(localDateTime);
+    }
+  };
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -889,6 +1014,37 @@ const BookmarksPage: React.FC = () => {
                           <Button
                             size="icon"
                             variant="ghost"
+                            onClick={() => handleToggleReminder(bookmark._id)}
+                            disabled={togglingReminderId === bookmark._id}
+                            className={`transition-colors duration-200 min-h-[44px] min-w-[44px] touch-manipulation mobile-button tap-target ${
+                              bookmark.hasReminder
+                                ? 'hover:bg-blue-500/10 hover:text-blue-600 text-blue-600'
+                                : 'hover:bg-muted/10 hover:text-muted-foreground'
+                            }`}
+                            title={bookmark.hasReminder ? "Disable Reminder" : "Enable Reminder"}
+                          >
+                            {togglingReminderId === bookmark._id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : bookmark.hasReminder ? (
+                              <Bell className="w-4 h-4" />
+                            ) : (
+                              <BellOff className="w-4 h-4" />
+                            )}
+                          </Button>
+                          {bookmark.hasReminder && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleEditReminderClick(bookmark._id, bookmark.reminderScheduledFor)}
+                              className="hover:bg-blue-500/10 hover:text-blue-600 transition-colors duration-200 min-h-[44px] min-w-[44px] touch-manipulation mobile-button tap-target"
+                              title="Edit Reminder Time"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button
+                            size="icon"
+                            variant="ghost"
                             onClick={() => handleSummarizeBookmark(bookmark._id)}
                             disabled={summarizingBookmarkId === bookmark._id || bookmark.status === 'processing'}
                             className="hover:bg-primary/10 hover:text-primary transition-colors duration-200 min-h-[44px] min-w-[44px] touch-manipulation mobile-button tap-target"
@@ -931,6 +1087,42 @@ const BookmarksPage: React.FC = () => {
                           </Button>
                         </div>
                       </div>
+                      {editingReminderId === bookmark._id && (
+                        <div className="mt-3 p-3 rounded-md bg-blue-500/10 border border-blue-500/20">
+                          <Label htmlFor={`reminder-datetime-${bookmark._id}`} className="text-sm font-medium text-blue-600 mb-2 block">
+                            Set Reminder Time
+                          </Label>
+                          <div className="flex gap-2 items-end">
+                            <div className="flex-1">
+                              <Input
+                                id={`reminder-datetime-${bookmark._id}`}
+                                type="datetime-local"
+                                value={reminderDateTime}
+                                onChange={(e) => setReminderDateTime(e.target.value)}
+                                className="w-full bg-background/50 border-blue-500/30 focus:border-blue-500 focus:ring-blue-500"
+                              />
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => handleUpdateReminder(bookmark._id)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingReminderId(null);
+                                setReminderDateTime('');
+                              }}
+                              className="hover:bg-muted/10"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                       <CardFooter className="pt-3 sm:pt-4 mt-3 sm:mt-4 border-t border-border/20 flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs text-muted-foreground gap-2 sm:gap-0">
                         <div className="flex items-center">
                           {renderPlatformIcon(bookmark.sourcePlatform)}

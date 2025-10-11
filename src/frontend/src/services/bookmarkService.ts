@@ -202,4 +202,50 @@ export const getBookmarkVoiceAudio = async (bookmarkId: string): Promise<Blob> =
     console.error(`Error fetching voice audio for bookmark ${bookmarkId}:`, error);
     throw error;
   }
+};
+
+export interface ReminderResponse {
+  message: string;
+  hasReminder: boolean;
+  reminder?: {
+    id: string;
+    scheduledFor: string;
+    message: string;
+    priority: string;
+    status?: string;
+  };
+}
+
+export const toggleBookmarkReminder = async (bookmarkId: string): Promise<ReminderResponse> => {
+  try {
+    const response = await axiosInstance.post<ReminderResponse>(
+      `/bookmarks/${bookmarkId}/reminder/toggle`
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error(`Error toggling reminder for bookmark ${bookmarkId}:`, error);
+    throw error;
+  }
+};
+
+export const updateBookmarkReminder = async (
+  bookmarkId: string,
+  scheduledFor: string,
+  reminderMessage?: string,
+  priority?: 'low' | 'medium' | 'high'
+): Promise<ReminderResponse> => {
+  try {
+    const response = await axiosInstance.patch<ReminderResponse>(
+      `/bookmarks/${bookmarkId}/reminder`,
+      {
+        scheduledFor,
+        ...(reminderMessage && { reminderMessage }),
+        ...(priority && { priority })
+      }
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error(`Error updating reminder for bookmark ${bookmarkId}:`, error);
+    throw error;
+  }
 }; 
