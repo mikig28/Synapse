@@ -10,7 +10,17 @@ const AnalysisResponseSchema = z.object({
   tags: z.array(z.string()),
   notes: z.string().optional(),
   priority: z.enum(['low', 'medium', 'high']),
-  temporalHints: z.array(z.string()).optional()
+  temporalHints: z.array(z.string()).optional(),
+  // New: Structured temporal data from AI
+  temporalData: z.object({
+    minutes: z.number().optional(),
+    hours: z.number().optional(),
+    days: z.number().optional(),
+    weeks: z.number().optional(),
+    months: z.number().optional(),
+    specificTime: z.string().optional(), // e.g., "2 AM", "14:00"
+    specificDate: z.string().optional()  // e.g., "2025-01-15"
+  }).optional()
 });
 
 type AnalysisResponse = z.infer<typeof AnalysisResponseSchema>;
@@ -38,20 +48,32 @@ class BookmarkVoiceMemoAnalysisService {
 
       const language = this.detectLanguage(transcription);
       const aiAnalysis = await this.extractWithAI(transcription, bookmarkUrl, language);
-      const temporalResult = this.parseTemporalExpression(transcription, language);
+
+      // Use AI's temporal data instead of regex patterns
+      let reminderTime: Date | undefined;
+      let temporalExpression: string | undefined;
+
+      if (aiAnalysis.hasReminder && aiAnalysis.temporalData) {
+        const calculatedTime = this.calculateDateFromTemporalData(aiAnalysis.temporalData);
+        if (calculatedTime) {
+          reminderTime = calculatedTime;
+          temporalExpression = this.formatTemporalData(aiAnalysis.temporalData);
+        }
+      }
 
       const result: VoiceMemoAnalysisResult = {
-        hasReminder: aiAnalysis.hasReminder && temporalResult.found,
-        reminderTime: temporalResult.parsedDate,
+        hasReminder: aiAnalysis.hasReminder && !!reminderTime,
+        reminderTime,
         reminderMessage: aiAnalysis.reminderMessage || this.generateDefaultReminderMessage(transcription, language),
         tags: aiAnalysis.tags,
         notes: aiAnalysis.notes,
         priority: aiAnalysis.priority,
-        temporalExpression: temporalResult.originalText,
-        confidence: this.calculateConfidence(aiAnalysis, temporalResult),
+        temporalExpression,
+        confidence: this.calculateConfidence(aiAnalysis, !!reminderTime),
         language
       };
 
+      console.log(`[BookmarkAnalysis] Result: hasReminder=${result.hasReminder}, time=${result.reminderTime?.toISOString()}`);
       return result;
     } catch (error) {
       console.error('[BookmarkAnalysis] Error:', error);
@@ -67,29 +89,43 @@ class BookmarkVoiceMemoAnalysisService {
 
   private async extractWithAI(t: string, url: string, lang: 'en' | 'he' | 'unknown'): Promise<AnalysisResponse> {
     try {
-      const systemPrompt = `You are analyzing voice memos about bookmarks to detect reminder requests.
+      const systemPrompt = `You are analyzing voice memos about bookmarks to detect reminder requests and extract time information.
 
-A reminder request is when the user wants to be reminded about the bookmark at a future time.
+A reminder request is ANY indication the user wants to be reminded/notified/return to this bookmark later.
 
-Common reminder phrases in English:
-- "remind me", "reminder", "alert me", "notify me"
-- "come back to this", "review this", "check this"
-- With time expressions: "tomorrow", "next week", "in 2 days"
+**Detect reminders liberally - even vague future intent counts!**
 
-Common reminder phrases in Hebrew:
-- "תזכיר לי", "תזכורת", "להזכיר"
-- "לחזור על זה", "לבדוק את זה", "לקרוא את זה"
-- With time: "מחר", "בשבוע הבא", "בעוד יומיים", "בעוד X ימים"
+Examples of reminder phrases (ANY language):
+- English: "remind me", "come back to this", "review later", "check tomorrow"
+- Hebrew: "תזכיר לי", "לחזור על זה", "לבדוק", "לקרוא מחר"
+- Spanish: "recuérdame", "volver a esto"
+- ANY phrase indicating future action
+
+**Extract structured temporal data:**
+- Parse ANY time expression: "in 2 days", "tomorrow at 2 PM", "בעוד יומיים", "next week", "in 5 minutes"
+- Break down into components: days, hours, minutes, specific times
+- Return ALL temporal components you find
 
 Return JSON with:
-- hasReminder: true if ANY reminder intent detected (in any language)
-- reminderMessage: what user wants to be reminded about
-- tags: relevant tags
-- notes: additional context
-- priority: low/medium/high
-- temporalHints: time-related words found
+{
+  "hasReminder": true/false (true if ANY future intent detected),
+  "reminderMessage": "what to be reminded about",
+  "tags": ["relevant", "tags"],
+  "notes": "additional context",
+  "priority": "low/medium/high",
+  "temporalHints": ["time-related", "words", "found"],
+  "temporalData": {
+    "minutes": number (if mentioned),
+    "hours": number (if mentioned),
+    "days": number (e.g., "2 days" → 2, "tomorrow" → 1),
+    "weeks": number (if mentioned),
+    "months": number (if mentioned),
+    "specificTime": "string" (e.g., "2 AM", "14:00" if mentioned),
+    "specificDate": "YYYY-MM-DD" (if specific date mentioned)
+  }
+}
 
-Be liberal in detecting reminders - if there's ANY indication of wanting to return/review/check later, set hasReminder=true.`;
+Be VERY liberal with hasReminder - if user says ANYTHING about future action, set it true.`;
 
       const userPrompt = `Analyze this voice memo about a bookmark:
 
@@ -194,13 +230,69 @@ Return JSON only.`;
     return ratio > 0.3 ? 'he' : ratio < 0.1 ? 'en' : 'unknown';
   }
 
-  private calculateConfidence(ai: AnalysisResponse, temp: TemporalParseResult): number {
-    if (!ai.hasReminder || !temp.found) return 0.3;
-    
+  private calculateDateFromTemporalData(data: NonNullable<AnalysisResponse['temporalData']>): Date | undefined {
+    try {
+      let targetDate = new Date();
+
+      // Handle specific date if provided
+      if (data.specificDate) {
+        targetDate = new Date(data.specificDate);
+      }
+
+      // Add time components
+      if (data.months) targetDate.setMonth(targetDate.getMonth() + data.months);
+      if (data.weeks) targetDate.setDate(targetDate.getDate() + (data.weeks * 7));
+      if (data.days) targetDate.setDate(targetDate.getDate() + data.days);
+      if (data.hours) targetDate.setHours(targetDate.getHours() + data.hours);
+      if (data.minutes) targetDate.setMinutes(targetDate.getMinutes() + data.minutes);
+
+      // Handle specific time (e.g., "2 AM", "14:00")
+      if (data.specificTime) {
+        const timeMatch = data.specificTime.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?/i);
+        if (timeMatch) {
+          let hour = parseInt(timeMatch[1]);
+          const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+          const period = timeMatch[3]?.toUpperCase();
+
+          if (period === 'PM' && hour !== 12) hour += 12;
+          if (period === 'AM' && hour === 12) hour = 0;
+
+          targetDate.setHours(hour, minute, 0, 0);
+        }
+      } else if (!data.hours && !data.minutes) {
+        // No specific time mentioned, use default reminder time
+        targetDate.setHours(this.defaultReminderTime.hour, this.defaultReminderTime.minute, 0, 0);
+      }
+
+      console.log(`[TemporalCalc] AI data:`, data, `→ Date:`, targetDate.toISOString());
+      return targetDate;
+    } catch (error) {
+      console.error('[TemporalCalc] Error calculating date:', error);
+      return undefined;
+    }
+  }
+
+  private formatTemporalData(data: NonNullable<AnalysisResponse['temporalData']>): string {
+    const parts: string[] = [];
+
+    if (data.specificDate) parts.push(data.specificDate);
+    if (data.months) parts.push(`${data.months} month${data.months > 1 ? 's' : ''}`);
+    if (data.weeks) parts.push(`${data.weeks} week${data.weeks > 1 ? 's' : ''}`);
+    if (data.days) parts.push(`${data.days} day${data.days > 1 ? 's' : ''}`);
+    if (data.specificTime) parts.push(`at ${data.specificTime}`);
+    else if (data.hours) parts.push(`${data.hours} hour${data.hours > 1 ? 's' : ''}`);
+    if (data.minutes) parts.push(`${data.minutes} minute${data.minutes > 1 ? 's' : ''}`);
+
+    return parts.length > 0 ? parts.join(', ') : 'unspecified time';
+  }
+
+  private calculateConfidence(ai: AnalysisResponse, temporalFound: boolean): number {
+    if (!ai.hasReminder) return 0.3;
+
     let c = 0.5;
-    if (temp.found) c += temp.confidence * 0.3;
+    if (temporalFound) c += 0.3;
     if (ai.reminderMessage && ai.reminderMessage.length > 10) c += 0.2;
-    
+
     return Math.min(c, 1.0);
   }
 
@@ -208,7 +300,7 @@ Return JSON only.`;
     const max = 100;
     const truncated = t.substring(0, max);
     const suffix = t.length > max ? '...' : '';
-    
+
     return lang === 'he' ? `סקור סימנייה: ${truncated}${suffix}` : `Review bookmark: ${truncated}${suffix}`;
   }
 }
