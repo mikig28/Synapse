@@ -181,7 +181,7 @@ class ReminderService {
         throw new Error(`Reminder not found: ${reminderId}`);
       }
 
-      await reminder.cancel();
+      await (reminder as any).cancel();
 
       console.log(`[ReminderService] Reminder ${reminderId} cancelled`);
       return reminder;
@@ -208,7 +208,7 @@ class ReminderService {
       }
 
       const newDate = new Date(Date.now() + durationMinutes * 60 * 1000);
-      await reminder.reschedule(newDate);
+      await (reminder as any).reschedule(newDate);
 
       console.log(`[ReminderService] Reminder ${reminderId} snoozed until ${newDate}`);
       return reminder;
@@ -280,7 +280,7 @@ class ReminderService {
       });
 
       // Mark as sent
-      await reminder.markAsSent();
+      await (reminder as any).markAsSent();
 
       console.log(`[ReminderService] Notification sent for reminder ${reminderId}`);
 
@@ -297,7 +297,7 @@ class ReminderService {
       try {
         const reminder = await Reminder.findById(reminderId);
         if (reminder) {
-          await reminder.markAsFailed(error.message || 'Unknown error');
+          await (reminder as any).markAsFailed(error.message || 'Unknown error');
 
           // Retry if under max retries
           if (reminder.failureCount && reminder.failureCount < this.maxRetries) {

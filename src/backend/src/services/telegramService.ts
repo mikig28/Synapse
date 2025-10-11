@@ -416,12 +416,26 @@ bot.on('message', async (msg: TelegramBot.Message) => {
                   const { updateBookmarkWithVoiceNote, updateBookmarkWithAnalysis } = await import('../api/controllers/bookmarksController');
 
                   // 1. Analyze voice memo for reminder intent
-                  console.log(`[TelegramBot]: Analyzing voice memo for reminder intent...`);
+                  console.log(`[TelegramBot]: ==================== BOOKMARK REMINDER ANALYSIS ====================`);
+                  console.log(`[TelegramBot]: Transcription: "${transcribedText}"`);
+                  console.log(`[TelegramBot]: Bookmark URL: ${pendingBookmark.bookmarkUrl}`);
+                  console.log(`[TelegramBot]: Starting AI analysis...`);
+
                   const analysis = await bookmarkVoiceMemoAnalysisService.analyze(
                     transcribedText,
                     pendingBookmark.bookmarkUrl
                   );
-                  console.log(`[TelegramBot]: Analysis result - hasReminder: ${analysis.hasReminder}, confidence: ${analysis.confidence}`);
+
+                  console.log(`[TelegramBot]: ==================== ANALYSIS COMPLETE ====================`);
+                  console.log(`[TelegramBot]: Has Reminder: ${analysis.hasReminder}`);
+                  console.log(`[TelegramBot]: Reminder Time: ${analysis.reminderTime?.toISOString() || 'N/A'}`);
+                  console.log(`[TelegramBot]: Reminder Message: ${analysis.reminderMessage || 'N/A'}`);
+                  console.log(`[TelegramBot]: Tags: ${analysis.tags.join(', ')}`);
+                  console.log(`[TelegramBot]: Priority: ${analysis.priority}`);
+                  console.log(`[TelegramBot]: Confidence: ${analysis.confidence}`);
+                  console.log(`[TelegramBot]: Language: ${analysis.language}`);
+                  console.log(`[TelegramBot]: Temporal Expression: ${analysis.temporalExpression || 'N/A'}`);
+                  console.log(`[TelegramBot]: ==================================================================`);
 
                   // 2. Update bookmark with voice note
                   await updateBookmarkWithVoiceNote(
@@ -513,8 +527,13 @@ bot.on('message', async (msg: TelegramBot.Message) => {
                   // Skip further processing for this voice memo
                   return;
                 } catch (bookmarkError) {
-                  console.error(`[TelegramBot]: Error adding voice note to bookmark:`, bookmarkError);
-                  await bot.sendMessage(chatId, '❌ Failed to add note to bookmark. The note was saved separately.', {
+                  console.error(`[TelegramBot]: ==================== ERROR IN REMINDER ANALYSIS ====================`);
+                  console.error(`[TelegramBot]: Error details:`, bookmarkError);
+                  console.error(`[TelegramBot]: Error stack:`, (bookmarkError as Error).stack);
+                  console.error(`[TelegramBot]: =================================================================`);
+
+                  const errorMessage = (bookmarkError as Error).message || 'Unknown error';
+                  await bot.sendMessage(chatId, `❌ Failed to analyze note: ${errorMessage}\n\nThe note was saved separately.`, {
                     reply_to_message_id: telegramMessageId
                   });
                   // Continue with normal voice memo processing

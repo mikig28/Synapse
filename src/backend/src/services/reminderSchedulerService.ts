@@ -50,9 +50,9 @@ class ReminderSchedulerService {
   private async checkAndSendDueReminders(): Promise<void> {
     try {
       const now = new Date();
-      
+
       // Get all pending reminders that are due
-      const dueReminders = await Reminder.getDueReminders();
+      const dueReminders = await (Reminder as any).getDueReminders();
 
       if (dueReminders.length === 0) {
         return; // No reminders due
