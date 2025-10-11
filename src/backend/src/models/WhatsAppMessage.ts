@@ -174,10 +174,14 @@ const WhatsAppMessageSchema: Schema<IWhatsAppMessage> = new Schema(
 // Ensure unique messageId per user
 WhatsAppMessageSchema.index({ userId: 1, messageId: 1 }, { unique: true });
 
-// Compound indexes for efficient queries
+// Compound indexes for efficient queries (CRITICAL FOR PERFORMANCE)
 WhatsAppMessageSchema.index({ userId: 1, contactId: 1, timestamp: -1 });
 WhatsAppMessageSchema.index({ userId: 1, from: 1, to: 1, timestamp: -1 });
 WhatsAppMessageSchema.index({ isIncoming: 1, timestamp: -1 });
+
+// CRITICAL: Index for cleanup operations (deletes messages older than 30 days)
+WhatsAppMessageSchema.index({ timestamp: 1 }); // Ascending for efficient range deletions
+
 // Summary query indexes
 
 // Group message indexes for efficient summary queries

@@ -339,8 +339,8 @@ const WhatsAppPage: React.FC = () => {
           setTimeout(async () => {
             try {
               const [groupsRes, chatsRes] = await Promise.all([
-                api.get('/waha/groups?limit=10').catch(() => ({ data: { success: false } })),
-                api.get('/waha/private-chats?limit=10').catch(() => ({ data: { success: false } }))
+                api.get('/waha/groups?limit=100').catch(() => ({ data: { success: false } })),
+                api.get('/waha/private-chats?limit=100').catch(() => ({ data: { success: false } }))
               ]);
 
               const hasData = (groupsRes.data.success && groupsRes.data.data?.length > 0) ||
@@ -1015,8 +1015,8 @@ const WhatsAppPage: React.FC = () => {
     try {
       // Try fetching groups and private chats
       const [groupsResponse, chatsResponse] = await Promise.all([
-        api.get('/waha/groups?limit=50').catch(() => ({ data: { success: false } })),
-        api.get('/waha/private-chats?limit=50').catch(() => ({ data: { success: false } }))
+        api.get('/waha/groups?limit=200').catch(() => ({ data: { success: false } })),
+        api.get('/waha/private-chats?limit=200').catch(() => ({ data: { success: false } }))
       ]);
 
       // Check if we got data

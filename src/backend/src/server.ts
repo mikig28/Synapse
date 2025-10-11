@@ -68,6 +68,7 @@ import './services/searchIndexingService'; // Import to initialize search indexi
 import { videoRecommendationScheduler } from './services/videoRecommendationScheduler';
 import { newsSchedulerService } from './services/newsSchedulerService'; // Import news scheduler service
 import WhatsAppMessageCleanupService from './services/whatsappMessageCleanupService'; // Import WhatsApp message cleanup service
+import { mongoCleanupService } from './services/mongoCleanupService'; // Import MongoDB cleanup service for database optimization
 
 // Environment variables are validated in config/env.ts
 const app: Express = express();
@@ -855,10 +856,41 @@ const initializeServicesInBackground = async () => {
       console.log('[Server] WhatsApp summary scheduler disabled via env');
     }
 
-    // Initialize WhatsApp message cleanup service
+    // Initialize WhatsApp message cleanup service (legacy - 3 day retention)
     const whatsappCleanupService = WhatsAppMessageCleanupService.getInstance();
     whatsappCleanupService.initialize();
     console.log('[Server] WhatsApp message cleanup service initialized (3-day retention)');
+
+    // Initialize MongoDB cleanup service for comprehensive database optimization
+    // This service cleans up all WhatsApp data: messages (30 days), images (90 days), contacts (180 days)
+    console.log('[Server] 🧹 Initializing MongoDB cleanup service...');
+    
+    // Check if we should run emergency cleanup on startup (if DB is overloaded)
+    const shouldRunEmergencyCleanup = process.env.MONGO_EMERGENCY_CLEANUP === 'true';
+    
+    if (shouldRunEmergencyCleanup) {
+      console.log('[Server] 🚨 EMERGENCY CLEANUP MODE ENABLED');
+      console.log('[Server] Running aggressive cleanup (7-day message retention)...');
+      try {
+        const emergencyStats = await mongoCleanupService.emergencyCleanup();
+        console.log('[Server] 🚨 Emergency cleanup complete:', emergencyStats);
+      } catch (emergencyError) {
+        console.error('[Server] ❌ Emergency cleanup failed:', emergencyError);
+      }
+    }
+    
+    // Start the automatic cleanup scheduler (runs daily at 3 AM)
+    // Run immediately on first start to clean up existing data
+    const runImmediately = process.env.MONGO_CLEANUP_RUN_NOW === 'true';
+    mongoCleanupService.startScheduler(runImmediately);
+    
+    if (runImmediately) {
+      console.log('[Server] 🧹 Running immediate cleanup on startup (MONGO_CLEANUP_RUN_NOW=true)');
+    }
+    
+    console.log('[Server] ✅ MongoDB cleanup service initialized');
+    console.log('[Server] 📅 Cleanup schedule: Daily at 3 AM');
+    console.log('[Server] 🗑️  Retention: Messages (30 days), Images (90 days), Contacts (180 days)');
 
     // Make agent service available globally for AG-UI commands
     (global as any).agentService = agentService;

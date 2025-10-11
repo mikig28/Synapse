@@ -104,11 +104,12 @@ class WAHAService extends EventEmitter {
     data: null,
     timestamp: 0
   };
-  private readonly SESSION_CACHE_DURATION = 10000; // 10 seconds
+  private readonly SESSION_CACHE_DURATION = 60000; // 60 seconds (increased to reduce MongoDB load)
 
   // Health check cache
   private lastHealthCheckResult: { healthy: boolean; details: any } | null = null;
   private lastHealthCheckTimestamp: number = 0;
+  private readonly HEALTH_CHECK_CACHE_DURATION = 120000; // 2 minutes (increased to reduce MongoDB load)
   
   // Groups endpoint circuit breaker
   private groupsEndpointFailures = 0;
@@ -124,7 +125,7 @@ class WAHAService extends EventEmitter {
     data: [],
     timestamp: 0
   };
-  private readonly GROUPS_CACHE_DURATION = 60000; // 1 minute
+  private readonly GROUPS_CACHE_DURATION = 300000; // 5 minutes (increased to reduce MongoDB load)
 
   private groupMonitorService: GroupMonitorService;
 
@@ -1867,10 +1868,21 @@ class WAHAService extends EventEmitter {
         return (items || []).map((chat: any) => {
           const extractedId = this.extractJidFromAny(chat.id);
           const safeId = extractedId ?? String(chat.id ?? '');
+          
+          // Enhanced name resolution for contacts
+          let chatName = chat.name || chat.subject || chat.title;
+          if (!chatName || chatName === safeId) {
+            // For private chats, try to get name from contact data
+            if (chat.contact) {
+              chatName = chat.contact.name || chat.contact.pushName || chat.contact.notify || chatName;
+            }
+            // Try alternate fields that WAHA might provide
+            chatName = chatName || chat.pushName || chat.notify || chat.verifiedName || safeId;
+          }
+          
           return {
             id: safeId,
-            // WAHA does not always return contact names, so we fall back to the ID
-            name: chat.name || chat.subject || chat.title || safeId,
+            name: chatName,
             // Robust group detection: WAHA may omit isGroup. Treat *@g.us as group.
             isGroup: Boolean(chat.isGroup) || (typeof safeId === 'string' && safeId.includes('@g.us')),
             lastMessage: chat.lastMessage?.body,
@@ -1957,7 +1969,7 @@ class WAHAService extends EventEmitter {
           try {
             // Build WAHA-compliant query parameters with performance optimizations
             const params = new URLSearchParams();
-            const effectiveLimit = Math.min(options.limit || 100, 50); // keep smaller to avoid timeouts
+            const effectiveLimit = Math.min(options.limit || 200, 100); // Increased to support more groups
             params.append('limit', effectiveLimit.toString());
             if (options.offset) params.append('offset', options.offset.toString());
             params.append('sortBy', sortBy);

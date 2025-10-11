@@ -11,6 +11,12 @@ import {
   triggerWhatsAppCleanup,
   getWhatsAppCleanupConfig,
 } from '../controllers/adminController';
+import {
+  getCleanupStats,
+  runCleanup,
+  runEmergencyCleanup,
+  getCollectionSizes
+} from '../controllers/mongoCleanupController';
 
 const router = Router();
 
@@ -75,5 +81,38 @@ router.post('/whatsapp-cleanup', protect, isAdmin, triggerWhatsAppCleanup);
  * @access  Admin only
  */
 router.get('/whatsapp-cleanup/config', protect, isAdmin, getWhatsAppCleanupConfig);
+
+/**
+ * MongoDB Cleanup Routes
+ */
+
+/**
+ * @route   GET /api/v1/admin/cleanup/stats
+ * @desc    Get MongoDB cleanup statistics and status
+ * @access  Admin only
+ */
+router.get('/cleanup/stats', protect, isAdmin, getCleanupStats);
+
+/**
+ * @route   GET /api/v1/admin/cleanup/collection-sizes
+ * @desc    Get database collection sizes
+ * @access  Admin only
+ */
+router.get('/cleanup/collection-sizes', protect, isAdmin, getCollectionSizes);
+
+/**
+ * @route   POST /api/v1/admin/cleanup/run
+ * @desc    Trigger manual MongoDB cleanup (30-day retention)
+ * @access  Admin only
+ */
+router.post('/cleanup/run', protect, isAdmin, runCleanup);
+
+/**
+ * @route   POST /api/v1/admin/cleanup/emergency
+ * @desc    Trigger emergency MongoDB cleanup (7-day retention)
+ * @access  Admin only
+ * @note    Requires confirmCode: "EMERGENCY_CLEANUP_CONFIRMED" in body
+ */
+router.post('/cleanup/emergency', protect, isAdmin, runEmergencyCleanup);
 
 export default router;
