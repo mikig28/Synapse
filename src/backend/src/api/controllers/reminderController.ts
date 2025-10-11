@@ -45,7 +45,7 @@ export const toggleBookmarkReminder = async (req: AuthenticatedRequest, res: Res
     } else {
       // Create new reminder with default time (24 hours from now)
       const defaultTime = new Date();
-      defaultTime.setDate(defaultTime.setDate() + 1);
+      defaultTime.setDate(defaultTime.getDate() + 1);
       defaultTime.setHours(9, 0, 0, 0); // 9 AM next day
 
       const reminder = await reminderService.createReminder({
@@ -57,7 +57,7 @@ export const toggleBookmarkReminder = async (req: AuthenticatedRequest, res: Res
         priority: 'medium'
       });
 
-      bookmark.reminderId = reminder._id;
+      bookmark.reminderId = reminder._id as mongoose.Types.ObjectId;
       await bookmark.save();
 
       return res.status(200).json({
@@ -135,7 +135,7 @@ export const updateBookmarkReminder = async (req: AuthenticatedRequest, res: Res
         priority: priority || 'medium'
       });
 
-      bookmark.reminderId = reminder!._id;
+      bookmark.reminderId = reminder!._id as mongoose.Types.ObjectId;
       await bookmark.save();
     }
 
