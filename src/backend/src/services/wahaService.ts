@@ -523,6 +523,80 @@ class WAHAService extends EventEmitter {
   }
 
   /**
+   * Format a phone number for display purposes
+   * @param rawPhone - Raw phone number (e.g., "972501234567")
+   * @returns Formatted phone number (e.g., "+972 50 123 4567")
+   */
+  private formatPhoneNumber(rawPhone: string): string {
+    try {
+      if (!rawPhone || typeof rawPhone !== 'string') return '';
+
+      // Remove any existing formatting and extract digits
+      const clean = rawPhone.replace(/[^\d]/g, '');
+
+      if (clean.length < 7) return rawPhone; // Too short to format
+
+      // Common international formats
+      if (clean.startsWith('972')) { // Israel
+        const number = clean.substring(3);
+        if (number.length === 9) {
+          return `+972 ${number.substring(0, 2)} ${number.substring(2, 5)} ${number.substring(5)}`;
+        }
+      } else if (clean.startsWith('1')) { // US/Canada
+        const number = clean.substring(1);
+        if (number.length === 10) {
+          return `+1 (${number.substring(0, 3)}) ${number.substring(3, 6)}-${number.substring(6)}`;
+        }
+      } else if (clean.startsWith('44')) { // UK
+        const number = clean.substring(2);
+        if (number.length === 10) {
+          return `+44 ${number.substring(0, 4)} ${number.substring(4, 7)} ${number.substring(7)}`;
+        }
+      } else if (clean.startsWith('49')) { // Germany
+        const number = clean.substring(2);
+        if (number.length === 10) {
+          return `+49 ${number.substring(0, 3)} ${number.substring(3, 6)} ${number.substring(6)}`;
+        }
+      }
+
+      // Generic international format with country code detection
+      const countryCodes = [
+        { code: '972', name: 'IL' },
+        { code: '1', name: 'US' },
+        { code: '44', name: 'UK' },
+        { code: '49', name: 'DE' },
+        { code: '33', name: 'FR' },
+        { code: '39', name: 'IT' },
+        { code: '34', name: 'ES' },
+        { code: '31', name: 'NL' }
+      ];
+
+      for (const country of countryCodes) {
+        if (clean.startsWith(country.code)) {
+          const number = clean.substring(country.code.length);
+          if (number.length >= 7 && number.length <= 10) {
+            // Insert spaces for readability
+            const formatted = number.replace(/(\d{3})(\d{3})(\d{1,4})?/, '$1 $2 $3');
+            return `+${country.code} ${formatted.trim()}`;
+          }
+        }
+      }
+
+      // Fallback: just add + at the beginning if it looks like an international number
+      if (clean.length >= 10 && clean.length <= 15) {
+        // Add spaces every 3 digits for readability
+        const formatted = clean.replace(/(\d{3})(?=\d)/g, '$1 ');
+        return `+${formatted}`;
+      }
+
+      return rawPhone; // Return original if can't format
+    } catch (error) {
+      console.warn('[WAHA Service] Error formatting phone number:', error);
+      return rawPhone || '';
+    }
+  }
+
+  /**
    * Handle authentication event - fetch chats automatically with retry logic
    */
   private async handleAuthentication(authData: any): Promise<void> {
@@ -1868,18 +1942,43 @@ class WAHAService extends EventEmitter {
         return (items || []).map((chat: any) => {
           const extractedId = this.extractJidFromAny(chat.id);
           const safeId = extractedId ?? String(chat.id ?? '');
-          
-          // Enhanced name resolution for contacts
+
+          // Enhanced name resolution with improved fallback logic
           let chatName = chat.name || chat.subject || chat.title;
-          if (!chatName || chatName === safeId) {
-            // For private chats, try to get name from contact data
-            if (chat.contact) {
-              chatName = chat.contact.name || chat.contact.pushName || chat.contact.notify || chatName;
+
+          // If name is missing or is just the ID, try better fallbacks
+          if (!chatName || chatName === safeId || !chatName.trim()) {
+            const isGroup = Boolean(chat.isGroup) || (typeof safeId === 'string' && safeId.includes('@g.us'));
+
+            if (isGroup) {
+              // For groups, try multiple fallback sources
+              chatName = chat.name || chat.subject || chat.title ||
+                        chat.notifyName || chat.verifiedName ||
+                        `Group ${safeId.includes('@g.us') ? safeId.split('@')[0] : safeId}`;
+            } else {
+              // For private chats, prioritize actual names over phone numbers
+              chatName = chat.contact?.name ||
+                        chat.contact?.pushName ||
+                        chat.contact?.notify ||
+                        chat.contact?.verifiedName ||
+                        chat.contact?.formattedName ||
+                        chat.pushName ||
+                        chat.notify ||
+                        chat.verifiedName ||
+                        chat.notifyName ||
+                        // Only use formatted phone as very last resort
+                        this.formatPhoneNumber(safeId.split('@')[0]) ||
+                        `Contact ${safeId.split('@')[0]}`;
             }
-            // Try alternate fields that WAHA might provide
-            chatName = chatName || chat.pushName || chat.notify || chat.verifiedName || safeId;
           }
-          
+
+          // Clean up the name - remove extra whitespace and ensure it's meaningful
+          chatName = String(chatName).trim();
+          if (!chatName || chatName === '[object Object]' || chatName.includes('[object')) {
+            const isGroup = Boolean(chat.isGroup) || (typeof safeId === 'string' && safeId.includes('@g.us'));
+            chatName = isGroup ? `Group ${Date.now()}` : `Contact ${safeId.split('@')[0] || 'Unknown'}`;
+          }
+
           return {
             id: safeId,
             name: chatName,
