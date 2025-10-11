@@ -2185,9 +2185,10 @@ class WAHAService extends EventEmitter {
       const engine = sessionStatus.engine?.engine || process.env.WAHA_ENGINE?.trim();
       if (engine === 'NOWEB') {
         console.log(`[WAHA Service] NOWEB engine detected - skipping /groups endpoint (known instability), using chats filter`);
-        const chats = await this.getChats(sessionName);
+        // Fetch more chats to ensure we get all groups (groups might be spread across pages)
+        const chats = await this.getChats(sessionName, { limit: 200 });
         const groups = chats.filter(c => c.isGroup || (typeof c.id === 'string' && c.id.includes('@g.us')));
-        console.log(`[WAHA Service] Found ${groups.length} groups via chats filter`);
+        console.log(`[WAHA Service] Found ${groups.length} groups via chats filter (fetched ${chats.length} chats)`);
         return groups;
       }
 
@@ -2599,11 +2600,11 @@ class WAHAService extends EventEmitter {
         return [];
       }
       
-      // WAHA Official API: /{session}/chats/{chatId}/messages
+      // WAHA Official API: /api/{session}/chats/{chatId}/messages
       // Per official WAHA docs: https://waha.devlike.pro/docs/how-to/chats/
       // Request downloadMedia=true to get full message details including type, MIME, and media URLs
       let response = await this.queueRequest<AxiosResponse<any>>(() =>
-        this.httpClient.get(`/${sessionName}/chats/${chatId}/messages`, {
+        this.httpClient.get(`/api/${sessionName}/chats/${chatId}/messages`, {
           params: {
             limit,
             downloadMedia: 'true' // Required for voice messages and other media to have downloadable URLs
@@ -2643,7 +2644,11 @@ class WAHAService extends EventEmitter {
         try {
           console.warn(`[WAHA Service] Retrying with alternate private JID: ${altId}`);
           const retryRes = await this.queueRequest<AxiosResponse<any>>(() =>
-            this.httpClient.get(`/messages`, {
+            this.httpClient.get(`/api/${sessionName}/chats/${altId}/messages`, {
+              params: {
+                limit,
+                downloadMedia: 'true'
+              },
               timeout: 180000
             })
           );
