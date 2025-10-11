@@ -12,6 +12,8 @@ import { processAndCreateVideoItem } from '../api/controllers/videosController';
 import { transcribeAudio } from './transcriptionService';
 import { analyzeTranscription } from './analysisService';
 import { locationExtractionService } from './locationExtractionService';
+import { bookmarkVoiceMemoAnalysisService } from './bookmarkVoiceMemoAnalysisService';
+import { reminderService } from './reminderService';
 import Task from '../models/Task';
 import Note from '../models/Note';
 import Idea from '../models/Idea';
@@ -27,6 +29,205 @@ import imageAnalysisService from './imageAnalysisService';
 import TelegramChannel, { ITelegramChannelMessage } from '../models/TelegramChannel';
 
 dotenv.config();
+
+// Pending bookmark voice note requests
+interface PendingBookmarkNote {
+  bookmarkId: string;
+  bookmarkUrl: string;
+  timestamp: Date;
+  userId: string;
+}
+const pendingBookmarkNotes = new Map<number, PendingBookmarkNote>();
+const BOOKMARK_NOTE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+
+// Clean up expired pending bookmark note requests
+setInterval(() => {
+  const now = Date.now();
+  for (const [chatId, pending] of pendingBookmarkNotes.entries()) {
+    if (now - pending.timestamp.getTime() > BOOKMARK_NOTE_TIMEOUT) {
+      console.log(`[TelegramService] Clearing expired bookmark note request for chat ${chatId}`);
+      pendingBookmarkNotes.delete(chatId);
+    }
+  }
+}, 60 * 1000); // Check every minute
+
+// Function to prompt user for voice note after bookmark creation
+export const promptForBookmarkVoiceNote = async (
+  chatId: number,
+  bookmarkId: string,
+  bookmarkUrl: string,
+  userId: string
+): Promise<void> => {
+  try {
+    const bot = telegramBotManager.getBotForUser(userId);
+    if (!bot) {
+      console.log(`[promptForBookmarkVoiceNote] No bot found for user ${userId}`);
+      return;
+    }
+
+    const message = `📚 *Bookmark saved!*\n\n` +
+      `🔗 ${bookmarkUrl.substring(0, 60)}${bookmarkUrl.length > 60 ? '...' : ''}\n\n` +
+      `🎤 Would you like to add a note? Send a voice memo within 5 minutes.`;
+
+    await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+
+    // Store pending request
+    pendingBookmarkNotes.set(chatId, {
+      bookmarkId,
+      bookmarkUrl,
+      timestamp: new Date(),
+      userId,
+    });
+
+    console.log(`[TelegramService] Bookmark voice note prompt sent for bookmark ${bookmarkId} in chat ${chatId}`);
+  } catch (error) {
+    console.error('[TelegramService] Error sending bookmark voice note prompt:', error);
+  }
+};
+
+// Voice memo processing logic for bookmarks
+const handleVoiceMemoForBookmarks = async (
+  chatId: number,
+  userId: string,
+  synapseUser: any,
+  transcribedText: string,
+  mediaFileId: string,
+  voiceMemoTelegramItem: any,
+  bot: TelegramBot
+): Promise<boolean> => {
+  // Check if this is a voice note for a pending bookmark
+  const pendingBookmark = pendingBookmarkNotes.get(chatId);
+  if (pendingBookmark && pendingBookmark.userId === userId) {
+    console.log(`[TelegramService] Voice note detected for pending bookmark ${pendingBookmark.bookmarkId}`);
+
+    try {
+      // Import the update functions
+      const { updateBookmarkWithVoiceNote, updateBookmarkWithAnalysis } = await import('../api/controllers/bookmarksController');
+
+      // 1. Analyze voice memo for reminder intent
+      console.log(`[TelegramService] ==================== BOOKMARK REMINDER ANALYSIS ====================`);
+      console.log(`[TelegramService] Transcription: "${transcribedText}"`);
+      console.log(`[TelegramService] Bookmark URL: ${pendingBookmark.bookmarkUrl}`);
+      console.log(`[TelegramService] Starting AI analysis...`);
+
+      const analysis = await bookmarkVoiceMemoAnalysisService.analyze(
+        transcribedText,
+        pendingBookmark.bookmarkUrl
+      );
+
+      console.log(`[TelegramService] ==================== ANALYSIS COMPLETE ====================`);
+      console.log(`[TelegramService] Has Reminder: ${analysis.hasReminder}`);
+      console.log(`[TelegramService] Reminder Time: ${analysis.reminderTime?.toISOString() || 'N/A'}`);
+      console.log(`[TelegramService] Reminder Message: ${analysis.reminderMessage || 'N/A'}`);
+      console.log(`[TelegramService] Tags: ${analysis.tags.join(', ')}`);
+      console.log(`[TelegramService] Priority: ${analysis.priority}`);
+      console.log(`[TelegramService] Confidence: ${analysis.confidence}`);
+      console.log(`[TelegramService] Language: ${analysis.language}`);
+      console.log(`[TelegramService] Temporal Expression: ${analysis.temporalExpression || 'N/A'}`);
+      console.log(`[TelegramService] ==================================================================`);
+
+      // 2. Update bookmark with voice note
+      await updateBookmarkWithVoiceNote(
+        pendingBookmark.bookmarkId,
+        transcribedText,
+        mediaFileId,
+        (voiceMemoTelegramItem._id as mongoose.Types.ObjectId).toString()
+      );
+
+      // 3. Create reminder if detected
+      let reminderId: string | undefined;
+      if (analysis.hasReminder && analysis.reminderTime) {
+        console.log(`[TelegramService] Creating reminder for ${analysis.reminderTime.toISOString()}`);
+
+        const reminder = await reminderService.createReminder({
+          userId: synapseUser._id,
+          bookmarkId: new mongoose.Types.ObjectId(pendingBookmark.bookmarkId),
+          scheduledFor: analysis.reminderTime,
+          reminderMessage: analysis.reminderMessage!,
+          telegramChatId: chatId,
+          extractedTags: analysis.tags,
+          extractedNotes: analysis.notes,
+          priority: analysis.priority,
+          temporalExpression: analysis.temporalExpression
+        });
+
+        reminderId = reminder._id.toString();
+        console.log(`[TelegramService] Reminder created with ID: ${reminderId}`);
+      }
+
+      // 4. Update bookmark with analysis results
+      await updateBookmarkWithAnalysis(
+        pendingBookmark.bookmarkId,
+        {
+          tags: analysis.tags,
+          notes: analysis.notes,
+          priority: analysis.priority,
+          hasReminder: analysis.hasReminder,
+          confidence: analysis.confidence
+        },
+        reminderId
+      );
+
+      // 5. Send bilingual confirmation message
+      const isHebrew = analysis.language === 'he';
+      const preview = transcribedText.substring(0, 50) + (transcribedText.length > 50 ? '...' : '');
+
+      let confirmMessage = isHebrew ? '✅ *הערה נוספה!*\n\n' : '✅ *Note added!*\n\n';
+      confirmMessage += `📝 "${preview}"\n\n`;
+
+      if (analysis.hasReminder && analysis.reminderTime) {
+        const dateStr = analysis.reminderTime.toLocaleString(isHebrew ? 'he-IL' : 'en-US', {
+          dateStyle: 'short',
+          timeStyle: 'short'
+        });
+
+        if (isHebrew) {
+          confirmMessage += `🔔 *תזכורת נקבעה ל-${dateStr}*\n`;
+          confirmMessage += `💬 ${analysis.reminderMessage}\n`;
+          if (analysis.tags.length > 0) {
+            confirmMessage += `🏷️ תגיות: ${analysis.tags.join(', ')}\n`;
+          }
+          confirmMessage += `⚡ עדיפות: ${analysis.priority}\n`;
+        } else {
+          confirmMessage += `🔔 *Reminder set for ${dateStr}*\n`;
+          confirmMessage += `💬 ${analysis.reminderMessage}\n`;
+          if (analysis.tags.length > 0) {
+            confirmMessage += `🏷️ Tags: ${analysis.tags.join(', ')}\n`;
+          }
+          confirmMessage += `⚡ Priority: ${analysis.priority}\n`;
+        }
+      } else if (analysis.tags.length > 0) {
+        const tagsLabel = isHebrew ? '🏷️ תגיות' : '🏷️ Tags';
+        confirmMessage += `${tagsLabel}: ${analysis.tags.join(', ')}\n`;
+      }
+
+      confirmMessage += `\n🔗 ${pendingBookmark.bookmarkUrl.substring(0, 50)}${pendingBookmark.bookmarkUrl.length > 50 ? '...' : ''}`;
+
+      await bot.sendMessage(chatId, confirmMessage, { parse_mode: 'Markdown' });
+
+      // Clear pending request
+      pendingBookmarkNotes.delete(chatId);
+
+      console.log(`[TelegramService] Successfully added voice note to bookmark ${pendingBookmark.bookmarkId} with analysis`);
+
+      return true; // Handled as bookmark voice memo
+
+    } catch (bookmarkError) {
+      console.error(`[TelegramService] ==================== ERROR IN REMINDER ANALYSIS ====================`);
+      console.error(`[TelegramService] Error details:`, bookmarkError);
+      console.error(`[TelegramService] Error stack:`, (bookmarkError as Error).stack);
+      console.error(`[TelegramService] =================================================================`);
+
+      const errorMessage = (bookmarkError as Error).message || 'Unknown error';
+      await bot.sendMessage(chatId, `❌ Failed to analyze note: ${errorMessage}\n\nThe note was saved separately.`, {
+        reply_to_message_id: voiceMemoTelegramItem.telegramMessageId
+      });
+      // Continue with normal voice memo processing
+    }
+  }
+
+  return false; // Not a bookmark voice memo
+};
 
 // Central message handler that processes messages from any user's bot
 const handleTelegramMessage = async (userId: string, msg: TelegramBot.Message, bot: TelegramBot) => {
@@ -265,7 +466,23 @@ const handleTelegramMessage = async (userId: string, msg: TelegramBot.Message, b
           try {
             const transcribedText = await transcribeAudio(localFilePath);
             console.log(`[TelegramService] Transcription result: ${transcribedText}`);
-            
+
+            // Check if this is a bookmark voice memo first
+            const isBookmarkVoiceMemo = await handleVoiceMemoForBookmarks(
+              chatId,
+              userId,
+              synapseUser,
+              transcribedText,
+              mediaFileId,
+              voiceMemoTelegramItem,
+              bot
+            );
+
+            if (isBookmarkVoiceMemo) {
+              console.log(`[TelegramService] Processed as bookmark voice memo, skipping normal voice processing`);
+              return; // Handled by bookmark processing
+            }
+
             if (synapseUser && transcribedText && voiceMemoTelegramItem) {
               // Location analysis
               console.log(`[TelegramService] ==================== VOICE LOCATION ANALYSIS ====================`);

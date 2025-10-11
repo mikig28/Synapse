@@ -1,5 +1,5 @@
 import { processAndCreateBookmark } from '../api/controllers/bookmarksController';
-import { promptForBookmarkVoiceNote } from '../services/telegramService';
+import { promptForBookmarkVoiceNote } from '../services/telegramServiceNew';
 
 export type SupportedBookmarkPlatform = 'X' | 'LinkedIn' | 'Reddit' | 'Other';
 export type BookmarkCaptureSource = 'telegram' | 'whatsapp';
