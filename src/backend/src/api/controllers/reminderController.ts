@@ -3,7 +3,26 @@ import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../../types/express';
 import Reminder from '../../models/Reminder';
 import BookmarkItem from '../../models/BookmarkItem';
+import TelegramMonitor from '../../models/TelegramMonitor';
 import { reminderService } from '../../services/reminderService';
+
+/**
+ * Get user's default Telegram chat ID from their most recent active monitor
+ * Returns undefined if no Telegram monitors exist (will trigger email fallback)
+ */
+async function getUserDefaultTelegramChatId(userId: string): Promise<number | undefined> {
+  try {
+    const monitor = await TelegramMonitor.findOne({
+      userId: new mongoose.Types.ObjectId(userId),
+      isActive: true
+    }).sort({ lastMessageAt: -1 });
+
+    return monitor?.chatId;
+  } catch (error) {
+    console.error('[ReminderController] Error getting default Telegram chatId:', error);
+    return undefined;
+  }
+}
 
 /**
  * Toggle reminder on/off for a bookmark
@@ -48,12 +67,17 @@ export const toggleBookmarkReminder = async (req: AuthenticatedRequest, res: Res
       defaultTime.setDate(defaultTime.getDate() + 1);
       defaultTime.setHours(9, 0, 0, 0); // 9 AM next day
 
+      // Get user's default Telegram chat ID (or undefined for email fallback)
+      const telegramChatId = await getUserDefaultTelegramChatId(userId);
+
+      console.log(`[ReminderController] Creating manual reminder with ${telegramChatId ? 'Telegram' : 'email'} delivery`);
+
       const reminder = await reminderService.createReminder({
         userId: new mongoose.Types.ObjectId(userId),
         bookmarkId: new mongoose.Types.ObjectId(bookmarkId),
         scheduledFor: defaultTime,
         reminderMessage: `Review bookmark: ${bookmark.fetchedTitle || bookmark.originalUrl}`,
-        telegramChatId: undefined, // Will be sent to all monitored chats
+        telegramChatId, // Auto-detected from user's active monitors, or undefined for email
         priority: 'medium'
       });
 
@@ -126,12 +150,17 @@ export const updateBookmarkReminder = async (req: AuthenticatedRequest, res: Res
       );
     } else {
       // Create new reminder
+      // Get user's default Telegram chat ID (or undefined for email fallback)
+      const telegramChatId = await getUserDefaultTelegramChatId(userId);
+
+      console.log(`[ReminderController] Updating reminder with ${telegramChatId ? 'Telegram' : 'email'} delivery`);
+
       reminder = await reminderService.createReminder({
         userId: new mongoose.Types.ObjectId(userId),
         bookmarkId: new mongoose.Types.ObjectId(bookmarkId),
         scheduledFor: new Date(scheduledFor),
         reminderMessage: reminderMessage || `Review bookmark: ${bookmark.fetchedTitle || bookmark.originalUrl}`,
-        telegramChatId: undefined,
+        telegramChatId, // Auto-detected from user's active monitors, or undefined for email
         priority: priority || 'medium'
       });
 

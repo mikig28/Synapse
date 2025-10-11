@@ -258,38 +258,51 @@ class ReminderService {
         throw new Error('Bookmark not found for reminder');
       }
 
-      // Get user's bot from telegramBotManager
+      // Get user for email delivery
       const user = await User.findById(reminder.userId);
       if (!user) {
         throw new Error('User not found for reminder');
       }
 
-      // Import telegramBotManager dynamically to avoid circular dependency
-      const { telegramBotManager } = await import('./telegramBotManager');
-      const bot = telegramBotManager.getBotForUser(user._id.toString());
-      
-      if (!bot) {
-        throw new Error(`No active Telegram bot found for user ${user.email}`);
+      // Check delivery method: Telegram or Email
+      if (reminder.telegramChatId) {
+        // Send via Telegram
+        // Import telegramBotManager dynamically to avoid circular dependency
+        const { telegramBotManager } = await import('./telegramBotManager');
+        const bot = telegramBotManager.getBotForUser(user._id.toString());
+
+        if (!bot) {
+          throw new Error(`No active Telegram bot found for user ${user.email}`);
+        }
+
+        const message = this.formatReminderMessage(reminder, bookmark);
+
+        await bot.sendMessage(reminder.telegramChatId, message, {
+          parse_mode: 'Markdown',
+          disable_web_page_preview: false
+        });
+
+        console.log(`[ReminderService] Telegram notification sent for reminder ${reminderId}`);
+      } else {
+        // No Telegram chatId - send via email
+        console.log(`[ReminderService] No Telegram chatId - sending email notification for reminder ${reminderId}`);
+
+        const emailContent = this.formatReminderEmail(reminder, bookmark);
+
+        // Import emailService dynamically
+        const { sendEmail } = await import('./emailService');
+
+        await sendEmail({
+          to: user.email,
+          subject: '🔔 Bookmark Reminder',
+          html: emailContent
+        });
+
+        console.log(`[ReminderService] Email notification sent to ${user.email}`);
       }
-
-      // Check if telegramChatId exists
-      if (!reminder.telegramChatId) {
-        throw new Error('Cannot send Telegram reminder: no chat ID specified');
-      }
-
-      // Format message
-      const message = this.formatReminderMessage(reminder, bookmark);
-
-      // Send via Telegram
-      await bot.sendMessage(reminder.telegramChatId, message, {
-        parse_mode: 'Markdown',
-        disable_web_page_preview: false
-      });
 
       // Mark as sent
       await (reminder as any).markAsSent();
-
-      console.log(`[ReminderService] Notification sent for reminder ${reminderId} via user's bot`);
 
       return {
         success: true,
@@ -396,6 +409,80 @@ ${priorityEmoji} *Priority:* ${reminder.priority}`;
 
       return message;
     }
+  }
+
+  /**
+   * Format reminder email HTML
+   */
+  private formatReminderEmail(reminder: IReminder, bookmark: any): string {
+    const isHebrew = reminder.reminderMessage.match(/[֐-׿]/);
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px 10px 0 0; }
+    .content { background: #f9f9f9; padding: 20px; border-radius: 0 0 10px 10px; }
+    .bookmark-link { display: inline-block; background: #667eea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin: 10px 0; }
+    .metadata { background: white; padding: 15px; border-left: 4px solid #667eea; margin: 10px 0; }
+    .priority { display: inline-block; padding: 5px 10px; border-radius: 5px; font-weight: bold; }
+    .priority-high { background: #fee; color: #c00; }
+    .priority-medium { background: #fef3cd; color: #856404; }
+    .priority-low { background: #e7f3ff; color: #004085; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔔 ${isHebrew ? 'תזכורת' : 'Bookmark Reminder'}</h1>
+    </div>
+    <div class="content">
+      <h2>${reminder.reminderMessage}</h2>
+
+      <a href="${bookmark.originalUrl}" class="bookmark-link" target="_blank">
+        ${isHebrew ? 'פתח קישור' : 'Open Bookmark'} →
+      </a>
+
+      ${bookmark.fetchedTitle ? `
+      <div class="metadata">
+        <strong>${isHebrew ? 'כותרת' : 'Title'}:</strong> ${bookmark.fetchedTitle}
+      </div>
+      ` : ''}
+
+      ${reminder.extractedTags && reminder.extractedTags.length > 0 ? `
+      <div class="metadata">
+        <strong>${isHebrew ? 'תגיות' : 'Tags'}:</strong> ${reminder.extractedTags.join(', ')}
+      </div>
+      ` : ''}
+
+      ${reminder.extractedNotes ? `
+      <div class="metadata">
+        <strong>${isHebrew ? 'הערות' : 'Notes'}:</strong> ${reminder.extractedNotes}
+      </div>
+      ` : ''}
+
+      <div class="metadata">
+        <strong>${isHebrew ? 'עדיפות' : 'Priority'}:</strong>
+        <span class="priority priority-${reminder.priority}">
+          ${reminder.priority === 'high' ? '🔥' : reminder.priority === 'medium' ? '⚡' : '📌'}
+          ${reminder.priority}
+        </span>
+      </div>
+
+      <p style="color: #666; font-size: 12px; margin-top: 20px;">
+        ${isHebrew ? 'תזכורת זו נשלחה מ-SYNAPSE' : 'This reminder was sent from SYNAPSE'}
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    return html;
   }
 
   /**
