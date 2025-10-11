@@ -59,10 +59,32 @@ export const promptForBookmarkVoiceNote = async (
   userId: string
 ): Promise<void> => {
   try {
-    const bot = telegramBotManager.getBotForUser(userId);
+    let bot = telegramBotManager.getBotForUser(userId);
+    
+    // If bot not found, try to initialize from stored token
     if (!bot) {
-      console.log(`[promptForBookmarkVoiceNote] No bot found for user ${userId}`);
-      return;
+      console.log(`[promptForBookmarkVoiceNote] No bot found for user ${userId}, attempting to initialize from database...`);
+      
+      const user = await User.findById(userId);
+      if (!user || !user.telegramBotToken) {
+        console.log(`[promptForBookmarkVoiceNote] User ${userId} has no stored bot token`);
+        return;
+      }
+      
+      // Initialize bot from stored token
+      const initResult = await telegramBotManager.setBotForUser(userId, user.telegramBotToken);
+      if (!initResult.success) {
+        console.error(`[promptForBookmarkVoiceNote] Failed to initialize bot: ${initResult.error}`);
+        return;
+      }
+      
+      bot = telegramBotManager.getBotForUser(userId);
+      if (!bot) {
+        console.error(`[promptForBookmarkVoiceNote] Bot still not found after initialization`);
+        return;
+      }
+      
+      console.log(`[promptForBookmarkVoiceNote] ✅ Successfully initialized bot for user ${userId}`);
     }
 
     const message = `📚 *Bookmark saved!*\n\n` +
