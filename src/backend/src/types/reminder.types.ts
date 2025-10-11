@@ -20,7 +20,7 @@ export interface CreateReminderDto {
   bookmarkId: mongoose.Types.ObjectId;
   scheduledFor: Date;
   reminderMessage: string;
-  telegramChatId: number;
+  telegramChatId?: number; // Optional - only for Telegram reminders
   extractedTags?: string[];
   extractedNotes?: string;
   priority?: ReminderPriority;

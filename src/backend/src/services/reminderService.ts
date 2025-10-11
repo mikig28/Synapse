@@ -272,6 +272,11 @@ class ReminderService {
         throw new Error(`No active Telegram bot found for user ${user.email}`);
       }
 
+      // Check if telegramChatId exists
+      if (!reminder.telegramChatId) {
+        throw new Error('Cannot send Telegram reminder: no chat ID specified');
+      }
+
       // Format message
       const message = this.formatReminderMessage(reminder, bookmark);
 

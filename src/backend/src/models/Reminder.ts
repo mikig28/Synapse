@@ -13,7 +13,7 @@ export interface IReminder extends Document {
   scheduledFor: Date;
   reminderMessage: string;
   status: ReminderStatus;
-  telegramChatId: number;
+  telegramChatId?: number; // Optional - only for Telegram reminders
 
   // Metadata from voice memo analysis
   extractedTags?: string[];
@@ -81,7 +81,7 @@ const ReminderSchema: Schema<IReminder> = new Schema(
     },
     telegramChatId: {
       type: Number,
-      required: true
+      required: false // Optional - only needed for Telegram reminders
     },
 
     // Metadata fields
