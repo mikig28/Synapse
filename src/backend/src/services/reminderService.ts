@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import TelegramBot from 'node-telegram-bot-api';
 import Reminder, { IReminder, ReminderStatus, ReminderPriority } from '../models/Reminder';
 import BookmarkItem from '../models/BookmarkItem';
+import User from '../models/User';
 import {
   CreateReminderDto,
   UpdateReminderDto,
@@ -9,19 +10,10 @@ import {
   ReminderNotificationResult
 } from '../types/reminder.types';
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-
 class ReminderService {
-  private bot: TelegramBot | null = null;
   private maxRetries: number;
 
   constructor() {
-    if (TELEGRAM_BOT_TOKEN) {
-      this.bot = new TelegramBot(TELEGRAM_BOT_TOKEN);
-    } else {
-      console.warn('[ReminderService] TELEGRAM_BOT_TOKEN not set - notifications disabled');
-    }
-
     this.maxRetries = parseInt(process.env.REMINDER_RETRY_ATTEMPTS || '3');
   }
 
@@ -246,10 +238,6 @@ class ReminderService {
    */
   async sendReminderNotification(reminderId: string): Promise<ReminderNotificationResult> {
     try {
-      if (!this.bot) {
-        throw new Error('Telegram bot not initialized');
-      }
-
       const reminder = await Reminder.findById(reminderId).populate('bookmarkId');
       
       if (!reminder) {
@@ -270,11 +258,25 @@ class ReminderService {
         throw new Error('Bookmark not found for reminder');
       }
 
+      // Get user's bot from telegramBotManager
+      const user = await User.findById(reminder.userId);
+      if (!user) {
+        throw new Error('User not found for reminder');
+      }
+
+      // Import telegramBotManager dynamically to avoid circular dependency
+      const { telegramBotManager } = await import('./telegramBotManager');
+      const bot = telegramBotManager.getBotForUser(user._id.toString());
+      
+      if (!bot) {
+        throw new Error(`No active Telegram bot found for user ${user.email}`);
+      }
+
       // Format message
       const message = this.formatReminderMessage(reminder, bookmark);
 
       // Send via Telegram
-      await this.bot.sendMessage(reminder.telegramChatId, message, {
+      await bot.sendMessage(reminder.telegramChatId, message, {
         parse_mode: 'Markdown',
         disable_web_page_preview: false
       });
@@ -282,7 +284,7 @@ class ReminderService {
       // Mark as sent
       await (reminder as any).markAsSent();
 
-      console.log(`[ReminderService] Notification sent for reminder ${reminderId}`);
+      console.log(`[ReminderService] Notification sent for reminder ${reminderId} via user's bot`);
 
       return {
         success: true,
