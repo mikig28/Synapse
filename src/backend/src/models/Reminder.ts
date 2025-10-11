@@ -33,6 +33,19 @@ export interface IReminder extends Document {
 
   // Original temporal expression from voice memo
   temporalExpression?: string;
+
+  // Instance methods
+  markAsSent(): Promise<IReminder>;
+  markAsFailed(reason: string): Promise<IReminder>;
+  cancel(): Promise<IReminder>;
+  reschedule(newDate: Date): Promise<IReminder>;
+}
+
+// Static methods interface
+export interface IReminderModel extends mongoose.Model<IReminder> {
+  getDueReminders(limit?: number): Promise<IReminder[]>;
+  getPendingRemindersByUser(userId: mongoose.Types.ObjectId, limit?: number): Promise<IReminder[]>;
+  getRemindersByBookmark(bookmarkId: mongoose.Types.ObjectId): Promise<IReminder[]>;
 }
 
 const ReminderSchema: Schema<IReminder> = new Schema(
@@ -206,6 +219,6 @@ ReminderSchema.pre('save', function(next) {
   next();
 });
 
-const Reminder = mongoose.model<IReminder>('Reminder', ReminderSchema);
+const Reminder = mongoose.model<IReminder, IReminderModel>('Reminder', ReminderSchema);
 
 export default Reminder;
