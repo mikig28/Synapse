@@ -7,6 +7,7 @@ console.log('[BookmarkController] Cheerio type (star import):', typeof cheerio, 
 import OpenAI from 'openai';
 import { AuthenticatedRequest } from '../../types/express';
 import BookmarkItem, { IBookmarkItem } from '../../models/BookmarkItem'; // Correct path to BookmarkItem model
+import Reminder from '../../models/Reminder'; // Import Reminder model
 
 // Helper function to fetch LinkedIn Metadata
 const fetchLinkedInMetadata = async (url: string): Promise<{ title?: string; description?: string; image?: string }> => {
@@ -220,9 +221,40 @@ export const getBookmarks = async (req: AuthenticatedRequest, res: Response) => 
     let bookmarks = await BookmarkItem.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean(); // Use lean() for better performance
 
     const totalBookmarks = await BookmarkItem.countDocuments(filter);
+
+    // Fetch reminders for these bookmarks
+    const bookmarkIds = bookmarks.map(b => b._id);
+    const reminders = await Reminder.find({
+      bookmarkId: { $in: bookmarkIds },
+      status: { $in: ['pending', 'sent'] } // Only active reminders
+    }).lean();
+
+    // Create a map of bookmarkId to reminder
+    const reminderMap = new Map();
+    reminders.forEach(reminder => {
+      reminderMap.set(reminder.bookmarkId.toString(), reminder);
+    });
+
+    // Enrich bookmarks with reminder data
+    bookmarks = bookmarks.map(bookmark => {
+      const reminder = reminderMap.get(bookmark._id.toString());
+      if (reminder) {
+        return {
+          ...bookmark,
+          reminderId: reminder._id.toString(),
+          hasReminder: true,
+          reminderScheduledFor: reminder.scheduledFor,
+          reminderMessage: reminder.reminderMessage,
+          reminderPriority: reminder.priority,
+          reminderStatus: reminder.status
+        };
+      }
+      return bookmark;
+    });
 
     // If a highlight ID is provided, ensure that bookmark is included in the results
     if (highlightId && mongoose.Types.ObjectId.isValid(highlightId)) {
@@ -982,4 +1014,4 @@ export const summarizeLatestBookmarksController = async (req: AuthenticatedReque
         digestSourceInfo: [] // Also add here for consistent response shape on error
     });
   }
-}; 
+};

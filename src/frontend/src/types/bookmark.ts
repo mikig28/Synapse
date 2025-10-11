@@ -27,4 +27,11 @@ export interface BookmarkItemType {
   voiceNoteTranscription?: string;
   voiceNoteAudioFileId?: string;
   voiceNoteTelegramMessageId?: string;
+  // Reminder fields
+  reminderId?: string;
+  hasReminder?: boolean;
+  reminderScheduledFor?: string;
+  reminderMessage?: string;
+  reminderPriority?: 'low' | 'medium' | 'high';
+  reminderStatus?: 'pending' | 'sent' | 'cancelled' | 'failed';
 }

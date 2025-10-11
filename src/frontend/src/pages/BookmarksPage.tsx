@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { ExternalLink, Info, MessageSquareText, Trash2, CalendarDays, FileText, Zap, AlertCircle, Volume2, Search, BookmarkPlus, CheckCircle, XCircle, Loader2, PlayCircle, StopCircle, Brain, ListFilter, ArrowUpDown, Link as LinkIcon } from 'lucide-react';
+import { ExternalLink, Info, MessageSquareText, Trash2, CalendarDays, FileText, Zap, AlertCircle, Volume2, Search, BookmarkPlus, CheckCircle, XCircle, Loader2, PlayCircle, StopCircle, Brain, ListFilter, ArrowUpDown, Link as LinkIcon, Bell, Clock } from 'lucide-react';
 import { getBookmarks, deleteBookmarkService, summarizeBookmarkById, speakTextViaBackend, getBookmarkVoiceAudio } from '../services/bookmarkService';
 import { BookmarkItemType } from '../types/bookmark';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -835,22 +835,52 @@ const BookmarksPage: React.FC = () => {
                     <Card className="p-3 sm:p-4 md:p-6 bg-background/80 backdrop-blur-sm border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-lg hover:shadow-primary/10 mobile-card rounded-lg">
                       <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-4">
                         <div className="flex-grow min-w-0 w-full sm:w-auto">
-                          {isValidOriginalUrl ? (
-                            <a 
-                                href={bookmark.originalUrl} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="hover:underline group-hover:text-primary transition-colors duration-200"
-                            >
-                                <h3 className="text-base sm:text-lg md:text-xl font-semibold text-foreground line-clamp-2 sm:truncate" title={bookmark.title || bookmark.fetchedTitle || bookmark.originalUrl}>
-                                    {bookmark.title || bookmark.fetchedTitle || bookmark.originalUrl}
+                          <div className="flex items-start gap-2 mb-1">
+                            <div className="flex-1 min-w-0">
+                              {isValidOriginalUrl ? (
+                                <a 
+                                    href={bookmark.originalUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="hover:underline group-hover:text-primary transition-colors duration-200"
+                                >
+                                    <h3 className="text-base sm:text-lg md:text-xl font-semibold text-foreground line-clamp-2 sm:truncate" title={bookmark.title || bookmark.fetchedTitle || bookmark.originalUrl}>
+                                        {bookmark.title || bookmark.fetchedTitle || bookmark.originalUrl}
+                                    </h3>
+                                </a>
+                              ) : (
+                                <h3 className="text-base sm:text-lg md:text-xl font-semibold text-foreground line-clamp-2 sm:truncate" title={bookmark.title || bookmark.fetchedTitle || String(bookmark.originalUrl)}>
+                                    {bookmark.title || bookmark.fetchedTitle || String(bookmark.originalUrl)}
                                 </h3>
-                            </a>
-                          ) : (
-                            <h3 className="text-base sm:text-lg md:text-xl font-semibold text-foreground line-clamp-2 sm:truncate" title={bookmark.title || bookmark.fetchedTitle || String(bookmark.originalUrl)}>
-                                {bookmark.title || bookmark.fetchedTitle || String(bookmark.originalUrl)}
-                            </h3>
-                          )}
+                              )}
+                            </div>
+                            {bookmark.hasReminder && bookmark.reminderScheduledFor && (
+                              <div className="flex-shrink-0">
+                                <div 
+                                  className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${
+                                    bookmark.reminderStatus === 'sent' 
+                                      ? 'bg-green-500/10 text-green-600 border border-green-500/20' 
+                                      : bookmark.reminderStatus === 'failed'
+                                      ? 'bg-red-500/10 text-red-600 border border-red-500/20'
+                                      : 'bg-blue-500/10 text-blue-600 border border-blue-500/20'
+                                  }`}
+                                  title={`Reminder ${bookmark.reminderStatus}: ${new Date(bookmark.reminderScheduledFor).toLocaleString()}\n${bookmark.reminderMessage || 'No message'}`}
+                                >
+                                  {bookmark.reminderStatus === 'sent' ? (
+                                    <CheckCircle className="w-3 h-3" />
+                                  ) : bookmark.reminderStatus === 'failed' ? (
+                                    <XCircle className="w-3 h-3" />
+                                  ) : (
+                                    <Bell className="w-3 h-3" />
+                                  )}
+                                  <Clock className="w-3 h-3" />
+                                  <span className="hidden sm:inline">
+                                    {new Date(bookmark.reminderScheduledFor).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground truncate mt-1" title={String(bookmark.originalUrl)}>{String(bookmark.originalUrl)}</p>
                            {renderSpecializedContent(bookmark)}
                           {renderSummarySection(bookmark)}
