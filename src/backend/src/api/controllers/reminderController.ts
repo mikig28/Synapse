@@ -3,21 +3,20 @@ import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../../types/express';
 import Reminder from '../../models/Reminder';
 import BookmarkItem from '../../models/BookmarkItem';
-import TelegramMonitor from '../../models/TelegramMonitor';
+import TelegramItem from '../../models/TelegramItem';
 import { reminderService } from '../../services/reminderService';
 
 /**
- * Get user's default Telegram chat ID from their most recent active monitor
- * Returns undefined if no Telegram monitors exist (will trigger email fallback)
+ * Get user's default Telegram chat ID from their most recent message
+ * Returns undefined if no Telegram messages exist (will trigger email fallback)
  */
 async function getUserDefaultTelegramChatId(userId: string): Promise<number | undefined> {
   try {
-    const monitor = await TelegramMonitor.findOne({
-      userId: new mongoose.Types.ObjectId(userId),
-      isActive: true
-    }).sort({ lastMessageAt: -1 });
+    const telegramItem = await TelegramItem.findOne({
+      synapseUserId: new mongoose.Types.ObjectId(userId)
+    }).sort({ receivedAt: -1 });
 
-    return monitor?.chatId;
+    return telegramItem?.chatId;
   } catch (error) {
     console.error('[ReminderController] Error getting default Telegram chatId:', error);
     return undefined;

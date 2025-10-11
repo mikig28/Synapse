@@ -289,10 +289,10 @@ class ReminderService {
 
         const emailContent = this.formatReminderEmail(reminder, bookmark);
 
-        // Import emailService dynamically
-        const { sendEmail } = await import('./emailService');
+        // Import emailService dynamically (default export)
+        const emailService = (await import('./emailService')).default;
 
-        await sendEmail({
+        await emailService.sendEmail({
           to: user.email,
           subject: '🔔 Bookmark Reminder',
           html: emailContent
