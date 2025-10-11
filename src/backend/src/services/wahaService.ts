@@ -488,6 +488,34 @@ class WAHAService extends EventEmitter {
   }
 
   /**
+   * Normalize WhatsApp ID to handle different suffix formats
+   * WAHA API inconsistently uses @c.us vs @s.whatsapp.net for individual contacts
+   * This method normalizes to a standard format for consistent mapping
+   */
+  private normalizeWhatsAppId(id: string): string {
+    if (!id || typeof id !== 'string') return id;
+
+    // Don't modify group IDs (@g.us) or newsletter IDs (@newsletter)
+    if (id.includes('@g.us') || id.includes('@newsletter') || id.includes('@lid')) {
+      return id;
+    }
+
+    // Extract the base number/user part before @ symbol
+    const parts = id.split('@');
+    if (parts.length < 2) return id;
+
+    const baseId = parts[0];
+    const suffix = parts[1];
+
+    // Normalize individual contact suffixes to @c.us (WAHA standard)
+    if (suffix === 's.whatsapp.net' || suffix === 'c.us') {
+      return `${baseId}@c.us`;
+    }
+
+    return id;
+  }
+
+  /**
    * Extract a WhatsApp JID string from any WAHA id shape.
    * Handles objects like { _serialized }, { id }, or { user, server }.
    * Returns null for invalid values (including the literal "[object Object]").
@@ -2051,23 +2079,39 @@ class WAHAService extends EventEmitter {
 
       // Fetch contacts to improve name resolution
       let contactsMap: { [key: string]: any } = {};
-      
+
       // Detect engine for better debugging
       const engineName = String(sessionStatus?.engine?.engine || '').toUpperCase();
       console.log(`[WAHA Service] Detected engine: ${engineName}`);
-      
+
       try {
         const contacts = await this.getContacts(sessionName);
-        
-        // Create contacts map
+
+        // Create contacts map with normalized IDs for better matching
+        // WAHA API sometimes returns different suffixes for the same contact:
+        // - Contacts endpoint: user@c.us
+        // - Chats endpoint: user@s.whatsapp.net
+        // We need to handle both formats for proper name resolution
         contactsMap = contacts.reduce((acc: any, contact: any) => {
           if (contact.id) {
-            acc[contact.id] = contact;
+            const normalizedId = this.normalizeWhatsAppId(contact.id);
+            const baseId = normalizedId.split('@')[0]; // Extract just the number part
+
+            // Store with multiple key formats for maximum compatibility
+            acc[contact.id] = contact; // Original format
+            acc[normalizedId] = contact; // Normalized format
+            acc[baseId + '@c.us'] = contact; // @c.us format
+            acc[baseId + '@s.whatsapp.net'] = contact; // @s.whatsapp.net format
+
+            // For groups, only use @g.us format
+            if (contact.id.includes('@g.us')) {
+              acc[baseId + '@g.us'] = contact;
+            }
           }
           return acc;
         }, {});
-        
-        console.log(`[WAHA Service] Loaded ${Object.keys(contactsMap).length} contacts for name resolution (${engineName} engine)`);
+
+        console.log(`[WAHA Service] Loaded ${contacts.length} contacts with ${Object.keys(contactsMap).length} ID variations for name resolution (${engineName} engine)`);
         
         // Debug: Show sample contact data for engine-specific debugging
         if (Object.keys(contactsMap).length > 0) {
@@ -2136,6 +2180,8 @@ class WAHAService extends EventEmitter {
               chatName = chat.name || chat.subject || chat.title ||
                         chat.notifyName || chat.verifiedName ||
                         `Group ${safeId.includes('@g.us') ? safeId.split('@')[0] : safeId}`;
+
+              console.log(`[WAHA Service] 👥 Group name resolved: "${chatName}" for ${safeId}`);
             } else {
               // For private chats, try to get name from contacts first
               const contactInfo = contactsMap[safeId];
@@ -2150,6 +2196,12 @@ class WAHAService extends EventEmitter {
                           contactInfo.formattedName ||
                           contactInfo.displayName ||
                           contactInfo.vname;
+
+                if (chatName) {
+                  console.log(`[WAHA Service] 👤 Contact name resolved from contactsMap: "${chatName}" for ${safeId}`);
+                }
+              } else {
+                console.log(`[WAHA Service] ⚠️ No contact info found in contactsMap for ${safeId}`);
               }
 
               // If still no name from contacts, try chat data
@@ -2168,8 +2220,18 @@ class WAHAService extends EventEmitter {
                           // Only use formatted phone as very last resort
                           this.formatPhoneNumber(safeId.split('@')[0]) ||
                           `Contact ${safeId.split('@')[0]}`;
+
+                if (chatName && !chatName.startsWith('Contact ')) {
+                  console.log(`[WAHA Service] 👤 Contact name resolved from chat data: "${chatName}" for ${safeId}`);
+                } else {
+                  console.log(`[WAHA Service] ⚠️ Using fallback name: "${chatName}" for ${safeId}`);
+                }
               }
             }
+          } else {
+            // Name was directly available in chat data
+            const isGroup = Boolean(chat.isGroup) || (typeof safeId === 'string' && safeId.includes('@g.us'));
+            console.log(`[WAHA Service] ${isGroup ? '👥' : '👤'} Name directly available in chat: "${chatName}" for ${safeId}`);
           }
 
           // Clean up the name - remove extra whitespace and ensure it's meaningful
