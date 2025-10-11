@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:waha.devlike.pro)"
+      "WebFetch(domain:waha.devlike.pro)",
+      "Bash(curl -X GET \"https://synapse-waha.onrender.com/api/sessions/u_6828510b49ea\" -H \"X-Api-Key: waha-synapse-2025-secure\" -w \"\\nHTTP Status: %{http_code}\\n\")"
     ],
     "deny": [],
     "ask": []

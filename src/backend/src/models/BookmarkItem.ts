@@ -27,6 +27,15 @@ export interface IBookmarkItem extends Document { // Renaming to IBookmarkItem f
   voiceNoteTranscription?: string;
   voiceNoteAudioFileId?: string;
   voiceNoteTelegramMessageId?: mongoose.Types.ObjectId;
+  // Voice memo analysis results
+  voiceMemoAnalysis?: {
+    tags: string[];
+    notes?: string;
+    priority: 'low' | 'medium' | 'high';
+    hasReminder: boolean;
+    confidence?: number;
+  };
+  reminderId?: mongoose.Types.ObjectId;
   createdAt: Date;
   // createdAt and updatedAt are automatically added by timestamps: true
 }
@@ -65,6 +74,18 @@ const BookmarkItemSchema: Schema<IBookmarkItem> = new Schema(
     voiceNoteTranscription: { type: String },
     voiceNoteAudioFileId: { type: String },
     voiceNoteTelegramMessageId: { type: Schema.Types.ObjectId, ref: 'TelegramItem' },
+    // Voice memo analysis
+    voiceMemoAnalysis: {
+      type: {
+        tags: { type: [String], default: [] },
+        notes: { type: String },
+        priority: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' },
+        hasReminder: { type: Boolean, default: false },
+        confidence: { type: Number, min: 0, max: 1 }
+      },
+      required: false
+    },
+    reminderId: { type: Schema.Types.ObjectId, ref: 'Reminder' },
   },
   { timestamps: true } // Automatically adds createdAt and updatedAt fields
 );

@@ -52,10 +52,12 @@ import whatsappImagesRoutes from './api/routes/whatsappImagesRoutes'; // Import 
 import whatsappSummaryRoutes from './api/routes/whatsappSummaryRoutes'; // Import WhatsApp summary routes
 import migrationRoutes from './api/routes/migrationRoutes'; // Import migration routes
 import adminRoutes from './api/routes/adminRoutes'; // Import admin routes
+import remindersRoutes from './api/routes/remindersRoutes'; // Import reminders routes
 import { generateTodaySummary } from './api/controllers/whatsappSummaryController'; // Direct import for WhatsApp summary endpoint
 import { authMiddleware } from './api/middleware/authMiddleware'; // Import auth middleware
 import type { AuthenticatedRequest } from './api/middleware/authMiddleware';
 import { initializeTaskReminderScheduler } from './services/taskReminderService'; // Import task reminder service
+import { initializeReminderScheduler } from './services/reminderSchedulerService'; // Import reminder scheduler service
 import { schedulerService } from './services/schedulerService'; // Import scheduler service
 import { whatsappSummaryScheduleService } from './services/whatsappSummaryScheduleService';
 import { agui } from './services/aguiEmitter'; // Import AG-UI emitter
@@ -241,6 +243,7 @@ app.use('/api/v1/usage', usageRoutes); // Use usage routes
 app.use('/api/v1/telegram-channels', telegramChannelRoutes); // Use telegram channels routes
 app.use('/api/v1/whatsapp/images', whatsappImagesRoutes); // Use WhatsApp images extraction routes
 app.use('/api/v1/whatsapp-gridfs', whatsappGridFSRoutes); // Use WhatsApp GridFS image serving routes
+app.use('/api/v1/reminders', remindersRoutes); // Use reminders routes
 app.use('/api/v1/admin', adminRoutes); // Use admin routes (requires admin role)
 
 // TEMPORARY: Simple test endpoint (no auth required) - BEFORE routes
@@ -832,6 +835,10 @@ const initializeServicesInBackground = async () => {
     // Initialize task reminder scheduler
     initializeTaskReminderScheduler();
     console.log('[Server] Task reminder scheduler initialized');
+
+    // Initialize bookmark reminder scheduler
+    initializeReminderScheduler();
+    console.log('[Server] Bookmark reminder scheduler initialized');
 
     // Start video recommendation scheduler
     videoRecommendationScheduler.start();

@@ -12,6 +12,8 @@ import { processAndCreateVideoItem } from '../api/controllers/videosController';
 import { transcribeAudio } from './transcriptionService'; // <-- IMPORT Transcription Service
 import { analyzeTranscription } from './analysisService'; // <-- IMPORT Analysis Service
 import { locationExtractionService } from './locationExtractionService'; // <-- IMPORT Location Extraction Service
+import { bookmarkVoiceMemoAnalysisService } from './bookmarkVoiceMemoAnalysisService'; // <-- IMPORT Bookmark Voice Memo Analysis Service
+import { reminderService } from './reminderService'; // <-- IMPORT Reminder Service
 import Task from '../models/Task'; // <-- IMPORT Task model
 import Note from '../models/Note'; // <-- IMPORT Note model
 import Idea from '../models/Idea'; // <-- IMPORT Idea model
@@ -410,10 +412,18 @@ bot.on('message', async (msg: TelegramBot.Message) => {
                 console.log(`[TelegramBot]: Voice note detected for pending bookmark ${pendingBookmark.bookmarkId}`);
 
                 try {
-                  // Import the update function
-                  const { updateBookmarkWithVoiceNote } = await import('../api/controllers/bookmarksController');
+                  // Import the update functions
+                  const { updateBookmarkWithVoiceNote, updateBookmarkWithAnalysis } = await import('../api/controllers/bookmarksController');
 
-                  // Update bookmark with voice note
+                  // 1. Analyze voice memo for reminder intent
+                  console.log(`[TelegramBot]: Analyzing voice memo for reminder intent...`);
+                  const analysis = await bookmarkVoiceMemoAnalysisService.analyze(
+                    transcribedText,
+                    pendingBookmark.bookmarkUrl
+                  );
+                  console.log(`[TelegramBot]: Analysis result - hasReminder: ${analysis.hasReminder}, confidence: ${analysis.confidence}`);
+
+                  // 2. Update bookmark with voice note
                   await updateBookmarkWithVoiceNote(
                     pendingBookmark.bookmarkId,
                     transcribedText,
@@ -421,11 +431,74 @@ bot.on('message', async (msg: TelegramBot.Message) => {
                     (voiceMemoTelegramItem._id as mongoose.Types.ObjectId).toString()
                   );
 
-                  // Send confirmation message
+                  // 3. Create reminder if detected
+                  let reminderId: string | undefined;
+                  if (analysis.hasReminder && analysis.reminderTime) {
+                    console.log(`[TelegramBot]: Creating reminder for ${analysis.reminderTime.toISOString()}`);
+
+                    const reminder = await reminderService.createReminder({
+                      userId: synapseUser._id,
+                      bookmarkId: new mongoose.Types.ObjectId(pendingBookmark.bookmarkId),
+                      scheduledFor: analysis.reminderTime,
+                      reminderMessage: analysis.reminderMessage!,
+                      telegramChatId: chatId,
+                      extractedTags: analysis.tags,
+                      extractedNotes: analysis.notes,
+                      priority: analysis.priority,
+                      temporalExpression: analysis.temporalExpression
+                    });
+
+                    reminderId = reminder._id.toString();
+                    console.log(`[TelegramBot]: Reminder created with ID: ${reminderId}`);
+                  }
+
+                  // 4. Update bookmark with analysis results
+                  await updateBookmarkWithAnalysis(
+                    pendingBookmark.bookmarkId,
+                    {
+                      tags: analysis.tags,
+                      notes: analysis.notes,
+                      priority: analysis.priority,
+                      hasReminder: analysis.hasReminder,
+                      confidence: analysis.confidence
+                    },
+                    reminderId
+                  );
+
+                  // 5. Send bilingual confirmation message
+                  const isHebrew = analysis.language === 'he';
                   const preview = transcribedText.substring(0, 50) + (transcribedText.length > 50 ? '...' : '');
-                  const confirmMessage = `✅ *Note added to bookmark!*\n\n` +
-                    `📝 "${preview}"\n\n` +
-                    `🔗 ${pendingBookmark.bookmarkUrl.substring(0, 50)}${pendingBookmark.bookmarkUrl.length > 50 ? '...' : ''}`;
+
+                  let confirmMessage = isHebrew ? '✅ *הערה נוספה!*\n\n' : '✅ *Note added!*\n\n';
+                  confirmMessage += `📝 "${preview}"\n\n`;
+
+                  if (analysis.hasReminder && analysis.reminderTime) {
+                    const dateStr = analysis.reminderTime.toLocaleString(isHebrew ? 'he-IL' : 'en-US', {
+                      dateStyle: 'short',
+                      timeStyle: 'short'
+                    });
+
+                    if (isHebrew) {
+                      confirmMessage += `🔔 *תזכורת נקבעה ל-${dateStr}*\n`;
+                      confirmMessage += `💬 ${analysis.reminderMessage}\n`;
+                      if (analysis.tags.length > 0) {
+                        confirmMessage += `🏷️ תגיות: ${analysis.tags.join(', ')}\n`;
+                      }
+                      confirmMessage += `⚡ עדיפות: ${analysis.priority}\n`;
+                    } else {
+                      confirmMessage += `🔔 *Reminder set for ${dateStr}*\n`;
+                      confirmMessage += `💬 ${analysis.reminderMessage}\n`;
+                      if (analysis.tags.length > 0) {
+                        confirmMessage += `🏷️ Tags: ${analysis.tags.join(', ')}\n`;
+                      }
+                      confirmMessage += `⚡ Priority: ${analysis.priority}\n`;
+                    }
+                  } else if (analysis.tags.length > 0) {
+                    const tagsLabel = isHebrew ? '🏷️ תגיות' : '🏷️ Tags';
+                    confirmMessage += `${tagsLabel}: ${analysis.tags.join(', ')}\n`;
+                  }
+
+                  confirmMessage += `\n🔗 ${pendingBookmark.bookmarkUrl.substring(0, 50)}${pendingBookmark.bookmarkUrl.length > 50 ? '...' : ''}`;
 
                   await bot.sendMessage(chatId, confirmMessage, {
                     reply_to_message_id: telegramMessageId,
@@ -435,7 +508,7 @@ bot.on('message', async (msg: TelegramBot.Message) => {
                   // Clear pending request
                   pendingBookmarkNotes.delete(chatId);
 
-                  console.log(`[TelegramBot]: Successfully added voice note to bookmark ${pendingBookmark.bookmarkId}`);
+                  console.log(`[TelegramBot]: Successfully added voice note to bookmark ${pendingBookmark.bookmarkId} with analysis`);
 
                   // Skip further processing for this voice memo
                   return;

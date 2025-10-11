@@ -43,6 +43,7 @@
     "bcryptjs": "^3.0.2",
     "cheerio": "^1.0.0",
     "chromadb": "^1.10.5",
+    "chrono-node": "^2.9.0",
     "cohere-ai": "^7.14.0",
     "compression": "^1.8.1",
     "compromise": "^14.14.3",

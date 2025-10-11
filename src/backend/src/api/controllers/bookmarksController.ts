@@ -733,6 +733,47 @@ export const updateBookmarkWithVoiceNote = async (
   }
 };
 
+// Function to update bookmark with voice memo analysis results
+export const updateBookmarkWithAnalysis = async (
+  bookmarkId: string,
+  analysisResults: {
+    tags: string[];
+    notes?: string;
+    priority: 'low' | 'medium' | 'high';
+    hasReminder: boolean;
+    confidence?: number;
+  },
+  reminderId?: string
+): Promise<void> => {
+  try {
+    const bookmark = await BookmarkItem.findById(bookmarkId);
+
+    if (!bookmark) {
+      throw new Error(`Bookmark not found: ${bookmarkId}`);
+    }
+
+    bookmark.voiceMemoAnalysis = analysisResults;
+
+    if (reminderId) {
+      bookmark.reminderId = new mongoose.Types.ObjectId(reminderId);
+    }
+
+    // Merge AI-extracted tags with existing tags
+    if (analysisResults.tags && analysisResults.tags.length > 0) {
+      const existingTags = bookmark.tags || [];
+      const combinedTags = [...new Set([...existingTags, ...analysisResults.tags])];
+      bookmark.tags = combinedTags;
+    }
+
+    await bookmark.save();
+
+    console.log(`[BookmarkController] Updated bookmark ${bookmarkId} with analysis results`);
+  } catch (error) {
+    console.error('[BookmarkController] Error updating bookmark with analysis:', error);
+    throw error;
+  }
+};
+
 // Function to get voice note audio for a bookmark
 export const getBookmarkVoiceAudio = async (req: AuthenticatedRequest, res: Response) => {
   try {
