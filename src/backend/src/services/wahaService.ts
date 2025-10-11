@@ -2120,7 +2120,14 @@ class WAHAService extends EventEmitter {
             this.httpClient.get(`/api/${sessionName}/groups`, { timeout: 30000 })
           );
 
-          const groups = Array.isArray(groupsResponse.data) ? groupsResponse.data : [];
+          // WAHA returns groups as an object (with group IDs as keys), not an array
+          let groups: any[] = [];
+          if (Array.isArray(groupsResponse.data)) {
+            groups = groupsResponse.data;
+          } else if (typeof groupsResponse.data === 'object' && groupsResponse.data !== null) {
+            // Convert object to array of group objects
+            groups = Object.values(groupsResponse.data);
+          }
           console.log(`[WAHA Service] ✅ Fetched ${groups.length} groups from dedicated groups endpoint`);
 
           // Merge group data into contactsMap with subject names
