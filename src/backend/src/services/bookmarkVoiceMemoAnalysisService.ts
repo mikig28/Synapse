@@ -67,11 +67,43 @@ class BookmarkVoiceMemoAnalysisService {
 
   private async extractWithAI(t: string, url: string, lang: 'en' | 'he' | 'unknown'): Promise<AnalysisResponse> {
     try {
+      const systemPrompt = `You are analyzing voice memos about bookmarks to detect reminder requests.
+
+A reminder request is when the user wants to be reminded about the bookmark at a future time.
+
+Common reminder phrases in English:
+- "remind me", "reminder", "alert me", "notify me"
+- "come back to this", "review this", "check this"
+- With time expressions: "tomorrow", "next week", "in 2 days"
+
+Common reminder phrases in Hebrew:
+- "תזכיר לי", "תזכורת", "להזכיר"
+- "לחזור על זה", "לבדוק את זה", "לקרוא את זה"
+- With time: "מחר", "בשבוע הבא", "בעוד יומיים", "בעוד X ימים"
+
+Return JSON with:
+- hasReminder: true if ANY reminder intent detected (in any language)
+- reminderMessage: what user wants to be reminded about
+- tags: relevant tags
+- notes: additional context
+- priority: low/medium/high
+- temporalHints: time-related words found
+
+Be liberal in detecting reminders - if there's ANY indication of wanting to return/review/check later, set hasReminder=true.`;
+
+      const userPrompt = `Analyze this voice memo about a bookmark:
+
+Text: "${t}"
+URL: ${url}
+Language: ${lang}
+
+Return JSON only.`;
+
       const response = await this.openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
-          { role: 'system', content: 'Analyze voice memos about bookmarks. Return JSON only.' },
-          { role: 'user', content: `Analyze: "${t}". URL: ${url}. Return JSON with hasReminder, reminderMessage, tags, notes, priority, temporalHints.` }
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
         ],
         temperature: 0.3,
         max_tokens: 500,
