@@ -12,10 +12,30 @@ async function debugBookmarkReminders() {
     await mongoose.connect(process.env.MONGODB_URI);
     console.log('✅ Connected to MongoDB');
 
-    // Get models
-    const BookmarkItem = mongoose.model('BookmarkItem');
-    const Reminder = mongoose.model('Reminder');
-    const User = mongoose.model('User');
+    // Define inline schemas since we can't import TS files
+    const BookmarkItemSchema = new mongoose.Schema({
+      userId: mongoose.Schema.Types.ObjectId,
+      originalUrl: String,
+      sourcePlatform: String,
+      voiceNoteTranscription: String,
+      voiceMemoAnalysis: mongoose.Schema.Types.Mixed,
+      reminderId: mongoose.Schema.Types.ObjectId,
+      createdAt: Date
+    }, { timestamps: true, strict: false });
+
+    const ReminderSchema = new mongoose.Schema({
+      userId: mongoose.Schema.Types.ObjectId,
+      bookmarkId: mongoose.Schema.Types.ObjectId,
+      scheduledFor: Date,
+      reminderMessage: String,
+      status: String,
+      priority: String,
+      createdAt: Date
+    }, { timestamps: true, strict: false });
+
+    // Get or create models
+    const BookmarkItem = mongoose.models.BookmarkItem || mongoose.model('BookmarkItem', BookmarkItemSchema);
+    const Reminder = mongoose.models.Reminder || mongoose.model('Reminder', ReminderSchema);
 
     console.log('\n=== CHECKING RECENT BOOKMARKS ===\n');
 

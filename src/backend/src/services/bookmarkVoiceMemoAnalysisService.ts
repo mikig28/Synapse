@@ -148,23 +148,40 @@ Return JSON only.`;
   }
 
   private parseHebrewTemporal(text: string): TemporalParseResult {
+    console.log(`[HebrewTemporal] Parsing: "${text}"`);
+
     const patterns = [
+      // "בעוד X ימים" / "בעוד יומיים" (in X days / in 2 days)
       { regex: /בעוד\s+(\d+)\s+ימ?ים?/i, days: (m: RegExpMatchArray) => parseInt(m[1]) },
+      // Special case for "יומיים" (two days)
+      { regex: /בעוד\s+יומיים/i, days: () => 2 },
+      // "שבועיים" (two weeks) / "בעוד X שבועות" (in X weeks)
+      { regex: /בעוד\s+שבועיים/i, days: () => 14 },
+      { regex: /בעוד\s+(\d+)\s+שבועות?/i, days: (m: RegExpMatchArray) => parseInt(m[1]) * 7 },
+      // "שני ימים" (two days - alternative phrasing)
+      { regex: /בעוד\s+שני\s+יום/i, days: () => 2 },
+      // "מחר" (tomorrow)
       { regex: /מחר/i, days: () => 1 },
-      { regex: /בשבוע הבא/i, days: () => 7 }
+      // "בשבוע הבא" / "שבוע הבא" (next week)
+      { regex: /(ב)?שבוע\s+הבא/i, days: () => 7 },
+      // "חודש" / "בחודש הבא" (month / next month)
+      { regex: /(ב)?חודש\s+הבא/i, days: () => 30 }
     ];
 
     for (const p of patterns) {
       const match = text.match(p.regex);
       if (match) {
+        const daysToAdd = p.days(match);
         const date = new Date();
         date.setHours(this.defaultReminderTime.hour, this.defaultReminderTime.minute, 0, 0);
-        date.setDate(date.getDate() + p.days(match));
+        date.setDate(date.getDate() + daysToAdd);
 
+        console.log(`[HebrewTemporal] ✅ Matched pattern "${p.regex}" → ${daysToAdd} days → ${date.toISOString()}`);
         return { found: true, parsedDate: date, originalText: match[0], confidence: 0.8, index: match.index };
       }
     }
 
+    console.log(`[HebrewTemporal] ❌ No pattern matched`);
     return { found: false, originalText: text, confidence: 0 };
   }
 

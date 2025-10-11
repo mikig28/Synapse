@@ -2112,7 +2112,51 @@ class WAHAService extends EventEmitter {
         }, {});
 
         console.log(`[WAHA Service] Loaded ${contacts.length} contacts with ${Object.keys(contactsMap).length} ID variations for name resolution (${engineName} engine)`);
-        
+
+        // Also fetch groups separately for better name resolution
+        // The /groups endpoint provides richer group metadata including subject names
+        try {
+          const groupsResponse = await this.queueRequest<AxiosResponse<any>>(() =>
+            this.httpClient.get(`/api/${sessionName}/groups`, { timeout: 30000 })
+          );
+
+          const groups = Array.isArray(groupsResponse.data) ? groupsResponse.data : [];
+          console.log(`[WAHA Service] ✅ Fetched ${groups.length} groups from dedicated groups endpoint`);
+
+          // Merge group data into contactsMap with subject names
+          let groupsAdded = 0;
+          groups.forEach((group: any) => {
+            if (group.id && group.subject) {
+              const groupData = {
+                id: group.id,
+                name: group.subject, // Groups use 'subject' field for name
+                pushname: group.subject,
+                isGroup: true,
+                ...group
+              };
+
+              const normalizedId = this.normalizeWhatsAppId(group.id);
+              const baseId = normalizedId.split('@')[0];
+
+              // Add group with all possible ID variations
+              contactsMap[group.id] = groupData;
+              contactsMap[normalizedId] = groupData;
+              contactsMap[baseId + '@g.us'] = groupData;
+              groupsAdded++;
+            }
+          });
+
+          console.log(`[WAHA Service] ✅ Added ${groupsAdded} groups to contactsMap with subject names`);
+        } catch (groupsError: any) {
+          // Groups endpoint may not be available in all WAHA engines
+          const status = groupsError?.response?.status;
+          if (status === 404) {
+            console.log(`[WAHA Service] ℹ️ Groups endpoint not available for ${engineName} engine (expected for NOWEB)`);
+          } else {
+            console.warn(`[WAHA Service] ⚠️ Could not fetch groups:`, groupsError?.message);
+          }
+        }
+
         // Debug: Show sample contact data for engine-specific debugging
         if (Object.keys(contactsMap).length > 0) {
           const sampleContact = Object.values(contactsMap)[0] as any;
@@ -2123,7 +2167,8 @@ class WAHAService extends EventEmitter {
             pushname: sampleContact.pushname,
             pushName: sampleContact.pushName,
             notify: sampleContact.notify,
-            vname: sampleContact.vname
+            vname: sampleContact.vname,
+            subject: sampleContact.subject
           });
         }
       } catch (contactError) {
