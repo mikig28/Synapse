@@ -8,10 +8,11 @@ import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { useOnboardingStore } from '@/store/onboardingStore';
 import LinkTelegramChatUpdated from '@/components/settings/LinkTelegramChatUpdated';
 import TelegramBotSettings from '@/components/settings/TelegramBotSettings';
+import ReminderDeliverySettings from '@/components/settings/ReminderDeliverySettings';
 import DataExport from '@/components/settings/DataExport';
 import { UsageDashboard } from '@/components/usage/UsageDashboard';
 import { FloatingParticles } from '@/components/common/FloatingParticles';
-import { Settings, Sparkles, User, Shield, Bell, Palette, Download, BarChart3, Bot } from 'lucide-react';
+import { Settings, Sparkles, User, Shield, Bell, Palette, Download, BarChart3, Bot, Clock } from 'lucide-react';
 
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -76,10 +77,17 @@ const SettingsPage: React.FC = () => {
     },
     {
       icon: <Bell className="w-6 h-6 text-purple-400" />,
-      iconBg: "bg-purple-500/20", 
+      iconBg: "bg-purple-500/20",
       title: "Telegram Chat Management",
       description: "Manage monitored chats and notification settings.",
       content: <LinkTelegramChatUpdated />
+    },
+    {
+      icon: <Clock className="w-6 h-6 text-cyan-400" />,
+      iconBg: "bg-cyan-500/20",
+      title: "Reminder Delivery",
+      description: "Choose how you receive bookmark reminder notifications.",
+      content: <ReminderDeliverySettings />
     },
     {
       icon: <Download className="w-6 h-6 text-green-400" />,

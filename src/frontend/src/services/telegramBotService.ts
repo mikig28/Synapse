@@ -13,6 +13,7 @@ export interface BotStatusResponse {
   botUsername?: string;
   monitoredChats: number;
   sendReportsToTelegram: boolean;
+  sendRemindersToTelegram: boolean;
 }
 
 export interface SetBotResponse {
@@ -75,6 +76,18 @@ class TelegramBotService {
 
   async testBotConnectivity(): Promise<BotConnectivityResponse> {
     const response = await axiosInstance.post('/users/me/telegram-bot/test');
+    return response.data;
+  }
+
+  async updateReminderSettings(sendRemindersToTelegram: boolean): Promise<{ message: string; sendRemindersToTelegram: boolean }> {
+    const response = await axiosInstance.put('/users/me/reminder-settings', {
+      sendRemindersToTelegram,
+    });
+    return response.data;
+  }
+
+  async getReminderSettings(): Promise<{ sendRemindersToTelegram: boolean }> {
+    const response = await axiosInstance.get('/users/me/reminder-settings');
     return response.data;
   }
 }
