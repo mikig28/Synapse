@@ -2345,7 +2345,7 @@ class WAHAService extends EventEmitter {
               this.httpClient.get(`/api/${sessionName}/chats/overview`, {
                 timeout: 60000,
                 params: {
-                  limit: Math.min(options.limit || 100, 30), // Use smaller pages
+                  limit: options.limit || 1000, // Default to 1000 to fetch all chats
                   offset: options.offset || 0,
                   sortBy,
                   sortOrder: options.sortOrder || 'desc'
@@ -2369,7 +2369,7 @@ class WAHAService extends EventEmitter {
                   this.httpClient.get(`/api/${sessionName}/chats/overview`, {
                     timeout: 60000,
                     params: {
-                      limit: Math.min(options.limit || 100, 30),
+                      limit: options.limit || 1000, // Default to 1000 to fetch all chats
                       offset: options.offset || 0,
                       sortBy,
                       sortOrder: options.sortOrder || 'desc'
@@ -2408,7 +2408,7 @@ class WAHAService extends EventEmitter {
           try {
             // Build WAHA-compliant query parameters with performance optimizations
             const params = new URLSearchParams();
-            const effectiveLimit = Math.min(options.limit || 200, 100); // Increased to support more groups
+            const effectiveLimit = options.limit || 1000; // Default to 1000 to fetch all chats (WAHA supports up to 1000)
             params.append('limit', effectiveLimit.toString());
             if (options.offset) params.append('offset', options.offset.toString());
             params.append('sortBy', sortBy);
@@ -2437,7 +2437,7 @@ class WAHAService extends EventEmitter {
             if (status === 404) {
               try {
                 const params2 = new URLSearchParams();
-                const effectiveLimit2 = Math.min(options.limit || 100, 50);
+                const effectiveLimit2 = options.limit || 1000; // Default to 1000 to fetch all chats
                 params2.append('limit', effectiveLimit2.toString());
                 if (options.offset) params2.append('offset', options.offset.toString());
                 params2.append('sortBy', sortBy);

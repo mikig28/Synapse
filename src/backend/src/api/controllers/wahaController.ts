@@ -1143,7 +1143,7 @@ export const getPrivateChats = async (req: AuthenticatedRequest, res: Response) 
     }
 
     // Parse pagination/sorting options
-    const limit = req.query.limit ? Math.max(1, Math.min(500, parseInt(req.query.limit as string))) : undefined;
+    const limit = req.query.limit ? Math.max(1, Math.min(1000, parseInt(req.query.limit as string))) : undefined;
     const offset = req.query.offset ? Math.max(0, parseInt(req.query.offset as string)) : undefined;
     const sortBy = 'id';
     const sortOrder = (req.query.sortOrder as 'desc' | 'asc' | undefined) || 'desc';
