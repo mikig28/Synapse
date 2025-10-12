@@ -2,11 +2,13 @@ import { Request, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/authMiddleware';
 import WhatsAppMessage from '../../models/WhatsAppMessage';
 import WhatsAppContact from '../../models/WhatsAppContact';
-import WhatsAppBaileysService from '../../services/whatsappBaileysService';
+import WAHAService from '../../services/wahaService';
 
 // Get WhatsApp service singleton instance (lazy initialization)
+// Now using WAHA Plus instead of Baileys for better group syncing
 const getWhatsAppService = () => {
-  return WhatsAppBaileysService.getInstance();
+  const sessionId = process.env.WAHA_DEFAULT_SESSION || 'default';
+  return WAHAService.getInstance(sessionId);
 };
 
 // Initialize WhatsApp service listeners when needed
@@ -683,9 +685,16 @@ export const restartWhatsAppService = async (req: Request, res: Response) => {
 // Get WhatsApp groups
 export const getWhatsAppGroups = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    // Get groups directly from WhatsApp service (not database)
+    // Get groups directly from WAHA Plus service (supports fetching ALL groups)
     const whatsappService = getWhatsAppService();
-    const serviceGroups = whatsappService.getGroups();
+    const sessionId = process.env.WAHA_DEFAULT_SESSION || 'default';
+
+    console.log(`[WhatsApp] Fetching groups from WAHA Plus for session: ${sessionId}`);
+
+    // WAHA getGroups() is async and fetches from WAHA API
+    const serviceGroups = await whatsappService.getGroups(sessionId, {
+      limit: 200 // Fetch up to 200 groups (increase if you have more)
+    });
 
     // Transform to match expected format
     const groups = serviceGroups.map(group => ({
@@ -697,10 +706,14 @@ export const getWhatsAppGroups = async (req: AuthenticatedRequest, res: Response
       messageCount: 0, // Could be enhanced to query database for actual count
       participantCount: group.participantCount || 0,
       description: group.description || '',
-      isGroup: group.isGroup
+      isGroup: group.isGroup,
+      // Additional WAHA Plus metadata
+      inviteCode: group.inviteCode,
+      picture: group.picture,
+      role: group.role
     }));
 
-    console.log(`[WhatsApp] Fetched ${groups.length} groups from service`);
+    console.log(`[WhatsApp] ✅ Fetched ${groups.length} groups from WAHA Plus service`);
 
     res.json({
       success: true,
