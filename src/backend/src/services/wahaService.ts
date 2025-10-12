@@ -2154,13 +2154,21 @@ class WAHAService extends EventEmitter {
           });
 
           console.log(`[WAHA Service] ✅ Added ${groupsAdded} groups to contactsMap with subject names`);
+
+        // Debug: Show sample of contactsMap entries for groups
+        const groupEntries = Object.entries(contactsMap).filter(([, v]: [string, any]) => v.isGroup).slice(0, 3);
+        console.log(`[WAHA Service] Sample contactsMap group entries:`, groupEntries.map(([k, v]: [string, any]) => ({ id: k, name: v.name })));
         } catch (groupsError: any) {
           // Groups endpoint may not be available in all WAHA engines
           const status = groupsError?.response?.status;
           if (status === 404) {
             console.log(`[WAHA Service] ℹ️ Groups endpoint not available for ${engineName} engine (expected for NOWEB)`);
           } else {
-            console.warn(`[WAHA Service] ⚠️ Could not fetch groups:`, groupsError?.message);
+            console.error(`[WAHA Service] ❌ Could not fetch groups (Status: ${status}):`, {
+              message: groupsError?.message,
+              url: groupsError?.config?.url,
+              method: groupsError?.config?.method
+            });
           }
         }
 
@@ -2221,30 +2229,36 @@ class WAHAService extends EventEmitter {
           }
 
           // Enhanced name resolution with improved fallback logic
-          let chatName = chat.name || chat.subject || chat.title;
+          const isGroup = Boolean(chat.isGroup) || (typeof safeId === 'string' && safeId.includes('@g.us'));
+          let chatName: string | undefined;
 
-          // If name is missing or is just the ID, try better fallbacks
+          // For groups, ALWAYS try contactsMap first (populated from groups endpoint with proper names)
+          if (isGroup) {
+            const groupInfo = contactsMap[safeId];
+            if (groupInfo && groupInfo.name) {
+              chatName = groupInfo.name;
+              console.log(`[WAHA Service] 👥 Group name resolved from contactsMap: "${chatName}" for ${safeId}`);
+            } else {
+              console.log(`[WAHA Service] ⚠️ Group ${safeId} not found in contactsMap (has ${Object.keys(contactsMap).filter((k: string) => k.includes('@g.us')).length} groups)`);
+            }
+          }
+
+          // If no name from contactsMap (or not a group), try chat object fields
+          if (!chatName) {
+            chatName = chat.name || chat.subject || chat.title;
+          }
+
+          // If still no name or is just the ID, try better fallbacks
           if (!chatName || chatName === safeId || !chatName.trim()) {
-            const isGroup = Boolean(chat.isGroup) || (typeof safeId === 'string' && safeId.includes('@g.us'));
-
             if (isGroup) {
-              // For groups, first try to get name from contactsMap (populated from groups endpoint)
-              const groupInfo = contactsMap[safeId];
+              // Last resort fallback for groups
+              chatName = chat.notifyName || chat.verifiedName ||
+                        `Group ${safeId.includes('@g.us') ? safeId.split('@')[0] : safeId}`;
 
-              if (groupInfo && groupInfo.name) {
-                chatName = groupInfo.name;
-                console.log(`[WAHA Service] 👥 Group name resolved from contactsMap: "${chatName}" for ${safeId}`);
+              if (chatName.startsWith('Group ')) {
+                console.log(`[WAHA Service] ⚠️ Using fallback group name: "${chatName}" for ${safeId}`);
               } else {
-                // Fallback to chat object fields (may be empty for NOWEB)
-                chatName = chat.name || chat.subject || chat.title ||
-                          chat.notifyName || chat.verifiedName ||
-                          `Group ${safeId.includes('@g.us') ? safeId.split('@')[0] : safeId}`;
-
-                if (chatName.startsWith('Group ')) {
-                  console.log(`[WAHA Service] ⚠️ Using fallback group name: "${chatName}" for ${safeId}`);
-                } else {
-                  console.log(`[WAHA Service] 👥 Group name resolved from chat data: "${chatName}" for ${safeId}`);
-                }
+                console.log(`[WAHA Service] 👥 Group name resolved from chat fallback: "${chatName}" for ${safeId}`);
               }
             } else {
               // For private chats, try to get name from contacts first
