@@ -2607,7 +2607,7 @@ class WAHAService extends EventEmitter {
     try {
       // Check cache first
       const now = Date.now();
-      if (this.groupsCache.data.length > 0 && (now - this.groupsCache.timestamp) < this.GROUPS_CACHE_DURATION) {
+      if (this.groupsCache.data && this.groupsCache.data.length > 0 && (now - this.groupsCache.timestamp) < this.GROUPS_CACHE_DURATION) {
         console.log('[WAHA Service] Returning cached groups');
         return this.groupsCache.data;
       }
