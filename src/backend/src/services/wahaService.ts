@@ -2632,17 +2632,6 @@ class WAHAService extends EventEmitter {
       // For other statuses (STARTING, WORKING, etc.), try to fetch groups anyway
       console.log(`[WAHA Service] getGroups - Session status ${sessionStatus.status}, attempting to fetch groups`);
 
-      // NOWEB engine: skip /groups endpoint entirely as it's unreliable, use chats filter instead
-      const engine = sessionStatus.engine?.engine || process.env.WAHA_ENGINE?.trim();
-      if (engine === 'NOWEB') {
-        console.log(`[WAHA Service] NOWEB engine detected - skipping /groups endpoint (known instability), using chats filter`);
-        // Fetch more chats to ensure we get all groups (groups might be spread across pages)
-        const chats = await this.getChats(sessionName, { limit: 200 });
-        const groups = chats.filter(c => c.isGroup || (typeof c.id === 'string' && c.id.includes('@g.us')));
-        console.log(`[WAHA Service] Found ${groups.length} groups via chats filter (fetched ${chats.length} chats)`);
-        return groups;
-      }
-
       // Check circuit breaker for groups endpoint (other engines)
       const isCircuitBreakerOpen = this.groupsEndpointFailures >= this.GROUPS_CIRCUIT_BREAKER_THRESHOLD &&
                                    (now - this.groupsEndpointLastFailure) < this.GROUPS_CIRCUIT_BREAKER_RESET_TIME;
@@ -2656,8 +2645,8 @@ class WAHAService extends EventEmitter {
       try {
         // Build WAHA-compliant query parameters for groups with performance optimizations
         const params = new URLSearchParams();
-        // Use WAHA-recommended pagination and exclude heavy data
-        params.append('limit', (options.limit || 100).toString()); // Default to 100 as per WAHA docs
+        // Use high limit to fetch all groups (WAHA supports up to 1000)
+        params.append('limit', (options.limit || 1000).toString()); // Default to 1000 to fetch all groups
         params.append('offset', (options.offset || 0).toString());
         params.append('sortBy', options.sortBy || 'subject'); // Use WAHA-recommended sorting
         params.append('sortOrder', options.sortOrder || 'desc');
