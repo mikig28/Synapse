@@ -19,6 +19,7 @@ export interface IUser extends Document {
   };
   monitoredTelegramChats?: number[]; // Added for storing Telegram chat IDs to monitor
   sendAgentReportsToTelegram?: boolean; // Toggle for sending agent reports to Telegram
+  sendRemindersToTelegram?: boolean; // Toggle for sending bookmark reminders to Telegram (false = email)
   telegramBotToken?: string; // User's personal Telegram bot token
   telegramBotUsername?: string; // Bot username for display purposes
   telegramBotActive?: boolean; // Whether the user's bot is currently active
@@ -99,6 +100,10 @@ const UserSchema: Schema<IUser> = new Schema(
     sendAgentReportsToTelegram: {
       type: Boolean,
       default: false, // Default to false
+    },
+    sendRemindersToTelegram: {
+      type: Boolean,
+      default: true, // Default to true - prefer Telegram over email for reminders
     },
     telegramBotToken: {
       type: String,

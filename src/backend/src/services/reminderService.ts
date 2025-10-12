@@ -268,8 +268,11 @@ class ReminderService {
       let telegramSuccess = false;
       let telegramError: string | undefined;
 
-      // Try to send to monitored Telegram chats (like agent reports)
-      if (user.monitoredTelegramChats && user.monitoredTelegramChats.length > 0) {
+      // Check user's reminder delivery preference
+      const preferTelegram = user.sendRemindersToTelegram !== false; // Default to true
+
+      // Try to send to monitored Telegram chats (like agent reports) if user prefers Telegram
+      if (preferTelegram && user.monitoredTelegramChats && user.monitoredTelegramChats.length > 0) {
         try {
           console.log(`[ReminderService] Sending reminder to ${user.monitoredTelegramChats.length} monitored Telegram chats`);
 
@@ -309,6 +312,8 @@ class ReminderService {
           telegramError = error.message;
           console.error(`[ReminderService] Telegram delivery error:`, error);
         }
+      } else if (!preferTelegram) {
+        console.log(`[ReminderService] User prefers email delivery (sendRemindersToTelegram=false)`);
       } else {
         console.log(`[ReminderService] User has no monitored Telegram chats - will use email fallback`);
       }
