@@ -536,7 +536,15 @@ const BookmarksPage: React.FC = () => {
     }
 
     try {
-      const response = await updateBookmarkReminder(bookmarkId, reminderDateTime);
+      // Convert datetime-local to proper ISO string
+      // datetime-local gives us "2025-01-15T15:00" in user's local time
+      // We need to convert to UTC ISO string for backend
+      const localDate = new Date(reminderDateTime);
+      const isoString = localDate.toISOString();
+
+      console.log(`[handleUpdateReminder] Converting ${reminderDateTime} (local) → ${isoString} (UTC)`);
+
+      const response = await updateBookmarkReminder(bookmarkId, isoString);
 
       // Update bookmark in state
       setBookmarks(prevBookmarks =>
