@@ -234,12 +234,13 @@ class ReminderService {
   }
 
   /**
-   * Send reminder notification via Telegram
+   * Send reminder notification to monitored Telegram chats (like agent reports)
+   * Falls back to email only if no monitored chats or Telegram fails
    */
   async sendReminderNotification(reminderId: string): Promise<ReminderNotificationResult> {
     try {
       const reminder = await Reminder.findById(reminderId).populate('bookmarkId');
-      
+
       if (!reminder) {
         throw new Error(`Reminder not found: ${reminderId}`);
       }
@@ -258,34 +259,63 @@ class ReminderService {
         throw new Error('Bookmark not found for reminder');
       }
 
-      // Get user for email delivery
+      // Get user
       const user = await User.findById(reminder.userId);
       if (!user) {
         throw new Error('User not found for reminder');
       }
 
-      // Check delivery method: Telegram or Email
-      if (reminder.telegramChatId) {
-        // Send via Telegram
-        // Import telegramBotManager dynamically to avoid circular dependency
-        const { telegramBotManager } = await import('./telegramBotManager');
-        const bot = telegramBotManager.getBotForUser(user._id.toString());
+      let telegramSuccess = false;
+      let telegramError: string | undefined;
 
-        if (!bot) {
-          throw new Error(`No active Telegram bot found for user ${user.email}`);
+      // Try to send to monitored Telegram chats (like agent reports)
+      if (user.monitoredTelegramChats && user.monitoredTelegramChats.length > 0) {
+        try {
+          console.log(`[ReminderService] Sending reminder to ${user.monitoredTelegramChats.length} monitored Telegram chats`);
+
+          // Import telegramBotManager dynamically to avoid circular dependency
+          const { telegramBotManager } = await import('./telegramBotManager');
+          const bot = telegramBotManager.getBotForUser(user._id.toString());
+
+          if (!bot) {
+            telegramError = 'No active Telegram bot found';
+            console.warn(`[ReminderService] ${telegramError} for user ${user.email}`);
+          } else {
+            const message = this.formatReminderMessage(reminder, bookmark);
+
+            // Send to all monitored chats (like agent reports)
+            let sentCount = 0;
+            for (const chatId of user.monitoredTelegramChats) {
+              try {
+                await bot.sendMessage(chatId, message, {
+                  parse_mode: 'Markdown',
+                  disable_web_page_preview: false
+                });
+                sentCount++;
+                console.log(`[ReminderService] Reminder sent to Telegram chat ${chatId}`);
+              } catch (chatError: any) {
+                console.error(`[ReminderService] Failed to send to chat ${chatId}:`, chatError.message);
+              }
+            }
+
+            if (sentCount > 0) {
+              telegramSuccess = true;
+              console.log(`[ReminderService] Reminder sent to ${sentCount}/${user.monitoredTelegramChats.length} Telegram chats`);
+            } else {
+              telegramError = 'Failed to send to any Telegram chat';
+            }
+          }
+        } catch (error: any) {
+          telegramError = error.message;
+          console.error(`[ReminderService] Telegram delivery error:`, error);
         }
-
-        const message = this.formatReminderMessage(reminder, bookmark);
-
-        await bot.sendMessage(reminder.telegramChatId, message, {
-          parse_mode: 'Markdown',
-          disable_web_page_preview: false
-        });
-
-        console.log(`[ReminderService] Telegram notification sent for reminder ${reminderId}`);
       } else {
-        // No Telegram chatId - send via email
-        console.log(`[ReminderService] No Telegram chatId - sending email notification for reminder ${reminderId}`);
+        console.log(`[ReminderService] User has no monitored Telegram chats - will use email fallback`);
+      }
+
+      // Fallback to email if Telegram failed or not available
+      if (!telegramSuccess) {
+        console.log(`[ReminderService] Sending email notification for reminder ${reminderId} (Telegram ${telegramError ? 'failed: ' + telegramError : 'not available'})`);
 
         const emailContent = this.formatReminderEmail(reminder, bookmark);
 
