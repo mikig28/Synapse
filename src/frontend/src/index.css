@@ -841,11 +841,12 @@ code {
       left: 0 !important;
       right: 0 !important;
       width: 100% !important;
-      z-index: 50 !important;
-      transform: translateZ(0);
-      -webkit-transform: translateZ(0);
-      backface-visibility: hidden;
-      -webkit-backface-visibility: hidden;
+      z-index: 9999 !important;
+      transform: translateZ(0) !important;
+      -webkit-transform: translateZ(0) !important;
+      backface-visibility: hidden !important;
+      -webkit-backface-visibility: hidden !important;
+      will-change: transform !important;
     }
   }
 

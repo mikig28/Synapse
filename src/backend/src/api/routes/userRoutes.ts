@@ -3,6 +3,8 @@ import {
   addMonitoredTelegramChat,
   updateTelegramReportSettings,
   getTelegramReportSettings,
+  updateReminderSettings,
+  getReminderSettings,
   setTelegramBotToken,
   getTelegramBotStatus,
   removeTelegramBot,
@@ -17,6 +19,8 @@ const router = express.Router();
 router.post('/me/telegram-chats', protect, addMonitoredTelegramChat);
 router.put('/me/telegram-report-settings', protect, updateTelegramReportSettings);
 router.get('/me/telegram-report-settings', protect, getTelegramReportSettings);
+router.put('/me/reminder-settings', protect, updateReminderSettings);
+router.get('/me/reminder-settings', protect, getReminderSettings);
 router.post('/me/telegram-bot', protect, setTelegramBotToken);
 router.get('/me/telegram-bot', protect, getTelegramBotStatus);
 router.delete('/me/telegram-bot', protect, removeTelegramBot);

@@ -2228,12 +2228,24 @@ class WAHAService extends EventEmitter {
             const isGroup = Boolean(chat.isGroup) || (typeof safeId === 'string' && safeId.includes('@g.us'));
 
             if (isGroup) {
-              // For groups, try multiple fallback sources
-              chatName = chat.name || chat.subject || chat.title ||
-                        chat.notifyName || chat.verifiedName ||
-                        `Group ${safeId.includes('@g.us') ? safeId.split('@')[0] : safeId}`;
+              // For groups, first try to get name from contactsMap (populated from groups endpoint)
+              const groupInfo = contactsMap[safeId];
 
-              console.log(`[WAHA Service] 👥 Group name resolved: "${chatName}" for ${safeId}`);
+              if (groupInfo && groupInfo.name) {
+                chatName = groupInfo.name;
+                console.log(`[WAHA Service] 👥 Group name resolved from contactsMap: "${chatName}" for ${safeId}`);
+              } else {
+                // Fallback to chat object fields (may be empty for NOWEB)
+                chatName = chat.name || chat.subject || chat.title ||
+                          chat.notifyName || chat.verifiedName ||
+                          `Group ${safeId.includes('@g.us') ? safeId.split('@')[0] : safeId}`;
+
+                if (chatName.startsWith('Group ')) {
+                  console.log(`[WAHA Service] ⚠️ Using fallback group name: "${chatName}" for ${safeId}`);
+                } else {
+                  console.log(`[WAHA Service] 👥 Group name resolved from chat data: "${chatName}" for ${safeId}`);
+                }
+              }
             } else {
               // For private chats, try to get name from contacts first
               const contactInfo = contactsMap[safeId];

@@ -111,6 +111,66 @@ export const getTelegramReportSettings = async (req: AuthenticatedRequest, res: 
     res.status(500).json({ message: 'Server error while retrieving settings' });
   }
 };
+// @desc    Update user's reminder delivery settings
+// @route   PUT /api/v1/users/me/reminder-settings
+// @access  Private
+export const updateReminderSettings = async (req: AuthenticatedRequest, res: Response) => {
+  const { sendRemindersToTelegram } = req.body;
+  const userId = req.user?.id;
+
+  if (!userId) {
+    return res.status(401).json({ message: 'Not authorized, user ID not found' });
+  }
+
+  if (typeof sendRemindersToTelegram !== 'boolean') {
+    return res.status(400).json({ message: 'sendRemindersToTelegram must be a boolean' });
+  }
+
+  try {
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.sendRemindersToTelegram = sendRemindersToTelegram;
+    await user.save();
+
+    res.status(200).json({
+      message: 'Reminder delivery settings updated successfully',
+      sendRemindersToTelegram: user.sendRemindersToTelegram,
+    });
+  } catch (error: any) {
+    console.error('[UPDATE_REMINDER_SETTINGS_ERROR]', error);
+    res.status(500).json({ message: 'Server error while updating reminder settings' });
+  }
+};
+
+// @desc    Get user's reminder delivery settings
+// @route   GET /api/v1/users/me/reminder-settings
+// @access  Private
+export const getReminderSettings = async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user?.id;
+
+  if (!userId) {
+    return res.status(401).json({ message: 'Not authorized, user ID not found' });
+  }
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(200).json({
+      sendRemindersToTelegram: user.sendRemindersToTelegram !== false, // Default to true
+    });
+  } catch (error: any) {
+    console.error('[GET_REMINDER_SETTINGS_ERROR]', error);
+    res.status(500).json({ message: 'Server error while retrieving reminder settings' });
+  }
+};
+
 // @desc    Set user's Telegram bot token
 // @route   POST /api/v1/users/me/telegram-bot
 // @access  Private
@@ -183,6 +243,7 @@ export const getTelegramBotStatus = async (req: AuthenticatedRequest, res: Respo
       botUsername: user.telegramBotUsername,
       monitoredChats: user.monitoredTelegramChats?.length || 0,
       sendReportsToTelegram: user.sendAgentReportsToTelegram || false,
+      sendRemindersToTelegram: user.sendRemindersToTelegram !== false, // Default true
     });
   } catch (error: any) {
     console.error('[GET_TELEGRAM_BOT_STATUS_ERROR]', error);
