@@ -1970,9 +1970,10 @@ class WAHAService extends EventEmitter {
       console.log(`[WAHA Service] Fetching contacts for session: ${sessionName}`);
       
       // Try WAHA Plus contacts endpoint - /api/contacts/all?session={NAME} (official format)
+      // IMPORTANT: Increase limit to 1000 to fetch all contacts for proper name resolution
       try {
         const response = await this.queueRequest<AxiosResponse<any>>(() =>
-          this.httpClient.get(`/api/contacts/all?session=${sessionName}`, {
+          this.httpClient.get(`/api/contacts/all?session=${sessionName}&limit=1000`, {
             timeout: 30000
           })
         );
@@ -2115,9 +2116,10 @@ class WAHAService extends EventEmitter {
 
         // Also fetch groups separately for better name resolution
         // The /groups endpoint provides richer group metadata including subject names
+        // IMPORTANT: Increase limit to 1000 to fetch all groups for proper name resolution
         try {
           const groupsResponse = await this.queueRequest<AxiosResponse<any>>(() =>
-            this.httpClient.get(`/api/${sessionName}/groups`, { timeout: 30000 })
+            this.httpClient.get(`/api/${sessionName}/groups?limit=1000`, { timeout: 30000 })
           );
 
           // WAHA returns groups as an object (with group IDs as keys), not an array
@@ -2665,13 +2667,22 @@ class WAHAService extends EventEmitter {
         ); // Use 3min timeout
         
         // Normalize response to array shape
-        const items = Array.isArray(res.data)
-          ? res.data
-          : Array.isArray(res.data?.groups)
-            ? res.data.groups
-            : Array.isArray(res.data?.data)
-              ? res.data.data
-              : [];
+        // WAHA API can return groups as an object (dictionary keyed by group ID) or as an array
+        let items;
+        if (Array.isArray(res.data)) {
+          items = res.data;
+        } else if (typeof res.data === 'object' && res.data !== null && !Array.isArray(res.data)) {
+          // Handle object format from WAHA - convert to array
+          // Example: {"120363150265896067@g.us": {...}, "120363045226663504@g.us": {...}}
+          items = Object.values(res.data);
+          console.log(`[WAHA Service] Converted object response to array: ${items.length} groups`);
+        } else if (Array.isArray(res.data?.groups)) {
+          items = res.data.groups;
+        } else if (Array.isArray(res.data?.data)) {
+          items = res.data.data;
+        } else {
+          items = [];
+        }
 
         // Reset circuit breaker on success
         this.groupsEndpointFailures = 0;
@@ -2742,35 +2753,42 @@ class WAHAService extends EventEmitter {
    */
   async refreshGroups(sessionName: string = this.defaultSession): Promise<{ success: boolean; message?: string }> {
     console.log(`[WAHA Service] Refreshing groups for session '${sessionName}'`);
-    
+
+    // Invalidate cache first to force fresh data fetch
+    this.groupsCache = { data: null, timestamp: 0 };
+    console.log(`[WAHA Service] Cache invalidated, will fetch fresh groups data`);
+
     // Try WAHA-compliant refresh endpoint first
     try {
       const status = await this.getSessionStatus(sessionName);
       const engineName = String(status?.engine?.engine || '').toUpperCase();
+
+      // For NOWEB engine, skip the POST /groups/refresh endpoint and just fetch fresh data
       if (engineName === 'NOWEB') {
-        console.log(`[WAHA Service] Groups refresh not supported by NOWEB engine`);
-        return { success: true, message: 'Groups refresh not supported by NOWEB engine' };
+        console.log(`[WAHA Service] NOWEB engine detected - skipping POST /groups/refresh, fetching groups directly`);
+        await this.getGroups(sessionName, { limit: 1000 });
+        console.log(`[WAHA Service] ✅ Groups refreshed successfully for NOWEB engine`);
+        return { success: true, message: 'Groups refreshed successfully' };
       }
-      // WEBJS engine supports groups refresh
+
+      // WEBJS engine supports groups refresh via POST endpoint
       if (engineName === 'WEBJS') {
-        console.log(`[WAHA Service] Using WEBJS engine - groups refresh supported`);
+        console.log(`[WAHA Service] Using WEBJS engine - attempting POST /groups/refresh`);
       }
+
       const response = await this.queueRequest<AxiosResponse<any>>(() =>
         this.httpClient.post(`/api/${sessionName}/groups/refresh`, {}, { timeout: 15000 })
       );
-      console.log(`[WAHA Service] ✅ Groups refreshed successfully`);
+      console.log(`[WAHA Service] ✅ Groups refreshed successfully via POST endpoint`);
       return { success: true, message: 'Groups refreshed successfully' };
     } catch (refreshError: any) {
       const status = refreshError.response?.status;
-      // If refresh endpoint doesn't exist (404) or is not supported (422), that's expected for many WAHA engines
-      if (status === 404) {
-        console.log(`[WAHA Service] Groups refresh endpoint not available (404) - this is normal for some WAHA engines`);
-        console.log(`[WAHA Service] Groups are automatically refreshed by the WAHA service`);
-        return { success: true, message: 'Groups are automatically refreshed by WAHA service (no manual refresh needed)' };
-      } else if (status === 422) {
-        console.log(`[WAHA Service] Groups refresh endpoint not supported (422) - likely engine compatibility issue (NOWEB engine doesn't support this)`);
-        console.log(`[WAHA Service] Groups are automatically refreshed by the WAHA service`);
-        return { success: true, message: 'Groups refresh not supported by current engine (NOWEB) - groups are automatically managed' };
+      // If refresh endpoint doesn't exist (404) or is not supported (422), fallback to direct fetch
+      if (status === 404 || status === 422) {
+        console.log(`[WAHA Service] POST /groups/refresh not available (${status}) - fetching groups directly`);
+        await this.getGroups(sessionName, { limit: 1000 });
+        console.log(`[WAHA Service] ✅ Groups refreshed successfully via direct fetch`);
+        return { success: true, message: 'Groups refreshed successfully' };
       } else if (refreshError.code === 'ECONNABORTED' || refreshError.message?.includes('timeout')) {
         console.log(`[WAHA Service] Groups refresh timed out - this may indicate heavy processing`);
         return { success: true, message: 'Groups refresh initiated (may take time to complete)' };
