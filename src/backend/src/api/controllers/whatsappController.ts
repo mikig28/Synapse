@@ -339,13 +339,13 @@ async function sendMessageViaService(to: string, message: string) {
       messageLength: message.length,
       messagePreview: message.substring(0, 50) + (message.length > 50 ? '...' : '')
     });
-    
+
     const whatsappService = getWhatsAppService();
-    const serviceStatus = whatsappService.getStatus();
+    const serviceStatus = await whatsappService.getStatus();
     console.log('[WhatsApp Service Helper] Service status before send:', serviceStatus);
-    
-    if (!serviceStatus.isReady || !serviceStatus.isClientReady) {
-      throw new Error(`WhatsApp service not ready. IsReady: ${serviceStatus.isReady}, IsClientReady: ${serviceStatus.isClientReady}, Status: ${serviceStatus.status}`);
+
+    if (!serviceStatus.isReady) {
+      throw new Error(`WhatsApp service not ready. IsReady: ${serviceStatus.isReady}, Status: ${serviceStatus.status}`);
     }
     
     const result = await whatsappService.sendMessage(to, message);
@@ -556,30 +556,28 @@ export const getConnectionStatus = async (req: Request, res: Response) => {
   try {
     const whatsappService = getWhatsAppService();
     initializeWhatsAppService(); // Ensure listeners are set up
-    const serviceStatus = whatsappService.getStatus();
-    
+    const serviceStatus = await whatsappService.getStatus();
+
     const status = {
-      connected: serviceStatus.isReady && serviceStatus.isClientReady,
-      authenticated: serviceStatus.isReady && serviceStatus.isClientReady, // Add authenticated field
+      connected: serviceStatus.isReady,
+      authenticated: serviceStatus.isReady,
       lastHeartbeat: new Date(),
       serviceStatus: serviceStatus.status,
       isReady: serviceStatus.isReady,
-      isClientReady: serviceStatus.isClientReady,
-      groupsCount: serviceStatus.groupsCount || 0,
-      privateChatsCount: serviceStatus.privateChatsCount || 0,
-      messagesCount: serviceStatus.messagesCount || 0,
+      groupsCount: 0, // WAHA doesn't expose these in status
+      privateChatsCount: 0,
+      messagesCount: 0,
       qrAvailable: serviceStatus.qrAvailable || false,
-      timestamp: serviceStatus.timestamp,
-      monitoredKeywords: serviceStatus.monitoredKeywords
+      timestamp: serviceStatus.timestamp
     };
-    
+
     res.json({
       success: true,
       data: status
     });
   } catch (error: any) {
     console.error('[WhatsApp] Error checking connection status:', error);
-    
+
     res.json({
       success: true,
       data: {
@@ -587,7 +585,6 @@ export const getConnectionStatus = async (req: Request, res: Response) => {
         lastHeartbeat: new Date(),
         serviceStatus: 'error',
         isReady: false,
-        isClientReady: false,
         error: error.message
       }
     });
@@ -599,36 +596,11 @@ export const getQRCode = async (req: Request, res: Response) => {
   try {
     const whatsappService = getWhatsAppService();
     const { force } = req.query;
-    
-    // Check if we should force generate a new QR code
-    if (force === 'true') {
-      console.log('[WhatsApp] Force QR generation requested');
-      const result = await whatsappService.forceQRGeneration();
-      
-      if (result.success) {
-        res.json({
-          success: true,
-          data: {
-            qrCode: result.qrCode,
-            message: result.message
-          }
-        });
-      } else {
-        res.json({
-          success: false,
-          data: {
-            qrCode: null,
-            message: result.message
-          }
-        });
-      }
-      return;
-    }
-    
-    // Normal QR code retrieval
-    const qrCode = whatsappService.getQRCode();
-    const status = whatsappService.getStatus();
-    
+    const sessionId = process.env.WAHA_DEFAULT_SESSION || 'default';
+
+    // WAHA uses getQRCode() method with session name and force parameter
+    const qrCode = await whatsappService.getQRCode(sessionId, force === 'true');
+
     if (qrCode) {
       res.json({
         success: true,
@@ -638,26 +610,19 @@ export const getQRCode = async (req: Request, res: Response) => {
         }
       });
     } else {
-      // If no QR code and service is having issues, suggest force generation
-      const hasConnectionIssues = !status.isReady && !status.isClientReady && 
-                                  (status.status === 'error' || status.status === 'disconnected');
-      
       res.json({
         success: true,
         data: {
           qrCode: null,
-          message: hasConnectionIssues 
-            ? 'WhatsApp service has connection issues. Try force generating QR code.'
-            : 'WhatsApp is already connected or QR code not yet generated',
-          canForceGenerate: hasConnectionIssues
+          message: 'WhatsApp is already connected or QR code not yet generated'
         }
       });
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('[WhatsApp] Error getting QR code:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to get QR code'
+      error: 'Failed to get QR code: ' + error.message
     });
   }
 };
@@ -666,9 +631,12 @@ export const getQRCode = async (req: Request, res: Response) => {
 export const restartWhatsAppService = async (req: Request, res: Response) => {
   try {
     const whatsappService = getWhatsAppService();
+    const sessionId = process.env.WAHA_DEFAULT_SESSION || 'default';
     initializeWhatsAppService();
-    await whatsappService.restart();
-    
+
+    // WAHA uses restartSession() instead of restart()
+    await whatsappService.restartSession(sessionId);
+
     res.json({
       success: true,
       message: 'WhatsApp service restart initiated'
@@ -786,47 +754,47 @@ export const getWhatsAppMessages = async (req: AuthenticatedRequest, res: Respon
   }
 };
 
-// Refresh WhatsApp chats
+// Refresh WhatsApp chats (WAHA doesn't have a dedicated refresh method)
+// This endpoint is deprecated - use getWhatsAppGroups() instead which fetches fresh data from WAHA
 export const refreshWhatsAppChats = async (req: Request, res: Response) => {
   try {
     const whatsappService = getWhatsAppService();
-    const status = whatsappService.getStatus();
-    
-    // Check if WhatsApp is ready before attempting to refresh
-    if (!status.isReady || !status.isClientReady) {
+    const sessionId = process.env.WAHA_DEFAULT_SESSION || 'default';
+
+    // Check if WhatsApp is ready before attempting to fetch
+    const status = await whatsappService.getStatus();
+
+    if (!status.isReady) {
       return res.json({
         success: false,
         error: 'WhatsApp client is not ready. Please ensure WhatsApp is connected and try again.',
         details: {
           isReady: status.isReady,
-          isClientReady: status.isClientReady,
           status: status.status,
           suggestion: status.qrAvailable ? 'Please scan the QR code first' : 'Please restart the WhatsApp service'
         }
       });
     }
-    
-    await whatsappService.refreshChats();
-    
-    // Get updated status after refresh
-    const updatedStatus = whatsappService.getStatus();
-    
+
+    // WAHA doesn't have refreshChats() - instead fetch groups directly
+    const groups = await whatsappService.getGroups(sessionId, { limit: 200 });
+
     res.json({
       success: true,
       message: 'WhatsApp chats refreshed successfully',
       data: {
-        groupsCount: updatedStatus.groupsCount || 0,
-        privateChatsCount: updatedStatus.privateChatsCount || 0,
+        groupsCount: groups.length,
+        privateChatsCount: 0, // WAHA doesn't distinguish in getGroups
         timestamp: new Date().toISOString()
       }
     });
   } catch (error: any) {
     console.error('[WhatsApp] Error refreshing chats:', error);
-    
+
     // Provide more helpful error messages
     let userFriendlyMessage = 'Failed to refresh WhatsApp chats';
     let statusCode = 500;
-    
+
     if (error.message.includes('not ready')) {
       userFriendlyMessage = 'WhatsApp is not connected. Please scan the QR code first.';
       statusCode = 400;
@@ -837,7 +805,7 @@ export const refreshWhatsAppChats = async (req: Request, res: Response) => {
       userFriendlyMessage = 'WhatsApp service is having technical difficulties. Please try restarting the service.';
       statusCode = 503;
     }
-    
+
     res.status(statusCode).json({
       success: false,
       error: userFriendlyMessage,
@@ -847,88 +815,43 @@ export const refreshWhatsAppChats = async (req: Request, res: Response) => {
   }
 };
 
-// Add monitored keyword
+// Add monitored keyword - NOT SUPPORTED BY WAHA
 export const addMonitoredKeyword = async (req: Request, res: Response) => {
-  try {
-    const { keyword } = req.body;
-    
-    if (!keyword || typeof keyword !== 'string') {
-      return res.status(400).json({
-        success: false,
-        error: 'Keyword is required and must be a string'
-      });
-    }
-    
-    const whatsappService = getWhatsAppService();
-    whatsappService.addMonitoredKeyword(keyword);
-    
-    res.json({
-      success: true,
-      message: `Keyword "${keyword}" added to monitoring`,
-      monitoredKeywords: whatsappService.getMonitoredKeywords()
-    });
-  } catch (error: any) {
-    console.error('[WhatsApp] Error adding monitored keyword:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to add monitored keyword: ' + error.message
-    });
-  }
+  res.status(501).json({
+    success: false,
+    error: 'Keyword monitoring is not supported by WAHA service',
+    message: 'This feature was part of the previous Baileys implementation and is not available in WAHA Plus'
+  });
 };
 
-// Remove monitored keyword
+// Remove monitored keyword - NOT SUPPORTED BY WAHA
 export const removeMonitoredKeyword = async (req: Request, res: Response) => {
-  try {
-    const { keyword } = req.params;
-    const whatsappService = getWhatsAppService();
-    const removed = whatsappService.removeMonitoredKeyword(keyword);
-    
-    if (removed) {
-      res.json({
-        success: true,
-        message: `Keyword "${keyword}" removed from monitoring`,
-        monitoredKeywords: whatsappService.getMonitoredKeywords()
-      });
-    } else {
-      res.status(404).json({
-        success: false,
-        error: 'Keyword not found in monitored list'
-      });
-    }
-  } catch (error: any) {
-    console.error('[WhatsApp] Error removing monitored keyword:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to remove monitored keyword: ' + error.message
-    });
-  }
+  res.status(501).json({
+    success: false,
+    error: 'Keyword monitoring is not supported by WAHA service',
+    message: 'This feature was part of the previous Baileys implementation and is not available in WAHA Plus'
+  });
 };
 
-// Get monitored keywords
+// Get monitored keywords - NOT SUPPORTED BY WAHA
 export const getMonitoredKeywords = async (req: Request, res: Response) => {
-  try {
-    const whatsappService = getWhatsAppService();
-    const keywords = whatsappService.getMonitoredKeywords();
-    
-    res.json({
-      success: true,
-      data: keywords
-    });
-  } catch (error: any) {
-    console.error('[WhatsApp] Error getting monitored keywords:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get monitored keywords: ' + error.message
-    });
-  }
+  res.status(501).json({
+    success: false,
+    error: 'Keyword monitoring is not supported by WAHA service',
+    message: 'This feature was part of the previous Baileys implementation and is not available in WAHA Plus',
+    data: []
+  });
 };
 
 // Clear authentication data
 export const clearWhatsAppAuth = async (req: Request, res: Response) => {
   try {
     const whatsappService = getWhatsAppService();
-    await whatsappService.clearAuth();
-    
+    const sessionId = process.env.WAHA_DEFAULT_SESSION || 'default';
+
+    // WAHA uses stopSession() to clear authentication
+    await whatsappService.stopSession(sessionId);
+
     res.json({
       success: true,
       message: 'WhatsApp authentication data cleared successfully'
@@ -942,20 +865,22 @@ export const clearWhatsAppAuth = async (req: Request, res: Response) => {
   }
 };
 
-// Diagnostic endpoint to check Puppeteer configuration
+// Diagnostic endpoint to check WAHA configuration
 export const getDiagnostics = async (req: Request, res: Response) => {
   try {
     const whatsappService = getWhatsAppService();
-    const { testBrowser } = req.query;
-    
+
+    // Get status asynchronously
+    const serviceStatus = await whatsappService.getStatus();
+
     const diagnostics = {
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV,
       renderEnvironment: !!process.env.RENDER,
-      puppeteerExecutablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
-      puppeteerSkipDownload: process.env.PUPPETEER_SKIP_CHROMIUM_DOWNLOAD,
+      wahaServiceUrl: process.env.WAHA_SERVICE_URL,
+      wahaDefaultSession: process.env.WAHA_DEFAULT_SESSION || 'default',
       hasWhatsAppService: !!whatsappService,
-      whatsappServiceStatus: whatsappService.getStatus(),
+      whatsappServiceStatus: serviceStatus,
       systemInfo: {
         platform: process.platform,
         arch: process.arch,
@@ -963,12 +888,8 @@ export const getDiagnostics = async (req: Request, res: Response) => {
       }
     };
 
-    // Run browser environment test if requested
-    if (testBrowser === 'true') {
-      console.log('[WhatsApp Diagnostics] Running browser environment test...');
-      const browserTest = await whatsappService.testBrowserEnvironment();
-      (diagnostics as any).browserTest = browserTest;
-    }
+    // Note: testBrowserEnvironment is not supported by WAHA service
+    // WAHA Plus handles browser management internally
 
     res.json({
       success: true,
@@ -986,10 +907,14 @@ export const getDiagnostics = async (req: Request, res: Response) => {
 export const forceRestart = async (req: Request, res: Response) => {
   try {
     console.log('[WhatsApp] Force restart requested');
-    
-    // Clear auth and restart completely
-    await getWhatsAppService().clearAuth();
-    
+
+    const whatsappService = getWhatsAppService();
+    const sessionId = process.env.WAHA_DEFAULT_SESSION || 'default';
+
+    // Stop session and restart completely
+    await whatsappService.stopSession(sessionId);
+    await whatsappService.restartSession(sessionId);
+
     res.json({
       success: true,
       message: 'WhatsApp service force restart initiated. This will clear all authentication data and restart from scratch.'
@@ -1004,23 +929,12 @@ export const forceRestart = async (req: Request, res: Response) => {
 };
 
 export const forceHistorySync = async (req: Request, res: Response) => {
-  try {
-    initializeWhatsAppService();
-    const whatsappService = getWhatsAppService();
-    
-    await whatsappService.forceHistorySync();
-    
-    res.json({
-      success: true,
-      message: 'WhatsApp history sync initiated - check logs for chat discovery'
-    });
-  } catch (error: any) {
-    console.error('[WhatsApp Controller] Error during history sync:', error);
-    res.status(500).json({
-      success: false,
-      error: (error as Error).message
-    });
-  }
+  // WAHA doesn't support force history sync - this was a Baileys-specific feature
+  res.status(501).json({
+    success: false,
+    error: 'History sync is not supported by WAHA service',
+    message: 'This feature was part of the previous Baileys implementation. WAHA Plus automatically syncs messages in real-time via webhooks.'
+  });
 };
 
 // Request phone authentication code
