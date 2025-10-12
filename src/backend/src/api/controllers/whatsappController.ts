@@ -683,30 +683,25 @@ export const restartWhatsAppService = async (req: Request, res: Response) => {
 // Get WhatsApp groups
 export const getWhatsAppGroups = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user!.id;
-    
-    // Get group messages from database filtered by userId
-    const groups = await WhatsAppMessage.aggregate([
-      {
-        $match: {
-          userId: userId,
-          'metadata.isGroup': true
-        }
-      },
-      {
-        $group: {
-          _id: '$metadata.groupId',
-          groupName: { $first: '$metadata.groupName' },
-          lastMessage: { $last: '$message' },
-          lastTimestamp: { $max: '$timestamp' },
-          messageCount: { $sum: 1 }
-        }
-      },
-      {
-        $sort: { lastTimestamp: -1 }
-      }
-    ]);
-    
+    // Get groups directly from WhatsApp service (not database)
+    const whatsappService = getWhatsAppService();
+    const serviceGroups = whatsappService.getGroups();
+
+    // Transform to match expected format
+    const groups = serviceGroups.map(group => ({
+      _id: group.id,
+      groupId: group.id,
+      groupName: group.name,
+      lastMessage: group.lastMessage || '',
+      lastTimestamp: group.timestamp || Date.now(),
+      messageCount: 0, // Could be enhanced to query database for actual count
+      participantCount: group.participantCount || 0,
+      description: group.description || '',
+      isGroup: group.isGroup
+    }));
+
+    console.log(`[WhatsApp] Fetched ${groups.length} groups from service`);
+
     res.json({
       success: true,
       data: groups
