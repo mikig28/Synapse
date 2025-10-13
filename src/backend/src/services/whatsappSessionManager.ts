@@ -103,9 +103,9 @@ class WhatsAppSessionManager extends EventEmitter {
         logger.info(`[WhatsAppSessionManager] Generated new session ID: ${sessionId} for user ${userId}`);
       }
 
-      // Create WAHA service instance for this user
-      const wahaService = new WAHAService(sessionId);
-      
+      // Create WAHA service instance for this user with userId for database operations
+      const wahaService = new WAHAService(sessionId, userId);
+
       // Set up event listeners for this session
       this.setupSessionEventListeners(userId, sessionId, wahaService);
 

@@ -82,6 +82,7 @@ class WAHAService extends EventEmitter {
   private wahaBaseUrl: string;
   private defaultSession: string; // Set per-user via constructor
   private readonly disableDefaultSession: boolean;
+  private userId: string | null = null; // User ID for this service instance
   private isReady = false;
   private connectionStatus = 'disconnected';
   private statusMonitorInterval: NodeJS.Timeout | null = null;
@@ -390,9 +391,9 @@ class WAHAService extends EventEmitter {
    * Constructor now accepts a sessionId parameter for multi-user support
    * @param sessionId - Unique session identifier for this user (e.g., 'user_123abc')
    */
-  constructor(sessionId: string = 'default') {
+  constructor(sessionId: string = 'default', userId?: string) {
     super();
-    
+
     const configuredDefaultSession = (process.env.WAHA_DEFAULT_SESSION || '').trim();
     const resolvedSession =
       sessionId === 'default' && configuredDefaultSession
@@ -400,13 +401,15 @@ class WAHAService extends EventEmitter {
         : sessionId;
 
     this.defaultSession = resolvedSession || 'default';
+    this.userId = userId || null;
     this.disableDefaultSession =
       sessionId === 'default' &&
       String(process.env.WAHA_DISABLE_DEFAULT_SESSION || 'false').toLowerCase() === 'true';
 
     console.log(
       `[WAHA Service] Creating instance for session: ${this.defaultSession}` +
-        (this.defaultSession !== sessionId ? ` (requested: ${sessionId})` : '')
+        (this.defaultSession !== sessionId ? ` (requested: ${sessionId})` : '') +
+        (this.userId ? ` userId: ${this.userId}` : '')
     );
     if (this.disableDefaultSession) {
       console.log(
@@ -4935,6 +4938,12 @@ class WAHAService extends EventEmitter {
         messageText = `[${mediaTypeLabel}]`;
       }
 
+      // Ensure userId is available before creating message
+      if (!this.userId) {
+        console.error('[WAHA Service] ❌ Cannot save message: userId not set for this service instance');
+        throw new Error('userId is required but not set for this WAHAService instance');
+      }
+
       const newMessage = new WhatsAppMessage({
         messageId: messageData.id,
         from: messageData.from,
@@ -4945,6 +4954,7 @@ class WAHAService extends EventEmitter {
         status: 'received',
         isIncoming: true,
         contactId: contact._id,
+        userId: this.userId, // ✅ CRITICAL FIX: Add userId field
 
         // Metadata for group identification
         metadata: {
