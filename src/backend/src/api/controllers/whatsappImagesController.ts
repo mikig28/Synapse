@@ -12,6 +12,18 @@ import GroupMonitor from '../../models/GroupMonitor';
 import fs from 'fs/promises';
 import path from 'path';
 
+const decodeMessageIdParam = (value: string): string => {
+  try {
+    return decodeURIComponent(value);
+  } catch (error) {
+    console.warn('[WhatsApp Images] Failed to decode messageId parameter, using raw value', {
+      value,
+      error: (error as Error)?.message
+    });
+    return value;
+  }
+};
+
 // Get WhatsApp Image service instance
 const getImageService = () => {
   return WhatsAppImageService.getInstance();
@@ -173,7 +185,8 @@ export const getUserImages = async (req: AuthenticatedRequest, res: Response) =>
  */
 export const getImageByMessageId = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { messageId } = req.params;
+    const rawMessageId = req.params.messageId;
+    const messageId = decodeMessageIdParam(rawMessageId);
     const userId = req.user?.id?.toString();
     
     if (!userId) {
@@ -219,7 +232,8 @@ export const getImageByMessageId = async (req: AuthenticatedRequest, res: Respon
  */
 export const serveImageFile = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { messageId } = req.params;
+    const rawMessageId = req.params.messageId;
+    const messageId = decodeMessageIdParam(rawMessageId);
     const userId = req.user?.id?.toString();
 
     if (!userId) {
@@ -347,7 +361,8 @@ export const serveImageFile = async (req: AuthenticatedRequest, res: Response) =
  */
 export const updateImage = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { messageId } = req.params;
+    const rawMessageId = req.params.messageId;
+    const messageId = decodeMessageIdParam(rawMessageId);
     const userId = req.user?.id?.toString();
     const { bookmark, archive, addTags, removeTags } = req.body;
     
@@ -398,7 +413,8 @@ export const updateImage = async (req: AuthenticatedRequest, res: Response) => {
  */
 export const deleteImage = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { messageId } = req.params;
+    const rawMessageId = req.params.messageId;
+    const messageId = decodeMessageIdParam(rawMessageId);
     const userId = req.user?.id?.toString();
     
     if (!userId) {

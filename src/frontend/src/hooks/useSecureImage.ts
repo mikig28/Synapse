@@ -31,8 +31,8 @@ export const useSecureImage = (options: UseSecureImageOptions | string | undefin
       setError(null);
       try {
         // Determine the correct endpoint based on source
-        const endpoint = source === 'whatsapp' 
-          ? `/whatsapp/images/${id}/file`
+        const endpoint = source === 'whatsapp'
+          ? `/whatsapp/images/${encodeURIComponent(id)}/file`
           : `/media/${id}`;
 
         const response = await axiosInstance.get(endpoint, {
