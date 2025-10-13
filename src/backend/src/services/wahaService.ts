@@ -4012,6 +4012,69 @@ class WAHAService extends EventEmitter {
       }
     }
 
+    const senderId = authorJid || fromJid || groupId;
+    const senderName =
+      messageData.pushName ||
+      messageData.senderName ||
+      messageData.contactName ||
+      messageData.notifyName ||
+      senderId;
+
+    const { primaryText, segments: messageTextSegments } = this.extractMessageTextSegments(messageData);
+    const rawCaption = typeof messageData.caption === 'string' ? messageData.caption.trim() : '';
+
+    const payload: any = {
+      messageId: messageData.id,
+      groupId,
+      chatId: derivedChatId,
+      senderId,
+      senderName
+    };
+
+    if (primaryText) {
+      payload.text = primaryText;
+    }
+
+    if (rawCaption) {
+      payload.caption = rawCaption;
+    }
+
+    const extractedUrls = this.extractUrlsFromMessageData(messageData, messageTextSegments, rawCaption);
+    if (extractedUrls.length > 0) {
+      payload.urls = extractedUrls;
+    }
+
+    let mediaUrl = messageData.mediaUrl || messageData.media?.url || null;
+    let hasMedia = Boolean(messageData.hasMedia || messageData.isMedia || mediaUrl);
+
+    // NOWEB engine workaround: if message claims hasMedia but no URL, try to get message with downloadMedia=true
+    if ((messageData.hasMedia === true || messageData.isMedia === true) && !mediaUrl) {
+      console.log('[WAHA Service] 🔄 NOWEB workaround: Re-fetching message with downloadMedia=true for:', messageData.id);
+      try {
+        const refetchedMessage = await this.getMessage(messageData.id, true); // downloadMedia=true
+        if (refetchedMessage?.media?.url) {
+          mediaUrl = refetchedMessage.media.url;
+          hasMedia = true;
+          console.log('[WAHA Service] ✅ Media URL recovered via re-fetch:', mediaUrl);
+        }
+      } catch (refetchError) {
+        console.warn('[WAHA Service] ⚠️ Failed to re-fetch message for media:', refetchError);
+      }
+    }
+
+    const isImage = Boolean(
+      hasMedia &&
+      (
+        messageData.type === 'image' ||
+        (typeof messageData.mimeType === 'string' && messageData.mimeType.startsWith('image/')) ||
+        (typeof messageData.media?.mimetype === 'string' && messageData.media.mimetype.startsWith('image/'))
+      )
+    );
+    if (isImage && mediaUrl) {
+      payload.imageUrl = mediaUrl;
+      console.log('[WAHA Service] ?? Adding image URL to payload:', mediaUrl);
+    }
+
     console.log('[WAHA Service] ?? Processing message for group monitoring:', {
       id: messageData.id,
       chatId: derivedChatId,
@@ -4021,7 +4084,7 @@ class WAHAService extends EventEmitter {
       participant: messageData.participant,
       resolvedGroupId: groupId,
       resolvedSenderId: authorJid || fromJid,
-      hasMedia: Boolean(messageData.hasMedia || messageData.isMedia || messageData.mediaUrl || messageData.media),
+      hasMedia,
       type: messageData.type,
       isGroupOriginal: messageData.isGroup,
       isGroupDerived: isGroupMessage,
@@ -4045,69 +4108,6 @@ class WAHAService extends EventEmitter {
           isGroupMessage
         });
         return;
-      }
-
-      const senderId = authorJid || fromJid || groupId;
-      const senderName =
-        messageData.pushName ||
-        messageData.senderName ||
-        messageData.contactName ||
-        messageData.notifyName ||
-        senderId;
-
-      const { primaryText, segments: messageTextSegments } = this.extractMessageTextSegments(messageData);
-      const rawCaption = typeof messageData.caption === 'string' ? messageData.caption.trim() : '';
-
-      const payload: any = {
-        messageId: messageData.id,
-        groupId,
-        chatId: derivedChatId,
-        senderId,
-        senderName,
-      };
-
-      if (primaryText) {
-        payload.text = primaryText;
-      }
-
-      if (rawCaption) {
-        payload.caption = rawCaption;
-      }
-
-      const extractedUrls = this.extractUrlsFromMessageData(messageData, messageTextSegments, rawCaption);
-      if (extractedUrls.length > 0) {
-        payload.urls = extractedUrls;
-      }
-
-      let mediaUrl = messageData.mediaUrl || messageData.media?.url || null;
-      let hasMedia = Boolean(messageData.hasMedia || messageData.isMedia || mediaUrl);
-
-      // NOWEB engine workaround: if message claims hasMedia but no URL, try to get message with downloadMedia=true
-      if ((messageData.hasMedia === true || messageData.isMedia === true) && !mediaUrl) {
-        console.log('[WAHA Service] 🔄 NOWEB workaround: Re-fetching message with downloadMedia=true for:', messageData.id);
-        try {
-          const refetchedMessage = await this.getMessage(messageData.id, true); // downloadMedia=true
-          if (refetchedMessage?.media?.url) {
-            mediaUrl = refetchedMessage.media.url;
-            hasMedia = true;
-            console.log('[WAHA Service] ✅ Media URL recovered via re-fetch:', mediaUrl);
-          }
-        } catch (refetchError) {
-          console.warn('[WAHA Service] ⚠️ Failed to re-fetch message for media:', refetchError);
-        }
-      }
-
-      const isImage = Boolean(
-        hasMedia &&
-        (
-          messageData.type === 'image' ||
-          (typeof messageData.mimeType === 'string' && messageData.mimeType.startsWith('image/')) ||
-          (typeof messageData.media?.mimetype === 'string' && messageData.media.mimetype.startsWith('image/'))
-        )
-      );
-      if (isImage && mediaUrl) {
-        payload.imageUrl = mediaUrl;
-        console.log('[WAHA Service] ?? Adding image URL to payload:', mediaUrl);
       }
 
       const webhookOnly = String(process.env.GROUP_MONITOR_WEBHOOK_ONLY || '').toLowerCase() === 'true';
