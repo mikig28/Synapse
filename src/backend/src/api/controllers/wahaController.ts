@@ -710,10 +710,41 @@ export const webhook = async (req: Request, res: Response) => {
         timestamp: payload.payload?.timestamp
       });
     }
-    
-    // TODO: Route webhook to correct user's session based on sessionId in webhook body
-    // Temporarily disabled pending multi-user routing implementation
-    console.warn('[WAHA Controller] Webhook processing temporarily disabled for multi-user migration');
+
+    // Route webhook to correct user's session based on sessionId in webhook body
+    if (payload.event === 'message' || payload.event === 'message.any') {
+      try {
+        const sessionName = payload.session; // e.g., "u_6828510b49ea"
+        console.log(`[WAHA Controller] 📨 Processing message webhook for session: ${sessionName}`);
+
+        // Get user ID from session name
+        const sessionManager = getSessionManager();
+        const userId = sessionManager.getUserIdBySessionId(sessionName);
+
+        if (!userId) {
+          console.warn(`[WAHA Controller] ⚠️ No user found for session ${sessionName} - user may not have active session`);
+          // Still return 200 to avoid webhook retries, but log for investigation
+          return res.status(200).json({
+            success: true,
+            warning: 'Session not found in active sessions - user may need to reconnect'
+          });
+        }
+
+        console.log(`[WAHA Controller] ✅ Found user ${userId} for session ${sessionName}, routing to their WAHA service`);
+
+        // Get user's WAHA service instance
+        const wahaService = await getWAHAServiceForUser(userId);
+
+        // Process webhook through user's service (handles group monitoring, statistics, etc.)
+        await wahaService.handleWebhook(payload);
+
+        console.log(`[WAHA Controller] ✅ Webhook processed successfully for user ${userId}`);
+      } catch (webhookError) {
+        console.error('[WAHA Controller] ❌ Error processing message webhook:', webhookError);
+        // Don't fail the webhook - return 200 to avoid retries
+        // The error is logged for investigation
+      }
+    }
     
     // Additional Socket.IO broadcasting for session status changes
     // WAHA event structure: { id, timestamp, event, session, payload }
