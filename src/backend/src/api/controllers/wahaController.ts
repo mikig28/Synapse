@@ -11,6 +11,7 @@ import POLLING_CONFIG from '../../config/polling.config';
 import { whatsappMediaService } from '../../services/whatsappMediaService';
 import WhatsAppMessage from '../../models/WhatsAppMessage';
 import WhatsAppContact from '../../models/WhatsAppContact';
+import User from '../../models/User';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -717,22 +718,22 @@ export const webhook = async (req: Request, res: Response) => {
         const sessionName = payload.session; // e.g., "u_6828510b49ea"
         console.log(`[WAHA Controller] 📨 Processing message webhook for session: ${sessionName}`);
 
-        // Get user ID from session name
-        const sessionManager = getSessionManager();
-        const userId = sessionManager.getUserIdBySessionId(sessionName);
+        // Look up user by session ID in database (not just in-memory sessions)
+        const user = await User.findOne({ whatsappSessionId: sessionName });
 
-        if (!userId) {
-          console.warn(`[WAHA Controller] ⚠️ No user found for session ${sessionName} - user may not have active session`);
-          // Still return 200 to avoid webhook retries, but log for investigation
+        if (!user) {
+          console.warn(`[WAHA Controller] ⚠️ No user found in database for session ${sessionName}`);
+          // Still return 200 to avoid webhook retries
           return res.status(200).json({
             success: true,
-            warning: 'Session not found in active sessions - user may need to reconnect'
+            warning: 'Session not found - user may need to authenticate'
           });
         }
 
-        console.log(`[WAHA Controller] ✅ Found user ${userId} for session ${sessionName}, routing to their WAHA service`);
+        const userId = user._id.toString();
+        console.log(`[WAHA Controller] ✅ Found user ${userId} (${user.email}) for session ${sessionName}, routing to their WAHA service`);
 
-        // Get user's WAHA service instance
+        // Get user's WAHA service instance (this will create session if not in memory)
         const wahaService = await getWAHAServiceForUser(userId);
 
         // Process webhook through user's service (handles group monitoring, statistics, etc.)
