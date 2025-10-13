@@ -277,7 +277,7 @@ const ImagesPage: React.FC = () => {
           await deleteTelegramItem(item._id);
         } else if (item.source === 'whatsapp' && item.messageId) {
           // Delete WhatsApp image via API
-          const response = await axiosInstance.delete(`/whatsapp/images/${item.messageId}`);
+          const response = await axiosInstance.delete(`/whatsapp/images/${encodeURIComponent(item.messageId)}`);
           if (response.data.success) {
             // Remove from local state
             setWhatsappImages(prev => prev.filter(img => img.messageId !== item.messageId));
@@ -302,7 +302,7 @@ const ImagesPage: React.FC = () => {
           responseType: 'blob',
         });
       } else if (item.source === 'whatsapp' && item.messageId) {
-        response = await axiosInstance.get(`/whatsapp/images/${item.messageId}/file`, {
+        response = await axiosInstance.get(`/whatsapp/images/${encodeURIComponent(item.messageId)}/file`, {
           responseType: 'blob',
         });
       } else {
@@ -336,7 +336,7 @@ const ImagesPage: React.FC = () => {
           responseType: 'blob',
         });
       } else if (item.source === 'whatsapp' && item.messageId) {
-        response = await axiosInstance.get(`/whatsapp/images/${item.messageId}/file`, {
+        response = await axiosInstance.get(`/whatsapp/images/${encodeURIComponent(item.messageId)}/file`, {
           responseType: 'blob',
         });
       } else {
