@@ -893,6 +893,62 @@ class WAHAService extends EventEmitter {
   }
 
   /**
+   * Ensure webhooks are configured for a session
+   * This is critical for webhook persistence after WAHA service restarts
+   */
+  private async ensureWebhooksConfigured(sessionName: string, webhookUrl: string): Promise<void> {
+    try {
+      console.log(`[WAHA Service] 🔗 Ensuring webhooks configured for session '${sessionName}'...`);
+
+      // Check current webhook configuration
+      const session = await this.httpClient.get(`api/sessions/${sessionName}`);
+      const currentWebhooks = session.data?.config?.webhooks || [];
+
+      // Check if webhook is already configured
+      const webhookExists = currentWebhooks.some((wh: any) => wh.url === webhookUrl);
+
+      if (webhookExists) {
+        console.log(`[WAHA Service] ✅ Webhooks already configured for '${sessionName}'`);
+        return;
+      }
+
+      console.log(`[WAHA Service] ⚠️ Webhooks missing for '${sessionName}', configuring now...`);
+
+      // Configure webhooks using PUT endpoint
+      const webhookEvents = process.env.WHATSAPP_HOOK_EVENTS ?
+        process.env.WHATSAPP_HOOK_EVENTS.split(',').map(e => e.trim()) :
+        ['session.status', 'message', 'message.any'];
+
+      const configPayload = {
+        config: {
+          webhooks: [
+            {
+              url: process.env.WHATSAPP_HOOK_URL || webhookUrl,
+              events: webhookEvents,
+              hmac: process.env.WHATSAPP_HOOK_HMAC ? { key: process.env.WHATSAPP_HOOK_HMAC } : null,
+              retries: {
+                delaySeconds: 2,
+                attempts: 15
+              }
+            }
+          ],
+          // Preserve engine-specific config
+          noweb: session.data?.config?.noweb || { markOnline: true, store: { enabled: true, fullSync: true } }
+        }
+      };
+
+      await this.httpClient.put(`api/sessions/${sessionName}`, configPayload);
+      console.log(`[WAHA Service] ✅ Webhooks configured successfully for '${sessionName}'`);
+      console.log(`[WAHA Service] 📡 Webhook URL: ${webhookUrl}`);
+      console.log(`[WAHA Service] 📡 Webhook events: ${webhookEvents.join(', ')}`);
+
+    } catch (error: any) {
+      console.error(`[WAHA Service] ❌ Failed to configure webhooks for '${sessionName}':`, error.message);
+      // Don't throw - this is non-fatal, webhooks will be reconfigured on next restart
+    }
+  }
+
+  /**
    * Start a WhatsApp session
    */
   async startSession(sessionName: string = this.defaultSession): Promise<WAHASession> {
@@ -997,6 +1053,11 @@ class WAHAService extends EventEmitter {
           return sessionData;
         } else if (sessionData?.status === 'WORKING' || sessionData?.status === 'SCAN_QR_CODE' || sessionData?.status === 'STARTING') {
           console.log(`[WAHA Service] ✅ Session '${sessionName}' is already active (${sessionData?.status})`);
+
+          // ✅ CRITICAL FIX: Ensure webhooks are configured even for existing sessions
+          // This prevents webhook loss after WAHA service restarts
+          await this.ensureWebhooksConfigured(sessionName, fullWebhookUrl);
+
           return sessionData;
         }
       } catch (getError: any) {
