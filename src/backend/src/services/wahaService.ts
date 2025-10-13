@@ -553,6 +553,89 @@ class WAHAService extends EventEmitter {
     }
   }
 
+  private extractMessageTextSegments(messageData: any): { primaryText: string; segments: string[] } {
+    const segments = new Set<string>();
+    const addIfValid = (value: unknown) => {
+      if (typeof value !== 'string') {
+        return;
+      }
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return;
+      }
+      segments.add(trimmed);
+    };
+
+    addIfValid(messageData?.body);
+    addIfValid(messageData?.text);
+    addIfValid(messageData?.message);
+    addIfValid(messageData?.content);
+    addIfValid(messageData?.conversation);
+    addIfValid(messageData?.caption);
+    addIfValid(messageData?.message?.conversation);
+    addIfValid(messageData?.message?.extendedTextMessage?.text);
+    addIfValid(messageData?.extendedTextMessage?.text);
+    addIfValid(messageData?.interactiveResponse?.title);
+    addIfValid(messageData?.interactiveResponse?.body);
+    addIfValid(messageData?.buttonsResponse?.selectedDisplayText);
+    addIfValid(messageData?.listResponse?.title);
+    addIfValid(messageData?.listResponse?.description);
+    addIfValid(messageData?.quotedMsg?.body);
+    addIfValid(messageData?.quotedMessage?.body);
+    addIfValid(messageData?.contextInfo?.quotedMessage?.conversation);
+    addIfValid(messageData?.contextInfo?.quotedMessage?.extendedTextMessage?.text);
+
+    const segmentsArray = Array.from(segments);
+    return {
+      primaryText: segmentsArray[0] || '',
+      segments: segmentsArray,
+    };
+  }
+
+  private extractUrlsFromMessageData(messageData: any, segments: string[], caption?: string): string[] {
+    const urls = new Set<string>();
+    const urlPattern = /https?:\/\/[^\s<>'"\]]+/gi;
+
+    const addUrl = (value: unknown) => {
+      if (!value) {
+        return;
+      }
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) {
+          return;
+        }
+        const matches = trimmed.match(urlPattern);
+        if (matches) {
+          matches.forEach(match => urls.add(match));
+        } else if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+          urls.add(trimmed);
+        }
+      } else if (Array.isArray(value)) {
+        value.forEach(item => addUrl(item));
+      } else if (typeof value === 'object') {
+        addUrl((value as any).url);
+        addUrl((value as any).link);
+        addUrl((value as any).href);
+        addUrl((value as any).canonicalUrl);
+        addUrl((value as any).matchedText);
+        addUrl((value as any).originalUrl);
+      }
+    };
+
+    segments.forEach(segment => addUrl(segment));
+    if (caption) {
+      addUrl(caption);
+    }
+
+    addUrl(messageData?.urls);
+    addUrl(messageData?.links);
+    addUrl(messageData?.linkPreview);
+    addUrl(messageData?.previewMessage);
+
+    return Array.from(urls);
+  }
+
   /**
    * Format a phone number for display purposes
    * @param rawPhone - Raw phone number (e.g., "972501234567")
@@ -3929,6 +4012,11 @@ class WAHAService extends EventEmitter {
       }
     }
 
+    const { primaryText, segments: messageTextSegments } = this.extractMessageTextSegments(messageData);
+    const rawCaption = typeof messageData.caption === 'string' ? messageData.caption.trim() : '';
+    const extractedUrls = this.extractUrlsFromMessageData(messageData, messageTextSegments, rawCaption);
+    const textPreviewSource = primaryText || rawCaption || '';
+
     console.log('[WAHA Service] ?? Processing message for group monitoring:', {
       id: messageData.id,
       chatId: derivedChatId,
@@ -3942,6 +4030,8 @@ class WAHAService extends EventEmitter {
       type: messageData.type,
       isGroupOriginal: messageData.isGroup,
       isGroupDerived: isGroupMessage,
+      textPreview: textPreviewSource.substring(0, 80),
+      urlCount: extractedUrls.length,
       // Additional debug fields
       rawMessageFields: {
         groupId: messageData.groupId,
@@ -3970,16 +4060,25 @@ class WAHAService extends EventEmitter {
         messageData.notifyName ||
         senderId;
 
-      const caption = messageData.caption ?? messageData.body ?? messageData.text ?? '';
-
       const payload: any = {
         messageId: messageData.id,
         groupId,
         chatId: derivedChatId,
         senderId,
         senderName,
-        caption
       };
+
+      if (primaryText) {
+        payload.text = primaryText;
+      }
+
+      if (rawCaption) {
+        payload.caption = rawCaption;
+      }
+
+      if (extractedUrls.length > 0) {
+        payload.urls = extractedUrls;
+      }
 
       let mediaUrl = messageData.mediaUrl || messageData.media?.url || null;
       let hasMedia = Boolean(messageData.hasMedia || messageData.isMedia || mediaUrl);
@@ -4027,7 +4126,8 @@ class WAHAService extends EventEmitter {
             {
               imageUrl: payload.imageUrl,
               caption: payload.caption,
-              text: payload.caption,
+              text: payload.text || payload.caption,
+              urls: payload.urls,
             }
           );
           processedDirectly = true;
