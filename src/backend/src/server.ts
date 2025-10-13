@@ -803,16 +803,20 @@ const initializeServicesInBackground = async () => {
       // Don't exit - bots can be configured individually later
     }
 
-    // Legacy: Initialize WhatsApp Baileys service (fallback - will be removed)
-    try {
-    const whatsappService = WhatsAppBaileysService.getInstance();
-    whatsappService.initialize(); // Note: This is async and doesn't wait for actual connection
-    console.log('[Server] WhatsApp Baileys service initialization started (LEGACY - will be removed)');
-    } catch (whatsappError) {
-      console.error('[Server] WhatsApp Baileys service failed to start initialization:', whatsappError);
-      console.log('[Server] Continuing without legacy WhatsApp service...');
-      // Don't crash the server if WhatsApp fails
-    }
+    // Legacy: WhatsApp Baileys service DISABLED - Using WAHA Plus exclusively
+    // NOTE: Baileys has been replaced by WAHA Plus service
+    // All WhatsApp operations now go through WAHA API at https://synapse-waha.onrender.com
+    // Webhooks are handled in wahaController.ts with database-based user routing
+    console.log('[Server] ⚠️ WhatsApp Baileys service DISABLED (using WAHA Plus exclusively)');
+
+    // try {
+    //   const whatsappService = WhatsAppBaileysService.getInstance();
+    //   whatsappService.initialize();
+    //   console.log('[Server] WhatsApp Baileys service initialization started (LEGACY - will be removed)');
+    // } catch (whatsappError) {
+    //   console.error('[Server] WhatsApp Baileys service failed to start initialization:', whatsappError);
+    //   console.log('[Server] Continuing without legacy WhatsApp service...');
+    // }
 
     // Initialize agent services
     const agentService = new AgentService();
