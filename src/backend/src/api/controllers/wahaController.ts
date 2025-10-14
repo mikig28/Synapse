@@ -2308,52 +2308,28 @@ export const forceNOWEBEngine = async (req: AuthenticatedRequest, res: Response)
     // Force delete and recreate with NOWEB
     console.log('[WAHA Controller] 🗑️ Deleting existing session to force NOWEB engine...');
     
+    // Use the existing recreateSessionWithEngine method to force NOWEB
+    console.log('[WAHA Controller] 🔄 Recreating session with NOWEB engine using public method...');
+    
+    // Set environment variable temporarily to force NOWEB engine
+    const originalEngine = process.env.WAHA_ENGINE;
+    process.env.WAHA_ENGINE = 'NOWEB';
+    
     try {
-      // Delete the session completely
-      await wahaService.httpClient.delete(`api/sessions/${wahaService.defaultSession}`);
-      console.log('[WAHA Controller] ✅ Deleted existing session');
-    } catch (deleteError) {
-      console.log('[WAHA Controller] Session delete failed (may not exist):', deleteError);
-    }
-    
-    // Wait for cleanup
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    // Clear service cache
-    wahaService.sessionStatusCache.data = null;
-    wahaService.sessionStatusCache.timestamp = 0;
-    wahaService.connectionStatus = 'disconnected';
-    wahaService.isReady = false;
-    
-    // Create new session with NOWEB engine explicitly
-    const webhookUrl = process.env.BACKEND_URL || 'https://synapse-backend-7lq6.onrender.com';
-    const fullWebhookUrl = `${webhookUrl}/api/v1/waha/webhook`;
-    
-    const nowebPayload = {
-      name: wahaService.defaultSession,
-      start: true,
-      engine: 'NOWEB',
-      config: {
-        webhooks: [{
-          url: fullWebhookUrl,
-          events: ['session.status', 'message'],
-          hmac: null,
-          retries: {
-            delaySeconds: 2,
-            attempts: 15
-          }
-        }],
-        noweb: {
-          store: {
-            enabled: true,
-            fullSync: true
-          }
-        }
+      // Clear all caches first using public method
+      wahaService.clearAllCaches();
+      
+      // Use the public recreateSessionWithEngine method which handles cleanup and recreation
+      await wahaService.recreateSessionWithEngine();
+      
+    } finally {
+      // Restore original engine setting
+      if (originalEngine) {
+        process.env.WAHA_ENGINE = originalEngine;
+      } else {
+        delete process.env.WAHA_ENGINE;
       }
-    };
-    
-    console.log('[WAHA Controller] 🚀 Creating new session with NOWEB engine...');
-    await wahaService.httpClient.post('api/sessions', nowebPayload);
+    }
     
     // Wait for initialization
     await new Promise(resolve => setTimeout(resolve, 10000));
