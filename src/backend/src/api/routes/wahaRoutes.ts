@@ -136,6 +136,23 @@ router.post('/backfill-messages', backfillMessages);
 // Admin routes for session management and monitoring
 router.get('/admin/session-stats', getSessionStats);
 router.post('/admin/force-cleanup', forceCleanupSessions);
+// Force NOWEB Engine route (inline implementation to avoid import issues)
+router.post('/admin/force-noweb-engine', async (req: any, res: any) => {
+  try {
+    console.log('[WAHA Admin Route] 🔄 Force switching to NOWEB engine to fix Puppeteer issues...');
+    
+    // Import the function dynamically
+    const { forceNOWEBEngine } = await import('../controllers/wahaController');
+    return await forceNOWEBEngine(req, res);
+    
+  } catch (error: any) {
+    console.error('[WAHA Admin Route] ❌ Error in force NOWEB engine route:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to access force NOWEB engine function: ' + error.message
+    });
+  }
+});
 
 // Legacy compatibility routes (for gradual migration)
 router.get('/connection-status', getStatus);

@@ -76,13 +76,14 @@ services:
       # Logging Configuration
       - key: LOG_LEVEL
         value: "info"
-      # WAHA Engine Configuration (WEBJS with store enabled)
-            - key: WAHA_ENGINE
-              value: "NOWEB"
-            - key: WAHA_NOWEB_STORE_ENABLED
-              value: "true"
-            - key: WAHA_NOWEB_STORE_FULLSYNC
-              value: "true"       # - key: WAHA_CHATS_LIMIT
+      # WAHA Engine Configuration (NOWEB lightweight engine)
+      - key: WAHA_ENGINE
+        value: "NOWEB"
+      - key: WAHA_NOWEB_STORE_ENABLED
+        value: "true"
+      - key: WAHA_NOWEB_STORE_FULLSYNC
+        value: "true"
+      # - key: WAHA_CHATS_LIMIT
       #   value: "300"
 
   - type: web

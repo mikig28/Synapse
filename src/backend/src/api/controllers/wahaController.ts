@@ -2278,3 +2278,111 @@ export const forceCleanupSessions = async (req: AuthenticatedRequest, res: Respo
     });
   }
 };
+
+/**
+ * Force switch all sessions to NOWEB engine to fix Puppeteer/Chrome issues
+ */
+export const forceNOWEBEngine = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    console.log('[WAHA Controller] 🔄 Force switching to NOWEB engine to fix Puppeteer issues...');
+    
+    const wahaService = await getWAHAServiceForUser(req.user.id);
+    
+    // Get current session status
+    const currentStatus = await wahaService.getSessionStatus();
+    console.log(`[WAHA Controller] Current session status: ${currentStatus.status}, Engine: ${currentStatus?.engine?.engine || 'unknown'}`);
+    
+    // If already NOWEB and not failed, return success
+    if (currentStatus?.engine?.engine === 'NOWEB' && currentStatus.status !== 'FAILED') {
+      return res.json({
+        success: true,
+        message: 'Session already using NOWEB engine',
+        data: {
+          engine: 'NOWEB',
+          status: currentStatus.status,
+          action: 'no_change_needed'
+        }
+      });
+    }
+    
+    // Force delete and recreate with NOWEB
+    console.log('[WAHA Controller] 🗑️ Deleting existing session to force NOWEB engine...');
+    
+    try {
+      // Delete the session completely
+      await wahaService.httpClient.delete(`api/sessions/${wahaService.defaultSession}`);
+      console.log('[WAHA Controller] ✅ Deleted existing session');
+    } catch (deleteError) {
+      console.log('[WAHA Controller] Session delete failed (may not exist):', deleteError);
+    }
+    
+    // Wait for cleanup
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Clear service cache
+    wahaService.sessionStatusCache.data = null;
+    wahaService.sessionStatusCache.timestamp = 0;
+    wahaService.connectionStatus = 'disconnected';
+    wahaService.isReady = false;
+    
+    // Create new session with NOWEB engine explicitly
+    const webhookUrl = process.env.BACKEND_URL || 'https://synapse-backend-7lq6.onrender.com';
+    const fullWebhookUrl = `${webhookUrl}/api/v1/waha/webhook`;
+    
+    const nowebPayload = {
+      name: wahaService.defaultSession,
+      start: true,
+      engine: 'NOWEB',
+      config: {
+        webhooks: [{
+          url: fullWebhookUrl,
+          events: ['session.status', 'message'],
+          hmac: null,
+          retries: {
+            delaySeconds: 2,
+            attempts: 15
+          }
+        }],
+        noweb: {
+          store: {
+            enabled: true,
+            fullSync: true
+          }
+        }
+      }
+    };
+    
+    console.log('[WAHA Controller] 🚀 Creating new session with NOWEB engine...');
+    await wahaService.httpClient.post('api/sessions', nowebPayload);
+    
+    // Wait for initialization
+    await new Promise(resolve => setTimeout(resolve, 10000));
+    
+    // Check new status
+    const newStatus = await wahaService.getSessionStatus();
+    console.log(`[WAHA Controller] ✅ New session status: ${newStatus.status}, Engine: ${newStatus?.engine?.engine}`);
+    
+    res.json({
+      success: true,
+      message: 'Successfully switched to NOWEB engine',
+      data: {
+        engine: newStatus?.engine?.engine || 'NOWEB',
+        status: newStatus.status,
+        action: 'recreated_with_noweb',
+        previousEngine: currentStatus?.engine?.engine || 'unknown',
+        note: 'NOWEB engine is lightweight and does not use Puppeteer/Chrome'
+      }
+    });
+    
+  } catch (error: any) {
+    console.error('[WAHA Controller] ❌ Error switching to NOWEB engine:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to switch to NOWEB engine: ' + error.message,
+      details: {
+        suggestion: 'Try again in a few moments. NOWEB engine should resolve Puppeteer/Chrome issues.',
+        troubleshooting: 'Check WAHA service logs for detailed error information'
+      }
+    });
+  }
+};
