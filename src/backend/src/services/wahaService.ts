@@ -3047,6 +3047,40 @@ class WAHAService extends EventEmitter {
         session: sessionName
       });
 
+      // CRITICAL: Check session status first and restart if FAILED
+      console.log('[WAHA Service] 🔍 Checking session status before media download...');
+      try {
+        const sessionStatus = await this.getSessionStatus(sessionName);
+        console.log(`[WAHA Service] Session '${sessionName}' status: ${sessionStatus.status}`);
+        
+        if (sessionStatus.status === 'FAILED') {
+          console.warn('[WAHA Service] ⚠️ Session is in FAILED state. Attempting restart...');
+          try {
+            await this.restartSession(sessionName);
+            console.log('[WAHA Service] ✅ Session restarted successfully');
+            
+            // Wait for session to stabilize
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            const newStatus = await this.getSessionStatus(sessionName);
+            console.log(`[WAHA Service] New session status: ${newStatus.status}`);
+            
+            if (newStatus.status !== 'WORKING') {
+              console.error('[WAHA Service] ❌ Session not WORKING after restart:', newStatus.status);
+              return null;
+            }
+          } catch (restartError: any) {
+            console.error('[WAHA Service] ❌ Failed to restart FAILED session:', restartError?.message || restartError);
+            return null;
+          }
+        } else if (sessionStatus.status !== 'WORKING') {
+          console.warn(`[WAHA Service] ⚠️ Session status is ${sessionStatus.status}, not WORKING. Media download may fail.`);
+          // Continue anyway - sometimes it still works
+        }
+      } catch (statusCheckError) {
+        console.warn('[WAHA Service] ⚠️ Could not check session status, proceeding anyway:', statusCheckError);
+      }
+
       // WORKAROUND: Fetch recent messages from the chat to find this specific message with media URL
       // WAHA webhooks don't include media URLs, but the /chats/{chatId}/messages endpoint does
       console.log('[WAHA Service] 🔍 Fetching recent messages from chat to find media URL...');
@@ -3200,11 +3234,31 @@ class WAHAService extends EventEmitter {
       
       console.log(`[WAHA Service] Getting messages for chat '${chatId}' in session '${sessionName}'...`);
       
-      // Check session status first
+      // Check session status first and restart if FAILED
       const sessionStatus = await this.getSessionStatus(sessionName);
       console.log(`[WAHA Service] Session '${sessionName}' status: ${sessionStatus.status}`);
       
-      if (sessionStatus.status !== 'WORKING') {
+      if (sessionStatus.status === 'FAILED') {
+        console.warn('[WAHA Service] ⚠️ Session is in FAILED state. Attempting restart before fetching messages...');
+        try {
+          await this.restartSession(sessionName);
+          console.log('[WAHA Service] ✅ Session restarted successfully');
+          
+          // Wait for session to stabilize
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          
+          const newStatus = await this.getSessionStatus(sessionName);
+          console.log(`[WAHA Service] New session status after restart: ${newStatus.status}`);
+          
+          if (newStatus.status !== 'WORKING') {
+            console.error('[WAHA Service] ❌ Session not WORKING after restart:', newStatus.status);
+            return [];
+          }
+        } catch (restartError: any) {
+          console.error('[WAHA Service] ❌ Failed to restart FAILED session:', restartError?.message || restartError);
+          return [];
+        }
+      } else if (sessionStatus.status !== 'WORKING') {
         console.log(`[WAHA Service] Session not in WORKING status (${sessionStatus.status}), returning empty messages`);
         return [];
       }
