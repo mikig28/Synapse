@@ -955,18 +955,41 @@ export const sendPhoneAuthCode = async (req: Request, res: Response) => {
     const sessionId = process.env.WAHA_DEFAULT_SESSION || 'default';
 
     // Check if session is ready for pairing code
-    const status = await whatsappService.getStatus();
+    let status = await whatsappService.getStatus();
     console.log('[WhatsApp] Current session status:', status);
 
-    if (status.status !== 'SCAN_QR_CODE' && status.status !== 'STOPPED') {
-      console.warn('[WhatsApp] Session not in correct state for pairing code:', status.status);
+    // If session is FAILED or STOPPED, automatically restart it first
+    if (status.status === 'FAILED' || status.status === 'STOPPED') {
+      console.log(`[WhatsApp] Session in ${status.status} state, attempting automatic restart...`);
+      try {
+        await whatsappService.restartSession(sessionId);
+        // Wait for session to transition to SCAN_QR_CODE
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        status = await whatsappService.getStatus();
+        console.log('[WhatsApp] Session status after restart:', status.status);
+      } catch (restartError) {
+        console.error('[WhatsApp] Failed to restart session:', restartError);
+        return res.status(503).json({
+          success: false,
+          error: 'Failed to restart WhatsApp session for pairing code',
+          suggestion: 'Please try restarting the WhatsApp service manually',
+          technicalDetails: restartError instanceof Error ? restartError.message : String(restartError)
+        });
+      }
+    }
+
+    // Now check if session is in correct state for pairing code
+    if (status.status !== 'SCAN_QR_CODE') {
+      console.warn('[WhatsApp] Session not in SCAN_QR_CODE state:', status.status);
       return res.status(400).json({
         success: false,
-        error: `Session must be in SCAN_QR_CODE or STOPPED state. Current state: ${status.status}`,
+        error: `Session must be in SCAN_QR_CODE state to request pairing code. Current state: ${status.status}`,
         currentStatus: status.status,
         suggestion: status.status === 'WORKING'
           ? 'WhatsApp is already connected'
-          : 'Please restart the WhatsApp service first'
+          : status.status === 'STARTING'
+          ? 'Session is starting - please wait a moment and try again'
+          : 'Please restart the WhatsApp service and try again'
       });
     }
 
