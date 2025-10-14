@@ -23,7 +23,8 @@ import {
   Menu,
   X,
   Camera,
-  Calendar
+  Calendar,
+  Copy
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { io, Socket } from 'socket.io-client';
@@ -3871,53 +3872,82 @@ const WhatsAppPage: React.FC = () => {
                       ) : (
                         <>
                           {pairingCode && (
-                            <div className="p-3 bg-white/10 rounded-md text-white flex items-center justify-between">
-                              <div>
-                                <div className="text-xs text-blue-200">Enter this code in WhatsApp</div>
-                                <div className="text-2xl font-mono tracking-widest">{pairingCode}</div>
+                            <div className="space-y-4">
+                              {/* Pairing Code Display */}
+                              <div className="p-4 bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 rounded-lg">
+                                <div className="text-center">
+                                  <div className="text-sm text-green-200 mb-2">Your Pairing Code</div>
+                                  <div className="text-3xl font-mono font-bold tracking-[0.3em] text-white mb-3">
+                                    {pairingCode}
+                                  </div>
+                                  <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(pairingCode);
+                                      toast({
+                                        title: "Code Copied",
+                                        description: "Pairing code copied to clipboard",
+                                      });
+                                    }}
+                                    className="w-full bg-white/10 hover:bg-white/20 border-white/20"
+                                  >
+                                    <Copy className="w-4 h-4 mr-2" />
+                                    Copy Code
+                                  </Button>
+                                </div>
                               </div>
-                              <Button
+
+                              {/* Instructions */}
+                              <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                                <h4 className="text-sm font-semibold text-blue-200 mb-3 flex items-center gap-2">
+                                  <Phone className="w-4 h-4" />
+                                  Complete Setup in WhatsApp
+                                </h4>
+                                <ol className="space-y-2 text-xs text-blue-200/80">
+                                  <li className="flex gap-2">
+                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-300 font-semibold">1</span>
+                                    <span>Open WhatsApp on your phone</span>
+                                  </li>
+                                  <li className="flex gap-2">
+                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-300 font-semibold">2</span>
+                                    <span>Go to <strong>Settings</strong> → <strong>Linked Devices</strong></span>
+                                  </li>
+                                  <li className="flex gap-2">
+                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-300 font-semibold">3</span>
+                                    <span>Tap <strong>"Link a Device"</strong></span>
+                                  </li>
+                                  <li className="flex gap-2">
+                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-300 font-semibold">4</span>
+                                    <span>Select <strong>"Link with phone number instead"</strong></span>
+                                  </li>
+                                  <li className="flex gap-2">
+                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-300 font-semibold">5</span>
+                                    <span>Enter the code: <strong className="text-green-300">{pairingCode}</strong></span>
+                                  </li>
+                                </ol>
+                              </div>
+
+                              {/* Waiting Indicator */}
+                              <div className="text-center py-3">
+                                <div className="flex items-center justify-center gap-2 text-blue-200/70 text-sm">
+                                  <RefreshCw className="w-4 h-4 animate-spin" />
+                                  <span>Waiting for WhatsApp connection...</span>
+                                </div>
+                              </div>
+
+                              {/* Cancel Button */}
+                              <Button 
                                 variant="outline"
-                                onClick={() => navigator.clipboard.writeText(pairingCode)}
-                                className="ml-3"
+                                onClick={() => {
+                                  setPhoneAuthStep('phone');
+                                  setPairingCode(null);
+                                }}
+                                className="w-full bg-white/5 hover:bg-white/10 border-white/20"
                               >
-                                Copy
+                                Cancel & Go Back
                               </Button>
                             </div>
                           )}
-                          <div>
-                            <label className="block text-sm font-medium text-blue-200 mb-2">
-                              6‑Digit Code
-                            </label>
-                            <Input
-                              type="text"
-                              placeholder="Enter 6-digit code"
-                              value={verificationCode}
-                              onChange={(e) => setVerificationCode(e.target.value)}
-                              className="bg:white/10 border-white/20 text-white placeholder:text-blue-300"
-                              maxLength={6}
-                            />
-                          </div>
-                          <div className="flex gap-3">
-                            <Button 
-                              variant="outline"
-                              onClick={() => {
-                                setPhoneAuthStep('phone');
-                                setVerificationCode('');
-                                setPairingCode(null);
-                              }}
-                              className="flex-1"
-                            >
-                              Back
-                            </Button>
-                            <Button 
-                              onClick={verifyPhoneAuth}
-                              disabled={!verificationCode.trim() && !pairingCode}
-                              className="flex-1 bg-green-500 hover:bg-green-600"
-                            >
-                              Verify
-                            </Button>
-                          </div>
                         </>
                       )}
                     </div>
