@@ -18,6 +18,7 @@ import TelegramFeed from '@/components/Dashboard/TelegramFeed';
 import NewsTickerBar from '@/components/Dashboard/NewsTickerBar';
 import QuickActionsBar from '@/components/Dashboard/QuickActionsBar';
 import RecentItemsAccordion from '@/components/Dashboard/RecentItemsAccordion';
+import { GettingStartedChecklist } from '@/components/Dashboard/GettingStartedChecklist';
 import whatsappService, { WhatsAppConnectionStatus } from '@/services/whatsappService';
 import usageService, { UsageData } from '@/services/usageService';
 import { agentService } from '@/services/agentService';
@@ -420,6 +421,9 @@ const DashboardPage: React.FC = () => {
           </div>
         </motion.div>
 
+        {/* Getting Started Checklist */}
+        <GettingStartedChecklist />
+
         {/* Stats controls + grid */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3 overflow-x-hidden max-w-full">
           <div className="text-xs sm:text-sm text-muted-foreground overflow-x-hidden max-w-full">
@@ -560,30 +564,36 @@ const DashboardPage: React.FC = () => {
         className="mt-3 sm:mt-6 mb-3 sm:mb-6 overflow-x-hidden max-w-full"
       >
         <GlassCard className="min-w-0 max-w-full overflow-hidden">
-          <div className="p-2 sm:p-6 overflow-x-hidden max-w-full">
-            <div className="flex items-center justify-between mb-3 gap-2 overflow-x-hidden max-w-full">
-              <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-                <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
-                <h3 className="text-base sm:text-lg font-semibold truncate min-w-0">Recent WhatsApp Summaries</h3>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-xs text-muted-foreground hidden sm:inline whitespace-nowrap">Last 7 days</span>
-                <AnimatedButton
-                  variant="ghost"
-                  size="sm"
-                  onClick={loadRecentSummaries}
-                  disabled={summariesLoading}
-                >
-                  {summariesLoading ? (
-                    <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
-                  )}
-                </AnimatedButton>
-              </div>
-            </div>
-
-            <div className="space-y-3 overflow-x-hidden max-w-full">
+          <Accordion type="single" collapsible>
+            <AccordionItem value="whatsapp-summaries" className="border-none">
+              <AccordionTrigger className="px-2 sm:px-6 overflow-x-hidden max-w-full hover:no-underline">
+                <div className="flex items-center justify-between w-full gap-2 overflow-x-hidden max-w-full">
+                  <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+                    <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
+                    <h3 className="text-base sm:text-lg font-semibold truncate min-w-0">Recent WhatsApp Summaries</h3>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold">
+                      {recentSummaries.length}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-xs text-muted-foreground hidden sm:inline whitespace-nowrap">Last 7 days</span>
+                    <AnimatedButton
+                      variant="ghost"
+                      size="sm"
+                      onClick={loadRecentSummaries}
+                      disabled={summariesLoading}
+                    >
+                      {summariesLoading ? (
+                        <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4" />
+                      )}
+                    </AnimatedButton>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="px-2 sm:px-6 overflow-x-hidden max-w-full">
+                <div className="space-y-3 overflow-x-hidden max-w-full">
               {recentSummaries.map((summary, index) => (
                 <motion.div
                   key={summary.groupId}
@@ -636,17 +646,19 @@ const DashboardPage: React.FC = () => {
               ))}
             </div>
 
-            <div className="mt-4 pt-3 border-t border-border/40 overflow-x-hidden max-w-full">
-              <AnimatedButton
-                variant="outline"
-                size="sm"
-                onClick={() => handleNavigate('/whatsapp-monitor')}
-                className="w-full"
-              >
-                View all summaries
-              </AnimatedButton>
-            </div>
-          </div>
+                  <div className="mt-4 pt-3 border-t border-border/40 overflow-x-hidden max-w-full">
+                    <AnimatedButton
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleNavigate('/whatsapp-monitor')}
+                      className="w-full"
+                    >
+                      View all summaries
+                    </AnimatedButton>
+                  </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </GlassCard>
       </motion.div>
     )}
@@ -786,13 +798,14 @@ const DashboardPage: React.FC = () => {
           className="mt-3 sm:mt-6 mb-3 sm:mb-6 overflow-x-hidden max-w-full"
         >
           <GlassCard className="overflow-hidden border border-border/40 min-w-0 max-w-full">
-            <Accordion type="single" collapsible defaultValue="intelligence-hub">
+            <Accordion type="single" collapsible>
               <AccordionItem value="intelligence-hub" className="border-none">
-                <AccordionTrigger className="px-2 sm:px-6 overflow-x-hidden max-w-full">
+                <AccordionTrigger className="px-2 sm:px-6 overflow-x-hidden max-w-full hover:no-underline">
                   <div className="flex w-full items-center justify-between gap-2 min-w-0 overflow-x-hidden max-w-full">
                     <div className="flex items-center gap-2 text-left min-w-0 overflow-hidden">
                       <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
                       <h3 className="text-sm sm:text-base lg:text-lg font-semibold truncate min-w-0">Intelligence Hub</h3>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-semibold uppercase tracking-wider">Advanced</span>
                     </div>
                     <span className="hidden text-xs text-muted-foreground lg:inline whitespace-nowrap flex-shrink-0">Monitor • Track</span>
                   </div>
