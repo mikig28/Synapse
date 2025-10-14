@@ -23,8 +23,7 @@ import {
   Menu,
   X,
   Camera,
-  Calendar,
-  Copy
+  Calendar
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { io, Socket } from 'socket.io-client';
@@ -92,8 +91,6 @@ const WhatsAppPage: React.FC = () => {
   const [privateChats, setPrivateChats] = useState<WhatsAppChat[]>([]);
   const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
   const [selectedChat, setSelectedChat] = useState<WhatsAppChat | null>(null);
-  const selectedChatType: 'group' | 'private' = selectedChat?.isGroup ? 'group' : 'private';
-  const summaryButtonLabel = selectedChatType === 'group' ? 'Daily Summary' : 'Chat Summary';
   const [messagesCache, setMessagesCache] = useState<Record<string, WhatsAppMessage[]>>({});
   const [newMessage, setNewMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -102,7 +99,7 @@ const WhatsAppPage: React.FC = () => {
   const [showAuth, setShowAuth] = useState(false);
   const [authMethod, setAuthMethod] = useState<'qr' | 'phone'>('qr');
   const [phoneNumber, setPhoneNumber] = useState('');
-  // Note: verificationCode removed - WAHA uses pairing codes entered directly in WhatsApp
+  // Note: verificationCode state removed - WAHA NOWEB uses pairing codes entered in WhatsApp mobile app
   const [isWaitingForCode, setIsWaitingForCode] = useState(false);
   const [phoneAuthStep, setPhoneAuthStep] = useState<'phone' | 'code'>('phone');
   const [phoneAuthSupported, setPhoneAuthSupported] = useState(true);
@@ -119,12 +116,6 @@ const WhatsAppPage: React.FC = () => {
   // Summary modal state
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [selectedSummary, setSelectedSummary] = useState<GroupSummaryData | null>(null);
-
-  // NEW: Initial sync state management
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStartTime, setSyncStartTime] = useState<number | null>(null);
-  const [syncRetryCount, setSyncRetryCount] = useState(0);
-  const [syncEstimatedTime, setSyncEstimatedTime] = useState<string>('5-10 minutes');
   
   // Mobile-specific states
   const [isMobile, setIsMobile] = useState(false);
@@ -134,72 +125,10 @@ const WhatsAppPage: React.FC = () => {
   
   // NEW: store pairing code returned by backend (if engine supports it)
   const [pairingCode, setPairingCode] = useState<string | null>(null);
-
-  // Map of contact IDs to human-friendly names
-  const [contactsMap, setContactsMap] = useState<Record<string, string>>({});
-
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const chatContainerRef = useRef<HTMLDivElement>(null);
-  const [isAtBottom, setIsAtBottom] = useState(true);
-  const touchStartYRef = useRef<number | null>(null);
-
-  const handleChatScroll = () => {
-    const el = chatContainerRef.current;
-    if (!el) return;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 4;
-    setIsAtBottom(atBottom);
-  };
-
-  const handleChatWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    const el = chatContainerRef.current;
-    if (!el) return;
-    el.scrollTop += e.deltaY;
-  };
-
-  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    touchStartYRef.current = e.touches[0]?.clientY ?? null;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    const el = chatContainerRef.current;
-    if (!el) return;
-    const prevY = touchStartYRef.current;
-    const y = e.touches[0]?.clientY ?? prevY;
-    if (prevY != null && y != null) {
-      el.scrollTop += prevY - y;
-    }
-    touchStartYRef.current = y ?? null;
-  };
   
   const { isAuthenticated, token } = useAuthStore();
-
-  // Helper function to normalize any chatId to a string (handle both string and object cases)
-  const normalizeChatId = (chatId: any, context: string = 'unknown'): string | null => {
-    if (!chatId) {
-      console.warn(`[WhatsApp Frontend] Empty chatId in ${context}:`, chatId);
-      return null;
-    }
-    
-    if (typeof chatId === 'string') {
-      return chatId;
-    }
-    
-    if (typeof chatId === 'object' && chatId !== null) {
-      // Extract string ID from object formats
-      if ('_serialized' in chatId) {
-        return chatId._serialized;
-      } else if ('id' in chatId) {
-        return chatId.id;
-      } else {
-        // Fallback: convert object to string, but this shouldn't happen
-        console.warn(`[WhatsApp Frontend] ⚠️ Had to stringify ${context} ID object:`, chatId);
-        return String(chatId);
-      }
-    }
-    
-    // Final fallback
-    return String(chatId);
-  };
 
   // Helper function to extract chatId from selectedChat.id (handle both string and object cases)
   const extractChatId = (chatObj: WhatsAppChat | null): string | undefined => {
@@ -227,6 +156,14 @@ const WhatsAppPage: React.FC = () => {
       } else if ('id' in chatObj.id) {
         const extracted = (chatObj.id as any).id;
         console.log('[WhatsApp Frontend] extractChatId: Extracted from id:', extracted);
+        return extracted;
+      } else if ('server' in chatObj.id && 'user' in chatObj.id) {
+        const extracted = `${(chatObj.id as any).user}@${(chatObj.id as any).server}`;
+        console.log('[WhatsApp Frontend] extractChatId: Constructed from user and server:', extracted);
+        return extracted;
+      } else if ('remote' in chatObj.id) {
+        const extracted = (chatObj.id as any).remote;
+        console.log('[WhatsApp Frontend] extractChatId: Extracted from remote:', extracted);
         return extracted;
       } else if ('user' in chatObj.id) {
         const extracted = (chatObj.id as any).user;
@@ -294,22 +231,12 @@ const WhatsAppPage: React.FC = () => {
   };
 
   useEffect(() => {
-    // Only fetch status initially, wait for session to be ready before fetching data
-    const initializeData = async () => {
-      try {
-        await fetchStatus();
-
-        // After status is fetched, check if session is ready
-        // The fetchStatus function will automatically trigger data fetching
-        // if authenticated (see lines 883-890 and 911-918)
-      } catch (error) {
-        console.error('[WhatsApp Frontend] Failed to fetch initial status:', error);
-      }
-    };
-
-    initializeData();
-    fetchMonitoredKeywords(); // This endpoint doesn't depend on session status
-
+    fetchStatus();
+    fetchGroups();
+    fetchPrivateChats();
+    fetchMessages();
+    fetchMonitoredKeywords();
+    
     // Intelligent status monitoring with enhanced exponential backoff (optimized for rate limiting)
     let pollInterval = 30000; // Start with 30 seconds (reduced from 15s to prevent rate limiting)
     let failureCount = 0;
@@ -330,7 +257,7 @@ const WhatsAppPage: React.FC = () => {
         
         // Check if we just became authenticated (polling fallback)
         if (!prevAuthenticated && status?.authenticated) {
-          console.log('[WhatsApp Status Polling] Authentication detected, attempting to load chats...');
+          console.log('[WhatsApp Status Polling] Authentication detected, fetching chats...');
           
           // Check if this was phone authentication and clean up UI
           if (pairingCode) {
@@ -350,43 +277,14 @@ const WhatsAppPage: React.FC = () => {
               description: "Authentication successful! Loading your chats...",
             });
           }
-
-          // Attempt to fetch data with a small delay
-          setTimeout(async () => {
-            try {
-              const [groupsRes, chatsRes] = await Promise.all([
-                api.get('/waha/groups?limit=100').catch(() => ({ data: { success: false } })),
-                api.get('/waha/private-chats?limit=100').catch(() => ({ data: { success: false } }))
-              ]);
-
-              const hasData = (groupsRes.data.success && groupsRes.data.data?.length > 0) ||
-                               (chatsRes.data.success && chatsRes.data.data?.length > 0);
-
-              if (!hasData) {
-                // No data yet - start sync polling
-                console.log('[WhatsApp Sync] No chats available yet, starting initial sync polling...');
-                setIsSyncing(true);
-                setSyncStartTime(Date.now());
-                toast({
-                  title: "Syncing Messages",
-                  description: "WhatsApp is syncing your chats. This typically takes 5-10 minutes for first connection.",
-                });
-                pollForChatsWithRetry(0);
-              } else {
-                // Data available - fetch normally
-                fetchGroups();
-                fetchPrivateChats();
-                fetchMessages();
-              }
-            } catch (error) {
-              console.error('[WhatsApp Status Polling] Error checking for data:', error);
-              // Try fetching anyway
-              fetchGroups();
-              fetchPrivateChats();
-              fetchMessages();
-            }
+          
+          // Fetch data with a small delay to ensure backend is ready
+          setTimeout(() => {
+            fetchGroups();
+            fetchPrivateChats();
+            fetchMessages();
           }, 1000);
-
+          
           // Reduce polling frequency after successful auth
           pollInterval = 60000; // 60 seconds when authenticated and stable
         }
@@ -436,20 +334,6 @@ const WhatsAppPage: React.FC = () => {
       }
     };
   }, [status?.authenticated]); // Watch for authentication state changes
-
-  useEffect(() => {
-    if (Object.keys(contactsMap).length > 0) {
-      setMessages(prev =>
-        prev.map(msg => ({
-          ...msg,
-          contactName:
-            msg.contactName && msg.contactName !== 'Unknown'
-              ? msg.contactName
-              : contactsMap[msg.from] || msg.contactName,
-        }))
-      );
-    }
-  }, [contactsMap]);
 
   // Socket.io connection setup
   useEffect(() => {
@@ -586,52 +470,25 @@ const WhatsAppPage: React.FC = () => {
           title: "WhatsApp Connected",
           description: "Loading your chats and groups...",
         });
-
-        // Check if data is available before full fetch
-        setTimeout(async () => {
-          try {
-            const [groupsRes, chatsRes] = await Promise.all([
-              api.get('/waha/groups?limit=10').catch(() => ({ data: { success: false } })),
-              api.get('/waha/private-chats?limit=10').catch(() => ({ data: { success: false } }))
-            ]);
-
-            const hasData = (groupsRes.data.success && groupsRes.data.data?.length > 0) ||
-                             (chatsRes.data.success && chatsRes.data.data?.length > 0);
-
-            if (!hasData) {
-              // No data yet - enter sync mode
-              console.log('[WhatsApp Socket.IO] No chats available, starting sync polling...');
-              setLoadingChats(false);
-              setIsSyncing(true);
-              setSyncStartTime(Date.now());
-              toast({
-                title: "Syncing Messages",
-                description: "WhatsApp is syncing your chats. This typically takes 5-10 minutes.",
-              });
-              pollForChatsWithRetry(0);
-            } else {
-              // Data available - fetch everything
-              Promise.all([
-                fetchGroups(true),
-                fetchPrivateChats(true),
-                fetchMessages()
-              ]).then(() => {
-                console.log('[WhatsApp Socket.IO] ✅ All data fetched after authentication');
-                setLoadingChats(false);
-              }).catch((error) => {
-                console.error('[WhatsApp Socket.IO] ❌ Error fetching data after authentication:', error);
-                setLoadingChats(false);
-                toast({
-                  title: "Chat Loading Issue",
-                  description: "WhatsApp connected but couldn't load chats. Please refresh.",
-                  variant: "destructive",
-                });
-              });
-            }
-          } catch (error) {
-            console.error('[WhatsApp Socket.IO] Error checking for data:', error);
+        
+        // Fetch data after authentication with loading indicators
+        setTimeout(() => {
+          Promise.all([
+            fetchGroups(true),
+            fetchPrivateChats(true),
+            fetchMessages()
+          ]).then(() => {
+            console.log('[WhatsApp Socket.IO] ✅ All data fetched after authentication');
             setLoadingChats(false);
-          }
+          }).catch((error) => {
+            console.error('[WhatsApp Socket.IO] ❌ Error fetching data after authentication:', error);
+            setLoadingChats(false);
+            toast({
+              title: "Chat Loading Issue",
+              description: "WhatsApp connected but couldn't load chats. Please refresh.",
+              variant: "destructive",
+            });
+          });
         }, 1000); // Small delay to ensure backend is ready
         
         // Close auth modal if open
@@ -838,10 +695,7 @@ const WhatsAppPage: React.FC = () => {
 
   // Define scrollToBottom function early
   const scrollToBottom = () => {
-    // Only autoscroll if user is near the bottom to preserve manual scroll-up
-    if (isAtBottom) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   // Load messages for selected chat if we don't have any yet
@@ -903,19 +757,15 @@ const WhatsAppPage: React.FC = () => {
         setStatus(enhancedStatus);
         setActiveService('waha');
         console.log('✅ Using WAHA service (modern)');
-
-        // Only fetch chats if session is WORKING (not STARTING, SCAN_QR_CODE, etc.)
-        if (enhancedStatus.authenticated &&
-            enhancedStatus.sessionStatus === 'WORKING' &&
-            groups.length === 0 && privateChats.length === 0) {
-          console.log('[WhatsApp Frontend] Session is WORKING and authenticated, fetching chats...');
+        
+        // If authenticated and we don't have chats yet, fetch them
+        if (enhancedStatus.authenticated && groups.length === 0 && privateChats.length === 0) {
+          console.log('[WhatsApp Frontend] Authenticated but no chats loaded, fetching...');
           setTimeout(() => {
             fetchGroups(true);
             fetchPrivateChats(true);
             fetchMessages();
           }, 1000);
-        } else if (enhancedStatus.sessionStatus !== 'WORKING') {
-          console.log(`[WhatsApp Frontend] Session status is '${enhancedStatus.sessionStatus}', waiting for WORKING status before fetching chats...`);
         }
       }
     } catch (error: any) {
@@ -970,121 +820,15 @@ const WhatsAppPage: React.FC = () => {
     }
   };
 
-  const fetchContacts = async () => {
-    try {
-      // Try modern WAHA endpoint first; tolerate 404 by falling back silently
-      try {
-        const wahaRes = await api.get('/waha/contacts');
-        if (wahaRes.data.success) {
-          const map: Record<string, string> = {};
-          (wahaRes.data.data || []).forEach((c: any) => {
-            const id = normalizeChatId(c.id || c._id, 'WAHA contact');
-            if (id) {
-              map[id] = c.name || c.pushname || c.verifiedName || c.number || id;
-            }
-          });
-          setContactsMap(map);
-          return;
-        }
-      } catch (wahaError: any) {
-        if (wahaError?.response?.status !== 404) {
-          console.error('[WhatsApp Frontend] WAHA contacts endpoint failed:', wahaError);
-        }
-      }
-
-      // Fallback to legacy endpoint
-      const legacyRes = await api.get('/whatsapp/contacts');
-      if (legacyRes.data.success) {
-        const map: Record<string, string> = {};
-        (legacyRes.data.data || []).forEach((c: any) => {
-          const id = normalizeChatId(c.id || c._id, 'legacy contact');
-          if (id) {
-            map[id] = c.name || c.pushname || c.verifiedName || c.number || id;
-          }
-        });
-        setContactsMap(map);
-      }
-    } catch (error) {
-      console.error('Error fetching contacts:', error);
-    }
-  };
-
-  /**
-   * Poll for chats during initial WEBJS sync period
-   * Implements exponential backoff with max 10 attempts over ~15 minutes
-   */
-  const pollForChatsWithRetry = async (attempt = 0, maxAttempts = 10) => {
-    if (attempt >= maxAttempts) {
-      console.log('[WhatsApp Sync] Max polling attempts reached, stopping sync polling');
-      setIsSyncing(false);
-      toast({
-        title: "Sync Timeout",
-        description: "Chat loading is taking longer than expected. Please try refreshing manually.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setSyncRetryCount(attempt + 1);
-    console.log(`[WhatsApp Sync] Polling attempt ${attempt + 1}/${maxAttempts}`);
-
-    try {
-      // Try fetching groups and private chats
-      const [groupsResponse, chatsResponse] = await Promise.all([
-        api.get('/waha/groups?limit=200').catch(() => ({ data: { success: false } })),
-        api.get('/waha/private-chats?limit=200').catch(() => ({ data: { success: false } }))
-      ]);
-
-      // Check if we got data
-      const hasGroups = groupsResponse.data.success && groupsResponse.data.data?.length > 0;
-      const hasChats = chatsResponse.data.success && chatsResponse.data.data?.length > 0;
-
-      if (hasGroups || hasChats) {
-        // Success! Sync completed
-        console.log('[WhatsApp Sync] ✅ Sync completed! Chats are now available');
-        setIsSyncing(false);
-        setSyncRetryCount(0);
-        setSyncStartTime(null);
-
-        // Update UI with loaded data
-        if (hasGroups) setGroups(groupsResponse.data.data || []);
-        if (hasChats) setPrivateChats(chatsResponse.data.data || []);
-
-        toast({
-          title: "Sync Complete!",
-          description: `Loaded ${(groupsResponse.data.data?.length || 0) + (chatsResponse.data.data?.length || 0)} chats successfully`,
-        });
-
-        return;
-      }
-
-      // Still syncing, retry with exponential backoff
-      const delay = Math.min(30000, 5000 * Math.pow(1.5, attempt)); // 5s, 7.5s, 11s, 17s, 25s, 30s max
-      console.log(`[WhatsApp Sync] Still syncing, retrying in ${Math.round(delay/1000)}s...`);
-
-      setTimeout(() => {
-        pollForChatsWithRetry(attempt + 1, maxAttempts);
-      }, delay);
-
-    } catch (error) {
-      console.error('[WhatsApp Sync] Error during polling:', error);
-      // Continue polling even on error
-      const delay = Math.min(30000, 5000 * Math.pow(1.5, attempt));
-      setTimeout(() => {
-        pollForChatsWithRetry(attempt + 1, maxAttempts);
-      }, delay);
-    }
-  };
-
   const fetchGroups = async (showLoading = false, options?: { limit?: number; offset?: number }) => {
     try {
       if (showLoading) setLoadingChats(true);
-
+      
       // Build WAHA-compliant query parameters
       const params = new URLSearchParams();
       if (options?.limit) params.append('limit', options.limit.toString());
       if (options?.offset) params.append('offset', options.offset.toString());
-
+      
       const queryString = params.toString();
       
       // Try WAHA modern endpoint
@@ -1098,23 +842,9 @@ const WhatsAppPage: React.FC = () => {
           console.log(`[WhatsApp Frontend] ✅ Fetched ${groupsData.length} groups via WAHA`);
           
           // Process groups to ensure they have proper structure
-          const processedGroups = groupsData
-            .map((group: any) => {
-              // Normalize the ID to always be a string using helper
-              const normalizedId = normalizeChatId(group.id || group._id, 'WAHA group');
-              
-              // Return null for invalid groups so they can be filtered out
-              if (!normalizedId) {
-                console.warn(`[WhatsApp Frontend] ⚠️ Skipping WAHA group with invalid ID:`, {
-                  groupName: group.name || group.subject || 'Unnamed',
-                  originalId: group.id,
-                  _id: group._id
-                });
-                return null;
-              }
-              
-              const processedGroup = {
-                id: normalizedId,
+          const processedGroups = groupsData.map((group: any) => {
+            const processedGroup = {
+              id: group.id || group._id,
               name: group.name || group.subject || 'Unnamed Group',
               lastMessage: group.lastMessage?.body || group.lastMessage,
               timestamp: group.timestamp,
@@ -1138,10 +868,7 @@ const WhatsAppPage: React.FC = () => {
             });
             
             return processedGroup;
-          })
-          .filter(Boolean); // Remove null entries (invalid groups)
-          
-          console.log(`[WhatsApp Frontend] ✅ Processed ${processedGroups.length} valid groups (filtered out ${groupsData.length - processedGroups.length} invalid)`);
+          });
           
           // Show metadata if available
           if (wahaRes.data.metadata) {
@@ -1180,23 +907,9 @@ const WhatsAppPage: React.FC = () => {
         console.log(`[WhatsApp Frontend] ✅ Fetched ${groupsData.length} groups via legacy`);
         
         // Process legacy groups
-        const processedGroups = groupsData
-          .map((group: any) => {
-            // Normalize the ID to always be a string using helper
-            const normalizedId = normalizeChatId(group.id || group._id, 'legacy group');
-            
-            // Return null for invalid groups so they can be filtered out
-            if (!normalizedId) {
-              console.warn(`[WhatsApp Frontend] ⚠️ Skipping legacy group with invalid ID:`, {
-                groupName: group.name || 'Unnamed',
-                originalId: group.id,
-                _id: group._id
-              });
-              return null;
-            }
-            
-            const processedGroup = {
-              id: normalizedId,
+        const processedGroups = groupsData.map((group: any) => {
+          const processedGroup = {
+            id: group.id || group._id,
             name: group.name || 'Unnamed Group',
             lastMessage: group.lastMessage,
             timestamp: group.timestamp,
@@ -1216,10 +929,7 @@ const WhatsAppPage: React.FC = () => {
           });
           
           return processedGroup;
-        })
-        .filter(Boolean); // Remove null entries (invalid groups)
-        
-        console.log(`[WhatsApp Frontend] ✅ Processed ${processedGroups.length} valid legacy groups (filtered out ${groupsData.length - processedGroups.length} invalid)`);
+        });
         
         setGroups(processedGroups);
         setStatus(prevStatus => prevStatus ? {
@@ -1271,23 +981,9 @@ const WhatsAppPage: React.FC = () => {
           console.log(`[WhatsApp Frontend] ✅ Fetched ${chatsData.length} private chats via WAHA`);
           
           // Process private chats to ensure proper structure
-          const processedChats = chatsData
-            .map((chat: any) => {
-              // Normalize the ID to always be a string using helper
-              const normalizedId = normalizeChatId(chat.id || chat._id, 'WAHA private chat');
-              
-              // Return null for invalid chats so they can be filtered out
-              if (!normalizedId) {
-                console.warn(`[WhatsApp Frontend] ⚠️ Skipping WAHA private chat with invalid ID:`, {
-                  chatName: chat.name || chat.pushName || 'Unknown',
-                  originalId: chat.id,
-                  _id: chat._id
-                });
-                return null;
-              }
-              
-              const processedChat = {
-                id: normalizedId,
+          const processedChats = chatsData.map((chat: any) => {
+            const processedChat = {
+              id: chat.id || chat._id,
               name: chat.name || chat.pushName || chat.number || 'Unknown Contact',
               lastMessage: chat.lastMessage?.body || chat.lastMessage,
               timestamp: chat.timestamp,
@@ -1306,10 +1002,7 @@ const WhatsAppPage: React.FC = () => {
             });
             
             return processedChat;
-          })
-          .filter(Boolean); // Remove null entries (invalid chats)
-          
-          console.log(`[WhatsApp Frontend] ✅ Processed ${processedChats.length} valid WAHA private chats (filtered out ${chatsData.length - processedChats.length} invalid)`);
+          });
           
           setPrivateChats(processedChats);
           setStatus(prevStatus => prevStatus ? {
@@ -1334,23 +1027,9 @@ const WhatsAppPage: React.FC = () => {
         const chatsData = legacyRes.data.data || [];
         console.log(`[WhatsApp Frontend] ✅ Fetched ${chatsData.length} private chats via legacy`);
         
-        const processedChats = chatsData
-          .map((chat: any) => {
-            // Normalize the ID to always be a string using helper
-            const normalizedId = normalizeChatId(chat.id || chat._id, 'legacy private chat');
-            
-            // Return null for invalid chats so they can be filtered out
-            if (!normalizedId) {
-              console.warn(`[WhatsApp Frontend] ⚠️ Skipping legacy private chat with invalid ID:`, {
-                chatName: chat.name || 'Unknown',
-                originalId: chat.id,
-                _id: chat._id
-              });
-              return null;
-            }
-            
-            const processedChat = {
-              id: normalizedId,
+        const processedChats = chatsData.map((chat: any) => {
+          const processedChat = {
+            id: chat.id || chat._id,
             name: chat.name || 'Unknown Contact',
             lastMessage: chat.lastMessage,
             timestamp: chat.timestamp,
@@ -1368,10 +1047,7 @@ const WhatsAppPage: React.FC = () => {
           });
           
           return processedChat;
-        })
-        .filter(Boolean); // Remove null entries (invalid chats)
-        
-        console.log(`[WhatsApp Frontend] ✅ Processed ${processedChats.length} valid legacy private chats (filtered out ${chatsData.length - processedChats.length} invalid)`);
+        });
         
         setPrivateChats(processedChats);
         setStatus(prevStatus => prevStatus ? {
@@ -1407,29 +1083,20 @@ const WhatsAppPage: React.FC = () => {
     }
   };
 
-  const fetchMessages = async (chatId?: string, forceRefresh: boolean = false) => {
+  const fetchMessages = async (chatIdInput?: any, forceRefresh: boolean = false) => {
     try {
+      let chatId = chatIdInput;
+      // Normalize chatId if an object is passed
+      if (chatId && typeof chatId !== 'string') {
+        chatId = extractChatId({ id: chatId } as WhatsAppChat);
+      }
+
       console.log('[WhatsApp Frontend] fetchMessages called:', {
         chatId,
         chatIdType: typeof chatId,
         forceRefresh,
         chatIdValid: chatId && typeof chatId === 'string' && chatId !== '[object Object]' && !chatId.includes('[object')
       });
-      
-      // Validate chatId if provided - CRITICAL: Stop execution if invalid
-      if (chatId && (typeof chatId !== 'string' || chatId === '[object Object]' || chatId.includes('[object'))) {
-        console.error('[WhatsApp Frontend] ❌ Invalid chatId detected in fetchMessages:', {
-          chatId,
-          type: typeof chatId,
-          stringified: String(chatId)
-        });
-        toast({
-          title: "Error",
-          description: "Invalid chat ID format. Please select a chat again.",
-          variant: "destructive",
-        });
-        return;
-      }
       
       // Set loading state for refresh
       if (forceRefresh) {
@@ -1466,7 +1133,7 @@ const WhatsAppPage: React.FC = () => {
             type: msg.type || 'text',
             isGroup: msg.isGroup || false,
             groupName: msg.groupName || msg.chatName,
-            contactName: msg.contactName || msg.senderName || contactsMap[msg.from] || msg.from || 'Unknown',
+            contactName: msg.contactName || msg.senderName || msg.from || 'Unknown',
             chatId: msg.chatId || chatId || '',
             time: new Date(msg.timestamp || Date.now()).toLocaleTimeString(),
             isMedia: msg.hasMedia || false
@@ -1516,7 +1183,7 @@ const WhatsAppPage: React.FC = () => {
           type: msg.type || 'text',
           isGroup: msg.isGroup || false,
           groupName: msg.groupName,
-          contactName: msg.contactName || contactsMap[msg.from] || msg.from || 'Unknown',
+          contactName: msg.contactName || msg.from || 'Unknown',
           chatId: msg.chatId || chatId || '',
           time: new Date(msg.timestamp || Date.now()).toLocaleTimeString(),
           isMedia: msg.isMedia || false
@@ -1568,7 +1235,7 @@ const WhatsAppPage: React.FC = () => {
     setPhoneAuthStep('phone');
     setIsWaitingForCode(false);
     setPhoneNumber('');
-    // verificationCode state variable removed per WAHA docs
+    setVerificationCode('');
     setPairingCode(null);
     setPhoneAuthSupported(true); // Reset phone auth support when opening modal
     
@@ -1650,7 +1317,7 @@ const WhatsAppPage: React.FC = () => {
         setPhoneAuthSupported(false); // Disable phone auth option
         toast({
           title: "Phone Authentication Not Available",
-          description: "Phone authentication isn't supported by the current WhatsApp configuration. Please use QR code method instead.",
+          description: "Phone authentication isn't supported by the WhatsApp service. Switching to QR code method...",
           variant: "destructive",
         });
         
@@ -1674,15 +1341,19 @@ const WhatsAppPage: React.FC = () => {
         }, 2000);
         
       } else {
-        // Handle authentication/configuration errors
+        // Enhanced error handling for configuration issues
         const is401Error = error.response?.status === 401;
         const errorMessage = is401Error 
-          ? "WhatsApp service authentication error. Please contact administrator to configure WAHA_API_KEY."
+          ? "WAHA service authentication error. Please contact administrator to configure WAHA_API_KEY."
           : (errorData?.error || "Failed to request pairing code. Please try QR code authentication instead.");
+        
+        console.log(`[WhatsApp Phone Auth] Error details:`, { status: error.response?.status, error: errorData });
         
         toast({
           title: is401Error ? "Configuration Error" : "Error",
           description: errorMessage,
+          title: "Error",
+          // This line is replaced by enhanced error handling above
           variant: "destructive",
         });
         
@@ -1695,9 +1366,76 @@ const WhatsAppPage: React.FC = () => {
     }
   };
 
-  // Note: According to WAHA documentation, pairing codes should be entered directly in WhatsApp
-  // The connection will be detected automatically by our existing status polling mechanism
-  // No manual verification function is needed per WAHA Plus documentation
+  // WAHA Compliance Note: Manual verification function removed
+  // According to WAHA NOWEB engine documentation, pairing codes are entered directly in WhatsApp mobile app
+  // Authentication is detected automatically via existing status polling mechanism
+  const verifyPhoneAuth_DEPRECATED = async () => {
+    // This function is deprecated and should not be used
+    console.warn('[DEPRECATED] verifyPhoneAuth function should not be called - use automatic detection');
+    return;
+    /* DEPRECATED CODE:
+    // Deprecated: if (!verificationCode.trim() && !pairingCode) {
+      toast({
+        title: 'Error',
+        description: 'Please enter the verification code',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      // Try WAHA endpoint first, then fallback to legacy
+      let response: any;
+      let usedService: 'waha' | 'baileys' = 'waha';
+      const codeToUse = (pairingCode || '').trim(); // verificationCode removed
+      
+      try {
+        console.log('🚀 Verifying phone code via WAHA /waha/auth/verify...');
+        response = await api.post('/waha/auth/verify', {
+          phoneNumber: phoneNumber.replace(/\D/g, ''),
+          code: codeToUse
+        });
+        console.log('✅ Phone verification successful via WAHA');
+      } catch (wahaError: any) {
+        console.error('❌ WAHA phone verification failed, trying legacy endpoint:', wahaError);
+        
+        // Try legacy endpoint as fallback
+        console.log('⚠️ Falling back to legacy endpoint /whatsapp-legacy/auth/verify...');
+        response = await api.post('/whatsapp-legacy/auth/verify', {
+          phoneNumber: phoneNumber.replace(/\D/g, ''),
+          code: codeToUse
+        });
+        usedService = 'baileys';
+        console.log('✅ Phone verification successful via Baileys (legacy)');
+      }
+
+      if (response.data.success) {
+        setShowAuth(false);
+        setIsWaitingForCode(false);
+        toast({
+          title: "Authentication Successful",
+          description: `WhatsApp connected successfully via phone number (using ${usedService === 'waha' ? 'WAHA Modern' : 'Baileys Legacy'})`,
+        });
+        // Refresh status after successful auth
+        setTimeout(fetchStatus, 2000);
+        setPairingCode(null);
+      } else {
+        toast({
+          title: "Verification Failed",
+          description: response.data.error || "Invalid verification code",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error verifying phone auth:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to verify code",
+        variant: "destructive",
+      });
+    }
+    */ // End deprecated WAHA non-compliant code
+  };
 
   const fetchQRCode = async (force = false) => {
     try {
@@ -1845,8 +1583,7 @@ const WhatsAppPage: React.FC = () => {
         // Fetch updated data with pagination support
         await Promise.all([
           fetchGroups(false, { limit: 100 }), // Load first 100 groups with pagination
-          fetchPrivateChats(false),
-          fetchContacts()
+          fetchPrivateChats(false)
         ]);
         
         // Update status counts
@@ -1920,8 +1657,6 @@ const WhatsAppPage: React.FC = () => {
       // Show loading state
       setRefreshingMessages(true);
 
-      const chatType: 'group' | 'private' = (selectedChat as any)?.isGroup || chatId.includes('@g.us') || chatId.includes('-') ? 'group' : 'private';
-
       toast({
         title: "Generating Summary",
         description: `Creating daily summary for ${selectedChat.name}...`,
@@ -1933,8 +1668,7 @@ const WhatsAppPage: React.FC = () => {
       try {
         const summary = await whatsappService.generateTodaySummary({
           groupId: chatId,
-          timezone: whatsappService.getUserTimezone(),
-          chatType
+          timezone: whatsappService.getUserTimezone()
         });
 
         console.log('[WhatsApp Frontend] ✅ Daily summary generated:', summary);
@@ -2522,7 +2256,6 @@ const WhatsAppPage: React.FC = () => {
   const getStatusColor = () => {
     if (!status) return 'text-gray-500';
     if (status.connected && status.isReady && status.isClientReady) return 'text-green-400';
-    if (status.sessionStatus === 'STARTING') return 'text-blue-400'; // Blue for initializing
     if (status.qrAvailable) return 'text-yellow-400';
     return 'text-red-400';
   };
@@ -2530,12 +2263,24 @@ const WhatsAppPage: React.FC = () => {
   const getStatusIcon = () => {
     if (!status) return WifiOff;
     if (status.connected && status.isReady && status.isClientReady) return Wifi;
-    if (status.sessionStatus === 'STARTING') return RefreshCw; // Show refresh icon for initializing
     if (status.qrAvailable) return QrCode;
     return WifiOff;
   };
 
   const StatusIcon = getStatusIcon();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 p-6">
+        <div className="flex items-center justify-center min-h-full">
+          <GlassCard className="p-8 text-center">
+            <RefreshCw className="w-8 h-8 text-violet-300 animate-spin mx-auto mb-4" />
+            <p className="text-white">Loading WhatsApp...</p>
+          </GlassCard>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -2568,30 +2313,16 @@ const WhatsAppPage: React.FC = () => {
               
               <div className={`flex items-center gap-2 sm:gap-4 ${isMobile ? 'flex-wrap' : ''}`}>
                 <div className="flex items-center gap-2">
-                  <StatusIcon className={`w-4 h-4 sm:w-5 sm:h-5 ${isSyncing ? 'text-yellow-400 animate-pulse' : getStatusColor()}`} />
-                  <span className={`text-xs sm:text-sm ${isSyncing ? 'text-yellow-400' : getStatusColor()}`}>
-                    {isSyncing
-                      ? `Syncing... (${syncRetryCount}/10 attempts)`
-                      : status?.sessionStatus === 'STARTING'
-                      ? 'Initializing...'
-                      : status?.connected && status?.isReady && status?.isClientReady
-                      ? 'Connected'
-                      : status?.qrAvailable
-                      ? 'QR Available'
+                  <StatusIcon className={`w-4 h-4 sm:w-5 sm:h-5 ${getStatusColor()}`} />
+                  <span className={`text-xs sm:text-sm ${getStatusColor()}`}>
+                    {status?.connected && status?.isReady && status?.isClientReady 
+                      ? 'Connected' 
+                      : status?.qrAvailable 
+                      ? 'QR Available' 
                       : 'Disconnected'
                     }
                   </span>
                 </div>
-
-                {/* Syncing Progress Indicator */}
-                {isSyncing && syncStartTime && (
-                  <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-500/20 border border-yellow-500/30">
-                    <RefreshCw className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-400 animate-spin" />
-                    <span className="text-xs text-yellow-300">
-                      {Math.floor((Date.now() - syncStartTime) / 1000)}s - Est. {syncEstimatedTime}
-                    </span>
-                  </div>
-                )}
 
                 {/* Service Type Indicator */}
                 {activeService && (
@@ -2669,7 +2400,7 @@ const WhatsAppPage: React.FC = () => {
                     Refresh Chats
                   </AnimatedButton>
 
-                  {selectedChat && (
+                  {selectedChat && selectedChat.isGroup && (
                     <AnimatedButton
                       onClick={generateDailySummary}
                       variant="outline"
@@ -2682,7 +2413,7 @@ const WhatsAppPage: React.FC = () => {
                       ) : (
                         <Calendar className="w-4 h-4 mr-2" />
                       )}
-                      {summaryButtonLabel}
+                      Daily Summary
                     </AnimatedButton>
                   )}
 
@@ -2746,15 +2477,6 @@ const WhatsAppPage: React.FC = () => {
           </div>
         </motion.div>
 
-        {loading ? (
-          <div className="flex items-center justify-center min-h-[50vh]">
-            <GlassCard className="p-8 text-center">
-              <RefreshCw className="w-8 h-8 text-violet-300 animate-spin mx-auto mb-4" />
-              <p className="text-white">Loading WhatsApp...</p>
-            </GlassCard>
-          </div>
-        ) : (
-          <>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -2815,7 +2537,7 @@ const WhatsAppPage: React.FC = () => {
               setShowChatList(false);
             }
           }}>
-            <GlassCard className={`${isMobile ? 'h-full max-h-full mt-16' : 'h-[600px] max-h-[600px]'} p-4 sm:p-6 flex flex-col min-h-0 overflow-hidden`}>
+            <GlassCard className={`${isMobile ? 'h-full mt-16' : 'h-[600px]'} p-4 sm:p-6 flex flex-col`}>
               <div className="mb-4">
                 {isMobile && (
                   <div className="flex items-center justify-between mb-4">
@@ -2869,9 +2591,11 @@ const WhatsAppPage: React.FC = () => {
                            scrollbarWidth: 'auto',
                            scrollbarColor: '#4ade80 rgba(255,255,255,0.15)'
                          }}>
-                      {filteredGroups.map((group) => (
+                      {filteredGroups.map((group) => {
+                        const groupChatId = extractChatId(group as any);
+                        return (
                         <motion.div
-                          key={group.id}
+                          key={groupChatId || JSON.stringify(group.id)}
                           whileHover={{ scale: isMobile ? 1 : 1.01 }}
                           whileTap={{ scale: 0.99 }}
                           onClick={() => {
@@ -2881,39 +2605,36 @@ const WhatsAppPage: React.FC = () => {
                               groupIdKeys: typeof group.id === 'object' ? Object.keys(group.id) : 'N/A',
                               groupName: group.name
                             });
-                            
-                            if (group.id && typeof group.id === 'string') {
-                              console.log(`[WhatsApp Frontend] ✅ Selected group: ${group.name} (${group.id})`);
-                              setSelectedChat(group);
+
+                            if (isValidChatId(groupChatId)) {
+                              console.log(`[WhatsApp Frontend] ✅ Selected group: ${group.name} (${groupChatId})`);
+                              const normalizedGroup = { ...group, id: groupChatId! } as WhatsAppChat;
+                              setSelectedChat(normalizedGroup);
                               // Only fetch messages if we don't have any or if it's a different chat
                               if (selectedChat) {
                                 const selectedChatId = extractChatId(selectedChat);
-                                if (selectedChatId !== group.id) {
-                                  fetchMessages(group.id);
+                                if (selectedChatId !== groupChatId) {
+                                  fetchMessages(groupChatId);
                                 }
                               } else {
-                                fetchMessages(group.id);
+                                fetchMessages(groupChatId);
                               }
                               // Keep chat list visible on mobile for easy navigation
                             } else {
-                              console.error('[WhatsApp Frontend] ❌ Invalid group ID detected (this should not happen after filtering):', {
+                              console.warn('[WhatsApp Frontend] ❌ Invalid group ID:', {
                                 groupId: group.id,
                                 groupIdType: typeof group.id,
                                 groupName: group.name
                               });
-                              toast({
-                                title: "Group Error",
-                                description: `Cannot select group "${group.name}" - invalid ID format. This group will be hidden on next refresh.`,
-                                variant: "destructive",
-                              });
                             }
                           }}
                           className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                            selectedChat && extractChatId(selectedChat) === group.id
+                            selectedChat && extractChatId(selectedChat) === groupChatId
                               ? 'bg-violet-500/30 border border-violet-400/50 shadow-lg'
                               : 'bg-white/5 hover:bg-white/10 border border-transparent'
                           }`}
                         >
+                        
                           <div className="flex items-center gap-3">
                             <div className="flex-shrink-0 relative">
                               <Users className={`w-5 h-5 ${
@@ -2973,7 +2694,8 @@ const WhatsAppPage: React.FC = () => {
                             </div>
                           </div>
                         </motion.div>
-                      ))}
+                      );
+                      })}
                     </div>
                   </div>
                 )}
@@ -2989,9 +2711,11 @@ const WhatsAppPage: React.FC = () => {
                            scrollbarWidth: 'auto',
                            scrollbarColor: '#8b5cf6 rgba(255,255,255,0.15)'
                          }}>
-                      {filteredPrivateChats.map((chat) => (
+                      {filteredPrivateChats.map((chat) => {
+                        const privateChatId = extractChatId(chat as any);
+                        return (
                         <motion.div
-                          key={chat.id}
+                          key={privateChatId || JSON.stringify(chat.id)}
                           whileHover={{ scale: isMobile ? 1 : 1.01 }}
                           whileTap={{ scale: 0.99 }}
                           onClick={() => {
@@ -3001,18 +2725,19 @@ const WhatsAppPage: React.FC = () => {
                               chatIdKeys: typeof chat.id === 'object' ? Object.keys(chat.id) : 'N/A',
                               chatName: chat.name
                             });
-                            
-                            if (chat.id && typeof chat.id === 'string') {
-                              console.log(`[WhatsApp Frontend] ✅ Selected private chat: ${chat.name} (${chat.id})`);
-                              setSelectedChat(chat);
+
+                            if (isValidChatId(privateChatId)) {
+                              console.log(`[WhatsApp Frontend] ✅ Selected private chat: ${chat.name} (${privateChatId})`);
+                              const normalizedChat = { ...chat, id: privateChatId! } as WhatsAppChat;
+                              setSelectedChat(normalizedChat);
                               // Only fetch messages if we don't have any or if it's a different chat
                               if (selectedChat) {
                                 const selectedChatId = extractChatId(selectedChat);
-                                if (selectedChatId !== chat.id) {
-                                  fetchMessages(chat.id);
+                                if (selectedChatId !== privateChatId) {
+                                  fetchMessages(privateChatId);
                                 }
                               } else {
-                                fetchMessages(chat.id);
+                                fetchMessages(privateChatId);
                               }
                               // Keep chat list visible on mobile for easy navigation
                             } else {
@@ -3024,7 +2749,7 @@ const WhatsAppPage: React.FC = () => {
                             }
                           }}
                           className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                            selectedChat && extractChatId(selectedChat) === chat.id
+                            selectedChat && extractChatId(selectedChat) === privateChatId
                               ? 'bg-violet-500/30 border border-violet-400/50 shadow-lg'
                               : 'bg-white/5 hover:bg-white/10 border border-transparent'
                           }`}
@@ -3053,7 +2778,8 @@ const WhatsAppPage: React.FC = () => {
                             </div>
                           </div>
                         </motion.div>
-                      ))}
+                      );
+                      })}
                     </div>
                   </div>
                 )}
@@ -3122,15 +2848,15 @@ const WhatsAppPage: React.FC = () => {
           {/* Chat Interface - Mobile: Full screen, Desktop: Main content */}
           <div className={`
             ${isMobile 
-              ? `${!showChatList ? 'flex' : 'hidden'} fixed inset-0 z-30 bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 flex-col p-3 pt-20 pb-3`
+              ? `${!showChatList ? 'flex' : 'hidden'} fixed inset-0 z-30 bg-gradient-to-br from-violet-900 via-blue-900 to-purple-900 flex-col p-3 pt-20`
               : 'lg:col-span-2'
             }
           `}>
-            <GlassCard className={`${isMobile ? 'h-full max-h-full' : 'h-[600px] max-h-[600px]'} p-3 sm:p-6 flex flex-col min-h-0 overflow-hidden ${isMobile ? '' : ''}`}>
+            <GlassCard className={`${isMobile ? 'h-full' : 'h-[600px]'} p-4 sm:p-6 flex flex-col`}>
               {selectedChat ? (
                 <>
-                  <div className={`flex items-center justify-between ${isMobile ? 'pb-2' : 'pb-4'} border-b border-white/20 flex-shrink-0`}>
-                    <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+                  <div className="flex items-center justify-between pb-4 border-b border-white/20 flex-shrink-0">
+                    <div className="flex items-center gap-3">
                       {isMobile && (
                         <Button
                           onClick={() => {
@@ -3139,20 +2865,20 @@ const WhatsAppPage: React.FC = () => {
                           }}
                           variant="ghost"
                           size="sm"
-                          className="p-1.5 hover:bg-white/10 flex-shrink-0"
+                          className="p-1.5 hover:bg-white/10"
                           aria-label="Back to chat list"
                         >
                           <ArrowLeft className="w-5 h-5 text-white" />
                         </Button>
                       )}
                       {selectedChat.isGroup ? (
-                        <Users className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-green-400 flex-shrink-0`} />
+                        <Users className="w-6 h-6 text-green-400" />
                       ) : (
-                        <Phone className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-violet-400 flex-shrink-0`} />
+                        <Phone className="w-6 h-6 text-violet-400" />
                       )}
-                      <div className="min-w-0 flex-1 overflow-hidden">
-                        <h3 className={`${isMobile ? 'text-sm' : 'text-base'} font-semibold text-white truncate`}>{selectedChat.name}</h3>
-                        <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-blue-200/70 truncate`}>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-white truncate">{selectedChat.name}</h3>
+                        <p className="text-sm text-blue-200/70">
                           {selectedChat.isGroup 
                             ? `${selectedChat.participantCount ?? 0} members`
                             : 'Private chat'
@@ -3161,7 +2887,7 @@ const WhatsAppPage: React.FC = () => {
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <div className="flex items-center gap-2">
                       <AnimatedButton
                         onClick={() => {
                           // Extract and validate chatId using helper function
@@ -3174,15 +2900,15 @@ const WhatsAppPage: React.FC = () => {
                           }
                         }}
                         variant="outline"
-                        size={isMobile ? "icon" : "sm"}
+                        size="sm"
                         disabled={refreshingMessages}
-                        className={`border-blue-400/30 text-blue-200 hover:bg-blue-500/10 flex-shrink-0 ${isMobile ? 'h-8 w-8 p-0' : ''}`}
+                        className="border-blue-400/30 text-blue-200 hover:bg-blue-500/10 flex-shrink-0"
                         title="Refresh messages from server"
                       >
                         {refreshingMessages ? (
-                          <RefreshCw className={`${isMobile ? 'w-4 h-4' : 'w-4 h-4 mr-1'} animate-spin`} />
+                          <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
                         ) : (
-                          <RefreshCw className={`${isMobile ? 'w-4 h-4' : 'w-4 h-4 mr-1'}`} />
+                          <RefreshCw className="w-4 h-4 mr-1" />
                         )}
                         {!isMobile && 'Refresh'}
                       </AnimatedButton>
@@ -3201,63 +2927,43 @@ const WhatsAppPage: React.FC = () => {
                             return;
                           }
                           
-                          // Since we now normalize all IDs during data processing, selectedChat.id should always be a valid string
-                          const chatId = selectedChat.id;
+                          // Extract and validate chatId using helper function
+                          const chatId = extractChatId(selectedChat);
                           
-                          console.log('[WhatsApp Frontend] Load History - Chat ID details:', {
-                            chatId,
-                            chatIdType: typeof chatId,
-                            chatName: selectedChat.name,
-                            isValidString: typeof chatId === 'string' && chatId.length > 0
-                          });
-                          
-                          if (typeof chatId === 'string' && chatId.length > 0 && chatId !== '[object Object]') {
-                            console.log('[WhatsApp Frontend] ✅ Loading history for normalized chatId:', chatId);
+                          if (isValidChatId(chatId)) {
+                            console.log('[WhatsApp Frontend] ✅ Loading history for valid chatId:', chatId);
                             fetchChatHistory(chatId, 10);
                           } else {
-                            console.error('[WhatsApp Frontend] ❌ Invalid chat ID after normalization (this should not happen):', {
-                              selectedChat,
-                              chatId,
-                              chatIdType: typeof chatId
-                            });
+                            console.error('[WhatsApp Frontend] ❌ Could not extract valid chat ID from:', selectedChat);
+                            console.error('[WhatsApp Frontend] selectedChat.id structure:', JSON.stringify(selectedChat.id, null, 2));
                             toast({
-                              title: "Chat Error", 
-                              description: `Cannot load history for "${selectedChat.name}" - invalid chat ID. Try selecting the chat again or refresh the page.`,
+                              title: "Error",
+                              description: "Invalid chat format. Please try selecting the chat again.",
                               variant: "destructive",
                             });
                           }
                         }}
                         variant="outline"
-                        size={isMobile ? "icon" : "sm"}
+                        size="sm"
                         disabled={fetchingHistory}
-                        className={`border-orange-400/30 text-orange-200 hover:bg-orange-500/10 flex-shrink-0 ${isMobile ? 'h-8 w-8 p-0' : ''}`}
-                        title="Load older messages"
+                        className="border-orange-400/30 text-orange-200 hover:bg-orange-500/10 flex-shrink-0"
                       >
                         {fetchingHistory ? (
-                          <RefreshCw className={`${isMobile ? 'w-4 h-4' : 'w-4 h-4 mr-1'} animate-spin`} />
+                          <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
                         ) : (
-                          <Download className={`${isMobile ? 'w-4 h-4' : 'w-4 h-4 mr-1'}`} />
+                          <Download className="w-4 h-4 mr-1" />
                         )}
                         {!isMobile && 'Load History'}
                       </AnimatedButton>
                     </div>
                   </div>
 
-                  <div
-                    ref={chatContainerRef}
-                    onScroll={handleChatScroll}
-                    onWheel={handleChatWheel}
-                    onTouchStart={handleTouchStart}
-                    onTouchMove={handleTouchMove}
-                    className={`flex-1 min-h-0 overflow-y-scroll ${isMobile ? 'my-2' : 'my-4'} space-y-2 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full pointer-events-auto ${isMobile ? 'pr-0.5' : 'pr-1'}`}
-                    style={{
-                      scrollbarWidth: 'thin',
-                      scrollbarColor: '#8b5cf6 rgba(255,255,255,0.2)',
-                      scrollbarGutter: 'stable',
-                      overscrollBehaviorY: 'contain',
-                      touchAction: 'pan-y'
-                    }}
-                  >
+                  <div className="flex-1 overflow-y-auto my-4 space-y-3 scrollbar-thin scrollbar-thumb-violet-400/60 scrollbar-track-white/20 hover:scrollbar-thumb-violet-300/80 scrollbar-track-rounded-full scrollbar-thumb-rounded-full min-h-0"
+                       style={{
+                         scrollbarWidth: 'auto',
+                         scrollbarColor: '#8b5cf6 rgba(255,255,255,0.2)',
+                         maxHeight: 'calc(100% - 120px)' // Ensure buttons stay visible
+                       }}>
                     {displayedMessages.length === 0 ? (
                       <div className="flex items-center justify-center h-full">
                         <div className="text-center">
@@ -3274,37 +2980,37 @@ const WhatsAppPage: React.FC = () => {
                           key={message.id}
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className={`flex ${message.fromMe ? 'justify-end' : 'justify-start'} w-full`}
+                          className={`flex ${message.fromMe ? 'justify-end' : 'justify-start'}`}
                         >
                           <div
-                            className={`${isMobile ? 'max-w-[80%]' : 'max-w-[85%] sm:max-w-xs lg:max-w-md'} ${isMobile ? 'px-2 py-1.5' : 'px-3 sm:px-4 py-2'} rounded-lg break-words ${
+                            className={`max-w-[85%] sm:max-w-xs lg:max-w-md px-3 sm:px-4 py-2 rounded-lg ${
                               message.fromMe
                                 ? 'bg-violet-500/70 text-white'
                                 : 'bg-white/20 text-white'
                             }`}
                           >
-                            {!message.fromMe && (
-                              <p className={`${isMobile ? 'text-[10px]' : 'text-xs'} text-blue-200 mb-0.5 truncate`}>{message.contactName || (!message.isGroup ? (selectedChat?.name) : undefined) || (message.from?.includes('@') ? message.from.split('@')[0] : message.from) || 'Unknown'}</p>
+                            {!message.fromMe && message.isGroup && (
+                              <p className="text-xs text-blue-200 mb-1">{message.contactName}</p>
                             )}
 {message.isMedia && message.type === 'image' ? (
-                              <div className={`flex items-center gap-1.5 ${isMobile ? 'flex-wrap' : ''}`}>
-                                <Camera className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'} text-blue-300 flex-shrink-0`} />
-                                <span className={`${isMobile ? 'text-xs' : 'text-sm'}`}>Image</span>
+                              <div className="flex items-center gap-2">
+                                <Camera className="w-4 h-4 text-blue-300" />
+                                <span className="text-sm">Image</span>
                                 <button
                                   onClick={() => extractImageFromMessage(message.id)}
-                                  className={`flex items-center gap-1 bg-white/20 hover:bg-white/30 ${isMobile ? 'px-1.5 py-0.5' : 'px-2 py-1'} rounded ${isMobile ? 'text-[10px]' : 'text-xs'} transition-colors flex-shrink-0`}
+                                  className="flex items-center gap-1 bg-white/20 hover:bg-white/30 px-2 py-1 rounded text-xs transition-colors"
                                   title="Download image"
                                 >
-                                  <Download className={`${isMobile ? 'w-2.5 h-2.5' : 'w-3 h-3'}`} />
-                                  {!isMobile && 'Download'}
+                                  <Download className="w-3 h-3" />
+                                  Download
                                 </button>
                               </div>
                             ) : message.isMedia ? (
-                              <p className={`${isMobile ? 'text-xs' : 'text-sm'} break-words whitespace-pre-wrap text-blue-300`}>[{message.type || 'Media'}]</p>
+                              <p className="text-sm break-words whitespace-pre-wrap text-blue-300">[{message.type || 'Media'}]</p>
                             ) : (
-                              <p className={`${isMobile ? 'text-xs' : 'text-sm'} break-words whitespace-pre-wrap overflow-wrap-anywhere`}>{message.body || '[No content]'}</p>
+                              <p className="text-sm break-words whitespace-pre-wrap">{message.body || '[No content]'}</p>
                             )}
-                            <p className={`${isMobile ? 'text-[10px]' : 'text-xs'} opacity-70 mt-0.5`}>{message.time}</p>
+                            <p className="text-xs opacity-70 mt-1">{message.time}</p>
                           </div>
                         </motion.div>
                       ))
@@ -3312,25 +3018,25 @@ const WhatsAppPage: React.FC = () => {
                     <div ref={messagesEndRef} />
                   </div>
                   
-                  <div className={`flex ${isMobile ? 'gap-1.5' : 'gap-2 sm:gap-3'} flex-shrink-0`}>
+                  <div className="flex gap-2 sm:gap-3">
                     <Input
                       placeholder="Type a message..."
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-                      className={`flex-1 bg-white/10 border-white/20 text-white placeholder:text-blue-300 ${isMobile ? 'text-sm h-9' : 'text-base'}`}
+                      className="flex-1 bg-white/10 border-white/20 text-white placeholder:text-blue-300 text-base"
                       disabled={sendingMessage}
                     />
                     <Button
                       onClick={sendMessage}
                       disabled={!newMessage.trim() || sendingMessage}
-                      className={`bg-green-500 hover:bg-green-600 ${isMobile ? 'p-2 h-9 w-9' : 'p-3 sm:px-4'} flex-shrink-0`}
-                      size={isMobile ? "icon" : "default"}
+                      className="bg-green-500 hover:bg-green-600 p-3 sm:px-4"
+                      size={isMobile ? "sm" : "default"}
                     >
                       {sendingMessage ? (
-                        <RefreshCw className={`${isMobile ? 'w-4 h-4' : 'w-4 h-4'} animate-spin`} />
+                        <RefreshCw className="w-4 h-4 animate-spin" />
                       ) : (
-                        <Send className={`${isMobile ? 'w-4 h-4' : 'w-4 h-4'}`} />
+                        <Send className="w-4 h-4" />
                       )}
                     </Button>
                   </div>
@@ -3349,7 +3055,7 @@ const WhatsAppPage: React.FC = () => {
           {/* Monitoring Panel - Mobile: Modal, Desktop: Sidebar */}
           {!isMobile && (
             <div className="lg:col-span-1">
-              <GlassCard className="p-6 h-[600px] max-h-[600px] flex flex-col overflow-hidden">
+              <GlassCard className="p-6 h-[600px] flex flex-col">
                 <h3 className="text-lg font-semibold text-white mb-4">Monitoring</h3>
                 
                 <div className="mb-4">
@@ -3408,8 +3114,6 @@ const WhatsAppPage: React.FC = () => {
             </div>
           )}
         </div>
-          </>
-        )}
 
         {/* Mobile Menu Modal */}
         <AnimatePresence>
@@ -3834,85 +3538,51 @@ const WhatsAppPage: React.FC = () => {
                       ) : (
                         <>
                           {pairingCode && (
-                            <div className="space-y-4">
-                              {/* Pairing Code Display */}
-                              <div className="p-4 bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 rounded-lg">
-                                <div className="text-center">
-                                  <div className="text-sm text-green-200 mb-2">Your Pairing Code</div>
-                                  <div className="text-3xl font-mono font-bold tracking-[0.3em] text-white mb-3">
-                                    {pairingCode}
-                                  </div>
-                                  <Button
-                                    variant="outline"
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(pairingCode);
-                                      toast({
-                                        title: "Code Copied",
-                                        description: "Pairing code copied to clipboard",
-                                      });
-                                    }}
-                                    className="w-full bg-white/10 hover:bg-white/20 border-white/20"
-                                  >
-                                    <Copy className="w-4 h-4 mr-2" />
-                                    Copy Code
-                                  </Button>
-                                </div>
+                            <div className="p-3 bg-white/10 rounded-md text-white flex items-center justify-between">
+                              <div>
+                                <div className="text-xs text-blue-200">Enter this code in WhatsApp</div>
+                                <div className="text-2xl font-mono tracking-widest">{pairingCode}</div>
                               </div>
-
-                              {/* Instructions */}
-                              <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                                <h4 className="text-sm font-semibold text-blue-200 mb-3 flex items-center gap-2">
-                                  <Phone className="w-4 h-4" />
-                                  Complete Setup in WhatsApp
-                                </h4>
-                                <ol className="space-y-2 text-xs text-blue-200/80">
-                                  <li className="flex gap-2">
-                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-300 font-semibold">1</span>
-                                    <span>Open WhatsApp on your phone</span>
-                                  </li>
-                                  <li className="flex gap-2">
-                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-300 font-semibold">2</span>
-                                    <span>Go to <strong>Settings</strong> → <strong>Linked Devices</strong></span>
-                                  </li>
-                                  <li className="flex gap-2">
-                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-300 font-semibold">3</span>
-                                    <span>Tap <strong>"Link a Device"</strong></span>
-                                  </li>
-                                  <li className="flex gap-2">
-                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-300 font-semibold">4</span>
-                                    <span>Select <strong>"Link with phone number instead"</strong></span>
-                                  </li>
-                                  <li className="flex gap-2">
-                                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-300 font-semibold">5</span>
-                                    <span>Enter the code: <strong className="text-green-300">{pairingCode}</strong></span>
-                                  </li>
-                                </ol>
-                              </div>
-
-                              {/* Waiting Indicator */}
-                              <div className="text-center py-3">
-                                <div className="flex items-center justify-center gap-2 text-blue-200/70 text-sm">
-                                  <RefreshCw className="w-4 h-4 animate-spin" />
-                                  <span>Waiting for WhatsApp connection...</span>
-                                </div>
-                                <div className="text-xs text-blue-200/50 mt-2">
-                                  After entering the code in WhatsApp, the connection will be detected automatically
-                                </div>
-                              </div>
-
-                              {/* Cancel Button */}
-                              <Button 
+                              <Button
                                 variant="outline"
-                                onClick={() => {
-                                  setPhoneAuthStep('phone');
-                                  setPairingCode(null);
-                                }}
-                                className="w-full bg-white/5 hover:bg-white/10 border-white/20"
+                                onClick={() => navigator.clipboard.writeText(pairingCode)}
+                                className="ml-3"
                               >
-                                Cancel & Go Back
+                                Copy
                               </Button>
                             </div>
                           )}
+                          {/* WAHA Compliance: Manual verification code input removed
+                              Per WAHA NOWEB engine documentation, pairing codes are entered
+                              directly in WhatsApp mobile app, not in web interface */}
+                          <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                            <p className="text-sm text-blue-200">
+                              💡 <strong>Next:</strong> Enter the pairing code in your WhatsApp mobile app
+                            </p>
+                            <p className="text-xs text-blue-200/70 mt-1">
+                              Settings → Linked Devices → "Link with phone number instead"
+                            </p>
+                          </div>
+                          {/* WAHA Compliance: Automatic detection replaces manual verify button */}
+                          <div className="text-center py-4">
+                            <div className="flex items-center justify-center gap-2 text-blue-200/70 text-sm mb-4">
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                              <span>Waiting for WhatsApp connection...</span>
+                            </div>
+                            <p className="text-xs text-blue-200/50 mb-4">
+                              Connection will be detected automatically after entering code in WhatsApp
+                            </p>
+                            <Button 
+                              variant="outline"
+                              onClick={() => {
+                                setPhoneAuthStep('phone');
+                                setPairingCode(null);
+                              }}
+                              className="bg-white/5 hover:bg-white/10 border-white/20"
+                            >
+                              Cancel & Go Back
+                            </Button>
+                          </div>
                         </>
                       )}
                     </div>

@@ -1,27 +1,37 @@
-﻿import axiosInstance from './axiosConfig';
+import axiosInstance from './axiosConfig';
 
-export interface BotValidationResponse {
+export interface BotValidationResult {
   valid: boolean;
-  username?: string;
-  firstName?: string;
+  botInfo?: {
+    id: number;
+    username: string;
+    firstName: string;
+    canJoinGroups: boolean;
+    canReadAllGroupMessages: boolean;
+    supportsInlineQueries: boolean;
+  };
   error?: string;
 }
 
-export interface BotStatusResponse {
+export interface BotStatus {
   hasBot: boolean;
   isActive: boolean;
   botUsername?: string;
   monitoredChats: number;
   sendReportsToTelegram: boolean;
-  sendRemindersToTelegram: boolean;
 }
 
-export interface SetBotResponse {
+export interface BotSetupResult {
+  success: boolean;
   message: string;
   botInfo?: {
     username: string;
-    firstName?: string;
+    firstName: string;
+    canJoinGroups: boolean;
+    canReadAllGroupMessages: boolean;
+    supportsInlineQueries: boolean;
   };
+  error?: string;
 }
 
 export interface BotConnectivityResponse {
@@ -37,60 +47,112 @@ export interface BotConnectivityResponse {
 }
 
 class TelegramBotService {
-  async validateBotToken(botToken: string): Promise<BotValidationResponse> {
-    const response = await axiosInstance.post('/users/me/telegram-bot/validate', { botToken });
-    return response.data;
+  /**
+   * Validate a bot token without saving it
+   */
+  async validateBotToken(botToken: string): Promise<BotValidationResult> {
+    try {
+      const response = await axiosInstance.post('/users/me/telegram-bot/validate', {
+        botToken
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error validating bot token:', error);
+      throw new Error(error.response?.data?.error || 'Failed to validate bot token');
+    }
   }
 
-  async setBotToken(botToken: string): Promise<SetBotResponse> {
-    const response = await axiosInstance.post('/users/me/telegram-bot', { botToken });
-    return response.data;
+  /**
+   * Set user's bot token
+   */
+  async setBotToken(botToken: string): Promise<BotSetupResult> {
+    try {
+      const response = await axiosInstance.post('/users/me/telegram-bot', {
+        botToken
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error setting bot token:', error);
+      throw new Error(error.response?.data?.error || 'Failed to set bot token');
+    }
   }
 
-  async getBotStatus(): Promise<BotStatusResponse> {
-    const response = await axiosInstance.get('/users/me/telegram-bot');
-    return response.data;
+  /**
+   * Get current bot status
+   */
+  async getBotStatus(): Promise<BotStatus> {
+    try {
+      const response = await axiosInstance.get('/users/me/telegram-bot');
+      return response.data;
+    } catch (error: any) {
+      console.error('Error getting bot status:', error);
+      throw new Error(error.response?.data?.message || 'Failed to get bot status');
+    }
   }
 
-  async removeBotConfiguration(): Promise<{ message: string }> {
-    const response = await axiosInstance.delete('/users/me/telegram-bot');
-    return response.data;
+  /**
+   * Remove user's bot
+   */
+  async removeBotToken(): Promise<{ success: boolean; message: string }> {
+    try {
+      const response = await axiosInstance.delete('/users/me/telegram-bot');
+      return response.data;
+    } catch (error: any) {
+      console.error('Error removing bot token:', error);
+      throw new Error(error.response?.data?.message || 'Failed to remove bot token');
+    }
   }
 
-  async removeMonitoredChat(chatId: number): Promise<{ message: string }> {
-    const response = await axiosInstance.delete(`/users/me/telegram-chats/${chatId}`);
-    return response.data;
+  /**
+   * Add a chat ID to monitoring
+   */
+  async addMonitoredChat(chatId: number): Promise<{ message: string; monitoredTelegramChats: number[] }> {
+    try {
+      const response = await axiosInstance.post('/users/me/telegram-chats', {
+        chatId
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error adding monitored chat:', error);
+      throw new Error(error.response?.data?.message || 'Failed to add monitored chat');
+    }
   }
 
-  async updateReportSettings(sendAgentReportsToTelegram: boolean): Promise<{ message: string; sendAgentReportsToTelegram: boolean }> {
-    const response = await axiosInstance.put('/users/me/telegram-report-settings', {
-      sendAgentReportsToTelegram,
-    });
-    return response.data;
+  /**
+   * Remove a chat ID from monitoring
+   */
+  async removeMonitoredChat(chatId: number): Promise<{ message: string; monitoredTelegramChats: number[] }> {
+    try {
+      const response = await axiosInstance.delete(`/users/me/telegram-chats/${chatId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error removing monitored chat:', error);
+      throw new Error(error.response?.data?.message || 'Failed to remove monitored chat');
+    }
   }
 
-  async getReportSettings(): Promise<{ sendAgentReportsToTelegram: boolean }> {
-    const response = await axiosInstance.get('/users/me/telegram-report-settings');
-    return response.data;
+  /**
+   * Update Telegram report settings
+   */
+  async updateReportSettings(sendReports: boolean): Promise<{ message: string; sendAgentReportsToTelegram: boolean }> {
+    try {
+      const response = await axiosInstance.put('/users/me/telegram-report-settings', {
+        sendAgentReportsToTelegram: sendReports
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error updating report settings:', error);
+      throw new Error(error.response?.data?.message || 'Failed to update report settings');
+    }
   }
 
+  /**
+   * Test bot connectivity and permissions
+   */
   async testBotConnectivity(): Promise<BotConnectivityResponse> {
     const response = await axiosInstance.post('/users/me/telegram-bot/test');
     return response.data;
   }
-
-  async updateReminderSettings(sendRemindersToTelegram: boolean): Promise<{ message: string; sendRemindersToTelegram: boolean }> {
-    const response = await axiosInstance.put('/users/me/reminder-settings', {
-      sendRemindersToTelegram,
-    });
-    return response.data;
-  }
-
-  async getReminderSettings(): Promise<{ sendRemindersToTelegram: boolean }> {
-    const response = await axiosInstance.get('/users/me/reminder-settings');
-    return response.data;
-  }
 }
 
-export const telegramBotService = new TelegramBotService();
-export default telegramBotService;
+export default new TelegramBotService();
