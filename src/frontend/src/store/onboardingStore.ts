@@ -45,6 +45,15 @@ export interface UserPreferences {
   };
 }
 
+export type UseCase =
+  | 'knowledge-management'
+  | 'task-management'
+  | 'communication-analysis'
+  | 'ai-automation'
+  | 'personal-productivity'
+  | 'content-organization'
+  | null;
+
 export interface OnboardingProgress {
   currentStep: number;
   totalSteps: number;
@@ -53,6 +62,7 @@ export interface OnboardingProgress {
   timeSpent: number;
   startTime?: Date;
   completedTime?: Date;
+  selectedUseCase?: UseCase;
 }
 
 export interface IntegrationStatus {
@@ -111,6 +121,7 @@ interface OnboardingState {
   skipStep: () => void;
   completeStep: (stepId: string) => void;
   updateProgress: (progress: Partial<OnboardingProgress>) => void;
+  setUseCase: (useCase: UseCase) => void;
   updateUserPreferences: (preferences: Partial<UserPreferences>) => void;
   updateIntegrationStatus: (integration: keyof IntegrationStatus, status: Partial<IntegrationStatus[keyof IntegrationStatus]>) => void;
   unlockAchievement: (achievementId: string) => void;
@@ -637,6 +648,16 @@ export const useOnboardingStore = create<OnboardingState>()(
           progress: {
             ...state.progress,
             ...progress,
+          },
+        });
+      },
+
+      setUseCase: (useCase) => {
+        const state = get();
+        set({
+          progress: {
+            ...state.progress,
+            selectedUseCase: useCase,
           },
         });
       },
