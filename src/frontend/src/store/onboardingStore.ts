@@ -137,7 +137,7 @@ const createDefaultSteps = (): OnboardingStep[] => ([
     title: 'Set Up Telegram Bot',
     description: 'Connect your personal Telegram bot for updates and quick capture.',
     completed: false,
-    optional: false,
+    optional: true,
     unlocked: false,
   },
   {
