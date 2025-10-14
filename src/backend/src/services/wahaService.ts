@@ -4070,9 +4070,46 @@ class WAHAService extends EventEmitter {
         (typeof messageData.media?.mimetype === 'string' && messageData.media.mimetype.startsWith('image/'))
       )
     );
+    // 🆕 CRITICAL FIX: For group monitor images, download and save to GridFS FIRST
+    // This ensures group monitor gets a valid local/GridFS path instead of invalid WAHA URLs
     if (isImage && mediaUrl) {
-      payload.imageUrl = mediaUrl;
-      console.log('[WAHA Service] ?? Adding image URL to payload:', mediaUrl);
+      console.log('[WAHA Service] 📸 Image detected for group monitoring - checking if download needed:', {
+        messageId: messageData.id,
+        groupId,
+        mediaUrl: mediaUrl.substring(0, 80) + '...'
+      });
+
+      // Check if this image was already downloaded and saved to database
+      const existingMessage = await WhatsAppMessage.findOne({ messageId: messageData.id });
+      
+      if (existingMessage?.localPath) {
+        // Image already downloaded - use the local/GridFS path
+        payload.imageUrl = existingMessage.localPath;
+        console.log('[WAHA Service] ✅ Using existing downloaded image path for group monitor:', existingMessage.localPath);
+      } else {
+        // Image not downloaded yet - trigger download NOW (synchronously) before group monitor processing
+        console.log('[WAHA Service] ⏳ Image not yet downloaded - downloading NOW before group monitor processing...');
+        try {
+          // Trigger processMediaMessage synchronously and wait for completion
+          await this.processMediaMessage(messageData);
+          
+          // Reload message to get the downloaded local path
+          const reloadedMessage = await WhatsAppMessage.findOne({ messageId: messageData.id });
+          
+          if (reloadedMessage?.localPath) {
+            payload.imageUrl = reloadedMessage.localPath;
+            console.log('[WAHA Service] ✅ Image downloaded successfully - using local/GridFS path for group monitor:', reloadedMessage.localPath);
+          } else {
+            // Download failed or pending - use WAHA URL as fallback
+            payload.imageUrl = mediaUrl;
+            console.warn('[WAHA Service] ⚠️ Image download incomplete - using WAHA URL as fallback');
+          }
+        } catch (downloadError) {
+          console.error('[WAHA Service] ❌ Error downloading image for group monitor:', downloadError);
+          // Still pass the WAHA URL as fallback
+          payload.imageUrl = mediaUrl;
+        }
+      }
     }
 
     console.log('[WAHA Service] ?? Processing message for group monitoring:', {
