@@ -155,4 +155,7 @@ class TelegramBotService {
   }
 }
 
-export default new TelegramBotService();
+const telegramBotService = new TelegramBotService();
+
+export { telegramBotService };
+export default telegramBotService;

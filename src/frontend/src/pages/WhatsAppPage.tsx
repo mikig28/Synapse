@@ -1352,8 +1352,6 @@ const WhatsAppPage: React.FC = () => {
         toast({
           title: is401Error ? "Configuration Error" : "Error",
           description: errorMessage,
-          title: "Error",
-          // This line is replaced by enhanced error handling above
           variant: "destructive",
         });
         
