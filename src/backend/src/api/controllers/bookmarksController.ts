@@ -833,11 +833,19 @@ export const getBookmarkVoiceAudio = async (req: AuthenticatedRequest, res: Resp
       return res.status(404).json({ message: 'No voice note audio available for this bookmark' });
     }
 
-    // Import the bot to get file link
-    const { telegramBot } = await import('../../services/telegramService');
+    // Get user's bot from telegramBotManager
+    const { telegramBotManager } = await import('../../services/telegramBotManager');
+    const bot = telegramBotManager.getBotForUser(userId);
+    
+    if (!bot) {
+      return res.status(503).json({ 
+        message: 'Telegram bot not available. Please configure your Telegram bot in settings first.' 
+      });
+    }
+
 
     try {
-      const fileLink = await telegramBot.getFileLink(bookmark.voiceNoteAudioFileId);
+      const fileLink = await bot.getFileLink(bookmark.voiceNoteAudioFileId);
 
       // Fetch the audio file from Telegram
       const audioResponse = await axios.get(fileLink, { responseType: 'arraybuffer' });

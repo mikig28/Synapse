@@ -1,15 +1,7 @@
-import TelegramBot from 'node-telegram-bot-api';
 import Task, { ITask } from '../models/Task';
 import User, { IUser } from '../models/User';
 import mongoose from 'mongoose';
-
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-
-if (!TELEGRAM_BOT_TOKEN) {
-  throw new Error('TELEGRAM_BOT_TOKEN is not defined. Task reminder service cannot start.');
-}
-
-const bot = new TelegramBot(TELEGRAM_BOT_TOKEN);
+import { telegramBotManager } from './telegramBotManager';
 
 export interface TaskReminderOptions {
   includeOverdue?: boolean;
@@ -146,6 +138,13 @@ export async function sendTaskReminderToUser(userId: string, options?: TaskRemin
     const tasks = await getTasksForReminder(new mongoose.Types.ObjectId(userId), options);
     const message = formatTasksMessage(tasks);
 
+    // Get user's bot from telegramBotManager
+    const bot = telegramBotManager.getBotForUser(userId);
+    if (!bot) {
+      console.log(`[TaskReminder]: No active bot found for user ${userId}`);
+      return;
+    }
+
     // Send to all monitored chats
     for (const chatId of user.monitoredTelegramChats) {
       try {
@@ -224,4 +223,4 @@ export function initializeTaskReminderScheduler(): void {
   }, getTimeUntilNextReminder());
 
   console.log(`[TaskReminder]: Next reminder scheduled for ${new Date(Date.now() + getTimeUntilNextReminder())}`);
-} 
+}
