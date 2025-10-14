@@ -7,6 +7,7 @@ import WhatsAppImageExtractor, { ImageExtractionResult } from './whatsappImageEx
 import WhatsAppImage, { IWhatsAppImage } from '../models/WhatsAppImage';
 import imageAnalysisService from './imageAnalysisService';
 import { whatsappImageGridFSService } from './whatsappImageGridFSService';
+import WhatsAppSessionManager from './whatsappSessionManager';
 import fs from 'fs/promises';
 import path from 'path';
 import sharp from 'sharp';
@@ -321,6 +322,89 @@ class WhatsAppImageService {
         };
       } catch {
         console.warn(`[WhatsApp Image Service] Image file not found: ${image.localPath}`);
+
+        // Attempt to recover the media by re-downloading it via WAHA
+        try {
+          const sessionManager = WhatsAppSessionManager.getInstance();
+          const wahaService = await sessionManager.getSessionForUser(userId);
+
+          if (!wahaService) {
+            console.warn('[WhatsApp Image Service] ⚠️ No WAHA session available to recover missing image');
+            return null;
+          }
+
+          const downloadResult = await wahaService.downloadMediaDirect(image.messageId, image.chatId);
+
+          if (!downloadResult || !downloadResult.localPath) {
+            console.warn('[WhatsApp Image Service] ⚠️ WAHA could not re-download missing image');
+            return null;
+          }
+
+          const recoveredPath = downloadResult.localPath;
+          const recoveredMime = downloadResult.mimeType || image.mimeType || 'image/jpeg';
+          const fileBuffer = await fs.readFile(recoveredPath);
+          const fileSize = fileBuffer.byteLength;
+
+          let savedToGrid = false;
+          try {
+            const tempMessage: any = {
+              messageId: image.messageId,
+              to: image.chatId,
+              from: image.senderId,
+              timestamp: new Date(),
+              mimeType: recoveredMime,
+              caption: image.caption,
+              metadata: {
+                isGroup: image.isGroup,
+                groupName: image.chatName
+              }
+            };
+
+            const gridfsResult = await whatsappImageGridFSService.saveBufferToGridFS(fileBuffer, tempMessage);
+
+            if (gridfsResult.success && gridfsResult.gridfsId) {
+              image.localPath = `gridfs://${gridfsResult.gridfsId}`;
+              image.mimeType = recoveredMime;
+              image.size = fileSize;
+              image.filename = gridfsResult.filename || path.basename(recoveredPath);
+              image.publicUrl = image.getPublicUrl();
+              await image.save();
+
+              await fs.unlink(recoveredPath).catch(() => null);
+              savedToGrid = true;
+
+              console.log(`[WhatsApp Image Service] 🔄 Recovered image ${image.messageId} and stored in GridFS`);
+
+              return {
+                path: image.localPath,
+                mimeType: image.mimeType,
+                isGridFS: true
+              };
+            }
+          } catch (gridError) {
+            console.warn('[WhatsApp Image Service] ⚠️ Failed to migrate recovered image to GridFS:', gridError);
+          }
+
+          if (!savedToGrid) {
+            image.localPath = recoveredPath;
+            image.mimeType = recoveredMime;
+            image.size = fileSize;
+            image.filename = path.basename(recoveredPath);
+            image.publicUrl = image.getPublicUrl();
+            await image.save();
+
+            console.log(`[WhatsApp Image Service] 🔄 Recovered image ${image.messageId} via WAHA download`);
+
+            return {
+              path: image.localPath,
+              mimeType: image.mimeType,
+              isGridFS: false
+            };
+          }
+        } catch (recoveryError) {
+          console.error('[WhatsApp Image Service] ❌ Error attempting to recover image:', recoveryError);
+        }
+
         return null;
       }
     } catch (error) {
