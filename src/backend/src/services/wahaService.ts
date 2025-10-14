@@ -1980,6 +1980,110 @@ class WAHAService extends EventEmitter {
   }
 
   /**
+   * Request pairing code for phone number authentication
+   * Per WAHA Plus API: POST /api/{session}/auth/request-code
+   * @param sessionName - The session name
+   * @param phoneNumber - The phone number (digits only, no formatting)
+   * @returns Object containing the pairing code
+   */
+  async requestPairingCode(sessionName: string = this.defaultSession, phoneNumber: string): Promise<{ code: string }> {
+    console.log(`[WAHA Service] Requesting pairing code for session '${sessionName}', phone: ${phoneNumber}`);
+
+    try {
+      // Strip all non-digit characters from phone number
+      const cleanPhone = phoneNumber.replace(/[^\d]/g, '');
+
+      if (!cleanPhone || cleanPhone.length < 10) {
+        throw new Error('Invalid phone number. Must be at least 10 digits.');
+      }
+
+      console.log(`[WAHA Service] Sending pairing code request for cleaned phone: ${cleanPhone}`);
+
+      // Per WAHA API docs: POST /api/{session}/auth/request-code
+      const response = await this.httpClient.post(`api/${sessionName}/auth/request-code`, {
+        phoneNumber: cleanPhone
+      });
+
+      console.log(`[WAHA Service] ✅ Pairing code received:`, response.data);
+
+      if (!response.data || !response.data.code) {
+        throw new Error('No pairing code returned from WAHA service');
+      }
+
+      return {
+        code: response.data.code
+      };
+
+    } catch (error: any) {
+      console.error(`[WAHA Service] ❌ Failed to request pairing code for '${sessionName}':`, error);
+      console.error(`[WAHA Service] Error details:`, {
+        status: error?.response?.status,
+        statusText: error?.response?.statusText,
+        data: error?.response?.data
+      });
+
+      // Handle specific error cases
+      if (error?.response?.status === 400) {
+        throw new Error('Invalid phone number format. Please provide phone number with country code.');
+      } else if (error?.response?.status === 404) {
+        throw new Error('Pairing code endpoint not found. This feature may not be supported by your WAHA engine.');
+      } else if (error?.response?.status === 422) {
+        throw new Error('Session is not ready for pairing code. Please ensure session is in SCAN_QR_CODE state.');
+      } else if (error?.response?.status === 501) {
+        throw new Error('Pairing code authentication is not supported by the current WAHA engine. Try using WEBJS engine.');
+      }
+
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to request pairing code: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Verify pairing code (if needed - WAHA may handle this automatically)
+   * Note: WAHA typically handles pairing code verification automatically when the user
+   * enters the code in their WhatsApp app. This method is here for completeness.
+   */
+  async verifyPairingCode(sessionName: string = this.defaultSession, code: string): Promise<{ success: boolean; error?: string }> {
+    console.log(`[WAHA Service] Verifying pairing code for session '${sessionName}'`);
+
+    try {
+      // Check session status to see if pairing was successful
+      const status = await this.getSessionStatus(sessionName);
+
+      if (status.status === 'WORKING') {
+        console.log(`[WAHA Service] ✅ Session authenticated successfully`);
+        return { success: true };
+      } else if (status.status === 'SCAN_QR_CODE') {
+        console.log(`[WAHA Service] ⏳ Session still waiting for pairing code entry`);
+        return {
+          success: false,
+          error: 'Waiting for pairing code to be entered in WhatsApp app'
+        };
+      } else if (status.status === 'FAILED') {
+        console.log(`[WAHA Service] ❌ Session authentication failed`);
+        return {
+          success: false,
+          error: 'Authentication failed. Please request a new pairing code.'
+        };
+      } else {
+        console.log(`[WAHA Service] ⏳ Session in ${status.status} state`);
+        return {
+          success: false,
+          error: `Session is in ${status.status} state. Please wait.`
+        };
+      }
+
+    } catch (error: any) {
+      console.error(`[WAHA Service] ❌ Failed to verify pairing code:`, error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return {
+        success: false,
+        error: `Failed to verify pairing code: ${errorMessage}`
+      };
+    }
+  }
+
+  /**
    * Send text message
    */
   async sendMessage(chatId: string, text: string, sessionName: string = this.defaultSession): Promise<any> {

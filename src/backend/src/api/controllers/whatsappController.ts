@@ -941,39 +941,75 @@ export const forceHistorySync = async (req: Request, res: Response) => {
 export const sendPhoneAuthCode = async (req: Request, res: Response) => {
   try {
     const { phoneNumber } = req.body;
-    
+
     if (!phoneNumber || typeof phoneNumber !== 'string') {
       return res.status(400).json({
         success: false,
         error: 'Phone number is required and must be a string'
       });
     }
-    
-    // Phone pairing is NOT supported by Baileys
-    // Return a clear message explaining this limitation
-    console.log('[WhatsApp] Phone auth requested but not supported by Baileys');
-    
-    return res.status(422).json({
-      success: false,
-      error: 'Phone number pairing is not supported. Please use QR code scanning instead.',
-      message: 'The "Link with phone number" feature only works with official WhatsApp Web. This platform uses Baileys which only supports QR code authentication.',
-      fallbackMethod: 'qr',
-      code: 'PHONE_AUTH_NOT_SUPPORTED',
+
+    console.log('[WhatsApp] Phone auth code requested for:', phoneNumber);
+
+    const whatsappService = getWhatsAppService();
+    const sessionId = process.env.WAHA_DEFAULT_SESSION || 'default';
+
+    // Check if session is ready for pairing code
+    const status = await whatsappService.getStatus();
+    console.log('[WhatsApp] Current session status:', status);
+
+    if (status.status !== 'SCAN_QR_CODE' && status.status !== 'STOPPED') {
+      console.warn('[WhatsApp] Session not in correct state for pairing code:', status.status);
+      return res.status(400).json({
+        success: false,
+        error: `Session must be in SCAN_QR_CODE or STOPPED state. Current state: ${status.status}`,
+        currentStatus: status.status,
+        suggestion: status.status === 'WORKING'
+          ? 'WhatsApp is already connected'
+          : 'Please restart the WhatsApp service first'
+      });
+    }
+
+    // Request pairing code from WAHA Plus
+    const result = await whatsappService.requestPairingCode(sessionId, phoneNumber);
+
+    console.log('[WhatsApp] ✅ Pairing code generated successfully:', result.code);
+
+    return res.json({
+      success: true,
+      code: result.code,
+      message: 'Pairing code generated successfully',
       instructions: [
-        '1. Use the QR code method instead',
-        '2. In WhatsApp, go to Settings > Linked Devices',
+        '1. Open WhatsApp on your phone',
+        '2. Go to Settings > Linked Devices',
         '3. Tap "Link a Device"',
-        '4. DO NOT select "Link with phone number"',
-        '5. Scan the QR code displayed by this platform'
+        '4. Select "Link with phone number instead"',
+        `5. Enter this code: ${result.code}`,
+        '6. Wait for connection confirmation'
       ]
     });
-    
+
   } catch (error: any) {
-    console.error('[WhatsApp] Error in phone auth request:', error);
+    console.error('[WhatsApp] Error requesting phone auth code:', error);
+
+    // Check if it's an engine compatibility issue
+    if (error.message.includes('not supported by the current WAHA engine') ||
+        error.message.includes('endpoint not found')) {
+      return res.status(501).json({
+        success: false,
+        error: 'Phone number pairing is not supported by the current WhatsApp engine',
+        message: 'Your WAHA service is using an engine that does not support pairing codes. Please use QR code authentication or switch to WEBJS engine.',
+        fallbackMethod: 'qr',
+        technicalDetails: error.message,
+        engineRecommendation: 'Set WHATSAPP_DEFAULT_ENGINE=WEBJS in your environment variables'
+      });
+    }
+
     res.status(500).json({
       success: false,
-      error: 'Phone pairing is not supported. Please use QR code authentication.',
-      fallbackMethod: 'qr'
+      error: 'Failed to generate pairing code: ' + error.message,
+      fallbackMethod: 'qr',
+      suggestion: 'Try using QR code authentication instead'
     });
   }
 };
@@ -982,27 +1018,35 @@ export const sendPhoneAuthCode = async (req: Request, res: Response) => {
 export const verifyPhoneAuthCode = async (req: Request, res: Response) => {
   try {
     const { phoneNumber, code } = req.body;
-    
+
     if (!phoneNumber || !code) {
       return res.status(400).json({
         success: false,
         error: 'Phone number and verification code are required'
       });
     }
-    
-    if (typeof code !== 'string' || code.length !== 6) {
+
+    // WAHA pairing codes are typically 8 characters (format: XXXX-XXXX)
+    const cleanCode = code.replace(/[^A-Z0-9]/g, ''); // Remove dashes and special chars
+    if (cleanCode.length < 6 || cleanCode.length > 8) {
       return res.status(400).json({
         success: false,
-        error: 'Verification code must be 6 digits'
+        error: 'Verification code must be 6-8 characters'
       });
     }
-    
+
+    console.log('[WhatsApp] Verifying pairing code for phone:', phoneNumber);
+
     const whatsappService = getWhatsAppService();
-    
-    // Verify the code with WhatsApp
-    const result = await whatsappService.verifyPhoneCode(phoneNumber, code);
-    
+    const sessionId = process.env.WAHA_DEFAULT_SESSION || 'default';
+
+    // WAHA handles pairing code verification automatically when user enters code in WhatsApp app
+    // We just need to check if the session is now authenticated
+    const result = await whatsappService.verifyPairingCode(sessionId, cleanCode);
+
     if (result.success) {
+      console.log('[WhatsApp] ✅ Session authenticated successfully via pairing code');
+
       // Emit connection status update to frontend
       const io_instance = (global as any).io;
       if (io_instance) {
@@ -1013,26 +1057,32 @@ export const verifyPhoneAuthCode = async (req: Request, res: Response) => {
           phoneNumber: phoneNumber
         });
       }
-      
+
       res.json({
         success: true,
         message: 'Phone verification successful - WhatsApp connected',
         data: {
           authenticated: true,
-          phoneNumber: phoneNumber
+          phoneNumber: phoneNumber,
+          sessionStatus: 'WORKING'
         }
       });
     } else {
-      res.status(400).json({
+      console.log('[WhatsApp] ⏳ Pairing code verification pending:', result.error);
+      res.status(202).json({
         success: false,
-        error: result.error || 'Invalid verification code'
+        pending: true,
+        error: result.error || 'Verification in progress',
+        message: 'Please enter the pairing code in your WhatsApp app and wait for connection',
+        suggestion: 'Check status again in a few seconds'
       });
     }
   } catch (error: any) {
     console.error('[WhatsApp] Error verifying phone auth code:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to verify code: ' + error.message
+      error: 'Failed to verify code: ' + error.message,
+      suggestion: 'Please try requesting a new pairing code'
     });
   }
 }; 
