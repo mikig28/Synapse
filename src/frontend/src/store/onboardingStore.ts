@@ -354,8 +354,21 @@ export const useOnboardingStore = create<OnboardingState>()(
       currentTip: undefined,
 
       startOnboarding: () => {
-        const steps = normalizeStepUnlocks(createDefaultSteps(), []);
-        const progress = createInitialProgress(steps.length);
+        const state = get();
+        const defaultSteps = createDefaultSteps();
+        // Merge with cached data to preserve completion status
+        const mergedSteps = defaultSteps.map((defaultStep) => {
+          const cachedStep = state.steps.find((s) => s.id === defaultStep.id);
+          return {
+            ...defaultStep,
+            completed: cachedStep?.completed ?? defaultStep.completed,
+          };
+        });
+        const steps = normalizeStepUnlocks(mergedSteps, state.progress.skippedSteps);
+        const progress = {
+          ...state.progress,
+          totalSteps: steps.length,
+        };
 
         set({
           isOnboarding: true,
@@ -384,7 +397,16 @@ export const useOnboardingStore = create<OnboardingState>()(
         ]);
 
         const nextIntegrationStatus = createInitialIntegrationStatus();
-        const updatedSteps = normalizeStepUnlocks([...get().steps], get().progress.skippedSteps);
+        // Merge cached steps with fresh defaults to get updated optional flags
+        const defaultSteps = createDefaultSteps();
+        const mergedSteps = defaultSteps.map((defaultStep) => {
+          const cachedStep = state.steps.find((s) => s.id === defaultStep.id);
+          return {
+            ...defaultStep,
+            completed: cachedStep?.completed ?? defaultStep.completed,
+          };
+        });
+        const updatedSteps = normalizeStepUnlocks(mergedSteps, get().progress.skippedSteps);
         const errors: string[] = [];
 
         // Telegram status

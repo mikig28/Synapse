@@ -26,7 +26,7 @@ export interface IWhatsAppImage extends Document {
   };
   
   // Extraction details
-  extractionMethod: 'puppeteer' | 'waha-plus';
+  extractionMethod: 'puppeteer' | 'waha-plus' | 'waha-download';
   extractedAt: Date;
   extractedBy: mongoose.Types.ObjectId; // User who triggered the extraction
   
@@ -130,7 +130,7 @@ const WhatsAppImageSchema: Schema<IWhatsAppImage> = new Schema(
     // Extraction details
     extractionMethod: {
       type: String,
-      enum: ['puppeteer', 'waha-plus'],
+      enum: ['puppeteer', 'waha-plus', 'waha-download'],
       required: true,
       default: 'puppeteer'
     },

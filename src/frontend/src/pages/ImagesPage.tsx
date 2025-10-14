@@ -59,7 +59,7 @@ interface WhatsAppImage {
     width: number;
     height: number;
   };
-  extractionMethod: 'puppeteer' | 'waha-plus';
+  extractionMethod: 'puppeteer' | 'waha-plus' | 'waha-download';
   extractedAt: string;
   isGroup: boolean;
   status: 'extracted' | 'processing' | 'failed';
