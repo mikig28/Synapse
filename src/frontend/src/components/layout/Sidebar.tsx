@@ -452,11 +452,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
       
       {/* Footer section */}
       {isSidebarOpen && (
-        <motion.div 
+        <motion.div
           className="px-4 pt-2 pb-4 border-t border-white/10 flex-shrink-0"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: navItems.length * 0.05 + 0.2 }}
+          transition={{ delay: coreItems.length * 0.05 + 0.2 }}
         >
           <p className="text-xs text-center text-gray-500">Synapse v0.1.0</p>
         </motion.div>
