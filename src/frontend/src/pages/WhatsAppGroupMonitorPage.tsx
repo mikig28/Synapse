@@ -393,7 +393,7 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
     targetPersons: [] as string[],
     settings: {
       notifyOnMatch: true,
-      saveAllImages: false,
+      saveAllImages: true, // Changed default to true so images are saved by default
       confidenceThreshold: 0.7,
       autoReply: false,
       replyMessage: '',
@@ -739,7 +739,7 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
           targetPersons: [],
           settings: {
             notifyOnMatch: true,
-            saveAllImages: false,
+            saveAllImages: true, // Changed default to true
             confidenceThreshold: 0.7,
             autoReply: false,
             replyMessage: '',
@@ -2533,8 +2533,13 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                         />
                       </div>
                       
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-white">Save all images</span>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <span className="text-sm text-white">Save all images</span>
+                          <p className="text-xs text-blue-200/70 mt-1">
+                            Automatically download and save all images from this group to your Images page
+                          </p>
+                        </div>
                         <Switch
                           checked={monitorForm.settings.saveAllImages}
                           onCheckedChange={(checked) => setMonitorForm(prev => ({
