@@ -216,7 +216,7 @@ export const getQR = async (req: AuthenticatedRequest, res: Response) => {
     console.log(`[WAHA Controller] QR code request received for user ${userId}`);
     const wahaService = await getWAHAServiceForUser(userId);
     const force = String(req.query.force || '').toLowerCase() === 'true';
-    
+
     // Check service health first
     try {
       await wahaService.healthCheck();
@@ -229,10 +229,38 @@ export const getQR = async (req: AuthenticatedRequest, res: Response) => {
         suggestion: 'Try restarting the WAHA service'
       });
     }
-    
+
+    // Check session status and auto-restart if FAILED
+    try {
+      const sessionStatus = await wahaService.getSessionStatus();
+      console.log(`[WAHA Controller] Current session status: ${sessionStatus.status}`);
+
+      if (sessionStatus.status === 'FAILED') {
+        console.log('[WAHA Controller] Session in FAILED state, attempting automatic restart...');
+        const sessionManager = getSessionManager();
+        await sessionManager.restartSessionForUser(userId);
+
+        // Wait a moment for session to initialize
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        const newStatus = await wahaService.getSessionStatus();
+        console.log(`[WAHA Controller] Session status after restart: ${newStatus.status}`);
+
+        if (newStatus.status !== 'SCAN_QR_CODE' && newStatus.status !== 'WORKING') {
+          return res.status(422).json({
+            success: false,
+            error: 'Session restart in progress. Please wait a moment and try again.',
+            sessionStatus: newStatus.status
+          });
+        }
+      }
+    } catch (statusError) {
+      console.warn('[WAHA Controller] Could not check/restart session status:', statusError);
+    }
+
     const qrDataUrl = await wahaService.getQRCode(undefined, force);
     console.log('[WAHA Controller] ✅ QR code generated successfully');
-    
+
     res.json({
       success: true,
       data: {
@@ -242,11 +270,11 @@ export const getQR = async (req: AuthenticatedRequest, res: Response) => {
     });
   } catch (error) {
     console.error('[WAHA Controller] ❌ Error getting QR code:', error);
-    
+
     // Provide more specific error messages based on the error type
     let statusCode = 500;
     let userMessage = 'Failed to generate QR code';
-    
+
     if (error instanceof Error) {
       if (error.message.includes('not ready') || error.message.includes('422')) {
         statusCode = 422;
@@ -260,9 +288,12 @@ export const getQR = async (req: AuthenticatedRequest, res: Response) => {
       } else if (error.message.includes('429') || error.message.toLowerCase().includes('too many')) {
         statusCode = 429;
         userMessage = 'Too many linking attempts. Please wait a minute and try again.';
+      } else if (error.message.includes('FAILED') || error.message.includes('status is not as expected')) {
+        statusCode = 422;
+        userMessage = 'Session is restarting. Please wait a moment and try again.';
       }
     }
-    
+
     res.status(statusCode).json({
       success: false,
       error: userMessage,
