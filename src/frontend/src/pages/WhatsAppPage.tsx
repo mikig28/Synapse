@@ -102,7 +102,7 @@ const WhatsAppPage: React.FC = () => {
   const [showAuth, setShowAuth] = useState(false);
   const [authMethod, setAuthMethod] = useState<'qr' | 'phone'>('qr');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [verificationCode, setVerificationCode] = useState('');
+  // Note: verificationCode removed - WAHA uses pairing codes entered directly in WhatsApp
   const [isWaitingForCode, setIsWaitingForCode] = useState(false);
   const [phoneAuthStep, setPhoneAuthStep] = useState<'phone' | 'code'>('phone');
   const [phoneAuthSupported, setPhoneAuthSupported] = useState(true);
@@ -331,10 +331,25 @@ const WhatsAppPage: React.FC = () => {
         // Check if we just became authenticated (polling fallback)
         if (!prevAuthenticated && status?.authenticated) {
           console.log('[WhatsApp Status Polling] Authentication detected, attempting to load chats...');
-          toast({
-            title: "WhatsApp Connected",
-            description: "Authentication successful! Loading your chats...",
-          });
+          
+          // Check if this was phone authentication and clean up UI
+          if (pairingCode) {
+            setShowAuth(false);
+            setPairingCode(null);
+            setPhoneAuthStep('phone');
+            setPhoneNumber('');
+            setIsWaitingForCode(false);
+            
+            toast({
+              title: "Phone Authentication Successful",
+              description: "WhatsApp connected via pairing code! Loading your chats...",
+            });
+          } else {
+            toast({
+              title: "WhatsApp Connected",
+              description: "Authentication successful! Loading your chats...",
+            });
+          }
 
           // Attempt to fetch data with a small delay
           setTimeout(async () => {
@@ -1553,7 +1568,7 @@ const WhatsAppPage: React.FC = () => {
     setPhoneAuthStep('phone');
     setIsWaitingForCode(false);
     setPhoneNumber('');
-    setVerificationCode('');
+    // verificationCode state variable removed per WAHA docs
     setPairingCode(null);
     setPhoneAuthSupported(true); // Reset phone auth support when opening modal
     
@@ -1635,7 +1650,7 @@ const WhatsAppPage: React.FC = () => {
         setPhoneAuthSupported(false); // Disable phone auth option
         toast({
           title: "Phone Authentication Not Available",
-          description: "Phone authentication isn't supported by the WhatsApp service. Switching to QR code method...",
+          description: "Phone authentication isn't supported by the current WhatsApp configuration. Please use QR code method instead.",
           variant: "destructive",
         });
         
@@ -1659,9 +1674,15 @@ const WhatsAppPage: React.FC = () => {
         }, 2000);
         
       } else {
+        // Handle authentication/configuration errors
+        const is401Error = error.response?.status === 401;
+        const errorMessage = is401Error 
+          ? "WhatsApp service authentication error. Please contact administrator to configure WAHA_API_KEY."
+          : (errorData?.error || "Failed to request pairing code. Please try QR code authentication instead.");
+        
         toast({
-          title: "Error",
-          description: errorData?.error || "Failed to send verification code. Please try QR code authentication instead.",
+          title: is401Error ? "Configuration Error" : "Error",
+          description: errorMessage,
           variant: "destructive",
         });
         
@@ -1674,68 +1695,9 @@ const WhatsAppPage: React.FC = () => {
     }
   };
 
-  const verifyPhoneAuth = async () => {
-    if (!verificationCode.trim() && !pairingCode) {
-      toast({
-        title: 'Error',
-        description: 'Please enter the verification code',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    try {
-      // Try WAHA endpoint first, then fallback to legacy
-      let response: any;
-      let usedService: 'waha' | 'baileys' = 'waha';
-      const codeToUse = (verificationCode || pairingCode || '').trim();
-      
-      try {
-        console.log('🚀 Verifying phone code via WAHA /waha/auth/verify...');
-        response = await api.post('/waha/auth/verify', {
-          phoneNumber: phoneNumber.replace(/\D/g, ''),
-          code: codeToUse
-        });
-        console.log('✅ Phone verification successful via WAHA');
-      } catch (wahaError: any) {
-        console.error('❌ WAHA phone verification failed, trying legacy endpoint:', wahaError);
-        
-        // Try legacy endpoint as fallback
-        console.log('⚠️ Falling back to legacy endpoint /whatsapp-legacy/auth/verify...');
-        response = await api.post('/whatsapp-legacy/auth/verify', {
-          phoneNumber: phoneNumber.replace(/\D/g, ''),
-          code: codeToUse
-        });
-        usedService = 'baileys';
-        console.log('✅ Phone verification successful via Baileys (legacy)');
-      }
-
-      if (response.data.success) {
-        setShowAuth(false);
-        setIsWaitingForCode(false);
-        toast({
-          title: "Authentication Successful",
-          description: `WhatsApp connected successfully via phone number (using ${usedService === 'waha' ? 'WAHA Modern' : 'Baileys Legacy'})`,
-        });
-        // Refresh status after successful auth
-        setTimeout(fetchStatus, 2000);
-        setPairingCode(null);
-      } else {
-        toast({
-          title: "Verification Failed",
-          description: response.data.error || "Invalid verification code",
-          variant: "destructive",
-        });
-      }
-    } catch (error: any) {
-      console.error('Error verifying phone auth:', error);
-      toast({
-        title: "Error",
-        description: error.response?.data?.error || "Failed to verify code",
-        variant: "destructive",
-      });
-    }
-  };
+  // Note: According to WAHA documentation, pairing codes should be entered directly in WhatsApp
+  // The connection will be detected automatically by our existing status polling mechanism
+  // No manual verification function is needed per WAHA Plus documentation
 
   const fetchQRCode = async (force = false) => {
     try {
@@ -3932,6 +3894,9 @@ const WhatsAppPage: React.FC = () => {
                                 <div className="flex items-center justify-center gap-2 text-blue-200/70 text-sm">
                                   <RefreshCw className="w-4 h-4 animate-spin" />
                                   <span>Waiting for WhatsApp connection...</span>
+                                </div>
+                                <div className="text-xs text-blue-200/50 mt-2">
+                                  After entering the code in WhatsApp, the connection will be detected automatically
                                 </div>
                               </div>
 
