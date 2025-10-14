@@ -2305,6 +2305,9 @@ export const forceNOWEBEngine = async (req: AuthenticatedRequest, res: Response)
       });
     }
     
+    // Force delete and recreate with NOWEB
+    console.log('[WAHA Controller] 🗑️ Deleting existing session to force NOWEB engine...');
+    
     // Use the existing recreateSessionWithEngine method to force NOWEB
     console.log('[WAHA Controller] 🔄 Recreating session with NOWEB engine using public method...');
     
@@ -2319,25 +2322,6 @@ export const forceNOWEBEngine = async (req: AuthenticatedRequest, res: Response)
       // Use the public recreateSessionWithEngine method which handles cleanup and recreation
       await wahaService.recreateSessionWithEngine();
       
-      // Wait for initialization
-      await new Promise(resolve => setTimeout(resolve, 10000));
-      
-      // Check new status
-      const newStatus = await wahaService.getSessionStatus();
-      console.log(`[WAHA Controller] ✅ New session status: ${newStatus.status}, Engine: ${newStatus?.engine?.engine}`);
-      
-      res.json({
-        success: true,
-        message: 'Successfully switched to NOWEB engine',
-        data: {
-          engine: newStatus?.engine?.engine || 'NOWEB',
-          status: newStatus.status,
-          action: 'recreated_with_noweb',
-          previousEngine: currentStatus?.engine?.engine || 'unknown',
-          note: 'NOWEB engine is lightweight and does not use Puppeteer/Chrome'
-        }
-      });
-      
     } finally {
       // Restore original engine setting
       if (originalEngine) {
@@ -2346,6 +2330,25 @@ export const forceNOWEBEngine = async (req: AuthenticatedRequest, res: Response)
         delete process.env.WAHA_ENGINE;
       }
     }
+    
+    // Wait for initialization
+    await new Promise(resolve => setTimeout(resolve, 10000));
+    
+    // Check new status
+    const newStatus = await wahaService.getSessionStatus();
+    console.log(`[WAHA Controller] ✅ New session status: ${newStatus.status}, Engine: ${newStatus?.engine?.engine}`);
+    
+    res.json({
+      success: true,
+      message: 'Successfully switched to NOWEB engine',
+      data: {
+        engine: newStatus?.engine?.engine || 'NOWEB',
+        status: newStatus.status,
+        action: 'recreated_with_noweb',
+        previousEngine: currentStatus?.engine?.engine || 'unknown',
+        note: 'NOWEB engine is lightweight and does not use Puppeteer/Chrome'
+      }
+    });
     
   } catch (error: any) {
     console.error('[WAHA Controller] ❌ Error switching to NOWEB engine:', error);
