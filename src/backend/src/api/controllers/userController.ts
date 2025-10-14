@@ -345,9 +345,9 @@ export const testTelegramBotConnectivity = async (req: AuthenticatedRequest, res
           botId: botInfo.id,
           username: botInfo.username,
           firstName: botInfo.first_name,
-          canJoinGroups: botInfo.can_join_groups,
-          canReadAllGroupMessages: botInfo.can_read_all_group_messages,
-          supportsInlineQueries: botInfo.supports_inline_queries,
+          canJoinGroups: (botInfo as any).can_join_groups,
+          canReadAllGroupMessages: (botInfo as any).can_read_all_group_messages,
+          supportsInlineQueries: (botInfo as any).supports_inline_queries,
         }
       });
     } catch (botError: any) {

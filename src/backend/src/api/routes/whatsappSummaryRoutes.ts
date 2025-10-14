@@ -6,10 +6,7 @@ import {
   generateTodaySummary,
   getAvailableDateRanges,
   getGroupSummaryStats,
-  debugMessages,
-  getRecentSummaries,
-  getSummaryById,
-  debugDatabaseContent
+  debugMessages
 } from '../controllers/whatsappSummaryController';
 import {
   getSchedules as getSummarySchedules,
@@ -34,9 +31,9 @@ router.get('/groups', getAvailableGroups);
 router.get('/groups/:groupId/stats', getGroupSummaryStats);
 router.get('/groups/:groupId/date-ranges', getAvailableDateRanges);
 
-// Summary retrieval routes
-router.get('/summaries/recent', getRecentSummaries);
-router.get('/summaries/:id', getSummaryById);
+// Summary retrieval routes (TODO: Implement missing functions)
+// router.get('/summaries/recent', getRecentSummaries);
+// router.get('/summaries/:id', getSummaryById);
 
 // Message retrieval routes
 router.get('/groups/:groupId/messages', getGroupMessages);
@@ -57,7 +54,8 @@ router.post('/generate-today', generateTodaySummary);
 // Debug routes (only in non-production environments)
 if (process.env.NODE_ENV !== 'production') {
   router.get('/debug/messages', debugMessages);
-  router.get('/debug/database', debugDatabaseContent);
+  // TODO: Implement debugDatabaseContent function
+  // router.get('/debug/database', debugDatabaseContent);
 }
 
 export default router;

@@ -2097,4 +2097,15 @@ Using fallback test crew to demonstrate dashboard functionality.`);
       validationRules
     };
   }
+
+  private normalizeUrl(url: string): string {
+    if (!url || typeof url !== 'string') return '';
+    try {
+      // Remove trailing slashes and normalize the URL
+      const normalizedUrl = new URL(url);
+      return normalizedUrl.toString().replace(/\/$/, '');
+    } catch (_) {
+      return url; // Return as-is if URL parsing fails
+    }
+  }
 }
