@@ -3838,7 +3838,7 @@ class WAHAService extends EventEmitter {
       const WhatsAppImage = require('../models/WhatsAppImage').default;
       const GroupMonitor = require('../models/GroupMonitor').default;
       
-      console.log('[WAHA Service] 📸 Saving image to WhatsAppImage database:', {
+      console.log('[WAHA Service] 📸 Attempting to save image to WhatsAppImage database:', {
         messageId: messageData.messageId,
         chatId: messageData.chatId,
         localPath: messageData.localPath,
@@ -3863,12 +3863,72 @@ class WAHAService extends EventEmitter {
         return;
       }
 
+      // Check if saveAllImages is enabled for this monitor
+      if (!monitor.settings?.saveAllImages) {
+        console.log('[WAHA Service] ⏭️  Skipping image save - saveAllImages is disabled for this monitor');
+        return;
+      }
+
+      console.log('[WAHA Service] ✅ saveAllImages enabled for monitor - proceeding with save');
+
       const user = monitor.userId;
       console.log('[WAHA Service] ✅ Found monitoring user:', user.email, 'for group:', messageData.chatName);
 
       // Extract filename from localPath
       const path = require('path');
       const filename = path.basename(messageData.localPath);
+
+      // Determine if image is in GridFS or local storage
+      const isGridFS = messageData.localPath.startsWith('gridfs://');
+      let finalPath = messageData.localPath;
+      let finalSize = messageData.fileSize || 0;
+
+      // If not in GridFS, try to migrate it
+      if (!isGridFS) {
+        console.log('[WAHA Service] 💾 Image not in GridFS, attempting migration for permanent storage');
+        try {
+          const fs = require('fs');
+          const { whatsappImageGridFSService } = require('./whatsappImageGridFSService');
+          
+          // Read file from local storage
+          if (fs.existsSync(messageData.localPath)) {
+            const imageBuffer = fs.readFileSync(messageData.localPath);
+            
+            // Save to GridFS
+            const tempMessage: any = {
+              messageId: messageData.messageId,
+              to: messageData.chatId,
+              from: messageData.senderId,
+              timestamp: new Date(),
+              mimeType: messageData.mimeType || 'image/jpeg',
+              caption: messageData.caption,
+              metadata: {
+                isGroup: messageData.isGroup,
+                groupName: messageData.chatName
+              }
+            };
+
+            const gridfsResult = await whatsappImageGridFSService.saveBufferToGridFS(imageBuffer, tempMessage);
+            
+            if (gridfsResult.success && gridfsResult.gridfsId) {
+              finalPath = `gridfs://${gridfsResult.gridfsId}`;
+              finalSize = imageBuffer.byteLength;
+              console.log('[WAHA Service] ✅ Image migrated to GridFS successfully');
+              
+              // Clean up local file
+              try {
+                fs.unlinkSync(messageData.localPath);
+                console.log('[WAHA Service] 🧹 Cleaned up local file after GridFS migration');
+              } catch (cleanupError) {
+                console.warn('[WAHA Service] ⚠️ Could not delete local file after migration:', cleanupError);
+              }
+            }
+          }
+        } catch (migrationError) {
+          console.error('[WAHA Service] ❌ GridFS migration failed, using local path:', migrationError);
+          // Continue with local path as fallback
+        }
+      }
 
       // Create image record
       const imageDoc = {
@@ -3880,10 +3940,10 @@ class WAHAService extends EventEmitter {
         senderName: messageData.senderName,
         caption: messageData.caption,
         filename: filename,
-        localPath: messageData.localPath,
-        size: messageData.fileSize || 0,
+        localPath: finalPath, // Use GridFS path if migrated
+        size: finalSize,
         mimeType: messageData.mimeType || 'image/jpeg',
-        extractionMethod: 'waha-plus',
+        extractionMethod: 'waha-download', // Changed from 'waha-plus' to be more accurate
         extractedAt: new Date(),
         extractedBy: user._id,
         isGroup: Boolean(messageData.isGroup),
