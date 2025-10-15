@@ -15,9 +15,12 @@ import { transcribeAudio } from './transcriptionService';
 import { analyzeTranscription } from './analysisService';
 import { locationExtractionService } from './locationExtractionService';
 import { whatsappImageGridFSService } from './whatsappImageGridFSService';
+import { bookmarkVoiceMemoAnalysisService } from './bookmarkVoiceMemoAnalysisService';
+import { reminderService } from './reminderService';
 import Task from '../models/Task';
 import Note from '../models/Note';
 import Idea from '../models/Idea';
+import mongoose from 'mongoose';
 import { io } from '../server';
 
 export interface WAHAMessage {
@@ -4998,6 +5001,67 @@ class WAHAService extends EventEmitter {
         }
       }
 
+      // ===== REMINDER ANALYSIS =====
+      console.log('[WAHA Service] 🎙️ ==================== REMINDER ANALYSIS ====================');
+      console.log('[WAHA Service] 🎙️ Analyzing voice transcription for reminder intent...');
+      console.log('[WAHA Service] 🎙️ Transcription:', transcription);
+
+      let reminderAnalysis = null;
+      let reminderId: string | undefined;
+
+      try {
+        reminderAnalysis = await bookmarkVoiceMemoAnalysisService.analyze(transcription);
+        console.log('[WAHA Service] 🎙️ Reminder analysis result:', {
+          hasReminder: reminderAnalysis.hasReminder,
+          reminderTime: reminderAnalysis.reminderTime?.toISOString(),
+          reminderMessage: reminderAnalysis.reminderMessage,
+          temporalExpression: reminderAnalysis.temporalExpression,
+          tags: reminderAnalysis.tags,
+          priority: reminderAnalysis.priority,
+          confidence: reminderAnalysis.confidence
+        });
+
+        // Create reminder if detected
+        if (reminderAnalysis.hasReminder && reminderAnalysis.reminderTime) {
+          console.log('[WAHA Service] 🎙️ Creating reminder for time:', reminderAnalysis.reminderTime.toISOString());
+
+          // Create reminder for each monitor
+          for (const monitor of eligibleMonitors) {
+            try {
+              const reminder = await reminderService.createReminder({
+                userId: monitor.userId,
+                scheduledFor: reminderAnalysis.reminderTime,
+                reminderMessage: reminderAnalysis.reminderMessage || transcription,
+                whatsappChatId: targetChatId,
+                extractedTags: reminderAnalysis.tags,
+                extractedNotes: reminderAnalysis.notes,
+                priority: reminderAnalysis.priority,
+                temporalExpression: reminderAnalysis.temporalExpression
+              });
+
+              reminderId = reminder._id.toString();
+              console.log('[WAHA Service] 🎙️ ✅ Reminder created:', {
+                reminderId,
+                userId: monitor.userId.toString(),
+                scheduledFor: reminderAnalysis.reminderTime.toISOString()
+              });
+            } catch (reminderError) {
+              console.error('[WAHA Service] 🎙️ Failed to create reminder:', {
+                monitorId: monitor._id,
+                error: (reminderError as Error).message
+              });
+            }
+          }
+        }
+      } catch (reminderAnalysisError) {
+        console.error('[WAHA Service] 🎙️ Reminder analysis failed:', {
+          error: (reminderAnalysisError as Error).message
+        });
+        // Continue with normal processing even if reminder analysis fails
+      }
+
+      console.log('[WAHA Service] 🎙️ =================================================================');
+
       console.log('[WAHA Service] 🎙️ Analyzing transcription for tasks/notes/ideas...');
       const { tasks = [], notes = [], ideas = [] } = await analyzeTranscription(transcription);
       console.log('[WAHA Service] 🎙️ Analysis complete:', {
@@ -5118,6 +5182,36 @@ class WAHAService extends EventEmitter {
         });
 
         let summaryMessage = isHebrew ? 'ההודעה נותחה:' : 'Voice memo processed:';
+
+        // Add reminder information if detected
+        if (reminderAnalysis && reminderAnalysis.hasReminder && reminderAnalysis.reminderTime) {
+          const dateStr = reminderAnalysis.reminderTime.toLocaleString(isHebrew ? 'he-IL' : 'en-US', {
+            dateStyle: 'short',
+            timeStyle: 'short'
+          });
+
+          if (isHebrew) {
+            summaryMessage += `\n\n🔔 *תזכורת נקבעה ל-${dateStr}*`;
+            if (reminderAnalysis.reminderMessage) {
+              summaryMessage += `\n💬 ${reminderAnalysis.reminderMessage}`;
+            }
+            if (reminderAnalysis.tags && reminderAnalysis.tags.length > 0) {
+              summaryMessage += `\n🏷️ תגיות: ${reminderAnalysis.tags.join(', ')}`;
+            }
+            summaryMessage += `\n⚡ עדיפות: ${reminderAnalysis.priority}`;
+          } else {
+            summaryMessage += `\n\n🔔 *Reminder set for ${dateStr}*`;
+            if (reminderAnalysis.reminderMessage) {
+              summaryMessage += `\n💬 ${reminderAnalysis.reminderMessage}`;
+            }
+            if (reminderAnalysis.tags && reminderAnalysis.tags.length > 0) {
+              summaryMessage += `\n🏷️ Tags: ${reminderAnalysis.tags.join(', ')}`;
+            }
+            summaryMessage += `\n⚡ Priority: ${reminderAnalysis.priority}`;
+          }
+          summaryMessage += '\n';
+        }
+
         if (tasks.length > 0) {
           summaryMessage += isHebrew ? `\n- נוספו ${tasks.length} משימות.` : `\n- Added ${tasks.length} tasks.`;
         }
