@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
+import { GlobalMobileNav } from './GlobalMobileNav';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -115,6 +116,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           className="flex flex-col relative transition-all duration-300 ease-in-out w-full min-h-screen"
           style={{
             marginLeft: isMobile ? '0' : (isSidebarOpen ? '256px' : '80px'),
+            paddingBottom: isMobile ? '80px' : '0', // Add padding for mobile bottom nav
             flexGrow: 1,
             flexShrink: 1,
             minWidth: 0
@@ -137,6 +139,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </AnimatePresence>
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      {isMobile && <GlobalMobileNav onMenuClick={toggleSidebar} />}
     </div>
   );
 };

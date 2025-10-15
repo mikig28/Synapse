@@ -4,6 +4,7 @@ import { useDigest } from '../context/DigestContext';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { SkeletonText } from '@/components/ui/Skeleton';
+import { ContextualHelp } from '@/components/ui/ContextualHelp';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { Zap, AlertCircle, FileText, ExternalLink as LinkIcon, TrendingUp, Users, Calendar, BarChart3, Volume2, XCircle, HardDrive, Bookmark, Play, MessageSquare, Download, Loader2, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -491,13 +492,18 @@ const DashboardPage: React.FC = () => {
                   transition={{ duration: 0.5 }}
                   className="flex items-center justify-between mb-4 gap-2 overflow-x-hidden max-w-full"
                 >
-                  <div className="flex items-center flex-1 min-w-0 overflow-hidden">
-                    <div className="p-2 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full mr-3 flex-shrink-0">
+                  <div className="flex items-center flex-1 min-w-0 overflow-hidden gap-2">
+                    <div className="p-2 bg-gradient-to-br from-primary/20 to-accent/20 rounded-full flex-shrink-0">
                       <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
                     </div>
                     <h3 className="text-lg sm:text-xl font-semibold gradient-text truncate min-w-0">
                       Latest Bookmarks Digest
                     </h3>
+                    <ContextualHelp
+                      title="Bookmarks Digest"
+                      content="AI-generated summary of your recently saved bookmarks. Click 'Generate Digest' to create a new summary or use Read Aloud to listen."
+                      side="bottom"
+                    />
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <Button variant="ghost" size="icon" onClick={handleReadAloud} title={isSpeaking ? "Stop Reading" : "Read Aloud"} className="flex-shrink-0">
@@ -571,6 +577,10 @@ const DashboardPage: React.FC = () => {
                   <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
                     <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
                     <h3 className="text-base sm:text-lg font-semibold truncate min-w-0">Recent WhatsApp Summaries</h3>
+                    <ContextualHelp
+                      content="Daily summaries of your monitored WhatsApp groups. View participant insights, top keywords, and conversation highlights."
+                      side="bottom"
+                    />
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold">
                       {recentSummaries.length}
                     </span>
@@ -805,6 +815,10 @@ const DashboardPage: React.FC = () => {
                     <div className="flex items-center gap-2 text-left min-w-0 overflow-hidden">
                       <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-primary flex-shrink-0" />
                       <h3 className="text-sm sm:text-base lg:text-lg font-semibold truncate min-w-0">Intelligence Hub</h3>
+                      <ContextualHelp
+                        content="Monitor AI agent performance and track your usage patterns. View real-time analytics and billing information."
+                        side="bottom"
+                      />
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-semibold uppercase tracking-wider">Advanced</span>
                     </div>
                     <span className="hidden text-xs text-muted-foreground lg:inline whitespace-nowrap flex-shrink-0">Monitor • Track</span>
