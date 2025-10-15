@@ -4588,10 +4588,25 @@ class WAHAService extends EventEmitter {
         }
       }
 
+      // Extract chatId from messageId if not provided (format: true_CHATID_MSGID_PARTICIPANTID)
+      let extractedChatId = messageData.chatId;
+      if (!extractedChatId && messageData.id) {
+        const parts = messageData.id.split('_');
+        if (parts.length >= 2) {
+          // The chat ID is typically the second part before the message-specific ID
+          const potentialChatId = parts[1];
+          if (potentialChatId && (potentialChatId.includes('@g.us') || potentialChatId.includes('@c.us'))) {
+            extractedChatId = potentialChatId;
+            console.log('[WAHA Service] 📍 Extracted chatId from messageId:', extractedChatId);
+          }
+        }
+      }
+
       // Prepare base message data for frontend
       const baseMessageData = {
         messageId: messageData.id,
-        chatId: messageData.chatId,
+        chatId: extractedChatId,
+        groupId: extractedChatId && extractedChatId.endsWith('@g.us') ? extractedChatId : undefined,
         chatName: messageData.isGroup ? messageData.groupName : messageData.contactName,
         senderId: messageData.from,
         senderName: messageData.contactName || messageData.from,
