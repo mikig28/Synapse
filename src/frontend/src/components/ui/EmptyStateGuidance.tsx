@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { GlassCard } from './glass-card';
+import { GlassCard } from './GlassCard';
 import { Button } from './button';
 
 interface EmptyStateAction {
