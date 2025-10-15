@@ -227,8 +227,8 @@ export class WhatsAppMediaService extends EventEmitter {
    */
   private generateFilename(mediaInfo: MediaFileInfo, messageId: string, chatId: string): string {
     const timestamp = Date.now();
-    const sanitizedChatId = chatId.replace(/[^a-zA-Z0-9]/g, '_');
-    const sanitizedMessageId = messageId.replace(/[^a-zA-Z0-9]/g, '_');
+    const sanitizedChatId = chatId ? chatId.replace(/[^a-zA-Z0-9]/g, '_') : 'unknown';
+    const sanitizedMessageId = messageId ? messageId.replace(/[^a-zA-Z0-9]/g, '_') : 'unknown';
 
     let extension = '';
 
@@ -249,7 +249,7 @@ export class WhatsAppMediaService extends EventEmitter {
     }
 
     // Use original filename if available, otherwise generate one
-    if (mediaInfo.filename) {
+    if (mediaInfo.filename && typeof mediaInfo.filename === 'string') {
       const sanitizedFilename = mediaInfo.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
       return `${timestamp}_${sanitizedMessageId}_${sanitizedFilename}`;
     } else {
