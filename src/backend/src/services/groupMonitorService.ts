@@ -378,6 +378,23 @@ class GroupMonitorService {
                     monitorId: monitor._id.toString(),
                   },
                 });
+
+                // Send feedback message if enabled
+                if (monitor.settings?.sendFeedbackMessages) {
+                  const urlCount = urlsToProcess.length;
+                  const feedbackMessage = urlCount === 1
+                    ? '🔖 קישור נשמר!\n\n🔖 Link bookmarked!'
+                    : `🔖 ${urlCount} קישורים נשמרו!\n\n🔖 ${urlCount} links bookmarked!`;
+
+                  await this.sendFeedbackMessage(
+                    monitor.userId?.toString(),
+                    normalizedGroupId,
+                    feedbackMessage,
+                    'Bookmark'
+                  );
+                }
+
+                console.log(`[GroupMonitorService] ✅ ${urlsToProcess.length} bookmark(s) processed for monitor ${monitor._id}`);
               } catch (bookmarkError) {
                 console.error(`[GroupMonitorService] ❌ Bookmark processing failed for monitor ${monitor._id}:`, bookmarkError);
               }
@@ -475,6 +492,22 @@ class GroupMonitorService {
         if (monitor.settings.autoReply && monitor.settings.replyMessage) {
           await this.sendAutoReply(monitor.userId?.toString(), monitor.groupId, monitor.settings.replyMessage);
         }
+
+        // Send feedback message if enabled
+        if (monitor.settings.sendFeedbackMessages) {
+          const personNames = detectedPersons.map(p => p.personName).join(', ');
+          const personCount = detectedPersons.length;
+          const feedbackMessage = personCount === 1
+            ? `📸 תמונה נשמרה!\nזוהה: ${personNames}\n\n📸 Image saved!\nDetected: ${personNames}`
+            : `📸 תמונה נשמרה!\nזוהו ${personCount} אנשים: ${personNames}\n\n📸 Image saved!\nDetected ${personCount} persons: ${personNames}`;
+
+          await this.sendFeedbackMessage(
+            monitor.userId?.toString(),
+            monitor.groupId,
+            feedbackMessage,
+            'Image with match'
+          );
+        }
       } else if (monitor.settings.saveAllImages) {
         // Save image even without matches if saveAllImages is enabled
         await this.createFilteredImageRecord(
@@ -488,6 +521,18 @@ class GroupMonitorService {
           matchResult,
           Date.now() - startTime
         );
+
+        // Send feedback message if enabled
+        if (monitor.settings.sendFeedbackMessages) {
+          const feedbackMessage = '📸 תמונה נשמרה!\n\n📸 Image saved!';
+
+          await this.sendFeedbackMessage(
+            monitor.userId?.toString(),
+            monitor.groupId,
+            feedbackMessage,
+            'Image'
+          );
+        }
       }
     } catch (error) {
       console.error('Error processing image for monitor:', error);
@@ -632,6 +677,31 @@ class GroupMonitorService {
       console.log(`📱 Auto-reply sent to group ${groupId} for user ${userId}: ${replyMessage}`);
     } catch (error) {
       console.error('Error sending auto-reply:', error);
+    }
+  }
+
+  /**
+   * Send feedback message to WhatsApp group
+   * Used for confirming actions like image saves, bookmark creation, etc.
+   */
+  private async sendFeedbackMessage(
+    userId: string | undefined,
+    groupId: string,
+    message: string,
+    featureName: string
+  ): Promise<void> {
+    if (!userId) {
+      console.warn(`[GroupMonitorService] Cannot send ${featureName} feedback without userId`);
+      return;
+    }
+
+    try {
+      const wahaService = await WhatsAppSessionManager.getInstance().getSessionForUser(userId);
+      await wahaService.sendMessage(groupId, message);
+      console.log(`📱 ${featureName} feedback sent to group ${groupId}:`, message);
+    } catch (error) {
+      console.error(`[GroupMonitorService] ❌ Error sending ${featureName} feedback:`, error);
+      // Don't throw - feedback is non-critical
     }
   }
 

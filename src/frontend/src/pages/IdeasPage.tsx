@@ -8,6 +8,7 @@ import { useHighlightItem } from '@/hooks/useHighlightItem';
 import { BACKEND_ROOT_URL } from '@/services/axiosConfig';
 import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
+import { EmptyStateGuidance } from '@/components/ui/EmptyStateGuidance';
 import {
   Lightbulb,
   Sparkles,
@@ -15,7 +16,9 @@ import {
   Tag,
   AlertCircle,
   Brain,
-  Zap
+  Zap,
+  Mic,
+  MessageSquare
 } from 'lucide-react';
 
 // Define an interface for the idea data
@@ -218,18 +221,31 @@ const IdeasPage: React.FC = () => {
         </motion.div>
 
         {ideas.length === 0 ? (
-          <motion.div
-            className="text-center py-16"
-            variants={itemVariants}
-          >
-            <GlassCard className="p-12 max-w-md mx-auto">
-              <Lightbulb className="w-16 h-16 text-yellow-400/50 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-white mb-2">No ideas yet</h3>
-              <p className="text-yellow-100/70 mb-6">
-                Your brilliant ideas will appear here as you capture them
-              </p>
-            </GlassCard>
-          </motion.div>
+          <EmptyStateGuidance
+            icon={Brain}
+            title="Your Idea Vault Awaits"
+            description="Every great innovation starts with a spark. Capture your creative thoughts, business ideas, and innovative concepts before they slip away."
+            suggestions={[
+              'Send voice messages through Telegram or WhatsApp and Synapse will extract ideas automatically',
+              'Ideas are automatically tagged by source (Telegram, WhatsApp, Manual)',
+              'Use natural language - just say what\'s on your mind',
+              'Review and refine your ideas later when you\'re ready to act on them',
+            ]}
+            actions={[
+              {
+                label: 'Connect Telegram Bot',
+                onClick: () => window.open('/integrations', '_self'),
+                icon: MessageSquare,
+                primary: true,
+              },
+              {
+                label: 'Learn Voice Capture',
+                onClick: () => window.open('/integrations', '_self'),
+                icon: Mic,
+                variant: 'outline',
+              },
+            ]}
+          />
         ) : (
           <motion.div 
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"

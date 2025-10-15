@@ -12,6 +12,7 @@ import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import { useHighlightItem } from '@/hooks/useHighlightItem';
 import { BACKEND_ROOT_URL } from "@/services/axiosConfig";
 import { FloatingParticles } from '@/components/common/FloatingParticles';
+import { EmptyStateGuidance } from '@/components/ui/EmptyStateGuidance';
 import {
   StickyNote,
   Plus,
@@ -23,7 +24,8 @@ import {
   AlertCircle,
   Search,
   Filter,
-  MapPin
+  MapPin,
+  Mic
 } from 'lucide-react';
 
 // Define a local interface for Note data
@@ -406,18 +408,46 @@ const NotesPage: React.FC = () => {
         </motion.div>
 
         {filteredNotes.length === 0 && !loading ? (
-          <motion.div 
-            className="text-center py-10"
-            variants={itemVariants}
-          >
-            <GlassCard className="p-10 max-w-md mx-auto">
-              <StickyNote className="w-16 h-16 text-lime-400/50 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-white mb-2">No notes found</h3>
-              <p className="text-lime-100/70">
-                Try adjusting your search, or create your first note!
-              </p>
-            </GlassCard>
-          </motion.div>
+          notes.length === 0 ? (
+            <EmptyStateGuidance
+              icon={FileText}
+              title="Capture Your First Thought"
+              description="Notes are your digital memory. Capture ideas, meeting notes, quick thoughts, and important information all in one place."
+              suggestions={[
+                'Click "Add New Note" to create your first note',
+                'Send voice messages through Telegram or WhatsApp to auto-create notes',
+                'Use Cmd+K to quickly navigate and create notes',
+                'Notes can include location information for context',
+              ]}
+              actions={[
+                {
+                  label: 'Create Your First Note',
+                  onClick: handleOpenAddNoteModal,
+                  icon: Plus,
+                  primary: true,
+                },
+                {
+                  label: 'Learn Voice Capture',
+                  onClick: () => window.open('/integrations', '_self'),
+                  icon: Mic,
+                  variant: 'outline',
+                },
+              ]}
+            />
+          ) : (
+            <motion.div
+              className="text-center py-10"
+              variants={itemVariants}
+            >
+              <GlassCard className="p-10 max-w-md mx-auto">
+                <Search className="w-16 h-16 text-lime-400/50 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-white mb-2">No notes match your search</h3>
+                <p className="text-lime-100/70">
+                  Try different keywords or clear your search to see all notes.
+                </p>
+              </GlassCard>
+            </motion.div>
+          )
         ) : (
           <motion.div 
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6"

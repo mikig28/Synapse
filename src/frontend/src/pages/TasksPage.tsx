@@ -17,14 +17,15 @@ import axiosInstance from '@/services/axiosConfig'; // Import axiosInstance
 import { sendManualTaskReminder } from '@/services/taskService'; // Import task service
 import { FloatingParticles } from '@/components/common/FloatingParticles';
 import KanbanView from '../components/tasks/KanbanView'; // Import Kanban view
-import { 
-  CheckSquare, 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Calendar, 
+import { EmptyStateGuidance } from '@/components/ui/EmptyStateGuidance';
+import {
+  CheckSquare,
+  Plus,
+  Edit,
+  Trash2,
+  Calendar,
   CalendarPlus,
-  Clock, 
+  Clock,
   Target,
   Sparkles,
   AlertCircle,
@@ -487,18 +488,46 @@ const TasksPage: React.FC = () => {
 
         {/* Tasks View */}
         {filteredTasks.length === 0 ? (
-          <motion.div 
-            className="text-center py-10"
-            variants={itemVariants}
-          >
-            <GlassCard className="p-10 max-w-md mx-auto">
-              <CheckSquare className="w-16 h-16 text-pink-400/50 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-white mb-2">No tasks found</h3>
-              <p className="text-pink-100/70">
-                Try adjusting your search or filter, or add a new task!
-              </p>
-            </GlassCard>
-          </motion.div>
+          tasks.length === 0 ? (
+            <EmptyStateGuidance
+              icon={Target}
+              title="Start Your Task Journey"
+              description="You haven't created any tasks yet. Tasks help you organize your goals, track progress, and stay productive."
+              suggestions={[
+                'Create your first task to get started',
+                'Use voice capture through Telegram or WhatsApp to quickly add tasks',
+                'Import tasks from your calendar or notes',
+                'Try the Kanban view to visualize your workflow',
+              ]}
+              actions={[
+                {
+                  label: 'Create Your First Task',
+                  onClick: handleOpenAddTaskModal,
+                  icon: Plus,
+                  primary: true,
+                },
+                {
+                  label: 'Send Task Reminder',
+                  onClick: handleSendManualReminder,
+                  icon: Bell,
+                  variant: 'outline',
+                },
+              ]}
+            />
+          ) : (
+            <motion.div
+              className="text-center py-10"
+              variants={itemVariants}
+            >
+              <GlassCard className="p-10 max-w-md mx-auto">
+                <Search className="w-16 h-16 text-pink-400/50 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-white mb-2">No tasks match your filters</h3>
+                <p className="text-pink-100/70">
+                  Try adjusting your search term or filter settings to see more tasks.
+                </p>
+              </GlassCard>
+            </motion.div>
+          )
         ) : viewMode === 'kanban' ? (
           <KanbanView
             tasks={filteredTasks}
