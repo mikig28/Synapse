@@ -81,6 +81,7 @@ const AutomationsPage = React.lazy(() => import('@/pages/AutomationsPage'));
 const RecipesPage = React.lazy(() => import('@/pages/RecipesPage'));
 const ReelsAndStoriesPage = React.lazy(() => import('@/pages/ReelsAndStoriesPage'));
 const AdminDashboardPage = React.lazy(() => import('@/pages/AdminDashboardPage'));
+const EmptyStateTestPage = React.lazy(() => import('@/pages/EmptyStateTestPage'));
 
 // Beautiful but performant loading component
 const PageLoader = () => (
@@ -180,6 +181,7 @@ function AppContent() {
                     <Route path="/recipes" element={isAuthenticated ? <Layout><RecipesPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/reels-stories" element={isAuthenticated ? <Layout><ReelsAndStoriesPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/admin" element={isAuthenticated ? <Layout><AdminDashboardPage /></Layout> : <Navigate to="/login" />} />
+                    <Route path="/test-empty-state" element={<EmptyStateTestPage />} />
                   </Routes>
                 </Suspense>
               </PageTransition>

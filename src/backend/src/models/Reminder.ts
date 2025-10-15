@@ -9,11 +9,12 @@ export type ReminderPriority = 'low' | 'medium' | 'high';
 // Reminder interface
 export interface IReminder extends Document {
   userId: mongoose.Types.ObjectId;
-  bookmarkId: mongoose.Types.ObjectId;
+  bookmarkId?: mongoose.Types.ObjectId; // Optional - not required for voice-only reminders
   scheduledFor: Date;
   reminderMessage: string;
   status: ReminderStatus;
   telegramChatId?: number; // Optional - only for Telegram reminders
+  whatsappChatId?: string; // Optional - only for WhatsApp reminders
 
   // Metadata from voice memo analysis
   extractedTags?: string[];
@@ -59,7 +60,7 @@ const ReminderSchema: Schema<IReminder> = new Schema(
     bookmarkId: {
       type: Schema.Types.ObjectId,
       ref: 'BookmarkItem',
-      required: true,
+      required: false, // Optional - not required for voice-only reminders
       index: true
     },
     scheduledFor: {
@@ -82,6 +83,10 @@ const ReminderSchema: Schema<IReminder> = new Schema(
     telegramChatId: {
       type: Number,
       required: false // Optional - only needed for Telegram reminders
+    },
+    whatsappChatId: {
+      type: String,
+      required: false // Optional - only needed for WhatsApp reminders
     },
 
     // Metadata fields

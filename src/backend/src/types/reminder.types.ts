@@ -17,10 +17,11 @@ export interface VoiceMemoAnalysisResult {
 // Create reminder DTO
 export interface CreateReminderDto {
   userId: mongoose.Types.ObjectId;
-  bookmarkId: mongoose.Types.ObjectId;
+  bookmarkId?: mongoose.Types.ObjectId; // Optional - not required for voice-only reminders
   scheduledFor: Date;
   reminderMessage: string;
   telegramChatId?: number; // Optional - only for Telegram reminders
+  whatsappChatId?: string; // Optional - only for WhatsApp reminders
   extractedTags?: string[];
   extractedNotes?: string;
   priority?: ReminderPriority;

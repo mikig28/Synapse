@@ -5010,7 +5010,8 @@ class WAHAService extends EventEmitter {
       let reminderId: string | undefined;
 
       try {
-        reminderAnalysis = await bookmarkVoiceMemoAnalysisService.analyze(transcription);
+        // For voice-only reminders, pass empty string as bookmarkUrl (not required)
+        reminderAnalysis = await bookmarkVoiceMemoAnalysisService.analyze(transcription, '');
         console.log('[WAHA Service] 🎙️ Reminder analysis result:', {
           hasReminder: reminderAnalysis.hasReminder,
           reminderTime: reminderAnalysis.reminderTime?.toISOString(),
