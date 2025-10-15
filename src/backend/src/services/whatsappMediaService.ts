@@ -119,12 +119,25 @@ export class WhatsAppMediaService extends EventEmitter {
       }
 
       // Download the file
+      const headers: Record<string, string> = {
+        'User-Agent': 'WhatsApp-Media-Downloader/1.0'
+      };
+
+      // Add WAHA API key if the URL is from WAHA service
+      if (mediaInfo.url.includes('synapse-waha.onrender.com') ||
+          mediaInfo.url.includes('waha-synapse') ||
+          process.env.WAHA_SERVICE_URL && mediaInfo.url.includes(process.env.WAHA_SERVICE_URL.replace(/^https?:\/\//, ''))) {
+        const wahaApiKey = process.env.WAHA_API_KEY;
+        if (wahaApiKey) {
+          headers['X-Api-Key'] = wahaApiKey;
+          console.log('[WhatsAppMediaService] Added WAHA API key to request headers');
+        }
+      }
+
       const response = await axios.get(mediaInfo.url, {
         responseType: 'stream',
         timeout: this.config.timeout,
-        headers: {
-          'User-Agent': 'WhatsApp-Media-Downloader/1.0'
-        }
+        headers
       });
 
       // Check file size
