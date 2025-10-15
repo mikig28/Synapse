@@ -25,9 +25,9 @@ import { useDroppable } from '@dnd-kit/core';
 import { Task } from '../../../types/task';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Clock, 
-  CheckCircle, 
+import {
+  Clock,
+  CheckCircle,
   AlertCircle,
   Edit,
   Trash2,
@@ -43,6 +43,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface KanbanViewProps {
   tasks: Task[];
@@ -89,9 +99,10 @@ interface SortableTaskProps {
   onEdit: (task: Task) => void;
   onDelete: (taskId: string) => void;
   onAddToCalendar: (task: Task) => void;
+  onRequestDelete: (task: Task) => void;
 }
 
-const SortableTask: React.FC<SortableTaskProps> = ({ task, onEdit, onDelete, onAddToCalendar }) => {
+const SortableTask: React.FC<SortableTaskProps> = ({ task, onEdit, onDelete, onAddToCalendar, onRequestDelete }) => {
   const {
     attributes,
     listeners,
@@ -151,8 +162,12 @@ const SortableTask: React.FC<SortableTaskProps> = ({ task, onEdit, onDelete, onA
                     <CalendarPlus className="mr-2 h-4 w-4" />
                     Add to Calendar
                   </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => onDelete(task._id)}
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onRequestDelete(task);
+                    }}
                     className="text-red-600"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
@@ -204,6 +219,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
   onAddToCalendar,
 }) => {
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [confirmDeleteTask, setConfirmDeleteTask] = useState<{ id: string; title: string } | null>(null);
   
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -308,6 +324,7 @@ const KanbanView: React.FC<KanbanViewProps> = ({
                         task={task}
                         onEdit={onEditTask}
                         onDelete={onDeleteTask}
+                        onRequestDelete={(task) => setConfirmDeleteTask({ id: task._id, title: task.title })}
                         onAddToCalendar={onAddToCalendar}
                       />
                     ))}
@@ -332,6 +349,63 @@ const KanbanView: React.FC<KanbanViewProps> = ({
           </GlassCard>
         )}
       </DragOverlay>
+
+      {/* Mobile-optimized Delete Confirmation Dialog */}
+      <AlertDialog
+        open={!!confirmDeleteTask}
+        onOpenChange={(open: boolean) => {
+          if (!open) {
+            setConfirmDeleteTask(null);
+          }
+        }}
+      >
+        <AlertDialogContent
+          className="glass bg-background/80 border-border/30"
+          onPointerDownOutside={(e) => {
+            // Prevent event propagation that can cause freeze on mobile
+            e.preventDefault();
+            setConfirmDeleteTask(null);
+          }}
+          onEscapeKeyDown={(e) => {
+            e.preventDefault();
+            setConfirmDeleteTask(null);
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground">Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              This action cannot be undone. This will permanently delete the task
+              {confirmDeleteTask ? ` "${confirmDeleteTask.title}".` : '.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              className="hover:bg-muted/20"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setConfirmDeleteTask(null);
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (confirmDeleteTask) {
+                  const taskId = confirmDeleteTask.id;
+                  setConfirmDeleteTask(null);
+                  onDeleteTask(taskId);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DndContext>
   );
 };

@@ -608,10 +608,14 @@ const TasksPage: React.FC = () => {
                     >
                       <Edit size={14} className="mr-1" /> Edit
                     </AnimatedButton>
-                    <AnimatedButton 
-                      size="sm" 
+                    <AnimatedButton
+                      size="sm"
                       variant="outline"
-                      onClick={() => setConfirmDeleteTask({ id: task._id, title: task.title })}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setConfirmDeleteTask({ id: task._id, title: task.title });
+                      }}
                       className="border-red-500/50 text-red-300 hover:bg-red-500/20 hover:border-red-500 glow-red-sm"
                     >
                       <Trash2 size={14} className="mr-1"/> Delete
@@ -646,9 +650,27 @@ const TasksPage: React.FC = () => {
             onEventAdded={handleEventAddedToCalendar}
           />
         )}
-        {/* Centralized Delete Confirmation Dialog to avoid orphaned overlays on mobile */}
-        <AlertDialog open={!!confirmDeleteTask} onOpenChange={(open: boolean) => { if (!open) setConfirmDeleteTask(null); }}>
-          <AlertDialogContent className="glass bg-background/80 border-border/30">
+        {/* Centralized Delete Confirmation Dialog with mobile-optimized touch handling */}
+        <AlertDialog
+          open={!!confirmDeleteTask}
+          onOpenChange={(open: boolean) => {
+            if (!open) {
+              setConfirmDeleteTask(null);
+            }
+          }}
+        >
+          <AlertDialogContent
+            className="glass bg-background/80 border-border/30"
+            onPointerDownOutside={(e) => {
+              // Prevent event propagation that can cause freeze on mobile
+              e.preventDefault();
+              setConfirmDeleteTask(null);
+            }}
+            onEscapeKeyDown={(e) => {
+              e.preventDefault();
+              setConfirmDeleteTask(null);
+            }}
+          >
             <AlertDialogHeader>
               <AlertDialogTitle className="text-foreground">Are you absolutely sure?</AlertDialogTitle>
               <AlertDialogDescription className="text-muted-foreground">
@@ -657,9 +679,26 @@ const TasksPage: React.FC = () => {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel className="hover:bg-muted/20">Cancel</AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={() => { if (confirmDeleteTask) { setConfirmDeleteTask(null); handleDelete(confirmDeleteTask.id); } }} 
+              <AlertDialogCancel
+                className="hover:bg-muted/20"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setConfirmDeleteTask(null);
+                }}
+              >
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (confirmDeleteTask) {
+                    const taskId = confirmDeleteTask.id;
+                    setConfirmDeleteTask(null);
+                    handleDelete(taskId);
+                  }
+                }}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 Delete
