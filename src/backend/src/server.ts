@@ -159,9 +159,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// 4. Body parsing
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// 4. Body parsing with increased limits for WAHA webhooks (media messages can be large)
+app.use(express.json({ limit: '50mb' })); // Increased from default 100kb to support WAHA media webhooks
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // 5. CORS test endpoint for debugging
 app.get('/api/v1/cors-test', (req: Request, res: Response) => {

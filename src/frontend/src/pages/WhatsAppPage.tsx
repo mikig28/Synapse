@@ -1235,10 +1235,9 @@ const WhatsAppPage: React.FC = () => {
     setPhoneAuthStep('phone');
     setIsWaitingForCode(false);
     setPhoneNumber('');
-    setVerificationCode('');
     setPairingCode(null);
     setPhoneAuthSupported(true); // Reset phone auth support when opening modal
-    
+
     // Actually generate the QR code when opening the modal
     fetchQRCode();
   };
