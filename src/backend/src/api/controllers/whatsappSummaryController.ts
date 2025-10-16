@@ -102,12 +102,7 @@ export const getAvailableGroups = async (req: Request, res: Response) => {
         }
       },
       {
-        $match: {
-          messageCount: { $gt: 0 } // Only include groups with recent activity
-        }
-      },
-      {
-        $sort: { messageCount: -1 } // Sort by most active groups first
+        $sort: { messageCount: -1, totalMessages: -1 } // Sort by most active groups first, then by all-time activity
       }
     ]);
     
