@@ -55,8 +55,12 @@ export const protect = async (req: AuthenticatedRequest, res: Response, next: Ne
         return;
       }
 
-      // Attach user to request object
-      req.user = { id: decoded.id, email: decoded.email || '' };
+      // Attach user to request object with data from database
+      req.user = {
+        id: decoded.id,
+        email: user.email,
+        userId: decoded.id // Add userId for backward compatibility
+      };
 
       next();
     } catch (error: any) {

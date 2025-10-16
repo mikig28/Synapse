@@ -6,9 +6,13 @@ import emailService from '../../services/emailService';
 
 // Function to generate JWT
 // Store your JWT_SECRET in .env file
-const generateToken = (id: string) => {
-  console.log(`[generateToken] Generating token for user ID: ${id}`);
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'yourfallbacksecret', {
+const generateToken = (id: string, email?: string) => {
+  console.log(`[generateToken] Generating token for user ID: ${id}, email: ${email}`);
+  const payload: { id: string; email?: string } = { id };
+  if (email) {
+    payload.email = email;
+  }
+  return jwt.sign(payload, process.env.JWT_SECRET || 'yourfallbacksecret', {
     expiresIn: '30d', // Token expiration
   });
 };
@@ -110,7 +114,7 @@ export const loginUser = async (req: Request, res: Response) => {
       user.metadata.lastUserAgent = req.headers['user-agent'];
       await user.save();
 
-      const token = generateToken(user.id);
+      const token = generateToken(user.id, user.email);
       console.log(`[loginUser] User ${user.email} (ID: ${user.id}) logged in. Token generated.`);
       res.json({
         _id: user.id,
@@ -174,7 +178,7 @@ export const googleLogin = async (req: Request, res: Response) => {
     user.metadata.lastUserAgent = req.headers['user-agent'];
     await user.save();
 
-    const token = generateToken(user.id);
+    const token = generateToken(user.id, user.email);
     console.log(`[googleLogin] User ${user.email} (ID: ${user.id}) logged in via Google. Token generated.`);
 
     res.json({
