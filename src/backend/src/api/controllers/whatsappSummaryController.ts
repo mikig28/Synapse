@@ -507,7 +507,8 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     
     // Generate summary
     console.log(`[WhatsApp Summary] Generating summary for ${messages.length} messages using ${queryUsed || 'successful query'}`);
-    
+
+    const startTime = Date.now();
     const summary = await summarizationService.generateGroupSummary(
       groupId,
       groupInfo.name,
@@ -520,9 +521,76 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       },
       { ...options, timezone: validTimezone }
     );
-    
+    const processingTime = Date.now() - startTime;
+
     console.log(`[WhatsApp Summary] Summary generated successfully: ${summary.totalMessages} messages, ${summary.activeParticipants} participants`);
-    
+
+    // Save summary to database
+    const userId = (req as any).user?.userId || (req as any).user?._id;
+    if (userId) {
+      try {
+        const WhatsAppGroupSummary = (await import('../../models/WhatsAppGroupSummary')).default;
+
+        // Parse the date to get the summary date (start of day in the specified timezone)
+        const summaryDate = new Date(date);
+
+        // Create or update the summary record
+        await WhatsAppGroupSummary.findOneAndUpdate(
+          {
+            groupId,
+            userId,
+            summaryDate
+          },
+          {
+            groupName: groupInfo.name,
+            timeRange: {
+              start: summary.timeRange.start,
+              end: summary.timeRange.end
+            },
+            senderSummaries: summary.senderInsights.map(insight => ({
+              senderName: insight.senderName,
+              senderPhone: insight.senderPhone,
+              messageCount: insight.messageCount,
+              summary: insight.summary,
+              topKeywords: insight.topKeywords.map(k => k.keyword),
+              topEmojis: insight.topEmojis.map(e => e.emoji),
+              firstMessageTime: summary.timeRange.start,
+              lastMessageTime: summary.timeRange.end
+            })),
+            groupAnalytics: {
+              totalMessages: summary.totalMessages,
+              activeParticipants: summary.activeParticipants,
+              timeRange: {
+                start: summary.timeRange.start,
+                end: summary.timeRange.end
+              },
+              topKeywords: summary.topKeywords.map(k => k.keyword),
+              topEmojis: summary.topEmojis.map(e => e.emoji),
+              messageTypes: {
+                text: summary.messageTypes.text,
+                media: summary.messageTypes.image + summary.messageTypes.video + summary.messageTypes.audio,
+                other: summary.messageTypes.document + summary.messageTypes.other
+              },
+              activityPeaks: summary.activityPeaks
+            },
+            summary: summary.overallSummary,
+            processingTimeMs: processingTime,
+            status: 'completed',
+            generatedAt: new Date()
+          },
+          {
+            upsert: true,
+            new: true
+          }
+        );
+
+        console.log(`[WhatsApp Summary] Saved summary to database for group ${groupId}, date ${date}`);
+      } catch (dbError) {
+        console.error('[WhatsApp Summary] Error saving summary to database:', dbError);
+        // Continue anyway - the summary was generated successfully
+      }
+    }
+
     res.json({
       success: true,
       data: summary
@@ -770,29 +838,29 @@ export const getGroupSummaryStats = async (req: Request, res: Response) => {
   try {
     const { groupId } = req.params;
     const { days = 7 } = req.query;
-    
+
     if (!groupId) {
       return res.status(400).json({
         success: false,
         error: 'Group ID is required'
       } as ApiResponse);
     }
-    
+
     const whatsappService = WhatsAppBaileysService.getInstance();
     const groups = whatsappService.getGroups();
     const groupInfo = groups.find(g => g.id === groupId);
-    
+
     if (!groupInfo) {
       return res.status(404).json({
         success: false,
         error: 'Group not found'
       } as ApiResponse);
     }
-    
+
     const daysBack = parseInt(days as string);
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - daysBack);
-    
+
     // Get message statistics
     const [totalMessages, uniqueSenders, messageTypes] = await Promise.all([
       WhatsAppMessage.countDocuments({
@@ -804,7 +872,7 @@ export const getGroupSummaryStats = async (req: Request, res: Response) => {
         timestamp: { $gte: startDate },
         isIncoming: true
       }),
-      
+
       WhatsAppMessage.distinct('from', {
         'metadata.isGroup': true,
         $or: [
@@ -814,7 +882,7 @@ export const getGroupSummaryStats = async (req: Request, res: Response) => {
         timestamp: { $gte: startDate },
         isIncoming: true
       }),
-      
+
       WhatsAppMessage.aggregate([
         {
           $match: {
@@ -835,12 +903,12 @@ export const getGroupSummaryStats = async (req: Request, res: Response) => {
         }
       ])
     ]);
-    
+
     const typeStats = messageTypes.reduce((acc: any, item: any) => {
       acc[item._id] = item.count;
       return acc;
     }, {});
-    
+
     res.json({
       success: true,
       data: {
@@ -862,12 +930,60 @@ export const getGroupSummaryStats = async (req: Request, res: Response) => {
         averageMessagesPerSender: uniqueSenders.length > 0 ? Math.round(Number(totalMessages) / Number(uniqueSenders.length)) : 0
       }
     } as ApiResponse);
-    
+
   } catch (error) {
     console.error('[WhatsApp Summary] Error fetching group stats:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to fetch group statistics'
+    } as ApiResponse);
+  }
+};
+
+/**
+ * Get recent summaries for the authenticated user
+ */
+export const getRecentSummaries = async (req: Request, res: Response) => {
+  try {
+    const { limit = 10, days = 7 } = req.query;
+    const userId = (req as any).user?.userId || (req as any).user?._id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'User not authenticated'
+      } as ApiResponse);
+    }
+
+    console.log(`[WhatsApp Summary] Fetching recent summaries for user ${userId}, limit: ${limit}, days: ${days}`);
+
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - parseInt(days as string));
+
+    // Import the model dynamically
+    const WhatsAppGroupSummary = (await import('../../models/WhatsAppGroupSummary')).default;
+
+    const summaries = await WhatsAppGroupSummary.find({
+      userId: userId,
+      summaryDate: { $gte: cutoffDate },
+      status: 'completed'
+    })
+    .sort({ summaryDate: -1, generatedAt: -1 })
+    .limit(parseInt(limit as string))
+    .lean();
+
+    console.log(`[WhatsApp Summary] Found ${summaries.length} recent summaries`);
+
+    res.json({
+      success: true,
+      data: summaries
+    } as ApiResponse);
+
+  } catch (error) {
+    console.error('[WhatsApp Summary] Error fetching recent summaries:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch recent summaries'
     } as ApiResponse);
   }
 };
