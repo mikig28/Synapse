@@ -65,16 +65,10 @@ interface NavSection {
 const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
   const [showScrollTop, setShowScrollTop] = React.useState(false);
   const [showScrollBottom, setShowScrollBottom] = React.useState(false);
-  const [openSections, setOpenSections] = React.useState<Record<string, boolean>>({
-    'My Work': true, // Open by default
-    'Integrations': false,
-    'Automation': false,
-    'Content': false,
-    'Advanced': false,
-  });
   const navRef = React.useRef<HTMLElement>(null);
   const { theme } = useTheme();
   const { isAdmin } = useAuthStore();
+  const isAdminUser = isAdmin();
 
   // Determine which logo to use based on theme
   const isDarkMode = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -95,10 +89,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
   ];
 
   // Organized navigation sections
-  const navSections: NavSection[] = [
+  const navSections: NavSection[] = React.useMemo(() => [
     {
       title: 'My Work',
       icon: FolderKanban,
+      defaultOpen: true,
       items: [
         { href: "/tasks", label: "Tasks", icon: ListChecks },
         { href: "/notes", label: "Notes", icon: FileText },
@@ -148,17 +143,70 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
         { href: "/goals", label: "Goals", icon: Target },
         { href: "/habits", label: "Habits", icon: Repeat },
         { href: "/news-hub", label: "News Hub", icon: Newspaper },
-        ...(isAdmin() ? [{ href: "/admin", label: "Admin Dashboard", icon: Crown, adminOnly: true }] : []),
+        ...(isAdminUser ? [{ href: "/admin", label: "Admin Dashboard", icon: Crown, adminOnly: true }] : []),
       ],
     },
-  ];
+  ], [isAdminUser]);
+  const [openSections, setOpenSections] = React.useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    navSections.forEach(section => {
+      initial[section.title] = section.defaultOpen ?? false;
+    });
+    return initial;
+  });
+
+  React.useEffect(() => {
+    setOpenSections(prev => {
+      const next: Record<string, boolean> = {};
+      let changed = false;
+
+      navSections.forEach(section => {
+        const prevValue = prev[section.title];
+        const value = prevValue ?? (section.defaultOpen ?? false);
+        next[section.title] = value;
+        if (prevValue !== value) {
+          changed = true;
+        }
+      });
+
+      const prevKeys = Object.keys(prev);
+      if (prevKeys.length !== navSections.length) {
+        changed = true;
+      } else {
+        for (const key of prevKeys) {
+          if (!(key in next)) {
+            changed = true;
+            break;
+          }
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  }, [navSections]);
 
   const toggleSection = (sectionTitle: string) => {
     setOpenSections(prev => ({
       ...prev,
-      [sectionTitle]: !prev[sectionTitle],
+      [sectionTitle]: !(prev[sectionTitle] ?? false),
     }));
   };
+
+  const handleExpandAll = React.useCallback(() => {
+    const expanded: Record<string, boolean> = {};
+    navSections.forEach(section => {
+      expanded[section.title] = true;
+    });
+    setOpenSections(expanded);
+  }, [navSections]);
+
+  const handleCollapseAll = React.useCallback(() => {
+    const collapsed: Record<string, boolean> = {};
+    navSections.forEach(section => {
+      collapsed[section.title] = false;
+    });
+    setOpenSections(collapsed);
+  }, [navSections]);
 
   const location = useLocation();
 
@@ -329,11 +377,32 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
           })}
         </ul>
 
+        {isSidebarOpen && (
+          <div className="flex items-center gap-2 mb-4 text-xs font-medium text-white/80">
+            <button
+              type="button"
+              onClick={handleExpandAll}
+              className="flex-1 px-2 py-1 rounded-md border border-white/10 bg-white/5 hover:bg-white/10 hover:text-white transition-colors"
+              aria-label="Expand all sections"
+            >
+              Expand All
+            </button>
+            <button
+              type="button"
+              onClick={handleCollapseAll}
+              className="flex-1 px-2 py-1 rounded-md border border-white/10 bg-white/5 hover:bg-white/10 hover:text-white transition-colors"
+              aria-label="Collapse all sections"
+            >
+              Collapse All
+            </button>
+          </div>
+        )}
+
         {/* Collapsible Sections */}
         <div className="space-y-2">
           {navSections.map((section, sectionIndex) => {
             const SectionIcon = section.icon;
-            const isOpen = openSections[section.title];
+            const isOpen = openSections[section.title] ?? false;
             const hasActiveItem = section.items.some(item => location.pathname.startsWith(item.href));
 
             return (
