@@ -33,6 +33,8 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 
+const SEARCH_COMPLETED_STORAGE_KEY = 'getting-started-search-completed';
+
 const SearchPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -162,6 +164,11 @@ const SearchPage: React.FC = () => {
 
       setResults(searchResults);
       setShowSuggestions(false);
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(SEARCH_COMPLETED_STORAGE_KEY, 'true');
+        window.dispatchEvent(new CustomEvent('getting-started-search-used'));
+      }
     } catch (error: any) {
       console.error('Search error details:', error);
       

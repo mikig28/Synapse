@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle2,
@@ -30,10 +30,19 @@ interface ChecklistItem {
   actionPath: string;
 }
 
-export const GettingStartedChecklist: React.FC = () => {
-  const [isDismissed, setIsDismissed] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(true);
-  const [items, setItems] = useState<ChecklistItem[]>([
+const SEARCH_COMPLETED_STORAGE_KEY = 'getting-started-search-completed';
+
+const getSearchCompletionFromStorage = () => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return localStorage.getItem(SEARCH_COMPLETED_STORAGE_KEY) === 'true';
+};
+
+const createInitialItems = (): ChecklistItem[] => {
+  const hasUsedSearch = getSearchCompletionFromStorage();
+
+  return [
     {
       id: 'upload-document',
       title: 'Upload your first document',
@@ -66,13 +75,27 @@ export const GettingStartedChecklist: React.FC = () => {
       title: 'Try the AI-powered search',
       description: 'Search across all your connected knowledge instantly',
       icon: Search,
-      completed: false,
+      completed: hasUsedSearch,
       action: 'Search',
       actionPath: '/search',
     },
-  ]);
+  ];
+};
+
+export const GettingStartedChecklist: React.FC = () => {
+  const [isDismissed, setIsDismissed] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
+  const [items, setItems] = useState<ChecklistItem[]>(() => createInitialItems());
 
   const navigate = useNavigate();
+  const updateSearchCompletion = useCallback(() => {
+    const hasUsedSearch = getSearchCompletionFromStorage();
+    setItems((prevItems) =>
+      prevItems.map((item) =>
+        item.id === 'try-search' ? { ...item, completed: hasUsedSearch } : item
+      )
+    );
+  }, []);
 
   // Check completion status
   useEffect(() => {
@@ -101,6 +124,8 @@ export const GettingStartedChecklist: React.FC = () => {
               completed = whatsappConnected || telegramConnected;
             } else if (item.id === 'create-agent' && agentsRes.status === 'fulfilled') {
               completed = agentsRes.value.length > 0;
+            } else if (item.id === 'try-search') {
+              completed = getSearchCompletionFromStorage();
             }
 
             return { ...item, completed };
@@ -124,6 +149,22 @@ export const GettingStartedChecklist: React.FC = () => {
       setIsDismissed(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const handleSearchUsed = () => {
+      updateSearchCompletion();
+    };
+
+    window.addEventListener('getting-started-search-used', handleSearchUsed);
+
+    return () => {
+      window.removeEventListener('getting-started-search-used', handleSearchUsed);
+    };
+  }, [updateSearchCompletion]);
 
   const completedCount = items.filter((item) => item.completed).length;
   const totalCount = items.length;
