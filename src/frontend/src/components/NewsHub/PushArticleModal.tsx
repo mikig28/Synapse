@@ -57,14 +57,38 @@ export const PushArticleModal: React.FC<PushArticleModalProps> = ({
 
       // Load WhatsApp groups
       const groups = await whatsappService.getAvailableGroups();
-      setWhatsappGroups(groups.filter(g => g.isGroup));
+      const sanitizedGroups = groups.reduce<WhatsAppGroup[]>((acc, group) => {
+        const id = group.id || (group as any).groupId || (group as any)._id;
+        if (!id) {
+          return acc;
+        }
+
+        const isGroup = group.isGroup ?? String(id).includes('@g.us');
+        const isPrivateChat = group.chatType === 'private' || (!isGroup && String(id).endsWith('@s.whatsapp.net'));
+        if (!isGroup || isPrivateChat) {
+          return acc;
+        }
+
+        acc.push({
+          id: String(id),
+          name: group.name || (group as any).subject || String(id),
+          isGroup: true
+        });
+        return acc;
+      }, []);
+      setWhatsappGroups(sanitizedGroups);
+      setSelectedGroup((current) => {
+        if (current && sanitizedGroups.some((group) => group.id === current)) {
+          return current;
+        }
+        return sanitizedGroups[0]?.id ?? '';
+      });
       
       // Set default selection
       if (telegramStatus.hasBot && telegramStatus.isActive) {
         setPlatform('telegram');
-      } else if (groups.length > 0) {
+      } else if (sanitizedGroups.length > 0) {
         setPlatform('whatsapp');
-        setSelectedGroup(groups[0].id);
       }
     } catch (error) {
       console.error('Error loading destinations:', error);
@@ -121,7 +145,7 @@ export const PushArticleModal: React.FC<PushArticleModalProps> = ({
   const canSend = () => {
     if (loading || sending) return false;
     if (platform === 'telegram') return telegramAvailable;
-    if (platform === 'whatsapp') return whatsappGroups.length > 0 && selectedGroup;
+    if (platform === 'whatsapp') return whatsappGroups.length > 0 && Boolean(selectedGroup);
     return false;
   };
 
@@ -216,4 +240,3 @@ export const PushArticleModal: React.FC<PushArticleModalProps> = ({
     </Dialog>
   );
 };
-

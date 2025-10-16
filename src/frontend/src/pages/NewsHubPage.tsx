@@ -95,7 +95,34 @@ const NewsHubPage: React.FC = () => {
   const fetchWhatsAppGroups = async () => {
     try {
       const groups = await whatsappService.getAvailableGroups();
-      setWhatsappGroups(groups.filter(g => g.isGroup));
+      const sanitizedGroups = groups.reduce<Array<{ id: string; name: string }>>((acc, group) => {
+        const id = group.id || (group as any).groupId || (group as any)._id;
+        if (!id) {
+          return acc;
+        }
+
+        const isGroup = group.isGroup ?? String(id).includes('@g.us');
+        const isPrivateChat = group.chatType === 'private' || (!isGroup && String(id).endsWith('@s.whatsapp.net'));
+        if (!isGroup || isPrivateChat) {
+          return acc;
+        }
+
+        acc.push({
+          id: String(id),
+          name: group.name || (group as any).subject || String(id)
+        });
+        return acc;
+      }, []);
+
+      setWhatsappGroups(sanitizedGroups);
+      if (sanitizedGroups.length > 0) {
+        setAutoPushWhatsappGroupId((current) => {
+          if (current && sanitizedGroups.some((group) => group.id === current)) {
+            return current;
+          }
+          return sanitizedGroups[0]?.id ?? '';
+        });
+      }
     } catch (error) {
       console.error('Failed to fetch WhatsApp groups:', error);
     }
