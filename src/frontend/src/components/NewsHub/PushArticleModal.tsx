@@ -43,7 +43,7 @@ export const PushArticleModal: React.FC<PushArticleModalProps> = ({
   const [sending, setSending] = useState(false);
   const { toast } = useToast();
   const isWhatsappStatusAcceptable = !whatsappSessionStatus || ['WORKING', 'UNKNOWN'].includes(whatsappSessionStatus);
-  const whatsappOptionDisabled = whatsappGroups.length === 0 || !isWhatsappStatusAcceptable;
+  const whatsappOptionDisabled = whatsappGroups.length === 0;
 
   useEffect(() => {
     if (open) {
@@ -216,7 +216,7 @@ export const PushArticleModal: React.FC<PushArticleModalProps> = ({
     if (loading || sending) return false;
     if (platform === 'telegram') return telegramAvailable;
     if (platform === 'whatsapp') {
-      return whatsappGroups.length > 0 && Boolean(selectedGroup) && isWhatsappStatusAcceptable;
+      return whatsappGroups.length > 0 && Boolean(selectedGroup);
     }
     return false;
   };
