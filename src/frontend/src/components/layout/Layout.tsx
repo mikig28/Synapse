@@ -10,14 +10,15 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  // Sidebar should be CLOSED by default (collapsed to icons only)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
   // Pin state - when pinned, sidebar stays open across page navigation
   const [isPinned, setIsPinned] = useState(() => {
     const saved = localStorage.getItem('sidebar-pinned');
     return saved === 'true';
   });
+
+  // Sidebar should be CLOSED by default (collapsed to icons only)
+  // UNLESS it's pinned, then it should be open
+  const [isSidebarOpen, setIsSidebarOpen] = useState(isPinned);
 
   const location = useLocation();
 
@@ -46,11 +47,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (isMobile) {
       // Always close on mobile
       setIsSidebarOpen(false);
-    } else if (!isPinned) {
+    } else if (isPinned) {
+      // Keep sidebar open on desktop when pinned
+      setIsSidebarOpen(true);
+    } else {
       // Close on desktop only if not pinned
       setIsSidebarOpen(false);
     }
-    // If pinned and not mobile, keep sidebar open
   }, [location.pathname, isMobile, isPinned]);
 
   const toggleSidebar = () => {
