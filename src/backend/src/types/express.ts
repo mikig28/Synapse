@@ -11,6 +11,7 @@ declare global {
       user?: {
         id: string;
         email: string;
+        userId?: string; // Added for backward compatibility
       };
       adminUser?: IUser;
       isAdmin?: boolean;
@@ -27,6 +28,7 @@ export interface AuthenticatedRequest<
   user: {
     id: string;
     email: string;
+    userId?: string; // Added for backward compatibility
   };
   adminUser?: IUser; // Full user object for admin routes
   isAdmin?: boolean; // Flag for conditional admin logic
@@ -36,6 +38,7 @@ export type AuthRequest = ExpressRequest & {
   user?: {
     id: string;
     email: string;
+    userId?: string; // Added for backward compatibility
   };
 };
 

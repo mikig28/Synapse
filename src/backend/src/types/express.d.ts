@@ -8,6 +8,7 @@ declare global {
       user?: {
         id: string;
         email: string;
+        userId?: string; // Added for backward compatibility
       };
       file?: Express.Multer.File;
     }
@@ -23,6 +24,7 @@ export interface AuthenticatedRequest<
   user: {
     id: string;
     email: string;
+    userId?: string; // Added for backward compatibility
   };
 }
 
@@ -30,6 +32,7 @@ export interface AuthRequest extends ExpressRequest {
   user?: {
     id: string;
     email: string;
+    userId?: string; // Added for backward compatibility
   };
 }
 
