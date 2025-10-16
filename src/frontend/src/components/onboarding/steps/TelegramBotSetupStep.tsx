@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 
 const BOT_FATHER_URL = 'https://t.me/BotFather';
+const TELEGRAM_TOKEN_PATTERN = /^\d{5,}:[A-Za-z0-9_-]{30,64}$/;
 
 export const TelegramBotSetupStep: React.FC = () => {
   const { toast } = useToast();
@@ -88,11 +89,12 @@ export const TelegramBotSetupStep: React.FC = () => {
   }, [refreshStatus]);
 
   const validateLocally = (token: string): string | null => {
-    if (!token.trim()) {
+    const trimmed = token.trim();
+    if (!trimmed) {
       return 'Enter the token that BotFather generated for you.';
     }
-    if (!/^\d+:[A-Za-z0-9_-]{35}$/.test(token.trim())) {
-      return 'Token format looks wrong. Copy it exactly as BotFather provided.';
+    if (!TELEGRAM_TOKEN_PATTERN.test(trimmed)) {
+      return 'Token format looks off. It should look like 123456789:AAE... copied exactly from BotFather.';
     }
     return null;
   };
@@ -116,12 +118,22 @@ export const TelegramBotSetupStep: React.FC = () => {
         return;
       }
 
-      await telegramBotService.setBotToken(trimmedToken);
+      const setupResult = await telegramBotService.setBotToken(trimmedToken);
+      if (!setupResult?.success) {
+        const failureMessage = setupResult?.error || setupResult?.message || 'Telegram API returned an error.';
+        setValidationMessage(failureMessage);
+        toast({ variant: 'destructive', title: 'Connection failed', description: failureMessage });
+        return;
+      }
       await refreshStatus();
+
+      const botInfo = validation.botInfo || setupResult.botInfo;
+      const resolvedBotUsername = botInfo?.username ?? null;
+      const botDisplayName = resolvedBotUsername ? `@${resolvedBotUsername}` : botInfo?.firstName ?? null;
 
       updateIntegrationStatus('telegram', {
         status: 'connected',
-        botUsername: validation.username ?? validation.firstName ?? null,
+        botUsername: resolvedBotUsername,
         error: null,
       });
 
@@ -129,7 +141,9 @@ export const TelegramBotSetupStep: React.FC = () => {
       showAchievement('Telegram bot connected. Synapse can now deliver updates.');
       toast({
         title: 'Telegram bot connected',
-        description: 'We will keep you updated directly in Telegram.',
+        description: botDisplayName
+          ? `${botDisplayName} is ready. We will keep you updated directly in Telegram.`
+          : setupResult.message || 'We will keep you updated directly in Telegram.',
       });
       setBotToken('');
     } catch (error: any) {
@@ -169,7 +183,7 @@ export const TelegramBotSetupStep: React.FC = () => {
   const handleRemove = async () => {
     setIsBusy(true);
     try {
-      await telegramBotService.removeBotConfiguration();
+      await telegramBotService.removeBotToken();
       updateIntegrationStatus('telegram', {
         status: 'disconnected',
         botUsername: null,

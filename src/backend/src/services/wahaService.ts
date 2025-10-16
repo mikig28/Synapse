@@ -95,10 +95,11 @@ class WAHAService extends EventEmitter {
   private readonly qrRequestCooldownMs = 5000; // avoid hammering WAHA
   private mediaService: WhatsAppMediaService;
 
-  // Global request queue to prevent WAHA overload (shared across all instances)
-  private static activeRequests = 0;
-  private static readonly MAX_CONCURRENT_REQUESTS = 3; // Only 3 concurrent WAHA requests max
-  private static requestQueue: Array<() => void> = [];
+  // Per-instance request queue to prevent WAHA overload
+  // Each user session can have up to 3 concurrent requests
+  private activeRequests = 0;
+  private readonly MAX_CONCURRENT_REQUESTS = 3; // 3 concurrent requests per user
+  private requestQueue: Array<() => void> = [];
 
   // Session status cache
   private sessionStatusCache: {
@@ -354,36 +355,36 @@ class WAHAService extends EventEmitter {
   }
 
   /**
-   * Queue HTTP request to prevent WAHA overload
-   * Limits concurrent requests to MAX_CONCURRENT_REQUESTS
+   * Queue HTTP request to prevent WAHA overload per user session
+   * Limits concurrent requests to MAX_CONCURRENT_REQUESTS per user
    */
   private async queueRequest<T>(requestFn: () => Promise<T>): Promise<T> {
     // If under limit, execute immediately
-    if (WAHAService.activeRequests < WAHAService.MAX_CONCURRENT_REQUESTS) {
-      WAHAService.activeRequests++;
+    if (this.activeRequests < this.MAX_CONCURRENT_REQUESTS) {
+      this.activeRequests++;
       try {
         return await requestFn();
       } finally {
-        WAHAService.activeRequests--;
+        this.activeRequests--;
         // Process next queued request if any
-        const next = WAHAService.requestQueue.shift();
+        const next = this.requestQueue.shift();
         if (next) next();
       }
     }
 
     // Otherwise, queue it
     return new Promise<T>((resolve, reject) => {
-      WAHAService.requestQueue.push(async () => {
-        WAHAService.activeRequests++;
+      this.requestQueue.push(async () => {
+        this.activeRequests++;
         try {
           const result = await requestFn();
           resolve(result);
         } catch (error) {
           reject(error);
         } finally {
-          WAHAService.activeRequests--;
+          this.activeRequests--;
           // Process next queued request if any
-          const next = WAHAService.requestQueue.shift();
+          const next = this.requestQueue.shift();
           if (next) next();
         }
       });

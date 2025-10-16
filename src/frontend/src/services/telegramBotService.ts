@@ -58,7 +58,12 @@ class TelegramBotService {
       return response.data;
     } catch (error: any) {
       console.error('Error validating bot token:', error);
-      throw new Error(error.response?.data?.error || 'Failed to validate bot token');
+      throw new Error(
+        error.response?.data?.error ||
+          error.response?.data?.message ||
+          error.message ||
+          'Failed to validate bot token'
+      );
     }
   }
 
@@ -73,7 +78,12 @@ class TelegramBotService {
       return response.data;
     } catch (error: any) {
       console.error('Error setting bot token:', error);
-      throw new Error(error.response?.data?.error || 'Failed to set bot token');
+      throw new Error(
+        error.response?.data?.error ||
+          error.response?.data?.message ||
+          error.message ||
+          'Failed to set bot token'
+      );
     }
   }
 

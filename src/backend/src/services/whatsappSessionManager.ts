@@ -23,6 +23,8 @@ interface UserSession {
   wahaService: WAHAService;
   lastActivity: Date;
   status: 'STOPPED' | 'STARTING' | 'SCAN_QR_CODE' | 'WORKING' | 'FAILED';
+  createdAt: Date; // Track when session was created
+  qrScanWaitingStartedAt?: Date; // Track when we started waiting for QR scan
 }
 
 interface SessionValidationResult {
@@ -115,9 +117,10 @@ class WhatsAppSessionManager extends EventEmitter {
         sessionId,
         wahaService,
         lastActivity: new Date(),
-        status: 'STOPPED'
+        status: 'STOPPED',
+        createdAt: new Date() // Track creation time
       };
-      
+
       this.sessions.set(userId, session);
       logger.info(`[WhatsAppSessionManager] Session created for user ${userId} with ID ${sessionId}`);
 
@@ -135,12 +138,23 @@ class WhatsAppSessionManager extends EventEmitter {
     // Listen for status changes
     wahaService.on('status', async (status) => {
       logger.info(`[WhatsAppSessionManager] Session ${sessionId} status: ${status.status}`);
-      
+
       // Update session status
       const session = this.sessions.get(userId);
       if (session) {
         session.status = status.status;
         session.lastActivity = new Date();
+
+        // Track when we start waiting for QR scan
+        if (status.status === 'SCAN_QR_CODE' && !session.qrScanWaitingStartedAt) {
+          session.qrScanWaitingStartedAt = new Date();
+          logger.info(`[WhatsAppSessionManager] Session ${sessionId} entered QR scan state`);
+        }
+
+        // Clear QR waiting timer if session becomes WORKING or FAILED
+        if ((status.status === 'WORKING' || status.status === 'FAILED') && session.qrScanWaitingStartedAt) {
+          session.qrScanWaitingStartedAt = undefined;
+        }
       }
 
       // Update user document
@@ -288,29 +302,62 @@ class WhatsAppSessionManager extends EventEmitter {
    *
    * Strategy:
    * 1. NEVER cleanup WORKING sessions (users expect persistent WhatsApp connection)
-   * 2. Cleanup FAILED/STOPPED sessions immediately (they're broken anyway)
-   * 3. Cleanup truly inactive sessions (48h+ with no activity)
-   * 4. If over MAX_CONCURRENT_SESSIONS, remove oldest inactive sessions
+   * 2. Cleanup FAILED sessions immediately (they're broken anyway)
+   * 3. Cleanup STOPPED/STARTING/SCAN_QR_CODE sessions only after 1 hour (allow time for QR scanning)
+   * 4. Cleanup truly inactive sessions (48h+ with no activity)
+   * 5. If over MAX_CONCURRENT_SESSIONS, remove oldest inactive sessions
    */
   private async cleanupInactiveSessions(): Promise<void> {
     try {
       const now = Date.now();
       const sessionsToCleanup: string[] = [];
+      const ONE_HOUR = 60 * 60 * 1000; // 1 hour in milliseconds
+      const FIVE_MINUTES = 5 * 60 * 1000; // 5 minutes for QR scanning
 
       // Log current session count and memory usage
       const totalSessions = this.sessions.size;
       const memoryUsage = process.memoryUsage();
       logger.info(`[WhatsAppSessionManager] Cleanup check: ${totalSessions} active sessions, Memory: ${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB used`);
 
-      // Strategy 1: Clean up FAILED/STOPPED sessions immediately (they're broken)
+      // Strategy 1: Clean up FAILED sessions immediately (they're broken)
       for (const [userId, session] of this.sessions.entries()) {
-        if (session.status === 'FAILED' || session.status === 'STOPPED') {
+        if (session.status === 'FAILED') {
           sessionsToCleanup.push(userId);
-          logger.info(`[WhatsAppSessionManager] Marking broken session for cleanup: ${userId} (status: ${session.status})`);
+          logger.info(`[WhatsAppSessionManager] Marking failed session for cleanup: ${userId}`);
         }
       }
 
-      // Strategy 2: Clean up truly inactive sessions (48h+ with no activity)
+      // Strategy 2: Clean up STOPPED sessions only after 1 hour (not immediately!)
+      // This allows users time to scan QR codes and authenticate
+      for (const [userId, session] of this.sessions.entries()) {
+        if (session.status === 'STOPPED') {
+          const sessionAge = now - session.createdAt.getTime();
+          if (sessionAge > ONE_HOUR) {
+            if (!sessionsToCleanup.includes(userId)) {
+              sessionsToCleanup.push(userId);
+              logger.info(`[WhatsAppSessionManager] Marking old STOPPED session for cleanup: ${userId} (age: ${Math.round(sessionAge / 1000 / 60)} minutes)`);
+            }
+          } else {
+            logger.debug(`[WhatsAppSessionManager] Preserving new STOPPED session: ${userId} (age: ${Math.round(sessionAge / 1000 / 60)} minutes)`);
+          }
+        }
+      }
+
+      // Strategy 3: Clean up SCAN_QR_CODE sessions after 5 minutes of waiting
+      // (Give user 5 minutes to scan QR, then assume they abandoned it)
+      for (const [userId, session] of this.sessions.entries()) {
+        if (session.status === 'SCAN_QR_CODE' && session.qrScanWaitingStartedAt) {
+          const waitTime = now - session.qrScanWaitingStartedAt.getTime();
+          if (waitTime > FIVE_MINUTES) {
+            if (!sessionsToCleanup.includes(userId)) {
+              sessionsToCleanup.push(userId);
+              logger.info(`[WhatsAppSessionManager] Marking abandoned QR scan session for cleanup: ${userId} (waited: ${Math.round(waitTime / 1000 / 60)} minutes)`);
+            }
+          }
+        }
+      }
+
+      // Strategy 4: Clean up truly inactive sessions (48h+ with no activity)
       // BUT: Never cleanup WORKING sessions regardless of inactivity (users expect persistence)
       for (const [userId, session] of this.sessions.entries()) {
         const inactiveTime = now - session.lastActivity.getTime();
@@ -323,7 +370,7 @@ class WhatsAppSessionManager extends EventEmitter {
         }
       }
 
-      // Strategy 3: If over MAX_CONCURRENT_SESSIONS, remove oldest inactive sessions
+      // Strategy 5: If over MAX_CONCURRENT_SESSIONS, remove oldest inactive sessions
       // Prioritize keeping WORKING sessions
       if (this.sessions.size > this.MAX_CONCURRENT_SESSIONS) {
         logger.warn(`[WhatsAppSessionManager] Over session limit (${this.sessions.size}/${this.MAX_CONCURRENT_SESSIONS}), cleaning up oldest inactive sessions`);

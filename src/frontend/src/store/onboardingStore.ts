@@ -346,10 +346,11 @@ const normalizeStepUnlocks = (steps: OnboardingStep[], skippedSteps: string[] = 
   return steps.map((step, index) => {
     const unlocked = index === 0 ? true : prerequisitesMet;
 
-    // Allow progression if step is completed, OR if it's optional and was skipped
     const isSkipped = skippedSteps.includes(step.id);
+
     if (!step.optional && !step.completed) {
-      prerequisitesMet = false;
+      // Required steps block progression unless explicitly skipped
+      prerequisitesMet = isSkipped;
     } else if (step.optional && (step.completed || isSkipped)) {
       // Optional steps that are completed or skipped don't block progression
       prerequisitesMet = true;
