@@ -130,6 +130,7 @@ interface OnboardingState {
   hideCelebration: () => void;
   showNextTip: () => void;
   hideTips: () => void;
+  dismissOnboarding: () => void;
   reset: () => void;
   setError: (error: string | null) => void;
   setLoading: (loading: boolean) => void;

@@ -118,11 +118,9 @@ function AppContent() {
     return <PageLoader />;
   }
 
-  // Check if user needs onboarding (first time users or incomplete onboarding)
-  const needsOnboarding = isAuthenticated && !onboardingDismissed && (
-    progress.completedSteps.length === 0 || 
-    (isOnboarding && progress.completedSteps.length < progress.totalSteps)
-  );
+  // Check if user needs onboarding (first time users only)
+  // Once dismissed, onboarding should not automatically redirect user
+  const needsOnboarding = isAuthenticated && !onboardingDismissed && progress.completedSteps.length === 0;
 
   return (
     <AccessibilityProvider>
