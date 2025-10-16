@@ -31,7 +31,8 @@ import {
   Zap,
   X,
   Plus,
-  Send
+  Send,
+  AlertTriangle
 } from 'lucide-react';
 import {
   Dialog,
@@ -81,6 +82,7 @@ const NewsHubPage: React.FC = () => {
   const [pushArticleModalOpen, setPushArticleModalOpen] = useState(false);
   const [selectedArticleToPush, setSelectedArticleToPush] = useState<RealNewsArticle | null>(null);
   const [whatsappGroups, setWhatsappGroups] = useState<Array<{ id: string; name: string }>>([]);
+  const [whatsappSessionStatus, setWhatsappSessionStatus] = useState<string | null>(null);
   const [autoPushEnabled, setAutoPushEnabled] = useState(false);
   const [autoPushPlatform, setAutoPushPlatform] = useState<'telegram' | 'whatsapp' | null>(null);
   const [autoPushWhatsappGroupId, setAutoPushWhatsappGroupId] = useState<string>('');
@@ -94,25 +96,90 @@ const NewsHubPage: React.FC = () => {
 
   const fetchWhatsAppGroups = async () => {
     try {
-      const groups = await whatsappService.getAvailableGroups();
-      const sanitizedGroups = groups.reduce<Array<{ id: string; name: string }>>((acc, group) => {
-        const id = group.id || (group as any).groupId || (group as any)._id;
+      let rawGroups: any[] = [];
+      let sessionStatus: string | null = null;
+
+      try {
+        const response = await newsHubService.getWhatsAppGroups();
+        rawGroups = response.groups ?? [];
+        sessionStatus = response.sessionStatus ?? null;
+      } catch (primaryError) {
+        console.warn('News Hub: primary WhatsApp group fetch failed, falling back to summary service', primaryError);
+      }
+
+      if (!rawGroups || rawGroups.length === 0) {
+        try {
+          rawGroups = await whatsappService.getAvailableGroups();
+        } catch (fallbackError) {
+          console.error('News Hub: fallback WhatsApp group fetch failed', fallbackError);
+        }
+      }
+
+      if ((!rawGroups || rawGroups.length === 0) && !sessionStatus) {
+        sessionStatus = 'FAILED';
+      }
+
+      setWhatsappSessionStatus(sessionStatus);
+
+      if (!rawGroups || rawGroups.length === 0) {
+        setWhatsappGroups([]);
+        setAutoPushWhatsappGroupId('');
+        return;
+      }
+
+      let sanitizedGroups = rawGroups.reduce<Array<{ id: string; name: string }>>((acc, group) => {
+        const id =
+          group?.id ||
+          group?.chatId ||
+          group?.groupId ||
+          group?.jid ||
+          group?._id;
         if (!id) {
           return acc;
         }
 
-        const isGroup = group.isGroup ?? String(id).includes('@g.us');
-        const isPrivateChat = group.chatType === 'private' || (!isGroup && String(id).endsWith('@s.whatsapp.net'));
-        if (!isGroup || isPrivateChat) {
+        const normalizedId = String(id);
+        const normalizedChatType = group?.chatType || (group?.isGroup ? 'group' : undefined);
+        const normalizedIsGroup =
+          typeof group?.isGroup === 'boolean'
+            ? group.isGroup
+            : normalizedChatType === 'group' ||
+              normalizedId.includes('@g.us') ||
+              normalizedId.includes('@broadcast');
+        const isPrivateChat =
+          normalizedChatType === 'private' ||
+          (!normalizedIsGroup && (normalizedId.endsWith('@s.whatsapp.net') || normalizedId.includes('@c.us')));
+
+        if (!normalizedIsGroup || isPrivateChat) {
           return acc;
         }
 
         acc.push({
-          id: String(id),
-          name: group.name || (group as any).subject || String(id)
+          id: normalizedId,
+          name: group?.name || group?.subject || normalizedId
         });
         return acc;
       }, []);
+
+      if (sanitizedGroups.length === 0 && Array.isArray(rawGroups) && rawGroups.length > 0) {
+        sanitizedGroups = rawGroups
+          .map((group) => {
+            const fallbackId =
+              group?.id ||
+              group?.chatId ||
+              group?.groupId ||
+              group?.jid ||
+              group?._id;
+            if (!fallbackId) {
+              return null;
+            }
+            return {
+              id: String(fallbackId),
+              name: group?.name || group?.subject || String(fallbackId)
+            };
+          })
+          .filter((group): group is { id: string; name: string } => Boolean(group));
+      }
 
       setWhatsappGroups(sanitizedGroups);
       if (sanitizedGroups.length > 0) {
@@ -122,9 +189,14 @@ const NewsHubPage: React.FC = () => {
           }
           return sanitizedGroups[0]?.id ?? '';
         });
+      } else {
+        setAutoPushWhatsappGroupId('');
       }
     } catch (error) {
       console.error('Failed to fetch WhatsApp groups:', error);
+      setWhatsappGroups([]);
+      setAutoPushWhatsappGroupId('');
+      setWhatsappSessionStatus('FAILED');
     }
   };
 
@@ -1487,6 +1559,15 @@ const NewsHubPage: React.FC = () => {
 
                     {autoPushEnabled && (
                       <>
+                        {whatsappSessionStatus && whatsappSessionStatus !== 'WORKING' && (
+                          <div className="flex items-start gap-2 rounded-md bg-amber-50 p-3 text-xs text-amber-700 dark:bg-amber-900/20">
+                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                            <span>
+                              WhatsApp session status: {whatsappSessionStatus}. Open the WhatsApp integration page to reconnect before enabling auto-push.
+                            </span>
+                          </div>
+                        )}
+
                         <div className="space-y-2">
                           <Label>Platform</Label>
                           <RadioGroup

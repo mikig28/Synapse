@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Send, MessageCircle, Phone } from 'lucide-react';
+import { Send, MessageCircle, Phone, AlertTriangle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -37,10 +37,13 @@ export const PushArticleModal: React.FC<PushArticleModalProps> = ({
   const [platform, setPlatform] = useState<'telegram' | 'whatsapp'>('telegram');
   const [selectedGroup, setSelectedGroup] = useState<string>('');
   const [whatsappGroups, setWhatsappGroups] = useState<WhatsAppGroup[]>([]);
+  const [whatsappSessionStatus, setWhatsappSessionStatus] = useState<string | null>(null);
   const [telegramAvailable, setTelegramAvailable] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const { toast } = useToast();
+  const isWhatsappStatusAcceptable = !whatsappSessionStatus || ['WORKING', 'UNKNOWN'].includes(whatsappSessionStatus);
+  const whatsappOptionDisabled = whatsappGroups.length === 0 || !isWhatsappStatusAcceptable;
 
   useEffect(() => {
     if (open) {
@@ -56,26 +59,87 @@ export const PushArticleModal: React.FC<PushArticleModalProps> = ({
       setTelegramAvailable(telegramStatus.hasBot && telegramStatus.isActive);
 
       // Load WhatsApp groups
-      const groups = await whatsappService.getAvailableGroups();
-      const sanitizedGroups = groups.reduce<WhatsAppGroup[]>((acc, group) => {
-        const id = group.id || (group as any).groupId || (group as any)._id;
+      let rawGroups: any[] = [];
+      let sessionStatus: string | null = null;
+
+      try {
+        const response = await newsHubService.getWhatsAppGroups();
+        rawGroups = response.groups ?? [];
+        sessionStatus = response.sessionStatus ?? null;
+      } catch (primaryError) {
+        console.warn('Push Article: primary WhatsApp group fetch failed, using fallback', primaryError);
+      }
+
+      if (!rawGroups || rawGroups.length === 0) {
+        try {
+          rawGroups = await whatsappService.getAvailableGroups();
+        } catch (fallbackError) {
+          console.error('Push Article: fallback WhatsApp group fetch failed', fallbackError);
+        }
+      }
+
+      if ((!rawGroups || rawGroups.length === 0) && !sessionStatus) {
+        sessionStatus = 'FAILED';
+      }
+
+      setWhatsappSessionStatus(sessionStatus);
+
+      let sanitizedGroups = rawGroups.reduce<WhatsAppGroup[]>((acc, group) => {
+        const id =
+          group?.id ||
+          (group as any)?.chatId ||
+          (group as any)?.groupId ||
+          (group as any)?.jid ||
+          (group as any)?._id;
         if (!id) {
           return acc;
         }
 
-        const isGroup = group.isGroup ?? String(id).includes('@g.us');
-        const isPrivateChat = group.chatType === 'private' || (!isGroup && String(id).endsWith('@s.whatsapp.net'));
-        if (!isGroup || isPrivateChat) {
+        const normalizedId = String(id);
+        const normalizedChatType = group?.chatType || (group?.isGroup ? 'group' : undefined);
+        const normalizedIsGroup =
+          typeof group?.isGroup === 'boolean'
+            ? group.isGroup
+            : normalizedChatType === 'group' ||
+              normalizedId.includes('@g.us') ||
+              normalizedId.includes('@broadcast');
+        const isPrivateChat =
+          normalizedChatType === 'private' ||
+          (!normalizedIsGroup && (normalizedId.endsWith('@s.whatsapp.net') || normalizedId.includes('@c.us')));
+
+        if (!normalizedIsGroup || isPrivateChat) {
           return acc;
         }
 
         acc.push({
-          id: String(id),
-          name: group.name || (group as any).subject || String(id),
+          id: normalizedId,
+          name: group?.name || (group as any)?.subject || normalizedId,
           isGroup: true
         });
         return acc;
       }, []);
+
+      if (sanitizedGroups.length === 0 && Array.isArray(rawGroups) && rawGroups.length > 0) {
+        sanitizedGroups = rawGroups
+          .map((group) => {
+            const fallbackId =
+              group?.id ||
+              (group as any)?.chatId ||
+              (group as any)?.groupId ||
+              (group as any)?.jid ||
+              (group as any)?._id;
+            if (!fallbackId) {
+              return null;
+            }
+            return {
+              id: String(fallbackId),
+              name: group?.name || (group as any)?.subject || String(fallbackId),
+              isGroup: true
+            };
+          })
+          .filter((group): group is WhatsAppGroup => Boolean(group));
+      }
+
       setWhatsappGroups(sanitizedGroups);
       setSelectedGroup((current) => {
         if (current && sanitizedGroups.some((group) => group.id === current)) {
@@ -83,12 +147,17 @@ export const PushArticleModal: React.FC<PushArticleModalProps> = ({
         }
         return sanitizedGroups[0]?.id ?? '';
       });
-      
+
+      const whatsappReady =
+        sanitizedGroups.length > 0 && (!sessionStatus || ['WORKING', 'UNKNOWN'].includes(sessionStatus));
+
       // Set default selection
       if (telegramStatus.hasBot && telegramStatus.isActive) {
         setPlatform('telegram');
-      } else if (sanitizedGroups.length > 0) {
+      } else if (whatsappReady) {
         setPlatform('whatsapp');
+      } else {
+        setPlatform('telegram');
       }
     } catch (error) {
       console.error('Error loading destinations:', error);
@@ -97,6 +166,7 @@ export const PushArticleModal: React.FC<PushArticleModalProps> = ({
         description: 'Failed to load available destinations',
         variant: 'destructive',
       });
+      setWhatsappSessionStatus('FAILED');
     } finally {
       setLoading(false);
     }
@@ -145,7 +215,9 @@ export const PushArticleModal: React.FC<PushArticleModalProps> = ({
   const canSend = () => {
     if (loading || sending) return false;
     if (platform === 'telegram') return telegramAvailable;
-    if (platform === 'whatsapp') return whatsappGroups.length > 0 && Boolean(selectedGroup);
+    if (platform === 'whatsapp') {
+      return whatsappGroups.length > 0 && Boolean(selectedGroup) && isWhatsappStatusAcceptable;
+    }
     return false;
   };
 
@@ -179,17 +251,32 @@ export const PushArticleModal: React.FC<PushArticleModalProps> = ({
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="whatsapp" id="whatsapp" disabled={whatsappGroups.length === 0} />
-                  <Label htmlFor="whatsapp" className={whatsappGroups.length === 0 ? 'opacity-50' : ''}>
+                  <RadioGroupItem value="whatsapp" id="whatsapp" disabled={whatsappOptionDisabled} />
+                  <Label htmlFor="whatsapp" className={whatsappOptionDisabled ? 'opacity-50' : ''}>
                     <div className="flex items-center gap-2">
                       <Phone className="w-4 h-4" />
                       WhatsApp Group
-                      {whatsappGroups.length === 0 && <span className="text-xs text-muted-foreground">(No groups available)</span>}
+                      {whatsappGroups.length === 0 && (
+                        <span className="text-xs text-muted-foreground">(No groups available)</span>
+                      )}
+                      {whatsappGroups.length > 0 && !isWhatsappStatusAcceptable && (
+                        <span className="text-xs text-muted-foreground">(Session not connected)</span>
+                      )}
                     </div>
                   </Label>
                 </div>
               </RadioGroup>
             </div>
+
+            {whatsappSessionStatus && !isWhatsappStatusAcceptable && (
+              <div className="flex items-start gap-2 rounded-md bg-amber-50 p-3 text-xs text-amber-700 dark:bg-amber-900/20">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  WhatsApp session status: {whatsappSessionStatus}. Open the WhatsApp integration page to reconnect before
+                  pushing articles.
+                </span>
+              </div>
+            )}
 
             {platform === 'whatsapp' && whatsappGroups.length > 0 && (
               <div className="space-y-2">

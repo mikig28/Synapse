@@ -27,6 +27,9 @@ router.post('/articles/:id/read', newsHubController.markArticleAsRead);
 router.post('/articles/:id/save', newsHubController.toggleArticleSaved);
 router.post('/articles/:id/favorite', newsHubController.toggleArticleFavorite);
 
+// WhatsApp integration
+router.get('/whatsapp/groups', newsHubController.getWhatsAppGroups);
+
 // Push article to messaging platforms
 router.post('/articles/:id/push/telegram', newsHubController.pushArticleToTelegram);
 router.post('/articles/:id/push/whatsapp', newsHubController.pushArticleToWhatsApp);

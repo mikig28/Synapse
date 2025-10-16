@@ -10,6 +10,19 @@ import type {
   ApiResponse
 } from '../types/newsHub';
 
+export interface NewsHubWhatsAppGroup {
+  id: string;
+  name: string;
+  isGroup?: boolean;
+  chatType?: string;
+  participantCount?: number;
+}
+
+export interface NewsHubWhatsAppGroupsResponse {
+  groups: NewsHubWhatsAppGroup[];
+  sessionStatus?: string;
+}
+
 // Use the configured axios instance which already handles authentication
 const api = axiosInstance;
 
@@ -119,6 +132,27 @@ class NewsHubService {
   async toggleFavorite(articleId: string): Promise<ApiResponse<RealNewsArticle>> {
     const response = await api.post<ApiResponse<RealNewsArticle>>(`/news-hub/articles/${articleId}/favorite`);
     return response.data;
+  }
+
+  /**
+   * Get available WhatsApp groups for manual or auto-push
+   */
+  async getWhatsAppGroups(): Promise<NewsHubWhatsAppGroupsResponse> {
+    const response = await api.get<ApiResponse<NewsHubWhatsAppGroupsResponse | NewsHubWhatsAppGroup[]>>('/news-hub/whatsapp/groups');
+
+    if (response.data.success && response.data.data) {
+      const payload = response.data.data;
+      if (Array.isArray(payload)) {
+        return { groups: payload };
+      }
+
+      return {
+        groups: payload.groups ?? [],
+        sessionStatus: payload.sessionStatus
+      };
+    }
+
+    throw new Error(response.data.error || 'Failed to load WhatsApp groups');
   }
 
   /**

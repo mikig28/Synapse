@@ -3636,7 +3636,23 @@ class WAHAService extends EventEmitter {
         createPayload.engine = engine;
         console.log(`[WAHA Service] 🔧 Creating session with engine: ${engine}`);
       }
-      
+
+      // Initialize config object
+      if (!createPayload.config) {
+        createPayload.config = {};
+      }
+
+      // CRITICAL FIX: Add NOWEB store configuration for session recreation
+      if (engine === 'NOWEB') {
+        createPayload.config.noweb = {
+          store: {
+            enabled: true,
+            fullSync: true
+          }
+        };
+        console.log(`[WAHA Service] 🔧 Added NOWEB store configuration for session recreation`);
+      }
+
       let responseData: any = null;
       try {
         const response = await this.httpClient.post('/sessions', createPayload);
@@ -3647,6 +3663,23 @@ class WAHAService extends EventEmitter {
         console.warn(`[WAHA Service] ⚠️ Recreate via /sessions failed (${status}). Falling back to /${sessionName}/start`);
         const fallbackPayload: any = { name: sessionName, start: true };
         if (engine) fallbackPayload.engine = engine;
+
+        // Initialize config for fallback too
+        if (!fallbackPayload.config) {
+          fallbackPayload.config = {};
+        }
+
+        // CRITICAL FIX: Add NOWEB store configuration for fallback path too
+        if (engine === 'NOWEB') {
+          fallbackPayload.config.noweb = {
+            store: {
+              enabled: true,
+              fullSync: true
+            }
+          };
+          console.log(`[WAHA Service] 🔧 Added NOWEB store configuration for fallback recreation`);
+        }
+
         const startRes = await this.httpClient.post(`/${sessionName}/start`, fallbackPayload);
         console.log(`[WAHA Service] ✅ Fallback start created/started session '${sessionName}':`, startRes.status);
         responseData = { name: sessionName, status: 'STARTING' };

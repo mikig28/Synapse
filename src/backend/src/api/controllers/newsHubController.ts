@@ -416,6 +416,73 @@ export const getNewsHubStats = async (req: AuthenticatedRequest, res: Response):
 };
 
 /**
+ * Get WhatsApp groups available for pushing articles
+ */
+export const getWhatsAppGroups = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    const sessionManager = WhatsAppSessionManager.getInstance();
+    let sessionStatus: any = null;
+    let groups: any[] = [];
+
+    try {
+      const wahaService = await sessionManager.getSessionForUser(userId);
+      try {
+        sessionStatus = await wahaService.getSessionStatus();
+      } catch (statusError) {
+        logger.warn('[News Hub] Unable to fetch WhatsApp session status:', statusError);
+      }
+
+      groups = await wahaService.getGroups(undefined, { limit: 1000 });
+      logger.info(`[News Hub] Retrieved ${groups.length} WhatsApp groups for user ${userId}`);
+    } catch (serviceError) {
+      logger.error('[News Hub] Failed to retrieve WhatsApp groups:', serviceError);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to load WhatsApp groups. Please ensure your WhatsApp session is connected.'
+      });
+      return;
+    }
+
+    const formattedGroups = Array.isArray(groups)
+      ? groups
+          .filter((group) => group && (group.id || group.chatId || group.groupId || group.jid))
+          .map((group) => {
+            const id = String(group.id || group.chatId || group.groupId || group.jid);
+            const isGroup = group.isGroup ?? id.includes('@g.us');
+            return {
+              id,
+              name: group.name || group.subject || id,
+              isGroup,
+              chatType: isGroup ? 'group' : 'private',
+              participantCount: group.participantCount ?? (Array.isArray(group.participants) ? group.participants.length : undefined)
+            };
+          })
+      : [];
+
+    res.json({
+      success: true,
+      data: {
+        groups: formattedGroups,
+        sessionStatus: sessionStatus?.status || sessionStatus || 'UNKNOWN'
+      }
+    });
+  } catch (error: any) {
+    logger.error('[News Hub] Unexpected error fetching WhatsApp groups:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to load WhatsApp groups'
+    });
+  }
+};
+
+/**
  * Format article for messaging (for manual push endpoints)
  */
 function formatArticleForMessaging(article: IRealNewsArticle): string {
