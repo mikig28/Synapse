@@ -36,6 +36,8 @@ import {
   FolderKanban,
   Workflow,
   Library,
+  Pin,
+  PinOff,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -45,6 +47,8 @@ import useAuthStore from '@/store/authStore';
 // Define props for Sidebar
 interface SidebarProps {
   isSidebarOpen: boolean;
+  isPinned: boolean;
+  togglePin: () => void;
 }
 
 interface NavItem {
@@ -62,7 +66,7 @@ interface NavSection {
   defaultOpen?: boolean;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen, isPinned, togglePin }) => {
   const [showScrollTop, setShowScrollTop] = React.useState(false);
   const [showScrollBottom, setShowScrollBottom] = React.useState(false);
   const navRef = React.useRef<HTMLElement>(null);
@@ -277,10 +281,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
       aria-label="Primary"
     >
       {/* Header section - fixed height */}
-      <div className={`px-4 pt-4 pb-2 flex items-center flex-shrink-0 ${isSidebarOpen ? 'justify-start' : 'justify-center'}`}>
+      <div className={`px-4 pt-4 pb-2 flex items-center flex-shrink-0 ${isSidebarOpen ? 'justify-between' : 'justify-center'}`}>
         {/* Synapse Logo/Icon - visible when open, tiny icon when closed */}
         <Link to="/dashboard" className="flex items-center gap-2">
-          <motion.img 
+          <motion.img
             src={logoSrc}
             alt="Synapse Logo"
             className="rounded-lg transition-all duration-300"
@@ -298,6 +302,30 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen }) => {
             </h2>
           )}
         </Link>
+
+        {/* Pin button - only visible when sidebar is open */}
+        {isSidebarOpen && (
+          <motion.button
+            onClick={togglePin}
+            className={`
+              p-2 rounded-lg transition-all duration-200
+              ${isPinned
+                ? 'bg-purple-500/30 text-purple-300 hover:bg-purple-500/40'
+                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+              }
+            `}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            aria-label={isPinned ? "Unpin sidebar" : "Pin sidebar"}
+            title={isPinned ? "Unpin sidebar (collapse on navigation)" : "Pin sidebar (keep open)"}
+          >
+            {isPinned ? (
+              <Pin className="h-4 w-4" />
+            ) : (
+              <PinOff className="h-4 w-4" />
+            )}
+          </motion.button>
+        )}
       </div>
       
       {/* Scroll top indicator */}
