@@ -5,7 +5,7 @@ import { Progress } from '@/components/ui/progress';
 import { CheckCircle, Circle, Lock } from 'lucide-react';
 
 export const OnboardingProgress: React.FC = () => {
-  const { steps, currentStep, progress } = useOnboardingStore();
+  const { steps, currentStep, progress, goToStep } = useOnboardingStore();
 
   const completionPercentage = (progress.completedSteps.length / steps.length) * 100;
 
@@ -34,14 +34,25 @@ export const OnboardingProgress: React.FC = () => {
           const isCurrent = index === currentStep;
           const isUnlocked = step.unlocked;
           const isPast = index < currentStep;
+          const cursorClass = !isUnlocked ? 'cursor-not-allowed' : isCurrent ? 'cursor-default' : 'cursor-pointer';
+          const canNavigate = isUnlocked && index !== currentStep;
 
           return (
-            <motion.div
+            <motion.button
               key={step.id}
-              className="flex flex-col items-center min-w-[80px] max-w-[100px] relative"
+              type="button"
+              onClick={() => {
+                if (isUnlocked) {
+                  goToStep(index);
+                }
+              }}
+              className={`relative flex flex-col items-center min-w-[80px] max-w-[100px] bg-transparent p-0 text-center focus-visible:outline-none group ${cursorClass}`}
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: index * 0.1 }}
+              disabled={!isUnlocked}
+              aria-current={isCurrent ? 'step' : undefined}
+              aria-label={`${step.title}${step.optional ? ' (Optional)' : ''}`}
             >
               {/* Step Circle */}
               <motion.div
@@ -57,8 +68,8 @@ export const OnboardingProgress: React.FC = () => {
                     : 'bg-muted/50 text-muted-foreground/50'
                   }
                 `}
-                whileHover={isUnlocked ? { scale: 1.1 } : {}}
-                whileTap={isUnlocked ? { scale: 0.95 } : {}}
+                whileHover={canNavigate ? { scale: 1.1 } : {}}
+                whileTap={canNavigate ? { scale: 0.95 } : {}}
               >
                 {isCompleted ? (
                   <CheckCircle className="w-4 h-4" />
@@ -82,11 +93,13 @@ export const OnboardingProgress: React.FC = () => {
               <div className="text-center min-w-0 w-full px-1">
                 <div 
                   className={`
-                    text-xs font-medium text-center leading-tight
+                    text-xs font-medium text-center leading-tight transition-colors
                     ${isCurrent
                       ? 'text-primary'
                       : isCompleted
                       ? 'text-green-600'
+                      : canNavigate
+                      ? 'text-foreground group-hover:text-primary'
                       : isUnlocked
                       ? 'text-foreground'
                       : 'text-muted-foreground/50'
@@ -123,7 +136,7 @@ export const OnboardingProgress: React.FC = () => {
                   />
                 </div>
               )}
-            </motion.div>
+            </motion.button>
           );
         })}
       </div>
