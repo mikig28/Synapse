@@ -1,7 +1,8 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
-import { summarizeLatestBookmarksService, SummarizeLatestResponse } from '../services/bookmarkService';
+import { summarizeLatestBookmarksService } from '../services/bookmarkService';
 import { useToast } from '@/hooks/use-toast';
 import { BookmarkItemType } from '../types/bookmark';
+import useAuthStore from '@/store/authStore';
 
 // Define a type for the source info
 export interface DigestSourceInfo {
@@ -25,46 +26,82 @@ interface DigestContextType {
 const DigestContext = createContext<DigestContextType | undefined>(undefined);
 
 export const DigestProvider: React.FC<{children: ReactNode}> = ({ children }) => {
-  const [latestDigest, _setLatestDigestInternal] = useState<string | null>(() => {
-    const storedDigest = localStorage.getItem('latestDigest');
-    return storedDigest ? JSON.parse(storedDigest) : null;
-  });
-  const [latestDigestSources, _setLatestDigestSourcesInternal] = useState<DigestSourceInfo[] | null>(() => {
-    const storedSources = localStorage.getItem('latestDigestSources');
-    return storedSources ? JSON.parse(storedSources) : null;
-  });
+  const [latestDigest, _setLatestDigestInternal] = useState<string | null>(null);
+  const [latestDigestSources, _setLatestDigestSourcesInternal] = useState<DigestSourceInfo[] | null>(null);
   const [isBatchSummarizing, setIsBatchSummarizing] = useState<boolean>(false);
   const { toast } = useToast();
+  const userId = useAuthStore((state) => state.user?.id);
+  const hasAuthHydrated = useAuthStore((state) => state.hasHydrated);
+
+  const DIGEST_STORAGE_KEY = 'latestDigest';
+  const DIGEST_SOURCES_STORAGE_KEY = 'latestDigestSources';
+  const digestKey = userId ? `${DIGEST_STORAGE_KEY}:${userId}` : null;
+  const digestSourcesKey = userId ? `${DIGEST_SOURCES_STORAGE_KEY}:${userId}` : null;
 
   useEffect(() => {
-    const storedDigest = localStorage.getItem('latestDigest');
-    if (storedDigest) {
-      _setLatestDigestInternal(JSON.parse(storedDigest));
+    if (!hasAuthHydrated) {
+      return;
     }
-    const storedSources = localStorage.getItem('latestDigestSources');
-    if (storedSources) {
-      _setLatestDigestSourcesInternal(JSON.parse(storedSources));
+
+    // Cleanup legacy, user-agnostic keys so digests don't leak between accounts
+    localStorage.removeItem(DIGEST_STORAGE_KEY);
+    localStorage.removeItem(DIGEST_SOURCES_STORAGE_KEY);
+
+    if (!digestKey || !digestSourcesKey) {
+      _setLatestDigestInternal(null);
+      _setLatestDigestSourcesInternal(null);
+      return;
     }
-  }, []);
+
+    try {
+      const storedDigest = localStorage.getItem(digestKey);
+      _setLatestDigestInternal(storedDigest ? JSON.parse(storedDigest) : null);
+    } catch (err) {
+      console.error('[DigestProvider] Failed to parse stored digest. Clearing value.', err);
+      _setLatestDigestInternal(null);
+      localStorage.removeItem(digestKey);
+    }
+
+    try {
+      const storedSources = localStorage.getItem(digestSourcesKey);
+      _setLatestDigestSourcesInternal(storedSources ? JSON.parse(storedSources) : null);
+    } catch (err) {
+      console.error('[DigestProvider] Failed to parse stored digest sources. Clearing value.', err);
+      _setLatestDigestSourcesInternal(null);
+      localStorage.removeItem(digestSourcesKey);
+    }
+  }, [digestKey, digestSourcesKey, hasAuthHydrated]);
 
   const setLatestDigest = (digest: string | null) => {
     console.log('[DigestProvider] setLatestDigest CALLED with:', digest);
     _setLatestDigestInternal(digest);
-    if (digest) {
-      localStorage.setItem('latestDigest', JSON.stringify(digest));
-    } else {
-      localStorage.removeItem('latestDigest');
+    if (!digestKey) {
+      // No authenticated user yet; ensure no shared digest remains
+      localStorage.removeItem(DIGEST_STORAGE_KEY);
+      return;
     }
+    if (digest) {
+      localStorage.setItem(digestKey, JSON.stringify(digest));
+    } else {
+      localStorage.removeItem(digestKey);
+    }
+    // Always clear legacy key once we write using per-user storage
+    localStorage.removeItem(DIGEST_STORAGE_KEY);
   };
 
   const setLatestDigestSources = (sources: DigestSourceInfo[] | null) => {
     console.log('[DigestProvider] setLatestDigestSources CALLED with:', sources);
     _setLatestDigestSourcesInternal(sources);
-    if (sources) {
-      localStorage.setItem('latestDigestSources', JSON.stringify(sources));
-    } else {
-      localStorage.removeItem('latestDigestSources');
+    if (!digestSourcesKey) {
+      localStorage.removeItem(DIGEST_SOURCES_STORAGE_KEY);
+      return;
     }
+    if (sources) {
+      localStorage.setItem(digestSourcesKey, JSON.stringify(sources));
+    } else {
+      localStorage.removeItem(digestSourcesKey);
+    }
+    localStorage.removeItem(DIGEST_SOURCES_STORAGE_KEY);
   };
 
   const summarizeLatestBookmarks = async (
@@ -75,8 +112,14 @@ export const DigestProvider: React.FC<{children: ReactNode}> = ({ children }) =>
     setIsBatchSummarizing(true);
     setLatestDigest(null);
     setLatestDigestSources(null);
-    localStorage.removeItem('latestDigest');
-    localStorage.removeItem('latestDigestSources');
+    if (digestKey) {
+      localStorage.removeItem(digestKey);
+    }
+    if (digestSourcesKey) {
+      localStorage.removeItem(digestSourcesKey);
+    }
+    localStorage.removeItem(DIGEST_STORAGE_KEY);
+    localStorage.removeItem(DIGEST_SOURCES_STORAGE_KEY);
     try {
       const response = await summarizeLatestBookmarksService();
       toast({
@@ -148,4 +191,4 @@ export const useDigest = (): DigestContextType => {
     throw new Error('useDigest must be used within a DigestProvider');
   }
   return context;
-}; 
+};

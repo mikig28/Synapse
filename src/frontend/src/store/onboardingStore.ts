@@ -1,9 +1,10 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, type StateStorage } from 'zustand/middleware';
 import telegramBotService from '@/services/telegramBotService';
 import whatsappService from '@/services/whatsappService';
 import documentService from '@/services/documentService';
 import { agentService } from '@/services/agentService';
+import useAuthStore from '@/store/authStore';
 
 export interface OnboardingStep {
   id: string;
@@ -133,6 +134,53 @@ interface OnboardingState {
   setError: (error: string | null) => void;
   setLoading: (loading: boolean) => void;
 }
+
+const ONBOARDING_STORAGE_BASE_KEY = 'synapse-onboarding';
+const ONBOARDING_GUEST_STORAGE_KEY = `${ONBOARDING_STORAGE_BASE_KEY}:guest`;
+
+const getOnboardingStorageKey = (userId?: string | null) =>
+  userId ? `${ONBOARDING_STORAGE_BASE_KEY}:${userId}` : ONBOARDING_GUEST_STORAGE_KEY;
+
+const onboardingStorage: StateStorage = {
+  getItem: (name) => {
+    try {
+      const userId = useAuthStore.getState().user?.id;
+      const key = getOnboardingStorageKey(userId);
+      if (localStorage.getItem(name)) {
+        localStorage.removeItem(name);
+      }
+      return localStorage.getItem(key);
+    } catch (error) {
+      console.error('[OnboardingStore] Unable to read onboarding state from storage', error);
+      return null;
+    }
+  },
+  setItem: (name, value) => {
+    try {
+      const userId = useAuthStore.getState().user?.id;
+      const key = getOnboardingStorageKey(userId);
+      localStorage.setItem(key, value);
+      localStorage.removeItem(name);
+      if (userId) {
+        localStorage.removeItem(ONBOARDING_GUEST_STORAGE_KEY);
+      }
+    } catch (error) {
+      console.error('[OnboardingStore] Unable to persist onboarding state', error);
+    }
+  },
+  removeItem: (name) => {
+    try {
+      const userId = useAuthStore.getState().user?.id;
+      localStorage.removeItem(getOnboardingStorageKey(userId));
+      localStorage.removeItem(name);
+      if (userId) {
+        localStorage.removeItem(ONBOARDING_GUEST_STORAGE_KEY);
+      }
+    } catch (error) {
+      console.error('[OnboardingStore] Unable to remove onboarding state', error);
+    }
+  },
+};
 
 const createDefaultSteps = (): OnboardingStep[] => ([
   {
@@ -782,7 +830,8 @@ export const useOnboardingStore = create<OnboardingState>()(
       },
     }),
     {
-      name: 'synapse-onboarding',
+      name: ONBOARDING_STORAGE_BASE_KEY,
+      storage: onboardingStorage,
       partialize: (state) => ({
         progress: state.progress,
         userPreferences: state.userPreferences,
@@ -795,6 +844,33 @@ export const useOnboardingStore = create<OnboardingState>()(
       }),
     },
   ),
+);
+
+type OnboardingStorePersistApi = {
+  rehydrate: () => Promise<void>;
+};
+
+const triggerOnboardingRehydrate = () => {
+  const persistApi = (useOnboardingStore as typeof useOnboardingStore & { persist?: OnboardingStorePersistApi }).persist;
+  if (persistApi?.rehydrate) {
+    void persistApi.rehydrate();
+  }
+};
+
+useAuthStore.subscribe(
+  (state) => ({ userId: state.user?.id ?? null, hydrated: state.hasHydrated }),
+  (current, previous) => {
+    if (!current.hydrated) {
+      return;
+    }
+
+    if (previous?.hydrated && current.userId === previous.userId) {
+      return;
+    }
+
+    useOnboardingStore.getState().reset();
+    triggerOnboardingRehydrate();
+  },
 );
 
 
