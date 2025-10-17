@@ -434,7 +434,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         set({
           isOnboarding: true,
           isInitialized: false,
-          onboardingDismissed: false,
+          onboardingDismissed: state.onboardingDismissed, // Preserve dismissed state
           steps,
           progress,
           currentStep: determineCurrentStep(steps),

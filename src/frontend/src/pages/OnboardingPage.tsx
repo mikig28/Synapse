@@ -72,10 +72,12 @@ const OnboardingPage: React.FC = () => {
   }, [initializeFromServer, isInitialized, setError]);
 
   useEffect(() => {
-    if (!isOnboarding && !onboardingDismissed) {
+    // Only start onboarding if user hasn't completed it and hasn't dismissed it
+    // This prevents onboarding from showing on every refresh for existing users
+    if (!isOnboarding && !onboardingDismissed && progress.completedSteps.length === 0) {
       startOnboarding();
     }
-  }, [isOnboarding, onboardingDismissed, startOnboarding]);
+  }, [isOnboarding, onboardingDismissed, startOnboarding, progress.completedSteps.length]);
 
   const CurrentStepComponent = useMemo(() => stepComponents[currentStep] ?? null, [currentStep]);
   const currentStepData = steps[currentStep];
