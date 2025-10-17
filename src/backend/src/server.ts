@@ -301,9 +301,7 @@ app.post('/api/v1/whatsapp-summary/generate-today-noauth', async (req: Request, 
 });
 console.log('[Server] WhatsApp no-auth summary route loaded successfully');
 
-// Direct route for WhatsApp summary generation (primary endpoint)
-app.post('/api/v1/whatsapp-summary/generate-today-direct', authMiddleware, generateTodaySummary);
-console.log('[Server] WhatsApp summary direct route loaded successfully');
+// Direct route removed - using main routes instead
 
 console.log('[Server] Loading WhatsApp summary routes...');
 app.use('/api/v1/whatsapp-summary', whatsappSummaryRoutes); // Use WhatsApp summary routes

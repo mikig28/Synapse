@@ -441,6 +441,21 @@ class WhatsAppService {
   }
 
   /**
+   * Test the summary service endpoint
+   */
+  async testSummaryService(): Promise<boolean> {
+    try {
+      console.log('[WhatsAppService] Testing summary service endpoint...');
+      const response = await api.get(`${this.summaryUrl}/test`);
+      console.log('[WhatsAppService] Test endpoint response:', response.data);
+      return response.data.success === true;
+    } catch (error: any) {
+      console.error('[WhatsAppService] Test endpoint failed:', error.response?.status, error.response?.data);
+      return false;
+    }
+  }
+
+  /**
    * Generate today's summary for a specific group
    */
   async generateTodaySummary(request: TodaySummaryRequest): Promise<GroupSummaryData> {
@@ -452,20 +467,41 @@ class WhatsAppService {
       console.log('[WhatsAppService] Auth check - Token exists:', !!token, 'Is authenticated:', isAuthenticated);
       console.log('[WhatsAppService] Making request to generate-today (with fallback):', request);
       console.log('[WhatsAppService] Full URL (primary):', `${api.defaults.baseURL}/${this.summaryUrl}/generate-today`);
+      
+      // Test the service first
+      const serviceAvailable = await this.testSummaryService();
+      if (!serviceAvailable) {
+        throw new Error('Summary service is not available. Please try again later.');
+      }
 
       if (!isAuthenticated || !token) {
         throw new Error('Not authenticated. Please log in first.');
       }
+      // Prepare request payload with only required fields
+      const requestPayload = {
+        groupId: request.groupId,
+        timezone: request.timezone || this.getUserTimezone()
+      };
+      
+      console.log('[WhatsAppService] Request payload:', requestPayload);
+      
       let response;
       try {
-        response = await api.post(`${this.summaryUrl}/generate-today`, request);
+        response = await api.post(`${this.summaryUrl}/generate-today`, requestPayload);
       } catch (err: any) {
         if (err?.response?.status === 404) {
           console.warn('[WhatsAppService] /generate-today not found on backend, falling back to /generate with today date');
           const today = new Date().toISOString().split('T')[0];
-          const fallbackPayload: any = { groupId: request.groupId, date: today, timezone: request.timezone, chatType: request.chatType };
+          const fallbackPayload = { 
+            groupId: request.groupId, 
+            date: today, 
+            timezone: request.timezone || this.getUserTimezone()
+          };
           console.log('[WhatsAppService] Fallback payload:', fallbackPayload);
           response = await api.post(`${this.summaryUrl}/generate`, fallbackPayload);
+        } else if (err?.response?.status === 401) {
+          // Don't try fallback for authentication errors
+          throw err;
         } else {
           throw err;
         }
@@ -488,12 +524,16 @@ class WhatsAppService {
       // Handle specific error types
       if (error.response?.status === 401) {
         console.error('[WhatsAppService] Authentication error - please log in again');
-        alert('Authentication required. Please log in again.');
         throw new Error('Authentication required. Please log in again.');
       } else if (error.response?.status === 404) {
         console.error('[WhatsAppService] Endpoint not found');
-        alert('Service endpoint not found. Please try again later.');
         throw new Error('Service endpoint not found. Please try again later.');
+      } else if (error.response?.status === 400) {
+        console.error('[WhatsAppService] Bad request:', error.response.data);
+        throw new Error(error.response.data?.error || 'Invalid request. Please check your input.');
+      } else if (error.response?.status >= 500) {
+        console.error('[WhatsAppService] Server error:', error.response.data);
+        throw new Error('Server error. Please try again later.');
       }
 
       throw new Error(error.response?.data?.error || error.message || 'Failed to generate today summary');

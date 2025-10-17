@@ -173,7 +173,7 @@ export const GettingStartedChecklist: React.FC = () => {
 
   const completedCount = items.filter((item) => item.completed).length;
   const totalCount = items.length;
-  const progress = (completedCount / totalCount) * 100;
+  const completionProgress = (completedCount / totalCount) * 100;
 
   const handleDismiss = () => {
     setIsDismissed(true);
@@ -264,9 +264,9 @@ export const GettingStartedChecklist: React.FC = () => {
               <span className="text-muted-foreground">
                 {completedCount} of {totalCount} completed
               </span>
-              <span className="font-semibold text-foreground">{Math.round(progress)}%</span>
+              <span className="font-semibold text-foreground">{Math.round(completionProgress)}%</span>
             </div>
-            <Progress value={progress} className="h-2" />
+            <Progress value={completionProgress} className="h-2" />
           </div>
 
           <AnimatePresence>
