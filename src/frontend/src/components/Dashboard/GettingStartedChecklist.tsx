@@ -19,6 +19,7 @@ import documentService from '@/services/documentService';
 import whatsappService from '@/services/whatsappService';
 import { agentService } from '@/services/agentService';
 import telegramBotService from '@/services/telegramBotService';
+import { useOnboardingStore } from '@/store/onboardingStore';
 
 interface ChecklistItem {
   id: string;
@@ -86,8 +87,12 @@ export const GettingStartedChecklist: React.FC = () => {
   const [isDismissed, setIsDismissed] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
   const [items, setItems] = useState<ChecklistItem[]>(() => createInitialItems());
+  const { onboardingDismissed, progress } = useOnboardingStore();
 
   const navigate = useNavigate();
+
+  // If user has completed the full onboarding flow, hide the checklist
+  const hasCompletedOnboarding = onboardingDismissed || (progress.completedSteps && progress.completedSteps.length >= 4);
   const updateSearchCompletion = useCallback(() => {
     const hasUsedSearch = getSearchCompletionFromStorage();
     setItems((prevItems) =>
@@ -142,13 +147,13 @@ export const GettingStartedChecklist: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Load dismissed state from localStorage
+  // Load dismissed state from localStorage or onboarding store
   useEffect(() => {
     const dismissed = localStorage.getItem('getting-started-dismissed');
-    if (dismissed === 'true') {
+    if (dismissed === 'true' || hasCompletedOnboarding) {
       setIsDismissed(true);
     }
-  }, []);
+  }, [hasCompletedOnboarding]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -172,6 +177,7 @@ export const GettingStartedChecklist: React.FC = () => {
 
   const handleDismiss = () => {
     setIsDismissed(true);
+    // Set both local storage and let the store know
     localStorage.setItem('getting-started-dismissed', 'true');
   };
 

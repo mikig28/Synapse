@@ -118,7 +118,10 @@ const OnboardingPage: React.FC = () => {
 
   const handleExit = () => {
     dismissOnboarding();
-    navigate('/dashboard');
+    // Give persist middleware time to save to localStorage before navigating
+    setTimeout(() => {
+      navigate('/dashboard');
+    }, 100);
   };
 
   const pageVariants = {
