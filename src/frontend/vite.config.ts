@@ -225,4 +225,4 @@ export default defineConfig({
     // Target modern browsers
     target: 'es2020',
   },
-}) 
+}) // Force rebuild: Fri Oct 17 21:38:50 IDT 2025
