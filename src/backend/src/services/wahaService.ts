@@ -2369,6 +2369,17 @@ class WAHAService extends EventEmitter {
 
         console.log(`[WAHA Service] Loaded ${contacts.length} contacts with ${Object.keys(contactsMap).length} ID variations for name resolution (${engineName} engine)`);
 
+        // Debug: Log first few contacts to verify data structure
+        if (contacts.length > 0) {
+          const sampleContact = contacts[0];
+          console.log(`[WAHA Service] Sample contact structure:`, JSON.stringify(sampleContact, null, 2));
+
+          // Count how many contacts have names vs only pushnames
+          const withName = contacts.filter(c => c.name).length;
+          const withPushname = contacts.filter(c => c.pushname || c.pushName).length;
+          console.log(`[WAHA Service] Contacts breakdown: ${withName} with saved names, ${withPushname} with WhatsApp display names`);
+        }
+
         // Also fetch groups separately for better name resolution
         // The /groups endpoint provides richer group metadata including subject names
         // IMPORTANT: Increase limit to 1000 to fetch all groups for proper name resolution
@@ -2532,19 +2543,21 @@ class WAHAService extends EventEmitter {
               // 1. Try to get name from contacts API first
               const contactInfo = contactsMap[safeId];
               if (contactInfo) {
-                // WAHA Plus official format: name, pushname, shortName (per documentation)
-                chatName = contactInfo.name ||
-                          contactInfo.pushname ||
-                          contactInfo.shortName ||
-                          contactInfo.pushName ||
-                          contactInfo.notify ||
-                          contactInfo.verifiedName ||
-                          contactInfo.formattedName ||
-                          contactInfo.displayName ||
-                          contactInfo.vname;
+                // WAHA Plus official format: prioritize saved name, then pushname
+                // Note: 'name' = saved contact in phone, 'pushname' = WhatsApp display name
+                chatName = contactInfo.name ||           // Saved contact name (preferred)
+                          contactInfo.pushname ||         // WhatsApp display name
+                          contactInfo.pushName ||         // Alternative casing
+                          contactInfo.shortName ||        // Abbreviated name
+                          contactInfo.notify ||           // Notification name
+                          contactInfo.verifiedName ||     // Verified business name
+                          contactInfo.formattedName ||    // Formatted display name
+                          contactInfo.displayName ||      // Generic display name
+                          contactInfo.vname;              // Alternative name field
 
                 if (chatName) {
-                  console.log(`[WAHA Service] 👤 Contact name resolved from contactsMap: "${chatName}" for ${safeId}`);
+                  const nameSource = contactInfo.name ? 'saved contact' : 'WhatsApp display name';
+                  console.log(`[WAHA Service] 👤 Contact name resolved from contactsMap (${nameSource}): "${chatName}" for ${safeId}`);
                 }
               }
 
@@ -2559,8 +2572,17 @@ class WAHAService extends EventEmitter {
                 }
               }
 
-              if (!contactInfo && !chatName) {
+              if (!contactInfo) {
+                // Debug: Show which ID formats we tried
+                const baseId = safeId.split('@')[0];
+                const triedIds = [
+                  safeId,
+                  baseId + '@c.us',
+                  baseId + '@s.whatsapp.net'
+                ];
                 console.log(`[WAHA Service] ⚠️ No contact info found in contactsMap for ${safeId}`);
+                console.log(`[WAHA Service] Tried IDs: ${triedIds.join(', ')}`);
+                console.log(`[WAHA Service] ContactsMap has ${Object.keys(contactsMap).filter(k => !k.includes('@g.us')).length} non-group contacts`);
               }
 
               // If still no name from contacts, try chat data
