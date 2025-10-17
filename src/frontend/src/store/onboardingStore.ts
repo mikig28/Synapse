@@ -798,9 +798,23 @@ export const useOnboardingStore = create<OnboardingState>()(
       },
 
       dismissOnboarding: () => {
+        const state = get();
+        // Mark welcome step as completed to provide redundancy
+        // This ensures needsOnboarding check fails even if onboardingDismissed doesn't persist
+        const updatedSteps = state.steps.map((step) =>
+          step.id === 'welcome'
+            ? { ...step, completed: true }
+            : step
+        );
+
         set({
           isOnboarding: false,
           onboardingDismissed: true,
+          steps: updatedSteps,
+          progress: {
+            ...state.progress,
+            completedSteps: ['welcome'],
+          },
         });
       },
 
