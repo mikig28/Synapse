@@ -406,6 +406,8 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   
   // Filters and search
   const [searchTerm, setSearchTerm] = useState('');
+  const normalizedSearchTerm = useMemo(() => searchTerm.trim().toLowerCase(), [searchTerm]);
+  const hasSearchTerm = normalizedSearchTerm.length > 0;
   const [selectedPersonFilter, setSelectedPersonFilter] = useState<string>('');
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<string>('');
   
@@ -1318,23 +1320,47 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
     URL.revokeObjectURL(url);
   };
 
-  const filteredPersonProfiles = personProfiles.filter(person =>
-    person.name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredPersonProfiles = useMemo(
+    () =>
+      personProfiles.filter(person =>
+        person.name.toLowerCase().includes(normalizedSearchTerm)
+      ),
+    [personProfiles, normalizedSearchTerm]
   );
 
-  const filteredGroupMonitors = groupMonitors.filter(monitor =>
-    monitor.groupName.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredGroupMonitors = useMemo(
+    () =>
+      groupMonitors.filter(monitor =>
+        monitor.groupName.toLowerCase().includes(normalizedSearchTerm)
+      ),
+    [groupMonitors, normalizedSearchTerm]
   );
 
-  const filteredImagesList = filteredImages.filter(image => {
-    const matchesSearch = image.groupName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         image.senderName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesPerson = !selectedPersonFilter || 
-                         image.detectedPersons.some(p => p.personName === selectedPersonFilter);
-    const matchesGroup = !selectedGroupFilter || image.groupName === selectedGroupFilter;
-    
-    return matchesSearch && matchesPerson && matchesGroup;
-  });
+  const filteredSummaryGroups = useMemo(() => {
+    if (!hasSearchTerm) {
+      return selectedGroups;
+    }
+
+    return selectedGroups.filter(group => {
+      const nameMatches = group.name.toLowerCase().includes(normalizedSearchTerm);
+      const idMatches = group.id.toLowerCase().includes(normalizedSearchTerm);
+      return nameMatches || idMatches;
+    });
+  }, [selectedGroups, normalizedSearchTerm, hasSearchTerm]);
+
+  const filteredImagesList = useMemo(() => {
+    return filteredImages.filter(image => {
+      const matchesSearch =
+        image.groupName.toLowerCase().includes(normalizedSearchTerm) ||
+        image.senderName.toLowerCase().includes(normalizedSearchTerm);
+      const matchesPerson =
+        !selectedPersonFilter ||
+        image.detectedPersons.some(p => p.personName === selectedPersonFilter);
+      const matchesGroup = !selectedGroupFilter || image.groupName === selectedGroupFilter;
+
+      return matchesSearch && matchesPerson && matchesGroup;
+    });
+  }, [filteredImages, normalizedSearchTerm, selectedPersonFilter, selectedGroupFilter]);
 
   if (loading) {
     return (
@@ -2080,8 +2106,15 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
               </GlassCard>
 
               {/* Groups Grid */}
+              {selectedGroups.length > 0 && hasSearchTerm && filteredSummaryGroups.length === 0 && (
+                <GlassCard className="p-6 text-center">
+                  <p className="text-sm text-blue-200/70">
+                    No groups match “{searchTerm.trim()}”.
+                  </p>
+                </GlassCard>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {selectedGroups.map((group) => {
+                {filteredSummaryGroups.map((group) => {
                   const isLoading = loadingSummaries.has(group.id);
                   const summary = groupSummaries.get(group.id);
                   
@@ -3023,8 +3056,6 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
 };
 
 export default WhatsAppGroupMonitorPage;
-
-
 
 
 
