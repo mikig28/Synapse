@@ -1991,7 +1991,10 @@ class WAHAService extends EventEmitter {
    * @param phoneNumber - The phone number (digits only, no formatting)
    * @returns Object containing the pairing code
    */
-  async requestPairingCode(sessionName: string = this.defaultSession, phoneNumber: string): Promise<{ code: string }> {
+  async requestPairingCode(
+    sessionName: string = this.defaultSession,
+    phoneNumber: string
+  ): Promise<{ code: string; rawCode?: string; displayCode?: string }> {
     console.log(`[WAHA Service] Requesting pairing code for session '${sessionName}', phone: ${phoneNumber}`);
 
     try {
@@ -2011,12 +2014,52 @@ class WAHAService extends EventEmitter {
 
       console.log(`[WAHA Service] ✅ Pairing code received:`, response.data);
 
-      if (!response.data || !response.data.code) {
+      const data = response?.data ?? {};
+      const possibleValues = [
+        data.code,
+        data.pairingCode,
+        data.pair_code,
+        data.verificationCode,
+        data?.data?.code,
+        data?.data?.pairingCode,
+        data?.data?.pair_code,
+        data?.payload?.code,
+        data?.payload?.pairingCode,
+        data?.result?.code,
+        data?.result?.pairingCode
+      ];
+
+      const rawCode = possibleValues
+        .map(value => (typeof value === 'number' ? value.toString() : value))
+        .find(value => typeof value === 'string' && value.trim().length > 0);
+
+      if (!rawCode) {
         throw new Error('No pairing code returned from WAHA service');
       }
 
+      const normalizedDigits = rawCode.replace(/\D/g, '');
+
+      if (!normalizedDigits) {
+        throw new Error('WAHA service returned pairing code in unexpected format');
+      }
+
+      if (normalizedDigits.length !== 8) {
+        console.warn(
+          `[WAHA Service] Pairing code length is ${normalizedDigits.length} (expected 8). Raw code: ${rawCode}`
+        );
+      }
+
+      const formattedCode =
+        normalizedDigits.length === 8
+          ? `${normalizedDigits.slice(0, 4)}-${normalizedDigits.slice(4)}`
+          : normalizedDigits.length === 6
+          ? `${normalizedDigits.slice(0, 3)}-${normalizedDigits.slice(3)}`
+          : rawCode;
+
       return {
-        code: response.data.code
+        code: normalizedDigits,
+        rawCode,
+        displayCode: formattedCode
       };
 
     } catch (error: any) {

@@ -995,19 +995,35 @@ export const sendPhoneAuthCode = async (req: Request, res: Response) => {
 
     // Request pairing code from WAHA Plus
     const result = await whatsappService.requestPairingCode(sessionId, phoneNumber);
+    const displayCode =
+      result.displayCode ||
+      (result.code && result.code.length === 8
+        ? `${result.code.slice(0, 4)}-${result.code.slice(4)}`
+        : result.code);
 
-    console.log('[WhatsApp] ✅ Pairing code generated successfully:', result.code);
+    console.log('[WhatsApp] ✅ Pairing code generated successfully:', {
+      normalizedCode: result.code,
+      displayCode
+    });
 
     return res.json({
       success: true,
-      code: result.code,
-      message: 'Pairing code generated successfully',
+      code: result.code, // Legacy clients still expect top-level code field
+      message: 'Pairing code generated successfully. Enter this code in your WhatsApp app.',
+      data: {
+        phoneNumber,
+        normalizedPhoneNumber: phoneNumber.replace(/[^\d]/g, ''),
+        codeRequested: true,
+        pairingCode: result.code,
+        displayCode,
+        expiresInMinutes: 3
+      },
       instructions: [
         '1. Open WhatsApp on your phone',
         '2. Go to Settings > Linked Devices',
         '3. Tap "Link a Device"',
         '4. Select "Link with phone number instead"',
-        `5. Enter this code: ${result.code}`,
+        `5. Enter this code: ${displayCode || result.code}`,
         '6. Wait for connection confirmation'
       ]
     });

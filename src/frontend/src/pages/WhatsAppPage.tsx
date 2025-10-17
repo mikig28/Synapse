@@ -84,6 +84,25 @@ interface WhatsAppStatus {
   lastActivity?: string;
 }
 
+const formatPairingCodeForDisplay = (code: string | null | undefined): string => {
+  if (!code) {
+    return '';
+  }
+
+  const trimmed = code.trim();
+  const digitsOnly = trimmed.replace(/\D/g, '');
+
+  if (digitsOnly.length === 8) {
+    return `${digitsOnly.slice(0, 4)}-${digitsOnly.slice(4)}`;
+  }
+
+  if (digitsOnly.length === 6) {
+    return `${digitsOnly.slice(0, 3)}-${digitsOnly.slice(3)}`;
+  }
+
+  return trimmed;
+};
+
 const WhatsAppPage: React.FC = () => {
   const [status, setStatus] = useState<WhatsAppStatus | null>(null);
   const [activeService, setActiveService] = useState<'waha' | 'baileys' | null>(null);
@@ -1281,23 +1300,45 @@ const WhatsAppPage: React.FC = () => {
       }
 
       if (response.data.success) {
-        // If backend returns a pairingCode, show it to the user immediately
-        const returnedCode = response.data?.data?.pairingCode as string | undefined;
-        if (returnedCode) {
-          setPairingCode(returnedCode);
-          setIsWaitingForCode(true);
-          setPhoneAuthStep('code');
+        const payload = response.data?.data ?? {};
+        const candidateCodes = [
+          payload.displayCode,
+          payload.pairingCode,
+          payload.code,
+          payload.rawCode,
+          response.data?.code,
+          response.data?.pairingCode
+        ];
+
+        const stringCandidate = candidateCodes.find(
+          (value): value is string => typeof value === 'string' && value.trim().length > 0
+        );
+        const numericCandidate = stringCandidate
+          ? null
+          : candidateCodes.find((value): value is number => typeof value === 'number');
+
+        const rawCode = stringCandidate ?? (numericCandidate != null ? numericCandidate.toString() : undefined);
+        const digitsOnly = rawCode ? rawCode.replace(/\D/g, '') : '';
+        const normalizedCode = digitsOnly || rawCode || '';
+        const displayCode =
+          typeof payload.displayCode === 'string' && payload.displayCode.trim().length > 0
+            ? payload.displayCode.trim()
+            : formatPairingCodeForDisplay(normalizedCode);
+
+        setPhoneAuthStep('code');
+        setIsWaitingForCode(true);
+
+        if (normalizedCode) {
+          setPairingCode(normalizedCode);
           toast({
             title: 'Enter This Code in WhatsApp',
-            description: `Code: ${returnedCode}`,
+            description: `Code: ${displayCode}`,
           });
         } else {
-          // Fallback: ask user to enter the code they see on device
-          setPhoneAuthStep('code');
-          setIsWaitingForCode(true);
+          setPairingCode(null);
           toast({
             title: 'Verification Code Requested',
-            description: `Open WhatsApp and enter the 6‑digit code shown there.`,
+            description: 'Open WhatsApp and enter the 8-digit code shown in your app.',
           });
         }
       } else {
@@ -3538,11 +3579,20 @@ const WhatsAppPage: React.FC = () => {
                             <div className="p-3 bg-white/10 rounded-md text-white flex items-center justify-between">
                               <div>
                                 <div className="text-xs text-blue-200">Enter this code in WhatsApp</div>
-                                <div className="text-2xl font-mono tracking-widest">{pairingCode}</div>
+                                <div className="text-2xl font-mono tracking-widest">
+                                  {formatPairingCodeForDisplay(pairingCode)}
+                                </div>
                               </div>
                               <Button
                                 variant="outline"
-                                onClick={() => navigator.clipboard.writeText(pairingCode)}
+                                onClick={() => {
+                                  const digits = (pairingCode ?? '').replace(/\D/g, '');
+                                  const codeToCopy = digits || pairingCode || '';
+                                  if (!codeToCopy) {
+                                    return;
+                                  }
+                                  navigator.clipboard.writeText(codeToCopy);
+                                }}
                                 className="ml-3"
                               >
                                 Copy
