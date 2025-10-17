@@ -4247,27 +4247,29 @@ class WAHAService extends EventEmitter {
    */
   private async processMessageForGroupMonitoring(messageData: any): Promise<void> {
     // 🚫 CRITICAL FIX: Skip processing messages sent by the bot itself to prevent infinite loops
-    if (messageData.fromMe === true) {
-      console.log('[WAHA Service] 🚫 Skipping bot message to prevent infinite loop:', {
+    // Only filter if fromMe is explicitly true AND the message contains bot-specific content
+    const messageText = (messageData.body || messageData.caption || '').toLowerCase();
+    const isBookmarkPrompt = messageText.includes('bookmark saved') || 
+                            messageText.includes('סימניה נשמרה') ||
+                            messageText.includes('would you like to add a note') ||
+                            messageText.includes('רוצה להוסיף הערה');
+    
+    if (messageData.fromMe === true && isBookmarkPrompt) {
+      console.log('[WAHA Service] 🚫 Skipping bot bookmark prompt to prevent infinite loop:', {
         messageId: messageData.id,
         fromMe: messageData.fromMe,
-        textPreview: (messageData.body || messageData.caption || '').substring(0, 50)
-      });
-      return;
-    }
-
-    // 🚫 ADDITIONAL SAFETY: Skip messages that contain bookmark prompt text (backup safety)
-    const messageText = (messageData.body || messageData.caption || '').toLowerCase();
-    if (messageText.includes('bookmark saved') || 
-        messageText.includes('סימניה נשמרה') ||
-        messageText.includes('would you like to add a note') ||
-        messageText.includes('רוצה להוסיף הערה')) {
-      console.log('[WAHA Service] 🚫 Skipping bookmark prompt message to prevent infinite loop:', {
-        messageId: messageData.id,
         textPreview: messageText.substring(0, 50)
       });
       return;
     }
+    
+    // Log all messages for debugging
+    console.log('[WAHA Service] 📝 Processing message for group monitoring:', {
+      messageId: messageData.id,
+      fromMe: messageData.fromMe,
+      textPreview: messageText.substring(0, 50),
+      isBookmarkPrompt
+    });
 
     const rawChatCandidates = [
       messageData.chatId,
