@@ -341,6 +341,7 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   // Summary-related state
   const [availableGroups, setAvailableGroups] = useState<GroupInfo[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<GroupSelection[]>([]);
+  const [loadingGroups, setLoadingGroups] = useState(false);
   const [selectedDateRange, setSelectedDateRange] = useState<DateRange>(
     whatsappService.createDateRange('today')
   );
@@ -466,21 +467,38 @@ const WhatsAppGroupMonitorPage: React.FC = () => {
   };
 
   const fetchAvailableGroups = useCallback(async () => {
+    setLoadingGroups(true);
     try {
+      console.log('[WhatsApp Monitor] Fetching available groups...');
       const groups = await whatsappService.getAvailableGroups();
+      console.log('[WhatsApp Monitor] Received groups:', groups.length, groups);
       setAvailableGroups(groups);
       const groupSelections: GroupSelection[] = groups.map(group => ({
         ...group,
         isSelected: false
       }));
       setSelectedGroups(groupSelections);
+      console.log('[WhatsApp Monitor] Set selectedGroups:', groupSelections.length);
+
+      if (groups.length === 0) {
+        toast({
+          title: 'No Groups Found',
+          description: 'No WhatsApp groups found. Make sure you have active group chats with messages.',
+          variant: 'default',
+        });
+      }
     } catch (error) {
-      console.error('Error fetching available groups:', error);
+      console.error('[WhatsApp Monitor] Error fetching available groups:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load WhatsApp groups for summaries',
+        description: 'Failed to load WhatsApp groups for summaries. Please check your connection and try again.',
         variant: 'destructive',
       });
+      // Set empty arrays to show the empty state properly
+      setAvailableGroups([]);
+      setSelectedGroups([]);
+    } finally {
+      setLoadingGroups(false);
     }
   }, [toast]);
 
@@ -2172,18 +2190,29 @@ Processing time: ${summary.processingStats.processingTimeMs}ms`;
                 })}
               </div>
 
-              {selectedGroups.length === 0 && (
+              {loadingGroups && selectedGroups.length === 0 && (
+                <GlassCard className="p-8 text-center">
+                  <RefreshCw className="w-12 h-12 text-blue-300 mx-auto mb-4 animate-spin" />
+                  <h3 className="text-lg font-semibold text-white mb-2">Loading Groups...</h3>
+                  <p className="text-blue-200/70">
+                    Fetching your WhatsApp groups, please wait...
+                  </p>
+                </GlassCard>
+              )}
+
+              {!loadingGroups && selectedGroups.length === 0 && (
                 <GlassCard className="p-8 text-center">
                   <Activity className="w-12 h-12 text-blue-300 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-white mb-2">No Groups Available</h3>
-                  <p className="text-blue-200/70">
-                    Make sure your WhatsApp is connected and you have active group chats.
+                  <p className="text-blue-200/70 mb-4">
+                    Make sure your WhatsApp is connected and you have active group chats with messages.
                   </p>
                   <Button
                     onClick={fetchAvailableGroups}
-                    className="mt-4"
+                    disabled={loadingGroups}
+                    className="mt-2"
                   >
-                    <RefreshCw className="w-4 h-4 mr-2" />
+                    <RefreshCw className={`w-4 h-4 mr-2 ${loadingGroups ? 'animate-spin' : ''}`} />
                     Refresh Groups
                   </Button>
                 </GlassCard>
