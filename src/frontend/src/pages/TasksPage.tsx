@@ -18,6 +18,7 @@ import { sendManualTaskReminder } from '@/services/taskService'; // Import task 
 import { FloatingParticles } from '@/components/common/FloatingParticles';
 import KanbanView from '../components/tasks/KanbanView'; // Import Kanban view
 import { EmptyStateGuidance } from '@/components/ui/EmptyStateGuidance';
+import { ContextualHelp } from '@/components/ui/ContextualHelp';
 import {
   CheckSquare,
   Plus,
@@ -372,9 +373,16 @@ const TasksPage: React.FC = () => {
               <Sparkles className="w-6 h-6 text-amber-400" />
             </motion.div>
           </div>
-          <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent mb-4">
-            My Tasks
-          </h1>
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              My Tasks
+            </h1>
+            <ContextualHelp
+              title="Task Management"
+              content="Create, organize, and track your tasks with multiple views. Use the Kanban board for visual workflow or list view for quick access. Tasks can be captured via voice through Telegram/WhatsApp."
+              side="bottom"
+            />
+          </div>
           <p className="text-purple-100/80 text-lg max-w-2xl mx-auto">
             Organize, track, and complete your goals with intelligent task management
           </p>
@@ -441,29 +449,36 @@ const TasksPage: React.FC = () => {
 
             <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
               {/* View Mode Toggle */}
-              <div className="flex bg-white/5 rounded-lg p-1">
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`px-3 py-1.5 rounded-md flex items-center gap-2 transition-all ${
-                    viewMode === 'list' 
-                      ? 'bg-pink-500/30 text-white' 
-                      : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  <List className="w-4 h-4" />
-                  <span className="text-sm">List</span>
-                </button>
-                <button
-                  onClick={() => setViewMode('kanban')}
-                  className={`px-3 py-1.5 rounded-md flex items-center gap-2 transition-all ${
-                    viewMode === 'kanban' 
-                      ? 'bg-pink-500/30 text-white' 
-                      : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  <LayoutGrid className="w-4 h-4" />
-                  <span className="text-sm">Kanban</span>
-                </button>
+              <div className="flex items-center gap-2">
+                <div className="flex bg-white/5 rounded-lg p-1">
+                  <button
+                    onClick={() => setViewMode('list')}
+                    className={`px-3 py-1.5 rounded-md flex items-center gap-2 transition-all ${
+                      viewMode === 'list'
+                        ? 'bg-pink-500/30 text-white'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    <List className="w-4 h-4" />
+                    <span className="text-sm">List</span>
+                  </button>
+                  <button
+                    onClick={() => setViewMode('kanban')}
+                    className={`px-3 py-1.5 rounded-md flex items-center gap-2 transition-all ${
+                      viewMode === 'kanban'
+                        ? 'bg-pink-500/30 text-white'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                    <span className="text-sm">Kanban</span>
+                  </button>
+                </div>
+                <ContextualHelp
+                  title="View Modes"
+                  content="Switch between List view (traditional task list) and Kanban view (visual board with drag-and-drop columns for Pending, In Progress, and Completed tasks)."
+                  side="left"
+                />
               </div>
               
               <AnimatedButton 

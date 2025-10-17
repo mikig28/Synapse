@@ -38,6 +38,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { ContextualHelp } from '@/components/ui/ContextualHelp';
 import {
   format,
   addMonths,
@@ -1556,6 +1557,11 @@ export default function CalendarPage() { // Renamed from Home for clarity
         <div className="flex items-center gap-2 md:gap-4">
           <Menu className="h-5 w-5 md:h-6 md:w-6 text-white" />
           <span className="text-lg md:text-2xl font-semibold text-white drop-shadow-lg">Calendar</span>
+          <ContextualHelp
+            title="Calendar Integration"
+            content="Manage your schedule with Google Calendar sync. Create events, view multiple calendar views (month/week/day), and drag-and-drop events. Tasks can be scheduled directly to your calendar."
+            side="bottom"
+          />
         </div>
         <div className="flex items-center gap-2 md:gap-4">
           <div className="relative hidden sm:block">

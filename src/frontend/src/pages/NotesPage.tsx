@@ -13,6 +13,7 @@ import { useHighlightItem } from '@/hooks/useHighlightItem';
 import { BACKEND_ROOT_URL } from "@/services/axiosConfig";
 import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { EmptyStateGuidance } from '@/components/ui/EmptyStateGuidance';
+import { ContextualHelp } from '@/components/ui/ContextualHelp';
 import {
   StickyNote,
   Plus,
@@ -354,10 +355,15 @@ const NotesPage: React.FC = () => {
         >
           <div className="flex items-center justify-center mb-4">
             <StickyNote className="w-10 h-10 md:w-12 md:h-12 text-lime-300" />
-            <h1 className="ml-4 text-4xl md:text-5xl font-bold 
+            <h1 className="ml-4 text-4xl md:text-5xl font-bold
               bg-clip-text text-transparent bg-gradient-to-r from-lime-300 via-green-300 to-emerald-400">
               My Notes
             </h1>
+            <ContextualHelp
+              title="Notes"
+              content="Quick capture system for ideas, thoughts, and information. Notes can be created manually or automatically from voice messages via Telegram/WhatsApp, and can include location context."
+              side="bottom"
+            />
             <Sparkles className="ml-3 w-7 h-7 text-emerald-400 opacity-70" />
           </div>
           <p className="text-lg md:text-xl text-green-200/80 max-w-2xl mx-auto">
