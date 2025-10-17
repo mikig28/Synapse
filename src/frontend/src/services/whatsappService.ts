@@ -466,16 +466,23 @@ class WhatsAppService {
 
       console.log('[WhatsAppService] Auth check - Token exists:', !!token, 'Is authenticated:', isAuthenticated);
       console.log('[WhatsAppService] Making request to generate-today (with fallback):', request);
-      console.log('[WhatsAppService] Full URL (primary):', `${api.defaults.baseURL}/${this.summaryUrl}/generate-today`);
-      
-      // Test the service first
-      const serviceAvailable = await this.testSummaryService();
-      if (!serviceAvailable) {
-        throw new Error('Summary service is not available. Please try again later.');
+      console.log('[WhatsAppService] Full URL (primary):', `${api.defaults.baseURL}${this.summaryUrl}/generate-today`);
+
+      // Check authentication FIRST before testing service
+      if (!isAuthenticated || !token) {
+        console.error('[WhatsAppService] User not authenticated');
+        throw new Error('Authentication required. Please log in to generate summaries.');
       }
 
-      if (!isAuthenticated || !token) {
-        throw new Error('Not authenticated. Please log in first.');
+      // Test the service (but don't block if test endpoint fails - backend might be updating)
+      try {
+        const serviceAvailable = await this.testSummaryService();
+        if (!serviceAvailable) {
+          console.warn('[WhatsAppService] Test endpoint returned false, but will try anyway');
+        }
+      } catch (testError) {
+        console.warn('[WhatsAppService] Test endpoint failed, but will continue with actual request:', testError);
+        // Don't throw here - test endpoint might not exist or be temporarily down
       }
       // Prepare request payload with only required fields
       const requestPayload = {
@@ -521,22 +528,41 @@ class WhatsAppService {
     } catch (error: any) {
       console.error('[WhatsAppService] Error generating today summary:', error);
 
-      // Handle specific error types
+      // Handle specific error types with detailed messaging
       if (error.response?.status === 401) {
-        console.error('[WhatsAppService] Authentication error - please log in again');
-        throw new Error('Authentication required. Please log in again.');
+        console.error('[WhatsAppService] Authentication error - Token expired or invalid');
+        console.error('[WhatsAppService] User state:', {
+          isAuthenticated,
+          hasToken: !!token,
+          tokenPreview: token ? token.substring(0, 20) + '...' : 'none'
+        });
+        throw new Error('Your session has expired. Please log out and log in again.');
       } else if (error.response?.status === 404) {
-        console.error('[WhatsAppService] Endpoint not found');
-        throw new Error('Service endpoint not found. Please try again later.');
+        console.error('[WhatsAppService] Endpoint not found - Full URL:', `${api.defaults.baseURL}${this.summaryUrl}/generate-today`);
+        console.error('[WhatsAppService] This might be a deployment/caching issue');
+        throw new Error('Summary service not found. The backend may be updating. Please wait a moment and try again.');
       } else if (error.response?.status === 400) {
         console.error('[WhatsAppService] Bad request:', error.response.data);
-        throw new Error(error.response.data?.error || 'Invalid request. Please check your input.');
+        throw new Error(error.response.data?.error || 'Invalid request. Please check your group selection and try again.');
+      } else if (error.response?.status === 403) {
+        console.error('[WhatsAppService] Forbidden - User does not have access');
+        throw new Error('You do not have permission to generate summaries for this group.');
       } else if (error.response?.status >= 500) {
         console.error('[WhatsAppService] Server error:', error.response.data);
-        throw new Error('Server error. Please try again later.');
+        throw new Error('Server error. The backend service is experiencing issues. Please try again later.');
+      } else if (!error.response) {
+        console.error('[WhatsAppService] Network error - No response from backend');
+        throw new Error('Cannot connect to server. Please check your internet connection.');
       }
 
-      throw new Error(error.response?.data?.error || error.message || 'Failed to generate today summary');
+      // Generic error with full context
+      console.error('[WhatsAppService] Unexpected error:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message
+      });
+      throw new Error(error.response?.data?.error || error.message || 'Failed to generate today\'s summary. Please try again.');
     }
   }
 
