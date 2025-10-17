@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { format } from 'date-fns-tz';
 import WhatsAppMessage from '../../models/WhatsAppMessage';
 import WhatsAppContact from '../../models/WhatsAppContact';
 import WhatsAppBaileysService from '../../services/whatsappBaileysService';
@@ -352,35 +353,44 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     }
 
     if (!groupInfo) {
-      // Fallback to database for last known group name by groupId
-      const lastMsg = await WhatsAppMessage.findOne({
-        'metadata.isGroup': true,
-        'metadata.groupId': groupId,
-        'metadata.groupName': { $exists: true, $nin: [null, ''] }
-      })
-        .sort({ timestamp: -1 })
+      // Fallback to database for last known group metadata by groupId/recipient
+      const dbQuery: any = {
+        $or: [
+          { 'metadata.groupId': groupId },
+          { to: groupId },
+          { from: groupId }
+        ]
+      };
+
+      const lastMsg = await WhatsAppMessage.findOne(dbQuery)
+        .sort({ timestamp: -1, createdAt: -1 })
+        .select({ metadata: 1, to: 1, from: 1 })
         .lean();
 
-      const dbGroupName = (lastMsg as any)?.metadata?.groupName as string | undefined;
-      if (typeof dbGroupName === 'string' && dbGroupName.length > 0) {
-        groupInfo = { id: groupId, name: dbGroupName, participantCount: 0 };
+      if (lastMsg) {
+        const fallbackName =
+          (lastMsg.metadata as any)?.groupName ||
+          (lastMsg.metadata as any)?.groupId ||
+          lastMsg.to ||
+          lastMsg.from ||
+          groupId;
+
+        groupInfo = { id: groupId, name: fallbackName, participantCount: 0 };
+        console.log(`[WhatsApp Summary] Using database fallback for group ${groupId} with name '${fallbackName}'`);
       }
     }
 
     if (!groupInfo) {
-      return res.status(404).json({
-        success: false,
-        error: 'Group not found'
-      } as ApiResponse);
+      const fallbackName = groupId;
+      console.warn(`[WhatsApp Summary] Group ${groupId} not found in services or database metadata. Falling back to identifier as group name.`);
+      groupInfo = { id: groupId, name: fallbackName, participantCount: 0 };
     }
     
     // Build comprehensive query for group messages
     // Use $or to check both timestamp fields since different messages may have different fields
-    const baseQuery = {
-      'metadata.isGroup': true,
-      // Don't filter by isIncoming - get all messages in the group
+    const timestampClause = {
       $or: [
-        { 
+        {
           timestamp: {
             $gte: utcStart,
             $lte: utcEnd
@@ -395,25 +405,49 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       ]
     };
     
-    console.log('[WhatsApp Summary] Using dual timestamp field query (timestamp OR createdAt)');
+    console.log('[WhatsApp Summary] Using flexible timestamp field query (timestamp OR createdAt)');
 
     // Try multiple approaches to find group messages
     const queries = [
-      // Primary: Direct group ID match
-      { 
-        ...baseQuery, 
-        'metadata.groupId': groupId 
+      {
+        ...timestampClause,
+        'metadata.isGroup': true,
+        'metadata.groupId': groupId
       },
-      // Secondary: Group name match (if we have groupInfo)
-      ...(groupInfo ? [{ 
-        ...baseQuery, 
-        'metadata.groupName': groupInfo.name 
-      }] : []),
-      // Tertiary: Legacy approach for backwards compatibility
-      { 
-        ...baseQuery,
+      ...(groupInfo?.name
+        ? [{
+            ...timestampClause,
+            'metadata.isGroup': true,
+            'metadata.groupName': groupInfo.name
+          }]
+        : []),
+      {
+        ...timestampClause,
+        'metadata.groupId': groupId
+      },
+      ...(groupInfo?.name
+        ? [{
+            ...timestampClause,
+            'metadata.groupName': groupInfo.name
+          }]
+        : []),
+      {
+        ...timestampClause,
         to: groupId
+      },
+      {
+        ...timestampClause,
+        $or: [{ to: groupId }, { from: groupId }]
       }
+    ];
+
+    const queryLabels = [
+      'metadata.groupId + isGroup',
+      ...(groupInfo?.name ? ['metadata.groupName + isGroup'] : []),
+      'metadata.groupId (no isGroup)',
+      ...(groupInfo?.name ? ['metadata.groupName (no isGroup)'] : []),
+      'recipient matches groupId',
+      'sender/recipient matches groupId'
     ];
 
     let messages: any[] = [];
@@ -422,7 +456,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     // Try each query until we find messages
     for (let i = 0; i < queries.length && messages.length === 0; i++) {
       const query = queries[i];
-      queryUsed = `Query ${i + 1}`;
+      queryUsed = queryLabels[i] || `Query ${i + 1}`;
       
       console.log(`[WhatsApp Summary] ${queryUsed} for groupId ${groupId}:`, JSON.stringify(query, null, 2));
       
@@ -450,35 +484,42 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       
       logTimeWindow(fallbackWindow, 'Fallback 24h');
       
-      const fallbackQuery = {
-      'metadata.isGroup': true,
-      // Don't filter by isIncoming
-      $and: [
-        {
-          $or: [
-            { 'metadata.groupId': groupId },
-            ...(groupInfo ? [{ 'metadata.groupName': groupInfo.name }] : []),
-            { to: groupId }
-          ]
-        },
-        {
-          $or: [
-            { 
-              timestamp: {
-                $gte: fallbackStart,
-                $lte: fallbackEnd
-              }
-            },
-            {
-              createdAt: {
-                $gte: fallbackStart,
-                $lte: fallbackEnd
-              }
+      const fallbackTimestampClause = {
+        $or: [
+          {
+            timestamp: {
+              $gte: fallbackStart,
+              $lte: fallbackEnd
             }
-          ]
-        }
-      ]
-    };
+          },
+          {
+            createdAt: {
+              $gte: fallbackStart,
+              $lte: fallbackEnd
+            }
+          }
+        ]
+      };
+
+      const fallbackQuery = {
+        ...fallbackTimestampClause,
+        $or: [
+          {
+            'metadata.isGroup': true,
+            'metadata.groupId': groupId
+          },
+          ...(groupInfo?.name
+            ? [{
+                'metadata.isGroup': true,
+                'metadata.groupName': groupInfo.name
+              }]
+            : []),
+          { 'metadata.groupId': groupId },
+          ...(groupInfo?.name ? [{ 'metadata.groupName': groupInfo.name }] : []),
+          { to: groupId },
+          { from: groupId }
+        ]
+      };
       
       console.log('[WhatsApp Summary] Fallback query:', JSON.stringify(fallbackQuery, null, 2));
       
@@ -646,7 +687,7 @@ export const generateTodaySummary = async (req: Request, res: Response) => {
     
     // Get today's date in the user's timezone to avoid timezone confusion
     const todayWindow = getTodayWindow(validTimezone);
-    const todayDateString = todayWindow.localStart.toISOString().split('T')[0]; // YYYY-MM-DD format
+    const todayDateString = format(todayWindow.localStart, 'yyyy-MM-dd', { timeZone: validTimezone });
     
     console.log(`[WhatsApp Summary] generateTodaySummary using date: ${todayDateString} in timezone: ${validTimezone}`);
     
