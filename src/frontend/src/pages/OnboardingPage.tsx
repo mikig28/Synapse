@@ -10,6 +10,7 @@ import {
   X,
 } from 'lucide-react';
 import { useOnboardingStore } from '@/store/onboardingStore';
+import useAuthStore from '@/store/authStore';
 import { OnboardingLayout } from '@/components/onboarding/OnboardingLayout';
 import { OnboardingProgress } from '@/components/onboarding/OnboardingProgress';
 import { CelebrationModal } from '@/components/onboarding/CelebrationModal';
@@ -62,6 +63,26 @@ const OnboardingPage: React.FC = () => {
   } = useOnboardingStore();
 
   const [isTransitioning, setIsTransitioning] = useState(false);
+
+  // CRITICAL: Check localStorage on mount - if dismissed, redirect immediately
+  useEffect(() => {
+    try {
+      const userId = useAuthStore.getState().user?.id;
+      const dismissalKey = `synapse-onboarding-dismissed:${userId || 'guest'}`;
+      const globalKey = 'synapse-onboarding-dismissed-global';
+
+      const userDismissed = localStorage.getItem(dismissalKey) === 'true';
+      const globalDismissed = localStorage.getItem(globalKey) === 'true';
+
+      if (userDismissed || globalDismissed) {
+        console.log('[OnboardingPage] Onboarding already dismissed, redirecting to dashboard');
+        navigate('/dashboard', { replace: true });
+        return;
+      }
+    } catch (error) {
+      console.error('[OnboardingPage] Failed to check dismissal status', error);
+    }
+  }, [navigate]);
 
   useEffect(() => {
     if (!isInitialized) {

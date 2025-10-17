@@ -591,6 +591,17 @@ export const useOnboardingStore = create<OnboardingState>()(
         const state = get();
         const completionTime = new Date();
 
+        // CRITICAL: Write directly to localStorage as a failsafe
+        try {
+          const userId = useAuthStore.getState().user?.id;
+          const dismissalKey = `synapse-onboarding-dismissed:${userId || 'guest'}`;
+          localStorage.setItem(dismissalKey, 'true');
+          localStorage.setItem('synapse-onboarding-dismissed-global', 'true');
+          console.log('[OnboardingStore] Onboarding completed, dismissal saved to localStorage:', dismissalKey);
+        } catch (error) {
+          console.error('[OnboardingStore] Failed to save completion to localStorage', error);
+        }
+
         set({
           isOnboarding: false,
           onboardingDismissed: true,
@@ -809,6 +820,18 @@ export const useOnboardingStore = create<OnboardingState>()(
 
         // Derive all completed steps from the steps array (don't overwrite existing progress)
         const allCompletedSteps = deriveCompletedSteps(updatedSteps);
+
+        // CRITICAL: Write directly to localStorage as a failsafe
+        // This ensures dismissal persists even if Zustand middleware fails
+        try {
+          const userId = useAuthStore.getState().user?.id;
+          const dismissalKey = `synapse-onboarding-dismissed:${userId || 'guest'}`;
+          localStorage.setItem(dismissalKey, 'true');
+          localStorage.setItem('synapse-onboarding-dismissed-global', 'true');
+          console.log('[OnboardingStore] Dismissal saved to localStorage:', dismissalKey);
+        } catch (error) {
+          console.error('[OnboardingStore] Failed to save dismissal to localStorage', error);
+        }
 
         set({
           isOnboarding: false,

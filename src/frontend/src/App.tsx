@@ -100,7 +100,7 @@ const PageLoader = () => (
 );
 
 function AppContent() {
-  const { isAuthenticated, hasHydrated } = useAuthStore();
+  const { isAuthenticated, hasHydrated, user } = useAuthStore();
   const { isOnboarding, onboardingDismissed, progress, hasHydrated: onboardingHydrated } = useOnboardingStore();
   const location = useLocation();
   const commandPalette = useCommandPalette();
@@ -119,9 +119,51 @@ function AppContent() {
     return <PageLoader />;
   }
 
+  // CRITICAL: Check localStorage directly for onboarding dismissal
+  // This bypasses Zustand state and provides a bulletproof check
+  const checkOnboardingDismissedInLocalStorage = (): boolean => {
+    try {
+      const userId = user?.id;
+      const dismissalKey = `synapse-onboarding-dismissed:${userId || 'guest'}`;
+      const globalKey = 'synapse-onboarding-dismissed-global';
+
+      const userDismissed = localStorage.getItem(dismissalKey) === 'true';
+      const globalDismissed = localStorage.getItem(globalKey) === 'true';
+
+      return userDismissed || globalDismissed;
+    } catch (error) {
+      console.error('[App] Failed to check localStorage for onboarding dismissal', error);
+      return false;
+    }
+  };
+
   // Check if user needs onboarding (first time users only)
   // Once dismissed, onboarding should not automatically redirect user
-  const needsOnboarding = isAuthenticated && !onboardingDismissed && progress.completedSteps.length === 0;
+  // Multiple checks for maximum reliability:
+  // 1. Direct localStorage check (most reliable)
+  // 2. Zustand state check
+  // 3. Progress check (has any steps completed)
+  const isOnboardingDismissedInStorage = checkOnboardingDismissedInLocalStorage();
+  const hasAnyProgress = progress.completedSteps.length > 0;
+  const needsOnboarding = isAuthenticated &&
+                         !isOnboardingDismissedInStorage &&
+                         !onboardingDismissed &&
+                         !hasAnyProgress;
+
+  // Debug logging
+  React.useEffect(() => {
+    if (isAuthenticated && hasHydrated && onboardingHydrated) {
+      console.log('[App] Onboarding check:', {
+        isAuthenticated,
+        isOnboardingDismissedInStorage,
+        onboardingDismissed,
+        hasAnyProgress,
+        completedSteps: progress.completedSteps,
+        needsOnboarding,
+        userId: user?.id,
+      });
+    }
+  }, [isAuthenticated, hasHydrated, onboardingHydrated, isOnboardingDismissedInStorage, onboardingDismissed, hasAnyProgress, needsOnboarding, progress.completedSteps, user?.id]);
 
   return (
     <AccessibilityProvider>
