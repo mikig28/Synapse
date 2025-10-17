@@ -15,15 +15,19 @@ import {
   MessagesResponse,
   SummaryGenerationOptions
 } from '../../types/whatsappSummary';
-import { 
-  getLocalDayWindow, 
-  getTodayWindow, 
-  getYesterdayWindow, 
-  getLast24HoursWindow, 
-  parseTimezone, 
+import {
+  getLocalDayWindow,
+  getTodayWindow,
+  getYesterdayWindow,
+  getLast24HoursWindow,
+  parseTimezone,
   logTimeWindow,
   getQueryBounds
 } from '../../utils/timeWindow';
+import {
+  buildGroupIdCandidates,
+  mergeUniqueStrings
+} from '../../utils/whatsappIdentifiers';
 
 // Use AI-enhanced summarization service if available, otherwise fall back to basic
 const summarizationService = process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY
@@ -31,59 +35,6 @@ const summarizationService = process.env.OPENAI_API_KEY || process.env.ANTHROPIC
   : new WhatsAppSummarizationService();
 
 console.log('[WhatsApp Summary] Using', summarizationService.constructor.name);
-
-const getGroupIdCandidates = (rawGroupId: string): string[] => {
-  if (!rawGroupId || typeof rawGroupId !== 'string') {
-    return [];
-  }
-
-  const variants = new Set<string>();
-  const trimmed = rawGroupId.trim();
-  if (!trimmed) {
-    return [];
-  }
-
-  variants.add(trimmed);
-
-  const [basePart, domainPart] = trimmed.includes('@') ? trimmed.split('@') : [trimmed, undefined];
-  const baseId = basePart || trimmed;
-
-  if (baseId) {
-    variants.add(baseId);
-    const digitsOnly = baseId.replace(/[^\d]/g, '');
-    if (digitsOnly && digitsOnly !== baseId) {
-      variants.add(digitsOnly);
-    }
-
-    const domainVariants = ['g.us', 's.whatsapp.net', 'c.us'];
-    for (const domain of domainVariants) {
-      variants.add(`${baseId}@${domain}`);
-      if (digitsOnly) {
-        variants.add(`${digitsOnly}@${domain}`);
-      }
-    }
-  }
-
-  if (!domainPart && baseId) {
-    variants.add(`${baseId}@g.us`);
-    variants.add(`${baseId}@s.whatsapp.net`);
-  }
-
-  return Array.from(variants).filter(Boolean);
-};
-
-const mergeUniqueStrings = (...values: (string | undefined)[]): string[] => {
-  const unique = new Set<string>();
-  values.forEach(value => {
-    if (typeof value === 'string') {
-      const trimmed = value.trim();
-      if (trimmed.length > 0) {
-        unique.add(trimmed);
-      }
-    }
-  });
-  return Array.from(unique);
-};
 
 /**
  * Get available WhatsApp groups for summary generation
@@ -387,7 +338,7 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     
     const { start: utcStart, end: utcEnd } = getQueryBounds(timeWindow);
     
-    const groupIdCandidates = getGroupIdCandidates(groupId);
+    const groupIdCandidates = buildGroupIdCandidates(groupId);
     if (groupIdCandidates.length > 0) {
       console.log(`[WhatsApp Summary] Candidate identifiers for ${groupId}:`, groupIdCandidates);
     }

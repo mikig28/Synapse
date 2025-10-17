@@ -22,6 +22,7 @@ import Note from '../models/Note';
 import Idea from '../models/Idea';
 import mongoose from 'mongoose';
 import { io } from '../server';
+import { buildGroupIdCandidates } from '../utils/whatsappIdentifiers';
 
 export interface WAHAMessage {
   id: string;
@@ -4016,6 +4017,74 @@ class WAHAService extends EventEmitter {
         await contact.save();
       }
 
+      const rawGroupIdentifiers = [
+        messageData.chatId,
+        messageData.groupId,
+        messageData.remoteJid,
+        messageData.to,
+        messageData.chat?.id,
+        messageData.chat?.chatId,
+        typeof messageData.id === 'string' && messageData.id.includes('_')
+          ? messageData.id.split('_')[1]
+          : undefined
+      ];
+
+      const groupIdCandidates = Array.from(
+        new Set(
+          rawGroupIdentifiers.flatMap(identifier => buildGroupIdCandidates(identifier))
+        )
+      );
+
+      let resolvedUserId: any = this.userId;
+      let resolvedGroupName: string | undefined = messageData.groupName;
+
+      if ((!resolvedUserId || !resolvedGroupName) && groupIdCandidates.length > 0) {
+        try {
+          const GroupMonitor = require('../models/GroupMonitor').default;
+          const monitor = await GroupMonitor.findOne({
+            groupId: { $in: groupIdCandidates.map(id => id.toLowerCase()) },
+            isActive: true
+          }).populate('userId');
+
+          if (monitor) {
+            if (!resolvedUserId) {
+              resolvedUserId = monitor.userId?._id || monitor.userId;
+            }
+            if (!resolvedGroupName) {
+              resolvedGroupName = monitor.groupName;
+            }
+          }
+        } catch (monitorLookupError) {
+          console.warn('[WAHA Service] ⚠️ Failed to resolve group monitor user mapping:', monitorLookupError);
+        }
+      }
+
+      if (!resolvedUserId) {
+        console.warn('[WAHA Service] ⚠️ Could not determine userId for message, skipping save.', {
+          messageId: messageData.id,
+          chatId: messageData.chatId,
+          candidateCount: groupIdCandidates.length
+        });
+        return;
+      }
+
+      let finalUserId: mongoose.Types.ObjectId | undefined;
+      if (resolvedUserId instanceof mongoose.Types.ObjectId) {
+        finalUserId = resolvedUserId;
+      } else if (typeof resolvedUserId === 'string' && mongoose.Types.ObjectId.isValid(resolvedUserId)) {
+        finalUserId = new mongoose.Types.ObjectId(resolvedUserId);
+      } else if (resolvedUserId?._id && mongoose.Types.ObjectId.isValid(String(resolvedUserId._id))) {
+        finalUserId = new mongoose.Types.ObjectId(String(resolvedUserId._id));
+      }
+
+      if (!finalUserId) {
+        console.warn('[WAHA Service] ⚠️ Resolved user identifier is invalid, skipping message save.', {
+          messageId: messageData.id,
+          resolvedUserIdType: typeof resolvedUserId
+        });
+        return;
+      }
+
       // Prepare message data
       // Determine media type for descriptive placeholder
       const detectedMediaType = messageData.hasMedia || messageData.isMedia ?
@@ -4041,6 +4110,7 @@ class WAHAService extends EventEmitter {
         status: messageData.fromMe ? 'sent' : 'received',
         isIncoming: !messageData.fromMe,
         contactId: contact._id,
+        userId: finalUserId,
 
         // Media information
         mediaId: messageData.media?.id,
@@ -4054,8 +4124,12 @@ class WAHAService extends EventEmitter {
           forwarded: messageData.forwarded || false,
           forwardedMany: messageData.forwardedMany || false,
           isGroup: messageData.isGroup || false,
-          groupId: messageData.isGroup ? messageData.chatId : undefined,
-          groupName: messageData.isGroup ? messageData.groupName : undefined
+          groupId: messageData.isGroup
+            ? groupIdCandidates.find(candidate => typeof candidate === 'string' && candidate.endsWith('@g.us'))
+                || groupIdCandidates.find(candidate => candidate.includes('@'))
+                || messageData.chatId
+            : undefined,
+          groupName: messageData.isGroup ? (resolvedGroupName || messageData.groupName) : undefined
         }
       };
 
