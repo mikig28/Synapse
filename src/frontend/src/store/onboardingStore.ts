@@ -897,7 +897,10 @@ useAuthStore.subscribe(
       return;
     }
 
-    if (!isSameUser) {
+    // Only reset if this is an actual user change (not initial load)
+    // previous.hydrated being undefined means this is the first call, not a user change
+    const isUserSwitch = previous?.hydrated && !isSameUser;
+    if (isUserSwitch) {
       useOnboardingStore.getState().reset();
     }
   },
