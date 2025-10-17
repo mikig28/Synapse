@@ -141,7 +141,7 @@ export const handleBookmarkVoiceMemo = async (
         bookmarkId: new mongoose.Types.ObjectId(pendingBookmark.bookmarkId),
         scheduledFor: analysis.reminderTime,
         reminderMessage: analysis.reminderMessage!,
-        whatsappGroupId: groupId,
+        whatsappChatId: groupId,
         extractedTags: analysis.tags,
         extractedNotes: analysis.notes,
         priority: analysis.priority,
