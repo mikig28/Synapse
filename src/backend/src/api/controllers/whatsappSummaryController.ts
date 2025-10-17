@@ -32,6 +32,59 @@ const summarizationService = process.env.OPENAI_API_KEY || process.env.ANTHROPIC
 
 console.log('[WhatsApp Summary] Using', summarizationService.constructor.name);
 
+const getGroupIdCandidates = (rawGroupId: string): string[] => {
+  if (!rawGroupId || typeof rawGroupId !== 'string') {
+    return [];
+  }
+
+  const variants = new Set<string>();
+  const trimmed = rawGroupId.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  variants.add(trimmed);
+
+  const [basePart, domainPart] = trimmed.includes('@') ? trimmed.split('@') : [trimmed, undefined];
+  const baseId = basePart || trimmed;
+
+  if (baseId) {
+    variants.add(baseId);
+    const digitsOnly = baseId.replace(/[^\d]/g, '');
+    if (digitsOnly && digitsOnly !== baseId) {
+      variants.add(digitsOnly);
+    }
+
+    const domainVariants = ['g.us', 's.whatsapp.net', 'c.us'];
+    for (const domain of domainVariants) {
+      variants.add(`${baseId}@${domain}`);
+      if (digitsOnly) {
+        variants.add(`${digitsOnly}@${domain}`);
+      }
+    }
+  }
+
+  if (!domainPart && baseId) {
+    variants.add(`${baseId}@g.us`);
+    variants.add(`${baseId}@s.whatsapp.net`);
+  }
+
+  return Array.from(variants).filter(Boolean);
+};
+
+const mergeUniqueStrings = (...values: (string | undefined)[]): string[] => {
+  const unique = new Set<string>();
+  values.forEach(value => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed.length > 0) {
+        unique.add(trimmed);
+      }
+    }
+  });
+  return Array.from(unique);
+};
+
 /**
  * Get available WhatsApp groups for summary generation
  */
@@ -334,6 +387,11 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     
     const { start: utcStart, end: utcEnd } = getQueryBounds(timeWindow);
     
+    const groupIdCandidates = getGroupIdCandidates(groupId);
+    if (groupIdCandidates.length > 0) {
+      console.log(`[WhatsApp Summary] Candidate identifiers for ${groupId}:`, groupIdCandidates);
+    }
+
     // Get group info with fallbacks: Baileys -> WAHA -> Database
     const baileysService = WhatsAppBaileysService.getInstance();
     const baileysGroups = baileysService.getGroups();
@@ -352,14 +410,16 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       }
     }
 
+    let lastKnownGroupName: string | undefined;
+
     if (!groupInfo) {
       // Fallback to database for last known group metadata by groupId/recipient
       const dbQuery: any = {
         $or: [
-          { 'metadata.groupId': groupId },
-          { to: groupId },
-          { from: groupId }
-        ]
+          ...(groupIdCandidates.length > 0 ? [{ 'metadata.groupId': { $in: groupIdCandidates } }] : []),
+          ...(groupIdCandidates.length > 0 ? [{ to: { $in: groupIdCandidates } }] : []),
+          ...(groupIdCandidates.length > 0 ? [{ from: { $in: groupIdCandidates } }] : [])
+        ].filter(Boolean)
       };
 
       const lastMsg = await WhatsAppMessage.findOne(dbQuery)
@@ -368,8 +428,9 @@ export const generateDailySummary = async (req: Request, res: Response) => {
         .lean();
 
       if (lastMsg) {
+        lastKnownGroupName = (lastMsg.metadata as any)?.groupName as string | undefined;
         const fallbackName =
-          (lastMsg.metadata as any)?.groupName ||
+          lastKnownGroupName ||
           (lastMsg.metadata as any)?.groupId ||
           lastMsg.to ||
           lastMsg.from ||
@@ -384,6 +445,11 @@ export const generateDailySummary = async (req: Request, res: Response) => {
       const fallbackName = groupId;
       console.warn(`[WhatsApp Summary] Group ${groupId} not found in services or database metadata. Falling back to identifier as group name.`);
       groupInfo = { id: groupId, name: fallbackName, participantCount: 0 };
+    }
+
+    const groupNameCandidates = mergeUniqueStrings(...groupIdCandidates, groupInfo?.name, lastKnownGroupName);
+    if (groupNameCandidates.length > 0) {
+      console.log(`[WhatsApp Summary] Candidate group names for ${groupId}:`, groupNameCandidates);
     }
     
     // Build comprehensive query for group messages
@@ -408,55 +474,80 @@ export const generateDailySummary = async (req: Request, res: Response) => {
     console.log('[WhatsApp Summary] Using flexible timestamp field query (timestamp OR createdAt)');
 
     // Try multiple approaches to find group messages
-    const queries = [
-      {
-        ...timestampClause,
-        'metadata.isGroup': true,
-        'metadata.groupId': groupId
-      },
-      ...(groupInfo?.name
-        ? [{
-            ...timestampClause,
-            'metadata.isGroup': true,
-            'metadata.groupName': groupInfo.name
-          }]
-        : []),
-      {
-        ...timestampClause,
-        'metadata.groupId': groupId
-      },
-      ...(groupInfo?.name
-        ? [{
-            ...timestampClause,
-            'metadata.groupName': groupInfo.name
-          }]
-        : []),
-      {
-        ...timestampClause,
-        to: groupId
-      },
-      {
-        ...timestampClause,
-        $or: [{ to: groupId }, { from: groupId }]
-      }
-    ];
+    const queryConfigs: Array<{ label: string; query: Record<string, any> }> = [];
 
-    const queryLabels = [
-      'metadata.groupId + isGroup',
-      ...(groupInfo?.name ? ['metadata.groupName + isGroup'] : []),
-      'metadata.groupId (no isGroup)',
-      ...(groupInfo?.name ? ['metadata.groupName (no isGroup)'] : []),
-      'recipient matches groupId',
-      'sender/recipient matches groupId'
-    ];
+    if (groupIdCandidates.length > 0) {
+      queryConfigs.push({
+        label: 'metadata.groupId + isGroup',
+        query: {
+          ...timestampClause,
+          'metadata.isGroup': true,
+          'metadata.groupId': { $in: groupIdCandidates }
+        }
+      });
+    }
+
+    if (groupNameCandidates.length > 0) {
+      queryConfigs.push({
+        label: 'metadata.groupName + isGroup',
+        query: {
+          ...timestampClause,
+          'metadata.isGroup': true,
+          'metadata.groupName': { $in: groupNameCandidates }
+        }
+      });
+    }
+
+    if (groupIdCandidates.length > 0) {
+      queryConfigs.push({
+        label: 'metadata.groupId (no isGroup)',
+        query: {
+          ...timestampClause,
+          'metadata.groupId': { $in: groupIdCandidates }
+        }
+      });
+    }
+
+    if (groupNameCandidates.length > 0) {
+      queryConfigs.push({
+        label: 'metadata.groupName (no isGroup)',
+        query: {
+          ...timestampClause,
+          'metadata.groupName': { $in: groupNameCandidates }
+        }
+      });
+    }
+
+    if (groupIdCandidates.length > 0) {
+      queryConfigs.push({
+        label: 'recipient matches groupId',
+        query: {
+          ...timestampClause,
+          to: { $in: groupIdCandidates }
+        }
+      });
+    }
+
+    if (groupIdCandidates.length > 0) {
+      queryConfigs.push({
+        label: 'sender/recipient matches groupId',
+        query: {
+          ...timestampClause,
+          $or: [
+            { to: { $in: groupIdCandidates } },
+            { from: { $in: groupIdCandidates } }
+          ]
+        }
+      });
+    }
 
     let messages: any[] = [];
     let queryUsed = '';
 
     // Try each query until we find messages
-    for (let i = 0; i < queries.length && messages.length === 0; i++) {
-      const query = queries[i];
-      queryUsed = queryLabels[i] || `Query ${i + 1}`;
+    for (let i = 0; i < queryConfigs.length && messages.length === 0; i++) {
+      const { query, label } = queryConfigs[i];
+      queryUsed = label || `Query ${i + 1}`;
       
       console.log(`[WhatsApp Summary] ${queryUsed} for groupId ${groupId}:`, JSON.stringify(query, null, 2));
       
@@ -501,24 +592,42 @@ export const generateDailySummary = async (req: Request, res: Response) => {
         ]
       };
 
+      const fallbackOrConditions: any[] = [];
+
+      if (groupIdCandidates.length > 0) {
+        fallbackOrConditions.push({
+          'metadata.isGroup': true,
+          'metadata.groupId': { $in: groupIdCandidates }
+        });
+      }
+
+      if (groupNameCandidates.length > 0) {
+        fallbackOrConditions.push({
+          'metadata.isGroup': true,
+          'metadata.groupName': { $in: groupNameCandidates }
+        });
+      }
+
+      if (groupIdCandidates.length > 0) {
+        fallbackOrConditions.push({ 'metadata.groupId': { $in: groupIdCandidates } });
+      }
+
+      if (groupNameCandidates.length > 0) {
+        fallbackOrConditions.push({ 'metadata.groupName': { $in: groupNameCandidates } });
+      }
+
+      if (groupIdCandidates.length > 0) {
+        fallbackOrConditions.push({ to: { $in: groupIdCandidates } });
+        fallbackOrConditions.push({ from: { $in: groupIdCandidates } });
+      }
+
+      if (fallbackOrConditions.length === 0) {
+        fallbackOrConditions.push({ to: groupId });
+      }
+
       const fallbackQuery = {
         ...fallbackTimestampClause,
-        $or: [
-          {
-            'metadata.isGroup': true,
-            'metadata.groupId': groupId
-          },
-          ...(groupInfo?.name
-            ? [{
-                'metadata.isGroup': true,
-                'metadata.groupName': groupInfo.name
-              }]
-            : []),
-          { 'metadata.groupId': groupId },
-          ...(groupInfo?.name ? [{ 'metadata.groupName': groupInfo.name }] : []),
-          { to: groupId },
-          { from: groupId }
-        ]
+        $or: fallbackOrConditions
       };
       
       console.log('[WhatsApp Summary] Fallback query:', JSON.stringify(fallbackQuery, null, 2));
