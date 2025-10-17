@@ -859,6 +859,19 @@ const triggerOnboardingRehydrate = () => {
   }
 };
 
+const hasPersistedOnboardingState = (userId: string | null): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    return localStorage.getItem(getOnboardingStorageKey(userId)) !== null;
+  } catch (error) {
+    console.error('[OnboardingStore] Unable to verify persisted onboarding state', error);
+    return false;
+  }
+};
+
 useAuthStore.subscribe(
   (state) => ({ userId: state.user?.id ?? null, hydrated: state.hasHydrated }),
   (current, previous) => {
@@ -866,12 +879,17 @@ useAuthStore.subscribe(
       return;
     }
 
-    if (previous?.hydrated && current.userId === previous.userId) {
+    const hasStoredState = hasPersistedOnboardingState(current.userId);
+    const isSameUser = previous?.hydrated && current.userId === previous.userId;
+
+    if (hasStoredState) {
+      triggerOnboardingRehydrate();
       return;
     }
 
-    useOnboardingStore.getState().reset();
-    triggerOnboardingRehydrate();
+    if (!isSameUser) {
+      useOnboardingStore.getState().reset();
+    }
   },
 );
 
