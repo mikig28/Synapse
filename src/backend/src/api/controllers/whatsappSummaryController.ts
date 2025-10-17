@@ -36,17 +36,34 @@ console.log('[WhatsApp Summary] Using', summarizationService.constructor.name);
  */
 export const getAvailableGroups = async (req: Request, res: Response) => {
   try {
-    console.log('[WhatsApp Summary] Fetching available groups...');
-    
-    // First try to get groups from WAHA service (modern, more reliable)
+    const userId = (req as any).user?.userId || (req as any).user?._id;
+    console.log(`[WhatsApp Summary] Fetching available groups for user ${userId}...`);
+
+    // First try to get groups from user's WAHA session (modern, more reliable)
     let serviceGroups: any[] = [];
     try {
-      const wahaService = WAHAService.getInstance();
-      serviceGroups = await wahaService.getGroups('default'); // Use default session
-      console.log(`[WhatsApp Summary] Got ${serviceGroups.length} groups from WAHA service`);
+      // Use WhatsAppSessionManager to get user-specific session
+      const WhatsAppSessionManager = (await import('../../services/whatsappSessionManager')).default;
+      const sessionManager = WhatsAppSessionManager.getInstance();
+
+      if (userId) {
+        const wahaService = await sessionManager.getSessionForUser(userId);
+        const sessionId = sessionManager.getSessionIdForUser(userId);
+
+        if (sessionId) {
+          console.log(`[WhatsApp Summary] Using user session: ${sessionId}`);
+          serviceGroups = await wahaService.getGroups(sessionId);
+          console.log(`[WhatsApp Summary] Got ${serviceGroups.length} groups from user's WAHA session`);
+        }
+      } else {
+        console.warn('[WhatsApp Summary] No user ID found, trying default session');
+        const wahaService = WAHAService.getInstance();
+        serviceGroups = await wahaService.getGroups('default');
+        console.log(`[WhatsApp Summary] Got ${serviceGroups.length} groups from default WAHA session`);
+      }
     } catch (wahaError) {
       console.warn('[WhatsApp Summary] WAHA service failed, trying Baileys fallback:', wahaError);
-      
+
       // Fallback to Baileys service
       try {
         const baileysService = WhatsAppBaileysService.getInstance();
@@ -58,12 +75,20 @@ export const getAvailableGroups = async (req: Request, res: Response) => {
     }
     
     // Get groups from database (fallback and enhancement)
+    // Filter by userId to only show groups for this user
+    const dbQuery: any = {
+      'metadata.isGroup': true,
+      'metadata.groupName': { $exists: true, $nin: [null, ''] }
+    };
+
+    // If userId is available, filter messages by user
+    if (userId) {
+      dbQuery.userId = userId;
+    }
+
     const dbGroups = await WhatsAppMessage.aggregate([
       {
-        $match: {
-          'metadata.isGroup': true,
-          'metadata.groupName': { $exists: true, $nin: [null, ''] }
-        }
+        $match: dbQuery
       },
       {
         $group: {
