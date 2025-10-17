@@ -4267,8 +4267,11 @@ class WAHAService extends EventEmitter {
     console.log('[WAHA Service] 📝 Processing message for group monitoring:', {
       messageId: messageData.id,
       fromMe: messageData.fromMe,
+      fromMeType: typeof messageData.fromMe,
       textPreview: messageText.substring(0, 50),
-      isBookmarkPrompt
+      isBookmarkPrompt,
+      willBeBlocked: messageData.fromMe === true && isBookmarkPrompt,
+      messageDataKeys: Object.keys(messageData)
     });
 
     const rawChatCandidates = [
