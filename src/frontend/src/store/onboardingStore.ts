@@ -133,6 +133,7 @@ interface OnboardingState {
   hideTips: () => void;
   dismissOnboarding: () => void;
   reset: () => void;
+  resetAndRestartOnboarding: () => void;
   setError: (error: string | null) => void;
   setLoading: (loading: boolean) => void;
 }
@@ -864,6 +865,27 @@ export const useOnboardingStore = create<OnboardingState>()(
           showTips: true,
           currentTip: undefined,
         });
+      },
+
+      resetAndRestartOnboarding: () => {
+        // CRITICAL: Clear localStorage dismissal flags to allow onboarding to launch
+        try {
+          const userId = useAuthStore.getState().user?.id;
+          const dismissalKey = `synapse-onboarding-dismissed:${userId || 'guest'}`;
+          localStorage.removeItem(dismissalKey);
+          localStorage.removeItem('synapse-onboarding-dismissed-global');
+          console.log('[OnboardingStore] Cleared dismissal flags from localStorage');
+        } catch (error) {
+          console.error('[OnboardingStore] Failed to clear dismissal flags', error);
+        }
+
+        // Reset the state
+        get().reset();
+
+        // Start onboarding
+        get().startOnboarding();
+
+        console.log('[OnboardingStore] Onboarding reset and restarted');
       },
 
       setError: (error) => {

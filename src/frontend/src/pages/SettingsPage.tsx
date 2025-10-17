@@ -17,13 +17,14 @@ import { Settings, Sparkles, User, Shield, Bell, Palette, Download, BarChart3, B
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { startOnboarding, initializeFromServer } = useOnboardingStore((state) => ({
-    startOnboarding: state.startOnboarding,
+  const { resetAndRestartOnboarding, initializeFromServer } = useOnboardingStore((state) => ({
+    resetAndRestartOnboarding: state.resetAndRestartOnboarding,
     initializeFromServer: state.initializeFromServer,
   }));
 
   const handleRestartOnboarding = () => {
-    startOnboarding();
+    // Clear localStorage flags and reset onboarding state
+    resetAndRestartOnboarding();
     toast({
       title: 'Guided setup relaunched',
       description: "We'll walk through connections, automations, and preferences step by step.",
