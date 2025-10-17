@@ -807,13 +807,16 @@ export const useOnboardingStore = create<OnboardingState>()(
             : step
         );
 
+        // Derive all completed steps from the steps array (don't overwrite existing progress)
+        const allCompletedSteps = deriveCompletedSteps(updatedSteps);
+
         set({
           isOnboarding: false,
           onboardingDismissed: true,
           steps: updatedSteps,
           progress: {
             ...state.progress,
-            completedSteps: ['welcome'],
+            completedSteps: allCompletedSteps,
           },
         });
       },
