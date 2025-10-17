@@ -1,3 +1,4 @@
+import type { AxiosResponse } from 'axios';
 import api from './axiosConfig';
 import { 
   GroupInfo, 
@@ -94,7 +95,20 @@ export class WhatsAppSummaryService {
         }
       };
 
-      const response = await api.post<ApiResponse<GroupSummaryData>>('/whatsapp-summary/generate', request);
+      let response: AxiosResponse<ApiResponse<GroupSummaryData>> | undefined;
+
+      try {
+        response = await api.post<ApiResponse<GroupSummaryData>>('/whatsapp-summary/daily-summary', request);
+      } catch (primaryError: any) {
+        const status = primaryError?.response?.status;
+        if (status && status !== 404 && status !== 405) {
+          throw primaryError;
+        }
+      }
+
+      if (!response?.data?.success || !response.data?.data) {
+        response = await api.post<ApiResponse<GroupSummaryData>>('/whatsapp-summary/generate', request);
+      }
 
       if (response.data.success && response.data.data) {
         // Convert date strings back to Date objects
@@ -135,9 +149,29 @@ export class WhatsAppSummaryService {
         chatType
       };
 
-      // Use authenticated route in production, with fallback to /generate
-      let response = await api.post<ApiResponse<GroupSummaryData>>('/whatsapp-summary/generate-today', request);
-      if (!response.data?.success || !response.data?.data) {
+      let response: AxiosResponse<ApiResponse<GroupSummaryData>> | undefined;
+
+      try {
+        response = await api.post<ApiResponse<GroupSummaryData>>('/whatsapp-summary/today', request);
+      } catch (primaryError: any) {
+        const status = primaryError?.response?.status;
+        if (status && status !== 404 && status !== 405) {
+          throw primaryError;
+        }
+      }
+
+      if (!response?.data?.success || !response.data?.data) {
+        try {
+          response = await api.post<ApiResponse<GroupSummaryData>>('/whatsapp-summary/generate-today', request);
+        } catch (legacyError: any) {
+          const status = legacyError?.response?.status;
+          if (status && status !== 404 && status !== 405) {
+            throw legacyError;
+          }
+        }
+      }
+
+      if (!response?.data?.success || !response.data?.data) {
         const today = new Date().toISOString().split('T')[0];
         response = await api.post<ApiResponse<GroupSummaryData>>('/whatsapp-summary/generate', { groupId, date: today, timezone, chatType });
       }

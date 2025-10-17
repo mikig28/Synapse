@@ -49,9 +49,11 @@ router.delete('/schedules/:id', deleteSummarySchedule);
 router.post('/schedules/:id/run', runSummaryScheduleNow);
 router.get('/schedules/:id/history', getSummaryScheduleHistory);
 
-// Summary generation routes
-router.post('/generate', generateDailySummary);
-router.post('/generate-today', generateTodaySummary);
+// Summary generation routes (support legacy and current endpoint names)
+router.post('/daily-summary', generateDailySummary); // Preferred endpoint
+router.post('/today', generateTodaySummary); // Preferred endpoint
+router.post('/generate', generateDailySummary); // Legacy compatibility
+router.post('/generate-today', generateTodaySummary); // Legacy compatibility
 
 // Debug routes (only in non-production environments)
 if (process.env.NODE_ENV !== 'production') {
