@@ -21,13 +21,14 @@ export const processTelegramItemForBookmarks = async (telegramItem: ITelegramIte
   }
 
   console.log('[processTelegramItemForBookmarks] Starting URL processing for TelegramItem ID:', telegramItem._id);
+  console.log('[processTelegramItemForBookmarks] Telegram chatId:', telegramItem.chatId);
 
   await processUrlsForBookmarks({
     userId: telegramItem.synapseUserId.toString(),
     urls: telegramItem.urls,
     source: 'telegram',
     sourceMessageId: (telegramItem._id as ObjectId).toString(),
-    chatId: telegramItem.chatId,
+    chatId: telegramItem.chatId, // ✅ Pass chatId for voice note prompt
     logContext: {
       telegramMessageId: telegramItem.telegramMessageId,
       chatId: telegramItem.chatId,

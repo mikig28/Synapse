@@ -81,7 +81,21 @@ export const processUrlsForBookmarks = async ({
 
       // Send voice note prompt for Telegram bookmarks
       if (source === 'telegram' && chatId && bookmarkId) {
+        console.log('[BookmarkCapture] ✅ Triggering voice note prompt', {
+          chatId,
+          bookmarkId: bookmarkId.toString(),
+          url,
+          userId
+        });
         await promptForBookmarkVoiceNote(chatId, bookmarkId.toString(), url, userId);
+      } else {
+        console.log('[BookmarkCapture] ⚠️ Voice note prompt NOT triggered', {
+          source,
+          hasChatId: !!chatId,
+          hasBookmarkId: !!bookmarkId,
+          chatId,
+          bookmarkId: bookmarkId?.toString()
+        });
       }
     } catch (error) {
       console.error('[BookmarkCapture] Failed to create bookmark', {
