@@ -439,6 +439,9 @@ class WAHAService extends EventEmitter {
     
     // Get WAHA API key from environment variables
     const wahaApiKey = process.env.WAHA_API_KEY;
+    const basicAuthInline = process.env.WAHA_BASIC_AUTH;
+    const basicAuthUser = process.env.WAHA_BASIC_USERNAME;
+    const basicAuthPass = process.env.WAHA_BASIC_PASSWORD;
     
     const headers: any = {
       'Content-Type': 'application/json',
@@ -452,10 +455,47 @@ class WAHAService extends EventEmitter {
       console.warn('[WAHA Service] ⚠️ No WAHA_API_KEY found - API requests may fail with 401');
     }
 
+    // Configure optional HTTP Basic auth when required by WAHA (e.g., Render deployments)
+    let axiosAuthConfig: { username: string; password: string } | undefined;
+    if (basicAuthInline || (basicAuthUser && basicAuthPass)) {
+      try {
+        if (basicAuthInline) {
+          const [username, ...rest] = basicAuthInline.split(':');
+          const password = rest.join(':');
+          if (!username || !password) {
+            throw new Error('Invalid WAHA_BASIC_AUTH format. Expected "username:password".');
+          }
+          axiosAuthConfig = { username, password };
+        } else if (basicAuthUser && basicAuthPass) {
+          axiosAuthConfig = { username: basicAuthUser, password: basicAuthPass };
+        }
+      } catch (authError) {
+        console.error('[WAHA Service] ❌ Failed to parse WAHA basic auth configuration:', authError);
+      }
+    }
+
+    if (axiosAuthConfig) {
+      const authHeader = Buffer.from(
+        `${axiosAuthConfig.username}:${axiosAuthConfig.password}`,
+        'utf8'
+      ).toString('base64');
+
+      headers['Authorization'] = `Basic ${authHeader}`;
+
+      const maskedUser =
+        axiosAuthConfig.username.length > 2
+          ? `${axiosAuthConfig.username[0]}***${axiosAuthConfig.username.slice(-1)}`
+          : axiosAuthConfig.username;
+      console.log(
+        `[WAHA Service] ✅ Basic authentication configured for WAHA service (user=${maskedUser})`
+      );
+    }
+
     this.httpClient = axios.create({
       baseURL: this.wahaBaseUrl,
       timeout: 180000, // Increased to 3 minutes for Railway deployment and large chat lists
       headers,
+      auth: axiosAuthConfig,
     });
 
     // Setup request interceptors for logging
