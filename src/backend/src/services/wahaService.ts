@@ -2502,7 +2502,16 @@ class WAHAService extends EventEmitter {
 
           // If no name from contactsMap (or not a group), try chat object fields
           if (!chatName) {
-            chatName = chat.name || chat.subject || chat.title;
+            // Try multiple name sources from WAHA response
+            chatName = chat.name ||
+                      chat.subject ||
+                      chat.title ||
+                      // Try to extract pushName from last message
+                      chat.lastMessage?.pushName ||
+                      chat.lastMessage?._data?.pushName ||
+                      // Try nested chat data
+                      chat._chat?.name ||
+                      chat._chat?.subject;
           }
 
           // If still no name or is just the ID, try better fallbacks
@@ -2518,7 +2527,9 @@ class WAHAService extends EventEmitter {
                 console.log(`[WAHA Service] 👥 Group name resolved from chat fallback: "${chatName}" for ${safeId}`);
               }
             } else {
-              // For private chats, try to get name from contacts first
+              // For private chats, try multiple sources
+
+              // 1. Try to get name from contacts API first
               const contactInfo = contactsMap[safeId];
               if (contactInfo) {
                 // WAHA Plus official format: name, pushname, shortName (per documentation)
@@ -2535,7 +2546,20 @@ class WAHAService extends EventEmitter {
                 if (chatName) {
                   console.log(`[WAHA Service] 👤 Contact name resolved from contactsMap: "${chatName}" for ${safeId}`);
                 }
-              } else {
+              }
+
+              // 2. If no name from contacts API, try to extract from last message (if message is FROM the contact, not from us)
+              if (!chatName && chat.lastMessage && !chat.lastMessage.fromMe) {
+                chatName = chat.lastMessage.pushName ||
+                          chat.lastMessage._data?.pushName ||
+                          chat.lastMessage._data?.notifyName;
+
+                if (chatName) {
+                  console.log(`[WAHA Service] 👤 Contact name extracted from lastMessage.pushName: "${chatName}" for ${safeId}`);
+                }
+              }
+
+              if (!contactInfo && !chatName) {
                 console.log(`[WAHA Service] ⚠️ No contact info found in contactsMap for ${safeId}`);
               }
 
@@ -2552,14 +2576,15 @@ class WAHAService extends EventEmitter {
                           chat.notify ||
                           chat.verifiedName ||
                           chat.notifyName ||
-                          // Only use formatted phone as very last resort
-                          this.formatPhoneNumber(safeId.split('@')[0]) ||
-                          `Contact ${safeId.split('@')[0]}`;
+                          // Try to get name from WAHA API if available
+                          chat.name ||
+                          // Use formatted phone as last resort (but still shows it's a number)
+                          `${this.formatPhoneNumber(safeId.split('@')[0])}`;
 
-                if (chatName && !chatName.startsWith('Contact ')) {
+                if (chatName && !chatName.startsWith('+') && !chatName.match(/^\d/)) {
                   console.log(`[WAHA Service] 👤 Contact name resolved from chat data: "${chatName}" for ${safeId}`);
                 } else {
-                  console.log(`[WAHA Service] ⚠️ Using fallback name: "${chatName}" for ${safeId}`);
+                  console.log(`[WAHA Service] ⚠️ Using phone number as fallback: "${chatName}" for ${safeId}`);
                 }
               }
             }
