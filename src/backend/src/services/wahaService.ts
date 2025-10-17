@@ -5027,20 +5027,47 @@ class WAHAService extends EventEmitter {
     const senderName = messageData.senderName || 'Unknown';
 
     // Check if this voice memo is for a pending bookmark FIRST
+    // ✅ FIX: Check ALL eligible monitors for pending bookmarks, not just the first one
     try {
-      console.log('[WAHA Service] 🎙️ Checking for pending bookmark voice memo...');
+      console.log('[WAHA Service] 🎙️ Checking for pending bookmark voice memo across all eligible monitors...');
       const { handleBookmarkVoiceMemo } = await import('./whatsappBookmarkPromptService');
 
-      const isBookmarkVoiceMemo = await handleBookmarkVoiceMemo(
-        targetChatId,
-        eligibleMonitors[0]?.userId?.toString(), // Use first monitor's userId
-        transcription,
-        messageData.mediaFileId,
-        messageData.messageId
-      );
+      let wasHandledAsBookmark = false;
 
-      if (isBookmarkVoiceMemo) {
-        console.log('[WAHA Service] 🎙️ ✅ Processed as bookmark voice memo, skipping normal voice processing');
+      // Try each eligible monitor until we find one with a pending bookmark
+      for (const monitor of eligibleMonitors) {
+        const userId = monitor.userId?.toString();
+        if (!userId) {
+          console.log('[WAHA Service] 🎙️ Skipping monitor with undefined userId:', monitor._id);
+          continue;
+        }
+
+        console.log('[WAHA Service] 🎙️ Checking pending bookmark for monitor:', {
+          monitorId: monitor._id,
+          userId,
+          groupId: targetChatId
+        });
+
+        const isBookmarkVoiceMemo = await handleBookmarkVoiceMemo(
+          targetChatId,
+          userId,
+          transcription,
+          messageData.mediaFileId,
+          messageData.messageId
+        );
+
+        if (isBookmarkVoiceMemo) {
+          console.log('[WAHA Service] 🎙️ ✅ Processed as bookmark voice memo for monitor', {
+            monitorId: monitor._id,
+            userId
+          });
+          wasHandledAsBookmark = true;
+          break; // Found and processed bookmark - exit loop
+        }
+      }
+
+      if (wasHandledAsBookmark) {
+        console.log('[WAHA Service] 🎙️ ✅ Voice memo handled as bookmark, skipping normal voice processing');
         // Clean up temp file
         if (localPath && fs.existsSync(localPath)) {
           fs.unlinkSync(localPath);
@@ -5049,7 +5076,7 @@ class WAHAService extends EventEmitter {
         return; // Exit early - handled by bookmark processing
       }
 
-      console.log('[WAHA Service] 🎙️ Not a bookmark voice memo, continuing with normal processing');
+      console.log('[WAHA Service] 🎙️ Not a bookmark voice memo for any monitor, continuing with normal processing');
     } catch (bookmarkError) {
       console.error('[WAHA Service] 🎙️ Error checking bookmark voice memo:', bookmarkError);
       // Continue with normal processing even if bookmark check fails
