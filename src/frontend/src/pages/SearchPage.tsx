@@ -5,6 +5,7 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { AnimatedButton } from '@/components/ui/AnimatedButton';
 import { Input } from '@/components/ui/input';
 import { SkeletonCard } from '@/components/ui/Skeleton';
+import { ContextualHelp } from '@/components/ui/ContextualHelp';
 import { FloatingParticles } from '@/components/common/FloatingParticles';
 import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 import searchService, { SearchResult, UniversalSearchResponse, SearchStats } from '@/services/searchService';
@@ -402,6 +403,11 @@ const SearchPage: React.FC = () => {
           <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-2 flex items-center justify-center gap-2 sm:gap-3">
             <Search className="w-6 h-6 sm:w-8 sm:h-8 text-violet-400" />
             Universal Search
+            <ContextualHelp
+              title="Universal Search"
+              content="AI-powered search across all your content. Choose between hybrid (recommended), semantic (meaning-based), or keyword (exact match) strategies to find what you need."
+              side="bottom"
+            />
           </h1>
           <p className="text-sm sm:text-base text-gray-300">
             Search across all your content
@@ -461,6 +467,10 @@ const SearchPage: React.FC = () => {
               <h3 className="text-sm sm:text-base text-white font-semibold flex items-center gap-2">
                 <Filter className="w-3 h-3 sm:w-4 sm:h-4" />
                 Filters
+                <ContextualHelp
+                  content="Filter results by content type and choose your search strategy. Hybrid combines semantic understanding with keyword matching for best results."
+                  side="bottom"
+                />
               </h3>
               <AnimatedButton
                 variant="ghost"
@@ -481,7 +491,14 @@ const SearchPage: React.FC = () => {
               >
                 {/* Search Strategy */}
                 <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Strategy</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                    Strategy
+                    <ContextualHelp
+                      title="Search Strategies"
+                      content="Smart Search (hybrid) combines AI understanding with exact matching. Meaning-based (semantic) finds similar concepts. Exact match (keyword) finds specific terms."
+                      side="right"
+                    />
+                  </label>
                   <div className="flex flex-wrap gap-1.5 sm:gap-2">
                     {strategies.map(strategy => (
                       <AnimatedButton
@@ -499,7 +516,13 @@ const SearchPage: React.FC = () => {
 
                 {/* Content Types */}
                 <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2">Content</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                    Content
+                    <ContextualHelp
+                      content="Filter search results by content type. Select 'All Content' to search everything or pick specific types like documents, notes, bookmarks, or tasks."
+                      side="right"
+                    />
+                  </label>
                   <div className="flex flex-wrap gap-1.5 sm:gap-2">
                     {contentTypes.map(type => {
                       const Icon = type.icon;
@@ -665,8 +688,13 @@ const SearchPage: React.FC = () => {
           >
             <GlassCard className="p-6 sm:p-8 lg:p-12 min-w-0">
               <Zap className="w-12 h-12 sm:w-16 sm:h-16 text-violet-400 mx-auto mb-4 sm:mb-6" />
-              <h2 className="text-lg sm:text-xl lg:text-2xl font-semibold text-white mb-3 sm:mb-4">
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-semibold text-white mb-3 sm:mb-4 flex items-center justify-center gap-2">
                 Search Your Knowledge
+                <ContextualHelp
+                  title="Searchable Content"
+                  content="Universal Search indexes all your documents, notes, bookmarks, tasks, ideas, videos, images, news articles, WhatsApp messages, Telegram chats, and meeting transcripts for instant retrieval."
+                  side="bottom"
+                />
               </h2>
               <p className="text-gray-300 mb-4 sm:mb-6 max-w-md mx-auto text-xs sm:text-sm lg:text-base">
                 Find anything across documents, notes, bookmarks, and more

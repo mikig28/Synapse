@@ -51,6 +51,7 @@ const ProductionSafe2DDashboard = React.lazy(() =>
 // Other imports remain the same
 import { DashboardHealthCheck } from '@/components/DashboardHealthCheck';
 import { AguiStatusBar } from '@/components/AguiStatusBar';
+import { ContextualHelp } from '@/components/ui/ContextualHelp';
 import { 
   containerVariants, 
   fabVariants, 
@@ -626,6 +627,11 @@ const AgentsPage: React.FC = memo(() => {
                   className="flex items-center gap-3"
                 >
                   Multi AI Agents
+                  <ContextualHelp
+                    title="AI Agents"
+                    content="Create and manage AI-powered automation agents. Choose from Twitter monitoring, news aggregation, or multi-agent CrewAI systems to automate content curation 24/7."
+                    side="bottom"
+                  />
                   {!isDashboardHealthy && (
                     <motion.span 
                       initial={{ scale: 0 }}

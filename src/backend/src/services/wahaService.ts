@@ -2573,7 +2573,7 @@ class WAHAService extends EventEmitter {
               }
 
               if (!contactInfo) {
-                // Debug: Show which ID formats we tried
+                // Debug: Show which ID formats we tried and what's actually in the map
                 const baseId = safeId.split('@')[0];
                 const triedIds = [
                   safeId,
@@ -2582,6 +2582,10 @@ class WAHAService extends EventEmitter {
                 ];
                 console.log(`[WAHA Service] ⚠️ No contact info found in contactsMap for ${safeId}`);
                 console.log(`[WAHA Service] Tried IDs: ${triedIds.join(', ')}`);
+
+                // Sample 5 keys from contactsMap to see actual format
+                const sampleKeys = Object.keys(contactsMap).filter(k => !k.includes('@g.us') && !k.includes('@lid')).slice(0, 5);
+                console.log(`[WAHA Service] Sample contactsMap keys: ${sampleKeys.join(', ')}`);
                 console.log(`[WAHA Service] ContactsMap has ${Object.keys(contactsMap).filter(k => !k.includes('@g.us')).length} non-group contacts`);
               }
 
