@@ -716,6 +716,123 @@ class WAHAService extends EventEmitter {
   }
 
   /**
+   * Detect ISO country information from a numeric phone string.
+   * @param digitsOnlyPhone - Phone string containing only digits (e.g., "972501234567")
+   */
+  private detectCountryInfoFromDigits(
+    digitsOnlyPhone: string
+  ): { isoCode: string; dialCode: string } | null {
+    if (!digitsOnlyPhone || typeof digitsOnlyPhone !== 'string') {
+      return null;
+    }
+
+    const countryCodes = [
+      { dialCode: '972', isoCode: 'IL' },
+      { dialCode: '1', isoCode: 'US' },
+      { dialCode: '44', isoCode: 'GB' },
+      { dialCode: '49', isoCode: 'DE' },
+      { dialCode: '33', isoCode: 'FR' },
+      { dialCode: '39', isoCode: 'IT' },
+      { dialCode: '34', isoCode: 'ES' },
+      { dialCode: '31', isoCode: 'NL' },
+      { dialCode: '55', isoCode: 'BR' },
+      { dialCode: '91', isoCode: 'IN' },
+      { dialCode: '81', isoCode: 'JP' },
+      { dialCode: '82', isoCode: 'KR' },
+      { dialCode: '52', isoCode: 'MX' },
+      { dialCode: '57', isoCode: 'CO' },
+      { dialCode: '62', isoCode: 'ID' },
+      { dialCode: '63', isoCode: 'PH' },
+      { dialCode: '64', isoCode: 'NZ' },
+      { dialCode: '65', isoCode: 'SG' },
+      { dialCode: '66', isoCode: 'TH' }
+    ];
+
+    const match = countryCodes.find(entry => digitsOnlyPhone.startsWith(entry.dialCode));
+    return match || null;
+  }
+
+  /**
+   * Normalize raw WAHA pairing code responses into a standard structure.
+   */
+  private normalizePairingCodeResponse(
+    rawResponse: any
+  ): {
+    code: string;
+    rawCode: string;
+    displayCode: string;
+    digitsOnly: string;
+    alphanumericCode: string;
+  } | null {
+    if (!rawResponse) {
+      return null;
+    }
+
+    const candidateValues = [
+      rawResponse.code,
+      rawResponse.Code,
+      rawResponse.pairingCode,
+      rawResponse.pairCode,
+      rawResponse.pair_code,
+      rawResponse.verificationCode,
+      rawResponse.verification_code,
+      rawResponse?.data?.code,
+      rawResponse?.data?.pairingCode,
+      rawResponse?.data?.pairCode,
+      rawResponse?.data?.pair_code,
+      rawResponse?.payload?.code,
+      rawResponse?.payload?.pairingCode,
+      rawResponse?.payload?.pairCode,
+      rawResponse?.payload?.pair_code,
+      rawResponse?.payload?.data?.code,
+      rawResponse?.payload?.data?.pairingCode,
+      rawResponse?.result?.code,
+      rawResponse?.result?.pairingCode,
+      rawResponse?.result?.pairCode,
+      rawResponse?.result?.pair_code,
+      rawResponse?.pairing?.code
+    ];
+
+    const rawCandidate = candidateValues
+      .map(value => {
+        if (typeof value === 'number') {
+          return value.toString();
+        }
+        if (typeof value === 'string') {
+          return value;
+        }
+        return null;
+      })
+      .find(value => typeof value === 'string' && value.trim().length > 0);
+
+    if (!rawCandidate) {
+      return null;
+    }
+
+    const rawCode = rawCandidate.trim();
+    const upperCaseCode = rawCode.toUpperCase();
+    const alphanumericCode = upperCaseCode.replace(/[^A-Z0-9]/g, '');
+    const digitsOnly = upperCaseCode.replace(/\D/g, '');
+
+    const displayCode =
+      upperCaseCode.includes('-')
+        ? upperCaseCode.replace(/\s+/g, '')
+        : alphanumericCode.length === 8
+        ? `${alphanumericCode.slice(0, 4)}-${alphanumericCode.slice(4)}`
+        : alphanumericCode.length === 6
+        ? `${alphanumericCode.slice(0, 3)}-${alphanumericCode.slice(3)}`
+        : upperCaseCode;
+
+    return {
+      code: upperCaseCode.replace(/\s+/g, ''),
+      rawCode,
+      displayCode,
+      digitsOnly,
+      alphanumericCode
+    };
+  }
+
+  /**
    * Handle authentication event - fetch chats automatically with retry logic
    */
   private async handleAuthentication(authData: any): Promise<void> {
@@ -2011,81 +2128,185 @@ class WAHAService extends EventEmitter {
         throw new Error('Invalid phone number. Must be at least 10 digits.');
       }
 
-      console.log(`[WAHA Service] Sending pairing code request for cleaned phone: ${cleanPhone}`);
+      const trimmedSource = typeof phoneNumber === 'string' ? phoneNumber.trim() : '';
+      const phoneWithPlus = trimmedSource.startsWith('+')
+        ? trimmedSource.replace(/\s+/g, '')
+        : `+${cleanPhone}`;
+      const countryInfo = this.detectCountryInfoFromDigits(cleanPhone);
 
-      // Per WAHA API docs: POST /api/{session}/auth/request-code
-      const response = await this.httpClient.post(`api/${sessionName}/auth/request-code`, {
-        phoneNumber: cleanPhone
-      });
+      const payloadVariants: Array<{ payload: Record<string, string>; description: string }> = [];
+      const seenPayloadKeys = new Set<string>();
 
-      console.log(`[WAHA Service] ✅ Pairing code received:`, response.data);
+      const addVariant = (payload: Record<string, string | undefined>, description: string) => {
+        const canonical = Object.keys(payload)
+          .filter(key => payload[key] !== undefined && payload[key] !== null && payload[key] !== '')
+          .sort()
+          .reduce<Record<string, string>>((acc, key) => {
+            const value = payload[key];
+            if (typeof value === 'string') {
+              acc[key] = value;
+            }
+            return acc;
+          }, {});
 
-      const data = response?.data ?? {};
-      const possibleValues = [
-        data.code,
-        data.pairingCode,
-        data.pair_code,
-        data.verificationCode,
-        data?.data?.code,
-        data?.data?.pairingCode,
-        data?.data?.pair_code,
-        data?.payload?.code,
-        data?.payload?.pairingCode,
-        data?.result?.code,
-        data?.result?.pairingCode
-      ];
+        const key = JSON.stringify(canonical);
+        if (!key || key === '{}' || seenPayloadKeys.has(key)) {
+          return;
+        }
+        seenPayloadKeys.add(key);
+        payloadVariants.push({ payload: canonical, description });
+      };
 
-      const rawCandidate = possibleValues
-        .map(value => {
-          if (typeof value === 'number') {
-            return value.toString();
-          }
-          if (typeof value === 'string') {
-            return value;
-          }
-          return null;
-        })
-        .find(value => typeof value === 'string' && value.trim().length > 0);
+      addVariant({ phoneNumber: cleanPhone }, 'phoneNumber digits');
+      addVariant({ phoneNumber: phoneWithPlus }, 'phoneNumber +country');
+      addVariant({ phone: cleanPhone }, 'phone digits');
+      addVariant({ phone: phoneWithPlus }, 'phone +country');
+      addVariant({ number: cleanPhone }, 'number digits');
+      addVariant({ number: phoneWithPlus }, 'number +country');
+      addVariant({ phoneNumber: cleanPhone, phone: cleanPhone }, 'phoneNumber+phone digits');
+      addVariant({ phoneNumber: cleanPhone, phone: phoneWithPlus }, 'phoneNumber digits + phone +country');
+      addVariant({ phoneNumber: phoneWithPlus, phone: phoneWithPlus }, 'phoneNumber+phone +country');
+      addVariant({ phone_number: cleanPhone }, 'phone_number digits');
+      addVariant({ phone_number: phoneWithPlus }, 'phone_number +country');
+      addVariant({ phoneNumber: cleanPhone, phone_number: cleanPhone }, 'phoneNumber + phone_number digits');
+      addVariant({ phoneNumber: cleanPhone, internationalPhone: phoneWithPlus }, 'phoneNumber + internationalPhone');
+      addVariant({ phoneNumber: cleanPhone, rawPhone: trimmedSource || cleanPhone }, 'phoneNumber + raw');
 
-      if (!rawCandidate) {
-        throw new Error('No pairing code returned from WAHA service');
-      }
-
-      const rawCode = rawCandidate.trim();
-      const upperCaseCode = rawCode.toUpperCase();
-      const alphanumericCode = upperCaseCode.replace(/[^A-Z0-9]/g, '');
-      const digitsOnly = upperCaseCode.replace(/\D/g, '');
-
-      if (alphanumericCode.length !== 8) {
-        console.warn(
-          `[WAHA Service] Pairing code length is ${alphanumericCode.length} (expected 8). Raw code: ${rawCandidate}`
+      if (countryInfo) {
+        addVariant(
+          { phoneNumber: cleanPhone, phone: phoneWithPlus, countryCode: countryInfo.isoCode },
+          'phone variants + ISO country'
+        );
+        addVariant(
+          { phoneNumber: cleanPhone, dialCode: countryInfo.dialCode },
+          'phoneNumber + dialCode'
+        );
+        addVariant(
+          { phoneNumber: cleanPhone, phone: phoneWithPlus, regionCode: countryInfo.isoCode },
+          'phone variants + regionCode'
         );
       }
 
-      const formattedCode =
-        upperCaseCode.includes('-')
-          ? upperCaseCode.replace(/\s+/g, '')
-          : alphanumericCode.length === 8
-          ? `${alphanumericCode.slice(0, 4)}-${alphanumericCode.slice(4)}`
-          : alphanumericCode.length === 6
-          ? `${alphanumericCode.slice(0, 3)}-${alphanumericCode.slice(3)}`
-          : upperCaseCode;
+      if (payloadVariants.length === 0) {
+        throw new Error('Unable to build payload variants for WAHA pairing request');
+      }
 
-      console.log('[WAHA Service] Pairing code normalized:', {
-        rawCode,
-        upperCaseCode,
-        alphanumericCode,
-        digitsOnly,
-        formattedCode
-      });
+      const endpointCandidates: Array<{ url: string; label: string }> = [
+        { url: `api/${sessionName}/auth/request-code`, label: 'api/session/auth/request-code' },
+        { url: `/api/${sessionName}/auth/request-code`, label: '/api/session/auth/request-code' },
+        { url: `api/sessions/${sessionName}/auth/request-code`, label: 'api/sessions/auth/request-code' },
+        { url: `/api/sessions/${sessionName}/auth/request-code`, label: '/api/sessions/auth/request-code' },
+        { url: `/sessions/${sessionName}/auth/request-code`, label: '/sessions/auth/request-code' },
+        { url: `sessions/${sessionName}/auth/request-code`, label: 'sessions/auth/request-code' },
+        { url: `api/${sessionName}/auth/number`, label: 'api/session/auth/number' },
+        { url: `/api/${sessionName}/auth/number`, label: '/api/session/auth/number' }
+      ];
 
-      return {
-        code: upperCaseCode,
-        rawCode,
-        displayCode: formattedCode,
-        digitsOnly,
-        alphanumericCode
-      };
+      const attemptSummaries: string[] = [];
+      let fallbackResult: {
+        code: string;
+        rawCode: string;
+        displayCode: string;
+        digitsOnly: string;
+        alphanumericCode: string;
+      } | null = null;
+
+      for (const endpoint of endpointCandidates) {
+        let endpointUnsupported = false;
+
+        for (const variant of payloadVariants) {
+          if (endpointUnsupported) {
+            break;
+          }
+
+          try {
+            const sanitizedPayload = Object.entries(variant.payload).reduce<Record<string, string>>(
+              (acc, [key, value]) => {
+                const lowerKey = key.toLowerCase();
+                if (
+                  (lowerKey.includes('phone') || lowerKey.includes('number')) &&
+                  typeof value === 'string' &&
+                  value.length >= 4
+                ) {
+                  acc[key] = `${value.substring(0, 3)}***${value.substring(value.length - 2)}`;
+                } else {
+                  acc[key] = value;
+                }
+                return acc;
+              },
+              {}
+            );
+
+            console.log(
+              `[WAHA Service] ▶️ Pairing attempt via ${endpoint.label} using payload variant '${variant.description}'`,
+              sanitizedPayload
+            );
+            const response = await this.httpClient.post(endpoint.url, variant.payload);
+            console.log(`[WAHA Service] ✅ Pairing response from ${endpoint.label}:`, response.data);
+
+            const normalized = this.normalizePairingCodeResponse(response?.data);
+
+            if (!normalized) {
+              attemptSummaries.push(`${endpoint.label}/${variant.description}: no code in response`);
+              continue;
+            }
+
+            if (normalized.alphanumericCode.length === 8) {
+              console.log(
+                `[WAHA Service] ✅ Pairing code normalized (${normalized.displayCode}) via ${endpoint.label} [${variant.description}]`
+              );
+              return normalized;
+            }
+
+            console.warn(
+              `[WAHA Service] ⚠️ Non-standard pairing code length (${normalized.alphanumericCode.length}) via ${endpoint.label} [${variant.description}]`
+            );
+            attemptSummaries.push(
+              `${endpoint.label}/${variant.description}: code length ${normalized.alphanumericCode.length}`
+            );
+
+            if (
+              !fallbackResult ||
+              normalized.alphanumericCode.length > fallbackResult.alphanumericCode.length
+            ) {
+              fallbackResult = normalized;
+            }
+          } catch (attemptError: any) {
+            const status = attemptError?.response?.status;
+            const message =
+              attemptError?.response?.data?.message ||
+              attemptError?.response?.data?.error ||
+              attemptError?.message ||
+              String(attemptError);
+
+            console.warn(
+              `[WAHA Service] Pairing code attempt failed via ${endpoint.label} (${variant.description}):`,
+              {
+                status,
+                message
+              }
+            );
+
+            attemptSummaries.push(
+              `${endpoint.label}/${variant.description}: error ${status || attemptError?.code || 'ERR'}`
+            );
+
+            if (status === 404 || status === 405) {
+              endpointUnsupported = true;
+            }
+          }
+        }
+      }
+
+      if (fallbackResult) {
+        throw new Error(
+          `WAHA returned a ${fallbackResult.alphanumericCode.length}-character pairing code (expected 8).`
+        );
+      }
+
+      throw new Error(
+        `WAHA pairing endpoints did not return a code. Attempts: ${attemptSummaries.slice(0, 6).join(' | ')}`
+      );
 
     } catch (error: any) {
       console.error(`[WAHA Service] ❌ Failed to request pairing code for '${sessionName}':`, error);

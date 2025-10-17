@@ -1041,6 +1041,17 @@ export const sendPhoneAuthCode = async (req: Request, res: Response) => {
       });
     }
 
+    if (error.message.includes('returned a') && error.message.includes('pairing code')) {
+      return res.status(502).json({
+        success: false,
+        error: 'WAHA service returned an invalid pairing code length',
+        message: error.message,
+        fallbackMethod: 'qr',
+        suggestion: 'Verify your WAHA Plus instance supports phone pairing and try requesting a new code.',
+        technicalDetails: error.message
+      });
+    }
+
     res.status(500).json({
       success: false,
       error: 'Failed to generate pairing code: ' + error.message,

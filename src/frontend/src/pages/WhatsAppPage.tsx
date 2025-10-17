@@ -1402,6 +1402,25 @@ const WhatsAppPage: React.FC = () => {
           fetchQRCode();
         }, 2000);
         
+      } else if (
+        error.response?.status === 502 &&
+        typeof errorData?.error === 'string' &&
+        errorData.error.toLowerCase().includes('invalid pairing code length')
+      ) {
+        setPhoneAuthStep('phone');
+        setIsWaitingForCode(false);
+        setPairingCode(null);
+        toast({
+          title: "Invalid Pairing Code Returned",
+          description: "WAHA returned a malformed code. Please verify your WAHA Plus configuration supports phone pairing or try the QR method.",
+          variant: "destructive",
+        });
+        
+        setTimeout(() => {
+          setAuthMethod('qr');
+          fetchQRCode();
+        }, 3000);
+        
       } else {
         // Enhanced error handling for configuration issues
         const is401Error = error.response?.status === 401;
@@ -3604,6 +3623,11 @@ const WhatsAppPage: React.FC = () => {
                                 <div className="text-2xl font-mono tracking-widest">
                                   {formatPairingCodeForDisplay(pairingCode)}
                                 </div>
+                                {pairingCode.replace(/[^A-Z0-9]/g, '').length !== 8 && (
+                                  <p className="text-xs text-red-300 mt-2">
+                                    This code is not 8 characters long. Re-request a code or switch to QR authentication—your WAHA Plus engine may not support phone pairing.
+                                  </p>
+                                )}
                               </div>
                               <Button
                                 variant="outline"
