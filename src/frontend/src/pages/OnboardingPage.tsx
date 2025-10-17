@@ -38,6 +38,7 @@ const OnboardingPage: React.FC = () => {
   const {
     isOnboarding,
     onboardingDismissed,
+    hasHydrated,
     currentStep,
     steps,
     progress,
@@ -72,12 +73,18 @@ const OnboardingPage: React.FC = () => {
   }, [initializeFromServer, isInitialized, setError]);
 
   useEffect(() => {
+    // Wait for hydration before auto-starting onboarding
+    // This prevents race conditions where onboarding starts before localStorage is loaded
+    if (!hasHydrated) {
+      return;
+    }
+
     // Only start onboarding if user hasn't completed it and hasn't dismissed it
     // This prevents onboarding from showing on every refresh for existing users
     if (!isOnboarding && !onboardingDismissed && progress.completedSteps.length === 0) {
       startOnboarding();
     }
-  }, [isOnboarding, onboardingDismissed, startOnboarding, progress.completedSteps.length]);
+  }, [hasHydrated, isOnboarding, onboardingDismissed, startOnboarding, progress.completedSteps.length]);
 
   const CurrentStepComponent = useMemo(() => stepComponents[currentStep] ?? null, [currentStep]);
   const currentStepData = steps[currentStep];

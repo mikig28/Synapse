@@ -101,6 +101,7 @@ interface OnboardingState {
   isOnboarding: boolean;
   isInitialized: boolean;
   onboardingDismissed: boolean;
+  hasHydrated: boolean;
   currentStep: number;
   steps: OnboardingStep[];
   progress: OnboardingProgress;
@@ -401,6 +402,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       isOnboarding: false,
       isInitialized: false,
       onboardingDismissed: false,
+      hasHydrated: false,
       currentStep: 0,
       steps: createDefaultSteps(),
       progress: createInitialProgress(createDefaultSteps().length),
@@ -807,6 +809,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         set({
           isOnboarding: false,
           isInitialized: false,
+          hasHydrated: true,
           currentStep: 0,
           steps,
           progress: createInitialProgress(steps.length),
@@ -844,6 +847,13 @@ export const useOnboardingStore = create<OnboardingState>()(
         steps: state.steps,
         onboardingDismissed: state.onboardingDismissed,
       }),
+      onRehydrateStorage: () => {
+        return (state) => {
+          if (state) {
+            state.hasHydrated = true;
+          }
+        };
+      },
     },
   ),
 );

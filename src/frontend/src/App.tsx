@@ -101,7 +101,7 @@ const PageLoader = () => (
 
 function AppContent() {
   const { isAuthenticated, hasHydrated } = useAuthStore();
-  const { isOnboarding, onboardingDismissed, progress } = useOnboardingStore();
+  const { isOnboarding, onboardingDismissed, progress, hasHydrated: onboardingHydrated } = useOnboardingStore();
   const location = useLocation();
   const commandPalette = useCommandPalette();
 
@@ -113,8 +113,9 @@ function AppContent() {
     }
   }, [isAuthenticated, hasHydrated]);
 
-  // Wait for auth hydration before deciding routes to avoid flicker/redirects on mobile
-  if (!hasHydrated) {
+  // Wait for both auth and onboarding hydration before deciding routes
+  // This prevents race conditions where routing happens before localStorage is loaded
+  if (!hasHydrated || !onboardingHydrated) {
     return <PageLoader />;
   }
 
