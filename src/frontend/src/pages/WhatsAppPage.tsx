@@ -89,18 +89,27 @@ const formatPairingCodeForDisplay = (code: string | null | undefined): string =>
     return '';
   }
 
-  const trimmed = code.trim();
-  const digitsOnly = trimmed.replace(/\D/g, '');
-
-  if (digitsOnly.length === 8) {
-    return `${digitsOnly.slice(0, 4)}-${digitsOnly.slice(4)}`;
+  const trimmed = code.trim().toUpperCase();
+  if (!trimmed) {
+    return '';
   }
 
-  if (digitsOnly.length === 6) {
-    return `${digitsOnly.slice(0, 3)}-${digitsOnly.slice(3)}`;
+  const withoutSpaces = trimmed.replace(/\s+/g, '');
+  if (withoutSpaces.includes('-')) {
+    return withoutSpaces;
   }
 
-  return trimmed;
+  const alphanumericOnly = withoutSpaces.replace(/[^A-Z0-9]/g, '');
+
+  if (alphanumericOnly.length === 8) {
+    return `${alphanumericOnly.slice(0, 4)}-${alphanumericOnly.slice(4)}`;
+  }
+
+  if (alphanumericOnly.length === 6) {
+    return `${alphanumericOnly.slice(0, 3)}-${alphanumericOnly.slice(3)}`;
+  }
+
+  return alphanumericOnly || withoutSpaces;
 };
 
 const WhatsAppPage: React.FC = () => {
@@ -1300,36 +1309,49 @@ const WhatsAppPage: React.FC = () => {
       }
 
       if (response.data.success) {
+        console.log(`[WhatsApp Phone Auth] Pairing code retrieved via ${usedService} service`);
         const payload = response.data?.data ?? {};
-        const candidateCodes = [
+        const stringCandidates = [
           payload.displayCode,
           payload.pairingCode,
           payload.code,
           payload.rawCode,
+          payload.alphanumericCode,
           response.data?.code,
           response.data?.pairingCode
-        ];
+        ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
 
-        const stringCandidate = candidateCodes.find(
-          (value): value is string => typeof value === 'string' && value.trim().length > 0
+        const numericCandidate = typeof payload.digitsOnly === 'number'
+          ? payload.digitsOnly.toString()
+          : typeof payload.digitsOnly === 'string' && payload.digitsOnly.trim().length > 0
+          ? payload.digitsOnly.trim()
+          : undefined;
+
+        const rawCode = stringCandidates.length > 0 ? stringCandidates[0].trim() : numericCandidate;
+        const displayCode = formatPairingCodeForDisplay(
+          payload.displayCode ||
+          rawCode ||
+          stringCandidates[1] ||
+          numericCandidate ||
+          ''
         );
-        const numericCandidate = stringCandidate
-          ? null
-          : candidateCodes.find((value): value is number => typeof value === 'number');
-
-        const rawCode = stringCandidate ?? (numericCandidate != null ? numericCandidate.toString() : undefined);
-        const digitsOnly = rawCode ? rawCode.replace(/\D/g, '') : '';
-        const normalizedCode = digitsOnly || rawCode || '';
-        const displayCode =
-          typeof payload.displayCode === 'string' && payload.displayCode.trim().length > 0
-            ? payload.displayCode.trim()
-            : formatPairingCodeForDisplay(normalizedCode);
 
         setPhoneAuthStep('code');
         setIsWaitingForCode(true);
 
-        if (normalizedCode) {
-          setPairingCode(normalizedCode);
+        if (rawCode) {
+          const normalizedRaw = rawCode.toUpperCase().replace(/\s+/g, '');
+          setPairingCode(normalizedRaw);
+
+          const condensedLength = displayCode.replace(/[^A-Z0-9]/g, '').length;
+          if (condensedLength !== 8) {
+            toast({
+              title: 'Unexpected Code Format',
+              description: `We received a ${condensedLength}-character code. WhatsApp typically expects 8 characters. Try entering it carefully or request a new code.`,
+              variant: 'destructive',
+            });
+          }
+
           toast({
             title: 'Enter This Code in WhatsApp',
             description: `Code: ${displayCode}`,
@@ -1338,7 +1360,7 @@ const WhatsAppPage: React.FC = () => {
           setPairingCode(null);
           toast({
             title: 'Verification Code Requested',
-            description: 'Open WhatsApp and enter the 8-digit code shown in your app.',
+            description: 'Open WhatsApp and enter the code shown in your app.',
           });
         }
       } else {
@@ -3586,8 +3608,8 @@ const WhatsAppPage: React.FC = () => {
                               <Button
                                 variant="outline"
                                 onClick={() => {
-                                  const digits = (pairingCode ?? '').replace(/\D/g, '');
-                                  const codeToCopy = digits || pairingCode || '';
+                                  const codeToCopy = formatPairingCodeForDisplay(pairingCode)
+                                    .replace(/\s+/g, '');
                                   if (!codeToCopy) {
                                     return;
                                   }

@@ -1994,7 +1994,13 @@ class WAHAService extends EventEmitter {
   async requestPairingCode(
     sessionName: string = this.defaultSession,
     phoneNumber: string
-  ): Promise<{ code: string; rawCode?: string; displayCode?: string }> {
+  ): Promise<{
+    code: string;
+    rawCode: string;
+    displayCode: string;
+    digitsOnly: string;
+    alphanumericCode: string;
+  }> {
     console.log(`[WAHA Service] Requesting pairing code for session '${sessionName}', phone: ${phoneNumber}`);
 
     try {
@@ -2029,37 +2035,56 @@ class WAHAService extends EventEmitter {
         data?.result?.pairingCode
       ];
 
-      const rawCode = possibleValues
-        .map(value => (typeof value === 'number' ? value.toString() : value))
+      const rawCandidate = possibleValues
+        .map(value => {
+          if (typeof value === 'number') {
+            return value.toString();
+          }
+          if (typeof value === 'string') {
+            return value;
+          }
+          return null;
+        })
         .find(value => typeof value === 'string' && value.trim().length > 0);
 
-      if (!rawCode) {
+      if (!rawCandidate) {
         throw new Error('No pairing code returned from WAHA service');
       }
 
-      const normalizedDigits = rawCode.replace(/\D/g, '');
+      const rawCode = rawCandidate.trim();
+      const upperCaseCode = rawCode.toUpperCase();
+      const alphanumericCode = upperCaseCode.replace(/[^A-Z0-9]/g, '');
+      const digitsOnly = upperCaseCode.replace(/\D/g, '');
 
-      if (!normalizedDigits) {
-        throw new Error('WAHA service returned pairing code in unexpected format');
-      }
-
-      if (normalizedDigits.length !== 8) {
+      if (alphanumericCode.length !== 8) {
         console.warn(
-          `[WAHA Service] Pairing code length is ${normalizedDigits.length} (expected 8). Raw code: ${rawCode}`
+          `[WAHA Service] Pairing code length is ${alphanumericCode.length} (expected 8). Raw code: ${rawCandidate}`
         );
       }
 
       const formattedCode =
-        normalizedDigits.length === 8
-          ? `${normalizedDigits.slice(0, 4)}-${normalizedDigits.slice(4)}`
-          : normalizedDigits.length === 6
-          ? `${normalizedDigits.slice(0, 3)}-${normalizedDigits.slice(3)}`
-          : rawCode;
+        upperCaseCode.includes('-')
+          ? upperCaseCode.replace(/\s+/g, '')
+          : alphanumericCode.length === 8
+          ? `${alphanumericCode.slice(0, 4)}-${alphanumericCode.slice(4)}`
+          : alphanumericCode.length === 6
+          ? `${alphanumericCode.slice(0, 3)}-${alphanumericCode.slice(3)}`
+          : upperCaseCode;
+
+      console.log('[WAHA Service] Pairing code normalized:', {
+        rawCode,
+        upperCaseCode,
+        alphanumericCode,
+        digitsOnly,
+        formattedCode
+      });
 
       return {
-        code: normalizedDigits,
+        code: upperCaseCode,
         rawCode,
-        displayCode: formattedCode
+        displayCode: formattedCode,
+        digitsOnly,
+        alphanumericCode
       };
 
     } catch (error: any) {
