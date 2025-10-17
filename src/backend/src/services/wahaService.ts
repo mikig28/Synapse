@@ -4246,6 +4246,29 @@ class WAHAService extends EventEmitter {
    * Forward messages to group monitor service
    */
   private async processMessageForGroupMonitoring(messageData: any): Promise<void> {
+    // 🚫 CRITICAL FIX: Skip processing messages sent by the bot itself to prevent infinite loops
+    if (messageData.fromMe === true) {
+      console.log('[WAHA Service] 🚫 Skipping bot message to prevent infinite loop:', {
+        messageId: messageData.id,
+        fromMe: messageData.fromMe,
+        textPreview: (messageData.body || messageData.caption || '').substring(0, 50)
+      });
+      return;
+    }
+
+    // 🚫 ADDITIONAL SAFETY: Skip messages that contain bookmark prompt text (backup safety)
+    const messageText = (messageData.body || messageData.caption || '').toLowerCase();
+    if (messageText.includes('bookmark saved') || 
+        messageText.includes('סימניה נשמרה') ||
+        messageText.includes('would you like to add a note') ||
+        messageText.includes('רוצה להוסיף הערה')) {
+      console.log('[WAHA Service] 🚫 Skipping bookmark prompt message to prevent infinite loop:', {
+        messageId: messageData.id,
+        textPreview: messageText.substring(0, 50)
+      });
+      return;
+    }
+
     const rawChatCandidates = [
       messageData.chatId,
       messageData.chat?.id,
