@@ -4998,6 +4998,35 @@ class WAHAService extends EventEmitter {
     const isHebrew = /[\u0590-\u05FF]/.test(transcription);
     const senderName = messageData.senderName || 'Unknown';
 
+    // Check if this voice memo is for a pending bookmark FIRST
+    try {
+      console.log('[WAHA Service] 🎙️ Checking for pending bookmark voice memo...');
+      const { handleBookmarkVoiceMemo } = await import('./whatsappBookmarkPromptService');
+
+      const isBookmarkVoiceMemo = await handleBookmarkVoiceMemo(
+        targetChatId,
+        eligibleMonitors[0]?.userId?.toString(), // Use first monitor's userId
+        transcription,
+        messageData.mediaFileId,
+        messageData.messageId
+      );
+
+      if (isBookmarkVoiceMemo) {
+        console.log('[WAHA Service] 🎙️ ✅ Processed as bookmark voice memo, skipping normal voice processing');
+        // Clean up temp file
+        if (localPath && fs.existsSync(localPath)) {
+          fs.unlinkSync(localPath);
+          console.log('[WAHA Service] 🎙️ Cleaned up temp voice file:', localPath);
+        }
+        return; // Exit early - handled by bookmark processing
+      }
+
+      console.log('[WAHA Service] 🎙️ Not a bookmark voice memo, continuing with normal processing');
+    } catch (bookmarkError) {
+      console.error('[WAHA Service] 🎙️ Error checking bookmark voice memo:', bookmarkError);
+      // Continue with normal processing even if bookmark check fails
+    }
+
     try {
       console.log('[WAHA Service] 🎙️ ===== ANALYZING TRANSCRIPTION =====');
       console.log('[WAHA Service] 🎙️ Checking for location extraction...');

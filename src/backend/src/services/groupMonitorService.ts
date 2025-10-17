@@ -372,6 +372,7 @@ class GroupMonitorService {
                   userId: monitor.userId.toString(),
                   urls: urlsToProcess,
                   source: 'whatsapp',
+                  chatId: normalizedGroupId, // ✅ Pass groupId for voice note prompt
                   logContext: {
                     messageId,
                     groupId: normalizedGroupId,

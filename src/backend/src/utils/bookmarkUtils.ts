@@ -1,5 +1,6 @@
 import { processAndCreateBookmark } from '../api/controllers/bookmarksController';
 import { promptForBookmarkVoiceNote } from '../services/telegramServiceNew';
+import { promptForWhatsAppBookmarkVoiceNote } from '../services/whatsappBookmarkPromptService';
 
 export type SupportedBookmarkPlatform = 'X' | 'LinkedIn' | 'Reddit' | 'Other';
 export type BookmarkCaptureSource = 'telegram' | 'whatsapp';
@@ -40,7 +41,7 @@ interface ProcessUrlsForBookmarksParams {
   source: BookmarkCaptureSource;
   sourceMessageId?: string;
   logContext?: Record<string, unknown>;
-  chatId?: number; // For Telegram voice note prompts
+  chatId?: number | string; // For Telegram (number) or WhatsApp (string groupId) voice note prompts
 }
 
 export const processUrlsForBookmarks = async ({
@@ -79,15 +80,26 @@ export const processUrlsForBookmarks = async ({
         source === 'telegram' ? sourceMessageId : undefined,
       );
 
-      // Send voice note prompt for Telegram bookmarks
-      if (source === 'telegram' && chatId && bookmarkId) {
+      // Send voice note prompt for Telegram or WhatsApp bookmarks
+      if (chatId && bookmarkId) {
         console.log('[BookmarkCapture] ✅ Triggering voice note prompt', {
+          source,
           chatId,
           bookmarkId: bookmarkId.toString(),
           url,
           userId
         });
-        await promptForBookmarkVoiceNote(chatId, bookmarkId.toString(), url, userId);
+
+        if (source === 'telegram' && typeof chatId === 'number') {
+          await promptForBookmarkVoiceNote(chatId, bookmarkId.toString(), url, userId);
+        } else if (source === 'whatsapp' && typeof chatId === 'string') {
+          await promptForWhatsAppBookmarkVoiceNote(chatId, bookmarkId.toString(), url, userId);
+        } else {
+          console.warn('[BookmarkCapture] ⚠️ Invalid chatId type for source', {
+            source,
+            chatIdType: typeof chatId
+          });
+        }
       } else {
         console.log('[BookmarkCapture] ⚠️ Voice note prompt NOT triggered', {
           source,
