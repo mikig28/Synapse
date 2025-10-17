@@ -114,7 +114,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen, isPinned, togglePin })
         { href: "/whatsapp", label: "WhatsApp", icon: MessageSquare },
         { href: "/whatsapp-monitor", label: "WhatsApp Monitor", icon: Camera },
         { href: "/telegram-channels", label: "Telegram", icon: Send },
-        { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
       ],
     },
     {
@@ -131,6 +130,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen, isPinned, togglePin })
       title: 'Content',
       icon: Library,
       items: [
+        { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
         { href: "/docs", label: "Documents", icon: BookOpen },
         { href: "/images", label: "Images", icon: ImageIcon },
         { href: "/videos", label: "Videos", icon: Youtube },
